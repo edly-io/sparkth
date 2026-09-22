@@ -20,7 +20,8 @@ from sparkth.lib.content.exceptions import ContentBuildError
 from sparkth.lib.content.hooks import ContentBlock
 from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.activities import activity_dir
-from sparkth.plugins.pxc.constants import PXC_BLOCK_CATEGORY, PXC_DEFAULT_ACTIVITY
+from sparkth.plugins.pxc.config import get_pxc_settings
+from sparkth.plugins.pxc.constants import PXC_BLOCK_CATEGORY
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound
 
 logger = get_logger(__name__)
@@ -38,16 +39,17 @@ async def build_pxc_block(course_id: str) -> ContentBlock:
             rather than left to fail at launch, so a misconfigured deployment is refused while
             an author is still looking at the screen.
     """
+    activity = get_pxc_settings().default_activity
     try:
-        activity_dir(PXC_DEFAULT_ACTIVITY)
+        activity_dir(activity)
     except PxcActivityNotFound as err:
-        logger.error("PXC_DEFAULT_ACTIVITY names an unknown activity %r: %s", PXC_DEFAULT_ACTIVITY, err)
-        raise ContentBuildError(f"PXC_DEFAULT_ACTIVITY names an unknown activity: {PXC_DEFAULT_ACTIVITY!r}") from err
+        logger.error("PXC_DEFAULT_ACTIVITY names an unknown activity %r: %s", activity, err)
+        raise ContentBuildError(f"PXC_DEFAULT_ACTIVITY names an unknown activity: {activity!r}") from err
 
     placement = str(uuid7())
-    logger.info("Placed PXC activity %s as placement %s in course %s", PXC_DEFAULT_ACTIVITY, placement, course_id)
+    logger.info("Placed PXC activity %s as placement %s in course %s", activity, placement, course_id)
     return ContentBlock(
         "PXC Activity",
         PXC_BLOCK_CATEGORY,
-        {"activity": PXC_DEFAULT_ACTIVITY, "placement": placement},
+        {"activity": activity, "placement": placement},
     )

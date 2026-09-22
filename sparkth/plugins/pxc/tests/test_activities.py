@@ -22,9 +22,7 @@ def test_an_unknown_activity_is_rejected() -> None:
         activity_dir("absent")
 
 
-def test_the_state_file_is_named_after_the_activity_type(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("sparkth.plugins.pxc.activities.PXC_DATA_DIR", tmp_path)
-
+def test_the_state_file_is_named_after_the_activity_type(tmp_path: Path) -> None:
     assert state_file("mcq") == tmp_path / "mcq.sqlite3"
 
 
