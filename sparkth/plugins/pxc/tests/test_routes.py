@@ -16,7 +16,7 @@ def _extract_attr(html: str, attr: str) -> str:
 
 @pytest.fixture
 def token(configured_secret: str) -> str:
-    return mint_launch_token("mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", configured_secret, 300)
+    return mint_launch_token("mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", "play", configured_secret, 300)
 
 
 async def test_config_without_a_token_is_rejected(client: AsyncClient) -> None:
@@ -71,6 +71,13 @@ async def test_the_client_route_serves_the_bundled_pxc_component(client: AsyncCl
     assert "class PXC" in response.text
 
 
+# TODO: cover `sparkth-pxc.js`'s `sendAction()` with a vitest. A rejected action must throw
+# rather than return, or `ui.js`'s config-save handler reports "Configuration saved!" from its
+# try block over an edit the server discarded. Reaching a backend-served static asset needs a
+# DOM shim, a module-resolution shim for `./pxc.js`, and a vitest include that frontend/tests/
+# does not currently extend to this plugin.
+
+
 async def test_the_client_route_refuses_a_name_it_does_not_own(client: AsyncClient) -> None:
     # A name, not a traversal: httpx and Starlette both normalise "../" out of a URL path
     # before the route ever sees it, so a traversal test would pass without proving anything.
@@ -99,6 +106,16 @@ async def test_config_returns_the_state_and_the_learners_context(client: AsyncCl
     }
     assert body["permission"] == "play"
     assert body["ui_url"].endswith("/api/v1/pxc/assets/ui.js?token=" + token)
+
+
+@pytest.mark.wasm
+async def test_config_reports_the_permission_the_token_asked_for(client: AsyncClient, configured_secret: str) -> None:
+    edit_token = mint_launch_token("mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", "edit", configured_secret, 300)
+
+    response = await client.get("/api/v1/pxc/config", params={"token": edit_token})
+
+    assert response.status_code == 200
+    assert response.json()["permission"] == "edit"
 
 
 async def test_the_activitys_ui_script_is_served(client: AsyncClient, token: str) -> None:

@@ -12,7 +12,6 @@ calling thread. Routes must call these from a worker thread, never on the event 
 from pxc.lib.actions import ActionValidationError
 from pxc.lib.fields import FieldType
 from pxc.lib.file_storage import LocalFileStorage
-from pxc.lib.permission import Permission
 from pxc.lib.runtime import ActivityRuntime, PendingEvent
 from pxc.lib.sandbox import SandboxRuntimeError
 
@@ -29,8 +28,10 @@ logger = get_logger(__name__)
 def build_runtime(claims: LaunchClaims) -> ActivityRuntime:
     """Build the runtime for the launch these claims describe.
 
-    Permission is fixed to ``play``. It is never read from the request: a learner opening a
-    unit may answer, and nothing in this slice grants ``edit``.
+    Permission comes from the launch token's verified claims, not from the request: the
+    signature is what makes it trustworthy. Open edX decides it — ``student_view`` mints
+    ``play``, ``studio_view`` mints ``edit`` — because only Open edX knows who may author the
+    course.
 
     Raises:
         PxcActivityNotFound: if the claimed activity type is not bundled.
@@ -42,7 +43,7 @@ def build_runtime(claims: LaunchClaims) -> ActivityRuntime:
         claims.placement,
         claims.course_id,
         claims.user_id,
-        Permission.play,
+        claims.permission,
     )
 
 

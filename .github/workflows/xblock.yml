@@ -1,0 +1,69 @@
+# Troubleshoot with act https://github.com/nektos/act
+# act pull_request --workflows ./.github/workflows/xblock.yml
+name: XBlock Package
+
+on:
+  # No `branches` filter: run on PRs targeting any branch, not just main, so
+  # stacked PRs (based on another feature branch) still get this lane.
+  pull_request:
+
+concurrency:
+  group: xblock-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # `sparkth-pxc-xblock` is a self-contained distribution installed into Open edX, not into
+  # Sparkth: nothing outside its own directory can change what its tests do. The gate keeps
+  # the lane off every unrelated PR. It is a job rather than `on.pull_request.paths` because
+  # a filtered-out workflow reports no check at all, while a gated job reports a skipped one
+  # — the difference between a branch rule that can require this lane and one that cannot.
+  changes:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      changed: ${{ steps.filter.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            changed:
+              - third_party_plugins/openedx/xblock/**
+              - Makefile
+              # The package declares no ruff settings of its own, so the two lint steps in that
+              # target read the root project's configuration and run the ruff its lockfile pins.
+              - pyproject.toml
+              - uv.lock
+              - .github/workflows/xblock.yml
+
+  xblock:
+    name: XBlock Lint, Type Check & Test
+    needs: changes
+    if: ${{ needs.changes.outputs.changed == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+
+      # The package's own dependencies come from the `--with` flags inside the target; this
+      # installs the root project, whose environment provides the ruff the target runs.
+      - name: Install the project
+        run: make backend.install.dev.requirements
+
+      # Single high-level target so a CI failure reproduces locally with
+      # exactly `make test.pxc.xblock` (pytest + mypy + lint + format check).
+      - name: Run the XBlock package's tests
+        run: make test.pxc.xblock
