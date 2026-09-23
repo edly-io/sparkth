@@ -87,6 +87,11 @@ async def openedx_create_basic_component(
         raise LMSRequestError(Method.POST, create_url, 500, "Invalid response format: missing locator")
 
 
+def _xblock_endpoint(course_id: str, locator: str) -> str:
+    """Return the content-store path that reads and writes one XBlock."""
+    return f"api/contentstore/v0/xblock/{course_id}/{urllib.parse.quote(locator, safe='')}"
+
+
 async def openedx_update_xblock_content(
     auth: AccessTokenPayload,
     course_id: str,
@@ -101,8 +106,7 @@ async def openedx_update_xblock_content(
     and everything under it to learners. It is the one change that carries no ``data`` or
     ``metadata``, which is why the guard below accepts a body holding nothing else.
     """
-    encoded = urllib.parse.quote(locator, safe="")
-    endpoint = f"api/contentstore/v0/xblock/{course_id}/{encoded}"
+    endpoint = _xblock_endpoint(course_id, locator)
 
     if data is None and metadata is None and publish is None:
         raise LMSRequestError(Method.PATCH, endpoint, 400, "Nothing to update: provide `data` and/or `metadata`")
@@ -300,6 +304,39 @@ async def _apply_course_language(payload: CreateCourseArgs, created: dict[str, A
         )
 
 
+def _course_block_locator(course_id: str) -> str:
+    """Return the usage key of the course's own block, the root the rest of a course hangs from."""
+    return f"block-v1:{course_id.removeprefix('course-v1:')}+type@course+block@course"
+
+
+async def _hide_course_from_learners(created: dict[str, Any], auth: AccessTokenPayload, client: OpenEdxClient) -> bool:
+    """Staff-lock a newly created course, and report whether the lock is on.
+
+    Sections and subsections are published the moment they are created, so without this gate the
+    outline of a course still being written is already visible to its learners. The lock covers
+    the whole course and comes off when the author publishes it.
+
+    A failure is not raised: the course exists either way, and deciding it failed to be created
+    would leave the author with a course they were never told about. The caller reports the
+    state instead, so an author is never left assuming their draft is private.
+
+    Runs on the caller's open ``client`` for the same reason the language write does: the call
+    goes to the same host with the same token, so a second client would only mean a second
+    connection pool.
+    """
+    course_id = created.get("id")
+    if not course_id:
+        logger.error("Cannot hide course from learners: created course has no id in %r", created)
+        return False
+    endpoint = _xblock_endpoint(str(course_id), _course_block_locator(str(course_id)))
+    try:
+        await client.patch(auth.studio_url.rstrip("/"), endpoint, {"metadata": {"visible_to_staff_only": True}})
+    except (LMSRequestError, AuthenticationError, ValueError, aiohttp.ClientError, TimeoutError) as err:
+        logger.error("Course %s created but not hidden from learners: %s", course_id, err)
+        return False
+    return True
+
+
 async def openedx_create_course_run(payload: CreateCourseArgs) -> dict[str, Any]:
     """
     Create a new course run in an Open edX Studio instance.
@@ -318,13 +355,20 @@ async def openedx_create_course_run(payload: CreateCourseArgs) -> dict[str, Any]
                   generated in. Applied to the course's Open edX language setting after the run
                   is created; if omitted, the destination's default is left in place.
 
+    A new course is hidden from learners as it is created, because Open edX publishes sections
+    and subsections the moment they exist. It stays hidden until the author publishes the course
+    with the publish tool. Tell the author which state their course is in: ``hidden_from_learners``
+    false means the course was created but is already visible, and only publishing or a change in
+    Studio can settle that.
+
     Returns:
         dict[str, Any]:
             A dictionary with one of the following shapes:
 
             Successful response:
             {
-                "response": <course_run_response_dict>
+                "response": <course_run_response_dict>,
+                "hidden_from_learners": bool,
             }
 
             Error response:
@@ -351,7 +395,10 @@ async def openedx_create_course_run(payload: CreateCourseArgs) -> dict[str, Any]
             res = await client.post(payload.auth.studio_url, endpoint, course_data)
             if payload.language:
                 await _apply_course_language(payload, res, client)
-            return {"response": res}
+            return {
+                "response": res,
+                "hidden_from_learners": await _hide_course_from_learners(res, payload.auth, client),
+            }
         except (LMSRequestError, AuthenticationError) as err:
             return _lms_error(err, method="POST", endpoint=endpoint, prefix="Course runs creation failed")
         except ValueError as err:
@@ -636,14 +683,20 @@ async def openedx_publish_content(payload: PublishContentArgs) -> dict[str, Any]
     changes the author has not reviewed. Tell the author what will become visible, and publish
     once they confirm.
 
+    A course created through these tools is hidden from learners until the course block itself
+    is published, so that is the call that opens a course. Publishing a section, subsection or
+    unit of a course that has never been published releases that part but leaves the course
+    closed, and learners still see nothing.
+
     Args:
         payload (PublishContentArgs):
             An object containing:
                 - auth (AccessTokenPayload): Authentication credentials (access_token, lms_url, studio_url).
                 - course_id (str): Course key (e.g. "course-v1:ORG+COURSE+RUN").
                 - locator (str): Usage key of the block to publish. The course block
-                  ("block-v1:ORG+COURSE+RUN+type@course+block@course") releases the whole course;
-                  a section, subsection or unit locator releases only that part of it.
+                  ("block-v1:ORG+COURSE+RUN+type@course+block@course") opens the course and
+                  releases everything in it; a section, subsection or unit locator releases only
+                  that part of an already-open course.
 
     Returns:
         dict[str, Any]:
@@ -666,22 +719,28 @@ async def openedx_publish_content(payload: PublishContentArgs) -> dict[str, Any]
                 }
             }
     """
+    releases_the_course = payload.locator == _course_block_locator(payload.course_id)
+    # Lifting the gate and releasing the drafts travel in one request, so learners never meet a
+    # course that is open but empty.
+    gate = {"visible_to_staff_only": False} if releases_the_course else None
     try:
-        await openedx_update_xblock_content(payload.auth, payload.course_id, payload.locator, None, None, "make_public")
+        await openedx_update_xblock_content(payload.auth, payload.course_id, payload.locator, None, gate, "make_public")
     except (LMSRequestError, AuthenticationError) as err:
         return _lms_error(err, prefix="Publishing failed", locator=payload.locator)
     except ValueError as err:
         return {"error": {"message": str(err), "locator": payload.locator}}
 
-    return {
-        "response": {
-            "locator": payload.locator,
-            "message": (
-                "Published: this block and everything inside it are released to learners. "
-                "The learner view can take a moment to catch up."
-            ),
-        }
-    }
+    if releases_the_course:
+        message = (
+            "Published: the course and everything inside it are now open to learners. "
+            "The learner view can take a moment to catch up."
+        )
+    else:
+        message = (
+            "Published: this block and everything inside it are released. Learners see it if the "
+            "course itself has already been published; the learner view can take a moment to catch up."
+        )
+    return {"response": {"locator": payload.locator, "message": message}}
 
 
 async def openedx_get_course_tree_raw(payload: CourseTreeRequest) -> dict[str, Any]:
