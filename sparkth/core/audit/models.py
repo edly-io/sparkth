@@ -176,8 +176,10 @@ class AuditEvent(TimestampedModel, SQLModel, table=True):
 APPEND_ONLY_MESSAGE = "audit_events is append-only"
 
 # Per dialect: the statements that make the table append-only, run by ``create_all``
-# on a fresh database. Migration a282a83eec61 carries its own frozen copy for existing
-# databases; a change here needs a new migration. SQLite has no TRUNCATE; its
+# on a fresh database and by :func:`install_append_only_triggers` on one whose table
+# already exists. The SQLite statements are ``IF NOT EXISTS`` so the installer is
+# idempotent; PostgreSQL databases get the triggers from a migration, which carries its
+# own frozen copy, and a change here needs a new migration. SQLite has no TRUNCATE; its
 # truncate optimization is disabled by the presence of a DELETE trigger, so a
 # bare ``DELETE FROM audit_events`` is caught row by row.
 # ponytail: triggers, not role separation; a retention job (#507) will need a
@@ -197,16 +199,27 @@ BEFORE TRUNCATE ON audit_events
 FOR EACH STATEMENT EXECUTE FUNCTION audit_events_append_only()""",
     ],
     "sqlite": [
-        f"""CREATE TRIGGER audit_events_no_update BEFORE UPDATE ON audit_events
+        f"""CREATE TRIGGER IF NOT EXISTS audit_events_no_update BEFORE UPDATE ON audit_events
 BEGIN SELECT RAISE(ABORT, '{APPEND_ONLY_MESSAGE}'); END""",
-        f"""CREATE TRIGGER audit_events_no_delete BEFORE DELETE ON audit_events
+        f"""CREATE TRIGGER IF NOT EXISTS audit_events_no_delete BEFORE DELETE ON audit_events
 BEGIN SELECT RAISE(ABORT, '{APPEND_ONLY_MESSAGE}'); END""",
     ],
 }
 
 
-@event.listens_for(SQLModel.metadata.tables[AuditEvent.__tablename__], "after_create")
-def _install_append_only_triggers(target: object, connection: Connection, **kw: object) -> None:
-    """Run the dialect's :data:`APPEND_ONLY_DDL` right after the table is created."""
+def install_append_only_triggers(connection: Connection) -> None:
+    """Run the dialect's :data:`APPEND_ONLY_DDL` on ``connection``.
+
+    Called by the table's ``after_create`` hook, and directly by schema builders that
+    run ``create_all`` against a database whose audit table may already exist
+    (``create_all`` skips an existing table, so the hook never fires for it). Safe to
+    run more than once on SQLite; a dialect with no entry is left alone.
+    """
     for statement in APPEND_ONLY_DDL.get(connection.dialect.name, []):
         connection.execute(text(statement))
+
+
+@event.listens_for(SQLModel.metadata.tables[AuditEvent.__tablename__], "after_create")
+def _install_append_only_triggers(target: object, connection: Connection, **kw: object) -> None:
+    """Attach the append-only triggers right after ``create_all`` creates the table."""
+    install_append_only_triggers(connection)

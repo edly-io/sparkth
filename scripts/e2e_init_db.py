@@ -18,8 +18,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlmodel import SQLModel
 
-# Imported so SQLModel.metadata carries the audit table, as in migrations/app/env.py.
-from sparkth.core.audit.models import AuditEvent  # noqa: F401
+# AuditEvent is imported so SQLModel.metadata carries the audit table, as in
+# migrations/app/env.py; the installer puts the append-only triggers on it.
+from sparkth.core.audit.models import AuditEvent, install_append_only_triggers  # noqa: F401
 from sparkth.core.db import dispose_engine, get_engine
 from sparkth.core.models import *  # noqa: F403
 
@@ -41,6 +42,9 @@ async def init_schema(engine: AsyncEngine) -> None:
     try:
         async with engine.begin() as conn:
             await conn.run_sync(SQLModel.metadata.create_all)
+            # create_all skips a table that already exists, and with it the after_create
+            # hook that installs the audit triggers; this puts them on such a table too.
+            await conn.run_sync(install_append_only_triggers)
     except SQLAlchemyError:
         logger.exception("Failed to create the E2E schema")
         raise
