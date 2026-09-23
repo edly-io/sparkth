@@ -1,6 +1,6 @@
 import json
-from datetime import datetime
-from typing import Any
+from datetime import datetime, timezone
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -10,6 +10,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
+from sparkth.plugins.chat.analytics import as_utc, emit_documents_detached
 from sparkth.plugins.chat.exceptions import ConversationNotFound, DocumentNotFound
 from sparkth.plugins.chat.messages import text_of
 from sparkth.plugins.chat.models import Conversation, ConversationAttachment, Message, MessageType
@@ -484,6 +485,35 @@ class ChatService:
             else:
                 unusable.append(document)
         return ConversationDocuments(ready=ready, unusable=unusable)
+
+
+async def detach_deleted_document(session: AsyncSession, document: Document) -> None:
+    """Clear a deleted document out of every conversation that had it attached."""
+    stmt = (
+        select(ConversationAttachment, Conversation.uuid)
+        .join(Conversation, col(ConversationAttachment.conversation_id) == col(Conversation.id))
+        .where(ConversationAttachment.document_id == document.id)
+    )
+    rows = (await session.exec(stmt)).all()
+    if not rows:
+        return
+
+    removed_at = datetime.now(timezone.utc)
+    detachments = [
+        (str(conversation_uuid), max(int((removed_at - as_utc(attachment.attached_at)).total_seconds()), 0))
+        for attachment, conversation_uuid in rows
+    ]
+    for attachment, _uuid in rows:
+        await session.delete(attachment)
+    await session.flush()
+
+    logger.info("Document %s detached from %s conversation(s) on deletion", document.id, len(rows))
+    await emit_documents_detached(
+        detachments,
+        document_id=cast(int, document.id),
+        actor_id=str(document.user_id),
+        occurred_at=removed_at,
+    )
 
 
 def get_chat_service() -> ChatService:

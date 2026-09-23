@@ -532,6 +532,41 @@ If a builder cannot produce its block, it reports that by raising
 letting some other exception escape. A publishing tool catches it and reports the failure
 through its own error contract instead of letting it propagate unguarded.
 
+## Reacting to a deleted document
+
+A plugin that stores rows referencing a core `Document` has to clear them when the document
+goes away. The foreign keys declare `ondelete="CASCADE"`, but `soft_delete_document` is an
+`UPDATE`, not a `DELETE`, so that cascade never fires — a row pointing at a soft-deleted
+document survives indefinitely unless the plugin removes it.
+
+Register a handler on the `DOCUMENT_DELETED` hook from `sparkth.lib.documents` to be told.
+Handlers run inside the deleting transaction, after the document is flagged and before the
+flush, so your writes commit or roll back with the deletion. Do not commit in a handler, and
+note that raising from one fails the whole delete — which is deliberate, since a half-applied
+cleanup is worse than a delete the caller can retry.
+
+```python
+# sparkth/plugins/myappplugin/plugin.py
+from sparkth.lib.documents import DOCUMENT_DELETED, Document
+
+
+async def drop_my_rows(session: AsyncSession, document: Document) -> None:
+    rows = (await session.exec(select(MyRow).where(MyRow.document_id == document.id))).all()
+    for row in rows:
+        await session.delete(row)
+    await session.flush()
+
+
+class MyAppPlugin(SparkthPlugin):
+    def __init__(self) -> None:
+        super().__init__("my-app")
+        DOCUMENT_DELETED.add_item(self, drop_my_rows)
+```
+
+The document is passed rather than just its id, so a handler needing the owner (to attribute
+an analytics event, say) has it without a second query. The chat plugin registers
+`detach_deleted_document` this way to take deleted documents out of conversations.
+
 ## Complete Example
 
 ```python

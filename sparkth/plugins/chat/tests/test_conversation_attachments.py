@@ -5,12 +5,16 @@ from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select as sa_select
 from sqlalchemy.exc import IntegrityError
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.lib.documents import Document, DocumentStatus
+from sparkth.core.analytics.models import raw_events
+from sparkth.lib.documents import Document, DocumentStatus, soft_delete_document
 from sparkth.lib.models import User
 from sparkth.plugins.chat.models import Conversation, ConversationAttachment
+from sparkth.plugins.chat.plugin import ChatPlugin
 from sparkth.plugins.chat.service import ChatService
 
 
@@ -304,3 +308,74 @@ class TestAttachmentEndpoints:
         response = await client.get(f"/api/v1/chat/conversations/{uuid4()}/attachments")
 
         assert response.status_code == 404
+
+
+class TestSoftDeleteDetaches:
+    """Deleting a document must take it out of every conversation it was in."""
+
+    @pytest.mark.asyncio
+    async def test_soft_delete_removes_the_attachment_row(self, session: AsyncSession) -> None:
+        plugin = ChatPlugin()  # noqa: F841 - keeps the weakly-keyed hook entries alive
+        conversation_id, _ = await _seed_conversation(session)
+        _, document_id = await _seed_document(session)
+        await ChatService().attach_document(session, conversation_id, document_id)
+
+        await soft_delete_document(session, document_id)
+        await session.commit()
+
+        rows = await session.exec(
+            select(ConversationAttachment).where(ConversationAttachment.document_id == document_id)
+        )
+        assert rows.all() == []
+
+    @pytest.mark.asyncio
+    async def test_deleted_document_stops_being_listed(self, session: AsyncSession) -> None:
+        plugin = ChatPlugin()  # noqa: F841 - keeps the weakly-keyed hook entries alive
+        conversation_id, _ = await _seed_conversation(session)
+        _, document_id = await _seed_document(session)
+        await ChatService().attach_document(session, conversation_id, document_id)
+
+        await soft_delete_document(session, document_id)
+        await session.commit()
+
+        attachments = await ChatService().list_conversation_attachments(session, conversation_id)
+        assert attachments.ready == []
+        assert attachments.unusable == [], "a deleted document must not keep costing every turn"
+
+    @pytest.mark.asyncio
+    async def test_detachment_is_recorded_in_analytics(
+        self, session: AsyncSession, analytics_session: AsyncSession
+    ) -> None:
+        """Issue #702 point 2: a document could leave a conversation with nothing recording it."""
+        plugin = ChatPlugin()  # noqa: F841 - keeps the weakly-keyed hook entries alive
+        conversation_id, conversation_uuid = await _seed_conversation(session)
+        document, document_id = await _seed_document(session)
+        await ChatService().attach_document(session, conversation_id, document_id)
+
+        await soft_delete_document(session, document_id)
+        await session.commit()
+
+        rows = (await analytics_session.execute(sa_select(raw_events))).mappings().all()
+        detached = [row["payload"] for row in rows if row["event_type"] == "chat.document_detached"]
+        assert len(detached) == 1
+        assert detached[0]["conversation_id"] == conversation_uuid
+        assert detached[0]["document_id"] == document_id
+        assert detached[0]["seconds_attached"] >= 0
+
+    @pytest.mark.asyncio
+    async def test_every_holding_conversation_is_detached(self, session: AsyncSession) -> None:
+        """One document can be in several conversations; deleting it must clear all of them."""
+        plugin = ChatPlugin()  # noqa: F841 - keeps the weakly-keyed hook entries alive
+        first_id, _ = await _seed_conversation(session)
+        second_id, _ = await _seed_conversation(session)
+        _, document_id = await _seed_document(session)
+        await ChatService().attach_document(session, first_id, document_id)
+        await ChatService().attach_document(session, second_id, document_id)
+
+        await soft_delete_document(session, document_id)
+        await session.commit()
+
+        for conversation_id in (first_id, second_id):
+            attachments = await ChatService().list_conversation_attachments(session, conversation_id)
+            assert attachments.ready == []
+            assert attachments.unusable == []

@@ -105,6 +105,40 @@ async def _emit(build: AnalyticsEventBuilder, actor_id: str, occurred_at: dateti
     )
 
 
+def as_utc(value: datetime) -> datetime:
+    """Read a stored timestamp as UTC-aware; SQLite returns a ``timezone=True`` column naive."""
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+
+async def emit_documents_detached(
+    detachments: list[tuple[str, int]],
+    document_id: int,
+    actor_id: str,
+    occurred_at: datetime,
+) -> None:
+    """Emit one ``chat.document_detached`` per conversation the document was removed from."""
+    events = [
+        ChatDocumentDetached(
+            conversation_id=conversation_id,
+            document_id=document_id,
+            seconds_attached=seconds_attached,
+        )
+        for conversation_id, seconds_attached in detachments
+    ]
+    await emit_events(
+        [
+            PendingEvent(
+                event_type=event.event_type,
+                version=event.version,
+                payload=event.model_dump(mode="json"),
+                actor_id=actor_id,
+                occurred_at=occurred_at,
+            )
+            for event in events
+        ]
+    )
+
+
 async def emit_completion(
     conversation_id: str,
     attribution: AnalyticsAttribution,
