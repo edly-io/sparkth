@@ -1,4 +1,4 @@
-"""Audit trail maintenance commands: retention purge and GDPR erasure (issue #507).
+"""Audit trail maintenance commands: retention purge and GDPR erasure.
 Neither has a scheduler of its own; run ``audit purge`` from cron (daily is plenty).
 Authored with LLM (Claude) assistance."""
 
