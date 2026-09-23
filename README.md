@@ -234,6 +234,10 @@ every stored LLM API key operation including each decrypted read (`llm_config.ke
 per-user plugin enablement and configuration changes (recorded by config key name only, never
 by value). The authentication dependency binds the caller as the audit actor, so every event a
 request records is attributed to the authenticated user.
+The table is append-only at the database level too: triggers installed with the table (and by
+migration `a282a83eec61` on existing databases) reject `UPDATE`, `DELETE`, and `TRUNCATE` on
+`audit_events`, so corrections are new events and no code path holding the application's database
+credentials can rewrite history.
 
 ## Analytics Event Schemas
 
