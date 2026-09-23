@@ -2,6 +2,7 @@ from fastapi import status
 
 from sparkth.lib.analytics import register_event_schemas
 from sparkth.lib.config.hooks import CONFIG_ADAPTERS, CONFIG_SCHEMAS
+from sparkth.lib.documents import DOCUMENT_DELETED
 from sparkth.lib.exceptions.handlers import register_exception_handler
 from sparkth.lib.frontend.hooks import (
     DISPLAY_INFO,
@@ -24,6 +25,7 @@ from sparkth.plugins.chat.models import (  # noqa: F401 — registers tables in 
     Message,
 )
 from sparkth.plugins.chat.routes import chat_router
+from sparkth.plugins.chat.service import detach_deleted_document
 
 logger = get_logger(__name__)
 
@@ -37,6 +39,7 @@ class ChatPlugin(SparkthPlugin):
     def __init__(self) -> None:
         super().__init__("chat")
         register_router(self, chat_router)
+        DOCUMENT_DELETED.add_item(self, detach_deleted_document)
         CONFIG_SCHEMAS.add_item(self, ChatUserConfig)
         CONFIG_ADAPTERS.add_item(self, LLMConfigAdapter())
         DISPLAY_INFO.add_item(

@@ -25,7 +25,9 @@ from sparkth.plugins.chat.analytics.utils import (
     ChatAttachmentAnalytics,
     ChatClassifierAnalytics,
     ChatTurnAnalytics,
+    as_utc,
     emit_completion,
+    emit_documents_detached,
     record_turn_failed,
     tool_names,
 )
@@ -48,7 +50,9 @@ __all__ = [
     "ChatTurnFailed",
     "ScopeVerdict",
     "TurnFailureCause",
+    "as_utc",
     "emit_completion",
+    "emit_documents_detached",
     "record_turn_failed",
     "tool_names",
 ]
