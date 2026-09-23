@@ -102,6 +102,12 @@ class UpdateXBlockPayload(BaseModel):
     metadata: dict[str, Any] | None = None
 
 
+class PublishContentArgs(BaseModel):
+    auth: AccessTokenPayload
+    course_id: str
+    locator: str
+
+
 class CourseTreeRequest(BaseModel):
     auth: AccessTokenPayload
     course_id: str

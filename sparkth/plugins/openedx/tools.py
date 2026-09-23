@@ -22,6 +22,7 @@ from sparkth.plugins.openedx.schemas import (
     ListCourseRunsArgs,
     LMSAccess,
     ProblemOrHtmlArgs,
+    PublishContentArgs,
     RefreshTokenPayload,
     TokenResponse,
     UpdateXBlockPayload,
@@ -92,11 +93,18 @@ async def openedx_update_xblock_content(
     locator: str,
     data: str | None,
     metadata: dict[str, Any] | None,
+    publish: str | None = None,
 ) -> dict[str, Any]:
+    """Send a content change, a publish directive, or both for one XBlock to Studio.
+
+    ``publish`` is Open edX's own directive on this endpoint: ``make_public`` releases the block
+    and everything under it to learners. It is the one change that carries no ``data`` or
+    ``metadata``, which is why the guard below accepts a body holding nothing else.
+    """
     encoded = urllib.parse.quote(locator, safe="")
     endpoint = f"api/contentstore/v0/xblock/{course_id}/{encoded}"
 
-    if data is None and metadata is None:
+    if data is None and metadata is None and publish is None:
         raise LMSRequestError(Method.PATCH, endpoint, 400, "Nothing to update: provide `data` and/or `metadata`")
 
     studio = auth.studio_url.rstrip("/")
@@ -106,6 +114,8 @@ async def openedx_update_xblock_content(
         body["data"] = data
     if metadata is not None:
         body["metadata"] = metadata
+    if publish is not None:
+        body["publish"] = publish
 
     async with OpenEdxClient(auth.lms_url, auth.access_token) as client:
         try:
@@ -608,6 +618,70 @@ async def openedx_update_xblock(payload: UpdateXBlockPayload) -> dict[str, Any]:
         return _lms_error(err)
     except ValueError as err:
         return {"error": {"message": str(err)}}
+
+
+async def openedx_publish_content(payload: PublishContentArgs) -> dict[str, Any]:
+    """
+    Publish a part of an Open edX course so that learners can see it.
+
+    Open edX keeps every course in two states at once: the draft that authors edit in Studio,
+    and the published version that learners see. Creating or updating content writes only the
+    draft. This tool performs the separate step that releases that draft to learners.
+
+    Call it only when the author asks to publish in that same turn. Never call it as a
+    follow-up to creating or updating content, and never infer it from a request to create or
+    set up a course — when and whether learners see the work is the author's decision.
+
+    Publishing a block also publishes everything unpublished inside it, which may include
+    changes the author has not reviewed. Tell the author what will become visible, and publish
+    once they confirm.
+
+    Args:
+        payload (PublishContentArgs):
+            An object containing:
+                - auth (AccessTokenPayload): Authentication credentials (access_token, lms_url, studio_url).
+                - course_id (str): Course key (e.g. "course-v1:ORG+COURSE+RUN").
+                - locator (str): Usage key of the block to publish. The course block
+                  ("block-v1:ORG+COURSE+RUN+type@course+block@course") releases the whole course;
+                  a section, subsection or unit locator releases only that part of it.
+
+    Returns:
+        dict[str, Any]:
+            A dictionary with one of the following shapes:
+
+            Successful response:
+            {
+                "response": {
+                    "locator": str,
+                    "message": str,
+                }
+            }
+
+            Error response — including when the account may author but not publish:
+            {
+                "error": {
+                    "status_code": int,
+                    "message": str,
+                    "locator": str,
+                }
+            }
+    """
+    try:
+        await openedx_update_xblock_content(payload.auth, payload.course_id, payload.locator, None, None, "make_public")
+    except (LMSRequestError, AuthenticationError) as err:
+        return _lms_error(err, prefix="Publishing failed", locator=payload.locator)
+    except ValueError as err:
+        return {"error": {"message": str(err), "locator": payload.locator}}
+
+    return {
+        "response": {
+            "locator": payload.locator,
+            "message": (
+                "Published: this block and everything inside it are released to learners. "
+                "The learner view can take a moment to catch up."
+            ),
+        }
+    }
 
 
 async def openedx_get_course_tree_raw(payload: CourseTreeRequest) -> dict[str, Any]:
