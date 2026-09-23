@@ -152,7 +152,7 @@ async def test_canonical_bytes_are_reproducible(session: AsyncSession) -> None:
             "event_type": "auth.login",
             "occurred_at": "2026-07-03T12:00:00+00:00",
             "source": "system",
-            "actor": {"type": "user", "id": "1", "label": "alice"},
+            "actor": {"type": "user", "id": "1"},
             "outcome": "success",
             "target": {"type": None, "id": None},
             "error_detail": None,

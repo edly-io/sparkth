@@ -318,3 +318,31 @@ class RAGChunksPurgedAuditEvent(MutationAuditEvent):
     """
 
     event_type: ClassVar[str] = "rag.chunks_purged"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class RetentionPurgedAuditEvent(MutationAuditEvent):
+    """A retention run deleted the audit events of one category past their retention.
+
+    Recorded by :func:`sparkth.lib.audit.purge_expired_events`, one per category
+    that lost rows (``"*"`` for the default policy covering every category
+    without an override), committed atomically with the deletion. ``change.old``
+    carries the category, the retention window applied, and the row count: the
+    evidence that a gap in the trail is policy, not tampering.
+    """
+
+    event_type: ClassVar[str] = "audit.retention_purged"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ActorErasedAuditEvent(MutationAuditEvent):
+    """A GDPR erasure blanked one user's personal data across the trail.
+
+    Recorded by :func:`sparkth.lib.audit.erase_actor` in the erasure's own
+    transaction; ``target`` is the user (by pseudonymous id, the one identifier
+    that survives) and ``change.old`` the number of rows touched.
+    """
+
+    event_type: ClassVar[str] = "audit.actor_erased"
