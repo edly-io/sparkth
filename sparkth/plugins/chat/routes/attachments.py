@@ -7,7 +7,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
 from sparkth.lib.models import User
-from sparkth.plugins.chat.analytics import ChatAttachmentAnalytics
+from sparkth.plugins.chat.analytics import ChatAttachmentAnalytics, as_utc
 from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.routes.dependencies import get_owned_conversation
 from sparkth.plugins.chat.schemas import (
@@ -104,14 +104,9 @@ async def detach_document_from_conversation(
         removed_at = datetime.now(timezone.utc)
         _analytics(background_tasks, conversation, current_user).schedule_document_detached(
             document_id=document_id,
-            seconds_attached=max(int((removed_at - _as_utc(attached_at)).total_seconds()), 0),
+            seconds_attached=max(int((removed_at - as_utc(attached_at)).total_seconds()), 0),
             occurred_at=removed_at,
         )
-
-
-def _as_utc(value: datetime) -> datetime:
-    """Read a stored timestamp as UTC-aware; SQLite returns the column naive."""
-    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
 def _analytics(

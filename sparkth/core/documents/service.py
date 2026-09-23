@@ -10,6 +10,7 @@ from sparkth.core.audit.events import RAGDocumentDeletedAuditEvent
 from sparkth.core.audit.recorder import record_event
 from sparkth.core.audit.types import AuditChange, AuditTarget
 from sparkth.core.documents.enums import DocumentStatus
+from sparkth.core.documents.hooks import notify_document_deleted
 from sparkth.core.documents.models import Document
 from sparkth.lib.log import get_logger
 
@@ -91,6 +92,11 @@ async def soft_delete_document(
     Records a ``rag.document_deleted`` audit event in the caller's transaction,
     so the deletion and its record commit or roll back together. A missing id
     is a no-op and records nothing.
+
+    Notifies :data:`~sparkth.core.documents.hooks.DOCUMENT_DELETED` before flushing, so a
+    plugin holding rows that reference the document can clear them in this same
+    transaction. The FK cascades declare ``ondelete="CASCADE"``, but a soft delete is an
+    ``UPDATE``, so nothing else clears them (issue #702).
     """
     result = await session.exec(select(Document).where(col(Document.id) == document_id))
     doc = result.first()
@@ -106,4 +112,5 @@ async def soft_delete_document(
             change=AuditChange(old={"name": doc.name}),
         ),
     )
+    await notify_document_deleted(session, doc)
     await session.flush()
