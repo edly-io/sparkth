@@ -144,6 +144,115 @@ class LoginAuditEvent(BaseAuditEvent):
 
 @AUDIT_EVENTS.register
 @dataclass(frozen=True, slots=True, kw_only=True)
+class RegisteredAuditEvent(MutationAuditEvent):
+    """An account was created, by password registration or Google sign-up.
+
+    The new user is both actor and target; ``change.new`` carries only the
+    ``method`` (``password`` or ``google``). The username rides on the actor
+    label, which a GDPR erasure can blank; a sealed payload never carries the
+    actor's own identity.
+    """
+
+    event_type: ClassVar[str] = "auth.registered"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class EmailVerifiedAuditEvent(BaseAuditEvent):
+    """An email verification attempt: the token was redeemed, or rejected.
+
+    A rejection is anonymous (nobody proved who they are) and never records
+    the token itself, only why it was rejected.
+    """
+
+    event_type: ClassVar[str] = "auth.email_verified"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class GoogleLinkedAuditEvent(MutationAuditEvent):
+    """A Google identity was attached to an existing account: a new way to
+    log in, so a credential-lifecycle event."""
+
+    event_type: ClassVar[str] = "auth.google_linked"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class LLMConfigCreatedAuditEvent(MutationAuditEvent):
+    """A stored LLM API key was created. ``change.new`` never carries key
+    material, only name, provider, and model."""
+
+    event_type: ClassVar[str] = "llm_config.created"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class LLMConfigUpdatedAuditEvent(MutationAuditEvent):
+    """An LLM config's name, model, or active flag changed."""
+
+    event_type: ClassVar[str] = "llm_config.updated"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class LLMConfigKeyRotatedAuditEvent(MutationAuditEvent):
+    """The stored API key was replaced; the snapshots hold the masked keys."""
+
+    event_type: ClassVar[str] = "llm_config.key_rotated"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class LLMConfigDeletedAuditEvent(MutationAuditEvent):
+    """An LLM config was soft-deleted."""
+
+    event_type: ClassVar[str] = "llm_config.deleted"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class LLMConfigKeyReadAuditEvent(BaseAuditEvent):
+    """A stored API key was decrypted for use: the credential access trail.
+
+    Recorded on every :meth:`LLMConfigService.resolve`, cache hit or not, in the
+    caller's transaction.
+    """
+
+    event_type: ClassVar[str] = "llm_config.key_read"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class UserPluginConfigCreatedAuditEvent(MutationAuditEvent):
+    """A user configured a plugin for the first time.
+
+    Plugin configs are mostly credentials under plugin-specific key names
+    that key-based redaction cannot know, so the snapshots carry the plugin
+    name and the sorted config *keys*, never a value.
+    """
+
+    event_type: ClassVar[str] = "user_plugin.config_created"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class UserPluginConfigUpdatedAuditEvent(MutationAuditEvent):
+    """A user's plugin configuration changed (keys only, see above)."""
+
+    event_type: ClassVar[str] = "user_plugin.config_updated"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class UserPluginEnabledChangedAuditEvent(MutationAuditEvent):
+    """A user enabled or disabled a plugin for themselves."""
+
+    event_type: ClassVar[str] = "user_plugin.enabled_changed"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
 class ToolInvokedAuditEvent(AIActionAuditEvent):
     """An AI tool call accepted for execution.
 
