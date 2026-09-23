@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import { useLocale } from "next-intl";
+import { useLocale, useTimeZone } from "next-intl";
+import { renderToString } from "react-dom/server";
 
 import { LocaleProvider } from "@/app/LocaleProvider";
 import { getActiveLocale, setActiveLocale } from "@/lib/i18n/active-locale";
@@ -20,6 +21,21 @@ vi.mock("@/lib/i18n/messages", async (importOriginal) => {
 
 function LocaleProbe() {
   return <span data-testid="locale">{useLocale()}</span>;
+}
+
+function TimeZoneProbe() {
+  return <span data-testid="time-zone">{useTimeZone()}</span>;
+}
+
+// Makes the browser report `timeZone` while keeping the rest of the resolved
+// options real, since next-intl reads them too.
+function mockBrowserTimeZone(timeZone: string) {
+  const resolvedOptions = Intl.DateTimeFormat.prototype.resolvedOptions;
+  vi.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions").mockImplementation(
+    function (this: Intl.DateTimeFormat) {
+      return { ...resolvedOptions.call(this), timeZone };
+    },
+  );
 }
 
 describe("LocaleProvider", () => {
@@ -92,5 +108,38 @@ describe("LocaleProvider", () => {
     // The cookie still names "es", but what the UI renders is English; API calls
     // read the active locale, so backend responses stay in the rendered language.
     expect(getActiveLocale()).toBe("en");
+  });
+
+  it("renders on the server with UTC, so hydration does not depend on the browser zone", () => {
+    mockBrowserTimeZone("Asia/Karachi");
+    const html = renderToString(
+      <LocaleProvider>
+        <TimeZoneProbe />
+      </LocaleProvider>,
+    );
+    expect(html).toContain('<span data-testid="time-zone">UTC</span>');
+  });
+
+  it("switches to the browser time zone after mount", async () => {
+    mockBrowserTimeZone("Asia/Karachi");
+    render(
+      <LocaleProvider>
+        <TimeZoneProbe />
+      </LocaleProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("time-zone")).toHaveTextContent("Asia/Karachi"));
+  });
+
+  it("uses the browser time zone even when the locale catalog fails to load", async () => {
+    failLoad.value = true;
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mockBrowserTimeZone("Asia/Karachi");
+    document.cookie = `${LOCALE_COOKIE}=es`;
+    render(
+      <LocaleProvider>
+        <TimeZoneProbe />
+      </LocaleProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("time-zone")).toHaveTextContent("Asia/Karachi"));
   });
 });

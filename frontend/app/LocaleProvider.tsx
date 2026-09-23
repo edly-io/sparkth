@@ -13,6 +13,13 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
     locale: defaultLocale,
     messages: en,
   });
+  // A fixed zone keeps the server render and the first client render identical;
+  // the browser's own zone replaces it once mounted.
+  const [timeZone, setTimeZone] = useState("UTC");
+
+  useEffect(() => {
+    setTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  }, []);
 
   useEffect(() => {
     // Runs for the default locale too: the synchronous seed above carries only
@@ -35,7 +42,7 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <NextIntlClientProvider locale={state.locale} messages={state.messages}>
+    <NextIntlClientProvider locale={state.locale} messages={state.messages} timeZone={timeZone}>
       {children}
     </NextIntlClientProvider>
   );
