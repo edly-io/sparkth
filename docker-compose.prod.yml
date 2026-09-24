@@ -1,5 +1,5 @@
-# Production stack: Sparkth app, TimescaleDB/Postgres (app + analytics DBs), and
-# Redis. See the "Production" section of README.md.
+# Production stack: nginx reverse proxy, Sparkth app, TimescaleDB/Postgres (app +
+# analytics DBs), and Redis. See the "Production" section of README.md.
 #
 # Every service loads .env and then .env.local (later entries win). .env.local is
 # mandatory and must carry the production overrides listed at the top of .env,
@@ -22,9 +22,11 @@ services:
       # .env ships false for native dev; the production image must serve the
       # bundled frontend.
       SERVE_FRONTEND: "true"
+      # Trust X-Forwarded-* headers from the nginx container.
+      FORWARDED_ALLOW_IPS: "*"
     ports:
-      # With a reverse proxy on the same host, set SPARKTH_HTTP_BIND=127.0.0.1.
-      - "${SPARKTH_HTTP_BIND:-0.0.0.0}:${SPARKTH_HTTP_PORT:-7727}:7727"
+      # Public traffic goes through nginx; 7727 stays reachable from the host only.
+      - "${SPARKTH_HTTP_BIND:-127.0.0.1}:${SPARKTH_HTTP_PORT:-7727}:7727"
     # Give in-flight requests (e.g. streamed LLM responses) time to finish.
     stop_grace_period: 30s
     depends_on:
@@ -32,6 +34,19 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  nginx:
+    image: docker.io/nginx:1.29-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./docker/nginx/certbot/www:/var/www/certbot:ro
+      - ./docker/nginx/certbot/conf:/etc/letsencrypt:ro
+    depends_on:
+      - sparkth
 
   db:
     image: docker.io/timescale/timescaledb-ha:pg18

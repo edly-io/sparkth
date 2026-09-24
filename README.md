@@ -162,9 +162,9 @@ Sparkth will generate a prompt that will help Claude generate this course.
 ## Production
 
 A self-contained single-host deployment lives in
-[`docker-compose.prod.yml`](docker-compose.prod.yml): the Sparkth application (with the
-frontend bundled), TimescaleDB/Postgres (hosting both the app and analytics databases),
-and Redis. Every service loads `.env` and then `.env.local` (later entries win);
+[`docker-compose.prod.yml`](docker-compose.prod.yml): an nginx reverse proxy, the Sparkth
+application (with the frontend bundled), TimescaleDB/Postgres (hosting both the app and
+analytics databases), and Redis. Every service loads `.env` and then `.env.local` (later entries win);
 `.env.local` is mandatory, and compose fails to start without it.
 
 1. Complete the "MUST change in production" checklist at the top of `.env`, placing the
@@ -176,6 +176,10 @@ and Redis. Every service loads `.env` and then `.env.local` (later entries win);
    ANALYTICS_DATABASE_URL=postgresql://sparkth:<POSTGRES_PASSWORD>@db:5432/sparkth_analytics
    REDIS_URL=redis://redis:6379
    ```
+
+   The bundled nginx is one proxy hop, so also set `TRUSTED_PROXY_HOPS=1`, and point
+   `FRONTEND_BASE_URL` and the `*_REDIRECT_URI` values at the public address nginx serves
+   (e.g. `http://<server-ip>` until a domain and certificate exist).
 
 2. Build the image with `make docker.build`, or let compose pull
    `ghcr.io/edly-io/sparkth:latest` from GHCR (set `SPARKTH_TAG` to pin a release).
@@ -193,12 +197,18 @@ and Redis. Every service loads `.env` and then `.env.local` (later entries win);
    docker compose -f docker-compose.prod.yml run --rm sparkth python -m sparkth.cli.main migrate
    ```
 
-The app is published on port 7727 (`SPARKTH_HTTP_PORT` to change). TLS and email are
-intentionally not part of the stack: run a reverse proxy or load balancer in front of the
-published port (and set `TRUSTED_PROXY_HOPS` to match), and point `SMTP_*` at a real
-provider such as AWS SES. If the proxy runs on the same host, set
-`SPARKTH_HTTP_BIND=127.0.0.1` so clients cannot bypass it. For orchestrated deployments,
-the same image is published to GHCR by CI and runs under Kubernetes.
+nginx serves the app on port 80 and forwards everything to the app container, without
+buffering, so streamed LLM responses and the MCP endpoint work through it
+([`docker/nginx/conf.d/sparkth.conf`](docker/nginx/conf.d/sparkth.conf)). The app's own
+port 7727 is bound to `127.0.0.1` so clients cannot bypass the proxy
+(`SPARKTH_HTTP_BIND` and `SPARKTH_HTTP_PORT` to change). Port 443 is published but
+unused until TLS is set up: once a domain points at the server, follow
+[`docker/nginx/sparkth-ssl.conf.example`](docker/nginx/sparkth-ssl.conf.example) to issue a
+Let's Encrypt certificate and switch nginx to HTTPS (certificates live in the git-ignored
+`docker/nginx/certbot/`). If another load balancer sits in front of nginx, raise
+`TRUSTED_PROXY_HOPS` to match. Email is not part of the stack: point `SMTP_*` at a real
+provider such as AWS SES. For orchestrated deployments, the same image is published to
+GHCR by CI and runs under Kubernetes.
 
 ## Configuration
 
