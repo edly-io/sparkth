@@ -46,8 +46,6 @@ describe("ChatInput", () => {
         attachments={[]}
         setAttachments={vi.fn()}
         onSend={vi.fn()}
-        checkAiKeyReady={() => Promise.resolve(null)}
-        onAiKeySetupNeeded={vi.fn()}
         conversationId={null}
         isStreaming={false}
         isStopping={false}
@@ -67,8 +65,6 @@ describe("ChatInput", () => {
         attachments={[]}
         setAttachments={vi.fn()}
         onSend={vi.fn()}
-        checkAiKeyReady={() => Promise.resolve(null)}
-        onAiKeySetupNeeded={vi.fn()}
         conversationId={null}
         isStreaming
         isStopping={false}
@@ -87,8 +83,6 @@ describe("ChatInput", () => {
         attachments={[]}
         setAttachments={vi.fn()}
         onSend={vi.fn()}
-        checkAiKeyReady={() => Promise.resolve(null)}
-        onAiKeySetupNeeded={vi.fn()}
         conversationId={null}
         isStreaming
         isStopping
@@ -108,8 +102,6 @@ describe("ChatInput", () => {
         attachments={[]}
         setAttachments={vi.fn()}
         onSend={vi.fn()}
-        checkAiKeyReady={() => Promise.resolve(null)}
-        onAiKeySetupNeeded={vi.fn()}
         conversationId={null}
         isStreaming={false}
         isStopping={false}
@@ -126,8 +118,6 @@ describe("ChatInput", () => {
         attachments={[]}
         setAttachments={vi.fn()}
         onSend={vi.fn()}
-        checkAiKeyReady={() => Promise.resolve(null)}
-        onAiKeySetupNeeded={vi.fn()}
         conversationId={null}
         isStreaming
         isStopping={false}
@@ -145,8 +135,6 @@ describe("ChatInput", () => {
         attachments={[]}
         setAttachments={vi.fn()}
         onSend={vi.fn()}
-        checkAiKeyReady={() => Promise.resolve(null)}
-        onAiKeySetupNeeded={vi.fn()}
         conversationId={null}
         isStreaming={false}
         isStopping={false}

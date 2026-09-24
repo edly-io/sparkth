@@ -1,7 +1,7 @@
 "use client";
 
 import { Dispatch, SetStateAction, useState } from "react";
-import { AiKeyProblem, TextAttachment } from "@/plugins/chat/types";
+import { TextAttachment } from "@/plugins/chat/types";
 import { attachDocument, detachDocument } from "@/lib/chat";
 import { uploadFile, UploadResponse } from "@/lib/file-upload";
 import { SelectedDriveFile } from "@/components/drive/DriveFilePicker";
@@ -17,9 +17,7 @@ interface UseChatInputProps {
     message: string;
     attachments: TextAttachment[];
     documentIds?: number[];
-  }) => void;
-  checkAiKeyReady: () => Promise<AiKeyProblem | null>;
-  onAiKeySetupNeeded: (problem: AiKeyProblem) => void;
+  }) => Promise<boolean>;
 }
 
 export function useChatInput({
@@ -28,8 +26,6 @@ export function useChatInput({
   attachments,
   setAttachments,
   onSend,
-  checkAiKeyReady,
-  onAiKeySetupNeeded,
 }: UseChatInputProps) {
   const [message, setMessage] = useState("");
   const [showUploadMenu, setShowUploadMenu] = useState(false);
@@ -139,23 +135,18 @@ export function useChatInput({
     const sendableAttachments = attachments.filter((a) => a.documentId === undefined);
     if (!message.trim() && sendableAttachments.length === 0) return;
 
-    // Refused before anything is cleared, so the author keeps what they typed.
-    const problem = await checkAiKeyReady();
-    if (problem) {
-      onAiKeySetupNeeded(problem);
-      return;
-    }
-
     const documentAttachments = attachments.filter((a) => a.documentId !== undefined);
     const documentIds = documentAttachments.map((a) => a.documentId!);
 
-    onSend({
+    // Cleared only once accepted, so a refused send keeps what the author typed.
+    const accepted = await onSend({
       message: message.trim(),
       attachments: sendableAttachments,
       // Always send document IDs so the backend can attach them before processing
       // (critical for new conversations where they haven't been persisted yet)
       ...(documentIds.length > 0 && { documentIds }),
     });
+    if (!accepted) return;
 
     setMessage("");
     // Keep document attachments in state — they remain attached to the conversation

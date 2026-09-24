@@ -89,7 +89,7 @@ function renderChat() {
   return render(chatTree());
 }
 
-// Drives the real ChatInput -> useChatInput -> checkAiKeyReady path, rather than
+// Drives the real ChatInput -> useChatInput -> guarded onSend path, rather than
 // calling the guard directly. Enter submits the same handleSend the send button's
 // onClick does; the send button itself is an icon with no accessible name to query.
 async function sendFromInput(text = "a course about chess") {

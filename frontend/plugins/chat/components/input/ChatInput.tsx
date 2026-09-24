@@ -4,7 +4,7 @@ import { Dispatch, SetStateAction, useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { Paperclip, ArrowUp, Square, X } from "lucide-react";
 import { UploadMenu } from "./UploadMenu";
-import { AiKeyProblem, TextAttachment } from "../../types";
+import { TextAttachment } from "../../types";
 import { PersistedFilesInfo } from "../attachment/PersistedFilesInfo";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/lib/auth-context";
@@ -19,13 +19,11 @@ interface ChatInputProps {
     message: string;
     attachments: TextAttachment[];
     documentIds?: number[];
-  }) => void;
+  }) => Promise<boolean>;
   conversationId: string | null;
   isStreaming: boolean;
   isStopping: boolean;
   onStop: () => void;
-  checkAiKeyReady: () => Promise<AiKeyProblem | null>;
-  onAiKeySetupNeeded: (problem: AiKeyProblem) => void;
 }
 
 export function ChatInput({
@@ -36,8 +34,6 @@ export function ChatInput({
   isStreaming,
   isStopping,
   onStop,
-  checkAiKeyReady,
-  onAiKeySetupNeeded,
 }: ChatInputProps) {
   const t = useTranslations("chat");
   const boxRef = useRef<HTMLTextAreaElement>(null);
@@ -62,8 +58,6 @@ export function ChatInput({
     attachments,
     setAttachments,
     onSend,
-    checkAiKeyReady,
-    onAiKeySetupNeeded,
   });
 
   const { isEnabled: isDriveEnabled } = useIsPluginEnabled(token, "google-drive");

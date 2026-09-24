@@ -3,9 +3,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { useChatInput } from "@/plugins/chat/hooks/useChatInput";
 
-function setup(overrides: Partial<Parameters<typeof useChatInput>[0]> = {}) {
-  const onSend = vi.fn();
-  const onAiKeySetupNeeded = vi.fn();
+function setup(accepted: boolean) {
+  const onSend = vi.fn(() => Promise.resolve(accepted));
   const { result } = renderHook(() =>
     useChatInput({
       token: "test-token",
@@ -13,36 +12,16 @@ function setup(overrides: Partial<Parameters<typeof useChatInput>[0]> = {}) {
       attachments: [],
       setAttachments: vi.fn(),
       onSend,
-      checkAiKeyReady: () => Promise.resolve(null),
-      onAiKeySetupNeeded,
-      ...overrides,
     }),
   );
-  return { result, onSend, onAiKeySetupNeeded };
+  return { result, onSend };
 }
 
-describe("useChatInput — the AI key guard", () => {
+describe("useChatInput — a refused send", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("keeps the typed message when the guard refuses the send", async () => {
-    const { result, onSend, onAiKeySetupNeeded } = setup({
-      checkAiKeyReady: () => Promise.resolve("no-key" as const),
-    });
-    act(() => result.current.setMessage("a course about chess"));
-
-    await act(async () => {
-      await result.current.handleSend();
-    });
-
-    expect(onSend).not.toHaveBeenCalled();
-    expect(onAiKeySetupNeeded).toHaveBeenCalledWith("no-key");
-    expect(result.current.message).toBe("a course about chess");
-  });
-
-  it("sends and clears when the guard raises no problem", async () => {
-    const { result, onSend, onAiKeySetupNeeded } = setup({
-      checkAiKeyReady: () => Promise.resolve(null),
-    });
+  it("keeps the typed message when the send is refused", async () => {
+    const { result, onSend } = setup(false);
     act(() => result.current.setMessage("a course about chess"));
 
     await act(async () => {
@@ -50,7 +29,18 @@ describe("useChatInput — the AI key guard", () => {
     });
 
     expect(onSend).toHaveBeenCalledOnce();
-    expect(onAiKeySetupNeeded).not.toHaveBeenCalled();
+    expect(result.current.message).toBe("a course about chess");
+  });
+
+  it("clears the message when the send is accepted", async () => {
+    const { result, onSend } = setup(true);
+    act(() => result.current.setMessage("a course about chess"));
+
+    await act(async () => {
+      await result.current.handleSend();
+    });
+
+    expect(onSend).toHaveBeenCalledOnce();
     expect(result.current.message).toBe("");
   });
 });

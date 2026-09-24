@@ -98,30 +98,29 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
     onNewConversation,
   });
 
-  // ChatMessages' onSend/onOptionClick reach useChatStream directly, so they need their own
-  // guard — the input box's guard lives inside useChatInput and does not cover these paths.
-  const handleMessagesSend = useCallback(
-    async (payload: { message: string; attachments: TextAttachment[]; documentIds?: number[] }) => {
+  // Every send path runs through this, and it resolves false when it refuses the send.
+  const sendIfAiKeyReady = useCallback(
+    async (dispatch: () => void): Promise<boolean> => {
       const problem = await checkAiKeyReady();
       if (problem) {
         setAiKeyProblem(problem);
-        return;
+        return false;
       }
-      handleSend(payload);
+      dispatch();
+      return true;
     },
-    [checkAiKeyReady, handleSend],
+    [checkAiKeyReady],
+  );
+
+  const handleGuardedSend = useCallback(
+    (payload: { message: string; attachments: TextAttachment[]; documentIds?: number[] }) =>
+      sendIfAiKeyReady(() => handleSend(payload)),
+    [sendIfAiKeyReady, handleSend],
   );
 
   const handleGuardedOptionClick = useCallback(
-    async (text: string) => {
-      const problem = await checkAiKeyReady();
-      if (problem) {
-        setAiKeyProblem(problem);
-        return;
-      }
-      handleOptionClick(text);
-    },
-    [checkAiKeyReady, handleOptionClick],
+    (text: string) => sendIfAiKeyReady(() => handleOptionClick(text)),
+    [sendIfAiKeyReady, handleOptionClick],
   );
 
   const isStreaming = messages.some((m) => m.isTyping === true);
@@ -160,7 +159,7 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
           messages={messages}
           setPreviewOpen={setPreviewOpen}
           setPreviewAttachment={setPreviewAttachment}
-          onSend={handleMessagesSend}
+          onSend={handleGuardedSend}
           onOptionClick={handleGuardedOptionClick}
         />
       )}
@@ -168,13 +167,11 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
       <ChatInput
         attachments={inputAttachments}
         setAttachments={setInputAttachments}
-        onSend={handleSend}
+        onSend={handleGuardedSend}
         conversationId={conversationId}
         isStreaming={isStreaming}
         isStopping={isStopping}
         onStop={stopGeneration}
-        checkAiKeyReady={checkAiKeyReady}
-        onAiKeySetupNeeded={setAiKeyProblem}
       />
 
       {previewOpen && previewAttachment && (
