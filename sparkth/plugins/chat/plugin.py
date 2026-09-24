@@ -42,7 +42,7 @@ class ChatPlugin(SparkthPlugin):
         DISPLAY_INFO.add_item(
             self,
             DisplayInfo(
-                gettext_noop("Create Course"),
+                gettext_noop("Compose (Create Course)"),
                 gettext_noop("Transform your resources into courses with AI"),
                 icon="plus",
             ),

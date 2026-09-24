@@ -19,7 +19,7 @@ interface ChatInputProps {
     message: string;
     attachments: TextAttachment[];
     documentIds?: number[];
-  }) => void;
+  }) => Promise<boolean>;
   conversationId: string | null;
   isStreaming: boolean;
   isStopping: boolean;
@@ -52,7 +52,13 @@ export function ChatInput({
     handleDriveFileSelected,
     handleRemoveAttachment,
     handleSend,
-  } = useChatInput({ token, conversationId, attachments, setAttachments, onSend });
+  } = useChatInput({
+    token,
+    conversationId,
+    attachments,
+    setAttachments,
+    onSend,
+  });
 
   const { isEnabled: isDriveEnabled } = useIsPluginEnabled(token, "google-drive");
 

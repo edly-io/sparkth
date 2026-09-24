@@ -1,5 +1,4 @@
 import { useCallback, useRef, useState } from "react";
-import { ApiRequestError } from "@/lib/api";
 import { requestChatCompletionStream, stopChatTurn } from "@/lib/chat";
 import { ChatMessage, STREAM_STATUS_PHASES, StreamStatusPhase, TextAttachment } from "../types";
 
@@ -17,15 +16,6 @@ interface UseChatStreamOptions {
   conversationId: string | null;
   setMessages: (updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => void;
   onNewConversation: (id: string) => void;
-}
-
-const FIELD_MESSAGES: Record<string, string> = {
-  llm_config_id: "No AI Key selected. Go to chat settings to configure one.",
-};
-
-function friendlyFieldMessage(error: ApiRequestError): string | undefined {
-  const field = Object.keys(error.fieldErrors).find((name) => FIELD_MESSAGES[name]);
-  return field ? FIELD_MESSAGES[field] : undefined;
 }
 
 function buildUserMessages(message: string, attachments: TextAttachment[]) {
@@ -396,8 +386,8 @@ export function useChatStream({
 
       try {
         const res = await requestChatCompletionStream(token, {
-          // May be undefined at runtime; the backend then 422s and the catch
-          // below maps the validation error to the friendly FIELD_MESSAGES text.
+          // May still be undefined here if a retry (e.g. an option click) bypasses the
+          // compose-box guard; the backend then 422s and the catch below surfaces its message.
           llm_config_id: llmConfigId as number,
           ...(modelOverride && { model_override: modelOverride }),
           messages: newUserMessages,
@@ -462,10 +452,9 @@ export function useChatStream({
         }
       } catch (err) {
         clearStreamProgress(conversationId);
-        let errorMsg = err instanceof Error ? err.message : "Something went wrong.";
-        if (err instanceof ApiRequestError) {
-          errorMsg = friendlyFieldMessage(err) ?? err.message;
-        }
+        // ApiRequestError extends Error, so its message — the API's own text — flows straight
+        // through; the guard now catches the no-key case before a request is ever made.
+        const errorMsg = err instanceof Error ? err.message : "Something went wrong.";
         turnIdRef.current = null;
         setIsStopping(false);
         failAssistantMessage(assistantId, errorMsg);

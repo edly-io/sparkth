@@ -1,3 +1,7 @@
+// What is missing before a course can be composed: no AI key at all, or one that exists but was
+// never selected in the plugin's configuration.
+export type AiKeyProblem = "no-key" | "not-selected";
+
 export interface TextAttachment {
   name: string;
   text: string;

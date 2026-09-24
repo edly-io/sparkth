@@ -32,6 +32,9 @@ msgstr ""
 msgid "Create Course"
 msgstr "Créer un cours"
 
+msgid "Compose (Create Course)"
+msgstr "Composer (Créer un cours)"
+
 #: sparkth/plugins/chat/plugin.py:51
 msgid "Transform your resources into courses with AI"
 msgstr "Transformez vos ressources en cours grâce à l'IA"
