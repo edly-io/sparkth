@@ -4,6 +4,7 @@ All plugins and external modules manage document identity and status from here.
 """
 
 from sparkth.core.documents.enums import DocumentStatus
+from sparkth.core.documents.hooks import DOCUMENT_DELETED, DocumentDeletedHandler
 from sparkth.core.documents.models import Document
 from sparkth.core.documents.service import (
     create_document,
@@ -14,6 +15,8 @@ from sparkth.core.documents.service import (
 )
 
 __all__ = [
+    "DOCUMENT_DELETED",
+    "DocumentDeletedHandler",
     "DocumentStatus",
     "Document",
     "create_document",

@@ -53,10 +53,8 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-def _unusable_status(document: Document) -> Literal["queued", "processing", "failed", "deleted"]:
+def _unusable_status(document: Document) -> Literal["queued", "processing", "failed"]:
     """Why this turn could not read an attached document."""
-    if document.is_deleted:
-        return "deleted"
     match document.status:
         case DocumentStatus.QUEUED:
             return "queued"
@@ -65,7 +63,7 @@ def _unusable_status(document: Document) -> Literal["queued", "processing", "fai
         case DocumentStatus.FAILED:
             return "failed"
         case DocumentStatus.READY:
-            logger.warning("READY document %s listed unusable while not deleted", document.id)
+            logger.warning("READY document %s listed unusable; is_deleted=%s", document.id, document.is_deleted)
             return "failed"
         case _ as unhandled:
             assert_never(unhandled)
