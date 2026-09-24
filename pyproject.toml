@@ -11,7 +11,7 @@ allow-direct-references = true
 
 [project]
 name = "sparkth"
-version = "0.1.11"
+version = "0.2.0"
 description = "MCP server and API for AI-powered course generation"
 readme = "README.md"
 requires-python = ">=3.14"
