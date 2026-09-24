@@ -20,6 +20,7 @@ class OpenEdxPlugin(SparkthPlugin):
     - Course CRUD operations
     - Section and subsection management
     - Unit, Problem and HTML Component Management
+    - Releasing authored content to learners
 
     Tools are contributed to the MCP_TOOLS hook in ``__init__``; each tool's
     description comes from its handler docstring.
@@ -57,6 +58,7 @@ class OpenEdxPlugin(SparkthPlugin):
                     openedx_tools.openedx_create_xblock,
                     openedx_tools.openedx_create_problem_or_html,
                     openedx_tools.openedx_update_xblock,
+                    openedx_tools.openedx_publish_content,
                 ],
             ),
             ("openedx-course-tree", [openedx_tools.openedx_get_course_tree_raw]),
