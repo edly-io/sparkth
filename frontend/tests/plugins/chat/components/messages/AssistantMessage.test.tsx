@@ -63,10 +63,35 @@ describe("AssistantMessage — status sentence", () => {
     expect(screen.getByText("Working out what to do…")).toBeInTheDocument();
   });
 
-  it("keeps a backend-supplied status over the default sentence", () => {
-    renderMessage({ content: "", isTyping: true, statusText: "Scanning document sections..." });
-    expect(screen.getByText("Scanning document sections...")).toBeInTheDocument();
+  it("renders the phase the stream reported instead of the default sentence", () => {
+    renderMessage({ content: "", isTyping: true, statusPhase: "searching_documents" });
+    expect(screen.getByText("Scanning document sections…")).toBeInTheDocument();
     expect(screen.queryByText("Working out what to do…")).not.toBeInTheDocument();
+  });
+
+  it("renders each phase the backend can send", () => {
+    const cases = [
+      ["scanning_attachments", "Reading your attached files…"],
+      ["searching_documents", "Scanning document sections…"],
+      ["skipping_rag", "Answering without the attachments…"],
+      ["generating", "Writing the answer…"],
+    ] as const;
+    for (const [phase, text] of cases) {
+      const { unmount } = renderMessage({ content: "", isTyping: true, statusPhase: phase });
+      expect(screen.getByText(text)).toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it("drops the phase once the turn has recorded a tool call", () => {
+    renderMessage({
+      content: "",
+      isTyping: true,
+      statusPhase: "searching_documents",
+      toolCalls: [{ name: "moodle_create_course", status: "done" }],
+    });
+    expect(screen.queryByText("Scanning document sections…")).not.toBeInTheDocument();
+    expect(screen.getByTestId("thinking-dots")).toBeInTheDocument();
   });
 
   it("drops the sentence once a tool call has been recorded", () => {

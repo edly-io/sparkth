@@ -1,7 +1,7 @@
 import { useCallback, useRef } from "react";
 import { ApiRequestError } from "@/lib/api";
 import { requestChatCompletionStream } from "@/lib/chat";
-import { ChatMessage, TextAttachment } from "../types";
+import { ChatMessage, STREAM_STATUS_PHASES, StreamStatusPhase, TextAttachment } from "../types";
 
 interface SendPayload {
   message: string;
@@ -91,7 +91,7 @@ function applyStatusEvent(
         msg.id === assistantId
           ? {
               ...msg,
-              statusText: undefined,
+              statusPhase: undefined,
               ragSections: [...(msg.ragSections ?? []), { ...section, state: "scanning" as const }],
             }
           : msg,
@@ -111,23 +111,10 @@ function applyStatusEvent(
           : msg,
       ),
     );
-  } else if (parsed.status === "section_removed" && parsed.section) {
-    const sectionName = (parsed.section as { name: string }).name;
+  } else if (STREAM_STATUS_PHASES.includes(parsed.status as StreamStatusPhase)) {
+    const phase = parsed.status as StreamStatusPhase;
     setMessages((prev) =>
-      prev.map((msg) =>
-        msg.id === assistantId
-          ? {
-              ...msg,
-              ragSections: (msg.ragSections ?? []).filter((s) => s.name !== sectionName),
-            }
-          : msg,
-      ),
-    );
-  } else if (parsed.status === "searching_document") {
-    setMessages((prev) =>
-      prev.map((msg) =>
-        msg.id === assistantId ? { ...msg, statusText: "Scanning document sections..." } : msg,
-      ),
+      prev.map((msg) => (msg.id === assistantId ? { ...msg, statusPhase: phase } : msg)),
     );
   } else if (parsed.status === "tool_call" && parsed.tool_name) {
     const toolName = parsed.tool_name as string;
@@ -166,7 +153,11 @@ const STREAM_STORAGE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 // responses rather than throwing QuotaExceededError silently.
 const STREAM_STORAGE_MAX_BYTES = 4 * 1024 * 1024;
 
-function saveStreamProgress(conversationId: string | null, content: string, phase?: string): void {
+function saveStreamProgress(
+  conversationId: string | null,
+  content: string,
+  phase?: StreamStatusPhase,
+): void {
   if (!conversationId) return;
   try {
     const payload = JSON.stringify({ content, phase, timestamp: Date.now() });
@@ -192,7 +183,7 @@ export const RECOVERY_PLACEHOLDER_IDS = new Set(["restored-stream", "pending-res
 
 export interface StreamProgressData {
   content: string;
-  phase?: string;
+  phase?: StreamStatusPhase;
 }
 
 export function getRestoredStreamData(conversationId: string): StreamProgressData | null {
@@ -201,7 +192,7 @@ export function getRestoredStreamData(conversationId: string): StreamProgressDat
     if (!raw) return null;
     const { content, phase, timestamp } = JSON.parse(raw) as {
       content: string;
-      phase?: string;
+      phase?: StreamStatusPhase;
       timestamp: number;
     };
     if (Date.now() - timestamp > STREAM_STORAGE_TTL_MS) return null;
@@ -258,8 +249,8 @@ async function readStream(
         if (parsed.status) {
           // Persist the current RAG phase so a mid-stream refresh can show a
           // meaningful message ("Scanning documents…") rather than a generic one.
-          if (parsed.status === "scanning_attachments" || parsed.status === "searching_document") {
-            saveStreamProgress(conversationId, assistantText, parsed.status as string);
+          if (parsed.status === "scanning_attachments" || parsed.status === "searching_documents") {
+            saveStreamProgress(conversationId, assistantText, parsed.status as StreamStatusPhase);
           }
           applyStatusEvent(parsed, assistantId, setMessages);
           continue;
@@ -278,7 +269,7 @@ async function readStream(
                 ? {
                     ...msg,
                     streamedContent: assistantText,
-                    statusText: undefined,
+                    statusPhase: undefined,
                   }
                 : msg,
             ),
@@ -434,7 +425,7 @@ export function useChatStream({
                     content: assistantText,
                     streamedContent: undefined,
                     isTyping: false,
-                    statusText: undefined,
+                    statusPhase: undefined,
                     ...(doneOptions.length > 0 && { options: doneOptions }),
                     ...(doneRagSections && {
                       ragSections: doneRagSections.map((s) => ({

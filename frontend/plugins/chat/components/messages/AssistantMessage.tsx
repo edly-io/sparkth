@@ -2,7 +2,7 @@ import { AlertCircle, Bot } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { ChatMessage, TextAttachment } from "../../types";
+import { ChatMessage, StreamStatusPhase, TextAttachment } from "../../types";
 import { Pill } from "../attachment/Pill";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -36,6 +36,14 @@ export function AssistantMessage({
   onOptionClick,
 }: AssistantMessageProps) {
   const t = useTranslations("chat");
+
+  // Keys must stay literal t("...") calls — i18n-check only traces literal calls, not computed keys.
+  const statusTexts: Record<StreamStatusPhase, string> = {
+    scanning_attachments: t("statusScanningAttachments"),
+    searching_documents: t("statusSearchingDocuments"),
+    skipping_rag: t("statusSkippingRag"),
+    generating: t("statusGenerating"),
+  };
   const displayText = message.streamedContent ?? message.content;
   const toolCalls = message.toolCalls ?? [];
   // The dots stay up for every waiting state, tools running or not, so nothing flickers as a
@@ -43,7 +51,12 @@ export function AssistantMessage({
   const isThinking = message.isTyping && !displayText;
   // The sentence belongs to the start of a turn: once any tool call exists the count
   // line above the card carries the state, so the card falls back to the dots.
-  const statusLine = message.statusText ?? (toolCalls.length === 0 ? t("working") : null);
+  const statusLine =
+    toolCalls.length > 0
+      ? null
+      : message.statusPhase
+        ? statusTexts[message.statusPhase]
+        : t("working");
 
   const openPreview = (attachment: TextAttachment) => {
     setPreviewAttachment(attachment);
