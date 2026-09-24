@@ -13,6 +13,7 @@ from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
 from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.routes.utils.live_turns import register_turn, release_turn, request_stop
+from sparkth.plugins.chat.types import ConversationDocuments
 
 
 @pytest.mark.asyncio
@@ -103,7 +104,7 @@ class TestTurnNotLeakedWhenStreamNeverStarts:
             mock_scope = AsyncMock()
             mock_scope.in_scope = AsyncMock(return_value=True)
             mock_cls_cls.return_value = mock_scope
-            mock_list_attachments.return_value = []
+            mock_list_attachments.return_value = ConversationDocuments(ready=[], unusable=[])
 
             mock_provider = AsyncMock()
             mock_provider.system_prompt = ""
