@@ -7,6 +7,8 @@
     "statusScanningAttachments": "Leyendo tus archivos adjuntos…",
     "statusSearchingDocuments": "Analizando las secciones del documento…",
     "statusSkippingRag": "Respondiendo sin los archivos adjuntos…",
-    "statusGenerating": "Escribiendo la respuesta…"
+    "statusGenerating": "Escribiendo la respuesta…",
+    "stopped": "Detenido",
+    "stopGenerating": "Detener la generación"
   }
 }

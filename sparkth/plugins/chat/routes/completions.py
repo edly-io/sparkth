@@ -32,6 +32,7 @@ from sparkth.plugins.chat.lms_credentials import build_lms_credentials_message
 from sparkth.plugins.chat.messages import get_last_user_text
 from sparkth.plugins.chat.prompt import get_course_design_system_prompt
 from sparkth.plugins.chat.routes.utils import resolve_tools
+from sparkth.plugins.chat.routes.utils.live_turns import request_stop
 from sparkth.plugins.chat.routes.utils.message_assembly import assemble_provider_messages
 from sparkth.plugins.chat.routes.utils.stream_processor import (
     ChatStreamProcessor,
@@ -319,8 +320,11 @@ async def chat_completion(
         if request.stream:
             # Gated together so no LLM is built for a turn that will not retrieve.
             rag_unresolved = unresolved_messages if rag_search_required else None
-            rag_user_id = user_id if rag_search_required else None
             rag_llm = provider.create_llm() if rag_search_required else None
+            # A turn is stoppable only if the caller named it; scripts and the MCP surface do not.
+            # The stream task registers and releases it, so a request that never gets that far
+            # leaves the registry untouched.
+            turn_key = str(request.turn_id) if request.turn_id else None
             processor = ChatStreamProcessor(
                 provider,
                 messages,
@@ -328,11 +332,12 @@ async def chat_completion(
                 service,
                 tools,
                 rag_unresolved,
-                rag_user_id,
+                user_id,
                 rag_llm,
                 rag_search_required,
                 rag_search_declined,
                 analytics=turn_analytics.attribution,
+                turn_id=turn_key,
             )
             return StreamingResponse(
                 # The stream task outlives this response — it writes its analytics after the
@@ -407,3 +412,13 @@ async def chat_completion(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=_("Chat completion failed"),
         ) from e
+
+
+@router.post("/turns/{turn_id}/stop", status_code=status.HTTP_204_NO_CONTENT)
+async def stop_turn(turn_id: UUID, current_user: User = Depends(get_current_user)) -> None:
+    """Ask a streaming turn to stop. 404 covers both an unknown turn and another user's."""
+    if not request_stop(str(turn_id), cast(int, current_user.id)):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=_("No generation is running for this turn."),
+        )

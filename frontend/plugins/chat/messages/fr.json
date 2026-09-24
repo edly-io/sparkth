@@ -7,6 +7,8 @@
     "statusScanningAttachments": "Lecture de vos fichiers joints…",
     "statusSearchingDocuments": "Analyse des sections du document…",
     "statusSkippingRag": "Réponse sans les fichiers joints…",
-    "statusGenerating": "Rédaction de la réponse…"
+    "statusGenerating": "Rédaction de la réponse…",
+    "stopped": "Arrêté",
+    "stopGenerating": "Arrêter la génération"
   }
 }

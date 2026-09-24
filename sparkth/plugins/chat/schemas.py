@@ -88,6 +88,10 @@ class ChatCompletionRequest(BaseModel):
             "(used when attaching documents on a new conversation)."
         ),
     )
+    turn_id: UUID | None = Field(
+        default=None,
+        description="Client-generated id for this turn, used to stop it while it streams.",
+    )
 
     @field_validator("messages")
     @classmethod
@@ -128,6 +132,7 @@ class MessageResponse(BaseModel):
     rag_sections: list[dict[str, Any]] | None = None
     tool_calls: list[dict[str, Any]] | None = None
     is_error: bool = False
+    stopped: bool = False
 
 
 class ConversationResponse(BaseModel):

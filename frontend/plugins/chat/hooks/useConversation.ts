@@ -136,6 +136,7 @@ export function useConversation(
               ? m.tool_calls.map((t) => ({ ...t, status: "done" as const }))
               : undefined,
             isError: m.is_error ?? false,
+            stopped: m.stopped ?? false,
           })),
         );
 
@@ -265,6 +266,7 @@ export function useConversation(
                 ? lastApiMsg.tool_calls.map((t) => ({ ...t, status: "done" as const }))
                 : undefined,
               isError: lastApiMsg.is_error ?? false,
+              stopped: lastApiMsg.stopped ?? false,
             },
           ];
         });

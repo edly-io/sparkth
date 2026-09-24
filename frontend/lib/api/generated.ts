@@ -244,6 +244,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/chat/turns/{turn_id}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop Turn
+         * @description Ask a streaming turn to stop. 404 covers both an unknown turn and another user's.
+         */
+        post: operations["stop_turn_api_v1_chat_turns__turn_id__stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/google-drive/browse": {
         parameters: {
             query?: never;
@@ -1460,6 +1480,11 @@ export interface components {
              * @default *
              */
             tools: string[] | string | null;
+            /**
+             * Turn Id
+             * @description Client-generated id for this turn, used to stop it while it streams.
+             */
+            turn_id?: string | null;
         };
         /** ChatCompletionResponse */
         ChatCompletionResponse: {
@@ -1955,6 +1980,11 @@ export interface components {
             }[] | null;
             /** Role */
             role: string;
+            /**
+             * Stopped
+             * @default false
+             */
+            stopped: boolean;
             /** Tokens Used */
             tokens_used: number | null;
             /** Tool Calls */
@@ -2780,6 +2810,35 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["MessageResponse"] | null;
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stop_turn_api_v1_chat_turns__turn_id__stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                turn_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

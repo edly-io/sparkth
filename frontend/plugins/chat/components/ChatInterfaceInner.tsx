@@ -56,7 +56,7 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
     [skipNextLoadRef, router, inputAttachments, token, setError],
   );
 
-  const { handleSend, handleOptionClick } = useChatStream({
+  const { handleSend, handleOptionClick, stopGeneration, isStopping } = useChatStream({
     token,
     llmConfigId,
     modelOverride,
@@ -64,6 +64,8 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
     setMessages,
     onNewConversation,
   });
+
+  const isStreaming = messages.some((m) => m.isTyping === true);
 
   return (
     <div className="flex flex-col h-full bg-background transition-colors">
@@ -95,6 +97,9 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
         setAttachments={setInputAttachments}
         onSend={handleSend}
         conversationId={conversationId}
+        isStreaming={isStreaming}
+        isStopping={isStopping}
+        onStop={stopGeneration}
       />
 
       {previewOpen && previewAttachment && (

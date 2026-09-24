@@ -1,4 +1,6 @@
+import json
 import uuid
+from collections.abc import AsyncGenerator
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -10,22 +12,42 @@ from sparkth.lib.rag import (
     RAGRetrievalError,
     RetrievedChunk,
 )
+from sparkth.plugins.chat.routes.utils.live_turns import request_stop
 from sparkth.plugins.chat.routes.utils.stream_processor import ChatStreamProcessor
 from sparkth.plugins.chat.schemas import ChatMessage
 
 
-def _make_processor(messages: list[dict[str, Any]] | None = None) -> ChatStreamProcessor:
+def _make_processor(
+    messages: list[dict[str, Any]] | None = None,
+    provider: Any = None,
+    turn_id: str | None = None,
+    user_id: int | None = None,
+) -> ChatStreamProcessor:
     conversation = MagicMock()
     conversation.id = 1
     conversation.uuid = uuid.UUID("550e8400-e29b-41d4-a716-446655440000")
     service = MagicMock()
     service.add_message = AsyncMock(return_value=MagicMock(id=1))
     return ChatStreamProcessor(
-        provider=MagicMock(),
+        provider=provider if provider is not None else MagicMock(),
         messages=messages if messages is not None else [],
         conversation=conversation,
         service=service,
+        user_id=user_id,
+        turn_id=turn_id,
     )
+
+
+class SimpleProvider:
+    """A fake provider that streams two tokens and never asks to stop."""
+
+    model = "test-model"
+
+    async def stream_message(
+        self, messages: list[dict[str, Any]], tools: list[Any] | None = None
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        yield {"type": "token", "content": "Hello"}
+        yield {"type": "token", "content": " world"}
 
 
 def _make_chunk(
@@ -314,9 +336,10 @@ class TestCollectStreamResponse:
         processor.provider.stream_message = stream_gen  # type: ignore[assignment]
         result = await processor._collect_stream_response(MagicMock())
         assert result is not None
-        full_response, tool_calls = result
+        full_response, tool_calls, stopped = result
         assert full_response == "Hello world"
         assert tool_calls == []
+        assert stopped is False
 
     @pytest.mark.asyncio
     async def test_collects_tool_call_names(self) -> None:
@@ -330,8 +353,9 @@ class TestCollectStreamResponse:
         processor.provider.stream_message = stream_gen  # type: ignore[assignment]
         result = await processor._collect_stream_response(MagicMock())
         assert result is not None
-        _, tool_calls = result
+        _, tool_calls, stopped = result
         assert tool_calls == [{"name": "search_web"}]
+        assert stopped is False
 
     @pytest.mark.asyncio
     async def test_returns_none_on_provider_api_error(self) -> None:
@@ -413,3 +437,122 @@ class TestPersistAndEmitDone:
         assert data["done"] is True
         assert data["token"] == ""
         assert data["conversation_id"] == str(processor.conversation_uuid)
+
+
+class TestStopHonoured:
+    @pytest.mark.asyncio
+    async def test_a_stopped_turn_runs_no_further_tools(self) -> None:
+        """The stop lands between events, so the first tool completes and the second never starts."""
+        executed: list[str] = []
+
+        class StoppingProvider:
+            model = "test-model"
+
+            async def stream_message(
+                self, messages: list[dict[str, Any]], tools: list[Any] | None = None
+            ) -> AsyncGenerator[dict[str, Any], None]:
+                yield {"type": "tool_start", "name": "first_tool"}
+                executed.append("first_tool")
+                yield {"type": "tool_end", "name": "first_tool"}
+                request_stop("turn-1", 1)
+                yield {"type": "tool_start", "name": "second_tool"}
+                executed.append("second_tool")
+                yield {"type": "tool_end", "name": "second_tool"}
+                yield {"type": "token", "content": "done"}
+
+        processor = _make_processor(provider=StoppingProvider(), turn_id="turn-1", user_id=1)
+
+        payloads = [json.loads(chunk.removeprefix("data: ")) async for chunk in processor.stream()]
+
+        assert executed == ["first_tool"]
+        done = payloads[-1]
+        assert done["done"] is True
+        assert done["stopped"] is True
+        assert done["message"]["tool_calls"] == [{"name": "first_tool"}]
+
+    @pytest.mark.asyncio
+    async def test_a_stop_during_execution_still_keeps_the_finishing_tool(self) -> None:
+        """Stop requested while a tool is executing (between its tool_start and tool_end): the
+        in-flight tool's result is still kept, and only the next tool is skipped."""
+        executed: list[str] = []
+
+        class StoppingDuringExecutionProvider:
+            model = "test-model"
+
+            async def stream_message(
+                self, messages: list[dict[str, Any]], tools: list[Any] | None = None
+            ) -> AsyncGenerator[dict[str, Any], None]:
+                yield {"type": "tool_start", "name": "first_tool"}
+                # The stop lands here — inside the window where the real provider is
+                # awaiting `_execute_tool`, between yielding tool_start and tool_end.
+                request_stop("turn-6", 1)
+                executed.append("first_tool")
+                yield {"type": "tool_end", "name": "first_tool"}
+                yield {"type": "tool_start", "name": "second_tool"}
+                executed.append("second_tool")
+                yield {"type": "tool_end", "name": "second_tool"}
+                yield {"type": "token", "content": "done"}
+
+        processor = _make_processor(provider=StoppingDuringExecutionProvider(), turn_id="turn-6", user_id=1)
+
+        payloads = [json.loads(chunk.removeprefix("data: ")) async for chunk in processor.stream()]
+
+        assert executed == ["first_tool"]
+        done = payloads[-1]
+        assert done["stopped"] is True
+        assert done["message"]["tool_calls"] == [{"name": "first_tool"}]
+
+    @pytest.mark.asyncio
+    async def test_a_stopped_turn_keeps_the_token_delivered_when_stop_was_noticed(self) -> None:
+        """A token is always text the model already produced, never work in flight, so the one
+        delivered on the very iteration the stop is noticed is kept, not dropped. The fourth
+        token is load-bearing: with only three, the test would pass even without the
+        ``if stopping: break`` — the generator would just run out on its own. A fourth token
+        that must never be requested is what a deleted break would let leak through.
+        """
+
+        class StoppingProvider:
+            model = "test-model"
+
+            async def stream_message(
+                self, messages: list[dict[str, Any]], tools: list[Any] | None = None
+            ) -> AsyncGenerator[dict[str, Any], None]:
+                yield {"type": "token", "content": "Half a "}
+                yield {"type": "token", "content": "sentence"}
+                request_stop("turn-2", 1)
+                yield {"type": "token", "content": " that still arrives"}
+                yield {"type": "token", "content": " but this one never does"}
+
+        processor = _make_processor(provider=StoppingProvider(), turn_id="turn-2", user_id=1)
+
+        payloads = [json.loads(chunk.removeprefix("data: ")) async for chunk in processor.stream()]
+
+        done = payloads[-1]
+        assert done["message"]["content"] == "Half a sentence that still arrives"
+        assert done["stopped"] is True
+
+    @pytest.mark.asyncio
+    async def test_an_uninterrupted_turn_is_not_marked_stopped(self) -> None:
+        processor = _make_processor(provider=SimpleProvider(), turn_id="turn-3", user_id=1)
+
+        payloads = [json.loads(chunk.removeprefix("data: ")) async for chunk in processor.stream()]
+
+        assert payloads[-1].get("stopped", False) is False
+
+    @pytest.mark.asyncio
+    async def test_release_turn_called_when_stream_ends(self) -> None:
+        """The turn is released from the live-turns registry once the stream finishes."""
+        processor = _make_processor(provider=SimpleProvider(), turn_id="turn-4", user_id=1)
+
+        async for _ in processor.stream():
+            pass
+
+        assert request_stop("turn-4", 1) is False
+
+    @pytest.mark.asyncio
+    async def test_a_turn_is_not_registered_until_its_stream_runs(self) -> None:
+        """Registering inside the stream is what keeps a turn whose stream never runs out of
+        the registry: there is nothing to release, so nothing can be left behind."""
+        _make_processor(provider=SimpleProvider(), turn_id="turn-7", user_id=1)
+
+        assert request_stop("turn-7", 1) is False

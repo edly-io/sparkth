@@ -218,3 +218,17 @@ describe("AssistantMessage — tool call count", () => {
     expect(screen.getByText(/an error occurred/i)).toBeInTheDocument();
   });
 });
+
+describe("AssistantMessage — stopped turns", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("marks a reply the author stopped", () => {
+    renderMessage({ content: "Half a sentence", isTyping: false, stopped: true });
+    expect(screen.getByText("Stopped")).toBeInTheDocument();
+  });
+
+  it("leaves a completed reply unmarked", () => {
+    renderMessage({ content: "All of it", isTyping: false });
+    expect(screen.queryByText("Stopped")).not.toBeInTheDocument();
+  });
+});

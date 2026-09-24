@@ -1,13 +1,15 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { useChatStream } from "@/plugins/chat/hooks/useChatStream";
 import type { ChatMessage } from "@/plugins/chat/types";
 
 const requestChatCompletionStream = vi.fn();
+const stopChatTurn = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("@/lib/chat", () => ({
   requestChatCompletionStream: (...args: unknown[]) => requestChatCompletionStream(...args),
+  stopChatTurn: (...args: unknown[]) => stopChatTurn(...args),
 }));
 
 // Serves the payloads exactly as sparkth/plugins/chat/routes/utils/stream_processor.py writes
@@ -53,8 +55,12 @@ function runStream(payloads: Record<string, unknown>[]) {
   );
   return {
     send: () => result.current.handleSend({ message: "hello", attachments: [] }),
+    stopGeneration: () => result.current.stopGeneration(),
+    optionClick: (text: string) => result.current.handleOptionClick(text),
+    isStopping: () => result.current.isStopping,
     phases: () => snapshots.map((s) => s.statusPhase),
     snapshots: () => snapshots,
+    assistant: () => messages.find((m) => m.role === "assistant"),
   };
 }
 
@@ -94,5 +100,96 @@ describe("useChatStream — status phases", () => {
       await stream.send();
     });
     expect(stream.phases().filter(Boolean)).toEqual([]);
+  });
+});
+
+describe("useChatStream — stopping", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("marks the message stopped when the done event says so", async () => {
+    const stream = runStream([
+      { token: "Half a sentence", done: false },
+      { token: "", done: true, stopped: true, conversation_id: "conv-1" },
+    ]);
+    await act(async () => {
+      await stream.send();
+    });
+    await waitFor(() => expect(stream.assistant()?.stopped).toBe(true));
+  });
+
+  it("leaves an uninterrupted message unmarked", async () => {
+    const stream = runStream([
+      { token: "All of it", done: false },
+      { token: "", done: true, conversation_id: "conv-1" },
+    ]);
+    await act(async () => {
+      await stream.send();
+    });
+    await waitFor(() => expect(stream.assistant()?.stopped).toBeFalsy());
+  });
+
+  it("sends a turn id the stop call can name", async () => {
+    const stream = runStream([{ token: "", done: true, conversation_id: "conv-1" }]);
+    await act(async () => {
+      await stream.send();
+    });
+    const body = requestChatCompletionStream.mock.calls[0][1];
+    expect(typeof body.turn_id).toBe("string");
+    expect(body.turn_id.length).toBeGreaterThan(0);
+  });
+
+  it("stops the turn it sent, by the same turn id", async () => {
+    const stream = runStream([{ token: "", done: true, conversation_id: "conv-1" }]);
+    await act(async () => {
+      // Fired back-to-back so the stop call runs while the turn id ref still
+      // holds the id handleSend set, before the stream resolves and clears it.
+      await Promise.all([stream.send(), stream.stopGeneration()]);
+    });
+    const body = requestChatCompletionStream.mock.calls[0][1];
+    expect(stopChatTurn).toHaveBeenCalledWith("test-token", body.turn_id);
+  });
+
+  it("does nothing when no turn has been sent", async () => {
+    const stream = runStream([{ token: "", done: true, conversation_id: "conv-1" }]);
+    await act(async () => {
+      await stream.stopGeneration();
+    });
+    expect(stopChatTurn).not.toHaveBeenCalled();
+  });
+
+  it("clears the stopping flag once the turn has ended", async () => {
+    const stream = runStream([{ token: "", done: true, conversation_id: "conv-1" }]);
+    await act(async () => {
+      await Promise.all([stream.send(), stream.stopGeneration()]);
+    });
+    expect(stream.isStopping()).toBe(false);
+  });
+
+  it("does not enter the stopping state when no turn is live", async () => {
+    const stream = runStream([{ token: "", done: true, conversation_id: "conv-1" }]);
+    await act(async () => {
+      await stream.stopGeneration();
+    });
+    expect(stream.isStopping()).toBe(false);
+  });
+
+  it("ignores an option click while a turn is still streaming", async () => {
+    const stream = runStream([{ token: "", done: true, conversation_id: "conv-1" }]);
+    await act(async () => {
+      // An earlier message keeps its buttons on screen, so the click lands mid-turn.
+      await Promise.all([stream.send(), stream.optionClick("Yes")]);
+    });
+    expect(requestChatCompletionStream).toHaveBeenCalledOnce();
+  });
+
+  it("sends an option click once the turn has ended", async () => {
+    const stream = runStream([{ token: "", done: true, conversation_id: "conv-1" }]);
+    await act(async () => {
+      await stream.send();
+    });
+    await act(async () => {
+      await stream.optionClick("Yes");
+    });
+    expect(requestChatCompletionStream).toHaveBeenCalledTimes(2);
   });
 });

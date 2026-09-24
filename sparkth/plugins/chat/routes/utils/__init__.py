@@ -39,3 +39,15 @@ def parse_metadata_list(model_metadata: str | None, key: str) -> list[dict[str, 
     except (json.JSONDecodeError, AttributeError) as exc:
         logger.error("Failed to parse model_metadata for key %r: %s", key, exc)
         return None
+
+
+def parse_metadata_flag(model_metadata: str | None, key: str) -> bool:
+    """Read a boolean from a JSON-serialised metadata string, defaulting to False."""
+    if not model_metadata:
+        return False
+    try:
+        meta = json.loads(model_metadata)
+        return bool(meta.get(key, False))
+    except (json.JSONDecodeError, AttributeError) as exc:
+        logger.error("Failed to parse model_metadata for key %r: %s", key, exc)
+        return False

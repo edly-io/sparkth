@@ -15,6 +15,7 @@ export interface ApiMessage {
   rag_sections: { type: string; name: string; source?: string }[] | null;
   tool_calls: { name: string }[] | null;
   is_error: boolean;
+  stopped: boolean;
 }
 
 export interface ApiConversation {
