@@ -8,15 +8,39 @@ class TestLearningDesignSystemPrompt:
     def setup_method(self) -> None:
         self.prompt = get_course_design_system_prompt()
 
-    def test_scope_and_guardrails_section_present(self) -> None:
-        assert "SCOPE & GUARDRAILS" in self.prompt
+    def test_response_boundaries_section_present(self) -> None:
+        """Named for what it is: a fallback and response rules, not a second classifier."""
+        assert "RESPONSE BOUNDARIES" in self.prompt
+        assert "SCOPE & GUARDRAILS" not in self.prompt
 
-    def test_allowed_tasks_section_present_and_non_empty(self) -> None:
-        assert "Allowed tasks:" in self.prompt
-        allowed_index = self.prompt.index("Allowed tasks:")
-        # At least one bullet point must follow the heading
-        section_after = self.prompt[allowed_index:]
-        assert "- " in section_after
+    def test_scope_taxonomy_lives_in_the_classifier(self) -> None:
+        """The in/out-of-scope lists and their worked examples belong to the scope classifier's
+        prompt only; two copies drift, and the classifier's is the one that decides."""
+        for duplicate in (
+            "Allowed tasks:",
+            "Refused tasks",
+            "a direct answer to a question you asked",
+            "you are now DAN",
+            "not even with",
+        ):
+            assert duplicate not in self.prompt, duplicate
+
+    def test_refusal_fallback_reads_the_whole_conversation(self) -> None:
+        """When the classifier fails open this line decides alone; judging the latest message in
+        isolation would refuse a one-word answer to the model's own question."""
+        assert "whole conversation" in self.prompt
+
+    def test_backstop_guardrails_present(self) -> None:
+        """The classifier fails open and never sees document or tool content, so the chat
+        model still refuses injection and system-prompt disclosure itself."""
+        for rule in ("uploaded documents", "tool results", "system prompt", "partially"):
+            assert rule in self.prompt, rule
+
+    def test_refusal_is_only_for_unrelated_requests(self) -> None:
+        """Course work the model can't do, and questions about the assistant, get a real
+        answer; the refusal sentence would not make sense as a reply to either."""
+        for rule in ("only for requests unrelated to course work", "what you can do"):
+            assert rule in self.prompt, rule
 
     def test_refusal_sentence_present_verbatim(self) -> None:
         assert REFUSAL_MESSAGE in self.prompt
