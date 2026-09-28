@@ -263,3 +263,6 @@ third_party_plugins/openedx/xblock/uv.lock
 
 # Let's Encrypt certificates and ACME challenges for the prod nginx proxy
 docker/nginx/certbot/
+
+# Pre-deploy database dumps written by the deploy-dev workflow on the dev VM
+backups/

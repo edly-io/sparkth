@@ -210,6 +210,42 @@ Let's Encrypt certificate and switch nginx to HTTPS (certificates live in the gi
 provider such as AWS SES. For orchestrated deployments, the same image is published to
 GHCR by CI and runs under Kubernetes.
 
+### Continuous deployment to a dev VM
+
+[`deploy-dev.yml`](.github/workflows/deploy-dev.yml) redeploys a single-host stack every
+time the image workflow publishes `ghcr.io/edly-io/sparkth:main`. It runs on a self-hosted
+runner on the VM, resets the checkout to the published commit, dumps the databases to
+`backups/` (the last seven are kept), runs `migrate` and restarts the stack with
+`SPARKTH_TAG=main`. It can also be started by hand from the Actions tab.
+
+To set up the VM, starting from a working prod stack as described above:
+
+1. Create a runner user with Docker access and give it the checkout:
+
+   ```bash
+   sudo useradd -m -s /bin/bash gh-runner
+   sudo usermod -aG docker gh-runner
+   sudo chown -R gh-runner:gh-runner /app/sparkth
+   ```
+
+2. Under **Settings → Actions → Runners → New self-hosted runner**, follow the download
+   steps as `gh-runner`, then register it with the `sparkth-dev` label and install it as a
+   service:
+
+   ```bash
+   ./config.sh --url https://github.com/edly-io/sparkth --token <TOKEN> \
+     --name sparkth-dev-vm --labels sparkth-dev --unattended
+   sudo ./svc.sh install gh-runner && sudo ./svc.sh start
+   ```
+
+3. Create a `dev` environment under **Settings → Environments**, limited to `main`. If
+   the checkout is not at `/app/sparkth`, set the `DEV_DEPLOY_DIR` repository variable.
+
+The deploy discards local edits to tracked files in the checkout, so keep server-specific
+settings in the git-ignored `.env.local`. Only this workflow targets the `sparkth-dev`
+label; keep it that way, and keep approval required for outside contributors' workflow
+runs, because this repository is public.
+
 ## Configuration
 
 Runtime configuration is via environment variables in `.env` (committed dev defaults) and
