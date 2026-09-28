@@ -18,4 +18,13 @@ describe("HomeClient", () => {
     expect(screen.getByRole("link", { name: "Get Started" })).toHaveAttribute("href", "/register");
     expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/login");
   });
+
+  it("links to the privacy policy", () => {
+    renderWithIntl(<HomeClient />);
+
+    expect(screen.getByRole("link", { name: "Privacy Policy" })).toHaveAttribute(
+      "href",
+      "/privacy",
+    );
+  });
 });
