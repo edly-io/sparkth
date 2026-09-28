@@ -6,7 +6,6 @@ interface SendPayload {
   message: string;
   attachments: TextAttachment[];
   documentIds?: number[];
-  similarityThreshold?: number;
 }
 
 interface UseChatStreamOptions {
@@ -207,7 +206,6 @@ async function readStream(
   let buffer = "";
   let newConversationId: string | null = null;
   let hasError = false;
-  let doneOptions: string[] = [];
   let doneRagSections: { type: string; name: string; source?: string }[] | null = null;
   let doneToolCalls: { name: string }[] | null = null;
   let doneStopped = false;
@@ -270,7 +268,6 @@ async function readStream(
         if (parsed.done) {
           if (parsed.conversation_id) newConversationId = String(parsed.conversation_id);
           if (parsed.content) assistantText = parsed.content;
-          if (parsed.options) doneOptions = parsed.options as string[];
           const sections = (parsed.message as Record<string, unknown> | undefined)?.rag_sections;
           if (Array.isArray(sections) && sections.length > 0) {
             doneRagSections = sections as {
@@ -302,7 +299,6 @@ async function readStream(
     assistantText,
     newConversationId,
     hasError,
-    doneOptions,
     doneRagSections,
     doneToolCalls,
     doneStopped,
@@ -317,14 +313,6 @@ export function useChatStream({
   setMessages,
   onNewConversation,
 }: UseChatStreamOptions) {
-  const lastSentRef = useRef<{
-    message: string;
-    attachments: TextAttachment[];
-  }>({
-    message: "",
-    attachments: [],
-  });
-  const lastSentThresholdRef = useRef<number>(0.45);
   // The backend only notices a stop between provider events, so the button has to say it heard.
   const [isStopping, setIsStopping] = useState(false);
   const turnIdRef = useRef<string | null>(null);
@@ -350,10 +338,7 @@ export function useChatStream({
   );
 
   const handleSend = useCallback(
-    async ({ message, attachments, documentIds, similarityThreshold = 0.45 }: SendPayload) => {
-      lastSentRef.current = { message, attachments };
-      lastSentThresholdRef.current = similarityThreshold;
-
+    async ({ message, attachments, documentIds }: SendPayload) => {
       // Strip recovery placeholders before starting a fresh stream — prevents the
       // post-refresh polling from conflicting with a new, live stream.
       setMessages((prev) => prev.filter((m) => !RECOVERY_PLACEHOLDER_IDS.has(m.id)));
@@ -386,8 +371,8 @@ export function useChatStream({
 
       try {
         const res = await requestChatCompletionStream(token, {
-          // May still be undefined here if a retry (e.g. an option click) bypasses the
-          // compose-box guard; the backend then 422s and the catch below surfaces its message.
+          // Callers run the AI-key guard first; if it is still undefined, the backend 422s and
+          // the catch below surfaces its message.
           llm_config_id: llmConfigId as number,
           ...(modelOverride && { model_override: modelOverride }),
           messages: newUserMessages,
@@ -410,7 +395,6 @@ export function useChatStream({
           assistantText,
           newConversationId,
           hasError,
-          doneOptions,
           doneRagSections,
           doneToolCalls,
           doneStopped,
@@ -430,7 +414,6 @@ export function useChatStream({
                     streamedContent: undefined,
                     isTyping: false,
                     statusPhase: undefined,
-                    ...(doneOptions.length > 0 && { options: doneOptions }),
                     ...(doneRagSections && {
                       ragSections: doneRagSections.map((s) => ({
                         ...s,
@@ -480,26 +463,15 @@ export function useChatStream({
     );
   }, [token]);
 
-  const handleOptionClick = useCallback(
+  // Sends an options-widget reply as the user's next message, unless a turn is still running:
+  // a second turn would overwrite the id the live one is stopped by.
+  const handleReply = useCallback(
     (text: string) => {
-      // An earlier message keeps its option buttons while a new turn streams, and a second turn
-      // would overwrite the id the live one is stopped by.
       if (turnIdRef.current) return;
-      if (text === "Try with less strict matching") {
-        const { message, attachments } = lastSentRef.current;
-        const last = lastSentThresholdRef.current;
-        const nextThreshold = last > 0.3 ? 0.3 : 0.15;
-        handleSend({
-          message,
-          attachments,
-          similarityThreshold: nextThreshold,
-        });
-      } else {
-        handleSend({ message: text, attachments: [] });
-      }
+      handleSend({ message: text, attachments: [] });
     },
     [handleSend],
   );
 
-  return { handleSend, handleOptionClick, stopGeneration, isStopping };
+  return { handleSend, handleReply, stopGeneration, isStopping };
 }

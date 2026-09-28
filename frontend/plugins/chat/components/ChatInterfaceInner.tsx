@@ -89,7 +89,7 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
     [skipNextLoadRef, router, inputAttachments, token, setError],
   );
 
-  const { handleSend, handleOptionClick, stopGeneration, isStopping } = useChatStream({
+  const { handleSend, handleReply, stopGeneration, isStopping } = useChatStream({
     token,
     llmConfigId,
     modelOverride,
@@ -118,9 +118,9 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
     [sendIfAiKeyReady, handleSend],
   );
 
-  const handleGuardedOptionClick = useCallback(
-    (text: string) => sendIfAiKeyReady(() => handleOptionClick(text)),
-    [sendIfAiKeyReady, handleOptionClick],
+  const handleGuardedReply = useCallback(
+    (text: string) => sendIfAiKeyReady(() => handleReply(text)),
+    [sendIfAiKeyReady, handleReply],
   );
 
   const isStreaming = messages.some((m) => m.isTyping === true);
@@ -159,8 +159,7 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
           messages={messages}
           setPreviewOpen={setPreviewOpen}
           setPreviewAttachment={setPreviewAttachment}
-          onSend={handleGuardedSend}
-          onOptionClick={handleGuardedOptionClick}
+          onReply={handleGuardedReply}
         />
       )}
 

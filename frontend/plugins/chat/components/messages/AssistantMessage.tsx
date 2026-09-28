@@ -1,9 +1,10 @@
 import { AlertCircle, Bot } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
 import { ChatMessage, StreamStatusPhase, TextAttachment } from "../../types";
 import { Pill } from "../attachment/Pill";
+import { OptionsPrompt } from "./OptionsPrompt";
+import { splitOptionsBlock } from "./optionsBlock";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { truncate, RAG_DISPLAY_NAME_MAX_CHARS } from "@/lib/utils";
@@ -22,7 +23,8 @@ interface AssistantMessageProps {
   message: ChatMessage;
   setPreviewOpen: (open: boolean) => void;
   setPreviewAttachment: (attachment: TextAttachment | null) => void;
-  onOptionClick: (text: string) => void;
+  onReply: (text: string) => void;
+  isLatest: boolean;
 }
 
 function formatToolName(name: string): string {
@@ -33,7 +35,8 @@ export function AssistantMessage({
   message,
   setPreviewOpen,
   setPreviewAttachment,
-  onOptionClick,
+  onReply,
+  isLatest,
 }: AssistantMessageProps) {
   const t = useTranslations("chat");
 
@@ -45,6 +48,7 @@ export function AssistantMessage({
     generating: t("statusGenerating"),
   };
   const displayText = message.streamedContent ?? message.content;
+  const { body, options } = splitOptionsBlock(displayText);
   const toolCalls = message.toolCalls ?? [];
   // The dots stay up for every waiting state, tools running or not, so nothing flickers as a
   // turn moves between calls; the count line above the card says what has run.
@@ -204,12 +208,12 @@ export function AssistantMessage({
                   className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-pulse flex-shrink-0 mt-1.5"
                 />
                 <div className="prose prose-neutral dark:prose-invert max-w-none">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayText}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
                 </div>
               </div>
             ) : (
               <div className="prose prose-neutral dark:prose-invert max-w-none">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayText}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
               </div>
             )}
 
@@ -224,20 +228,14 @@ export function AssistantMessage({
               />
             )}
 
-            {!message.isTyping && message.options && (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {message.options.map((opt) => (
-                  <Button
-                    key={opt}
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onOptionClick(opt)}
-                    className="bg-surface-variant"
-                  >
-                    {opt}
-                  </Button>
-                ))}
-              </div>
+            {options && (
+              <OptionsPrompt
+                options={options}
+                interactive={
+                  isLatest && !message.isTyping && !message.stopped && !message.isPending
+                }
+                onRespond={onReply}
+              />
             )}
           </Card>
         )}

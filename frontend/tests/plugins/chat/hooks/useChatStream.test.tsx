@@ -56,7 +56,7 @@ function runStream(payloads: Record<string, unknown>[]) {
   return {
     send: () => result.current.handleSend({ message: "hello", attachments: [] }),
     stopGeneration: () => result.current.stopGeneration(),
-    optionClick: (text: string) => result.current.handleOptionClick(text),
+    reply: (text: string) => result.current.handleReply(text),
     isStopping: () => result.current.isStopping,
     phases: () => snapshots.map((s) => s.statusPhase),
     snapshots: () => snapshots,
@@ -173,23 +173,27 @@ describe("useChatStream — stopping", () => {
     expect(stream.isStopping()).toBe(false);
   });
 
-  it("ignores an option click while a turn is still streaming", async () => {
+  it("ignores a reply while a turn is still streaming", async () => {
     const stream = runStream([{ token: "", done: true, conversation_id: "conv-1" }]);
     await act(async () => {
-      // An earlier message keeps its buttons on screen, so the click lands mid-turn.
-      await Promise.all([stream.send(), stream.optionClick("Yes")]);
+      // The AI-key check is async, so a reply can land after a turn has started.
+      await Promise.all([stream.send(), stream.reply("Yes")]);
     });
     expect(requestChatCompletionStream).toHaveBeenCalledOnce();
   });
 
-  it("sends an option click once the turn has ended", async () => {
+  it("sends a reply as the user's message once the turn has ended", async () => {
     const stream = runStream([{ token: "", done: true, conversation_id: "conv-1" }]);
     await act(async () => {
       await stream.send();
     });
     await act(async () => {
-      await stream.optionClick("Yes");
+      await stream.reply("Beginners\nRetirees");
     });
     expect(requestChatCompletionStream).toHaveBeenCalledTimes(2);
+    const body = requestChatCompletionStream.mock.calls[1][1] as {
+      messages: { role: string; content: string }[];
+    };
+    expect(body.messages.at(-1)).toMatchObject({ role: "user", content: "Beginners\nRetirees" });
   });
 });

@@ -9,6 +9,8 @@
     "statusSkippingRag": "Answering without the attachments…",
     "statusGenerating": "Writing the answer…",
     "stopped": "Stopped",
+    "optionsRespond": "Respond",
+    "optionsOtherPlaceholder": "Add something else…",
     "stopGenerating": "Stop generating",
     "aiKeyMissing": "You have not added an AI key to Sparkth yet. Add one, then select it in Compose's configuration.",
     "aiKeyMissingAction": "Add an AI key",
