@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/Card";
 import { ChatMessage, StreamStatusPhase, TextAttachment } from "../../types";
 import { Pill } from "../attachment/Pill";
 import { OptionsPrompt } from "./OptionsPrompt";
-import { splitOptionsBlock } from "./optionsBlock";
+import { answeredOptions, splitOptionsBlock } from "./optionsBlock";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { truncate, RAG_DISPLAY_NAME_MAX_CHARS } from "@/lib/utils";
@@ -25,6 +25,7 @@ interface AssistantMessageProps {
   setPreviewAttachment: (attachment: TextAttachment | null) => void;
   onReply: (text: string) => void;
   isLatest: boolean;
+  reply?: string;
 }
 
 function formatToolName(name: string): string {
@@ -37,6 +38,7 @@ export function AssistantMessage({
   setPreviewAttachment,
   onReply,
   isLatest,
+  reply,
 }: AssistantMessageProps) {
   const t = useTranslations("chat");
 
@@ -234,6 +236,7 @@ export function AssistantMessage({
                 interactive={
                   isLatest && !message.isTyping && !message.stopped && !message.isPending
                 }
+                selected={reply ? answeredOptions(options, reply) : []}
                 onRespond={onReply}
               />
             )}

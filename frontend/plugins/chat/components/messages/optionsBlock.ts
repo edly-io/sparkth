@@ -29,3 +29,9 @@ export function splitOptionsBlock(content: string): OptionsSplit {
   }
   return { body: lines.slice(0, start).join("\n").trimEnd(), options };
 }
+
+/** The options that appear as whole lines of the author's `reply`, in display order. */
+export function answeredOptions(options: string[], reply: string): string[] {
+  const lines = reply.split(/\r?\n/).map((line) => line.trim());
+  return options.filter((option) => lines.includes(option));
+}

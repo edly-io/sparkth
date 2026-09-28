@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/Input";
 interface OptionsPromptProps {
   options: string[];
   interactive: boolean;
+  selected: string[];
   onRespond: (text: string) => void;
 }
 
@@ -23,9 +24,10 @@ function buildReply(options: string[], checked: string[], other: string): string
 
 /**
  * Checkboxes for the options an assistant question offers, a free-text input for anything else,
- * and a Respond button. Read-only (disabled, unchecked, no input or button) unless `interactive`.
+ * and a Respond button. Unless `interactive` it is read-only: disabled checkboxes with `selected`
+ * checked, and no input or button.
  */
-export function OptionsPrompt({ options, interactive, onRespond }: OptionsPromptProps) {
+export function OptionsPrompt({ options, interactive, selected, onRespond }: OptionsPromptProps) {
   const t = useTranslations("chat");
   const [checked, setChecked] = useState<string[]>([]);
   const [other, setOther] = useState("");
@@ -54,7 +56,7 @@ export function OptionsPrompt({ options, interactive, onRespond }: OptionsPrompt
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
-                checked={interactive && checked.includes(option)}
+                checked={(interactive ? checked : selected).includes(option)}
                 disabled={!interactive || sent}
                 onChange={() => setChecked((prev) => toggleOption(prev, option))}
               />

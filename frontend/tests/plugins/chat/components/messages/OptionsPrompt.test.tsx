@@ -8,9 +8,14 @@ import { renderWithIntl } from "@/tests/intl-test-utils";
 const OPTIONS = ["Beginners", "Professionals", "Students"];
 const onRespond = vi.fn();
 
-function renderPrompt(interactive = true) {
+function renderPrompt(interactive = true, selected: string[] = []) {
   return renderWithIntl(
-    <OptionsPrompt options={OPTIONS} interactive={interactive} onRespond={onRespond} />,
+    <OptionsPrompt
+      options={OPTIONS}
+      interactive={interactive}
+      selected={selected}
+      onRespond={onRespond}
+    />,
     { chat: chatEn.chat },
   );
 }
@@ -71,6 +76,15 @@ describe("OptionsPrompt — interactive", () => {
     expect(onRespond).not.toHaveBeenCalled();
   });
 
+  it("keeps the sent options checked and locks them", async () => {
+    renderPrompt();
+    await userEvent.click(screen.getByLabelText("Students"));
+    await userEvent.click(screen.getByRole("button", { name: "Respond" }));
+    expect(screen.getByLabelText("Students")).toBeChecked();
+    expect(screen.getByLabelText("Students")).toBeDisabled();
+    expect(screen.getByLabelText("Beginners")).not.toBeChecked();
+  });
+
   it("sends once on a double click", async () => {
     renderPrompt();
     await userEvent.click(screen.getByLabelText("Beginners"));
@@ -88,5 +102,14 @@ describe("OptionsPrompt — read-only", () => {
     }
     expect(screen.queryByRole("button", { name: "Respond" })).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText("Add something else…")).not.toBeInTheDocument();
+  });
+});
+
+describe("OptionsPrompt — answered", () => {
+  it("shows the selected options checked and disabled", () => {
+    renderPrompt(false, ["Professionals"]);
+    expect(screen.getByLabelText("Professionals")).toBeChecked();
+    expect(screen.getByLabelText("Professionals")).toBeDisabled();
+    expect(screen.getByLabelText("Beginners")).not.toBeChecked();
   });
 });

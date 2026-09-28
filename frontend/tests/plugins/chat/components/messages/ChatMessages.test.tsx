@@ -45,6 +45,15 @@ describe("ChatMessages — options widget", () => {
     expect(screen.queryByRole("button", { name: "Respond" })).not.toBeInTheDocument();
   });
 
+  it("shows an answered question with the replied options checked", () => {
+    renderMessages([
+      assistant("a1", "Audience?", "Beginners"),
+      { id: "u1", role: "user", content: "Beginners\nRetirees" },
+    ]);
+    expect(screen.getByLabelText("Beginners")).toBeChecked();
+    expect(screen.getByLabelText("Beginners")).toBeDisabled();
+  });
+
   it("keeps each line of a multi-line user reply", () => {
     renderMessages([{ id: "u1", role: "user", content: "Beginners\nRetirees" }]);
     expect(screen.getByText("Beginners Retirees")).toHaveClass("whitespace-pre-wrap");

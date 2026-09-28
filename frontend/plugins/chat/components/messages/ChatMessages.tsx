@@ -58,6 +58,7 @@ export function ChatMessages({
             setPreviewAttachment={setPreviewAttachment}
             onReply={onReply}
             isLatest={index === messages.length - 1}
+            reply={messages[index + 1]?.role === "user" ? messages[index + 1].content : undefined}
           />
         ),
       )}

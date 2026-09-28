@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { splitOptionsBlock } from "@/plugins/chat/components/messages/optionsBlock";
+import {
+  answeredOptions,
+  splitOptionsBlock,
+} from "@/plugins/chat/components/messages/optionsBlock";
 
 describe("splitOptionsBlock", () => {
   it("splits a trailing options block off the body", () => {
@@ -41,5 +44,24 @@ describe("splitOptionsBlock", () => {
 
   it("returns the content unchanged when there is no block", () => {
     expect(splitOptionsBlock("Plain reply.")).toEqual({ body: "Plain reply.", options: null });
+  });
+});
+
+describe("answeredOptions", () => {
+  const options = ["Beginners", "Professionals", "Students"];
+
+  it("returns the options that appear as lines of the reply, in display order", () => {
+    expect(answeredOptions(options, "Students\nBeginners\nRetirees")).toEqual([
+      "Beginners",
+      "Students",
+    ]);
+  });
+
+  it("ignores surrounding whitespace on reply lines", () => {
+    expect(answeredOptions(options, "  Professionals ")).toEqual(["Professionals"]);
+  });
+
+  it("does not match an option that only appears inside a longer line", () => {
+    expect(answeredOptions(options, "Not Beginners")).toEqual([]);
   });
 });
