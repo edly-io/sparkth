@@ -5,7 +5,9 @@ from sparkth.lib.frontend import (
     get_plugin_sidebar_entry,
     plugin_has_frontend,
 )
+from sparkth.lib.mcp.hooks import MCP_TOOLS
 from sparkth.plugins.canvas.plugin import CanvasPlugin
+from sparkth.plugins.canvas.tools import canvas_about
 
 
 def test_declares_explicit_name() -> None:
@@ -23,3 +25,12 @@ def test_declares_display_info_but_no_frontend() -> None:
     # Backend-only plugin: no frontend page, no sidebar entry.
     assert plugin_has_frontend("canvas") is False
     assert get_plugin_sidebar_entry("canvas") is None
+
+
+async def test_registers_about_tool() -> None:
+    plugin = CanvasPlugin()
+    names = {tool.name for owner, tool in MCP_TOOLS.iter_items() if owner is plugin}
+    assert "canvas_about" in names
+
+    about = (await canvas_about())["about"]
+    assert "publish" in about.lower()

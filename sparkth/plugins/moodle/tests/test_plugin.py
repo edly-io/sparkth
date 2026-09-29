@@ -5,7 +5,9 @@ from sparkth.lib.frontend import (
     get_plugin_sidebar_entry,
     plugin_has_frontend,
 )
+from sparkth.lib.mcp.hooks import MCP_TOOLS
 from sparkth.plugins.moodle.plugin import MoodlePlugin
+from sparkth.plugins.moodle.tools import moodle_about
 
 
 def test_declares_explicit_name() -> None:
@@ -22,3 +24,12 @@ def test_declares_display_info_but_no_frontend() -> None:
 
     assert plugin_has_frontend("moodle") is False
     assert get_plugin_sidebar_entry("moodle") is None
+
+
+async def test_registers_about_tool() -> None:
+    plugin = MoodlePlugin()
+    names = {tool.name for owner, tool in MCP_TOOLS.iter_items() if owner is plugin}
+    assert "moodle_about" in names
+
+    about = (await moodle_about())["about"]
+    assert "publish" in about.lower()

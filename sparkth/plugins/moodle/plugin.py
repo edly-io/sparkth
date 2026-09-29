@@ -17,6 +17,7 @@ class MoodlePlugin(SparkthPlugin):
     Moodle LMS Integration Plugin
 
     Provides Moodle web services integration with MCP tools for:
+    - Moodle vocabulary, structure and publish semantics (``moodle_about``)
     - Authentication and credential validation
     - Course creation and listing
     - Section, Page and Quiz authoring
@@ -33,6 +34,7 @@ class MoodlePlugin(SparkthPlugin):
             ),
         )
         tools_per_category: list[tuple[str, list[Callable[..., Any]]]] = [
+            ("moodle-about", [moodle_tools.moodle_about]),
             ("moodle-auth", [moodle_tools.moodle_authenticate]),
             (
                 "moodle-courses",

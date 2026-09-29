@@ -1,6 +1,7 @@
 """Moodle MCP tools, including authentication, course, section, page and quiz management."""
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
@@ -183,3 +184,11 @@ async def moodle_create_quiz(payload: QuizPayload) -> dict[str, Any]:
         "questions": [question.model_dump(mode="json") for question in payload.questions],
     }
     return await _single_call(payload.auth, "local_sparkth_create_quiz", params)
+
+
+async def moodle_about() -> dict[str, Any]:
+    """Explain Moodle's vocabulary, course structure and what "publish" means in Moodle.
+
+    Read this before creating or changing Moodle content, or when a Moodle term is ambiguous.
+    """
+    return {"about": (Path(__file__).parent / "assets" / "about.txt").read_text(encoding="utf-8")}

@@ -16,6 +16,7 @@ class OpenEdxPlugin(SparkthPlugin):
     Open edX Integration Plugin
 
     Provides comprehensive Open edX API integration with MCP tools for:
+    - Open edX vocabulary, structure and publish semantics (``openedx_about``)
     - Authentication and credential validation
     - Course CRUD operations
     - Section and subsection management
@@ -37,6 +38,7 @@ class OpenEdxPlugin(SparkthPlugin):
             ),
         )
         tools_per_category: list[tuple[str, list[Callable[..., Any]]]] = [
+            ("openedx-about", [openedx_tools.openedx_about]),
             (
                 "openedx-auth",
                 [
