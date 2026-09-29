@@ -158,7 +158,7 @@ class TestProcessSingleFile:
             await _process_single_file(drive_file, 1, "tok", session)
         assert drive_file.document_id == 42
 
-    async def test_unsupported_file_marks_document_ready(self) -> None:
+    async def test_unsupported_file_marks_document_failed(self) -> None:
         drive_file = _make_drive_file(document_id=10)
         session = _make_async_session()
         with (
@@ -179,7 +179,8 @@ class TestProcessSingleFile:
             await _process_single_file(drive_file, 1, "tok", session)
 
         last_call = mock_update.call_args_list[-1]
-        assert last_call.args[2] == DocumentStatus.READY
+        assert last_call.args[2] == DocumentStatus.FAILED
+        assert last_call.args[3] == "Unsupported file type"
 
     async def test_scanned_pdf_marks_document_failed(self) -> None:
         drive_file = _make_drive_file(document_id=10)

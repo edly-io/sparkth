@@ -44,6 +44,6 @@ class RAGIngestionError(RAGError):
 class UnsupportedFileTypeError(RAGIngestionError):
     """Raised when a file's type cannot be handled by the RAG extractors.
 
-    Callers typically treat this as a benign skip (the file is fine, it just
-    isn't RAG-ingestible).
+    Nothing from the file enters the corpus, so callers should report the
+    document as failed rather than ready.
     """

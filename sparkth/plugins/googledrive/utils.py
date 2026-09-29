@@ -210,8 +210,8 @@ async def _process_single_file(
     try:
         await _ingest_drive_file(drive_file, user_id, access_token, session, filename, document_id)
     except UnsupportedFileTypeError:
-        logger.debug("Skipping unsupported file type for RAG: %s", filename)
-        await update_document_status(session, document_id, DocumentStatus.READY)
+        logger.warning("RAG processing rejected unsupported file type '%s'", log_name)
+        await update_document_status(session, document_id, DocumentStatus.FAILED, _("Unsupported file type"))
         await session.commit()
     except ScannedPDFError:
         logger.warning("RAG processing rejected scanned PDF '%s'", log_name)
