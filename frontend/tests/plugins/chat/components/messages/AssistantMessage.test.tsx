@@ -9,7 +9,7 @@ import type { ChatMessage } from "@/plugins/chat/types";
 const defaultProps = {
   setPreviewOpen: vi.fn(),
   setPreviewAttachment: vi.fn(),
-  onReply: vi.fn(),
+  onOptionCheck: vi.fn(),
   isLatest: true,
 };
 
@@ -244,15 +244,14 @@ describe("AssistantMessage — options widget", () => {
     renderMessage({ content: OPTIONS_REPLY });
     expect(screen.getByText("Who is the course for?")).toBeInTheDocument();
     expect(screen.getByLabelText("Beginners")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Respond" })).toBeInTheDocument();
+    expect(screen.getByText(chatEn.chat.optionsTypeElse)).toBeInTheDocument();
     expect(screen.queryByText("```options")).not.toBeInTheDocument();
   });
 
-  it("sends the chosen option through onReply", async () => {
+  it("hands a checked option to onOptionCheck", async () => {
     renderMessage({ content: OPTIONS_REPLY });
     await userEvent.click(screen.getByLabelText("Professionals"));
-    await userEvent.click(screen.getByRole("button", { name: "Respond" }));
-    expect(defaultProps.onReply).toHaveBeenCalledWith("Professionals");
+    expect(defaultProps.onOptionCheck).toHaveBeenCalledWith("Professionals");
   });
 
   it("renders another fenced block as a normal code block", () => {
@@ -264,19 +263,19 @@ describe("AssistantMessage — options widget", () => {
   it("renders the widget read-only while the message is streaming", () => {
     renderMessage({ content: "", streamedContent: OPTIONS_REPLY, isTyping: true });
     expect(screen.getByLabelText("Beginners")).toBeDisabled();
-    expect(screen.queryByRole("button", { name: "Respond" })).not.toBeInTheDocument();
+    expect(screen.queryByText(chatEn.chat.optionsTypeElse)).not.toBeInTheDocument();
   });
 
   it("renders the widget read-only when the turn was stopped mid-block", () => {
     renderMessage({ content: "Who is it for?\n\n```options\nBeginners\nProfess", stopped: true });
     expect(screen.getByLabelText("Beginners")).toBeDisabled();
-    expect(screen.queryByRole("button", { name: "Respond" })).not.toBeInTheDocument();
+    expect(screen.queryByText(chatEn.chat.optionsTypeElse)).not.toBeInTheDocument();
   });
 
   it("renders the widget read-only on a restored, still-pending message", () => {
     renderMessage({ content: OPTIONS_REPLY, isPending: true });
     expect(screen.getByLabelText("Beginners")).toBeDisabled();
-    expect(screen.queryByRole("button", { name: "Respond" })).not.toBeInTheDocument();
+    expect(screen.queryByText(chatEn.chat.optionsTypeElse)).not.toBeInTheDocument();
   });
 
   it("renders the widget read-only when the message is not the latest", () => {
@@ -289,6 +288,6 @@ describe("AssistantMessage — options widget", () => {
       { chat: chatEn.chat },
     );
     expect(screen.getByLabelText("Beginners")).toBeDisabled();
-    expect(screen.queryByRole("button", { name: "Respond" })).not.toBeInTheDocument();
+    expect(screen.queryByText(chatEn.chat.optionsTypeElse)).not.toBeInTheDocument();
   });
 });

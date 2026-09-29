@@ -56,7 +56,6 @@ function runStream(payloads: Record<string, unknown>[]) {
   return {
     send: () => result.current.handleSend({ message: "hello", attachments: [] }),
     stopGeneration: () => result.current.stopGeneration(),
-    reply: (text: string) => result.current.handleReply(text),
     isStopping: () => result.current.isStopping,
     phases: () => snapshots.map((s) => s.statusPhase),
     snapshots: () => snapshots,
@@ -171,29 +170,5 @@ describe("useChatStream — stopping", () => {
       await stream.stopGeneration();
     });
     expect(stream.isStopping()).toBe(false);
-  });
-
-  it("ignores a reply while a turn is still streaming", async () => {
-    const stream = runStream([{ token: "", done: true, conversation_id: "conv-1" }]);
-    await act(async () => {
-      // The AI-key check is async, so a reply can land after a turn has started.
-      await Promise.all([stream.send(), stream.reply("Yes")]);
-    });
-    expect(requestChatCompletionStream).toHaveBeenCalledOnce();
-  });
-
-  it("sends a reply as the user's message once the turn has ended", async () => {
-    const stream = runStream([{ token: "", done: true, conversation_id: "conv-1" }]);
-    await act(async () => {
-      await stream.send();
-    });
-    await act(async () => {
-      await stream.reply("Beginners\nRetirees");
-    });
-    expect(requestChatCompletionStream).toHaveBeenCalledTimes(2);
-    const body = requestChatCompletionStream.mock.calls[1][1] as {
-      messages: { role: string; content: string }[];
-    };
-    expect(body.messages.at(-1)).toMatchObject({ role: "user", content: "Beginners\nRetirees" });
   });
 });

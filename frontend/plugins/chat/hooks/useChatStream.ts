@@ -463,15 +463,5 @@ export function useChatStream({
     );
   }, [token]);
 
-  // Sends an options-widget reply as the user's next message, unless a turn is still running:
-  // a second turn would overwrite the id the live one is stopped by.
-  const handleReply = useCallback(
-    (text: string) => {
-      if (turnIdRef.current) return;
-      handleSend({ message: text, attachments: [] });
-    },
-    [handleSend],
-  );
-
-  return { handleSend, handleReply, stopGeneration, isStopping };
+  return { handleSend, stopGeneration, isStopping };
 }

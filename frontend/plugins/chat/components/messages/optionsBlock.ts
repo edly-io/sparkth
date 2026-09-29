@@ -35,3 +35,13 @@ export function answeredOptions(options: string[], reply: string): string[] {
   const lines = reply.split(/\r?\n/).map((line) => line.trim());
   return options.filter((option) => lines.includes(option));
 }
+
+/**
+ * `message` with `line` added on a new line, or unchanged when a trimmed line of it already
+ * equals `line`. A blank message becomes just `line`.
+ */
+export function appendLine(message: string, line: string): string {
+  if (message.split(/\r?\n/).some((existing) => existing.trim() === line)) return message;
+  const kept = message.trimEnd();
+  return kept ? `${kept}\n${line}` : line;
+}

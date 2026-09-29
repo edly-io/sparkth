@@ -1,13 +1,12 @@
-import { useState, type KeyboardEvent } from "react";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
 
 interface OptionsPromptProps {
   options: string[];
   interactive: boolean;
   selected: string[];
-  onRespond: (text: string) => Promise<boolean>;
+  answered: boolean;
+  onOptionCheck: (option: string) => void;
 }
 
 /** `checked` with `option` added, or removed if it was already there. */
@@ -15,37 +14,22 @@ function toggleOption(checked: string[], option: string): string[] {
   return checked.includes(option) ? checked.filter((o) => o !== option) : [...checked, option];
 }
 
-/** The reply text: checked options in display order, then the trimmed free text, one per line. */
-function buildReply(options: string[], checked: string[], other: string): string {
-  return [...options.filter((option) => checked.includes(option)), other.trim()]
-    .filter(Boolean)
-    .join("\n");
-}
-
 /**
- * Checkboxes for the options an assistant question offers, a free-text input for anything else,
- * and a Respond button. Unless `interactive` it is read-only: disabled checkboxes with `selected`
- * checked, and no input or button.
+ * Checkboxes for the options an assistant question offers. While `interactive`, checking a box
+ * hands its option to `onOptionCheck` (the message box collects it) and a note points to the
+ * message box for anything else. Otherwise the boxes are disabled with `selected` checked, and an
+ * `answered` question that matched no option says so.
  */
-export function OptionsPrompt({ options, interactive, selected, onRespond }: OptionsPromptProps) {
+export function OptionsPrompt({
+  options,
+  interactive,
+  selected,
+  answered,
+  onOptionCheck,
+}: OptionsPromptProps) {
   const t = useTranslations("chat");
   const [checked, setChecked] = useState<string[]>([]);
-  const [other, setOther] = useState("");
-  // Locks on Respond so a double click sends once; unlocks if the send is refused.
-  const [sent, setSent] = useState(false);
-  const reply = buildReply(options, checked, other);
-  const canRespond = interactive && !sent && reply !== "";
-
-  const respond = async () => {
-    if (!canRespond) return;
-    setSent(true);
-    if (!(await onRespond(reply))) setSent(false);
-  };
-  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key !== "Enter") return;
-    event.preventDefault();
-    respond();
-  };
+  const shown = interactive ? checked : selected;
 
   return (
     <div className="mt-4 space-y-3">
@@ -55,30 +39,21 @@ export function OptionsPrompt({ options, interactive, selected, onRespond }: Opt
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
-                checked={(interactive ? checked : selected).includes(option)}
-                disabled={!interactive || sent}
-                onChange={() => setChecked((prev) => toggleOption(prev, option))}
+                checked={shown.includes(option)}
+                disabled={!interactive}
+                onChange={() => {
+                  if (!checked.includes(option)) onOptionCheck(option);
+                  setChecked((prev) => toggleOption(prev, option));
+                }}
               />
               {option}
             </label>
           </li>
         ))}
       </ul>
-      {interactive && (
-        <div className="flex items-center gap-2">
-          <Input
-            value={other}
-            onChange={(event) => setOther(event.target.value)}
-            onKeyDown={onKeyDown}
-            placeholder={t("optionsOtherPlaceholder")}
-            aria-label={t("optionsOtherPlaceholder")}
-            disabled={sent}
-            className="py-2"
-          />
-          <Button size="sm" disabled={!canRespond} onClick={respond}>
-            {t("optionsRespond")}
-          </Button>
-        </div>
+      {interactive && <p className="text-xs text-muted-foreground">{t("optionsTypeElse")}</p>}
+      {answered && selected.length === 0 && (
+        <p className="text-xs text-muted-foreground">{t("optionsNoneSelected")}</p>
       )}
     </div>
   );

@@ -6,123 +6,70 @@ import chatEn from "@/plugins/chat/messages/en.json";
 import { renderWithIntl } from "@/tests/intl-test-utils";
 
 const OPTIONS = ["Beginners", "Professionals", "Students"];
-const onRespond = vi.fn<(text: string) => Promise<boolean>>();
+const onOptionCheck = vi.fn();
+const TYPE_ELSE = chatEn.chat.optionsTypeElse;
+const NONE_SELECTED = chatEn.chat.optionsNoneSelected;
 
-function renderPrompt(interactive = true, selected: string[] = []) {
+function renderPrompt(interactive = true, selected: string[] = [], answered = false) {
   return renderWithIntl(
     <OptionsPrompt
       options={OPTIONS}
       interactive={interactive}
       selected={selected}
-      onRespond={onRespond}
+      answered={answered}
+      onOptionCheck={onOptionCheck}
     />,
     { chat: chatEn.chat },
   );
 }
 
 describe("OptionsPrompt — interactive", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    onRespond.mockResolvedValue(true);
-  });
+  beforeEach(() => vi.clearAllMocks());
 
-  it("renders a checkbox per option", () => {
+  it("renders a checkbox per option and the type-anything-else note", () => {
     renderPrompt();
     expect(screen.getAllByRole("checkbox")).toHaveLength(3);
-    expect(screen.getByLabelText("Professionals")).toBeInTheDocument();
+    expect(screen.getByText(TYPE_ELSE)).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
-  it("names the free-text input for assistive technology", () => {
-    renderPrompt();
-    expect(screen.getByRole("textbox", { name: "Add something else…" })).toBeInTheDocument();
-  });
-
-  it("disables Respond until something is chosen", () => {
-    renderPrompt();
-    expect(screen.getByRole("button", { name: "Respond" })).toBeDisabled();
-  });
-
-  it("sends the checked options in display order", async () => {
+  it("calls onOptionCheck with the option when a box is checked", async () => {
     renderPrompt();
     await userEvent.click(screen.getByLabelText("Students"));
-    await userEvent.click(screen.getByLabelText("Beginners"));
-    await userEvent.click(screen.getByRole("button", { name: "Respond" }));
-    expect(onRespond).toHaveBeenCalledWith("Beginners\nStudents");
-  });
-
-  it("does not send an option that was checked then unchecked", async () => {
-    renderPrompt();
-    await userEvent.click(screen.getByLabelText("Beginners"));
-    await userEvent.click(screen.getByLabelText("Beginners"));
-    await userEvent.click(screen.getByLabelText("Students"));
-    await userEvent.click(screen.getByRole("button", { name: "Respond" }));
-    expect(onRespond).toHaveBeenCalledWith("Students");
-  });
-
-  it("appends the typed text after the checked options", async () => {
-    renderPrompt();
-    await userEvent.click(screen.getByLabelText("Beginners"));
-    await userEvent.type(screen.getByPlaceholderText("Add something else…"), "  Retirees ");
-    await userEvent.click(screen.getByRole("button", { name: "Respond" }));
-    expect(onRespond).toHaveBeenCalledWith("Beginners\nRetirees");
-  });
-
-  it("sends typed text alone when nothing is checked, on Enter", async () => {
-    renderPrompt();
-    await userEvent.type(screen.getByPlaceholderText("Add something else…"), "Retirees{Enter}");
-    expect(onRespond).toHaveBeenCalledWith("Retirees");
-  });
-
-  it("Enter with nothing chosen sends nothing", async () => {
-    renderPrompt();
-    await userEvent.type(screen.getByPlaceholderText("Add something else…"), "   {Enter}");
-    expect(onRespond).not.toHaveBeenCalled();
-  });
-
-  it("keeps the sent options checked and locks them", async () => {
-    renderPrompt();
-    await userEvent.click(screen.getByLabelText("Students"));
-    await userEvent.click(screen.getByRole("button", { name: "Respond" }));
+    expect(onOptionCheck).toHaveBeenCalledWith("Students");
     expect(screen.getByLabelText("Students")).toBeChecked();
-    expect(screen.getByLabelText("Students")).toBeDisabled();
-    expect(screen.getByLabelText("Beginners")).not.toBeChecked();
   });
 
-  it("unlocks with the selection kept when the send is refused", async () => {
-    onRespond.mockResolvedValue(false);
+  it("calls onOptionCheck only when a box becomes checked", async () => {
     renderPrompt();
     await userEvent.click(screen.getByLabelText("Students"));
-    await userEvent.click(screen.getByRole("button", { name: "Respond" }));
-    expect(screen.getByLabelText("Students")).toBeChecked();
-    expect(screen.getByLabelText("Students")).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Respond" })).toBeEnabled();
-  });
-
-  it("sends once on a double click", async () => {
-    renderPrompt();
-    await userEvent.click(screen.getByLabelText("Beginners"));
-    await userEvent.dblClick(screen.getByRole("button", { name: "Respond" }));
-    expect(onRespond).toHaveBeenCalledOnce();
+    await userEvent.click(screen.getByLabelText("Students"));
+    expect(onOptionCheck).toHaveBeenCalledOnce();
+    expect(screen.getByLabelText("Students")).not.toBeChecked();
   });
 });
 
 describe("OptionsPrompt — read-only", () => {
-  it("renders disabled, unchecked checkboxes and no input or button", () => {
+  it("renders disabled checkboxes and no note while unanswered", () => {
     renderPrompt(false);
     for (const box of screen.getAllByRole("checkbox")) {
       expect(box).toBeDisabled();
       expect(box).not.toBeChecked();
     }
-    expect(screen.queryByRole("button", { name: "Respond" })).not.toBeInTheDocument();
-    expect(screen.queryByPlaceholderText("Add something else…")).not.toBeInTheDocument();
+    expect(screen.queryByText(TYPE_ELSE)).not.toBeInTheDocument();
+    expect(screen.queryByText(NONE_SELECTED)).not.toBeInTheDocument();
   });
-});
 
-describe("OptionsPrompt — answered", () => {
-  it("shows the selected options checked and disabled", () => {
-    renderPrompt(false, ["Professionals"]);
+  it("shows the selected options checked when answered", () => {
+    renderPrompt(false, ["Professionals"], true);
     expect(screen.getByLabelText("Professionals")).toBeChecked();
-    expect(screen.getByLabelText("Professionals")).toBeDisabled();
     expect(screen.getByLabelText("Beginners")).not.toBeChecked();
+    expect(screen.queryByText(NONE_SELECTED)).not.toBeInTheDocument();
+  });
+
+  it("says no option was selected when the answer matches none", () => {
+    renderPrompt(false, [], true);
+    expect(screen.getByText(NONE_SELECTED)).toBeInTheDocument();
   });
 });

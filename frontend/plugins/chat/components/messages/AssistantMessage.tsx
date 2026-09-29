@@ -23,7 +23,7 @@ interface AssistantMessageProps {
   message: ChatMessage;
   setPreviewOpen: (open: boolean) => void;
   setPreviewAttachment: (attachment: TextAttachment | null) => void;
-  onReply: (text: string) => Promise<boolean>;
+  onOptionCheck: (option: string) => void;
   isLatest: boolean;
   reply?: string;
 }
@@ -36,7 +36,7 @@ export function AssistantMessage({
   message,
   setPreviewOpen,
   setPreviewAttachment,
-  onReply,
+  onOptionCheck,
   isLatest,
   reply,
 }: AssistantMessageProps) {
@@ -237,7 +237,8 @@ export function AssistantMessage({
                   isLatest && !message.isTyping && !message.stopped && !message.isPending
                 }
                 selected={reply ? answeredOptions(options, reply) : []}
-                onRespond={onReply}
+                answered={reply !== undefined}
+                onOptionCheck={onOptionCheck}
               />
             )}
           </Card>

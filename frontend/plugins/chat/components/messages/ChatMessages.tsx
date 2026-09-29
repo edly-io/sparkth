@@ -7,14 +7,14 @@ interface ChatMessagesProps {
   messages: ChatMessage[];
   setPreviewOpen: (open: boolean) => void;
   setPreviewAttachment: (attachment: TextAttachment | null) => void;
-  onReply: (text: string) => Promise<boolean>;
+  onOptionCheck: (option: string) => void;
 }
 
 export function ChatMessages({
   messages,
   setPreviewOpen,
   setPreviewAttachment,
-  onReply,
+  onOptionCheck,
 }: ChatMessagesProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -56,7 +56,7 @@ export function ChatMessages({
             message={msg}
             setPreviewOpen={setPreviewOpen}
             setPreviewAttachment={setPreviewAttachment}
-            onReply={onReply}
+            onOptionCheck={onOptionCheck}
             isLatest={index === messages.length - 1}
             reply={messages[index + 1]?.role === "user" ? messages[index + 1].content : undefined}
           />

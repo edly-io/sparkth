@@ -18,7 +18,7 @@ function renderMessages(messages: ChatMessage[]) {
       messages={messages}
       setPreviewOpen={vi.fn()}
       setPreviewAttachment={vi.fn()}
-      onReply={vi.fn()}
+      onOptionCheck={vi.fn()}
     />,
     { chat: chatEn.chat },
   );
@@ -33,7 +33,7 @@ describe("ChatMessages — options widget", () => {
     ]);
     expect(screen.getByLabelText("Beginners")).toBeDisabled();
     expect(screen.getByLabelText("One hour")).toBeEnabled();
-    expect(screen.getAllByRole("button", { name: "Respond" })).toHaveLength(1);
+    expect(screen.getAllByText(chatEn.chat.optionsTypeElse)).toHaveLength(1);
   });
 
   it("locks the widget once the user's reply is the last message", () => {
@@ -42,7 +42,7 @@ describe("ChatMessages — options widget", () => {
       { id: "u1", role: "user", content: "Beginners" },
     ]);
     expect(screen.getByLabelText("Beginners")).toBeDisabled();
-    expect(screen.queryByRole("button", { name: "Respond" })).not.toBeInTheDocument();
+    expect(screen.queryByText(chatEn.chat.optionsTypeElse)).not.toBeInTheDocument();
   });
 
   it("shows an answered question with the replied options checked", () => {
@@ -52,6 +52,15 @@ describe("ChatMessages — options widget", () => {
     ]);
     expect(screen.getByLabelText("Beginners")).toBeChecked();
     expect(screen.getByLabelText("Beginners")).toBeDisabled();
+    expect(screen.queryByText(chatEn.chat.optionsNoneSelected)).not.toBeInTheDocument();
+  });
+
+  it("says no option was selected when the reply matches none", () => {
+    renderMessages([
+      assistant("a1", "Audience?", "Beginners"),
+      { id: "u1", role: "user", content: "Retirees" },
+    ]);
+    expect(screen.getByText(chatEn.chat.optionsNoneSelected)).toBeInTheDocument();
   });
 
   it("keeps each line of a multi-line user reply", () => {
