@@ -19,6 +19,7 @@ class CanvasPlugin(SparkthPlugin):
     Canvas LMS Integration Plugin
 
     Provides comprehensive Canvas LMS API integration with 30+ MCP tools for:
+    - Canvas vocabulary, structure and publish semantics (``canvas_about``)
     - Authentication and credential validation
     - Course CRUD operations
     - Module and module item management
@@ -40,6 +41,7 @@ class CanvasPlugin(SparkthPlugin):
             ),
         )
         tools_per_category: list[tuple[str, list[Callable[..., Any]]]] = [
+            ("canvas-about", [canvas_tools.canvas_about]),
             ("canvas-auth", [canvas_tools.canvas_authenticate]),
             (
                 "canvas-courses",

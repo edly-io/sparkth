@@ -1,4 +1,5 @@
 import urllib
+from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
@@ -926,3 +927,12 @@ async def openedx_add_plugin_content(payload: AddPluginContentArgs) -> dict[str,
         return {"error": error}
 
     return {"response": {"locator": locator, "category": block.kind}}
+
+
+async def openedx_about() -> dict[str, Any]:
+    """Explain Open edX's vocabulary, course structure and what "publish" means in Open edX.
+
+    Read this before creating, changing or publishing Open edX content, or when an Open edX
+    term is ambiguous.
+    """
+    return {"about": (Path(__file__).parent / "assets" / "about.txt").read_text(encoding="utf-8")}

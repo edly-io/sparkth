@@ -86,8 +86,3 @@ Ensure alignment, scaffolding, spacing, and logical structure.
 Step 7. Final Review
 Ensure the course feels human-written, outcome-driven, and learner-centered.
 Deliver the complete course content — not just an outline.
-
-When publishing to open edX, please make sure the 'parent_locator' is in correct format.
-You MUST use the block-v1 format for the parent locator.
-
-Fetch the correct parent locator from the course tree. You MUST use course-v1:* format for the course ID.
