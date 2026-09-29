@@ -6,7 +6,7 @@ import chatEn from "@/plugins/chat/messages/en.json";
 import { renderWithIntl } from "@/tests/intl-test-utils";
 
 const OPTIONS = ["Beginners", "Professionals", "Students"];
-const onRespond = vi.fn();
+const onRespond = vi.fn<(text: string) => Promise<boolean>>();
 
 function renderPrompt(interactive = true, selected: string[] = []) {
   return renderWithIntl(
@@ -21,7 +21,10 @@ function renderPrompt(interactive = true, selected: string[] = []) {
 }
 
 describe("OptionsPrompt — interactive", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    onRespond.mockResolvedValue(true);
+  });
 
   it("renders a checkbox per option", () => {
     renderPrompt();
@@ -83,6 +86,16 @@ describe("OptionsPrompt — interactive", () => {
     expect(screen.getByLabelText("Students")).toBeChecked();
     expect(screen.getByLabelText("Students")).toBeDisabled();
     expect(screen.getByLabelText("Beginners")).not.toBeChecked();
+  });
+
+  it("unlocks with the selection kept when the send is refused", async () => {
+    onRespond.mockResolvedValue(false);
+    renderPrompt();
+    await userEvent.click(screen.getByLabelText("Students"));
+    await userEvent.click(screen.getByRole("button", { name: "Respond" }));
+    expect(screen.getByLabelText("Students")).toBeChecked();
+    expect(screen.getByLabelText("Students")).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Respond" })).toBeEnabled();
   });
 
   it("sends once on a double click", async () => {

@@ -23,7 +23,7 @@ interface AssistantMessageProps {
   message: ChatMessage;
   setPreviewOpen: (open: boolean) => void;
   setPreviewAttachment: (attachment: TextAttachment | null) => void;
-  onReply: (text: string) => void;
+  onReply: (text: string) => Promise<boolean>;
   isLatest: boolean;
   reply?: string;
 }

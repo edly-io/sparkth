@@ -7,7 +7,7 @@ interface ChatMessagesProps {
   messages: ChatMessage[];
   setPreviewOpen: (open: boolean) => void;
   setPreviewAttachment: (attachment: TextAttachment | null) => void;
-  onReply: (text: string) => void;
+  onReply: (text: string) => Promise<boolean>;
 }
 
 export function ChatMessages({

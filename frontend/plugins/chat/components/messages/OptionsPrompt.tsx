@@ -7,7 +7,7 @@ interface OptionsPromptProps {
   options: string[];
   interactive: boolean;
   selected: string[];
-  onRespond: (text: string) => void;
+  onRespond: (text: string) => Promise<boolean>;
 }
 
 /** `checked` with `option` added, or removed if it was already there. */
@@ -31,16 +31,15 @@ export function OptionsPrompt({ options, interactive, selected, onRespond }: Opt
   const t = useTranslations("chat");
   const [checked, setChecked] = useState<string[]>([]);
   const [other, setOther] = useState("");
-  // ponytail: locks after one send; a send the AI-key guard refuses leaves the widget locked,
-  // and the author answers in the compose box instead. Unlock on refusal if that proves common.
+  // Locks on Respond so a double click sends once; unlocks if the send is refused.
   const [sent, setSent] = useState(false);
   const reply = buildReply(options, checked, other);
   const canRespond = interactive && !sent && reply !== "";
 
-  const respond = () => {
+  const respond = async () => {
     if (!canRespond) return;
     setSent(true);
-    onRespond(reply);
+    if (!(await onRespond(reply))) setSent(false);
   };
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key !== "Enter") return;
