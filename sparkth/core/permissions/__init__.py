@@ -36,6 +36,8 @@ from sparkth.core.permissions.models import (
     RolePermission,
 )
 from sparkth.core.permissions.scopes import GLOBAL, PermissionScope
+from sparkth.lib.audit import record_event_now
+from sparkth.lib.audit.events import AuditOutcome, AuditTarget, PermissionDeniedAuditEvent
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
 from sparkth.lib.hooks import SingleNamedItemHook
@@ -74,6 +76,11 @@ class Permission:
         names the path parameter carrying the scope object id, resolved from
         ``request.path_params`` per request; a ``scope_param`` the route does not provide raises
         500 (a wiring error, never a silent 403), and a failed permission check raises 403.
+
+        Before raising the 403 the refusal is recorded as a ``permission.denied`` audit event
+        in its own transaction (``record_event_now``), so it survives the request's rollback.
+        The write is fail-closed: if it fails, the error propagates and the request fails
+        instead of returning 403.
         """
 
         async def dependency(
@@ -90,6 +97,16 @@ class Permission:
                 raise RuntimeError("Permission scope is misconfigured")
             scope_object_id = request.path_params.get(scope_param) if scope_param else None
             if not await can(current_user, self, permission_scope, scope_object_id, session):
+                scope_detail = f"scope={permission_scope.name}"
+                if scope_object_id is not None:
+                    scope_detail += f":{scope_object_id}"
+                await record_event_now(
+                    PermissionDeniedAuditEvent(
+                        outcome=AuditOutcome.DENIED,
+                        target=AuditTarget(type="permission", id=self.name),
+                        error_detail=scope_detail,
+                    )
+                )
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_("Permission denied"))
             return current_user
 

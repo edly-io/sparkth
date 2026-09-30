@@ -144,6 +144,19 @@ class LoginAuditEvent(BaseAuditEvent):
 
 @AUDIT_EVENTS.register
 @dataclass(frozen=True, slots=True, kw_only=True)
+class PermissionDeniedAuditEvent(BaseAuditEvent):
+    """A ``Permission.require*`` dependency refused a request with 403.
+
+    ``target`` is the permission checked; ``error_detail`` names the scope
+    (and the scope object id from the route's path, when the scope has one).
+    The actor is the authenticated caller bound by ``get_current_user``.
+    """
+
+    event_type: ClassVar[str] = "permission.denied"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
 class RegisteredAuditEvent(MutationAuditEvent):
     """An account was created, by password registration or Google sign-up.
 

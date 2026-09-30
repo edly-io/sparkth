@@ -227,6 +227,13 @@ authenticated `User`. Put it in `dependencies=[...]` to gate a route, or inject 
 parameter (`user: User = Depends(...)`) when the handler needs the authorized user — both
 enforce the permission identically. A missing permission yields **403**.
 
+Every 403 from these dependencies is recorded in the audit trail as a `permission.denied`
+event: the caller is the actor, the target is the permission checked, and `error_detail`
+names the scope (e.g. `scope=role:7`). The row is committed in its own transaction before
+the 403 is raised, so it survives the request's rollback; if the write fails, the request
+fails rather than returning 403. Calling `can()` directly, or the `/permissions/can` probe
+below, records nothing.
+
 **Check the current user's permission** — a client (e.g. the web UI) can ask whether the
 authenticated user holds a permission via `GET /api/v1/permissions/can?permission=<name>`
 (optionally `&scope=<kind>&scope_object_id=<id>`), which returns `{"allowed": true|false}`.
