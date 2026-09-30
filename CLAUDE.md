@@ -221,3 +221,5 @@ opening a pull request, or committing LLM-generated code. Conventional Commits a
 | Database migrations (Alembic, split heads, backfill) | [.claude/skills/database-migrations/SKILL.md](.claude/skills/database-migrations/SKILL.md) |
 | Analytics events (what to record, which seam, payload safety) | [docs/guides/analytics-events.md](docs/guides/analytics-events.md) |
 | Analytics events: proposing them (agent workflow) | [.claude/skills/analytics-events/SKILL.md](.claude/skills/analytics-events/SKILL.md) |
+| Audit events (what to record, snapshot safety, transaction, fail-closed) | [docs/guides/audit-events.md](docs/guides/audit-events.md) |
+| Audit events: proposing them (agent workflow) | [.claude/skills/audit-events/SKILL.md](.claude/skills/audit-events/SKILL.md) |
