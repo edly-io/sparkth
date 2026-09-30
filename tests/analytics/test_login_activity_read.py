@@ -24,7 +24,7 @@ async def _seed_login(session: AsyncSession, username: str, occurred_at: datetim
         session,
         "user.logged_in",
         1,
-        {"username": username},
+        {"method": "password"},
         actor_id=username,
         occurred_at=occurred_at,
     )
@@ -121,7 +121,7 @@ async def test_login_activity_endpoint_returns_rollup_for_permitted_user(
         analytics_session,
         "user.logged_in",
         1,
-        {"username": "reader"},
+        {"method": "password"},
         actor_id="reader",
         occurred_at=day,
     )

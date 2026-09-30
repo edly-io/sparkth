@@ -12,6 +12,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core import security
+from sparkth.core.analytics.schemas.v1 import LoginMethod
 from sparkth.core.config import get_settings
 from sparkth.core.google_auth import (
     exchange_auth_code,
@@ -118,19 +119,25 @@ def _registered_event(user: User, *, method: str) -> RegisteredAuditEvent:
     )
 
 
-async def _emit_login_event(username: str, user_id: str | None) -> None:
+async def _emit_login_event(method: LoginMethod, user_id: str | None, logged_in_at: datetime) -> None:
     """Emit a user.logged_in analytics event as a background task.
 
     Runs after the login response has been sent, so a failed analytics write
     surfaces as an unhandled background-task error in the logs rather than
     changing the login outcome. Nothing is caught here: emit_event propagates,
     and hiding an analytics failure is exactly what we do not want.
+
+    ``logged_in_at`` is read when the login succeeded rather than when this task runs.
+
+    Every login route queues this with its own ``LoginMethod``; a new login route
+    adds a member there, or its logins go uncounted.
     """
     await emit_event(
         "user.logged_in",
         1,
-        {"username": username},
+        {"method": method},
         actor_id=user_id,
+        occurred_at=logged_in_at,
     )
 
 
@@ -209,8 +216,9 @@ async def login_for_access_token(
 
     background_tasks.add_task(
         _emit_login_event,
-        username=user.username,
+        method=LoginMethod.PASSWORD,
         user_id=str(user.id) if user.id is not None else None,
+        logged_in_at=utc_now(),
     )
 
     return {"access_token": access_token, "token_type": "bearer", "expires_at": expires_at}
@@ -231,6 +239,7 @@ async def google_authorize() -> dict[str, str]:
 
 @router.get("/google/callback")
 async def google_callback(
+    background_tasks: BackgroundTasks,
     code: str = Query(..., description="Authorization code from Google"),
     session: AsyncSession = Depends(get_async_session),
 ) -> RedirectResponse:
@@ -242,6 +251,9 @@ async def google_callback(
     2. Fetches user info from Google
     3. Creates or links the user account
     4. Redirects to frontend with JWT token
+
+    A completed login emits ``user.logged_in``; a callback that redirects back to the
+    login page with an error logged nobody in, so it emits nothing.
     """
     try:
         # Exchange code for tokens
@@ -321,6 +333,13 @@ async def google_callback(
         expires_at = utc_now() + access_token_expires
 
         jwt_token = security.create_access_token(data={"sub": user.username}, expires_delta=access_token_expires)
+
+        background_tasks.add_task(
+            _emit_login_event,
+            method=LoginMethod.GOOGLE,
+            user_id=str(user.id) if user.id is not None else None,
+            logged_in_at=utc_now(),
+        )
 
         # Redirect to frontend callback page with token
         redirect_url = f"/login/callback?token={jwt_token}&expires_at={expires_at.isoformat()}"

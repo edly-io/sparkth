@@ -174,6 +174,9 @@ async def endpoint(
 - Tokens: HS512, 8-day expiry, signed with `SECRET_KEY`
 - Passwords: Argon2 via pwdlib
 - Google OAuth2: Authlib OIDC flow; callback at `/api/v1/auth/google/callback`
+- Login analytics: every successful login emits `user.logged_in` with its `LoginMethod`
+  (`sparkth/core/analytics/schemas/v1/user_logged_in.py`). A new login method adds a member
+  there and emits from its route, or the login chart silently undercounts it.
 - `HTTPBearer` security scheme used on all protected routes
 
 ---

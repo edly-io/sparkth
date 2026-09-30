@@ -24,9 +24,9 @@ from sparkth.lib.analytics import PendingEvent, UnknownEventTypeError, emit_even
 from sparkth.lib.db import analytics_session_scope
 
 
-def _login(username: str) -> PendingEvent:
+def _login(actor_id: str) -> PendingEvent:
     """A valid event of the one type core registers, so these tests need no plugin."""
-    return PendingEvent(event_type="user.logged_in", version=1, payload={"username": username}, actor_id="7")
+    return PendingEvent(event_type="user.logged_in", version=1, payload={"method": "password"}, actor_id=actor_id)
 
 
 async def _landed(analytics_session: AsyncSession) -> list[dict[str, Any]]:
@@ -37,7 +37,7 @@ async def _landed(analytics_session: AsyncSession) -> list[dict[str, Any]]:
 async def test_lands_every_event_in_order(analytics_session: AsyncSession) -> None:
     await emit_events([_login("first"), _login("second"), _login("third")])
 
-    assert [row["payload"]["username"] for row in await _landed(analytics_session)] == [
+    assert [row["actor_id"] for row in await _landed(analytics_session)] == [
         "first",
         "second",
         "third",
@@ -84,7 +84,7 @@ async def test_unknown_event_type_propagates(analytics_session: AsyncSession) ->
 
 
 async def test_invalid_payload_propagates(analytics_session: AsyncSession) -> None:
-    # user.logged_in requires `username`; extra="forbid" also rejects unknown keys.
+    # user.logged_in requires `method`; extra="forbid" also rejects unknown keys.
     with pytest.raises(ValidationError):
         await emit_events([PendingEvent(event_type="user.logged_in", version=1, payload={"wrong_field": "x"})])
 
@@ -120,8 +120,8 @@ async def test_each_event_keeps_its_own_occurred_at(analytics_session: AsyncSess
 
     await emit_events(
         [
-            PendingEvent(event_type="user.logged_in", version=1, payload={"username": "a"}, occurred_at=first),
-            PendingEvent(event_type="user.logged_in", version=1, payload={"username": "b"}, occurred_at=second),
+            PendingEvent(event_type="user.logged_in", version=1, payload={"method": "password"}, occurred_at=first),
+            PendingEvent(event_type="user.logged_in", version=1, payload={"method": "google"}, occurred_at=second),
         ]
     )
 

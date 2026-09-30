@@ -96,4 +96,11 @@ def test_user_logged_in_rejects_extra_fields() -> None:
     from sparkth.core.analytics.schemas.v1 import UserLoggedIn
 
     with pytest.raises(ValidationError):
-        UserLoggedIn.model_validate({"username": "alice", "extra": "bad"})
+        UserLoggedIn.model_validate({"method": "password", "username": "alice"})
+
+
+def test_user_logged_in_rejects_unknown_method() -> None:
+    from sparkth.core.analytics.schemas.v1 import UserLoggedIn
+
+    with pytest.raises(ValidationError):
+        UserLoggedIn.model_validate({"method": "saml"})
