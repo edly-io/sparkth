@@ -21,12 +21,12 @@ def test_identity_attrs_are_not_pydantic_fields() -> None:
     assert "event_type" not in UserLoggedIn.model_fields
     assert "version" not in UserLoggedIn.model_fields
     # The actual payload field is still present.
-    assert "username" in UserLoggedIn.model_fields
+    assert "method" in UserLoggedIn.model_fields
 
 
 def test_payload_round_trips_without_identity_attrs() -> None:
-    model = UserLoggedIn.model_validate({"username": "alice"})
-    assert model.model_dump(mode="json") == {"username": "alice"}
+    model = UserLoggedIn.model_validate({"method": "google"})
+    assert model.model_dump(mode="json") == {"method": "google"}
 
 
 def test_subclass_missing_identity_classvars_is_rejected() -> None:

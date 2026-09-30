@@ -63,6 +63,9 @@ export interface paths {
          *     2. Fetches user info from Google
          *     3. Creates or links the user account
          *     4. Redirects to frontend with JWT token
+         *
+         *     A completed login emits ``user.logged_in``; a callback that redirects back to the
+         *     login page with an error logged nobody in, so it emits nothing.
          */
         get: operations["google_callback_api_v1_auth_google_callback_get"];
         put?: never;

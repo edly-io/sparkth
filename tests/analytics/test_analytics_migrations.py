@@ -1,3 +1,4 @@
+import json
 import os
 import sqlite3
 import subprocess
@@ -65,3 +66,55 @@ def test_login_activity_cagg_migration_is_noop_on_sqlite(tmp_path: Path) -> None
         conn.close()
     # No-op on SQLite: the continuous aggregate is not created here.
     assert views == []
+
+
+def _alembic(db_file: Path, *args: str) -> None:
+    full_env = {**os.environ, "ANALYTICS_DATABASE_URL": f"sqlite+aiosqlite:///{db_file}"}
+    result = subprocess.run(
+        [sys.executable, "-m", "alembic", "-c", "alembic_analytics.ini", *args],
+        capture_output=True,
+        text=True,
+        env=full_env,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_v1_login_events_swap_username_for_password_method(tmp_path: Path) -> None:
+    """user.logged_in v1 stored the user's username; upgrading replaces it with ``method: password``.
+
+    Only password login emitted before, so every stored row gets that method. The row itself
+    stays, so login history keeps counting, and other events are not touched.
+    """
+    db_file = tmp_path / "analytics_login_method.db"
+    _alembic(db_file, "upgrade", "287f281e6558")
+
+    conn = sqlite3.connect(db_file)
+    try:
+        conn.executemany(
+            "INSERT INTO raw_events (occurred_at, received_at, event_type, event_version, actor_id, payload)"
+            " VALUES ('2026-09-01 10:00:00', '2026-09-01 10:00:00', ?, ?, ?, ?)",
+            [
+                ("user.logged_in", 1, "7", '{"username": "alice"}'),
+                (
+                    "assessment.submitted",
+                    1,
+                    "7",
+                    '{"learner_id": "u1", "competency_id": "c1", "score": 1, "passed": true}',
+                ),
+            ],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    _alembic(db_file, "upgrade", "head")
+
+    conn = sqlite3.connect(db_file)
+    try:
+        rows = conn.execute("SELECT event_type, actor_id, payload FROM raw_events ORDER BY event_type").fetchall()
+    finally:
+        conn.close()
+    assert [(event_type, actor_id, json.loads(payload)) for event_type, actor_id, payload in rows] == [
+        ("assessment.submitted", "7", {"learner_id": "u1", "competency_id": "c1", "score": 1, "passed": True}),
+        ("user.logged_in", "7", {"method": "password"}),
+    ]

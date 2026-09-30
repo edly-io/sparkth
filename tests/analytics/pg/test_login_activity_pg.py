@@ -27,7 +27,7 @@ async def _seed_login(session: AsyncSession, username: str, occurred_at: datetim
         session,
         "user.logged_in",
         1,
-        {"username": username},
+        {"method": "password"},
         actor_id=username,
         occurred_at=occurred_at,
     )
