@@ -121,7 +121,9 @@ services, which provide the Postgres/Timescale instance) or in the `analytics-ti
 CI job (runs on every non-draft PR). The pg fixtures apply the analytics migrations to
 the target DB (so the aggregate exists and the migration DDL is exercised) and reset state via
 truncate + full refresh between tests — continuous aggregates can't use transaction-rollback
-isolation because `refresh_continuous_aggregate` cannot run inside a transaction.
+isolation because `refresh_continuous_aggregate` cannot run inside a transaction. After
+migrating they pause the aggregates' refresh policies (whose first run would otherwise overlap a
+test's refresh and fail it with `LockNotAvailableError`), so the tests are the only refresher.
 
 ## Database Migrations
 
