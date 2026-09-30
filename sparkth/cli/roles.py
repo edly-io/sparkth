@@ -3,6 +3,7 @@ import asyncio
 import typer
 from sqlmodel import select
 
+from sparkth.cli.audit_context import cli_audit_context
 from sparkth.core.models.user import User
 from sparkth.lib.db import session_scope
 
@@ -43,27 +44,28 @@ async def _assign_role(identifier: str, role: str, scope: str, scope_object_id: 
     except PermissionScopeNotFound:
         typer.secho(f"Unknown scope kind: '{scope}'", fg=typer.colors.RED)
         raise typer.Exit(code=1) from None
-    async with session_scope() as session:
-        user = (
-            await session.exec(select(User).where((User.username == identifier) | (User.email == identifier)))
-        ).first()
-        if user is None or user.id is None:
-            typer.secho(f"User '{identifier}' not found!", fg=typer.colors.RED)
-            raise typer.Exit(code=1)
-        try:
-            await grant_role(user.id, role, permission_scope, scope_object_id, session)
-        except RoleNotFound:
-            typer.secho(f"Role '{role}' not found!", fg=typer.colors.RED)
-            raise typer.Exit(code=1) from None
-        except InvalidScopeObjectId:
+    with cli_audit_context():
+        async with session_scope() as session:
+            user = (
+                await session.exec(select(User).where((User.username == identifier) | (User.email == identifier)))
+            ).first()
+            if user is None or user.id is None:
+                typer.secho(f"User '{identifier}' not found!", fg=typer.colors.RED)
+                raise typer.Exit(code=1)
+            try:
+                await grant_role(user.id, role, permission_scope, scope_object_id, session)
+            except RoleNotFound:
+                typer.secho(f"Role '{role}' not found!", fg=typer.colors.RED)
+                raise typer.Exit(code=1) from None
+            except InvalidScopeObjectId:
+                typer.secho(
+                    f"Invalid --scope-object-id for scope '{scope}': "
+                    "objectless scopes take no object id; object-bearing scopes require one.",
+                    fg=typer.colors.RED,
+                )
+                raise typer.Exit(code=1) from None
+            await session.commit()
             typer.secho(
-                f"Invalid --scope-object-id for scope '{scope}': "
-                "objectless scopes take no object id; object-bearing scopes require one.",
-                fg=typer.colors.RED,
+                f"Assigned role '{role}' to {user.username} (scope: {scope}).",
+                fg=typer.colors.GREEN,
             )
-            raise typer.Exit(code=1) from None
-        await session.commit()
-        typer.secho(
-            f"Assigned role '{role}' to {user.username} (scope: {scope}).",
-            fg=typer.colors.GREEN,
-        )

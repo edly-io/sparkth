@@ -7,11 +7,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.audit.enums import AuditOutcome
 from sparkth.core.audit.events import RAGDocumentDeletedAuditEvent
-from sparkth.core.audit.recorder import record_event
 from sparkth.core.audit.types import AuditChange, AuditTarget
 from sparkth.core.documents.enums import DocumentStatus
 from sparkth.core.documents.hooks import notify_document_deleted
 from sparkth.core.documents.models import Document
+from sparkth.lib.audit import record_event
 from sparkth.lib.log import get_logger
 
 logger = get_logger(__name__)
