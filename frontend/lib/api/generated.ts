@@ -514,6 +514,9 @@ export interface paths {
         /**
          * Oauth Callback
          * @description Handle OAuth callback from Google.
+         *
+         *     The user is identified by the signed ``state``, not a session, so it is
+         *     bound as the audit actor here for the ``googledrive.connected`` record.
          */
         get: operations["oauth_callback_api_v1_google_drive_oauth_callback_get"];
         put?: never;
@@ -1072,6 +1075,9 @@ export interface paths {
         /**
          * Oauth Callback
          * @description Handle Slack OAuth redirect, persist workspace token.
+         *
+         *     The user is identified by the signed ``state``, not a session, so it is
+         *     bound as the audit actor here for the ``slack.connected`` record.
          */
         get: operations["oauth_callback_api_v1_slack_oauth_callback_get"];
         put?: never;
