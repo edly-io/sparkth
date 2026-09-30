@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 const CONTACT_EMAIL = "support@edly.io";
-const LAST_UPDATED = "September 28, 2026";
+const LAST_UPDATED = "September 30, 2026";
 
 export const metadata: Metadata = {
   title: "Privacy Policy — Sparkth",
@@ -31,15 +31,14 @@ export default function PrivacyPolicy() {
         <section className="space-y-3">
           <h2 className="text-xl font-bold">1. Google data we access</h2>
           <p>
-            <strong>Google Sign-In.</strong> When you sign in with Google, Sparkth requests the{" "}
-            <code>openid</code>, <code>email</code> and <code>profile</code> scopes. We store your
-            name, email address and Google account ID. We do not store your profile picture or your
-            Google sign-in tokens.
+            <strong>Google Sign-In.</strong> When you sign in with Google, Sparkth receives your
+            basic profile information. We store your name, email address and Google account ID. We
+            do not store your profile picture or your Google sign-in tokens.
           </p>
           <p>
-            <strong>Google Drive.</strong> If you choose to connect Google Drive, Sparkth requests
-            the <code>drive.file</code>, <code>drive.readonly</code> and <code>userinfo.email</code>{" "}
-            scopes. Sparkth accesses:
+            <strong>Google Drive.</strong> If you choose to connect Google Drive, Sparkth asks for
+            read access to your Drive, access to the files it creates for you, and the email address
+            of the connected account. Sparkth accesses:
           </p>
           <ul className="list-disc pl-6 space-y-1">
             <li>
@@ -88,7 +87,7 @@ export default function PrivacyPolicy() {
           <ul className="list-disc pl-6 space-y-1">
             <li>
               Account details, Drive file metadata and the text extracted from your Drive files are
-              stored in Sparkth&apos;s PostgreSQL database.
+              stored in Sparkth&apos;s database.
             </li>
             <li>Downloaded file bytes are processed in memory and are not written to disk.</li>
             <li>Google Drive access and refresh tokens are encrypted at rest.</li>
@@ -144,7 +143,7 @@ export default function PrivacyPolicy() {
               <a href={`mailto:${CONTACT_EMAIL}`} className="text-primary-500 hover:underline">
                 {CONTACT_EMAIL}
               </a>
-              . We will delete it within 30 days.
+              . We will process your request promptly and complete the deletion within 30 days.
             </li>
           </ul>
         </section>
