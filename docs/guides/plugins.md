@@ -459,6 +459,15 @@ for handler, category in tools:
     MCP_TOOLS.add_item(self, Tool(handler, category=category))
 ```
 
+### Declaring your own audit events
+
+A plugin that changes security-relevant state outside a tool (such as connecting a
+third-party account) declares its own audit events in a module of its own, under a category
+named after the plugin (`googledrive.connected`, `slack.disconnected`), registers them on
+`AUDIT_EVENTS` from `sparkth.lib.audit.hooks`, and imports that module from its `__init__`.
+The audit events guide (`docs/guides/audit-events.md`) covers what a snapshot may carry, which
+transaction to record in, and how to test it.
+
 ### Tool executions are audited
 
 `Tool` wraps the handler with `sparkth.lib.audit.audited_tool` at

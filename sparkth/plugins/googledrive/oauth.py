@@ -11,8 +11,15 @@ from itsdangerous import URLSafeTimedSerializer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.lib.audit import record_event
+from sparkth.lib.audit.events import AuditChange, AuditOutcome, AuditTarget
 from sparkth.lib.models import utc_now
 from sparkth.lib.settings import get_settings
+from sparkth.plugins.googledrive.audit import (
+    DRIVE_CONNECTION_TARGET,
+    DriveConnectedAuditEvent,
+    DriveDisconnectedAuditEvent,
+)
 from sparkth.plugins.googledrive.models import DriveOAuthToken
 
 # Google OAuth endpoints
@@ -159,6 +166,41 @@ async def revoke_token(token: str) -> bool:
             return response.status == 200
 
 
+async def _stage_tokens(
+    session: AsyncSession,
+    user_id: int,
+    access_token: str,
+    refresh_token: str,
+    expires_in: int,
+    scopes: str,
+) -> DriveOAuthToken:
+    """Upsert the user's encrypted tokens on ``session`` and flush, without committing."""
+    token_expiry = utc_now() + timedelta(seconds=expires_in)
+
+    result = await session.exec(select(DriveOAuthToken).where(DriveOAuthToken.user_id == user_id))
+    token_record = result.first()
+
+    if token_record:
+        if token_record.is_deleted:
+            token_record.restore()
+        token_record.access_token_encrypted = encrypt_token(access_token)
+        token_record.refresh_token_encrypted = encrypt_token(refresh_token)
+        token_record.token_expiry = token_expiry
+        token_record.scopes = scopes
+        token_record.update_timestamp()
+    else:
+        token_record = DriveOAuthToken(
+            user_id=user_id,
+            access_token_encrypted=encrypt_token(access_token),
+            refresh_token_encrypted=encrypt_token(refresh_token),
+            token_expiry=token_expiry,
+            scopes=scopes,
+        )
+    session.add(token_record)
+    await session.flush()
+    return token_record
+
+
 async def save_tokens(
     session: AsyncSession,
     user_id: int,
@@ -167,33 +209,39 @@ async def save_tokens(
     expires_in: int,
     scopes: str,
 ) -> DriveOAuthToken:
-    """Save OAuth tokens to database."""
-    token_expiry = utc_now() + timedelta(seconds=expires_in)
+    """Save OAuth tokens to database.
 
-    result = await session.exec(select(DriveOAuthToken).where(DriveOAuthToken.user_id == user_id))
-    existing = result.first()
+    Used for silent access-token refreshes, so nothing is audited; a user
+    completing the OAuth flow goes through :func:`connect_drive`.
+    """
+    token_record = await _stage_tokens(session, user_id, access_token, refresh_token, expires_in, scopes)
+    await session.commit()
+    await session.refresh(token_record)
+    return token_record
 
-    if existing:
-        if existing.is_deleted:
-            existing.restore()
-        existing.access_token_encrypted = encrypt_token(access_token)
-        existing.refresh_token_encrypted = encrypt_token(refresh_token)
-        existing.token_expiry = token_expiry
-        existing.scopes = scopes
-        existing.update_timestamp()
-        session.add(existing)
-        await session.commit()
-        await session.refresh(existing)
-        return existing
 
-    token_record = DriveOAuthToken(
-        user_id=user_id,
-        access_token_encrypted=encrypt_token(access_token),
-        refresh_token_encrypted=encrypt_token(refresh_token),
-        token_expiry=token_expiry,
-        scopes=scopes,
+async def connect_drive(
+    session: AsyncSession,
+    user_id: int,
+    access_token: str,
+    refresh_token: str,
+    expires_in: int,
+    scopes: str,
+) -> DriveOAuthToken:
+    """Store the tokens from a completed OAuth flow and record ``googledrive.connected``.
+
+    The audit row commits atomically with the tokens (fail-closed). A reconnect
+    that updates an existing record is still a connect.
+    """
+    token_record = await _stage_tokens(session, user_id, access_token, refresh_token, expires_in, scopes)
+    await record_event(
+        session,
+        DriveConnectedAuditEvent(
+            outcome=AuditOutcome.SUCCESS,
+            target=AuditTarget(type=DRIVE_CONNECTION_TARGET, id=str(token_record.id)),
+            change=AuditChange(new={"scopes": scopes}),
+        ),
     )
-    session.add(token_record)
     await session.commit()
     await session.refresh(token_record)
     return token_record
@@ -236,12 +284,24 @@ async def get_valid_access_token(session: AsyncSession, user_id: int, client_id:
 
 
 async def delete_token(session: AsyncSession, user_id: int) -> bool:
-    """Delete OAuth token record for a user (soft delete)."""
+    """Soft-delete a user's OAuth token record and record ``googledrive.disconnected``.
+
+    The audit row commits atomically with the deletion (fail-closed). Returns
+    ``False``, recording nothing, when the user is not connected.
+    """
     token_record = await get_token_record(session, user_id)
     if not token_record:
         return False
 
     token_record.soft_delete()
     session.add(token_record)
+    await record_event(
+        session,
+        DriveDisconnectedAuditEvent(
+            outcome=AuditOutcome.SUCCESS,
+            target=AuditTarget(type=DRIVE_CONNECTION_TARGET, id=str(token_record.id)),
+            change=AuditChange(old={"scopes": token_record.scopes}),
+        ),
+    )
     await session.commit()
     return True
