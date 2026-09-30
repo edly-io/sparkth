@@ -20,6 +20,7 @@ from sparkth.core.audit.events import (
     LLMConfigUpdatedAuditEvent,
     LoginAuditEvent,
     MutationAuditEvent,
+    PasswordResetAuditEvent,
     PermissionDeniedAuditEvent,
     RAGChunksPurgedAuditEvent,
     RAGDocumentDeletedAuditEvent,
@@ -32,6 +33,8 @@ from sparkth.core.audit.events import (
     UserPluginConfigCreatedAuditEvent,
     UserPluginConfigUpdatedAuditEvent,
     UserPluginEnabledChangedAuditEvent,
+    WhitelistEntryAddedAuditEvent,
+    WhitelistEntryRemovedAuditEvent,
 )
 from sparkth.core.audit.types import AuditChange, AuditModelInfo, AuditTarget, AuditToolCall
 
@@ -53,6 +56,7 @@ __all__ = [
     "LLMConfigUpdatedAuditEvent",
     "LoginAuditEvent",
     "MutationAuditEvent",
+    "PasswordResetAuditEvent",
     "PermissionDeniedAuditEvent",
     "RAGChunksPurgedAuditEvent",
     "RAGDocumentDeletedAuditEvent",
@@ -65,4 +69,6 @@ __all__ = [
     "UserPluginConfigCreatedAuditEvent",
     "UserPluginConfigUpdatedAuditEvent",
     "UserPluginEnabledChangedAuditEvent",
+    "WhitelistEntryAddedAuditEvent",
+    "WhitelistEntryRemovedAuditEvent",
 ]

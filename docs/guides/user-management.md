@@ -3,6 +3,12 @@
 Users are created and managed from the command line. This is the primary path when
 frontend registration is disabled (see [`REGISTRATION_ENABLED`](../reference/configuration.md#registration_enabled)).
 
+Both commands below are audited: creating a user records `auth.registered` and resetting a
+password records `auth.password_reset`, each attributed to the CLI (a `system` actor with
+source `cli`) and written in the same transaction as the change. Neither record carries the
+password or its hash. Changes to the registration allowlist are audited
+too, as `whitelist.entry_added` and `whitelist.entry_removed`.
+
 ## Create a user
 
 ```bash
