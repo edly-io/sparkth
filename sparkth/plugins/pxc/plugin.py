@@ -21,17 +21,20 @@ from sparkth.plugins.pxc.exceptions import (
     PxcAssetNotFound,
     PxcDuplicateActivityName,
     PxcInvalidLaunchToken,
+    PxcLaunchNotConfigured,
     PxcSandboxFailure,
 )
 from sparkth.plugins.pxc.routes import router
 
 # A bad launch token is 401: the token is the learner's only credential here, and the caller
 # can get a fresh one by reloading the unit. A duplicate activity name is 500 — it is a broken
-# deployment, not a bad request.
+# deployment, not a bad request. An unconfigured launch secret is 503: the author's request is
+# fine and the deployment is not.
 register_exception_handler(PxcActivityNotFound, status.HTTP_404_NOT_FOUND)
 register_exception_handler(PxcAssetNotFound, status.HTTP_404_NOT_FOUND)
 register_exception_handler(PxcInvalidLaunchToken, status.HTTP_401_UNAUTHORIZED)
 register_exception_handler(PxcActionRejected, status.HTTP_422_UNPROCESSABLE_CONTENT)
+register_exception_handler(PxcLaunchNotConfigured, status.HTTP_503_SERVICE_UNAVAILABLE)
 register_exception_handler(PxcSandboxFailure, status.HTTP_502_BAD_GATEWAY)
 register_exception_handler(PxcDuplicateActivityName, status.HTTP_500_INTERNAL_SERVER_ERROR)
 

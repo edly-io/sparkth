@@ -23,3 +23,11 @@ PXC_PREFLIGHT_HEADERS = {
     "Access-Control-Allow-Methods": "POST",
     "Access-Control-Allow-Headers": "Content-Type",
 }
+
+# The course and placement every author preview launches into. Fixed, so an author's Student
+# and Author views share one placement and what one saves shows in the other.
+PXC_PREVIEW_COURSE_ID = "sparkth-preview"
+PXC_PREVIEW_PLACEMENT = "preview"
+
+# Prefixed onto a Sparkth user id in a preview token, so it never equals an Open edX learner id.
+PXC_PREVIEW_USER_PREFIX = "sparkth-"
