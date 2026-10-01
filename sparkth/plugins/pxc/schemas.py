@@ -2,7 +2,9 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from sparkth.plugins.pxc.constants import PXC_MAX_SOURCE_CHARS
 
 
 class LaunchContext(BaseModel):
@@ -40,3 +42,13 @@ class ActivityLaunch(BaseModel):
     """Where the preview page iframes one activity for its author."""
 
     embed_url: str
+
+
+class ActivitySource(BaseModel):
+    """The files an agent writes for one activity, and how the activity is listed."""
+
+    title: str = Field(min_length=1, max_length=255)
+    description: str
+    manifest: dict[str, object]
+    ui_js: str = Field(max_length=PXC_MAX_SOURCE_CHARS)
+    sandbox_js: str = Field(max_length=PXC_MAX_SOURCE_CHARS)

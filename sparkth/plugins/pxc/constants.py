@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 # Where the bundled activity sources live, one directory per activity type. One sample ships
@@ -28,6 +29,12 @@ PXC_PREFLIGHT_HEADERS = {
 # and Author views share one placement and what one saves shows in the other.
 PXC_PREVIEW_COURSE_ID = "sparkth-preview"
 PXC_PREVIEW_PLACEMENT = "preview"
+
+# The longest build error handed back to the agent, in characters. The end is kept.
+PXC_BUILD_ERROR_LIMIT = int(os.getenv("PXC_BUILD_ERROR_LIMIT", "4000"))
+
+# The longest ui.js or sandbox.js an agent may submit, in characters, refused before any compile.
+PXC_MAX_SOURCE_CHARS = int(os.getenv("PXC_MAX_SOURCE_CHARS", "200000"))
 
 # Prefixed onto a Sparkth user id in a preview token, so it never equals an Open edX learner id.
 PXC_PREVIEW_USER_PREFIX = "sparkth-"
