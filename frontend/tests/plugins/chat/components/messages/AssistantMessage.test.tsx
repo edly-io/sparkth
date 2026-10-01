@@ -272,6 +272,24 @@ describe("AssistantMessage — options widget", () => {
     expect(screen.queryByText(chatEn.chat.optionsTypeElse)).not.toBeInTheDocument();
   });
 
+  it("keeps the widget interactive when the turn was stopped after the block closed", () => {
+    renderMessage({ content: OPTIONS_REPLY, stopped: true });
+    expect(screen.getByLabelText("Beginners")).toBeEnabled();
+    expect(screen.getByText(chatEn.chat.optionsTypeElse)).toBeInTheDocument();
+  });
+
+  it("does not say no option was selected when the reply is only an attachment", () => {
+    renderWithIntl(
+      <AssistantMessage
+        message={makeMessage({ content: OPTIONS_REPLY })}
+        {...defaultProps}
+        reply=""
+      />,
+      { chat: chatEn.chat },
+    );
+    expect(screen.queryByText(chatEn.chat.optionsNoneSelected)).not.toBeInTheDocument();
+  });
+
   it("renders the widget read-only on a restored, still-pending message", () => {
     renderMessage({ content: OPTIONS_REPLY, isPending: true });
     expect(screen.getByLabelText("Beginners")).toBeDisabled();

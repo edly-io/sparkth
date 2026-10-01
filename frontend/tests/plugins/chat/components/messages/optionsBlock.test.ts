@@ -11,6 +11,7 @@ describe("splitOptionsBlock", () => {
     expect(splitOptionsBlock(content)).toEqual({
       body: "Who is it for?",
       options: ["Beginners", "Professionals"],
+      closed: true,
     });
   });
 
@@ -20,17 +21,21 @@ describe("splitOptionsBlock", () => {
   });
 
   it("treats an unclosed block as the trailing block", () => {
-    expect(splitOptionsBlock("Q?\n```options\nA\nB")).toEqual({ body: "Q?", options: ["A", "B"] });
+    expect(splitOptionsBlock("Q?\n```options\nA\nB")).toEqual({
+      body: "Q?",
+      options: ["A", "B"],
+      closed: false,
+    });
   });
 
   it("ignores a block followed by text", () => {
     const content = "Q?\n```options\nA\n```\nMore prose.";
-    expect(splitOptionsBlock(content)).toEqual({ body: content, options: null });
+    expect(splitOptionsBlock(content)).toEqual({ body: content, options: null, closed: false });
   });
 
   it("ignores fences of another language", () => {
     const content = "Code:\n```python\nprint(1)\n```";
-    expect(splitOptionsBlock(content)).toEqual({ body: content, options: null });
+    expect(splitOptionsBlock(content)).toEqual({ body: content, options: null, closed: false });
   });
 
   it("drops empty lines, surrounding whitespace and duplicates", () => {
@@ -40,11 +45,15 @@ describe("splitOptionsBlock", () => {
 
   it("returns null options for a block with no option lines", () => {
     const content = "Q?\n```options\n\n```";
-    expect(splitOptionsBlock(content)).toEqual({ body: content, options: null });
+    expect(splitOptionsBlock(content)).toEqual({ body: content, options: null, closed: false });
   });
 
   it("returns the content unchanged when there is no block", () => {
-    expect(splitOptionsBlock("Plain reply.")).toEqual({ body: "Plain reply.", options: null });
+    expect(splitOptionsBlock("Plain reply.")).toEqual({
+      body: "Plain reply.",
+      options: null,
+      closed: false,
+    });
   });
 });
 

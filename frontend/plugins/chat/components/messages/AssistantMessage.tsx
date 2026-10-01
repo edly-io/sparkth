@@ -50,7 +50,7 @@ export function AssistantMessage({
     generating: t("statusGenerating"),
   };
   const displayText = message.streamedContent ?? message.content;
-  const { body, options } = splitOptionsBlock(displayText);
+  const { body, options, closed } = splitOptionsBlock(displayText);
   const toolCalls = message.toolCalls ?? [];
   // The dots stay up for every waiting state, tools running or not, so nothing flickers as a
   // turn moves between calls; the count line above the card says what has run.
@@ -234,10 +234,13 @@ export function AssistantMessage({
               <OptionsPrompt
                 options={options}
                 interactive={
-                  isLatest && !message.isTyping && !message.stopped && !message.isPending
+                  isLatest &&
+                  !message.isTyping &&
+                  !message.isPending &&
+                  (closed || !message.stopped)
                 }
                 selected={reply ? answeredOptions(options, reply) : []}
-                answered={reply !== undefined}
+                answered={!!reply}
                 onOptionCheck={onOptionCheck}
               />
             )}
