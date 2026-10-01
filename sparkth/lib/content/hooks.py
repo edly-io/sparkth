@@ -4,9 +4,15 @@ A *content contributor* is a named producer of one LMS content block. A plugin t
 content registers one; a plugin that publishes to an LMS resolves it **by name** and awaits the
 builder registered under the publishing plugin's own name.
 
+A contributor may also offer *options*, the choices an author picks between, such as which
+activity to place. The publisher lists them and hands the chosen option's id back to the
+builder.
+
 A plugin registers from its ``SparkthPlugin.__init__``::
 
-    register_content_contributor(ContentContributor("pxc", "...", {"open-edx": build_pxc_block}))
+    register_content_contributor(
+        ContentContributor("pxc", "...", {"open-edx": build_pxc_block}, list_pxc_options)
+    )
 """
 
 from collections.abc import Awaitable, Callable, Mapping
@@ -34,6 +40,18 @@ class ContentBlock:
 
 
 @dataclass(frozen=True)
+class ContentOption:
+    """One choice a contributor offers for the block it builds.
+
+    ``id`` is what a publishing tool hands back to the builder as ``option_id``; ``label`` is
+    what an agent shows the author.
+    """
+
+    id: str
+    label: str
+
+
+@dataclass(frozen=True)
 class ContentContributor:
     """A named producer of one :class:`ContentBlock` per LMS it targets.
 
@@ -41,13 +59,26 @@ class ContentContributor:
     back to an agent choosing a contributor.
 
     ``builders`` is keyed by the publishing plugin's own name, so its keys are the LMSes this
-    contributor targets. Each is awaited with the destination course id and reports a failure
-    to build by raising :class:`~sparkth.lib.content.exceptions.ContentBuildError`.
+    contributor targets. Each builder is awaited with the destination course id and the chosen
+    option's id. The option id is ``None`` when the caller chose none, and a builder then builds
+    its default block. A builder reports a failure, including an option the caller may not use,
+    by raising :class:`~sparkth.lib.content.exceptions.ContentBuildError`.
+
+    ``list_options``, when set, returns the options the authenticated caller may choose from.
+    A contributor whose options depend on the caller reads the caller with
+    :func:`sparkth.lib.auth.current_user_id` itself, so a publishing tool never handles
+    identity. Leave it ``None`` for a contributor that builds one kind of block; a publishing
+    tool then refuses any option id.
+
+    ``list_options`` and the builders must be module-level functions. Re-registering an equal
+    contributor is a no-op only if they compare equal across constructions, and a closure or
+    bound method would not.
     """
 
     name: str
     description: str
-    builders: Mapping[str, Callable[[str], Awaitable[ContentBlock]]]
+    builders: Mapping[str, Callable[[str, str | None], Awaitable[ContentBlock]]]
+    list_options: Callable[[], Awaitable[list[ContentOption]]] | None = None
 
 
 # Content contributors, keyed by name. Consumed by LMS-publishing plugins.

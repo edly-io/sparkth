@@ -9,6 +9,7 @@ from sparkth.lib.content.hooks import (
     LMS_CONTENT_CONTRIBUTORS,
     ContentBlock,
     ContentContributor,
+    ContentOption,
     register_content_contributor,
 )
 from sparkth.lib.enums import Method
@@ -19,10 +20,10 @@ from sparkth.plugins.openedx.tools import openedx_add_plugin_content, openedx_li
 AUTH = AccessTokenPayload(access_token="t", lms_url="https://lms", studio_url="https://studio")
 
 # Every contributor name this module registers, so the cleanup fixture cannot desync from them.
-CONTRIBUTOR_NAMES = ("fake", "broken", "bare", "canvas-only", "no-targets")
+CONTRIBUTOR_NAMES = ("fake", "broken", "bare", "canvas-only", "no-targets", "optioned")
 
 
-async def build_fake(course_id: str) -> ContentBlock:
+async def build_fake(course_id: str, option_id: str | None) -> ContentBlock:
     return ContentBlock("Fake Activity", "fake", {"placement": "p-1", "activity": "mcq"})
 
 
@@ -43,12 +44,13 @@ def fake_contributor() -> ContentContributor:
     return contributor
 
 
-def add_args(contributor: str = "fake") -> AddPluginContentArgs:
+def add_args(contributor: str = "fake", option_id: str | None = None) -> AddPluginContentArgs:
     return AddPluginContentArgs(
         auth=AUTH,
         course_id="course-v1:X+Y+Z",
         unit_locator="block-v1:X+Y+Z+type@vertical+block@u1",
         contributor=contributor,
+        option_id=option_id,
     )
 
 
@@ -71,7 +73,7 @@ async def test_creates_the_block_the_contributor_declares(fake_contributor: Cont
     ):
         result = await openedx_add_plugin_content(add_args())
 
-    cast(AsyncMock, fake_contributor.builders["open-edx"]).assert_awaited_once_with("course-v1:X+Y+Z")
+    cast(AsyncMock, fake_contributor.builders["open-edx"]).assert_awaited_once_with("course-v1:X+Y+Z", None)
     create.assert_awaited_once_with(
         AUTH, "course-v1:X+Y+Z", "block-v1:X+Y+Z+type@vertical+block@u1", "fake", "Fake Activity"
     )
@@ -105,7 +107,7 @@ async def test_a_studio_failure_is_reported_as_an_error_dict(fake_contributor: C
     assert result["error"]["status_code"] == 403
 
 
-async def build_broken(course_id: str) -> ContentBlock:
+async def build_broken(course_id: str, option_id: str | None) -> ContentBlock:
     raise ContentBuildError("disk full")
 
 
@@ -121,7 +123,7 @@ async def test_a_build_failure_is_reported_as_an_error_dict_and_creates_nothing(
     assert "disk full" in result["error"]["message"]
 
 
-async def build_fake_without_attributes(course_id: str) -> ContentBlock:
+async def build_fake_without_attributes(course_id: str, option_id: str | None) -> ContentBlock:
     return ContentBlock("Fake Activity", "fake", {})
 
 
@@ -147,7 +149,7 @@ async def test_a_block_with_no_attributes_skips_the_update_call() -> None:
     assert result["response"]["category"] == "fake"
 
 
-async def build_canvas_only(course_id: str) -> ContentBlock:
+async def build_canvas_only(course_id: str, option_id: str | None) -> ContentBlock:
     return ContentBlock("Canvas Only", "Page", "<p>hi</p>")
 
 
@@ -213,3 +215,51 @@ async def test_a_failed_create_reports_no_locator(fake_contributor: ContentContr
         result = await openedx_add_plugin_content(add_args())
 
     assert "locator" not in result["error"]
+
+
+async def list_fake_options() -> list[ContentOption]:
+    return [ContentOption("first", "The first one"), ContentOption("second", "The second one")]
+
+
+@pytest.fixture
+def optioned_contributor() -> ContentContributor:
+    contributor = ContentContributor(
+        "optioned", "A contributor with options", {"open-edx": AsyncMock(wraps=build_fake)}, list_fake_options
+    )
+    register_content_contributor(contributor)
+    return contributor
+
+
+async def test_a_contributor_with_options_lists_them(optioned_contributor: ContentContributor) -> None:
+    result = await openedx_list_content_contributors()
+
+    assert {
+        "name": "optioned",
+        "description": "A contributor with options",
+        "options": [{"id": "first", "label": "The first one"}, {"id": "second", "label": "The second one"}],
+    } in result["response"]["contributors"]
+
+
+async def test_the_chosen_option_reaches_the_builder(optioned_contributor: ContentContributor) -> None:
+    with (
+        patch(
+            "sparkth.plugins.openedx.tools.openedx_create_basic_component",
+            new=AsyncMock(return_value="block-v1:X+Y+Z+type@fake+block@b1"),
+        ),
+        patch("sparkth.plugins.openedx.tools.openedx_update_xblock_content", new=AsyncMock()),
+    ):
+        result = await openedx_add_plugin_content(add_args("optioned", "second"))
+
+    cast(AsyncMock, optioned_contributor.builders["open-edx"]).assert_awaited_once_with("course-v1:X+Y+Z", "second")
+    assert result["response"]["category"] == "fake"
+
+
+async def test_an_option_for_a_contributor_without_options_is_refused_and_creates_nothing(
+    fake_contributor: ContentContributor,
+) -> None:
+    with patch("sparkth.plugins.openedx.tools.openedx_create_basic_component", new=AsyncMock()) as create:
+        result = await openedx_add_plugin_content(add_args("fake", "first"))
+
+    create.assert_not_awaited()
+    cast(AsyncMock, fake_contributor.builders["open-edx"]).assert_not_awaited()
+    assert "fake" in result["error"]["message"]

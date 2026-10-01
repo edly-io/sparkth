@@ -27,8 +27,11 @@ from sparkth.plugins.pxc.exceptions import PxcActivityNotFound
 logger = get_logger(__name__)
 
 
-async def build_pxc_block(course_id: str) -> ContentBlock:
+async def build_pxc_block(course_id: str, option_id: str | None) -> ContentBlock:
     """Mint a placement in ``course_id`` and describe the block that carries it.
+
+    ``option_id`` is the activity the author chose. This contributor offers no options, so a
+    publishing tool always passes ``None``, and the block names ``PXC_DEFAULT_ACTIVITY``.
 
     ``course_id`` is unused: a placement id is unique on its own and the course is already
     known to the caller. The parameter is the contributor hook's signature, which every

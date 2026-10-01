@@ -33,15 +33,15 @@ def unregistered() -> Iterator[None]:
 
 
 async def test_the_block_is_a_pxc_block_naming_the_activity() -> None:
-    block = await build_pxc_block("course-v1:X+Y+Z")
+    block = await build_pxc_block("course-v1:X+Y+Z", None)
 
     assert block.kind == PXC_BLOCK_CATEGORY
     assert block.attributes["activity"] == "mcq"
 
 
 async def test_every_placement_gets_its_own_id() -> None:
-    first = await build_pxc_block("course-v1:X+Y+Z")
-    second = await build_pxc_block("course-v1:X+Y+Z")
+    first = await build_pxc_block("course-v1:X+Y+Z", None)
+    second = await build_pxc_block("course-v1:X+Y+Z", None)
 
     assert first.attributes["placement"] != second.attributes["placement"]
 
@@ -51,7 +51,7 @@ async def test_building_a_block_writes_nothing(tmp_path: Path) -> None:
     # knows nothing else about it. Writing a configuration would mean knowing which fields that
     # activity declares, which is true of exactly one of them. The absent state file is the
     # evidence, since nothing about the returned block would differ either way.
-    await build_pxc_block("course-v1:X+Y+Z")
+    await build_pxc_block("course-v1:X+Y+Z", None)
 
     # `pxc_settings` points PXC_DATA_DIR at this same tmp_path.
     assert list(tmp_path.iterdir()) == []
@@ -62,7 +62,7 @@ async def test_a_minted_placement_launches_with_the_activitys_own_configuration(
     # What the seeding was for: a learner opening a freshly placed activity sees a question
     # rather than a blank. The activity declares it as its fields' defaults, and the runtime
     # serves those for any placement nobody has configured yet.
-    block = await build_pxc_block("course-v1:X+Y+Z")
+    block = await build_pxc_block("course-v1:X+Y+Z", None)
     claims = LaunchClaims("mcq", block.attributes["placement"], "course-v1:X+Y+Z", "learner-7", Permission.play)
 
     state = read_state(build_runtime(claims))
@@ -96,7 +96,7 @@ async def test_an_unbundled_default_activity_raises_content_build_error(
     get_pxc_settings.cache_clear()
 
     with pytest.raises(ContentBuildError, match="not-bundled"):
-        await build_pxc_block("course-v1:X+Y+Z")
+        await build_pxc_block("course-v1:X+Y+Z", None)
 
 
 async def test_the_openedx_tool_publishes_this_contributor() -> None:

@@ -494,42 +494,52 @@ hand off one piece of it to a plugin that publishes to an LMS, without either pl
 the other. The owning plugin registers a `ContentContributor` — a name, a human-facing
 description, and a map of builders — with `register_content_contributor` from
 `sparkth.lib.content.hooks`. A publishing plugin resolves a contributor **by name** and awaits
-the builder registered under its own plugin name, with the destination course id, to get back
-the `ContentBlock` to create.
+the builder registered under its own plugin name to get back the `ContentBlock` to create.
+A builder is awaited with the destination course id and the chosen option's id. The option id
+is `None` when no option was chosen, and the builder then builds its default block.
 
-`builders` is keyed by the publishing plugin's registered name — `open-edx` and `canvas` for
-the two shipped publishers — so its keys are the LMSes a contributor targets. Register one
-builder per LMS you can produce a block for; a publishing plugin skips any contributor that
-has no builder for it, so a misspelled key reads as "does not target that LMS".
+`builders` is keyed by the publishing plugin's registered name, so its keys are the LMSes a
+contributor targets. `open-edx` is the one shipped publisher. Register one builder per LMS you
+can produce a block for; a publishing plugin skips any contributor that has no builder for it,
+so a misspelled key reads as "does not target that LMS".
 
 A `ContentBlock` carries a `title`, a `kind` and `attributes`. Only `title` means the same
 thing everywhere: `kind` and `attributes` are interpreted by the publishing plugin, so
 `sparkth/lib` never needs to know about any particular LMS. Open edX reads `kind` as the XBlock
-category and `attributes` as a dict of XBlock metadata; another plugin is free to read them as
-its own module item type and HTML body.
+category and `attributes` as a dict of XBlock metadata.
+
+`list_options` is an optional async function that returns `ContentOption(id, label)` items, the
+choices an author picks between. A publishing tool lists them and passes the chosen `id` back
+to the builder as `option_id`. With `list_options` left `None`, a publishing tool refuses any
+option id. Options that depend on the caller read the caller with
+`sparkth.lib.auth.current_user_id()`. The builder re-checks the chosen id and never trusts that
+it came from the list. `list_options` and the builders must be module-level functions, because
+equality is what makes re-registration a no-op.
 
 ```python
 # sparkth/plugins/myappplugin/plugin.py
-from sparkth.lib.content.hooks import ContentBlock, ContentContributor, register_content_contributor
+from sparkth.lib.content.exceptions import ContentBuildError
+from sparkth.lib.content.hooks import ContentBlock, ContentContributor, ContentOption, register_content_contributor
+
+TEMPLATES = {"intro": "Introduction", "recap": "Recap"}
 
 
-async def build_my_openedx_block(course_id: str) -> ContentBlock:
-    return ContentBlock("My Block", "my-category", {"course": course_id})
+async def list_my_options() -> list[ContentOption]:
+    return [ContentOption(key, label) for key, label in TEMPLATES.items()]
 
 
-async def build_my_canvas_block(course_id: str) -> ContentBlock:
-    return ContentBlock("My Block", "Page", f"<p>{course_id}</p>")
+async def build_my_openedx_block(course_id: str, option_id: str | None) -> ContentBlock:
+    template = option_id or "intro"
+    if template not in TEMPLATES:
+        raise ContentBuildError(f"Unknown template: {template}")
+    return ContentBlock(TEMPLATES[template], "my-category", {"course": course_id, "template": template})
 
 
 class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
         super().__init__("my-app")
         register_content_contributor(
-            ContentContributor(
-                "my-app",
-                "What this contributes",
-                {"open-edx": build_my_openedx_block, "canvas": build_my_canvas_block},
-            )
+            ContentContributor("my-app", "What this contributes", {"open-edx": build_my_openedx_block}, list_my_options)
         )
 ```
 
