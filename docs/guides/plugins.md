@@ -478,6 +478,15 @@ that redaction cannot recognize. Handlers need no audit code of their own.
 What else to record in the audit trail, and how, is in the
 [audit events guide](audit-events.md).
 
+### Who is calling a tool
+
+A handler that acts for a user calls `current_user_id()` from `sparkth.lib.auth`. It never
+takes a user id argument, because the model writes tool arguments and could name anyone.
+
+The id is bound for every REST request that resolves `get_current_user`, including chat turns
+and the tools they run. On `/ai/mcp` nothing is bound, so the call raises
+`NoAuthenticatedUser` (`sparkth.lib.exceptions.auth`) and the MCP client sees a tool error.
+
 ## Content contributors
 
 A *content contributor* lets a plugin that owns content (e.g. a course-generation plugin)
