@@ -974,6 +974,9 @@ export interface paths {
          *     The activity's configuration is inlined as a JSON script element, so the client reads it
          *     without a request of its own. Every ``<`` in that JSON is written as ``\u003c``: the state
          *     holds author-written text, and a literal ``</script>`` in it would end the element early.
+         *
+         *     Served under a sandbox CSP, so the document has an opaque origin however it is opened, and
+         *     activity code in it cannot reach Sparkth's own storage.
          */
         get: operations["embed_activity_api_v1_pxc_embed_get"];
         put?: never;

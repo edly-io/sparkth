@@ -13,6 +13,10 @@ PXC_BLOCK_CATEGORY = "pxc"
 # Any origin is allowed because these routes authenticate by launch token, never by cookie.
 PXC_CORS_HEADERS = {"Access-Control-Allow-Origin": "*"}
 
+# Opens the embed page and its assets in an opaque origin, however they are opened, so activity
+# code can never read Sparkth's own storage.
+PXC_SANDBOX_HEADERS = {"Content-Security-Policy": "sandbox allow-scripts allow-forms"}
+
 # What a cross-origin action POST asks permission for before it sends its JSON body.
 PXC_PREFLIGHT_HEADERS = {
     **PXC_CORS_HEADERS,

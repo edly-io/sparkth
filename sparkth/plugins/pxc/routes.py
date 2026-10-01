@@ -17,7 +17,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.activities import asset_path
-from sparkth.plugins.pxc.constants import PXC_CORS_HEADERS, PXC_PREFLIGHT_HEADERS
+from sparkth.plugins.pxc.constants import PXC_CORS_HEADERS, PXC_PREFLIGHT_HEADERS, PXC_SANDBOX_HEADERS
 from sparkth.plugins.pxc.event_bus import EVENT_BUS, publish_events, subscribe_socket
 from sparkth.plugins.pxc.exceptions import (
     PxcActionRejected,
@@ -57,6 +57,9 @@ async def embed_activity(
     The activity's configuration is inlined as a JSON script element, so the client reads it
     without a request of its own. Every ``<`` in that JSON is written as ``\\u003c``: the state
     holds author-written text, and a literal ``</script>`` in it would end the element early.
+
+    Served under a sandbox CSP, so the document has an opaque origin however it is opened, and
+    activity code in it cannot reach Sparkth's own storage.
     """
     config_json = (await _activity_config(claims, token, request)).model_dump_json().replace("<", "\\u003c")
     client_url = request.url_for("client_script", file_name="sparkth-pxc.js")
@@ -67,7 +70,8 @@ async def embed_activity(
         f'<pxc-activity data-pxc-token="{token}">'
         f'<script type="application/json">{config_json}</script></pxc-activity>'
         f'<script type="module" src="{client_url}"></script>'
-        "</body></html>"
+        "</body></html>",
+        headers=PXC_SANDBOX_HEADERS,
     )
 
 
@@ -122,7 +126,7 @@ async def activity_asset(file_path: str, claims: LaunchClaims = Depends(read_lau
     Raises:
         PxcAssetNotFound: if the manifest does not declare the file, or it is missing.
     """
-    return FileResponse(asset_path(claims.activity, file_path), headers=PXC_CORS_HEADERS)
+    return FileResponse(asset_path(claims.activity, file_path), headers=PXC_CORS_HEADERS | PXC_SANDBOX_HEADERS)
 
 
 @router.post("/actions/{action_name}", status_code=status.HTTP_204_NO_CONTENT)

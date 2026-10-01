@@ -298,3 +298,18 @@ async def test_an_action_allows_any_origin(client: AsyncClient, token: str) -> N
 
     assert response.status_code == 204
     assert response.headers["access-control-allow-origin"] == "*"
+
+
+async def test_an_activity_asset_opens_in_a_sandbox(client: AsyncClient, token: str) -> None:
+    # Opened directly, an asset would otherwise run with Sparkth's origin and reach its storage.
+    response = await client.get("/api/v1/pxc/assets/ui.js", params={"token": token})
+
+    assert response.headers["content-security-policy"] == "sandbox allow-scripts allow-forms"
+
+
+@pytest.mark.wasm
+async def test_the_embed_shell_opens_in_a_sandbox(client: AsyncClient, token: str) -> None:
+    # The header, not the iframe attribute, is what holds for a direct link or any embedding page.
+    response = await client.get("/api/v1/pxc/embed", params={"token": token})
+
+    assert response.headers["content-security-policy"] == "sandbox allow-scripts allow-forms"
