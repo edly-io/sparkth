@@ -179,8 +179,9 @@ has to change where the socket's authorization comes from.
 ## Security
 
 The embed iframe is sandboxed with `allow-scripts allow-forms allow-same-origin`.
-`allow-same-origin` is required: without it the frame gets an opaque origin, so its `fetch()`
-call to Sparkth's own config route becomes cross-origin and is blocked. The same attribute also
+`allow-same-origin` is what keeps the frame on Sparkth's origin: without it the frame gets an
+opaque origin, and its action POSTs and its asset and script fetches to Sparkth become
+cross-origin requests. The same attribute also
 means the activity's third-party `ui.js` runs with Sparkth's origin, not an isolated one:
 `pxc.js`'s `_loadScript` loads it with `await import(url)` into the surrounding document — a
 closed shadow root isolates markup, not script — so `ui.js` executes in the same JavaScript realm
