@@ -35,7 +35,7 @@ def decrypt_token(encrypted: str) -> str:
         raise ValueError("Failed to decrypt Slack bot token") from exc
 
 
-def _audit_snapshot(workspace: SlackWorkspace) -> dict[str, str]:
+def _create_audit_snapshot(workspace: SlackWorkspace) -> dict[str, str]:
     return {"team_id": workspace.team_id, "bot_user_id": workspace.bot_user_id}
 
 
@@ -80,7 +80,7 @@ class WorkspaceService:
                     SlackConnectedAuditEvent(
                         outcome=AuditOutcome.SUCCESS,
                         target=AuditTarget(type=SLACK_WORKSPACE_TARGET, id=str(workspace.id)),
-                        change=AuditChange(new=_audit_snapshot(workspace)),
+                        change=AuditChange(new=_create_audit_snapshot(workspace)),
                     ),
                 )
         except IntegrityError:
@@ -155,7 +155,7 @@ class WorkspaceService:
                 SlackDisconnectedAuditEvent(
                     outcome=AuditOutcome.SUCCESS,
                     target=AuditTarget(type=SLACK_WORKSPACE_TARGET, id=str(workspace.id)),
-                    change=AuditChange(old=_audit_snapshot(workspace)),
+                    change=AuditChange(old=_create_audit_snapshot(workspace)),
                 ),
             )
             await session.commit()

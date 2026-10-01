@@ -166,6 +166,10 @@ async def revoke_token(token: str) -> bool:
             return response.status == 200
 
 
+def _create_audit_snapshot(scopes: str) -> dict[str, str]:
+    return {"scopes": scopes}
+
+
 async def _stage_tokens(
     session: AsyncSession,
     user_id: int,
@@ -239,7 +243,7 @@ async def connect_drive(
         GoogleDriveConnectedAuditEvent(
             outcome=AuditOutcome.SUCCESS,
             target=AuditTarget(type=GOOGLE_DRIVE_CONNECTION_TARGET, id=str(token_record.id)),
-            change=AuditChange(new={"scopes": scopes}),
+            change=AuditChange(new=_create_audit_snapshot(scopes)),
         ),
     )
     await session.commit()
@@ -300,7 +304,7 @@ async def delete_token(session: AsyncSession, user_id: int) -> bool:
         GoogleDriveDisconnectedAuditEvent(
             outcome=AuditOutcome.SUCCESS,
             target=AuditTarget(type=GOOGLE_DRIVE_CONNECTION_TARGET, id=str(token_record.id)),
-            change=AuditChange(old={"scopes": token_record.scopes}),
+            change=AuditChange(old=_create_audit_snapshot(token_record.scopes)),
         ),
     )
     await session.commit()
