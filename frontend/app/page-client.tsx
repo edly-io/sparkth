@@ -51,6 +51,12 @@ export default function HomeClient() {
           </div>
         </div>
       </main>
+
+      <footer className="py-6 text-center text-sm text-muted-foreground">
+        <Link href="/privacy" className="hover:text-foreground hover:underline">
+          {t("privacyPolicy")}
+        </Link>
+      </footer>
     </div>
   );
 }
