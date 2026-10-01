@@ -1,8 +1,11 @@
+import json
 from pathlib import Path
 
 import pytest
 from pxc.lib.permission import Permission
+from uuid6 import uuid7
 
+from sparkth.plugins.pxc.activities import activity_dir, generated_activity_dir
 from sparkth.plugins.pxc.exceptions import PxcActionRejected, PxcActivityNotFound
 from sparkth.plugins.pxc.runtime import build_runtime, read_state, run_action
 from sparkth.plugins.pxc.tokens import LaunchClaims
@@ -93,3 +96,16 @@ def test_configuration_saves_with_edit_and_is_ignored_with_play() -> None:
         {"question": "Sneaky?", "answers": ["p", "q"], "correct_answers": [0]},
     )
     assert read_state(build_runtime(CLAIMS))["question"] == "Edited?"
+
+
+def test_a_generated_activity_launches_from_its_own_directory() -> None:
+    # The learner path resolves a generated activity from disk alone, with no database read.
+    activity_id = str(uuid7())
+    directory = generated_activity_dir(activity_id)
+    directory.mkdir(parents=True)
+    manifest = json.loads((activity_dir("mcq") / "manifest.json").read_text())
+    (directory / "manifest.json").write_text(json.dumps({**manifest, "name": activity_id}))
+
+    runtime = build_runtime(LaunchClaims(activity_id, "placement-1", "course-v1:X+Y+Z", "learner-7", Permission.play))
+
+    assert runtime.name == activity_id
