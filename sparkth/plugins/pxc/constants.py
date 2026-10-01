@@ -1,8 +1,8 @@
 import os
 from pathlib import Path
 
-# Where the bundled activity sources live, one directory per activity type. One sample ships
-# today and is served for every request; an authoring module comes later.
+# Where the bundled activity sources live, one directory per activity type. PXC_DEFAULT_ACTIVITY
+# names the one placed when no option is chosen.
 PXC_ACTIVITY_ROOT = Path(__file__).parent / "activities"
 
 # The XBlock category the Open edX course holds. Fixed rather than configurable: it must equal
@@ -72,3 +72,10 @@ PXC_ACTIVITY_SCOPE = (
 
 # Formatted by chat with current_datetime and refusal_message.
 PXC_ACTIVITY_SYSTEM_PROMPT = (PXC_ASSET_DIR / "pxc_activity_system_prompt.txt").read_text(encoding="utf-8").strip()
+
+# The most of a build step's stderr kept in memory, in bytes: the end of it, where the cause is.
+# The rest is read and dropped, so a step flooding stderr can neither block nor exhaust memory.
+PXC_BUILD_STDERR_LIMIT_BYTES = int(os.getenv("PXC_BUILD_STDERR_LIMIT_BYTES", "65536"))
+
+# The longest activity description an agent may submit, in characters.
+PXC_MAX_DESCRIPTION_CHARS = int(os.getenv("PXC_MAX_DESCRIPTION_CHARS", "2000"))

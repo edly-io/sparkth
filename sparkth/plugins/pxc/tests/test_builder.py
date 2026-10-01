@@ -19,11 +19,15 @@ from sparkth.plugins.pxc.builder import (
     build_activity,
     compile_sandbox,
     run_bounded,
-    smoke_test_activity,
     validate_manifest,
 )
 from sparkth.plugins.pxc.config import get_pxc_settings
-from sparkth.plugins.pxc.constants import PXC_BUILD_ERROR_LIMIT, PXC_MAX_SOURCE_CHARS
+from sparkth.plugins.pxc.constants import (
+    PXC_BUILD_ERROR_LIMIT,
+    PXC_BUILD_STDERR_LIMIT_BYTES,
+    PXC_MAX_DESCRIPTION_CHARS,
+    PXC_MAX_SOURCE_CHARS,
+)
 from sparkth.plugins.pxc.exceptions import PxcBuildTimedOut, PxcCompileFailed, PxcManifestInvalid, PxcSmokeTestFailed
 from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.runtime import build_runtime, read_state
@@ -73,6 +77,19 @@ def test_source_over_the_size_limit_is_refused_before_any_build(field: str) -> N
         ActivitySource.model_validate({"title": "t", "description": "d", "manifest": {}, **sources})
 
 
+def test_a_description_over_the_size_limit_is_refused() -> None:
+    with pytest.raises(ValidationError):
+        ActivitySource.model_validate(
+            {
+                "title": "t",
+                "description": "x" * (PXC_MAX_DESCRIPTION_CHARS + 1),
+                "manifest": {},
+                "ui_js": "",
+                "sandbox_js": "",
+            }
+        )
+
+
 # Starts a grandchild that sleeps, records its pid in argv[1], then sleeps itself.
 SPAWNS_A_GRANDCHILD = (
     "import subprocess, sys, time\n"
@@ -103,14 +120,34 @@ def short_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
 async def test_a_step_returns_its_exit_code_and_stderr(tmp_path: Path) -> None:
     script = "import sys; sys.stderr.write('boom'); sys.exit(3)"
 
-    assert await run_bounded([sys.executable, "-c", script], tmp_path, "A step", None) == (3, "boom")
+    assert await run_bounded([sys.executable, "-c", script], tmp_path, "A step") == (3, "boom")
+
+
+async def test_a_step_keeps_only_the_end_of_a_flood_of_stderr(tmp_path: Path) -> None:
+    script = f"import sys; sys.stderr.write('x' * {PXC_BUILD_STDERR_LIMIT_BYTES * 4}); sys.stderr.write('END')"
+
+    returncode, stderr = await run_bounded([sys.executable, "-c", script], tmp_path, "A step")
+
+    assert returncode == 0
+    assert len(stderr) <= PXC_BUILD_STDERR_LIMIT_BYTES
+    assert stderr.endswith("END")
+
+
+async def test_a_step_gets_a_bare_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("SPARKTH_TEST_SECRET", "x")
+    script = "import os, sys; sys.stderr.write(' '.join(sorted(os.environ)))"
+
+    _, names = await run_bounded([sys.executable, "-c", script], tmp_path, "A step")
+
+    assert "SPARKTH_TEST_SECRET" not in names.split()
+    assert {"PATH", "NO_COLOR"} <= set(names.split())
 
 
 async def test_a_step_that_outlives_the_timeout_is_stopped(tmp_path: Path, short_timeout: None) -> None:
     started = time.monotonic()
 
     with pytest.raises(PxcBuildTimedOut) as timed_out:
-        await run_bounded([sys.executable, "-c", "import time; time.sleep(60)"], tmp_path, "A step", None)
+        await run_bounded([sys.executable, "-c", "import time; time.sleep(60)"], tmp_path, "A step")
 
     assert time.monotonic() - started < 10
     assert "A step did not finish within 2 seconds" in str(timed_out.value)
@@ -121,7 +158,7 @@ async def test_a_timeout_kills_the_steps_grandchildren_too(tmp_path: Path, short
     pid_file = tmp_path / "grandchild.pid"
 
     with pytest.raises(PxcBuildTimedOut):
-        await run_bounded([sys.executable, "-c", SPAWNS_A_GRANDCHILD, str(pid_file)], tmp_path, "A step", None)
+        await run_bounded([sys.executable, "-c", SPAWNS_A_GRANDCHILD, str(pid_file)], tmp_path, "A step")
 
     assert _process_gone(int(pid_file.read_text()))
 
@@ -129,7 +166,7 @@ async def test_a_timeout_kills_the_steps_grandchildren_too(tmp_path: Path, short
 async def test_cancelling_a_step_kills_its_process_group(tmp_path: Path) -> None:
     pid_file = tmp_path / "grandchild.pid"
     step = asyncio.create_task(
-        run_bounded([sys.executable, "-c", SPAWNS_A_GRANDCHILD, str(pid_file)], tmp_path, "A step", None)
+        run_bounded([sys.executable, "-c", SPAWNS_A_GRANDCHILD, str(pid_file)], tmp_path, "A step")
     )
     for _ in range(100):
         if pid_file.exists() and pid_file.read_text():
@@ -314,25 +351,6 @@ async def test_non_ascii_content_survives_the_build(session: AsyncSession) -> No
     claims = LaunchClaims(str(activity.id), "placement-1", "course-v1:X+Y+Z", "learner-7", Permission.play)
     assert read_state(build_runtime(claims))["question"] == question
     assert (await get_owned_activity(session, activity.id, OWNER)).title == "Capitales — été"
-
-
-SEEN_ENVS: list[dict[str, str] | None] = []
-
-
-async def _recording_run(argv: list[str], cwd: Path, step: str, env: dict[str, str] | None) -> tuple[int, str]:
-    SEEN_ENVS.append(env)
-    return 0, ""
-
-
-async def test_the_smoke_child_gets_a_bare_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("SPARKTH_TEST_SECRET", "x")
-    SEEN_ENVS.clear()
-    monkeypatch.setattr("sparkth.plugins.pxc.builder.run_bounded", _recording_run)
-
-    await smoke_test_activity(tmp_path)
-
-    assert SEEN_ENVS[0] is not None
-    assert set(SEEN_ENVS[0]) == {"PATH", "NO_COLOR"}
 
 
 async def _failing_insert(session: AsyncSession, activity: PxcActivity) -> None:

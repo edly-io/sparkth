@@ -62,9 +62,11 @@ delete.
 
 ## Building an activity from chat
 
-A Compose conversation the classifier routes to `pxc-activity` sees only the tools in the `pxc`
-category. Authors describe an activity in plain words; the agent builds it and replies with a
-preview link, which opens the activity on the Sparkth `/dashboard/pxc` page.
+The plugin registers the `pxc-activity` chat job with its system prompt, the scope the chat
+classifier reads, and the `pxc` tool category. A conversation routed to the job binds only the
+tools in that category. Its contract: the author describes an activity in plain words, and the
+agent builds it and replies with a preview link that opens the activity on the Sparkth
+`/dashboard/pxc` page.
 
 | Tool | Returns |
 |---|---|
@@ -129,4 +131,9 @@ compile.
 
 TODO: move builds to a worker container.
 
-Known limit: learner actions have no execution limit. That is pxc-lib's to fix.
+## Known limits
+
+- Learner actions have no execution limit. That is pxc-lib's to fix.
+- Course staff who edit the XBlock's `activity` field directly in Studio or OLX can point it at
+  any activity id, and the XBlock signs it. Ownership is checked only when the agent places
+  content.
