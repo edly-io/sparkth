@@ -73,8 +73,10 @@ def _kill_group(pid: int, step: str) -> None:
 async def run_bounded(argv: list[str], cwd: Path, step: str, env: dict[str, str] | None) -> tuple[int, str]:
     """Run one build step to completion and return its exit code and stderr.
 
-    The step gets ``PXC_BUILD_TIMEOUT_SECONDS``. It starts in a session of its own, so its pid
-    is also its process group, and a timeout kills grandchildren with it. node runs wizer as
+    The step gets ``PXC_BUILD_TIMEOUT_SECONDS``. Whenever this exits with the step still
+    running (timeout, cancellation), the step's whole group is killed and reaped.
+    It starts in a session of its own, so its pid is also its process group and the kill
+    reaches grandchildren. node runs wizer as
     one, and wizer is where a compile-time loop would spin. ``env`` of ``None`` inherits this
     process's environment.
 
@@ -94,11 +96,13 @@ async def run_bounded(argv: list[str], cwd: Path, step: str, env: dict[str, str]
     try:
         _, stderr = await asyncio.wait_for(process.communicate(), timeout)
     except TimeoutError as err:
-        _kill_group(process.pid, step)
-        await process.wait()
         raise PxcBuildTimedOut(
             f"{step} did not finish within {timeout} seconds. Look for a loop that never ends."
         ) from err
+    finally:
+        if process.returncode is None:
+            _kill_group(process.pid, step)
+            await process.wait()
     return await process.wait(), stderr.decode("utf-8", "replace")
 
 

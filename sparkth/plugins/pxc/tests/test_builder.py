@@ -1,5 +1,6 @@
 """The activity build: manifest rules, bounded child processes, compile, smoke test, storage."""
 
+import asyncio
 import json
 import os
 import sys
@@ -107,6 +108,23 @@ async def test_a_timeout_kills_the_steps_grandchildren_too(tmp_path: Path, short
 
     with pytest.raises(PxcBuildTimedOut):
         await run_bounded([sys.executable, "-c", SPAWNS_A_GRANDCHILD, str(pid_file)], tmp_path, "A step", None)
+
+    assert _process_gone(int(pid_file.read_text()))
+
+
+async def test_cancelling_a_step_kills_its_process_group(tmp_path: Path) -> None:
+    pid_file = tmp_path / "grandchild.pid"
+    step = asyncio.create_task(
+        run_bounded([sys.executable, "-c", SPAWNS_A_GRANDCHILD, str(pid_file)], tmp_path, "A step", None)
+    )
+    for _ in range(100):
+        if pid_file.exists() and pid_file.read_text():
+            break
+        await asyncio.sleep(0.1)
+    step.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await step
 
     assert _process_gone(int(pid_file.read_text()))
 
