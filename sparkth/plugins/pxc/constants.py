@@ -53,3 +53,22 @@ PXC_ASSET_DIR = Path(__file__).parent / "assets"
 # The bundled activity pxc_about hands the agent as its worked example, and the files it shows.
 PXC_ABOUT_EXAMPLE = "mcq"
 PXC_ABOUT_FILES = ("pxc.wit", "manifest.json", "sandbox.js", "ui.js")
+
+# The MCP category every pxc tool registers under, which the pxc-activity chat job claims.
+PXC_TOOL_CATEGORY = "pxc"
+
+# The chat job that builds activities.
+PXC_RESPONSIBILITY_NAME = "pxc-activity"
+
+# What the chat classifier reads to route a conversation to the activity builder.
+PXC_ACTIVITY_SCOPE = (
+    "Building interactive PXC learning activities that learners use inside a course, such as "
+    "quizzes, matching or sorting exercises, flashcards, polls, fill-in-the-blank exercises or "
+    "small simulations. This covers describing an activity, answering the assistant's questions "
+    "about it, asking to build, change, fix or preview an activity, and listing or reopening "
+    "activities the author built. Short replies, choices or confirmations that answer the "
+    "assistant's own questions about an activity belong here too."
+)
+
+# Formatted by chat with current_datetime and refusal_message.
+PXC_ACTIVITY_SYSTEM_PROMPT = (PXC_ASSET_DIR / "pxc_activity_system_prompt.txt").read_text(encoding="utf-8").strip()
