@@ -57,6 +57,16 @@ class TestRoleEvents:
         assert event.old_values == {"name": "grader", "description": "Grades stuff"}
         assert event.new_values == {"name": "marker", "description": "Marks stuff"}
 
+    async def test_update_that_changes_nothing_records_nothing(
+        self, session: AsyncSession, audit_events: AuditEventsFetcher
+    ) -> None:
+        role = await _role(session)
+        assert role.id is not None
+        await roles.update_role(role.id, None, None, session)
+        await roles.update_role(role.id, "grader", "Grades stuff", session)
+
+        assert [e.action for e in await audit_events()] == ["created"]
+
     async def test_delete_records_deleted(self, session: AsyncSession, audit_events: AuditEventsFetcher) -> None:
         role = await _role(session)
         assert role.id is not None
@@ -179,6 +189,16 @@ class TestGroupEvents:
         _assert_envelope(event, "group.updated", "group", group.id)
         assert event.old_values == {"name": "cs-staff", "description": "CS staff"}
         assert event.new_values == {"name": "math-staff", "description": "CS staff"}
+
+    async def test_update_that_changes_nothing_records_nothing(
+        self, session: AsyncSession, audit_events: AuditEventsFetcher
+    ) -> None:
+        group = await _group(session)
+        assert group.id is not None
+        await groups.update_group(group.id, None, None, session)
+        await groups.update_group(group.id, "cs-staff", "CS staff", session)
+
+        assert [e.action for e in await audit_events()] == ["created"]
 
     async def test_delete_records_deleted(self, session: AsyncSession, audit_events: AuditEventsFetcher) -> None:
         group = await _group(session)

@@ -149,7 +149,8 @@ CLI commands are attributed to the `cli` system actor.
 
 The grant, assign, and add-member functions are idempotent, and so are their revoke and
 remove counterparts: a call that changes nothing (the grant already exists, or there is
-nothing active to revoke) records nothing.
+nothing active to revoke) records nothing. Likewise an update that leaves a role's or group's
+name and description as they were records nothing.
 
 ## Extending the permission system
 

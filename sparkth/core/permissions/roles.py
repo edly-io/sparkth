@@ -74,8 +74,9 @@ async def get_role(role_id: int, session: AsyncSession) -> Role:
 async def update_role(role_id: int, name: str | None, description: str | None, session: AsyncSession) -> Role:
     """Update a role's name and/or description, record ``role.updated``, and return it.
 
-    A None argument leaves that field unchanged. Raises RoleNotFound if the role is
-    missing, or RoleAlreadyExists if name collides with another role.
+    A None argument leaves that field unchanged; an update that changes nothing records
+    nothing. Raises RoleNotFound if the role is missing, or RoleAlreadyExists if name
+    collides with another role.
     """
     role = await get_role(role_id, session)
     before = _snapshot(role)
@@ -85,6 +86,8 @@ async def update_role(role_id: int, name: str | None, description: str | None, s
         role.name = name
     if description is not None:
         role.description = description
+    if _snapshot(role) == before:
+        return role
     role.update_timestamp()
     session.add(role)
     await record_event(

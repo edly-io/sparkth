@@ -99,9 +99,9 @@ async def get_group_by_name(name: str, session: AsyncSession) -> Group:
 async def update_group(group_id: int, name: str | None, description: str | None, session: AsyncSession) -> Group:
     """Update a group's name and/or description, record ``group.updated``, and return it.
 
-    A None argument leaves that field unchanged. Raises GroupNotFound if the group is
-    missing, or GroupAlreadyExists if name collides with another group (race-safe, like
-    create_group).
+    A None argument leaves that field unchanged; an update that changes nothing records
+    nothing. Raises GroupNotFound if the group is missing, or GroupAlreadyExists if name
+    collides with another group (race-safe, like create_group).
     """
     group = await get_group(group_id, session)
     before = _snapshot(group)
@@ -111,6 +111,8 @@ async def update_group(group_id: int, name: str | None, description: str | None,
         group.name = name
     if description is not None:
         group.description = description
+    if _snapshot(group) == before:
+        return group
     group.update_timestamp()
     session.add(group)
     try:
