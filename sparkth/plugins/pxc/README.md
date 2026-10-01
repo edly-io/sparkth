@@ -48,6 +48,18 @@ must be published before a learner sees anything — [`third_party_plugins/opene
 covers that and the Advanced Module List, which is optional and only affects Studio's component
 picker.
 
+## The Activities page
+
+The plugin ships a dashboard page at `/dashboard/pxc`, listed in the sidebar as "Activities".
+It lists the signed-in author's own activities, newest first, each with a Preview button. Preview
+opens `/dashboard/pxc?activity=<id>`, the link the backend returns as `preview_url`.
+
+The preview iframes the activity under the author's session, with a Student/Author toggle:
+Student asks the launch route for `play` and Author for `edit`. The iframe's sandbox allows
+scripts and forms but not same-origin, so activity code runs in an opaque origin. An id the
+author does not own, or whose files are missing, reads as "Activity not found". There is no
+delete.
+
 ## Building an activity from chat
 
 A Compose conversation the classifier routes to `pxc-activity` sees only the tools in the `pxc`

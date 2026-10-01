@@ -2,6 +2,6 @@
 // Backend plugins that declare a frontend page (FRONTEND_APPS hook).
 // Regenerate with `make frontend.build.plugins`; tests fail on drift.
 
-export const FRONTEND_PLUGIN_NAMES = ["chat", "google-drive", "slack"] as const;
+export const FRONTEND_PLUGIN_NAMES = ["chat", "google-drive", "pxc", "slack"] as const;
 
 export type FrontendPluginName = (typeof FRONTEND_PLUGIN_NAMES)[number];

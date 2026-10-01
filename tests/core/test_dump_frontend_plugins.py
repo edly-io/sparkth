@@ -30,7 +30,7 @@ def _run_dump(*args: str) -> str:
 
 def test_dump_lists_frontend_declaring_plugins_sorted_offline() -> None:
     out = _run_dump()
-    assert 'export const FRONTEND_PLUGIN_NAMES = ["chat", "google-drive", "slack"] as const;' in out
+    assert 'export const FRONTEND_PLUGIN_NAMES = ["chat", "google-drive", "pxc", "slack"] as const;' in out
 
 
 def test_dump_marks_output_as_generated() -> None:
