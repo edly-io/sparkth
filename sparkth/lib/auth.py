@@ -11,7 +11,14 @@ module builds the dependency from, :func:`decode_token_username` and
 :func:`get_user_by_username`, rather than decoding tokens or querying users of its own. One
 implementation of "who is this request from" keeps the security gate from drifting away from
 the dependency as tokens or user lookup change.
+
+:func:`current_user_id` is the trusted caller identity for tool handlers. It is bound beside the
+audit actor on every request that resolves ``get_current_user``, and is unavailable on
+``/ai/mcp``, which authenticates no one.
 """
+
+from contextvars import ContextVar
+from typing import cast
 
 import jwt
 from fastapi import Depends, HTTPException, Request, status
@@ -23,6 +30,7 @@ from sparkth.core import security
 from sparkth.core.models.user import User
 from sparkth.lib.audit.context import UserActor, bind_audit_actor
 from sparkth.lib.db import get_async_session
+from sparkth.lib.exceptions.auth import NoAuthenticatedUser
 from sparkth.lib.i18n import _, bind_locale
 from sparkth.lib.language import is_supported_language
 from sparkth.lib.log import get_logger
@@ -30,6 +38,9 @@ from sparkth.lib.log import get_logger
 logger = get_logger(__name__)
 
 security_scheme = HTTPBearer()
+
+# The authenticated caller's id, bound per request by get_current_user.
+_current_user_id: ContextVar[int | None] = ContextVar("current_user_id", default=None)
 
 
 def decode_token_username(token: str) -> str | None:
@@ -66,13 +77,45 @@ async def get_user_by_username(username: str, session: AsyncSession) -> User | N
 def bind_request_user(user: User) -> None:
     """Apply everything a resolved caller implies for the rest of the request.
 
-    Installs the user's interface locale and binds them as the audit actor, so
-    every audit event the request records is attributed to them. Called from
-    both exits of ``get_current_user``; the plugin gate binds the locale on its
-    own because its 403 never reaches a route.
+    Installs the user's interface locale, binds them as the audit actor, so every audit event
+    the request records is attributed to them, and binds their id for ``current_user_id``.
+    Called from both exits of ``get_current_user``. The plugin gate binds the locale on its
+    own, because its 403 never reaches a route.
     """
     bind_interface_locale(user)
     bind_audit_actor(UserActor(id=str(user.id), label=user.username))
+    bind_current_user_id(cast(int, user.id))
+
+
+def bind_current_user_id(user_id: int) -> None:
+    """Bind ``user_id`` as the caller ``current_user_id`` returns for the rest of this context.
+
+    Set inside the request's own context. Tasks the request spawns copy it, and the value
+    never leaks into the next request. Called by ``bind_request_user``, and by the test
+    harness's ``current_user`` override, which replaces ``get_current_user`` entirely.
+    """
+    _current_user_id.set(user_id)
+
+
+def current_user_id() -> int:
+    """Return the id of the user authenticated for the running request.
+
+    For tool handlers that act for a user. The id comes from the request's token, never from
+    a tool argument, so a model cannot name another user. It is independent of the audit
+    context, so authorization never depends on auditing.
+
+    Bound on every REST request that resolves ``get_current_user``, including chat turns and
+    the tools they run on the turn's detached task. Never bound on ``/ai/mcp``, which
+    authenticates no caller.
+
+    Raises:
+        NoAuthenticatedUser: nothing is bound, for example on ``/ai/mcp`` or in a background
+            job outside any request.
+    """
+    user_id = _current_user_id.get()
+    if user_id is None:
+        raise NoAuthenticatedUser("No authenticated user is bound to this request")
+    return user_id
 
 
 def bind_interface_locale(user: User) -> None:
