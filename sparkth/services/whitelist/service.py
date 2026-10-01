@@ -1,3 +1,5 @@
+from typing import NoReturn
+
 from pydantic import BaseModel as _PydanticBase
 from pydantic import EmailStr, ValidationError
 from sqlalchemy.exc import IntegrityError
@@ -5,6 +7,14 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.whitelist import WhitelistedEmail
+from sparkth.lib.audit import record_event
+from sparkth.lib.audit.events import (
+    AuditChange,
+    AuditOutcome,
+    AuditTarget,
+    WhitelistEntryAddedAuditEvent,
+    WhitelistEntryRemovedAuditEvent,
+)
 from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
 from sparkth.services.whitelist.exceptions import (
@@ -20,6 +30,14 @@ class _EmailValidator(_PydanticBase):
     email: EmailStr
 
 
+def _entry_target(entry: WhitelistedEmail) -> AuditTarget:
+    return AuditTarget(type="whitelist_entry", id=str(entry.id))
+
+
+def _entry_snapshot(entry: WhitelistedEmail) -> dict[str, str]:
+    return {"value": entry.value, "entry_type": entry.entry_type}
+
+
 class WhitelistService:
     @staticmethod
     async def add_entry(
@@ -28,6 +46,15 @@ class WhitelistService:
         value: str,
         added_by_id: int,
     ) -> WhitelistedEmail:
+        """Normalize, validate and insert an allowlist entry, then commit.
+
+        Records ``whitelist.entry_added`` in the same transaction as the insert,
+        so an invalid, duplicate or failed add leaves no audit row.
+
+        Raises:
+            InvalidWhitelistValue: ``value`` is not an email or an ``@domain``.
+            WhitelistEntryAlreadyExists: The normalized value is already listed.
+        """
         normalized = value.strip().lower()
 
         if normalized.startswith("@"):
@@ -59,28 +86,59 @@ class WhitelistService:
         )
         session.add(entry)
         try:
+            await session.flush()
+        except IntegrityError as exc:
+            await WhitelistService._raise_insert_conflict(session, normalized, exc)
+        await record_event(
+            session,
+            WhitelistEntryAddedAuditEvent(
+                outcome=AuditOutcome.SUCCESS,
+                target=_entry_target(entry),
+                change=AuditChange(new=_entry_snapshot(entry)),
+            ),
+        )
+        try:
             await session.commit()
         except IntegrityError as exc:
-            await session.rollback()
-            # An IntegrityError here is not necessarily a duplicate value: the insert also
-            # carries the added_by_id foreign key, which fails if the referencing user was
-            # deleted mid-request. Re-query to tell the two apart (portably, without parsing
-            # DB-specific error text) rather than assuming a unique-value conflict.
-            existing = await session.exec(select(WhitelistedEmail).where(WhitelistedEmail.value == normalized))
-            if existing.one_or_none() is not None:
-                logger.warning("Whitelist insert conflict for value %s: %s", normalized, exc)
-                raise WhitelistEntryAlreadyExists(_("Entry already exists: {value}").format(value=normalized)) from exc
-            logger.exception("Unexpected integrity error inserting whitelist value %s", normalized)
-            raise
+            await WhitelistService._raise_insert_conflict(session, normalized, exc)
         await session.refresh(entry)
         return entry
 
     @staticmethod
+    async def _raise_insert_conflict(session: AsyncSession, normalized: str, exc: IntegrityError) -> NoReturn:
+        """Roll back a failed insert of ``normalized`` and raise the right error for it."""
+        await session.rollback()
+        # An IntegrityError here is not necessarily a duplicate value: the insert also
+        # carries the added_by_id foreign key, which fails if the referencing user was
+        # deleted mid-request. Re-query to tell the two apart (portably, without parsing
+        # DB-specific error text) rather than assuming a unique-value conflict.
+        existing = await session.exec(select(WhitelistedEmail).where(WhitelistedEmail.value == normalized))
+        if existing.one_or_none() is not None:
+            logger.warning("Whitelist insert conflict for value %s: %s", normalized, exc)
+            raise WhitelistEntryAlreadyExists(_("Entry already exists: {value}").format(value=normalized)) from exc
+        logger.exception("Unexpected integrity error inserting whitelist value %s", normalized)
+        raise exc
+
+    @staticmethod
     async def remove_entry(session: AsyncSession, *, entry_id: int) -> None:
+        """Delete an allowlist entry and commit, recording ``whitelist.entry_removed``
+        in the same transaction.
+
+        Raises:
+            WhitelistEntryNotFound: No entry has ``entry_id``; nothing is recorded.
+        """
         entry = await session.get(WhitelistedEmail, entry_id)
         if entry is None:
             raise WhitelistEntryNotFound(_("Whitelist entry not found: {entry_id}").format(entry_id=entry_id))
 
+        await record_event(
+            session,
+            WhitelistEntryRemovedAuditEvent(
+                outcome=AuditOutcome.SUCCESS,
+                target=_entry_target(entry),
+                change=AuditChange(old=_entry_snapshot(entry)),
+            ),
+        )
         await session.delete(entry)
         await session.commit()
 

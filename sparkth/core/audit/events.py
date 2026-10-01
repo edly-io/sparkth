@@ -158,12 +158,14 @@ class PermissionDeniedAuditEvent(BaseAuditEvent):
 @AUDIT_EVENTS.register
 @dataclass(frozen=True, slots=True, kw_only=True)
 class RegisteredAuditEvent(MutationAuditEvent):
-    """An account was created, by password registration or Google sign-up.
+    """An account was created: password registration, Google sign-up, or the CLI.
 
-    The new user is both actor and target; ``change.new`` carries only the
-    ``method`` (``password`` or ``google``). The username rides on the actor
-    label, which a GDPR erasure can blank; a sealed payload never carries the
-    actor's own identity.
+    ``target`` is the new user and ``change.new`` carries only the ``method``
+    (``password``, ``google`` or ``cli``). A self-registration has the new
+    user as actor too, with the username on the actor label, which a GDPR
+    erasure can blank; a sealed payload never carries the actor's own
+    identity. An account created by ``users create-user`` has the CLI system
+    actor instead.
     """
 
     event_type: ClassVar[str] = "auth.registered"
@@ -183,11 +185,45 @@ class EmailVerifiedAuditEvent(BaseAuditEvent):
 
 @AUDIT_EVENTS.register
 @dataclass(frozen=True, slots=True, kw_only=True)
+class PasswordResetAuditEvent(MutationAuditEvent):
+    """A user's password was replaced by an operator (``users reset-password``).
+
+    ``target`` is the user; ``change.new`` carries only the ``method``
+    (``cli``), never the password or its hash.
+    """
+
+    event_type: ClassVar[str] = "auth.password_reset"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
 class GoogleLinkedAuditEvent(MutationAuditEvent):
     """A Google identity was attached to an existing account: a new way to
     log in, so a credential-lifecycle event."""
 
     event_type: ClassVar[str] = "auth.google_linked"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class WhitelistEntryAddedAuditEvent(MutationAuditEvent):
+    """An email or domain was added to the registration allowlist.
+
+    ``target`` is the entry; ``change.new`` carries the normalized ``value``
+    and its ``entry_type`` (``email`` or ``domain``): the value is the
+    evidence of who was allowed to register.
+    """
+
+    event_type: ClassVar[str] = "whitelist.entry_added"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class WhitelistEntryRemovedAuditEvent(MutationAuditEvent):
+    """An allowlist entry was removed. ``change.old`` carries its ``value``
+    and ``entry_type``."""
+
+    event_type: ClassVar[str] = "whitelist.entry_removed"
 
 
 @AUDIT_EVENTS.register
