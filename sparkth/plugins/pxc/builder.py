@@ -15,11 +15,11 @@ wizer sees one directory as its filesystem root: the process's cwd, whenever the
 under it. So each compile runs with its cwd set to a directory holding only ``sandbox.js``, and
 an import can reach nothing but that file. A relative or absolute import of any server file fails
 to resolve. That is also what limits a sandbox to ``pxc:sandbox/*`` imports: builtins, packages
-and unknown interfaces fail to load the same way. node and the smoke test get only ``PATH`` and ``NO_COLOR``
-as their environment.
+and unknown interfaces fail to load the same way. node and the smoke test get only ``PATH`` and
+``NO_COLOR`` as their environment, and only the end of their stderr is kept.
 
-Both child processes run in a session of their own and are killed as a group on timeout. node
-runs wizer as a grandchild, and killing node alone leaves wizer running.
+Both child processes run in a session of their own and are killed as a group on timeout or
+cancellation. node runs wizer as a grandchild, and killing node alone leaves wizer running.
 """
 
 import asyncio
@@ -39,7 +39,7 @@ from sparkth.lib.db import session_scope
 from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.activities import generated_activity_dir
 from sparkth.plugins.pxc.config import get_pxc_settings
-from sparkth.plugins.pxc.constants import PXC_BUILD_ERROR_LIMIT, PXC_SANDBOX_WIT
+from sparkth.plugins.pxc.constants import PXC_BUILD_ERROR_LIMIT, PXC_BUILD_STDERR_LIMIT_BYTES, PXC_SANDBOX_WIT
 from sparkth.plugins.pxc.exceptions import PxcBuildTimedOut, PxcCompileFailed, PxcManifestInvalid, PxcSmokeTestFailed
 from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.schemas import ActivitySource
@@ -97,39 +97,51 @@ def validate_manifest(manifest: dict[str, object], activity_id: str) -> dict[str
 
 
 def _kill_group(pid: int, step: str) -> None:
-    """Kill a timed-out step and every process it started."""
-    logger.warning("PXC build step %r timed out; killing its process group %s", step, pid)
+    """Kill a step that is still running, and every process it started."""
+    logger.warning("PXC build step %r is still running; killing its process group %s", step, pid)
     try:
         os.killpg(pid, signal.SIGKILL)
     except ProcessLookupError:
-        logger.info("PXC build step %r exited just as its timeout fired", step)
+        logger.info("PXC build step %r exited just as it was being killed", step)
 
 
-async def run_bounded(argv: list[str], cwd: Path, step: str, env: dict[str, str] | None) -> tuple[int, str]:
-    """Run one build step to completion and return its exit code and stderr.
+async def _read_tail(stream: asyncio.StreamReader) -> bytes:
+    """Read ``stream`` to its end, keeping only its last ``PXC_BUILD_STDERR_LIMIT_BYTES``."""
+    tail = b""
+    while chunk := await stream.read(PXC_BUILD_STDERR_LIMIT_BYTES):
+        tail = (tail + chunk)[-PXC_BUILD_STDERR_LIMIT_BYTES:]
+    return tail
+
+
+async def run_bounded(argv: list[str], cwd: Path, step: str) -> tuple[int, str]:
+    """Run one build step to completion and return its exit code and the end of its stderr.
+
+    The step runs the agent's code, so it gets only ``_bare_env()`` as its environment. Its
+    stderr is drained as it is written, keeping the last ``PXC_BUILD_STDERR_LIMIT_BYTES``, so
+    a step flooding it never blocks on a full pipe or grows this process's memory.
 
     The step gets ``PXC_BUILD_TIMEOUT_SECONDS``. Whenever this exits with the step still
-    running (timeout, cancellation), the step's whole group is killed and reaped.
-    It starts in a session of its own, so its pid is also its process group and the kill
-    reaches grandchildren. node runs wizer as
-    one, and wizer is where a compile-time loop would spin. ``env`` of ``None`` inherits this
-    process's environment.
+    running (timeout, cancellation), the step's whole group is killed and reaped. It starts
+    in a session of its own, so its pid is also its process group and the kill reaches
+    grandchildren. node runs wizer as one, and wizer is where a compile-time loop would spin.
 
     Raises:
         PxcBuildTimedOut: if the step outlives the timeout.
+        asyncio.CancelledError: propagated after the step is killed, if the caller is cancelled.
     """
     timeout = get_pxc_settings().build_timeout_seconds
     process = await asyncio.create_subprocess_exec(
         *argv,
         cwd=cwd,
-        env=env,
+        env=_bare_env(),
         stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.PIPE,
         start_new_session=True,
     )
+    assert process.stderr is not None  # piped above
     try:
-        _, stderr = await asyncio.wait_for(process.communicate(), timeout)
+        stderr, returncode = await asyncio.wait_for(asyncio.gather(_read_tail(process.stderr), process.wait()), timeout)
     except TimeoutError as err:
         raise PxcBuildTimedOut(
             f"{step} did not finish within {timeout} seconds. Look for a loop that never ends."
@@ -138,7 +150,7 @@ async def run_bounded(argv: list[str], cwd: Path, step: str, env: dict[str, str]
         if process.returncode is None:
             _kill_group(process.pid, step)
             await process.wait()
-    return await process.wait(), stderr.decode("utf-8", "replace")
+    return returncode, stderr.decode("utf-8", "replace")
 
 
 def agent_error(stderr: str, build_dir: Path) -> str:
@@ -175,7 +187,7 @@ async def compile_sandbox(sandbox_js: str, compile_dir: Path, output: Path) -> N
     argv = [str(compiler), "sandbox.js", "--wit", str(PXC_SANDBOX_WIT), "--world-name", "activity"]
     argv += ["--disable", "http", "--disable", "fetch-event", "-o", str(output)]
     try:
-        returncode, stderr = await run_bounded(argv, compile_dir, "Compiling sandbox.js", _bare_env())
+        returncode, stderr = await run_bounded(argv, compile_dir, "Compiling sandbox.js")
     except (FileNotFoundError, PermissionError) as err:
         logger.error("PXC build toolchain is not usable at %s: %s", compiler, err)
         raise PxcCompileFailed(
@@ -193,7 +205,7 @@ async def smoke_test_activity(directory: Path) -> None:
         PxcBuildTimedOut: if ``get_state`` does not return within the timeout.
     """
     argv = [sys.executable, "-m", "sparkth.plugins.pxc.smoke", str(directory)]
-    returncode, stderr = await run_bounded(argv, directory, "The get_state smoke test", _bare_env())
+    returncode, stderr = await run_bounded(argv, directory, "The get_state smoke test")
     if returncode != 0:
         raise PxcSmokeTestFailed(f"sandbox.js compiled, but get_state failed:\n{agent_error(stderr, directory)}")
 
