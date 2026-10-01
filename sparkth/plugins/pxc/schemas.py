@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from sparkth.plugins.pxc.constants import PXC_MAX_SOURCE_CHARS
+from sparkth.plugins.pxc.constants import PXC_MAX_DESCRIPTION_CHARS, PXC_MAX_SOURCE_CHARS
 
 
 class LaunchContext(BaseModel):
@@ -48,7 +48,7 @@ class ActivitySource(BaseModel):
     """The files an agent writes for one activity, and how the activity is listed."""
 
     title: str = Field(min_length=1, max_length=255)
-    description: str
+    description: str = Field(max_length=PXC_MAX_DESCRIPTION_CHARS)
     manifest: dict[str, object]
     ui_js: str = Field(max_length=PXC_MAX_SOURCE_CHARS)
     sandbox_js: str = Field(max_length=PXC_MAX_SOURCE_CHARS)

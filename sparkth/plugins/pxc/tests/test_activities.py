@@ -82,6 +82,18 @@ def test_a_non_canonical_id_is_rejected_even_when_its_directory_exists() -> None
         activity_dir(activity_id)
 
 
+@pytest.mark.parametrize("name", ["../mcq", "/etc", "not-a-uuid"])
+def test_a_path_shaped_name_is_rejected_even_when_its_directory_exists(name: str, tmp_path: Path) -> None:
+    # Plant a manifest where the name would land, whenever that is inside the test's data dir.
+    landing = generated_activity_dir(name).resolve()
+    if landing.is_relative_to(tmp_path.resolve()):
+        landing.mkdir(parents=True)
+        (landing / "manifest.json").write_text(json.dumps({"name": name, "ui": "ui.js"}))
+
+    with pytest.raises(PxcActivityNotFound):
+        activity_dir(name)
+
+
 def test_a_generated_activity_has_its_own_state_file(tmp_path: Path) -> None:
     activity_id = str(uuid7())
     _write_generated_activity(activity_id)
