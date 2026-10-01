@@ -24,7 +24,12 @@ function ActivityRow({ activity }: { activity: ActivitySummary }): React.JSX.Ele
         <p className="mt-1 text-xs text-muted">{t("createdOn", { date: created })}</p>
       </div>
       <Button asChild variant="outline" size="sm">
-        <Link href={activity.preview_url}>{t("preview")}</Link>
+        <Link
+          href={activity.preview_url}
+          aria-label={t("previewActivity", { title: activity.title })}
+        >
+          {t("preview")}
+        </Link>
       </Button>
     </Card>
   );
@@ -52,7 +57,13 @@ function ActivityListBody({
 }): React.JSX.Element {
   const t = useTranslations("pxc");
   if (failed) return <Alert severity="error">{t("loadFailed")}</Alert>;
-  if (activities === null) return <Spinner className="mx-auto" />;
+  if (activities === null) {
+    return (
+      <div role="status" aria-label={t("loading")}>
+        <Spinner className="mx-auto" />
+      </div>
+    );
+  }
   if (activities.length === 0) return <EmptyState />;
   return (
     <ul className="space-y-3">
@@ -65,7 +76,7 @@ function ActivityListBody({
   );
 }
 
-// The signed-in user's activities, in the order the backend returns them.
+// The signed-in user's activities, newest first as the backend returns them.
 export function ActivityList(): React.JSX.Element {
   const { token } = useAuth();
   const t = useTranslations("pxc");

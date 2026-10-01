@@ -7,6 +7,8 @@
     "emptyBody": "Describe an activity in Compose and the assistant builds it for you.",
     "openCompose": "Open Compose",
     "createdOn": "Created {date}",
-    "preview": "Preview"
+    "preview": "Preview",
+    "previewActivity": "Preview {title}",
+    "loading": "Loading activities"
   }
 }

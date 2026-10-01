@@ -35,11 +35,19 @@ describe("ActivityList", () => {
     expect(await screen.findByRole("heading", { name: "Photosynthesis quiz" })).toBeInTheDocument();
     expect(screen.getByText("Five questions on light reactions")).toBeInTheDocument();
     expect(screen.getByText("Created Sep 30, 2026")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Preview" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Preview Photosynthesis quiz" })).toHaveAttribute(
       "href",
       ACTIVITY.preview_url,
     );
     expect(listActivities).toHaveBeenCalledWith("test-token", expect.any(AbortSignal));
+  });
+
+  it("exposes a loading status while the list is fetching", () => {
+    vi.mocked(listActivities).mockReturnValue(new Promise(() => {}));
+
+    renderWithIntl(<ActivityList />, pxcEn);
+
+    expect(screen.getByRole("status", { name: "Loading activities" })).toBeInTheDocument();
   });
 
   it("shows the empty state with a link to Compose when there are no activities", async () => {

@@ -7,6 +7,8 @@
     "emptyBody": "Décrivez une activité dans Composer et l'assistant la crée pour vous.",
     "openCompose": "Ouvrir Composer",
     "createdOn": "Créée le {date}",
-    "preview": "Aperçu"
+    "preview": "Aperçu",
+    "previewActivity": "Aperçu de {title}",
+    "loading": "Chargement des activités"
   }
 }
