@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from sparkth.plugins.pxc.event_bus import EVENT_BUS
+from sparkth.plugins.pxc.tests.conftest import inline_config
 from sparkth.plugins.pxc.tokens import mint_launch_token
 
 
@@ -105,13 +106,13 @@ def test_a_frame_cannot_escalate_its_own_permission(ws_client: TestClient, confi
         # arriving at all proves the loop processed the save rather than merely not reaching it.
         assert socket.receive_json()["name"] == "answer.result"
 
-    config_response = ws_client.get("/api/v1/pxc/config", params={"token": token})
+    embed_response = ws_client.get("/api/v1/pxc/embed", params={"token": token})
 
-    # Status before indexing. read_state re-raises a sandbox failure as PxcSandboxFailure, which
-    # plugin.py registers to 502, so the body would be {"detail": ...} and ["state"] would raise
-    # an opaque KeyError('state') instead of naming the real cause.
-    assert config_response.status_code == status.HTTP_200_OK
-    assert config_response.json()["state"].get("question") != "Owned?"
+    # Status before parsing. read_state re-raises a sandbox failure as PxcSandboxFailure, which
+    # plugin.py registers to 502, so the body would hold no inline configuration and parsing it
+    # would raise an opaque IndexError instead of naming the real cause.
+    assert embed_response.status_code == status.HTTP_200_OK
+    assert inline_config(embed_response.text).state.get("question") != "Owned?"
 
 
 def test_a_frame_that_is_not_json_closes_the_socket(ws_client: TestClient, configured_secret: str) -> None:

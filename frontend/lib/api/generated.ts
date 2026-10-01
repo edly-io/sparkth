@@ -960,28 +960,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/pxc/config": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Activity Config
-         * @description This activity's state, context and asset URLs for the launching learner.
-         *
-         *     Takes the raw token as well as the claims, because the URLs it hands back carry it.
-         */
-        get: operations["activity_config_api_v1_pxc_config_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/pxc/embed": {
         parameters: {
             query?: never;
@@ -993,8 +971,9 @@ export interface paths {
          * Embed Activity
          * @description The document an LMS iframes to show one activity to one learner.
          *
-         *     Gated by the dependency rather than a claims parameter: the shell hands the raw token to the
-         *     client and reads nothing out of it.
+         *     The activity's configuration is inlined as a JSON script element, so the client reads it
+         *     without a request of its own. Every ``<`` in that JSON is written as ``\u003c``: the state
+         *     holds author-written text, and a literal ``</script>`` in it would end the element early.
          */
         get: operations["embed_activity_api_v1_pxc_embed_get"];
         put?: never;
@@ -1349,29 +1328,6 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /**
-         * ActivityConfig
-         * @description Everything the embed shell needs to render one activity for one learner.
-         */
-        ActivityConfig: {
-            /** Action Base Url */
-            action_base_url: string;
-            /** Activity */
-            activity: string;
-            /** Asset Base Url */
-            asset_base_url: string;
-            context: components["schemas"]["LaunchContext"];
-            /** Permission */
-            permission: string;
-            /** State */
-            state: {
-                [key: string]: unknown;
-            };
-            /** Ui Url */
-            ui_url: string;
-            /** Ws Url */
-            ws_url: string;
-        };
         /**
          * AttachedDocumentResponse
          * @description Document info returned by the list-attachments endpoint.
@@ -1916,18 +1872,6 @@ export interface components {
             model?: string | null;
             /** Name */
             name?: string | null;
-        };
-        /**
-         * LaunchContext
-         * @description The identifiers the activity's client code needs, mirroring PXC's context shape.
-         */
-        LaunchContext: {
-            /** Activity Id */
-            activity_id: string;
-            /** Course Id */
-            course_id: string;
-            /** User Id */
-            user_id: string;
         };
         /**
          * LoginActivityPoint
@@ -4210,37 +4154,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    activity_config_api_v1_pxc_config_get: {
-        parameters: {
-            query: {
-                token: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ActivityConfig"];
                 };
             };
             /** @description Validation Error */

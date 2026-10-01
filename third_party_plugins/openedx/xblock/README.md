@@ -144,7 +144,7 @@ nothing in this application trusts a forwarded-proto header: there is no
 `ProxyHeadersMiddleware` and no `X-Forwarded-Proto` handling anywhere in `sparkth/`, the
 Dockerfile, or the Makefile. Behind a TLS-terminating proxy or ingress whose address is not in
 uvicorn's trusted `forwarded_allow_ips` (default `127.0.0.1`), an HTTPS learner is seen as
-`http`, so the config's `ws_url` comes back `ws://` and the browser refuses it as mixed
+`http`, so the inline configuration's `ws_url` comes back `ws://` and the browser refuses it as mixed
 content.
 
 Configure the proxy-header trust for any TLS deployment (uvicorn's `--forwarded-allow-ips`, or
@@ -170,12 +170,11 @@ The trigger is any network interruption more than `SPARKTH_PXC_LAUNCH_TOKEN_TTL_
 (default 300 seconds) after the page rendered. Raising that TTL is the operator's only lever on
 how long a session can survive one.
 
-Re-fetching the configuration to obtain a fresh token is **not** an available remedy, which is
-worth stating because it is the obvious one to reach for. The configuration route authenticates
-with the very token that has expired, so a client in this state cannot reach it; and the
-configuration it returns carries that same token rather than a new one. Recovering inside the
-browser requires a credential the browser does not have, so any real fix has to change where
-the socket's authorization comes from.
+Reloading the configuration inside the page is **not** an available remedy, which is worth
+stating because it is the obvious one to reach for. The configuration is written into the embed
+page when it is served, and it carries that page's own launch token rather than a new one.
+Recovering inside the browser requires a credential the browser does not have, so any real fix
+has to change where the socket's authorization comes from.
 
 ## Security
 

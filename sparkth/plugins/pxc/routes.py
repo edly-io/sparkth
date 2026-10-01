@@ -48,21 +48,25 @@ _CLIENT_FILES = {
 }
 
 
-@router.get("/embed", response_class=HTMLResponse, dependencies=[Depends(read_launch_token)])
-async def embed_activity(request: Request, token: str = Query()) -> HTMLResponse:
+@router.get("/embed", response_class=HTMLResponse)
+async def embed_activity(
+    request: Request, claims: LaunchClaims = Depends(read_launch_token), token: str = Query()
+) -> HTMLResponse:
     """The document an LMS iframes to show one activity to one learner.
 
-    Gated by the dependency rather than a claims parameter: the shell hands the raw token to the
-    client and reads nothing out of it.
+    The activity's configuration is inlined as a JSON script element, so the client reads it
+    without a request of its own. Every ``<`` in that JSON is written as ``\\u003c``: the state
+    holds author-written text, and a literal ``</script>`` in it would end the element early.
     """
-    base = str(request.url_for("embed_activity")).rsplit("/embed", 1)[0]
+    config_json = (await _activity_config(claims, token, request)).model_dump_json().replace("<", "\\u003c")
+    client_url = request.url_for("client_script", file_name="sparkth-pxc.js")
     return HTMLResponse(
         "<!DOCTYPE html>"
         '<html><head><meta charset="utf-8"><style>body{margin:0}</style></head>'
         "<body>"
-        f'<pxc-activity data-config-url="{base}/config?token={token}"'
-        f' data-action-url="{base}/actions" data-pxc-token="{token}"></pxc-activity>'
-        f'<script type="module" src="{base}/client/sparkth-pxc.js"></script>'
+        f'<pxc-activity data-pxc-token="{token}">'
+        f'<script type="application/json">{config_json}</script></pxc-activity>'
+        f'<script type="module" src="{client_url}"></script>'
         "</body></html>"
     )
 
@@ -72,17 +76,14 @@ def _socket_url(request: Request, token: str) -> str:
     return f"{request.url_for('activity_socket')}?token={token}"
 
 
-@router.get("/config")
-async def activity_config(
-    request: Request, claims: LaunchClaims = Depends(read_launch_token), token: str = Query()
-) -> ActivityConfig:
+async def _activity_config(claims: LaunchClaims, token: str, request: Request) -> ActivityConfig:
     """This activity's state, context and asset URLs for the launching learner.
 
     Takes the raw token as well as the claims, because the URLs it hands back carry it.
     """
     runtime = await asyncio.to_thread(build_runtime, claims)
     state = await asyncio.to_thread(read_state, runtime)
-    base = str(request.url_for("activity_config")).rsplit("/config", 1)[0]
+    base = str(request.url_for("embed_activity")).rsplit("/embed", 1)[0]
     # Neither base URL below carries the token: the embed shell already gave the client one,
     # and the client appends it itself in SparkthPXC's methods.
     return ActivityConfig(

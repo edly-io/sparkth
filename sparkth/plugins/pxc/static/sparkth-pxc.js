@@ -7,7 +7,7 @@
 // Two things differ from the base class, both because this deployment authenticates every
 // request with a launch token in the query string rather than a cookie:
 //
-//   * the socket URL comes from the configuration response, not pxc.js's default path
+//   * the socket URL comes from the inline configuration, not pxc.js's default path
 //   * _postAction, which _flushQueue uses for payloads above its 512 KiB socket ceiling, is
 //     overridden to address Sparkth's route and carry the token
 //
@@ -18,9 +18,8 @@
 // just told succeeded is sitting in a queue the server will never receive — sendAction resolves
 // as soon as the action reaches IndexedDB, well before any round-trip.
 //
-// Reads two data-* attributes beyond the ones _initFromAttrs() handles:
-//   data-config-url   GET endpoint returning this activity's configuration
-//   data-action-url   POST endpoint for actions, one path segment short of the action name
+// The configuration is a <script type="application/json"> child of the element, written by the
+// embed route; nothing is fetched for it.
 //
 // data-pxc-token is one _initFromAttrs() already reads, into this._pxcToken. Every route this
 // class calls requires it as a query parameter, so both _postAction() and the getAssetUrl()
@@ -39,7 +38,6 @@ const MAX_RECONNECT_ATTEMPTS = 30;
 export class SparkthPXC extends PXC {
   constructor() {
     super();
-    this._configUrl = null;
     this._actionUrl = null;
     this._reconnectAttempts = 0;
     this._notice = null;
@@ -48,19 +46,12 @@ export class SparkthPXC extends PXC {
 
   async connectedCallback() {
     this._initFromAttrs();
-    this._configUrl = this.getAttribute("data-config-url");
-    this._actionUrl = this.getAttribute("data-action-url");
-
-    const response = await fetch(this._configUrl);
-    if (!response.ok) {
-      console.error("PXC configuration failed:", response.status);
-      return;
-    }
-    const config = await response.json();
+    const config = JSON.parse(this.querySelector('script[type="application/json"]').textContent);
     this.context = config.context;
     this.state = config.state;
     this.permission = config.permission;
     this._assetBaseUrl = config.asset_base_url;
+    this._actionUrl = config.action_base_url;
     this._wsUrl = config.ws_url;
 
     this._initShadow();
