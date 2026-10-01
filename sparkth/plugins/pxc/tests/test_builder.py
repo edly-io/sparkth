@@ -1,14 +1,19 @@
 """The activity build: manifest rules, bounded child processes, compile, smoke test, storage."""
 
 import json
+import os
+import sys
+import time
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
 from sparkth.plugins.pxc.activities import activity_dir
-from sparkth.plugins.pxc.builder import validate_manifest
-from sparkth.plugins.pxc.constants import PXC_MAX_SOURCE_CHARS
-from sparkth.plugins.pxc.exceptions import PxcManifestInvalid
+from sparkth.plugins.pxc.builder import agent_error, run_bounded, validate_manifest
+from sparkth.plugins.pxc.config import get_pxc_settings
+from sparkth.plugins.pxc.constants import PXC_BUILD_ERROR_LIMIT, PXC_MAX_SOURCE_CHARS
+from sparkth.plugins.pxc.exceptions import PxcBuildTimedOut, PxcManifestInvalid
 from sparkth.plugins.pxc.schemas import ActivitySource
 
 OWNER = 1
@@ -51,3 +56,76 @@ def test_source_over_the_size_limit_is_refused_before_any_build(field: str) -> N
 
     with pytest.raises(ValidationError):
         ActivitySource.model_validate({"title": "t", "description": "d", "manifest": {}, **sources})
+
+
+# Starts a grandchild that sleeps, records its pid in argv[1], then sleeps itself.
+SPAWNS_A_GRANDCHILD = (
+    "import subprocess, sys, time\n"
+    "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
+    "open(sys.argv[1], 'w').write(str(child.pid))\n"
+    "time.sleep(60)\n"
+)
+
+
+def _process_gone(pid: int) -> bool:
+    """Whether ``pid`` has exited, polling for up to five seconds while the OS reaps it."""
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return True
+        time.sleep(0.1)
+    return False
+
+
+@pytest.fixture
+def short_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PXC_BUILD_TIMEOUT_SECONDS", "2")
+    get_pxc_settings.cache_clear()
+
+
+async def test_a_step_returns_its_exit_code_and_stderr(tmp_path: Path) -> None:
+    script = "import sys; sys.stderr.write('boom'); sys.exit(3)"
+
+    assert await run_bounded([sys.executable, "-c", script], tmp_path, "A step", None) == (3, "boom")
+
+
+async def test_a_step_that_outlives_the_timeout_is_stopped(tmp_path: Path, short_timeout: None) -> None:
+    started = time.monotonic()
+
+    with pytest.raises(PxcBuildTimedOut) as timed_out:
+        await run_bounded([sys.executable, "-c", "import time; time.sleep(60)"], tmp_path, "A step", None)
+
+    assert time.monotonic() - started < 10
+    assert "A step did not finish within 2 seconds" in str(timed_out.value)
+
+
+async def test_a_timeout_kills_the_steps_grandchildren_too(tmp_path: Path, short_timeout: None) -> None:
+    # node runs wizer as a child of its own; killing node alone leaves wizer spinning.
+    pid_file = tmp_path / "grandchild.pid"
+
+    with pytest.raises(PxcBuildTimedOut):
+        await run_bounded([sys.executable, "-c", SPAWNS_A_GRANDCHILD, str(pid_file)], tmp_path, "A step", None)
+
+    assert _process_gone(int(pid_file.read_text()))
+
+
+def test_agent_errors_drop_toolchain_frames_and_the_build_path(tmp_path: Path) -> None:
+    stderr = (
+        "file:///opt/x/node_modules/@bytecodealliance/componentize-js/src/componentize.js:302\n"
+        "Error: Failed to initialize component:\n"
+        "    at componentize (file:///opt/x/node_modules/a.js:1:1)\n"
+        f"ReferenceError: {tmp_path}/sandbox.js:3:1 boom\n"
+    )
+
+    assert (
+        agent_error(stderr, tmp_path) == "Error: Failed to initialize component:\nReferenceError: sandbox.js:3:1 boom"
+    )
+
+
+def test_agent_errors_keep_the_end_of_a_long_output(tmp_path: Path) -> None:
+    trimmed = agent_error("early noise\n" + "x" * PXC_BUILD_ERROR_LIMIT + "\nthe cause", tmp_path)
+
+    assert trimmed.endswith("the cause")
+    assert len(trimmed) == PXC_BUILD_ERROR_LIMIT

@@ -30,7 +30,8 @@ PXC_PREFLIGHT_HEADERS = {
 PXC_PREVIEW_COURSE_ID = "sparkth-preview"
 PXC_PREVIEW_PLACEMENT = "preview"
 
-# The longest build error handed back to the agent, in characters. The end is kept.
+# The longest build error handed back to the agent, in characters. Compiler and smoke output
+# keep their end, where the cause is; a manifest schema message keeps its start.
 PXC_BUILD_ERROR_LIMIT = int(os.getenv("PXC_BUILD_ERROR_LIMIT", "4000"))
 
 # The longest ui.js or sandbox.js an agent may submit, in characters, refused before any compile.
