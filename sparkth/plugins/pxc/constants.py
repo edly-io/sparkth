@@ -46,3 +46,10 @@ PXC_SMOKE_CONTEXT_ID = "smoke"
 # The WIT world every generated activity compiles against: the bundled sample's. That world
 # imports only pxc:sandbox/state, so a generated sandbox can call nothing else on the host.
 PXC_SANDBOX_WIT = PXC_ACTIVITY_ROOT / "mcq" / "pxc.wit"
+
+# The most of a build step's stderr kept in memory, in bytes: the end of it, where the cause is.
+# The rest is read and dropped, so a step flooding stderr can neither block nor exhaust memory.
+PXC_BUILD_STDERR_LIMIT_BYTES = int(os.getenv("PXC_BUILD_STDERR_LIMIT_BYTES", "65536"))
+
+# The longest activity description an agent may submit, in characters.
+PXC_MAX_DESCRIPTION_CHARS = int(os.getenv("PXC_MAX_DESCRIPTION_CHARS", "2000"))
