@@ -58,7 +58,7 @@ Pick the base by what the action is:
 |---|---|---|
 | `BaseAuditEvent` | An action that changes nothing stored: login, key read, verification | `outcome`, `actor`, `target`, `error_detail`, `occurred_at` |
 | `MutationAuditEvent` | A change to stored state | `change: AuditChange(old=..., new=...)` |
-| `AIActionAuditEvent` | An action driven by a model | `tool`, `model`, `purpose` |
+| `AIActionAuditEvent` | An action driven by a model | `tool`, `model`, `purpose` (plus `change`; read-only actions leave it unset) |
 
 ```python
 from dataclasses import dataclass
@@ -81,10 +81,9 @@ class WidgetDeletedAuditEvent(MutationAuditEvent):
 - The **category** is the retention unit: `AUDIT_RETENTION_OVERRIDES` is keyed by it. Put events
   that must be kept for the same length of time in the same category, and give a plugin's events
   a category of its own so an override for one plugin never reaches another.
-- Recording an unregistered class raises `UnknownAuditEventTypeError`. Make sure the module that
-  declares the class is imported at startup (core events register when
-  `sparkth.core.audit.events` is first imported, via `sparkth.lib.audit`; a plugin imports its
-  events module from its `__init__`).
+- Recording an unregistered class raises `UnknownAuditEventTypeError`. The decorator registers
+  the class when its module is imported, and the code that records an event imports its class, so
+  no side-effect import is needed.
 - Leave `fail_open` at `False`. It exists for read-class events where the caller may choose to log
   and continue; mutating and AI events must stay fail-closed. Even when it is `True` the recorder
   still raises, and the call site owns the decision.
