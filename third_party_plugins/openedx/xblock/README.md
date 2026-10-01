@@ -82,9 +82,10 @@ after it lapses. The socket re-verifies the token on every action, so this bound
 socket session exactly as it applies to the HTTP routes.
 
 A refused save is not reported as an error at the moment it is refused. `sendAction` resolves as
-soon as the action reaches the browser's IndexedDB queue, before any network round-trip, so the
-activity's own "Configuration saved!" message appears for an edit the server has not seen yet.
-Nothing in the transport can contradict it: actions are not acknowledged individually.
+soon as the action is in the page's in-memory queue, before any network round-trip, so the
+activity's own "Configuration saved!" message can appear for an edit the server has not seen yet.
+Nothing in the transport contradicts it: actions are not acknowledged one by one. The queue lives
+only as long as the page, so an action still queued when the page reloads is lost.
 
 What the author does get is a notice once the edit is known to be undeliverable. A lapsed token
 closes the socket with code 1008, every reconnect presents that same token and is refused, and

@@ -1,8 +1,8 @@
 // SparkthPXC — the <pxc-activity> variant for activities hosted by Sparkth.
 //
-// Uses pxc.js's own WebSocket transport: actions go into its IndexedDB queue and out over the
-// socket, and the events any action produces arrive on that socket — including events caused
-// by somebody else's action, which is what a shared activity needs.
+// Uses pxc.js's own WebSocket transport: actions go out over the socket, and the events any
+// action produces arrive on that socket — including events caused by somebody else's action,
+// which is what a shared activity needs.
 //
 // Two things differ from the base class, both because this deployment authenticates every
 // request with a launch token in the query string rather than a cookie:
@@ -16,7 +16,11 @@
 // into the socket URL, so once it lapses every reconnect's handshake is refused and the retry
 // never ends. Nothing tells the viewer, and nothing tells an author that the save they were
 // just told succeeded is sitting in a queue the server will never receive — sendAction resolves
-// as soon as the action reaches IndexedDB, well before any round-trip.
+// as soon as the action is queued, well before any round-trip.
+//
+// A fourth: the queue lives in memory, not in pxc.js's IndexedDB store. The embed page runs in
+// an opaque origin, where IndexedDB throws, so an action still queued when the page reloads is
+// lost.
 //
 // The configuration is a <script type="application/json"> child of the element, written by the
 // embed route; nothing is fetched for it.
@@ -35,10 +39,14 @@ import { PXC } from "./pxc.js";
 // a lapsed token stops costing the server a refused handshake every two seconds per stale tab.
 const MAX_RECONNECT_ATTEMPTS = 30;
 
+// pxc.js's own ceiling for one socket frame; a larger action goes through _postAction instead.
+const WS_PAYLOAD_MAX = 512 * 1024;
+
 export class SparkthPXC extends PXC {
   constructor() {
     super();
     this._actionUrl = null;
+    this._queue = [];
     this._reconnectAttempts = 0;
     this._notice = null;
     this._onSocketOpen = this._onSocketOpen.bind(this);
@@ -60,6 +68,36 @@ export class SparkthPXC extends PXC {
     // activity's own script calls sendAction before a socket object exists.
     this._connectWebSocket();
     await this._loadScript(config.ui_url);
+  }
+
+  // Overrides PXC's own _pushAction(), which writes to IndexedDB.
+  _pushAction(action) {
+    this._queue.push(action);
+    if (this._ws.readyState === WebSocket.OPEN) this._flushQueue();
+  }
+
+  // Overrides PXC's own _flushQueue(). Drains in order and stops at the first action that cannot
+  // go yet, so a later action never overtakes it; one pushed mid-drain is picked up by the loop.
+  async _flushQueue() {
+    if (this._flushing) return;
+    this._flushing = true;
+    try {
+      while (this._queue.length > 0 && (await this._sendQueued(this._queue[0]))) {
+        this._queue.shift();
+      }
+    } finally {
+      this._flushing = false;
+    }
+  }
+
+  // Sends one queued action, over the socket or by POST past the frame ceiling. Resolves to
+  // whether it went.
+  async _sendQueued({ action, value, permission }) {
+    const payload = JSON.stringify({ action, value, permission });
+    if (payload.length > WS_PAYLOAD_MAX) return this._postAction(action, value);
+    if (this._ws.readyState !== WebSocket.OPEN) return false;
+    this._ws.send(payload);
+    return true;
   }
 
   // Overrides PXC's own _postAction(), which posts to /api/activity/{id}/actions/{name} with
