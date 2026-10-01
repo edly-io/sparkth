@@ -1,8 +1,8 @@
 import os
 from pathlib import Path
 
-# Where the bundled activity sources live, one directory per activity type. One sample ships
-# today and is served for every request; an authoring module comes later.
+# Where the bundled activity sources live, one directory per activity type. PXC_DEFAULT_ACTIVITY
+# names the one placed when no option is chosen.
 PXC_ACTIVITY_ROOT = Path(__file__).parent / "activities"
 
 # The XBlock category the Open edX course holds. Fixed rather than configurable: it must equal

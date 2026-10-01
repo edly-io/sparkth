@@ -119,4 +119,9 @@ compile.
 
 TODO: move builds to a worker container.
 
-Known limit: learner actions have no execution limit. That is pxc-lib's to fix.
+## Known limits
+
+- Learner actions have no execution limit. That is pxc-lib's to fix.
+- Course staff who edit the XBlock's `activity` field directly in Studio or OLX can point it at
+  any activity id, and the XBlock signs it. Ownership is checked only when the agent places
+  content.
