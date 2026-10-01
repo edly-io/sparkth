@@ -512,7 +512,7 @@ category and `attributes` as a dict of XBlock metadata.
 choices an author picks between. A publishing tool lists them and passes the chosen `id` back
 to the builder as `option_id`. With `list_options` left `None`, a publishing tool refuses any
 option id. Options that depend on the caller read the caller with
-`sparkth.lib.auth.current_user_id()`. The builder re-checks the chosen id and never trusts that
+`sparkth.lib.auth.current_user_id()`. The builder must re-check the chosen id and never trust that
 it came from the list. `list_options` and the builders must be module-level functions, because
 equality is what makes re-registration a no-op.
 

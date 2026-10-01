@@ -67,7 +67,10 @@ class ContentContributor:
     ``list_options``, when set, returns the options the authenticated caller may choose from.
     A contributor whose options depend on the caller reads the caller with
     :func:`sparkth.lib.auth.current_user_id` itself, so a publishing tool never handles
-    identity. Leave it ``None`` for a contributor that builds one kind of block; a publishing
+    identity. A builder must re-check the chosen id, including that the caller may use it,
+    rather than trust that it came from this list.
+
+    Leave ``list_options`` ``None`` for a contributor that builds one kind of block; a publishing
     tool then refuses any option id.
 
     ``list_options`` and the builders must be module-level functions. Re-registering an equal
