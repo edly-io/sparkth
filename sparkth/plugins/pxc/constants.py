@@ -8,3 +8,14 @@ PXC_ACTIVITY_ROOT = Path(__file__).parent / "activities"
 # the name of the entry point the XBlock registers, and a configurable value could drift out of
 # sync with the installed package (L6).
 PXC_BLOCK_CATEGORY = "pxc"
+
+# The embed page's origin is opaque, so everything it fetches from this plugin is cross-origin.
+# Any origin is allowed because these routes authenticate by launch token, never by cookie.
+PXC_CORS_HEADERS = {"Access-Control-Allow-Origin": "*"}
+
+# What a cross-origin action POST asks permission for before it sends its JSON body.
+PXC_PREFLIGHT_HEADERS = {
+    **PXC_CORS_HEADERS,
+    "Access-Control-Allow-Methods": "POST",
+    "Access-Control-Allow-Headers": "Content-Type",
+}

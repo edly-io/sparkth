@@ -11,12 +11,13 @@ import asyncio
 from pathlib import Path
 
 import pxc.lib
-from fastapi import APIRouter, Depends, Query, Request, WebSocket, status
+from fastapi import APIRouter, Depends, Query, Request, Response, WebSocket, status
 from fastapi.responses import FileResponse, HTMLResponse
 from starlette.websockets import WebSocketDisconnect
 
 from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.activities import asset_path
+from sparkth.plugins.pxc.constants import PXC_CORS_HEADERS, PXC_PREFLIGHT_HEADERS
 from sparkth.plugins.pxc.event_bus import EVENT_BUS, publish_events, subscribe_socket
 from sparkth.plugins.pxc.exceptions import (
     PxcActionRejected,
@@ -32,8 +33,9 @@ from sparkth.plugins.pxc.websocket import run_action_frames
 logger = get_logger(__name__)
 
 # The launch token is the only credential these routes have, so verifying it is declared as a
-# dependency rather than repeated as the first line of each handler. Two routes do not declare
-# it: `client_script`, which serves the same two scripts to everyone and reads no state, and
+# dependency rather than repeated as the first line of each handler. Three routes do not declare
+# it: `client_script`, which serves the same two scripts to everyone and reads no state,
+# `preflight_action`, which a browser calls without the request's credentials, and
 # `activity_socket`, which has to turn a refusal into a close code and so verifies inline.
 router = APIRouter()
 
@@ -105,7 +107,7 @@ async def client_script(file_name: str) -> FileResponse:
     path = _CLIENT_FILES.get(file_name)
     if path is None:
         raise PxcAssetNotFound(f"Unknown client script: {file_name}")
-    return FileResponse(path, media_type="text/javascript")
+    return FileResponse(path, media_type="text/javascript", headers=PXC_CORS_HEADERS)
 
 
 @router.get("/assets/{file_path:path}")
@@ -119,11 +121,13 @@ async def activity_asset(file_path: str, claims: LaunchClaims = Depends(read_lau
     Raises:
         PxcAssetNotFound: if the manifest does not declare the file, or it is missing.
     """
-    return FileResponse(asset_path(claims.activity, file_path))
+    return FileResponse(asset_path(claims.activity, file_path), headers=PXC_CORS_HEADERS)
 
 
 @router.post("/actions/{action_name}", status_code=status.HTTP_204_NO_CONTENT)
-async def submit_action(action_name: str, request: Request, claims: LaunchClaims = Depends(read_launch_token)) -> None:
+async def submit_action(
+    action_name: str, request: Request, claims: LaunchClaims = Depends(read_launch_token)
+) -> Response:
     """Run one action through the activity's sandbox, for a payload too large for the socket.
 
     The events it produces are published to the bus, not returned; the client reads only the status.
@@ -145,6 +149,13 @@ async def submit_action(action_name: str, request: Request, claims: LaunchClaims
     runtime = await asyncio.to_thread(build_runtime, claims)
     events = await asyncio.to_thread(run_action, runtime, action_name, action_value)
     await publish_events(claims.activity, claims.placement, events)
+    return Response(status_code=status.HTTP_204_NO_CONTENT, headers=PXC_CORS_HEADERS)
+
+
+@router.options("/actions/{action_name}", include_in_schema=False)
+async def preflight_action() -> Response:
+    """Answer the preflight a browser sends before a cross-origin action POST with a JSON body."""
+    return Response(status_code=status.HTTP_204_NO_CONTENT, headers=PXC_PREFLIGHT_HEADERS)
 
 
 @router.websocket("/ws")

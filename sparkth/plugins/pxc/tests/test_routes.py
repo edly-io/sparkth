@@ -264,3 +264,41 @@ async def test_an_action_returns_no_content(client: AsyncClient, token: str) -> 
 
     assert response.status_code == 204
     assert response.content == b""
+
+
+async def test_a_client_script_allows_any_origin(client: AsyncClient) -> None:
+    # The embed page's origin is opaque, so loading its module scripts is a cross-origin fetch.
+    response = await client.get("/api/v1/pxc/client/sparkth-pxc.js")
+
+    assert response.headers["access-control-allow-origin"] == "*"
+
+
+async def test_an_activity_asset_allows_any_origin(client: AsyncClient, token: str) -> None:
+    response = await client.get("/api/v1/pxc/assets/ui.js", params={"token": token})
+
+    assert response.headers["access-control-allow-origin"] == "*"
+
+
+async def test_an_action_preflight_is_answered_without_a_token(client: AsyncClient) -> None:
+    # A browser sends the preflight before the POST, and without the POST's query credentials.
+    response = await client.options(
+        "/api/v1/pxc/actions/answer.submit",
+        headers={
+            "Origin": "null",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+
+    assert response.status_code == 204
+    assert response.headers["access-control-allow-origin"] == "*"
+    assert response.headers["access-control-allow-methods"] == "POST"
+    assert response.headers["access-control-allow-headers"] == "Content-Type"
+
+
+@pytest.mark.wasm
+async def test_an_action_allows_any_origin(client: AsyncClient, token: str) -> None:
+    response = await client.post("/api/v1/pxc/actions/answer.submit", params={"token": token}, json=[0])
+
+    assert response.status_code == 204
+    assert response.headers["access-control-allow-origin"] == "*"
