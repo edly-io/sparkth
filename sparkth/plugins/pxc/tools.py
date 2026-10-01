@@ -10,8 +10,15 @@ import json
 
 from pxc.lib.manifest_types import PxcActivityManifest
 
-from sparkth.plugins.pxc.activities import activity_dir
+from sparkth.lib.auth import current_user_id
+from sparkth.lib.log import get_logger
+from sparkth.plugins.pxc.activities import activity_dir, preview_url
+from sparkth.plugins.pxc.builder import build_activity
 from sparkth.plugins.pxc.constants import PXC_ABOUT_EXAMPLE, PXC_ABOUT_FILES, PXC_ASSET_DIR, PXC_MAX_SOURCE_CHARS
+from sparkth.plugins.pxc.exceptions import PxcManifestInvalid
+from sparkth.plugins.pxc.schemas import ActivitySource
+
+logger = get_logger(__name__)
 
 
 async def pxc_about() -> dict[str, str]:
@@ -28,3 +35,49 @@ async def pxc_about() -> dict[str, str]:
     rules = (PXC_ASSET_DIR / "about.txt").read_text(encoding="utf-8").format(max_source_chars=PXC_MAX_SOURCE_CHARS)
     schema = json.dumps(PxcActivityManifest.model_json_schema(), indent=2)
     return {"about": f"{rules}\n\n--- manifest JSON schema ---\n{schema}\n\n{files}"}
+
+
+def _manifest_object(manifest: dict[str, object] | str) -> dict[str, object]:
+    """The manifest as an object, parsed first when the model sent it as JSON text.
+
+    Some models serialise a nested object argument as a string. Reading it here saves the agent
+    a failed call, and text that is not a JSON object gets an error the agent can act on.
+
+    Raises:
+        PxcManifestInvalid: if the text is not JSON, or is JSON but not an object.
+    """
+    if isinstance(manifest, dict):
+        return manifest
+    try:
+        parsed = json.loads(manifest)
+    except json.JSONDecodeError as err:
+        logger.info("pxc_build_activity refused manifest text that is not JSON: %s", err)
+        raise PxcManifestInvalid(f"manifest is not valid JSON: {err}") from err
+    if not isinstance(parsed, dict):
+        logger.info("pxc_build_activity refused a JSON manifest of type %s", type(parsed).__name__)
+        raise PxcManifestInvalid(f"manifest is not valid JSON: expected an object, got {type(parsed).__name__}")
+    return parsed
+
+
+async def pxc_build_activity(
+    title: str, description: str, manifest: dict[str, object] | str, ui_js: str, sandbox_js: str
+) -> dict[str, str]:
+    """Build a new PXC activity from its three files and return its id and preview link.
+
+    `title` and `description` are short and in the author's language. `manifest` is the
+    manifest.json object (JSON text of that object is also accepted), `ui_js` the ui.js source,
+    `sandbox_js` the sandbox.js source; follow `pxc_about` for all three. Every call creates a
+    new activity: an existing one never changes.
+
+    If the build fails, the error explains why (an invalid manifest, a rejected import, compiler
+    output, or the sandbox failing to start). Fix the files and call this again.
+    """
+    source = ActivitySource(
+        title=title,
+        description=description,
+        manifest=_manifest_object(manifest),
+        ui_js=ui_js,
+        sandbox_js=sandbox_js,
+    )
+    activity = await build_activity(source, current_user_id())
+    return {"activity_id": str(activity.id), "preview_url": preview_url(activity.id)}
