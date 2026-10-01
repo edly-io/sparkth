@@ -17,6 +17,10 @@ from sparkth.lib.log import get_logger
 logger = get_logger(__name__)
 
 
+def _create_audit_snapshot(doc: Document) -> dict[str, str]:
+    return {"name": doc.name}
+
+
 async def create_document(
     session: AsyncSession,
     user_id: int,
@@ -109,7 +113,7 @@ async def soft_delete_document(
         RAGDocumentDeletedAuditEvent(
             outcome=AuditOutcome.SUCCESS,
             target=AuditTarget(type="document", id=str(document_id)),
-            change=AuditChange(old={"name": doc.name}),
+            change=AuditChange(old=_create_audit_snapshot(doc)),
         ),
     )
     await notify_document_deleted(session, doc)
