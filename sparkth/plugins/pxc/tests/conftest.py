@@ -8,21 +8,31 @@ activity carry the same marker, since `make pxc.activities.build` installs the t
 need along with the binary.
 """
 
+import json
 from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.core.models.user import User
+from sparkth.lib.auth import bind_current_user_id
 from sparkth.main import assemble_app
-from sparkth.plugins.pxc.activities import activity_dir
+from sparkth.plugins.pxc.activities import activity_dir, generated_activity_dir
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import PXC_ACTIVITY_ROOT
 from sparkth.plugins.pxc.event_bus import EVENT_BUS
+from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.schemas import ActivityConfig
+from sparkth.plugins.pxc.store import insert_activity
 
 SANDBOX_WASM = activity_dir("mcq") / "sandbox.wasm"
 COMPONENTIZE_JS = PXC_ACTIVITY_ROOT / "mcq" / "node_modules" / ".bin" / "componentize-js"
+
+AUTHORED_MANIFEST = {"name": "placeholder", "ui": "ui.js", "sandbox": "sandbox.wasm"}
+AUTHORED_UI_JS = "export function setup(activity) {}\n"
+AUTHORED_SANDBOX_JS = 'export function getState(context, permission) { return "{}"; }\n'
 
 LAUNCH_SECRET = "a-shared-secret-of-at-least-32-bytes"
 
@@ -85,3 +95,39 @@ def ws_client() -> Iterator[TestClient]:
     """
     with TestClient(assemble_app()) as client:
         yield client
+
+
+def act_as(user: User) -> None:
+    """Bind ``user`` as the authenticated caller for the rest of this test."""
+    assert user.id is not None
+    bind_current_user_id(user.id)
+
+
+@pytest.fixture
+async def authors(session: AsyncSession) -> tuple[User, User]:
+    """Two committed users: the first owns ``authored_activity``, the second owns nothing."""
+    owner = User(name="Owner", username="owner", email="owner@example.com", hashed_password="x")
+    other = User(name="Other", username="other", email="other@example.com", hashed_password="x")
+    session.add_all([owner, other])
+    await session.commit()
+    return owner, other
+
+
+@pytest.fixture
+async def authored_activity(session: AsyncSession, authors: tuple[User, User]) -> PxcActivity:
+    """One generated activity owned by the first author, with its row committed and its files on disk.
+
+    Committed because the tools under test read through their own session. The files sit under
+    the ``pxc_settings`` fixture's data directory.
+    """
+    owner, _ = authors
+    assert owner.id is not None
+    activity = PxcActivity(owner_user_id=owner.id, title="Capital cities", description="Match countries to capitals")
+    await insert_activity(session, activity)
+    await session.commit()
+    directory = generated_activity_dir(str(activity.id))
+    directory.mkdir(parents=True)
+    (directory / "manifest.json").write_text(json.dumps(AUTHORED_MANIFEST), encoding="utf-8")
+    (directory / "ui.js").write_text(AUTHORED_UI_JS, encoding="utf-8")
+    (directory / "sandbox.js").write_text(AUTHORED_SANDBOX_JS, encoding="utf-8")
+    return activity

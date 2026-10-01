@@ -11,12 +11,14 @@ import json
 from pxc.lib.manifest_types import PxcActivityManifest
 
 from sparkth.lib.auth import current_user_id
+from sparkth.lib.db import session_scope
 from sparkth.lib.log import get_logger
-from sparkth.plugins.pxc.activities import activity_dir, preview_url
+from sparkth.plugins.pxc.activities import activity_dir, generated_activity_dir, parse_activity_id, preview_url
 from sparkth.plugins.pxc.builder import build_activity
 from sparkth.plugins.pxc.constants import PXC_ABOUT_EXAMPLE, PXC_ABOUT_FILES, PXC_ASSET_DIR, PXC_MAX_SOURCE_CHARS
 from sparkth.plugins.pxc.exceptions import PxcManifestInvalid
 from sparkth.plugins.pxc.schemas import ActivitySource
+from sparkth.plugins.pxc.store import get_owned_activity, list_owned_activities
 
 logger = get_logger(__name__)
 
@@ -81,3 +83,45 @@ async def pxc_build_activity(
     )
     activity = await build_activity(source, current_user_id())
     return {"activity_id": str(activity.id), "preview_url": preview_url(activity.id)}
+
+
+async def pxc_list_activities() -> dict[str, list[dict[str, str]]]:
+    """List the activities the author has built, newest first, each with its preview link.
+
+    Use this to find an activity's id or preview link from an earlier turn: results of earlier
+    tool calls are not kept in the conversation.
+    """
+    async with session_scope() as session:
+        activities = await list_owned_activities(session, current_user_id())
+    return {
+        "activities": [
+            {
+                "activity_id": str(activity.id),
+                "title": activity.title,
+                "description": activity.description,
+                "created_at": activity.created_at.isoformat(),
+                "preview_url": preview_url(activity.id),
+            }
+            for activity in activities
+        ]
+    }
+
+
+async def pxc_get_activity_source(activity_id: str) -> dict[str, object]:
+    """Return one of the author's activities as the files it was built from.
+
+    Use this before changing an activity: edit the files it returns and build them again with
+    `pxc_build_activity`, which creates a new activity. Only the activity's own author can read
+    it.
+    """
+    async with session_scope() as session:
+        activity = await get_owned_activity(session, parse_activity_id(activity_id), current_user_id())
+    directory = generated_activity_dir(str(activity.id))
+    return {
+        "activity_id": str(activity.id),
+        "title": activity.title,
+        "description": activity.description,
+        "manifest": json.loads((directory / "manifest.json").read_text(encoding="utf-8")),
+        "ui_js": (directory / "ui.js").read_text(encoding="utf-8"),
+        "sandbox_js": (directory / "sandbox.js").read_text(encoding="utf-8"),
+    }
