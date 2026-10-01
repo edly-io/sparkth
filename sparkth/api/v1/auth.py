@@ -107,6 +107,10 @@ async def register_user(
     return db_user
 
 
+def _create_audit_snapshot(method: str) -> dict[str, str]:
+    return {"method": method}
+
+
 def _registered_event(user: User, *, method: str) -> RegisteredAuditEvent:
     """The ``auth.registered`` event for a freshly flushed ``user``."""
     actor = UserActor(id=str(user.id), label=user.username)
@@ -114,7 +118,7 @@ def _registered_event(user: User, *, method: str) -> RegisteredAuditEvent:
         outcome=AuditOutcome.SUCCESS,
         actor=actor,
         target=AuditTarget(type="user", id=str(user.id)),
-        change=AuditChange(new={"method": method}),
+        change=AuditChange(new=_create_audit_snapshot(method)),
     )
 
 
