@@ -179,26 +179,29 @@ has to change where the socket's authorization comes from.
 
 ## Security
 
-The embed iframe is sandboxed with `allow-scripts allow-forms allow-same-origin`.
-`allow-same-origin` is what keeps the frame on Sparkth's origin: without it the frame gets an
-opaque origin, and its action POSTs and its asset and script fetches to Sparkth become
-cross-origin requests. The same attribute also
-means the activity's third-party `ui.js` runs with Sparkth's origin, not an isolated one:
-`pxc.js`'s `_loadScript` loads it with `await import(url)` into the surrounding document — a
-closed shadow root isolates markup, not script — so `ui.js` executes in the same JavaScript realm
-as the rest of the embed shell.
+An activity's `ui.js` is third-party code. `pxc.js`'s `_loadScript` loads it with
+`await import(url)` into the embed document, so it runs in the same JavaScript realm as the
+embed shell; a closed shadow root isolates markup, not script. The embed therefore must not run
+on Sparkth's origin, where `frontend/lib/auth-tokens.ts` keeps the signed-in user's bearer token
+in `localStorage`.
 
-That origin holds more than the shell's own markup. `frontend/lib/auth-tokens.ts` writes the
-signed-in user's bearer token to `localStorage` on this same Sparkth origin, so an untrusted
-activity's `ui.js` running inside the shell can read it.
+Two independent layers force an opaque origin:
 
-This is bounded today, not closed: browsers partition storage for third-party iframes, and only
-Sparkth's own bundled sample activity ships, so nothing untrusted actually loads through this
-path yet. It stops being bounded the moment a third party can supply an activity's `ui.js`.
+- The iframe is sandboxed with `allow-scripts allow-forms` and without `allow-same-origin`.
+- Sparkth serves the embed page and every activity asset with
+  `Content-Security-Policy: sandbox allow-scripts allow-forms`. The document gets an opaque
+  origin however it is opened: this iframe, an embedding page that grants `allow-same-origin`, a
+  direct link, or Sparkth's own preview page.
 
-The way to close it: `pxc.js`'s `_initIframe` path already exists for this — a nested iframe
-sandboxed with `allow-scripts allow-forms` and no `allow-same-origin`, talking to its parent by
-`postMessage` instead of a same-origin `fetch()`. `SparkthPXC.connectedCallback` deliberately does
-not take that path today. Moving onto it, or serving the embed route from a separate origin so
-there is no Sparkth-authenticated `localStorage` to read in the first place, are the two
-directions forward.
+In an opaque origin the activity code cannot reach Sparkth's `localStorage` or any other storage
+or cookie of Sparkth's origin. IndexedDB and `localStorage` throw there, which is why the client
+keeps its action queue in memory.
+
+The page needs nothing from Sparkth's origin. Every route it uses authenticates by the launch
+token in the query string, never by cookie. The activity configuration is inlined in the embed
+page, and the client scripts, the activity assets and the action POSTs answer with
+`Access-Control-Allow-Origin: *` (the POSTs also answer their preflight).
+
+A response rendered by an exception handler, such as a 401 for an expired token, carries no CORS
+header, so the browser reports it as a network failure rather than a status. The client treats
+both the same way: the action is not sent and stays queued.
