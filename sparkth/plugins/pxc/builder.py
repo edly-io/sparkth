@@ -1,19 +1,52 @@
-"""Build an author's activity from the files an agent wrote, inside the web process."""
+"""Build an author's activity from the files an agent wrote, inside the web process.
+
+The steps run in this order:
+
+1. Validate the manifest.
+2. Compile ``sandbox.js`` with componentize-js.
+3. Smoke-test ``get_state`` in a child process.
+4. Move the result to ``PXC_DATA_DIR/activities/<id>/`` and record its row.
+
+Every failure raises a ``PxcBuildFailed`` subclass whose message is written for the agent that
+submitted the code, so it can fix the code and retry.
+
+Containment. componentize-js runs the module's top-level code at compile time, inside wizer.
+wizer sees one directory as its filesystem root: the process's cwd, whenever the source sits
+under it. So each compile runs with its cwd set to a directory holding only ``sandbox.js``, and
+an import can reach nothing but that file. A relative or absolute import of any server file fails
+to resolve. That is also what limits a sandbox to ``pxc:sandbox/*`` imports: builtins, packages
+and unknown interfaces fail to load the same way. node gets ``PATH`` as its whole environment.
+
+Both child processes run in a session of their own and are killed as a group on timeout. node
+runs wizer as a grandchild, and killing node alone leaves wizer running.
+"""
 
 import asyncio
+import json
 import os
+import shutil
 import signal
+import sys
+import tempfile
 from pathlib import Path
 
 from pxc.lib.manifest_types import PxcActivityManifest
 from pydantic import ValidationError
 
+from sparkth.lib.db import session_scope
 from sparkth.lib.log import get_logger
+from sparkth.plugins.pxc.activities import generated_activity_dir
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import PXC_BUILD_ERROR_LIMIT, PXC_SANDBOX_WIT
-from sparkth.plugins.pxc.exceptions import PxcBuildTimedOut, PxcCompileFailed, PxcManifestInvalid
+from sparkth.plugins.pxc.exceptions import PxcBuildTimedOut, PxcCompileFailed, PxcManifestInvalid, PxcSmokeTestFailed
+from sparkth.plugins.pxc.models import PxcActivity
+from sparkth.plugins.pxc.schemas import ActivitySource
+from sparkth.plugins.pxc.store import insert_activity
 
 logger = get_logger(__name__)
+
+# TODO: move activity builds to a dedicated worker container to make this scale.
+_BUILD_SLOTS = asyncio.Semaphore(get_pxc_settings().build_concurrency)
 
 
 def _manifest_rule_violations(manifest: PxcActivityManifest) -> list[str]:
@@ -145,3 +178,66 @@ async def compile_sandbox(sandbox_js: str, compile_dir: Path, output: Path) -> N
         ) from err
     if returncode != 0:
         raise PxcCompileFailed(f"sandbox.js failed to compile:\n{agent_error(stderr, compile_dir)}")
+
+
+async def smoke_test_activity(directory: Path) -> None:
+    """Run ``get_state`` under ``play`` and ``edit`` in a child process.
+
+    Raises:
+        PxcSmokeTestFailed: with the sandbox's own error output, trimmed.
+        PxcBuildTimedOut: if ``get_state`` does not return within the timeout.
+    """
+    argv = [sys.executable, "-m", "sparkth.plugins.pxc.smoke", str(directory)]
+    returncode, stderr = await run_bounded(argv, directory, "The get_state smoke test", None)
+    if returncode != 0:
+        raise PxcSmokeTestFailed(f"sandbox.js compiled, but get_state failed:\n{agent_error(stderr, directory)}")
+
+
+async def stage_activity(work: Path, manifest: dict[str, object], source: ActivitySource) -> Path:
+    """Compile and smoke-test one activity inside ``work``, returning its finished directory.
+
+    The compile gets a fresh directory of its own holding nothing but ``sandbox.js``, removed
+    when the compile ends. The activity's files go in a separate directory, which is what is
+    smoke-tested and moved into place.
+
+    Raises:
+        PxcCompileFailed, PxcSmokeTestFailed, PxcBuildTimedOut: from the step that failed.
+    """
+    staged = work / "activity"
+    staged.mkdir()
+    with tempfile.TemporaryDirectory(dir=work.parent) as compile_dir:
+        await compile_sandbox(source.sandbox_js, Path(compile_dir), staged / "sandbox.wasm")
+    (staged / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    (staged / "ui.js").write_text(source.ui_js, encoding="utf-8")
+    (staged / "sandbox.js").write_text(source.sandbox_js, encoding="utf-8")
+    shutil.copyfile(PXC_SANDBOX_WIT, staged / "pxc.wit")
+    await smoke_test_activity(staged)
+    return staged
+
+
+async def build_activity(source: ActivitySource, owner_user_id: int) -> PxcActivity:
+    """Build one activity from an agent's files, store it, and return its row.
+
+    The work directory sits under ``PXC_DATA_DIR/builds``, on the same filesystem as the
+    activities, so moving a finished build into place is an atomic rename. Any failure removes
+    the work directory and writes no row.
+
+    Raises:
+        PxcBuildFailed: a ``PxcManifestInvalid``, ``PxcCompileFailed``, ``PxcSmokeTestFailed``
+            or ``PxcBuildTimedOut`` whose message tells the agent what to fix.
+    """
+    activity = PxcActivity(owner_user_id=owner_user_id, title=source.title, description=source.description)
+    activity_id = str(activity.id)
+    manifest = validate_manifest(source.manifest, activity_id)
+    builds = get_pxc_settings().data_dir.resolve() / "builds"
+    builds.mkdir(parents=True, exist_ok=True)
+    async with _BUILD_SLOTS:
+        with tempfile.TemporaryDirectory(dir=builds) as work:
+            staged = await stage_activity(Path(work), manifest, source)
+            target = generated_activity_dir(activity_id)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            staged.rename(target)
+    async with session_scope() as session:
+        await insert_activity(session, activity)
+    logger.info("Built PXC activity %s for user %s", activity_id, owner_user_id)
+    return activity

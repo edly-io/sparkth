@@ -8,14 +8,19 @@ import time
 from pathlib import Path
 
 import pytest
+from pxc.lib.permission import Permission
 from pydantic import ValidationError
+from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.plugins.pxc.activities import activity_dir
-from sparkth.plugins.pxc.builder import agent_error, compile_sandbox, run_bounded, validate_manifest
+from sparkth.plugins.pxc.activities import activity_dir, generated_activity_dir
+from sparkth.plugins.pxc.builder import agent_error, build_activity, compile_sandbox, run_bounded, validate_manifest
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import PXC_BUILD_ERROR_LIMIT, PXC_MAX_SOURCE_CHARS
-from sparkth.plugins.pxc.exceptions import PxcBuildTimedOut, PxcCompileFailed, PxcManifestInvalid
+from sparkth.plugins.pxc.exceptions import PxcBuildTimedOut, PxcCompileFailed, PxcManifestInvalid, PxcSmokeTestFailed
+from sparkth.plugins.pxc.runtime import build_runtime, read_state
 from sparkth.plugins.pxc.schemas import ActivitySource
+from sparkth.plugins.pxc.store import get_owned_activity, list_owned_activities
+from sparkth.plugins.pxc.tokens import LaunchClaims
 
 OWNER = 1
 MCQ = activity_dir("mcq")
@@ -192,6 +197,7 @@ async def test_a_sandbox_cannot_reach_a_file_outside_its_compile_directory(tmp_p
         await compile_sandbox(sandbox_js, _compile_dir(tmp_path), tmp_path / "sandbox.wasm")
 
     assert "TOPSECRET" not in str(refused.value)
+    assert '"../secret.js"' in str(refused.value)
 
 
 @pytest.mark.wasm
@@ -202,3 +208,100 @@ async def test_a_compile_that_never_ends_is_stopped(tmp_path: Path, short_timeou
 
     with pytest.raises(PxcBuildTimedOut):
         await compile_sandbox(sandbox_js, _compile_dir(tmp_path), tmp_path / "sandbox.wasm")
+
+
+def _mcq_source(sandbox_js: str | None = None) -> ActivitySource:
+    """The bundled sample's files as an agent would submit them, optionally with another sandbox."""
+    return ActivitySource(
+        title="Two plus two",
+        description="A one-question check",
+        manifest=MCQ_MANIFEST,
+        ui_js=(MCQ / "ui.js").read_text(),
+        sandbox_js=(MCQ / "sandbox.js").read_text() if sandbox_js is None else sandbox_js,
+    )
+
+
+@pytest.mark.wasm
+async def test_a_built_activity_is_stored_and_launches(session: AsyncSession) -> None:
+    activity = await build_activity(_mcq_source(), OWNER)
+
+    activity_id = str(activity.id)
+    assert activity_dir(activity_id) == generated_activity_dir(activity_id)
+    assert json.loads((generated_activity_dir(activity_id) / "manifest.json").read_text())["name"] == activity_id
+    assert (await get_owned_activity(session, activity.id, OWNER)).title == "Two plus two"
+    runtime = build_runtime(LaunchClaims(activity_id, "placement-1", "course-v1:X+Y+Z", "learner-7", Permission.play))
+    assert read_state(runtime)["question"] == "What is 2 + 2?"
+
+
+@pytest.mark.wasm
+async def test_a_failing_get_state_leaves_no_activity_behind(session: AsyncSession, tmp_path: Path) -> None:
+    throwing = (
+        'export function onAction() { return ""; }\n'
+        "export function getState() { const x = undefined; return x.boom; }\n"
+    )
+
+    with pytest.raises(PxcSmokeTestFailed) as failed:
+        await build_activity(_mcq_source(throwing), OWNER)
+
+    assert "boom" in str(failed.value)
+    assert await list_owned_activities(session, OWNER) == []
+    assert list((tmp_path / "builds").iterdir()) == []
+    assert not (tmp_path / "activities").exists()
+
+
+@pytest.mark.wasm
+async def test_a_compile_failure_leaves_no_activity_behind(session: AsyncSession, tmp_path: Path) -> None:
+    with pytest.raises(PxcCompileFailed):
+        await build_activity(_mcq_source("this is not javascript {"), OWNER)
+
+    assert await list_owned_activities(session, OWNER) == []
+    assert list((tmp_path / "builds").iterdir()) == []
+
+
+@pytest.mark.wasm
+async def test_a_timed_out_compile_leaves_no_activity_behind(tmp_path: Path, short_timeout: None) -> None:
+    looping = (
+        'while (true) {}\nexport function onAction() { return ""; }\nexport function getState() { return "{}"; }\n'
+    )
+
+    with pytest.raises(PxcBuildTimedOut):
+        await build_activity(_mcq_source(looping), OWNER)
+
+    assert list((tmp_path / "builds").iterdir()) == []
+
+
+async def test_a_missing_toolchain_fails_without_blaming_the_code(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("PXC_TOOLCHAIN_DIR", str(tmp_path / "no-toolchain"))
+    get_pxc_settings.cache_clear()
+
+    with pytest.raises(PxcCompileFailed) as failed:
+        await build_activity(_mcq_source(), OWNER)
+
+    assert "toolchain is not installed" in str(failed.value)
+    assert list((tmp_path / "builds").iterdir()) == []
+
+
+async def test_an_invalid_manifest_fails_before_anything_is_written(tmp_path: Path) -> None:
+    source = _mcq_source().model_copy(update={"manifest": {**MCQ_MANIFEST, "assets": ["a.png"]}})
+
+    with pytest.raises(PxcManifestInvalid):
+        await build_activity(source, OWNER)
+
+    assert not (tmp_path / "builds").exists()
+
+
+@pytest.mark.wasm
+async def test_non_ascii_content_survives_the_build(session: AsyncSession) -> None:
+    # An activity written in Spanish or French must serve its text unchanged.
+    question = "¿Cuál es la capital de Francia? — été"
+    manifest = json.loads(json.dumps(MCQ_MANIFEST))
+    manifest["fields"]["question"]["default"] = question
+    source = _mcq_source().model_copy(update={"manifest": manifest, "title": "Capitales — été"})
+
+    activity = await build_activity(source, OWNER)
+
+    claims = LaunchClaims(str(activity.id), "placement-1", "course-v1:X+Y+Z", "learner-7", Permission.play)
+    assert read_state(build_runtime(claims))["question"] == question
+    assert (await get_owned_activity(session, activity.id, OWNER)).title == "Capitales — été"
