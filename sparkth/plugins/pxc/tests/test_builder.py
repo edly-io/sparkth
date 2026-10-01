@@ -10,13 +10,22 @@ from pathlib import Path
 import pytest
 from pxc.lib.permission import Permission
 from pydantic import ValidationError
+from sqlalchemy.exc import OperationalError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.plugins.pxc.activities import activity_dir, generated_activity_dir
-from sparkth.plugins.pxc.builder import agent_error, build_activity, compile_sandbox, run_bounded, validate_manifest
+from sparkth.plugins.pxc.builder import (
+    agent_error,
+    build_activity,
+    compile_sandbox,
+    run_bounded,
+    smoke_test_activity,
+    validate_manifest,
+)
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import PXC_BUILD_ERROR_LIMIT, PXC_MAX_SOURCE_CHARS
 from sparkth.plugins.pxc.exceptions import PxcBuildTimedOut, PxcCompileFailed, PxcManifestInvalid, PxcSmokeTestFailed
+from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.runtime import build_runtime, read_state
 from sparkth.plugins.pxc.schemas import ActivitySource
 from sparkth.plugins.pxc.store import get_owned_activity, list_owned_activities
@@ -305,3 +314,36 @@ async def test_non_ascii_content_survives_the_build(session: AsyncSession) -> No
     claims = LaunchClaims(str(activity.id), "placement-1", "course-v1:X+Y+Z", "learner-7", Permission.play)
     assert read_state(build_runtime(claims))["question"] == question
     assert (await get_owned_activity(session, activity.id, OWNER)).title == "Capitales — été"
+
+
+SEEN_ENVS: list[dict[str, str] | None] = []
+
+
+async def _recording_run(argv: list[str], cwd: Path, step: str, env: dict[str, str] | None) -> tuple[int, str]:
+    SEEN_ENVS.append(env)
+    return 0, ""
+
+
+async def test_the_smoke_child_gets_a_bare_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("SPARKTH_TEST_SECRET", "x")
+    SEEN_ENVS.clear()
+    monkeypatch.setattr("sparkth.plugins.pxc.builder.run_bounded", _recording_run)
+
+    await smoke_test_activity(tmp_path)
+
+    assert SEEN_ENVS[0] is not None
+    assert set(SEEN_ENVS[0]) == {"PATH", "NO_COLOR"}
+
+
+async def _failing_insert(session: AsyncSession, activity: PxcActivity) -> None:
+    raise OperationalError("insert", {}, Exception("db down"))
+
+
+@pytest.mark.wasm
+async def test_a_failed_insert_removes_the_moved_activity(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("sparkth.plugins.pxc.builder.insert_activity", _failing_insert)
+
+    with pytest.raises(OperationalError):
+        await build_activity(_mcq_source(), OWNER)
+
+    assert list((tmp_path / "activities").iterdir()) == []

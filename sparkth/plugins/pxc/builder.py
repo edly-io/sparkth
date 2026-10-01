@@ -15,7 +15,8 @@ wizer sees one directory as its filesystem root: the process's cwd, whenever the
 under it. So each compile runs with its cwd set to a directory holding only ``sandbox.js``, and
 an import can reach nothing but that file. A relative or absolute import of any server file fails
 to resolve. That is also what limits a sandbox to ``pxc:sandbox/*`` imports: builtins, packages
-and unknown interfaces fail to load the same way. node gets ``PATH`` as its whole environment.
+and unknown interfaces fail to load the same way. node and the smoke test get only ``PATH`` and ``NO_COLOR``
+as their environment.
 
 Both child processes run in a session of their own and are killed as a group on timeout. node
 runs wizer as a grandchild, and killing node alone leaves wizer running.
@@ -32,6 +33,7 @@ from pathlib import Path
 
 from pxc.lib.manifest_types import PxcActivityManifest
 from pydantic import ValidationError
+from sqlalchemy.exc import SQLAlchemyError
 
 from sparkth.lib.db import session_scope
 from sparkth.lib.log import get_logger
@@ -152,6 +154,11 @@ def agent_error(stderr: str, build_dir: Path) -> str:
     return text[-PXC_BUILD_ERROR_LIMIT:]
 
 
+def _bare_env() -> dict[str, str]:
+    """The environment for a child that runs the agent's code: no secret of this process reaches it."""
+    return {"PATH": os.environ.get("PATH", os.defpath), "NO_COLOR": "1"}
+
+
 async def compile_sandbox(sandbox_js: str, compile_dir: Path, output: Path) -> None:
     """Compile ``sandbox_js`` with componentize-js into the component at ``output``.
 
@@ -167,10 +174,8 @@ async def compile_sandbox(sandbox_js: str, compile_dir: Path, output: Path) -> N
     compiler = get_pxc_settings().toolchain_dir.resolve() / "node_modules" / ".bin" / "componentize-js"
     argv = [str(compiler), "sandbox.js", "--wit", str(PXC_SANDBOX_WIT), "--world-name", "activity"]
     argv += ["--disable", "http", "--disable", "fetch-event", "-o", str(output)]
-    # A bare environment: no secret of this process reaches node or the code it runs.
-    env = {"PATH": os.environ.get("PATH", os.defpath), "NO_COLOR": "1"}
     try:
-        returncode, stderr = await run_bounded(argv, compile_dir, "Compiling sandbox.js", env)
+        returncode, stderr = await run_bounded(argv, compile_dir, "Compiling sandbox.js", _bare_env())
     except (FileNotFoundError, PermissionError) as err:
         logger.error("PXC build toolchain is not usable at %s: %s", compiler, err)
         raise PxcCompileFailed(
@@ -188,7 +193,7 @@ async def smoke_test_activity(directory: Path) -> None:
         PxcBuildTimedOut: if ``get_state`` does not return within the timeout.
     """
     argv = [sys.executable, "-m", "sparkth.plugins.pxc.smoke", str(directory)]
-    returncode, stderr = await run_bounded(argv, directory, "The get_state smoke test", None)
+    returncode, stderr = await run_bounded(argv, directory, "The get_state smoke test", _bare_env())
     if returncode != 0:
         raise PxcSmokeTestFailed(f"sandbox.js compiled, but get_state failed:\n{agent_error(stderr, directory)}")
 
@@ -220,7 +225,7 @@ async def build_activity(source: ActivitySource, owner_user_id: int) -> PxcActiv
 
     The work directory sits under ``PXC_DATA_DIR/builds``, on the same filesystem as the
     activities, so moving a finished build into place is an atomic rename. Any failure removes
-    the work directory and writes no row.
+    the work directory (and the moved files, if recording the row fails) and writes no row.
 
     Raises:
         PxcBuildFailed: a ``PxcManifestInvalid``, ``PxcCompileFailed``, ``PxcSmokeTestFailed``
@@ -237,7 +242,12 @@ async def build_activity(source: ActivitySource, owner_user_id: int) -> PxcActiv
             target = generated_activity_dir(activity_id)
             target.parent.mkdir(parents=True, exist_ok=True)
             staged.rename(target)
-    async with session_scope() as session:
-        await insert_activity(session, activity)
+    try:
+        async with session_scope() as session:
+            await insert_activity(session, activity)
+    except SQLAlchemyError, asyncio.CancelledError:
+        logger.warning("Recording PXC activity %s failed; removing its built files", activity_id)
+        shutil.rmtree(generated_activity_dir(activity_id), ignore_errors=True)
+        raise
     logger.info("Built PXC activity %s for user %s", activity_id, owner_user_id)
     return activity
