@@ -53,6 +53,7 @@ nav:
       - Frontend plugin development: guides/frontend-plugins.md
       - Chat document retrieval: guides/chat-retrieval.md
       - Analytics events: guides/analytics-events.md
+      - Audit events: guides/audit-events.md
       - Permissions: guides/permissions.md
       - Translations: guides/translations.md
   - Reference:

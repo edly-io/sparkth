@@ -473,6 +473,8 @@ keys like `token` or `password` are replaced wholesale), and exception
 messages recorded on failure are scrubbed of secret-keyed values and length
 bounded, but do not put secrets or free-text PII in argument names or values
 that redaction cannot recognize. Handlers need no audit code of their own.
+What else to record in the audit trail, and how, is in the
+[audit events guide](audit-events.md).
 
 ## Content contributors
 
