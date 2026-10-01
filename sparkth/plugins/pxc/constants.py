@@ -46,3 +46,10 @@ PXC_SMOKE_CONTEXT_ID = "smoke"
 # The WIT world every generated activity compiles against: the bundled sample's. That world
 # imports only pxc:sandbox/state, so a generated sandbox can call nothing else on the host.
 PXC_SANDBOX_WIT = PXC_ACTIVITY_ROOT / "mcq" / "pxc.wit"
+
+# The pxc plugin's prompt and contract texts.
+PXC_ASSET_DIR = Path(__file__).parent / "assets"
+
+# The bundled activity pxc_about hands the agent as its worked example, and the files it shows.
+PXC_ABOUT_EXAMPLE = "mcq"
+PXC_ABOUT_FILES = ("pxc.wit", "manifest.json", "sandbox.js", "ui.js")
