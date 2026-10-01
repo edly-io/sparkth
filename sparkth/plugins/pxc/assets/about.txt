@@ -26,6 +26,8 @@ MANIFEST RULES
     asks for that.
 - Every action and event declares the JSON schema of its value. An action whose value does not
   match its schema is rejected before the sandbox sees it.
+- ui.js and sandbox.js are each capped at {max_source_chars} characters; longer files are
+  rejected, so keep them compact.
 - Name the configuration action "config.save" and the field-change events
   "fields.change.<field>", as the example does.
 

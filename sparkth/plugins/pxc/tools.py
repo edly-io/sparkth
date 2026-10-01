@@ -11,7 +11,7 @@ import json
 from pxc.lib.manifest_types import PxcActivityManifest
 
 from sparkth.plugins.pxc.activities import activity_dir
-from sparkth.plugins.pxc.constants import PXC_ABOUT_EXAMPLE, PXC_ABOUT_FILES, PXC_ASSET_DIR
+from sparkth.plugins.pxc.constants import PXC_ABOUT_EXAMPLE, PXC_ABOUT_FILES, PXC_ASSET_DIR, PXC_MAX_SOURCE_CHARS
 
 
 async def pxc_about() -> dict[str, str]:
@@ -25,6 +25,6 @@ async def pxc_about() -> dict[str, str]:
         f"--- {PXC_ABOUT_EXAMPLE}/{name} ---\n{(example / name).read_text(encoding='utf-8')}"
         for name in PXC_ABOUT_FILES
     )
-    rules = (PXC_ASSET_DIR / "about.txt").read_text(encoding="utf-8")
+    rules = (PXC_ASSET_DIR / "about.txt").read_text(encoding="utf-8").format(max_source_chars=PXC_MAX_SOURCE_CHARS)
     schema = json.dumps(PxcActivityManifest.model_json_schema(), indent=2)
     return {"about": f"{rules}\n\n--- manifest JSON schema ---\n{schema}\n\n{files}"}
