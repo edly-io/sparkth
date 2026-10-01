@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.permissions import _grant_snapshot
+from sparkth.core.permissions import _create_grant_audit_snapshot
 from sparkth.core.permissions.exceptions import (
     GroupAlreadyExists,
     GroupInUse,
@@ -41,7 +41,7 @@ def _target(group_id: int | None) -> AuditTarget:
     return AuditTarget(type="group", id=str(group_id))
 
 
-def _snapshot(group: Group) -> dict[str, str | None]:
+def _create_audit_snapshot(group: Group) -> dict[str, str | None]:
     return {"name": group.name, "description": group.description}
 
 
@@ -67,7 +67,9 @@ async def create_group(name: str, description: str | None, session: AsyncSession
     await record_event(
         session,
         GroupCreatedAuditEvent(
-            outcome=AuditOutcome.SUCCESS, target=_target(group.id), change=AuditChange(new=_snapshot(group))
+            outcome=AuditOutcome.SUCCESS,
+            target=_target(group.id),
+            change=AuditChange(new=_create_audit_snapshot(group)),
         ),
     )
     await session.commit()
@@ -104,14 +106,14 @@ async def update_group(group_id: int, name: str | None, description: str | None,
     collides with another group (race-safe, like create_group).
     """
     group = await get_group(group_id, session)
-    before = _snapshot(group)
+    before = _create_audit_snapshot(group)
     if name is not None and name != group.name:
         if (await session.exec(select(Group).where(Group.name == name))).first() is not None:
             raise GroupAlreadyExists(name)
         group.name = name
     if description is not None:
         group.description = description
-    if _snapshot(group) == before:
+    if _create_audit_snapshot(group) == before:
         return group
     group.update_timestamp()
     session.add(group)
@@ -129,7 +131,7 @@ async def update_group(group_id: int, name: str | None, description: str | None,
         GroupUpdatedAuditEvent(
             outcome=AuditOutcome.SUCCESS,
             target=_target(group.id),
-            change=AuditChange(old=before, new=_snapshot(group)),
+            change=AuditChange(old=before, new=_create_audit_snapshot(group)),
         ),
     )
     await session.commit()
@@ -165,7 +167,9 @@ async def delete_group(group_id: int, session: AsyncSession) -> None:
     await record_event(
         session,
         GroupDeletedAuditEvent(
-            outcome=AuditOutcome.SUCCESS, target=_target(group_id), change=AuditChange(old=_snapshot(group))
+            outcome=AuditOutcome.SUCCESS,
+            target=_target(group_id),
+            change=AuditChange(old=_create_audit_snapshot(group)),
         ),
     )
     await session.commit()
@@ -320,7 +324,7 @@ async def assign_role_to_group(
         GroupRoleAssignedAuditEvent(
             outcome=AuditOutcome.SUCCESS,
             target=_target(group_id),
-            change=AuditChange(new=_grant_snapshot(role_name, permission_scope, scope_object_id)),
+            change=AuditChange(new=_create_grant_audit_snapshot(role_name, permission_scope, scope_object_id)),
         ),
     )
     return assignment
@@ -360,7 +364,7 @@ async def revoke_role_from_group(
             GroupRoleRevokedAuditEvent(
                 outcome=AuditOutcome.SUCCESS,
                 target=_target(group_id),
-                change=AuditChange(old=_grant_snapshot(role_name, permission_scope, scope_object_id)),
+                change=AuditChange(old=_create_grant_audit_snapshot(role_name, permission_scope, scope_object_id)),
             ),
         )
 

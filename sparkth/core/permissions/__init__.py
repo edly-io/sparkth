@@ -266,7 +266,7 @@ def _granted_role_ids_clause(
     )
 
 
-def _grant_snapshot(
+def _create_grant_audit_snapshot(
     role_name: str, permission_scope: PermissionScope, scope_object_id: str | None
 ) -> dict[str, str | None]:
     """Audit snapshot of a role grant at a scope, shared by user and group assignments."""
@@ -383,7 +383,7 @@ async def assign_role(
         RoleAssignedAuditEvent(
             outcome=AuditOutcome.SUCCESS,
             target=AuditTarget(type="user", id=str(user_id)),
-            change=AuditChange(new=_grant_snapshot(role_name, permission_scope, scope_object_id)),
+            change=AuditChange(new=_create_grant_audit_snapshot(role_name, permission_scope, scope_object_id)),
         ),
     )
     return assignment
@@ -424,6 +424,6 @@ async def revoke_role(
             RoleUnassignedAuditEvent(
                 outcome=AuditOutcome.SUCCESS,
                 target=AuditTarget(type="user", id=str(user_id)),
-                change=AuditChange(old=_grant_snapshot(role_name, permission_scope, scope_object_id)),
+                change=AuditChange(old=_create_grant_audit_snapshot(role_name, permission_scope, scope_object_id)),
             ),
         )

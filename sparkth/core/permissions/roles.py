@@ -33,7 +33,7 @@ def _target(role_id: int | None) -> AuditTarget:
     return AuditTarget(type="role", id=str(role_id))
 
 
-def _snapshot(role: Role) -> dict[str, str | None]:
+def _create_audit_snapshot(role: Role) -> dict[str, str | None]:
     return {"name": role.name, "description": role.description}
 
 
@@ -50,7 +50,7 @@ async def create_role(name: str, description: str | None, session: AsyncSession)
     await record_event(
         session,
         RoleCreatedAuditEvent(
-            outcome=AuditOutcome.SUCCESS, target=_target(role.id), change=AuditChange(new=_snapshot(role))
+            outcome=AuditOutcome.SUCCESS, target=_target(role.id), change=AuditChange(new=_create_audit_snapshot(role))
         ),
     )
     await session.commit()
@@ -79,14 +79,14 @@ async def update_role(role_id: int, name: str | None, description: str | None, s
     collides with another role.
     """
     role = await get_role(role_id, session)
-    before = _snapshot(role)
+    before = _create_audit_snapshot(role)
     if name is not None and name != role.name:
         if (await session.exec(select(Role).where(Role.name == name))).first() is not None:
             raise RoleAlreadyExists(name)
         role.name = name
     if description is not None:
         role.description = description
-    if _snapshot(role) == before:
+    if _create_audit_snapshot(role) == before:
         return role
     role.update_timestamp()
     session.add(role)
@@ -95,7 +95,7 @@ async def update_role(role_id: int, name: str | None, description: str | None, s
         RoleUpdatedAuditEvent(
             outcome=AuditOutcome.SUCCESS,
             target=_target(role.id),
-            change=AuditChange(old=before, new=_snapshot(role)),
+            change=AuditChange(old=before, new=_create_audit_snapshot(role)),
         ),
     )
     await session.commit()
@@ -133,7 +133,7 @@ async def delete_role(role_id: int, session: AsyncSession) -> None:
     await record_event(
         session,
         RoleDeletedAuditEvent(
-            outcome=AuditOutcome.SUCCESS, target=_target(role_id), change=AuditChange(old=_snapshot(role))
+            outcome=AuditOutcome.SUCCESS, target=_target(role_id), change=AuditChange(old=_create_audit_snapshot(role))
         ),
     )
     await session.commit()
