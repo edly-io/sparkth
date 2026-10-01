@@ -6,7 +6,7 @@ a fresh handler closure on every call, so a second registration is a genuine dup
 than a repeat of the same one.
 """
 
-from fastapi import status
+from fastapi import APIRouter, status
 
 from sparkth.lib.content.hooks import ContentContributor, register_content_contributor
 from sparkth.lib.exceptions.handlers import register_exception_handler
@@ -14,6 +14,7 @@ from sparkth.lib.frontend.hooks import DISPLAY_INFO, DisplayInfo
 from sparkth.lib.i18n import gettext_noop
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.lib.routes import register_router
+from sparkth.plugins.pxc.activity_routes import router as activity_router
 from sparkth.plugins.pxc.contributor import build_pxc_block
 from sparkth.plugins.pxc.exceptions import (
     PxcActionRejected,
@@ -24,7 +25,7 @@ from sparkth.plugins.pxc.exceptions import (
     PxcLaunchNotConfigured,
     PxcSandboxFailure,
 )
-from sparkth.plugins.pxc.routes import router
+from sparkth.plugins.pxc.routes import router as learner_router
 
 # A bad launch token is 401: the token is the learner's only credential here, and the caller
 # can get a fresh one by reloading the unit. A duplicate activity name is 500 — it is a broken
@@ -38,13 +39,18 @@ register_exception_handler(PxcLaunchNotConfigured, status.HTTP_503_SERVICE_UNAVA
 register_exception_handler(PxcSandboxFailure, status.HTTP_502_BAD_GATEWAY)
 register_exception_handler(PxcDuplicateActivityName, status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+# PLUGIN_ROUTERS keeps one router per plugin, so both surfaces go in under one parent.
+pxc_router = APIRouter()
+pxc_router.include_router(learner_router)
+pxc_router.include_router(activity_router)
+
 
 class PxcPlugin(SparkthPlugin):
     """Hosts PXC activities and serves them to learners inside another LMS's course."""
 
     def __init__(self) -> None:
         super().__init__("pxc")
-        register_router(self, router)
+        register_router(self, pxc_router)
         DISPLAY_INFO.add_item(
             self,
             DisplayInfo(

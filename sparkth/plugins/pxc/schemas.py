@@ -1,4 +1,6 @@
+from datetime import datetime
 from typing import Any
+from uuid import UUID
 
 from pydantic import BaseModel
 
@@ -22,3 +24,19 @@ class ActivityConfig(BaseModel):
     asset_base_url: str
     action_base_url: str
     ws_url: str
+
+
+class ActivitySummary(BaseModel):
+    """One of an author's activities, as the Activities page lists it."""
+
+    id: UUID
+    title: str
+    description: str
+    created_at: datetime
+    preview_url: str
+
+
+class ActivityLaunch(BaseModel):
+    """Where the preview page iframes one activity for its author."""
+
+    embed_url: str

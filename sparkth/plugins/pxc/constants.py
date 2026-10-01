@@ -10,7 +10,7 @@ PXC_ACTIVITY_ROOT = Path(__file__).parent / "activities"
 PXC_BLOCK_CATEGORY = "pxc"
 
 # The embed page's origin is opaque, so everything it fetches from this plugin is cross-origin.
-# Any origin is allowed because these routes authenticate by launch token, never by cookie.
+# Any origin is allowed because these learner routes authenticate by launch token, never by cookie.
 PXC_CORS_HEADERS = {"Access-Control-Allow-Origin": "*"}
 
 # Opens the embed page and its assets in an opaque origin, however they are opened, so activity
