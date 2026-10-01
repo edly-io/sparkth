@@ -10,8 +10,8 @@ from pydantic import ValidationError
 
 from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.config import get_pxc_settings
-from sparkth.plugins.pxc.constants import PXC_BUILD_ERROR_LIMIT
-from sparkth.plugins.pxc.exceptions import PxcBuildTimedOut, PxcManifestInvalid
+from sparkth.plugins.pxc.constants import PXC_BUILD_ERROR_LIMIT, PXC_SANDBOX_WIT
+from sparkth.plugins.pxc.exceptions import PxcBuildTimedOut, PxcCompileFailed, PxcManifestInvalid
 
 logger = get_logger(__name__)
 
@@ -117,3 +117,31 @@ def agent_error(stderr: str, build_dir: Path) -> str:
     kept = [line for line in stderr.splitlines() if not line.startswith("    at ") and "/node_modules/" not in line]
     text = "\n".join(kept).replace(f"{build_dir}/", "").replace(str(build_dir), "").strip()
     return text[-PXC_BUILD_ERROR_LIMIT:]
+
+
+async def compile_sandbox(sandbox_js: str, compile_dir: Path, output: Path) -> None:
+    """Compile ``sandbox_js`` with componentize-js into the component at ``output``.
+
+    ``compile_dir`` must be empty and absolute. The compile runs there, so it is the module's
+    whole filesystem at compile time, when its top-level code runs: componentize-js maps the
+    process cwd as the root a source under it can import from. ``output`` lies outside it.
+
+    Raises:
+        PxcCompileFailed: with the compiler's trimmed stderr, or if the toolchain is missing.
+        PxcBuildTimedOut: if the compile outlives the timeout.
+    """
+    (compile_dir / "sandbox.js").write_text(sandbox_js, encoding="utf-8")
+    compiler = get_pxc_settings().toolchain_dir.resolve() / "node_modules" / ".bin" / "componentize-js"
+    argv = [str(compiler), "sandbox.js", "--wit", str(PXC_SANDBOX_WIT), "--world-name", "activity"]
+    argv += ["--disable", "http", "--disable", "fetch-event", "-o", str(output)]
+    # A bare environment: no secret of this process reaches node or the code it runs.
+    env = {"PATH": os.environ.get("PATH", os.defpath), "NO_COLOR": "1"}
+    try:
+        returncode, stderr = await run_bounded(argv, compile_dir, "Compiling sandbox.js", env)
+    except (FileNotFoundError, PermissionError) as err:
+        logger.error("PXC build toolchain is not usable at %s: %s", compiler, err)
+        raise PxcCompileFailed(
+            "The activity build toolchain is not installed on this server. This is not a problem with the code."
+        ) from err
+    if returncode != 0:
+        raise PxcCompileFailed(f"sandbox.js failed to compile:\n{agent_error(stderr, compile_dir)}")

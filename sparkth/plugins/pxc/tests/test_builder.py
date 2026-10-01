@@ -11,10 +11,10 @@ import pytest
 from pydantic import ValidationError
 
 from sparkth.plugins.pxc.activities import activity_dir
-from sparkth.plugins.pxc.builder import agent_error, run_bounded, validate_manifest
+from sparkth.plugins.pxc.builder import agent_error, compile_sandbox, run_bounded, validate_manifest
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import PXC_BUILD_ERROR_LIMIT, PXC_MAX_SOURCE_CHARS
-from sparkth.plugins.pxc.exceptions import PxcBuildTimedOut, PxcManifestInvalid
+from sparkth.plugins.pxc.exceptions import PxcBuildTimedOut, PxcCompileFailed, PxcManifestInvalid
 from sparkth.plugins.pxc.schemas import ActivitySource
 
 OWNER = 1
@@ -147,3 +147,58 @@ def test_agent_errors_keep_the_end_of_a_long_output(tmp_path: Path) -> None:
 
     assert trimmed.endswith("the cause")
     assert len(trimmed) == PXC_BUILD_ERROR_LIMIT
+
+
+def _compile_dir(tmp_path: Path) -> Path:
+    directory = tmp_path / "compile"
+    directory.mkdir()
+    return directory
+
+
+@pytest.mark.wasm
+async def test_the_sample_sandbox_compiles_from_its_single_file(tmp_path: Path) -> None:
+    output = tmp_path / "sandbox.wasm"
+
+    await compile_sandbox((MCQ / "sandbox.js").read_text(), _compile_dir(tmp_path), output)
+
+    assert output.stat().st_size > 0
+
+
+@pytest.mark.wasm
+async def test_an_import_outside_pxc_sandbox_fails_to_compile(tmp_path: Path) -> None:
+    sandbox_js = (
+        'import { readFileSync } from "node:fs";\n'
+        'export function onAction() { return ""; }\n'
+        'export function getState() { return readFileSync("x"); }\n'
+    )
+
+    with pytest.raises(PxcCompileFailed) as refused:
+        await compile_sandbox(sandbox_js, _compile_dir(tmp_path), tmp_path / "sandbox.wasm")
+
+    assert "node:fs" in str(refused.value)
+
+
+@pytest.mark.wasm
+async def test_a_sandbox_cannot_reach_a_file_outside_its_compile_directory(tmp_path: Path) -> None:
+    # The compile runs top-level code; with a parent as cwd this import would embed the secret.
+    (tmp_path / "secret.js").write_text('export const secret = "TOPSECRET";\n')
+    sandbox_js = (
+        'import { secret } from "../secret.js";\n'
+        'export function onAction() { return ""; }\n'
+        "export function getState() { return JSON.stringify({ secret }); }\n"
+    )
+
+    with pytest.raises(PxcCompileFailed) as refused:
+        await compile_sandbox(sandbox_js, _compile_dir(tmp_path), tmp_path / "sandbox.wasm")
+
+    assert "TOPSECRET" not in str(refused.value)
+
+
+@pytest.mark.wasm
+async def test_a_compile_that_never_ends_is_stopped(tmp_path: Path, short_timeout: None) -> None:
+    sandbox_js = (
+        'while (true) {}\nexport function onAction() { return ""; }\nexport function getState() { return "{}"; }\n'
+    )
+
+    with pytest.raises(PxcBuildTimedOut):
+        await compile_sandbox(sandbox_js, _compile_dir(tmp_path), tmp_path / "sandbox.wasm")

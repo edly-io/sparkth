@@ -42,3 +42,7 @@ PXC_PREVIEW_USER_PREFIX = "sparkth-"
 
 # The course, placement and learner id the build's smoke test reads state as.
 PXC_SMOKE_CONTEXT_ID = "smoke"
+
+# The WIT world every generated activity compiles against: the bundled sample's. That world
+# imports only pxc:sandbox/state, so a generated sandbox can call nothing else on the host.
+PXC_SANDBOX_WIT = PXC_ACTIVITY_ROOT / "mcq" / "pxc.wit"
