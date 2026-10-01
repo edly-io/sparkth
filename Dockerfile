@@ -98,6 +98,10 @@ ENV LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libjemalloc.so.2"
 # backend; real env vars win over the .env default, so this stays on in k8s.
 ENV SERVE_FRONTEND="true"
 
+# PXC_DATA_DIR (.env) resolved against WORKDIR. Created and owned by nonroot here, so the
+# pxc_data volume docker-compose.prod.yml mounts over it starts out writable.
+RUN mkdir -p /app/data/pxc && chown -R nonroot:nonroot /app/data
+
 USER nonroot
 
 WORKDIR /app

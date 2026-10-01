@@ -23,6 +23,9 @@ side needs. This one covers only the Sparkth side.
    side must hold the same value. A mismatch fails every learner's launch with a 401, logged
    here as a signature mismatch.
 3. **The XBlock**, installed as above.
+4. **Persistent storage.** `PXC_DATA_DIR` holds all learner state and all generated activities.
+   The production compose file mounts the `pxc_data` volume there; any other deployment needs a
+   persistent volume at that path. It is local disk, so replicas must share it.
 
 `.env` is the source of truth for every setting and carries a comment on each one; this file
 does not repeat the list.
@@ -43,3 +46,12 @@ activity's name, fields, actions and events. Nothing in this plugin knows what a
 activity contains: an activity declares its own starting configuration as the `default` on each
 of its fields, and the runtime serves those for a placement nobody has configured yet.
 `PXC_DEFAULT_ACTIVITY` names the one the content contributor places in a course.
+
+## Generated activities
+
+A generated activity's row is immutable, keyed by id and owner. Its files live under
+`PXC_DATA_DIR/activities/<id>/`. A launch resolves bundled names first, then a generated id from
+disk, with no database read.
+
+Two session routes let an author list their activities and open a preview; another user's id is
+a 404. Previews use a fixed course and placement, shared by the Student and Author views.
