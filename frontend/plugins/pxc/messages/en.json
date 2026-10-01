@@ -9,6 +9,14 @@
     "createdOn": "Created {date}",
     "preview": "Preview",
     "previewActivity": "Preview {title}",
-    "loading": "Loading activities"
+    "loading": "Loading activities",
+    "backToList": "Back to activities",
+    "viewAs": "Preview as",
+    "studentView": "Student",
+    "authorView": "Author",
+    "notFound": "Activity not found",
+    "launchFailed": "Could not load the activity. Please try again.",
+    "frameTitle": "Activity preview",
+    "loadingActivity": "Loading activity"
   }
 }
