@@ -39,3 +39,6 @@ PXC_MAX_SOURCE_CHARS = int(os.getenv("PXC_MAX_SOURCE_CHARS", "200000"))
 
 # Prefixed onto a Sparkth user id in a preview token, so it never equals an Open edX learner id.
 PXC_PREVIEW_USER_PREFIX = "sparkth-"
+
+# The course, placement and learner id the build's smoke test reads state as.
+PXC_SMOKE_CONTEXT_ID = "smoke"
