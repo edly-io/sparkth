@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-import sparkth.plugins.googledrive.audit  # noqa: F401
 from sparkth.lib.i18n import LOCALE_DIRS
 from sparkth.plugins.googledrive.plugin import GoogleDrivePlugin
 

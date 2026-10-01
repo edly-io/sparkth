@@ -16,9 +16,9 @@ from sparkth.lib.audit.events import AuditChange, AuditOutcome, AuditTarget
 from sparkth.lib.models import utc_now
 from sparkth.lib.settings import get_settings
 from sparkth.plugins.googledrive.audit import (
-    DRIVE_CONNECTION_TARGET,
-    DriveConnectedAuditEvent,
-    DriveDisconnectedAuditEvent,
+    GOOGLE_DRIVE_CONNECTION_TARGET,
+    GoogleDriveConnectedAuditEvent,
+    GoogleDriveDisconnectedAuditEvent,
 )
 from sparkth.plugins.googledrive.models import DriveOAuthToken
 
@@ -236,9 +236,9 @@ async def connect_drive(
     token_record = await _stage_tokens(session, user_id, access_token, refresh_token, expires_in, scopes)
     await record_event(
         session,
-        DriveConnectedAuditEvent(
+        GoogleDriveConnectedAuditEvent(
             outcome=AuditOutcome.SUCCESS,
-            target=AuditTarget(type=DRIVE_CONNECTION_TARGET, id=str(token_record.id)),
+            target=AuditTarget(type=GOOGLE_DRIVE_CONNECTION_TARGET, id=str(token_record.id)),
             change=AuditChange(new={"scopes": scopes}),
         ),
     )
@@ -297,9 +297,9 @@ async def delete_token(session: AsyncSession, user_id: int) -> bool:
     session.add(token_record)
     await record_event(
         session,
-        DriveDisconnectedAuditEvent(
+        GoogleDriveDisconnectedAuditEvent(
             outcome=AuditOutcome.SUCCESS,
-            target=AuditTarget(type=DRIVE_CONNECTION_TARGET, id=str(token_record.id)),
+            target=AuditTarget(type=GOOGLE_DRIVE_CONNECTION_TARGET, id=str(token_record.id)),
             change=AuditChange(old={"scopes": token_record.scopes}),
         ),
     )

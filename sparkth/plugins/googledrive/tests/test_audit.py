@@ -17,7 +17,7 @@ from sparkth.lib.auth import bind_request_user, get_current_user
 from sparkth.lib.models import User, utc_now
 from sparkth.lib.testing import AuditEventsFetcher
 from sparkth.main import app
-from sparkth.plugins.googledrive.audit import DriveConnectedAuditEvent, DriveDisconnectedAuditEvent
+from sparkth.plugins.googledrive.audit import GoogleDriveConnectedAuditEvent, GoogleDriveDisconnectedAuditEvent
 from sparkth.plugins.googledrive.models import DriveOAuthToken
 from sparkth.plugins.googledrive.oauth import get_token_record, get_valid_access_token
 
@@ -62,8 +62,8 @@ async def _callback(drive_client: AsyncClient, user_id: int, token_data: dict[st
 
 
 def test_events_are_registered() -> None:
-    assert AUDIT_EVENTS.get("googledrive.connected") is DriveConnectedAuditEvent
-    assert AUDIT_EVENTS.get("googledrive.disconnected") is DriveDisconnectedAuditEvent
+    assert AUDIT_EVENTS.get("googledrive.connected") is GoogleDriveConnectedAuditEvent
+    assert AUDIT_EVENTS.get("googledrive.disconnected") is GoogleDriveDisconnectedAuditEvent
 
 
 @pytest.mark.asyncio

@@ -11,12 +11,12 @@ from typing import ClassVar
 from sparkth.lib.audit.events import MutationAuditEvent
 from sparkth.lib.audit.hooks import AUDIT_EVENTS
 
-DRIVE_CONNECTION_TARGET = "googledrive_connection"
+GOOGLE_DRIVE_CONNECTION_TARGET = "googledrive_connection"
 
 
 @AUDIT_EVENTS.register
 @dataclass(frozen=True, slots=True, kw_only=True)
-class DriveConnectedAuditEvent(MutationAuditEvent):
+class GoogleDriveConnectedAuditEvent(MutationAuditEvent):
     """A user completed the Drive OAuth flow and its tokens were stored.
 
     A reconnect that refreshes an existing record is still a connect;
@@ -29,7 +29,7 @@ class DriveConnectedAuditEvent(MutationAuditEvent):
 
 @AUDIT_EVENTS.register
 @dataclass(frozen=True, slots=True, kw_only=True)
-class DriveDisconnectedAuditEvent(MutationAuditEvent):
+class GoogleDriveDisconnectedAuditEvent(MutationAuditEvent):
     """A user disconnected Drive and the stored tokens were soft-deleted.
 
     ``change.old`` carries the ``scopes`` the connection had.
