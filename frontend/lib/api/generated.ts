@@ -1027,8 +1027,7 @@ export interface paths {
          * @description The document an LMS iframes to show one activity to one learner.
          *
          *     The activity's configuration is inlined as a JSON script element, so the client reads it
-         *     without a request of its own. Every ``<`` in that JSON is written as ``\u003c``: the state
-         *     holds author-written text, and a literal ``</script>`` in it would end the element early.
+         *     without a request of its own.
          *
          *     Served under a sandbox CSP, so the document has an opaque origin however it is opened, and
          *     activity code in it cannot reach Sparkth's own storage.

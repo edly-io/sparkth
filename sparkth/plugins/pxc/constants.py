@@ -1,28 +1,28 @@
 import os
 from pathlib import Path
 
-# Where the bundled activity sources live, one directory per activity type. PXC_DEFAULT_ACTIVITY
-# names the one placed when no option is chosen.
+# Bundled activity sources, one directory per activity type.
 PXC_ACTIVITY_ROOT = Path(__file__).parent / "activities"
 
-# The XBlock category the Open edX course holds. Fixed rather than configurable: it must equal
-# the name of the entry point the XBlock registers, and a configurable value could drift out of
-# sync with the installed package (L6).
+# Must equal the entry point name the XBlock registers, so it is not configurable.
 PXC_BLOCK_CATEGORY = "pxc"
 
-# The embed page's origin is opaque, so everything it fetches from this plugin is cross-origin.
-# Any origin is allowed because these learner routes authenticate by launch token, never by cookie.
+# Any origin is allowed: the embed page's origin is opaque, and learner routes use launch tokens.
 PXC_CORS_HEADERS = {"Access-Control-Allow-Origin": "*"}
 
-# Opens the embed page and its assets in an opaque origin, however they are opened, so activity
-# code can never read Sparkth's own storage.
+# Gives the embed page and its assets an opaque origin, so activities cannot read Sparkth storage.
 PXC_SANDBOX_HEADERS = {"Content-Security-Policy": "sandbox allow-scripts allow-forms"}
 
-# What a cross-origin action POST asks permission for before it sends its JSON body.
+# Socket close codes for a refusal: 4000 plus the matching HTTP status.
+PXC_CLOSE_INVALID_TOKEN = 4401
+PXC_CLOSE_ACTIVITY_NOT_FOUND = 4404
+
+# Preflight response for the cross-origin action POST, cached by the browser for a day.
 PXC_PREFLIGHT_HEADERS = {
     **PXC_CORS_HEADERS,
     "Access-Control-Allow-Methods": "POST",
     "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Max-Age": "86400",
 }
 
 # The course and placement every author preview launches into. Fixed, so an author's Student
