@@ -480,6 +480,15 @@ that redaction cannot recognize. Handlers need no audit code of their own.
 What else to record in the audit trail, and how, is in the
 [audit events guide](audit-events.md).
 
+### Who is calling a tool
+
+A handler that acts for a user calls `current_user_id()` from `sparkth.lib.auth`. It never
+takes a user id argument, because the model writes tool arguments and could name anyone.
+
+The id is bound for every REST request that resolves `get_current_user`, including chat turns
+and the tools they run. On `/ai/mcp` nothing is bound, so the call raises
+`NoAuthenticatedUser` (`sparkth.lib.exceptions.auth`) and the MCP client sees a tool error.
+
 ## Content contributors
 
 A *content contributor* lets a plugin that owns content (e.g. a course-generation plugin)
@@ -537,6 +546,48 @@ If a builder cannot produce its block, it reports that by raising
 `sparkth.lib.content.exceptions.ContentBuildError` — not by returning a placeholder block or
 letting some other exception escape. A publishing tool catches it and reports the failure
 through its own error contract instead of letting it propagate unguarded.
+
+## Chat responsibilities
+
+A *responsibility* is one job a chat conversation can be for, such as designing a course. Every
+conversation does exactly one. A plugin offers a job to chat without importing chat, by
+registering a `ChatResponsibility` from `sparkth.lib.chat.hooks`.
+
+A `ChatResponsibility` has four fields:
+
+- `name` is a slug that identifies the job.
+- `scope` is the text a classifier reads to decide whether a message belongs to the job.
+- `system_prompt` is a `str.format` template that receives `current_datetime` and
+  `refusal_message`, so any other literal brace in it must be doubled.
+- `tool_categories` is a `frozenset` of the `MCP_TOOLS` categories (the `category=` passed to
+  `Tool`) that the job claims.
+
+A plugin registers one job from its `__init__`, keyed by the plugin instance:
+
+```python
+# sparkth/plugins/myappplugin/plugin.py
+from sparkth.lib.chat.hooks import CHAT_RESPONSIBILITIES, ChatResponsibility
+
+MY_JOB = ChatResponsibility(
+    "my-job",
+    "Requests to build or change things in My App.",
+    "You help with My App. It is {current_datetime}. Decline anything else: {refusal_message}",
+    frozenset({"my-app"}),
+)
+
+
+class MyAppPlugin(SparkthPlugin):
+    def __init__(self) -> None:
+        super().__init__("my-app")
+        CHAT_RESPONSIBILITIES.add_item(self, MY_JOB)
+```
+
+Constructing the plugin again is harmless: the loader and a plugin's own tests each build an
+instance, and copies carrying an equal job fold into one.
+
+A job is offered only while its plugin is enabled system-wide. `name` is stored on every
+conversation doing the job, so never rename it once shipped. If two plugins claim one name, the
+first by plugin name wins and the other is logged and ignored.
 
 ## Reacting to a deleted document
 
