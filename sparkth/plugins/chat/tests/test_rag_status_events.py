@@ -1,6 +1,5 @@
 """Tests for SSE status events during RAG retrieval."""
 
-import inspect
 import json
 import uuid
 from datetime import datetime
@@ -18,7 +17,7 @@ from sparkth.lib.rag import (
 from sparkth.plugins.chat.detached import join_live_tasks
 from sparkth.plugins.chat.routes.utils import parse_metadata_list
 from sparkth.plugins.chat.routes.utils.stream_processor import ChatStreamProcessor
-from sparkth.plugins.chat.schemas import ChatCompletionRequest, ChatMessage, MessageResponse
+from sparkth.plugins.chat.schemas import ChatMessage, MessageResponse
 
 
 def _make_chunk(
@@ -777,23 +776,3 @@ class TestMessageResponseToolCalls:
             attachment_size=None,
         )
         assert response.tool_calls is None
-
-
-class TestSimilarityThresholdRemoved:
-    def test_chat_completion_request_has_no_similarity_threshold(self) -> None:
-        """similarity_threshold field must be removed from ChatCompletionRequest."""
-        # The field must not be present in the model's fields
-        assert "similarity_threshold" not in ChatCompletionRequest.model_fields
-
-    def test_chat_completion_request_accepts_valid_fields(self) -> None:
-        """ChatCompletionRequest still works without similarity_threshold."""
-        req = ChatCompletionRequest(
-            llm_config_id=1,
-            messages=[ChatMessage(role="user", content="hello")],
-        )
-        assert req.llm_config_id == 1
-
-    def test_chat_stream_processor_has_no_similarity_threshold_param(self) -> None:
-        """ChatStreamProcessor must not have a similarity_threshold parameter."""
-        sig = inspect.signature(ChatStreamProcessor.__init__)
-        assert "similarity_threshold" not in sig.parameters

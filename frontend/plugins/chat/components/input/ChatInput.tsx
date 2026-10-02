@@ -13,6 +13,8 @@ import DriveFilePicker from "@/components/drive/DriveFilePicker";
 import { useChatInput } from "../../hooks/useChatInput";
 
 interface ChatInputProps {
+  message: string;
+  setMessage: Dispatch<SetStateAction<string>>;
   attachments: TextAttachment[];
   setAttachments: Dispatch<SetStateAction<TextAttachment[]>>;
   onSend: (payload: {
@@ -27,6 +29,8 @@ interface ChatInputProps {
 }
 
 export function ChatInput({
+  message,
+  setMessage,
   attachments,
   setAttachments,
   onSend,
@@ -40,8 +44,6 @@ export function ChatInput({
   const { token } = useAuth();
 
   const {
-    message,
-    setMessage,
     showUploadMenu,
     setShowUploadMenu,
     showDriveFilePicker,
@@ -53,6 +55,8 @@ export function ChatInput({
     handleRemoveAttachment,
     handleSend,
   } = useChatInput({
+    message,
+    setMessage,
     token,
     conversationId,
     attachments,

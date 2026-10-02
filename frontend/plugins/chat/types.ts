@@ -33,7 +33,6 @@ export interface ChatMessage {
   isTyping?: boolean;
   isError?: boolean;
   isPending?: boolean;
-  options?: string[];
   pillAttachment?: TextAttachment | null;
   statusPhase?: StreamStatusPhase;
   ragSections?: { type: string; name: string; source?: string; state: "scanning" | "confirmed" }[];

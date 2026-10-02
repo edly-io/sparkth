@@ -7,6 +7,7 @@ import Link from "next/link";
 import { ChatHeader } from "./ChatHeader";
 import { ChatMessages } from "./messages/ChatMessages";
 import { ChatInput } from "./input/ChatInput";
+import { appendLine } from "./messages/optionsBlock";
 import { AiKeyProblem, TextAttachment } from "../types";
 import { Preview } from "./attachment/Preview";
 import { useAuth } from "@/lib/auth-context";
@@ -41,6 +42,7 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewAttachment, setPreviewAttachment] = useState<TextAttachment | null>(null);
   const [aiKeyProblem, setAiKeyProblem] = useState<AiKeyProblem | null>(null);
+  const [inputMessage, setInputMessage] = useState("");
   const inFlightCheckRef = useRef<Promise<AiKeyProblem | null> | null>(null);
 
   // A concurrent second send shares this in-flight check instead of starting its own —
@@ -89,7 +91,7 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
     [skipNextLoadRef, router, inputAttachments, token, setError],
   );
 
-  const { handleSend, handleOptionClick, stopGeneration, isStopping } = useChatStream({
+  const { handleSend, stopGeneration, isStopping } = useChatStream({
     token,
     llmConfigId,
     modelOverride,
@@ -118,9 +120,9 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
     [sendIfAiKeyReady, handleSend],
   );
 
-  const handleGuardedOptionClick = useCallback(
-    (text: string) => sendIfAiKeyReady(() => handleOptionClick(text)),
-    [sendIfAiKeyReady, handleOptionClick],
+  const handleOptionCheck = useCallback(
+    (option: string) => setInputMessage((prev) => appendLine(prev, option)),
+    [],
   );
 
   const isStreaming = messages.some((m) => m.isTyping === true);
@@ -159,12 +161,13 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
           messages={messages}
           setPreviewOpen={setPreviewOpen}
           setPreviewAttachment={setPreviewAttachment}
-          onSend={handleGuardedSend}
-          onOptionClick={handleGuardedOptionClick}
+          onOptionCheck={handleOptionCheck}
         />
       )}
 
       <ChatInput
+        message={inputMessage}
+        setMessage={setInputMessage}
         attachments={inputAttachments}
         setAttachments={setInputAttachments}
         onSend={handleGuardedSend}

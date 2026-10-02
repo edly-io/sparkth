@@ -22,8 +22,6 @@ vi.mock("@/components/drive/DriveFilePicker", () => ({
 
 vi.mock("@/plugins/chat/hooks/useChatInput", () => ({
   useChatInput: () => ({
-    message: "",
-    setMessage: vi.fn(),
     showUploadMenu: false,
     setShowUploadMenu: vi.fn(),
     showDriveFilePicker: false,
@@ -40,9 +38,31 @@ vi.mock("@/plugins/chat/hooks/useChatInput", () => ({
 describe("ChatInput", () => {
   beforeEach(() => handleSend.mockClear());
 
+  it("shows the message it is given", () => {
+    renderWithIntl(
+      <ChatInput
+        message={"Beginners\nStudents"}
+        setMessage={vi.fn()}
+        attachments={[]}
+        setAttachments={vi.fn()}
+        onSend={vi.fn()}
+        conversationId={null}
+        isStreaming={false}
+        isStopping={false}
+        onStop={vi.fn()}
+      />,
+      chatEn,
+    );
+    expect(screen.getByPlaceholderText(chatEn.chat.inputPlaceholder)).toHaveValue(
+      "Beginners\nStudents",
+    );
+  });
+
   it("reads its placeholder from the chat plugin catalog", () => {
     renderWithIntl(
       <ChatInput
+        message=""
+        setMessage={vi.fn()}
         attachments={[]}
         setAttachments={vi.fn()}
         onSend={vi.fn()}
@@ -62,6 +82,8 @@ describe("ChatInput", () => {
     const onStop = vi.fn();
     renderWithIntl(
       <ChatInput
+        message=""
+        setMessage={vi.fn()}
         attachments={[]}
         setAttachments={vi.fn()}
         onSend={vi.fn()}
@@ -80,6 +102,8 @@ describe("ChatInput", () => {
     const onStop = vi.fn();
     renderWithIntl(
       <ChatInput
+        message=""
+        setMessage={vi.fn()}
         attachments={[]}
         setAttachments={vi.fn()}
         onSend={vi.fn()}
@@ -99,6 +123,8 @@ describe("ChatInput", () => {
   it("offers the send button when nothing is streaming", () => {
     renderWithIntl(
       <ChatInput
+        message=""
+        setMessage={vi.fn()}
         attachments={[]}
         setAttachments={vi.fn()}
         onSend={vi.fn()}
@@ -115,6 +141,8 @@ describe("ChatInput", () => {
   it("does not send on Enter while a turn is streaming", () => {
     renderWithIntl(
       <ChatInput
+        message=""
+        setMessage={vi.fn()}
         attachments={[]}
         setAttachments={vi.fn()}
         onSend={vi.fn()}
@@ -132,6 +160,8 @@ describe("ChatInput", () => {
   it("sends on Enter when nothing is streaming", () => {
     renderWithIntl(
       <ChatInput
+        message=""
+        setMessage={vi.fn()}
         attachments={[]}
         setAttachments={vi.fn()}
         onSend={vi.fn()}
@@ -144,5 +174,27 @@ describe("ChatInput", () => {
     );
     fireEvent.keyDown(screen.getByPlaceholderText(chatEn.chat.inputPlaceholder), { key: "Enter" });
     expect(handleSend).toHaveBeenCalledOnce();
+  });
+
+  it("passes edits to setMessage", () => {
+    const setMessage = vi.fn();
+    renderWithIntl(
+      <ChatInput
+        message=""
+        setMessage={setMessage}
+        attachments={[]}
+        setAttachments={vi.fn()}
+        onSend={vi.fn()}
+        conversationId={null}
+        isStreaming={false}
+        isStopping={false}
+        onStop={vi.fn()}
+      />,
+      chatEn,
+    );
+    fireEvent.change(screen.getByPlaceholderText(chatEn.chat.inputPlaceholder), {
+      target: { value: "Beginners" },
+    });
+    expect(setMessage).toHaveBeenCalledWith("Beginners");
   });
 });
