@@ -18,7 +18,13 @@ from starlette.websockets import WebSocketDisconnect
 
 from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.activities import asset_path
-from sparkth.plugins.pxc.constants import PXC_CORS_HEADERS, PXC_PREFLIGHT_HEADERS, PXC_SANDBOX_HEADERS
+from sparkth.plugins.pxc.constants import (
+    PXC_CLOSE_ACTIVITY_NOT_FOUND,
+    PXC_CLOSE_INVALID_TOKEN,
+    PXC_CORS_HEADERS,
+    PXC_PREFLIGHT_HEADERS,
+    PXC_SANDBOX_HEADERS,
+)
 from sparkth.plugins.pxc.event_bus import EVENT_BUS, publish_events, subscribe_socket
 from sparkth.plugins.pxc.exceptions import (
     PxcActionRejected,
@@ -33,16 +39,10 @@ from sparkth.plugins.pxc.websocket import run_action_frames
 
 logger = get_logger(__name__)
 
-# The launch token is the only credential these routes have, so verifying it is declared as a
-# dependency rather than repeated as the first line of each handler. Three routes do not declare
-# it: `client_script`, which serves the same two scripts to everyone and reads no state,
-# `preflight_action`, which a browser calls without the request's credentials, and
-# `activity_socket`, which has to turn a refusal into a close code and so verifies inline.
+# Every route authenticates by launch token, except the public client scripts and the preflight.
 router = APIRouter()
 
-# The two client scripts the activity page loads: PXC's own component, served from the installed
-# pxc-lib distribution, and Sparkth's subclass of it. An explicit map rather than a directory: it
-# is the whole allowlist, so no path can escape it.
+# Allowlist of the client scripts the activity page loads.
 _CLIENT_FILES = {
     "pxc.js": Path(pxc.lib.__file__).parent / "static" / "js" / "pxc.js",
     "sparkth-pxc.js": Path(__file__).parent / "static" / "sparkth-pxc.js",
@@ -56,8 +56,7 @@ async def embed_activity(
     """The document an LMS iframes to show one activity to one learner.
 
     The activity's configuration is inlined as a JSON script element, so the client reads it
-    without a request of its own. Every ``<`` in that JSON is written as ``\\u003c``: the state
-    holds author-written text, and a literal ``</script>`` in it would end the element early.
+    without a request of its own.
 
     Served under a sandbox CSP, so the document has an opaque origin however it is opened, and
     activity code in it cannot reach Sparkth's own storage.
@@ -74,11 +73,6 @@ async def embed_activity(
         "</body></html>",
         headers=PXC_SANDBOX_HEADERS,
     )
-
-
-def _socket_url(request: Request, token: str) -> str:
-    """The activity socket's URL for this launch, as a browser must address it."""
-    return f"{request.url_for('activity_socket')}?token={token}"
 
 
 async def _activity_config(claims: LaunchClaims, token: str, request: Request) -> ActivityConfig:
@@ -99,7 +93,7 @@ async def _activity_config(claims: LaunchClaims, token: str, request: Request) -
         ui_url=f"{base}/assets/{runtime.ui_path}?token={token}",
         asset_base_url=f"{base}/assets",
         action_base_url=f"{base}/actions",
-        ws_url=_socket_url(request, token),
+        ws_url=f"{request.url_for('activity_socket')}?token={token}",
     )
 
 
@@ -172,7 +166,10 @@ async def activity_socket(websocket: WebSocket, token: str = Query()) -> None:
         runtime = await asyncio.to_thread(build_runtime, claims)
     except (PxcInvalidLaunchToken, PxcActivityNotFound) as err:
         logger.warning("Refused a PXC activity socket: %s", err)
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        # Accepted first: a browser sees the close code only after a completed handshake.
+        await websocket.accept()
+        invalid_token = isinstance(err, PxcInvalidLaunchToken)
+        await websocket.close(code=PXC_CLOSE_INVALID_TOKEN if invalid_token else PXC_CLOSE_ACTIVITY_NOT_FOUND)
         return
 
     await websocket.accept()
@@ -183,8 +180,6 @@ async def activity_socket(websocket: WebSocket, token: str = Query()) -> None:
         # The ordinary way a socket ends: the learner navigated away or closed the tab.
         pass
     finally:
-        # Always, but not before every close: the frame loop's refusal paths close the socket
-        # and then return into this clause, so a publish landing in that window still walks a
-        # closed socket — L16's first defect. _SubscriberSocket absorbs the RuntimeError that
-        # causes, which is what keeps the window harmless.
+        # Refusal paths close the socket before reaching here, so a publish can still hit a
+        # closed socket. _SubscriberSocket absorbs the resulting RuntimeError.
         EVENT_BUS.unsubscribe(claims.activity, subscriber)
