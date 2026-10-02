@@ -1,5 +1,6 @@
 from sparkth.lib.chat.hooks import CHAT_RESPONSIBILITIES
-from sparkth.lib.frontend.hooks import DISPLAY_INFO
+from sparkth.lib.frontend import plugin_has_frontend
+from sparkth.lib.frontend.hooks import DISPLAY_INFO, SIDEBAR_ENTRIES, SidebarEntry
 from sparkth.lib.mcp.hooks import MCP_TOOLS
 from sparkth.lib.plugins import get_plugin_loader
 from sparkth.plugins.pxc.plugin import PXC_ACTIVITY, PxcPlugin
@@ -55,3 +56,16 @@ def test_the_activity_system_prompt_renders_with_the_refusal_sentence() -> None:
     rendered = PXC_ACTIVITY.system_prompt.format(current_datetime="2026-10-01", refusal_message="REFUSAL")
 
     assert "REFUSAL" in rendered
+
+
+def test_the_plugin_ships_a_frontend_page() -> None:
+    plugin = PxcPlugin()
+
+    assert plugin_has_frontend(plugin.name)
+
+
+def test_the_plugin_adds_an_activities_entry_to_the_sidebar() -> None:
+    plugin = PxcPlugin()
+
+    entries = [item for owner, item in SIDEBAR_ENTRIES.iter_items() if owner is plugin]
+    assert entries == [SidebarEntry("Activities", icon="blocks", order=2)]

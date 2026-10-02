@@ -1,8 +1,9 @@
 import { registerPlugin } from "./registry";
-import { chatPlugin, googleDrivePlugin, slackPlugin } from "@/plugins";
+import { chatPlugin, googleDrivePlugin, pxcPlugin, slackPlugin } from "@/plugins";
 
 registerPlugin(chatPlugin);
 registerPlugin(googleDrivePlugin);
+registerPlugin(pxcPlugin);
 registerPlugin(slackPlugin);
 
 export * from "./registry";
