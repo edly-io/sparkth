@@ -278,6 +278,7 @@ async def test_an_action_preflight_is_answered_without_a_token(client: AsyncClie
     assert response.headers["access-control-allow-origin"] == "*"
     assert response.headers["access-control-allow-methods"] == "POST"
     assert response.headers["access-control-allow-headers"] == "Content-Type"
+    assert response.headers["access-control-max-age"] == "86400"
 
 
 @pytest.mark.wasm

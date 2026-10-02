@@ -57,6 +57,7 @@ export class SparkthPXC extends PXC {
     super();
     this._actionUrl = null;
     this._queue = [];
+    this._flushing = false;
     this._reconnectAttempts = 0;
     this._notice = null;
     this._onSocketOpen = this._onSocketOpen.bind(this);
