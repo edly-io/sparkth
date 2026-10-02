@@ -19,7 +19,7 @@ export function UserMessage({ message, setPreviewOpen, setPreviewAttachment }: U
         <Pill attachments={message.attachments ?? []} onPreview={openPreview} />
 
         {message.content && (
-          <div className="rounded-xl bg-foreground text-background px-4 py-2 text-sm">
+          <div className="rounded-xl bg-foreground text-background px-4 py-2 text-sm whitespace-pre-wrap">
             {message.content}
           </div>
         )}
