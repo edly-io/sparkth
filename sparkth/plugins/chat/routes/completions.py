@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.auth import get_current_user
+from sparkth.lib.chat.hooks import enabled_responsibilities
 from sparkth.lib.db import get_async_session
 from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.lib.i18n import _, gettext
@@ -37,7 +38,8 @@ from sparkth.plugins.chat.conversation_title import extract_title_from_messages,
 from sparkth.plugins.chat.exceptions import RAGSearchError
 from sparkth.plugins.chat.lms_credentials import build_lms_credentials_message
 from sparkth.plugins.chat.messages import get_last_user_text
-from sparkth.plugins.chat.prompt import get_course_design_system_prompt
+from sparkth.plugins.chat.prompt import render_system_prompt
+from sparkth.plugins.chat.responsibilities import stored_responsibility, turn_reply
 from sparkth.plugins.chat.routes.utils import resolve_tools
 from sparkth.plugins.chat.routes.utils.live_turns import request_stop
 from sparkth.plugins.chat.routes.utils.message_assembly import assemble_provider_messages
@@ -77,20 +79,22 @@ def _unusable_status(document: Document) -> Literal["queued", "processing", "fai
 
 
 def _refusal_response(
+    message: str,
     stream: bool,
     conversation_uuid: UUID | None,
     model: str,
     provider_name: str,
 ) -> StreamingResponse | ChatCompletionResponse:
-    """The out-of-scope refusal, in whichever shape the client asked for.
+    """A fixed reply that ends the turn, in whichever shape the client asked for.
 
-    ``conversation_uuid`` is None when the turn was refused before any conversation was written,
-    which is the answer the client gets rather than a missing field.
+    ``message`` is the refusal or the redirect source constant, rendered under the request
+    locale. ``conversation_uuid`` is None when the turn was refused before any conversation was
+    written, which is the answer the client gets rather than a missing field.
     """
     if stream:
-        return StreamingResponse(stream_out_of_scope_refusal(), media_type="text/event-stream")
+        return StreamingResponse(stream_out_of_scope_refusal(message), media_type="text/event-stream")
     return ChatCompletionResponse(
-        message=ChatMessage(role="assistant", content=gettext(REFUSAL_MESSAGE)),
+        message=ChatMessage(role="assistant", content=gettext(message)),
         conversation_id=conversation_uuid,
         model=model,
         provider=provider_name,
@@ -164,7 +168,9 @@ async def chat_completion(
         provider=provider_name,
         actor_id=str(user_id),
     )
-    scope_classifier = MessageScopeClassifier(provider_name, api_key, user_id, classifier_analytics)
+    # The jobs offered on this request; a switched-off plugin's job is left out.
+    jobs = await enabled_responsibilities(session)
+    scope_classifier = MessageScopeClassifier(jobs, provider_name, api_key, user_id, classifier_analytics)
 
     # A file uploaded with the message is base64 content, not a Document row, so its name exists
     # only here — both scope checks below need it.
@@ -172,10 +178,12 @@ async def chat_completion(
 
     # Judged above get_or_create_conversation so an out-of-scope first message writes no row.
     _skip_main_scope_check = False
+    first_responsibility: str | None = None
     if not conversation_uuid:
         # Nothing is persisted yet, and there is no uuid to log a refusal against.
-        if not await scope_classifier.in_scope(query_text, [], request_attachment_names, None):
-            return _refusal_response(request.stream, None, model, provider_name)
+        first_responsibility = await scope_classifier.responsibility_for(query_text, [], request_attachment_names, None)
+        if first_responsibility is None:
+            return _refusal_response(REFUSAL_MESSAGE, request.stream, None, model, provider_name)
         # Already judged, so the check below would spend a second call on the same message.
         _skip_main_scope_check = True
 
@@ -187,8 +195,11 @@ async def chat_completion(
         provider=provider_name,
         model=model,
         title=extract_title_from_messages(request.messages, max_length=config.title_max_length),
+        responsibility=first_responsibility,
     )
     conversation_id = cast(int, conversation.id)
+    # The job this conversation does decides the turn's reply, system prompt and tools.
+    responsibility = stored_responsibility(conversation, jobs)
     turn_analytics = ChatTurnAnalytics(
         background_tasks=background_tasks,
         conversation_id=str(conversation.uuid),
@@ -270,6 +281,7 @@ async def chat_completion(
                 occurred_at=datetime.now(timezone.utc),
             )
 
+        turn_end: str | None = None
         if not _skip_main_scope_check:
             prior_history: list[HistoryTurn] = [
                 {"role": m.role, "content": m.content}
@@ -278,30 +290,30 @@ async def chat_completion(
             ]
             # Ingested documents plus anything uploaded with this message, which has no row.
             turn_attachment_names = list(dict.fromkeys(attached_document_names + request_attachment_names))
-            _in_scope = await scope_classifier.in_scope(
+            judged = await scope_classifier.responsibility_for(
                 query_text,
                 prior_history,
                 turn_attachment_names or None,
                 conversation.uuid,
+                responsibility.name,
             )
-        else:
-            _in_scope = True
+            turn_end = turn_reply(judged, responsibility.name)
 
-        if not _in_scope:
+        if turn_end is not None:
             await service.add_message(
                 session=session,
                 conversation_id=conversation_id,
                 role="assistant",
-                content=gettext(REFUSAL_MESSAGE),
+                content=gettext(turn_end),
                 message_type="text",
             )
-            return _refusal_response(request.stream, conversation.uuid, model, provider_name)
+            return _refusal_response(turn_end, request.stream, conversation.uuid, model, provider_name)
 
         provider = get_provider(
             provider_name=provider_name,
             api_key=api_key,
             model=model,
-            system_prompt=get_course_design_system_prompt(),
+            system_prompt=render_system_prompt(responsibility),
             temperature=request.temperature,
             max_tool_executions=config.max_tool_executions,
         )
@@ -320,7 +332,7 @@ async def chat_completion(
             request, db_messages, attached_documents, query_text, rag_search_required, provider
         )
 
-        tools = await resolve_tools(request, get_tool_registry())
+        tools = await resolve_tools(request, responsibility, get_tool_registry())
         if tools and request.include_system_tools_message:
             tool_descriptions = [f"- {tool.name}: {tool.description}" for tool in tools]
             tool_list_message = "You have access to the following tools:\n" + "\n".join(tool_descriptions)

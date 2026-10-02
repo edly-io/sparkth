@@ -94,7 +94,7 @@ def _provider() -> MagicMock:
 
 def _in_scope_classifier() -> AsyncMock:
     classifier = AsyncMock()
-    classifier.in_scope = AsyncMock(return_value=True)
+    classifier.responsibility_for = AsyncMock(return_value="course-design")
     return classifier
 
 

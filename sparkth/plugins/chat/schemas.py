@@ -195,9 +195,14 @@ class ClassifierVerdict(BaseModel):
 
 
 class MessageScopeVerdict(ClassifierVerdict):
-    """Whether a chat turn falls within the assistant's learning-design scope."""
+    """Which registered chat job a turn belongs to, if any."""
 
-    in_scope: bool
+    responsibility: str | None = Field(
+        description=(
+            "The name of the job the message belongs to, exactly as listed in the instructions, "
+            "or null when it belongs to none of them."
+        ),
+    )
 
 
 class DocumentHeadings(BaseModel):
