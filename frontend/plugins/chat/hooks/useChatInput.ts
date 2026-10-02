@@ -9,6 +9,8 @@ import { SelectedDriveFile } from "@/components/drive/DriveFilePicker";
 const MAX_FILE_SIZE = 30 * 1024 * 1024; // 30MB
 
 interface UseChatInputProps {
+  message: string;
+  setMessage: Dispatch<SetStateAction<string>>;
   token: string | null;
   conversationId: string | null;
   attachments: TextAttachment[];
@@ -21,13 +23,14 @@ interface UseChatInputProps {
 }
 
 export function useChatInput({
+  message,
+  setMessage,
   token,
   conversationId,
   attachments,
   setAttachments,
   onSend,
 }: UseChatInputProps) {
-  const [message, setMessage] = useState("");
   const [showUploadMenu, setShowUploadMenu] = useState(false);
   const [showDriveFilePicker, setShowDriveFilePicker] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -154,8 +157,6 @@ export function useChatInput({
   };
 
   return {
-    message,
-    setMessage,
     showUploadMenu,
     setShowUploadMenu,
     showDriveFilePicker,

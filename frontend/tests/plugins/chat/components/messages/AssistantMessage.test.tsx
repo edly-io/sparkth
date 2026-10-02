@@ -1,4 +1,5 @@
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AssistantMessage } from "@/plugins/chat/components/messages/AssistantMessage";
 import chatEn from "@/plugins/chat/messages/en.json";
@@ -8,7 +9,8 @@ import type { ChatMessage } from "@/plugins/chat/types";
 const defaultProps = {
   setPreviewOpen: vi.fn(),
   setPreviewAttachment: vi.fn(),
-  onOptionClick: vi.fn(),
+  onOptionCheck: vi.fn(),
+  isLatest: true,
 };
 
 function makeMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
@@ -230,5 +232,80 @@ describe("AssistantMessage — stopped turns", () => {
   it("leaves a completed reply unmarked", () => {
     renderMessage({ content: "All of it", isTyping: false });
     expect(screen.queryByText("Stopped")).not.toBeInTheDocument();
+  });
+});
+
+const OPTIONS_REPLY = "Who is the course for?\n\n```options\nBeginners\nProfessionals\n```";
+
+describe("AssistantMessage — options widget", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("renders the options block as checkboxes under the question", () => {
+    renderMessage({ content: OPTIONS_REPLY });
+    expect(screen.getByText("Who is the course for?")).toBeInTheDocument();
+    expect(screen.getByLabelText("Beginners")).toBeInTheDocument();
+    expect(screen.getByText(chatEn.chat.optionsTypeElse)).toBeInTheDocument();
+    expect(screen.queryByText("```options")).not.toBeInTheDocument();
+  });
+
+  it("hands a checked option to onOptionCheck", async () => {
+    renderMessage({ content: OPTIONS_REPLY });
+    await userEvent.click(screen.getByLabelText("Professionals"));
+    expect(defaultProps.onOptionCheck).toHaveBeenCalledWith("Professionals");
+  });
+
+  it("renders another fenced block as a normal code block", () => {
+    const { container } = renderMessage({ content: "Example:\n\n```python\nprint(1)\n```" });
+    expect(container.querySelector("pre code")).toHaveTextContent("print(1)");
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  });
+
+  it("renders the widget read-only while the message is streaming", () => {
+    renderMessage({ content: "", streamedContent: OPTIONS_REPLY, isTyping: true });
+    expect(screen.getByLabelText("Beginners")).toBeDisabled();
+    expect(screen.queryByText(chatEn.chat.optionsTypeElse)).not.toBeInTheDocument();
+  });
+
+  it("renders the widget read-only when the turn was stopped mid-block", () => {
+    renderMessage({ content: "Who is it for?\n\n```options\nBeginners\nProfess", stopped: true });
+    expect(screen.getByLabelText("Beginners")).toBeDisabled();
+    expect(screen.queryByText(chatEn.chat.optionsTypeElse)).not.toBeInTheDocument();
+  });
+
+  it("keeps the widget interactive when the turn was stopped after the block closed", () => {
+    renderMessage({ content: OPTIONS_REPLY, stopped: true });
+    expect(screen.getByLabelText("Beginners")).toBeEnabled();
+    expect(screen.getByText(chatEn.chat.optionsTypeElse)).toBeInTheDocument();
+  });
+
+  it("does not say no option was selected when the reply is only an attachment", () => {
+    renderWithIntl(
+      <AssistantMessage
+        message={makeMessage({ content: OPTIONS_REPLY })}
+        {...defaultProps}
+        reply=""
+      />,
+      { chat: chatEn.chat },
+    );
+    expect(screen.queryByText(chatEn.chat.optionsNoneSelected)).not.toBeInTheDocument();
+  });
+
+  it("renders the widget read-only on a restored, still-pending message", () => {
+    renderMessage({ content: OPTIONS_REPLY, isPending: true });
+    expect(screen.getByLabelText("Beginners")).toBeDisabled();
+    expect(screen.queryByText(chatEn.chat.optionsTypeElse)).not.toBeInTheDocument();
+  });
+
+  it("renders the widget read-only when the message is not the latest", () => {
+    renderWithIntl(
+      <AssistantMessage
+        message={makeMessage({ content: OPTIONS_REPLY })}
+        {...defaultProps}
+        isLatest={false}
+      />,
+      { chat: chatEn.chat },
+    );
+    expect(screen.getByLabelText("Beginners")).toBeDisabled();
+    expect(screen.queryByText(chatEn.chat.optionsTypeElse)).not.toBeInTheDocument();
   });
 });

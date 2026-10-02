@@ -56,7 +56,6 @@ describe("requestChatCompletionStream", () => {
     expect(request.headers.get("authorization")).toBe("Bearer test-token");
     const sentBody = await request.clone().json();
     expect(sentBody).toEqual(COMPLETION_BODY);
-    expect("similarity_threshold" in sentBody).toBe(false);
     expect(res.status).toBe(200);
     await expect(res.text()).resolves.toBe("data: {}\n\n");
   });
