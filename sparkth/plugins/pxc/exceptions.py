@@ -36,3 +36,27 @@ class PxcSandboxFailure(Exception):
 
 class PxcLaunchNotConfigured(Exception):
     """Sparkth cannot mint a launch token because ``PXC_LAUNCH_SECRET`` is empty."""
+
+
+class PxcBuildFailed(Exception):
+    """An activity build failed.
+
+    ``str()`` is written for the agent that submitted the code, not for an operator. It says
+    what to fix, and the agent retries with a corrected version.
+    """
+
+
+class PxcManifestInvalid(PxcBuildFailed):
+    """The manifest breaks pxc-lib's schema or one of the build's own rules."""
+
+
+class PxcCompileFailed(PxcBuildFailed):
+    """``sandbox.js`` did not compile: a syntax error, or an import other than ``pxc:sandbox/*``."""
+
+
+class PxcSmokeTestFailed(PxcBuildFailed):
+    """The sandbox compiled but ``get_state`` failed under ``play`` or ``edit``."""
+
+
+class PxcBuildTimedOut(PxcBuildFailed):
+    """A build step outlived ``PXC_BUILD_TIMEOUT_SECONDS`` and was killed."""

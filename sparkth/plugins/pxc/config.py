@@ -40,6 +40,17 @@ class PxcSettings(BaseSettings):
     # every request by design (L5); an authoring module chooses per placement later.
     default_activity: str = "mcq"
 
+    # The directory whose node_modules holds componentize-js, which compiles an author's
+    # activity. `make pxc.activities.build` installs it here, and the image ships it here too.
+    toolchain_dir: Path = Path("./sparkth/plugins/pxc/activities/mcq")
+
+    # How long each step of an activity build (the compile, then the smoke test) may run.
+    build_timeout_seconds: int = 120
+
+    # How many activity builds may run at once in this process. Each compile peaks near 600 MB.
+    # TODO: move activity builds to a dedicated worker container to make this scale.
+    build_concurrency: int = 2
+
 
 @lru_cache
 def get_pxc_settings() -> PxcSettings:
