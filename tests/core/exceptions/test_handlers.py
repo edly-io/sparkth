@@ -74,6 +74,16 @@ def test_registered_handler_renders_raised_exception() -> None:
     assert response.json() == {"detail": "already exists"}
 
 
+def test_registered_handler_sends_the_registered_headers() -> None:
+    register_exception_handler(_DomainError, 401, {"Access-Control-Allow-Origin": "*"})
+
+    client = TestClient(_app_raising(_DomainError("expired")))
+    response = client.get("/boom")
+
+    assert response.status_code == 401
+    assert response.headers["access-control-allow-origin"] == "*"
+
+
 def test_handler_on_base_class_catches_subclass_via_mro() -> None:
     register_exception_handler(_DomainError, 422)  # base registered
 

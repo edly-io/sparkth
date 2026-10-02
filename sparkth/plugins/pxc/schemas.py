@@ -12,7 +12,7 @@ class LaunchContext(BaseModel):
 
 
 class ActivityConfig(BaseModel):
-    """Everything the embed shell needs to render one activity for one learner."""
+    """Everything the embed shell needs to render one activity for one learner, inlined into its page."""
 
     activity: str
     context: LaunchContext

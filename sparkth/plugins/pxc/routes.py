@@ -11,12 +11,19 @@ import asyncio
 from pathlib import Path
 
 import pxc.lib
-from fastapi import APIRouter, Depends, Query, Request, WebSocket, status
+from fastapi import APIRouter, Depends, Query, Request, Response, WebSocket, status
 from fastapi.responses import FileResponse, HTMLResponse
 from starlette.websockets import WebSocketDisconnect
 
 from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.activities import asset_path
+from sparkth.plugins.pxc.constants import (
+    PXC_CLOSE_ACTIVITY_NOT_FOUND,
+    PXC_CLOSE_INVALID_TOKEN,
+    PXC_CORS_HEADERS,
+    PXC_PREFLIGHT_HEADERS,
+    PXC_SANDBOX_HEADERS,
+)
 from sparkth.plugins.pxc.event_bus import EVENT_BUS, publish_events, subscribe_socket
 from sparkth.plugins.pxc.exceptions import (
     PxcActionRejected,
@@ -31,58 +38,52 @@ from sparkth.plugins.pxc.websocket import run_action_frames
 
 logger = get_logger(__name__)
 
-# The launch token is the only credential these routes have, so verifying it is declared as a
-# dependency rather than repeated as the first line of each handler. Two routes do not declare
-# it: `client_script`, which serves the same two scripts to everyone and reads no state, and
-# `activity_socket`, which has to turn a refusal into a close code and so verifies inline.
+# Every route authenticates by launch token, except the public client scripts and the preflight.
 router = APIRouter()
 
-# The two client scripts the activity page loads: PXC's own component, served from the installed
-# pxc-lib distribution, and Sparkth's subclass of it. An explicit map rather than a directory: it
-# is the whole allowlist, so no path can escape it.
+# Allowlist of the client scripts the activity page loads.
 _CLIENT_FILES = {
     "pxc.js": Path(pxc.lib.__file__).parent / "static" / "js" / "pxc.js",
     "sparkth-pxc.js": Path(__file__).parent / "static" / "sparkth-pxc.js",
 }
 
 
-@router.get("/embed", response_class=HTMLResponse, dependencies=[Depends(read_launch_token)])
-async def embed_activity(request: Request, token: str = Query()) -> HTMLResponse:
+@router.get("/embed", response_class=HTMLResponse)
+async def embed_activity(
+    request: Request, claims: LaunchClaims = Depends(read_launch_token), token: str = Query()
+) -> HTMLResponse:
     """The document an LMS iframes to show one activity to one learner.
 
-    Gated by the dependency rather than a claims parameter: the shell hands the raw token to the
-    client and reads nothing out of it.
+    The activity's configuration is inlined as a JSON script element, so the client reads it
+    without a request of its own.
+
+    Served under a sandbox CSP, so the document has an opaque origin however it is opened, and
+    activity code in it cannot reach Sparkth's own storage.
     """
-    base = str(request.url_for("embed_activity")).rsplit("/embed", 1)[0]
+    config_json = (await _activity_config(claims, token, request)).model_dump_json().replace("<", "\\u003c")
+    client_url = request.url_for("client_script", file_name="sparkth-pxc.js")
     return HTMLResponse(
         "<!DOCTYPE html>"
         '<html><head><meta charset="utf-8"><style>body{margin:0}</style></head>'
         "<body>"
-        f'<pxc-activity data-config-url="{base}/config?token={token}"'
-        f' data-action-url="{base}/actions" data-pxc-token="{token}"></pxc-activity>'
-        f'<script type="module" src="{base}/client/sparkth-pxc.js"></script>'
-        "</body></html>"
+        f'<pxc-activity data-pxc-token="{token}">'
+        f'<script type="application/json">{config_json}</script></pxc-activity>'
+        f'<script type="module" src="{client_url}"></script>'
+        "</body></html>",
+        headers=PXC_SANDBOX_HEADERS,
     )
 
 
-def _socket_url(request: Request, token: str) -> str:
-    """The activity socket's URL for this launch, as a browser must address it."""
-    return f"{request.url_for('activity_socket')}?token={token}"
-
-
-@router.get("/config")
-async def activity_config(
-    request: Request, claims: LaunchClaims = Depends(read_launch_token), token: str = Query()
-) -> ActivityConfig:
+async def _activity_config(claims: LaunchClaims, token: str, request: Request) -> ActivityConfig:
     """This activity's state, context and asset URLs for the launching learner.
 
     Takes the raw token as well as the claims, because the URLs it hands back carry it.
     """
     runtime = await asyncio.to_thread(build_runtime, claims)
     state = await asyncio.to_thread(read_state, runtime)
-    base = str(request.url_for("activity_config")).rsplit("/config", 1)[0]
-    # Neither base URL below carries the token: the embed shell already gave the client one,
-    # and the client appends it itself in SparkthPXC's methods.
+    base = str(request.url_for("embed_activity")).rsplit("/embed", 1)[0]
+    # ui_url and ws_url carry the token; the two base URLs do not, because the client appends the
+    # page's data-pxc-token itself in SparkthPXC's methods.
     return ActivityConfig(
         activity=claims.activity,
         context=LaunchContext(activity_id=claims.placement, course_id=claims.course_id, user_id=claims.user_id),
@@ -91,7 +92,7 @@ async def activity_config(
         ui_url=f"{base}/assets/{runtime.ui_path}?token={token}",
         asset_base_url=f"{base}/assets",
         action_base_url=f"{base}/actions",
-        ws_url=_socket_url(request, token),
+        ws_url=f"{request.url_for('activity_socket')}?token={token}",
     )
 
 
@@ -105,7 +106,7 @@ async def client_script(file_name: str) -> FileResponse:
     path = _CLIENT_FILES.get(file_name)
     if path is None:
         raise PxcAssetNotFound(f"Unknown client script: {file_name}")
-    return FileResponse(path, media_type="text/javascript")
+    return FileResponse(path, media_type="text/javascript", headers=PXC_CORS_HEADERS)
 
 
 @router.get("/assets/{file_path:path}")
@@ -119,11 +120,13 @@ async def activity_asset(file_path: str, claims: LaunchClaims = Depends(read_lau
     Raises:
         PxcAssetNotFound: if the manifest does not declare the file, or it is missing.
     """
-    return FileResponse(asset_path(claims.activity, file_path))
+    return FileResponse(asset_path(claims.activity, file_path), headers=PXC_CORS_HEADERS | PXC_SANDBOX_HEADERS)
 
 
 @router.post("/actions/{action_name}", status_code=status.HTTP_204_NO_CONTENT)
-async def submit_action(action_name: str, request: Request, claims: LaunchClaims = Depends(read_launch_token)) -> None:
+async def submit_action(
+    action_name: str, request: Request, claims: LaunchClaims = Depends(read_launch_token)
+) -> Response:
     """Run one action through the activity's sandbox, for a payload too large for the socket.
 
     The events it produces are published to the bus, not returned; the client reads only the status.
@@ -145,6 +148,13 @@ async def submit_action(action_name: str, request: Request, claims: LaunchClaims
     runtime = await asyncio.to_thread(build_runtime, claims)
     events = await asyncio.to_thread(run_action, runtime, action_name, action_value)
     await publish_events(claims.activity, claims.placement, events)
+    return Response(status_code=status.HTTP_204_NO_CONTENT, headers=PXC_CORS_HEADERS)
+
+
+@router.options("/actions/{action_name}", include_in_schema=False)
+async def preflight_action() -> Response:
+    """Answer the preflight a browser sends before a cross-origin action POST with a JSON body."""
+    return Response(status_code=status.HTTP_204_NO_CONTENT, headers=PXC_PREFLIGHT_HEADERS)
 
 
 @router.websocket("/ws")
@@ -155,7 +165,10 @@ async def activity_socket(websocket: WebSocket, token: str = Query()) -> None:
         runtime = await asyncio.to_thread(build_runtime, claims)
     except (PxcInvalidLaunchToken, PxcActivityNotFound) as err:
         logger.warning("Refused a PXC activity socket: %s", err)
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        # Accepted first: a browser sees the close code only after a completed handshake.
+        await websocket.accept()
+        invalid_token = isinstance(err, PxcInvalidLaunchToken)
+        await websocket.close(code=PXC_CLOSE_INVALID_TOKEN if invalid_token else PXC_CLOSE_ACTIVITY_NOT_FOUND)
         return
 
     await websocket.accept()
@@ -166,8 +179,6 @@ async def activity_socket(websocket: WebSocket, token: str = Query()) -> None:
         # The ordinary way a socket ends: the learner navigated away or closed the tab.
         pass
     finally:
-        # Always, but not before every close: the frame loop's refusal paths close the socket
-        # and then return into this clause, so a publish landing in that window still walks a
-        # closed socket — L16's first defect. _SubscriberSocket absorbs the RuntimeError that
-        # causes, which is what keeps the window harmless.
+        # Refusal paths close the socket before reaching here, so a publish can still hit a
+        # closed socket. _SubscriberSocket absorbs the resulting RuntimeError.
         EVENT_BUS.unsubscribe(claims.activity, subscriber)
