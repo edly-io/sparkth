@@ -5,15 +5,17 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from langchain_core.exceptions import LangChainException
+from langchain_core.tools import BaseTool
 from pydantic import ValidationError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.auth import get_current_user
-from sparkth.lib.chat.hooks import enabled_responsibilities
+from sparkth.lib.chat.hooks import ChatResponsibility, enabled_responsibilities
 from sparkth.lib.db import get_async_session
 from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.lib.i18n import _, gettext
 from sparkth.lib.llm import (
+    BaseChatProvider,
     LLMConfigInactiveError,
     LLMConfigModelNotSetError,
     LLMConfigNotFoundError,
@@ -29,25 +31,28 @@ from sparkth.plugins.chat.analytics import (
     ChatTurnAnalytics,
     TurnFailureCause,
     record_turn_failed,
-    tool_names,
 )
 from sparkth.plugins.chat.classifiers import MessageScopeClassifier, RAGSearchClassifier
 from sparkth.plugins.chat.config import ChatSettings, get_chat_settings
 from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, REDIRECT_MESSAGE, REFUSAL_MESSAGE
-from sparkth.plugins.chat.conversation_title import extract_title_from_messages, schedule_title_generation
+from sparkth.plugins.chat.conversation_title import extract_title_from_messages
 from sparkth.plugins.chat.exceptions import RAGSearchError
 from sparkth.plugins.chat.lms_credentials import build_lms_credentials_message
 from sparkth.plugins.chat.messages import get_last_user_text
+from sparkth.plugins.chat.models import Conversation, Message
 from sparkth.plugins.chat.prompt import render_system_prompt
 from sparkth.plugins.chat.responsibilities import stored_responsibility, turn_reply
 from sparkth.plugins.chat.routes.utils import resolve_tools
 from sparkth.plugins.chat.routes.utils.live_turns import request_stop
 from sparkth.plugins.chat.routes.utils.message_assembly import assemble_provider_messages
+from sparkth.plugins.chat.routes.utils.non_streaming import complete_without_stream
 from sparkth.plugins.chat.routes.utils.stream_processor import (
     ChatStreamProcessor,
     stream_out_of_scope_refusal,
     streaming_error_message,
 )
+from sparkth.plugins.chat.routes.utils.turn_context import TurnContext
+from sparkth.plugins.chat.routes.utils.turn_setup import record_incoming_turn
 from sparkth.plugins.chat.schemas import (
     ChatCompletionRequest,
     ChatCompletionResponse,
@@ -101,29 +106,19 @@ def _refusal_response(
     )
 
 
-# The handler returns ChatCompletionResponse (stream=false) or an SSE
-# StreamingResponse (stream=true); response_model alone cannot express that
-# union, so the 200 response declares both content types explicitly.
-@router.post(
-    "/completions",
-    response_model=None,
-    responses={
-        200: {
-            "model": ChatCompletionResponse,
-            "content": {"text/event-stream": {"schema": {"type": "string"}}},
-        }
-    },
-)
-async def chat_completion(
+async def _resolve_llm_config(
     request: ChatCompletionRequest,
-    background_tasks: BackgroundTasks,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
-    service: ChatService = Depends(get_chat_service),
-    llm_service: LLMConfigService = Depends(get_llm_service),
-    config: ChatSettings = Depends(get_chat_settings),
-) -> Any:
-    user_id: int = cast(int, current_user.id)
+    user_id: int,
+    session: AsyncSession,
+    service: ChatService,
+    llm_service: LLMConfigService,
+) -> tuple[str, str, str]:
+    """Return the turn's provider name, model (override applied) and decrypted API key.
+
+    An unusable AI key fails the turn with one status and one thing the user can do about it per
+    reason: missing is a 404, no model a 422, deactivated a 409. The failure is stored on the
+    conversation and recorded as a failed turn before the error is raised.
+    """
     try:
         llm_config, api_key = await llm_service.resolve(
             session=session,
@@ -131,8 +126,6 @@ async def chat_completion(
             config_id=request.llm_config_id,
         )
     except (LLMConfigNotFoundError, LLMConfigModelNotSetError, LLMConfigInactiveError) as exc:
-        # One status and one thing the user can do about it, per reason. Only the tail below is
-        # shared, which is all that was ever written three times.
         if isinstance(exc, LLMConfigNotFoundError):
             status_code = status.HTTP_404_NOT_FOUND
             detail = _("No AI Key found for the current user. Please configure an AI key in your chat plugin settings.")
@@ -158,38 +151,312 @@ async def chat_completion(
             actor_id=str(user_id),
         )
         raise HTTPException(status_code=status_code, detail=detail) from exc
+    return llm_config.provider, request.model_override or llm_config.model, api_key
 
-    provider_name = llm_config.provider
-    model = request.model_override or llm_config.model
-    conversation_uuid = request.conversation_id
-    query_text = get_last_user_text(request.messages)
+
+async def _ready_attachments(
+    conversation_id: int, turn: TurnContext, attachment_analytics: ChatAttachmentAnalytics
+) -> list[Document]:
+    """Return the conversation's ingested documents, queueing ``attachment_unusable`` for the rest.
+
+    An unusable document is attached as far as the instructor is concerned but not ingestible, so
+    the turn runs as though it were not there. Nothing records the moment a document was passed
+    over, so the event is stamped here.
+    """
+    conversation_documents = await turn.service.list_conversation_attachments(
+        session=turn.session, conversation_id=conversation_id
+    )
+    for unusable in conversation_documents.unusable:
+        attachment_analytics.schedule_attachment_unusable(
+            document_id=cast(int, unusable.id),
+            status=_unusable_status(unusable),
+            occurred_at=datetime.now(timezone.utc),
+        )
+    return conversation_documents.ready
+
+
+async def _judged_turn_end(
+    scope_classifier: MessageScopeClassifier,
+    db_messages: list[Message],
+    attached_document_names: list[str],
+    conversation: Conversation,
+    responsibility: ChatResponsibility,
+    turn: TurnContext,
+) -> str | None:
+    """Judge a later turn against the conversation's job; return the fixed reply that ends it, or None.
+
+    The classifier sees the stored history without the message being judged, and the names of the
+    ingested documents plus anything uploaded with this message, which has no row.
+    """
+    prior_history: list[HistoryTurn] = [
+        {"role": m.role, "content": m.content}
+        for m in db_messages
+        if m is not db_messages[-1] or not (m.role == "user" and m.content == turn.query_text)
+    ]
+    turn_attachment_names = list(dict.fromkeys(attached_document_names + turn.request_attachment_names))
+    judged = await scope_classifier.responsibility_for(
+        turn.query_text,
+        prior_history,
+        turn_attachment_names or None,
+        conversation.uuid,
+        responsibility.name,
+    )
+    turn_end = turn_reply(judged, responsibility.name)
+    if turn_end == REDIRECT_MESSAGE:
+        logger.info(
+            "Redirected conversation %s: stored job %s, judged job %s",
+            conversation.uuid,
+            responsibility.name,
+            judged,
+        )
+    return turn_end
+
+
+async def _rag_search_required(
+    attached_documents: list[Document], conversation: Conversation, turn: TurnContext
+) -> bool:
+    """Whether the turn retrieves from its documents; asked only with something to search and to search for."""
+    if not (attached_documents and turn.query_text):
+        return False
+    search_classifier = RAGSearchClassifier(turn.provider_name, turn.api_key, turn.user_id, turn.classifier_analytics)
+    return await search_classifier.requires_search(turn.query_text, attached_documents, conversation.uuid)
+
+
+async def _add_tool_guidance(
+    tools: list[BaseTool] | None, messages: list[dict[str, Any]], provider: BaseChatProvider, turn: TurnContext
+) -> None:
+    """Tell the model about its bound tools: a tool-list system turn when asked, and LMS credentials."""
+    if tools and turn.request.include_system_tools_message:
+        tool_descriptions = [f"- {tool.name}: {tool.description}" for tool in tools]
+        tool_list_message = "You have access to the following tools:\n" + "\n".join(tool_descriptions)
+        messages.insert(0, {"role": "system", "content": tool_list_message})
+
+    lms_credentials_message = await build_lms_credentials_message(
+        session=turn.session,
+        user_id=turn.user_id,
+        tools=tools,
+    )
+    if lms_credentials_message:
+        provider.system_prompt += f"\n\n{lms_credentials_message}"
+
+
+def _stream_response(
+    provider: BaseChatProvider,
+    messages: list[dict[str, Any]],
+    tools: list[BaseTool] | None,
+    unresolved_messages: list[ChatMessage] | None,
+    rag_search_required: bool,
+    rag_search_declined: bool,
+    conversation: Conversation,
+    turn: TurnContext,
+    turn_analytics: ChatTurnAnalytics,
+) -> StreamingResponse:
+    """Stream the turn's reply over SSE.
+
+    The retrieval turn and its LLM are gated together so no LLM is built for a turn that will not
+    retrieve. A turn is stoppable only if the caller named it (scripts and the MCP surface do not);
+    the stream task registers and releases it, so a request that never gets that far leaves the
+    registry untouched. The stream task outlives this response, writing its analytics after the
+    SSE sentinel, so the holder keeps it referenced until it finishes.
+    """
+    rag_unresolved = unresolved_messages if rag_search_required else None
+    rag_llm = provider.create_llm() if rag_search_required else None
+    turn_key = str(turn.request.turn_id) if turn.request.turn_id else None
+    processor = ChatStreamProcessor(
+        provider,
+        messages,
+        conversation,
+        turn.service,
+        tools,
+        rag_unresolved,
+        turn.user_id,
+        rag_llm,
+        rag_search_required,
+        rag_search_declined,
+        analytics=turn_analytics.attribution,
+        turn_id=turn_key,
+    )
+    return StreamingResponse(processor.stream(), media_type="text/event-stream")
+
+
+async def _answer_turn(
+    turn: TurnContext,
+    scope_classifier: MessageScopeClassifier,
+    conversation: Conversation,
+    responsibility: ChatResponsibility,
+    db_messages: list[Message],
+    turn_analytics: ChatTurnAnalytics,
+    attachment_analytics: ChatAttachmentAnalytics,
+) -> StreamingResponse | ChatCompletionResponse:
+    """Answer an opened conversation's turn: end it with a fixed reply, stream it, or reply whole.
+
+    A first message was already judged for scope before its conversation was opened, so only a
+    later turn is judged here. The conversation's job decides the system prompt and the tools.
+    """
+    conversation_id = cast(int, conversation.id)
+    attached_documents = await _ready_attachments(conversation_id, turn, attachment_analytics)
+    turn_end: str | None = None
+    if turn.request.conversation_id:
+        attached_document_names = [document.name for document in attached_documents]
+        turn_end = await _judged_turn_end(
+            scope_classifier, db_messages, attached_document_names, conversation, responsibility, turn
+        )
+    if turn_end is not None:
+        await turn.service.add_message(
+            session=turn.session,
+            conversation_id=conversation_id,
+            role="assistant",
+            content=gettext(turn_end),
+            message_type="text",
+        )
+        return _refusal_response(turn_end, turn.request.stream, conversation.uuid, turn.model, turn.provider_name)
+
+    provider = get_provider(
+        provider_name=turn.provider_name,
+        api_key=turn.api_key,
+        model=turn.model,
+        system_prompt=render_system_prompt(responsibility),
+        temperature=turn.request.temperature,
+        max_tool_executions=turn.config.max_tool_executions,
+    )
+    rag_search_required = await _rag_search_required(attached_documents, conversation, turn)
+    # A skip is worth telling the client about only when the classifier weighed it.
+    rag_search_declined = bool(attached_documents) and bool(turn.query_text) and not rag_search_required
+    messages, unresolved_messages = await assemble_provider_messages(
+        turn.request, db_messages, attached_documents, turn.query_text, rag_search_required, provider
+    )
+    tools = await resolve_tools(turn.request, responsibility, get_tool_registry())
+    await _add_tool_guidance(tools, messages, provider, turn)
+
+    if turn.request.stream:
+        return _stream_response(
+            provider,
+            messages,
+            tools,
+            unresolved_messages,
+            rag_search_required,
+            rag_search_declined,
+            conversation,
+            turn,
+            turn_analytics,
+        )
+    return await complete_without_stream(
+        provider, messages, tools, rag_search_required, conversation, turn, turn_analytics
+    )
+
+
+async def _upstream_failure(exc: Exception, conversation: Conversation, turn: TurnContext) -> HTTPException:
+    """Record a turn an upstream service failed (retrieval intent or the provider) and return its 502.
+
+    The conversation keeps the error message so a reload still shows what happened.
+    """
+    detail = (
+        _("Failed to determine retrieval intent. Please try again.")
+        if isinstance(exc, RAGSearchError)
+        else streaming_error_message(exc)
+    )
+    logger.error("Conversation %s failed on %s: %s", conversation.id, type(exc).__name__, exc)
+    await turn.service.add_message(
+        session=turn.session,
+        conversation_id=cast(int, conversation.id),
+        role="assistant",
+        content=detail,
+        is_error=True,
+    )
+    record_turn_failed(
+        conversation_id=str(conversation.uuid),
+        provider=turn.provider_name,
+        model=turn.model,
+        cause=(
+            TurnFailureCause.RAG_SEARCH_ERROR
+            if isinstance(exc, RAGSearchError)
+            else TurnFailureCause.PROVIDER_API_ERROR
+        ),
+        streamed=turn.request.stream,
+        actor_id=str(turn.user_id),
+    )
+    return HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=detail)
+
+
+def _unexpected_failure(exc: Exception, conversation: Conversation, turn: TurnContext) -> HTTPException:
+    """Record a turn that failed unexpectedly and return its 500."""
+    logger.error("Chat completion failed: %s", exc)
+    record_turn_failed(
+        conversation_id=str(conversation.uuid),
+        provider=turn.provider_name,
+        model=turn.model,
+        cause=TurnFailureCause.UNEXPECTED,
+        streamed=turn.request.stream,
+        actor_id=str(turn.user_id),
+    )
+    return HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail=_("Chat completion failed"),
+    )
+
+
+# The handler returns ChatCompletionResponse (stream=false) or an SSE
+# StreamingResponse (stream=true); response_model alone cannot express that
+# union, so the 200 response declares both content types explicitly.
+@router.post(
+    "/completions",
+    response_model=None,
+    responses={
+        200: {
+            "model": ChatCompletionResponse,
+            "content": {"text/event-stream": {"schema": {"type": "string"}}},
+        }
+    },
+)
+async def chat_completion(
+    request: ChatCompletionRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+    service: ChatService = Depends(get_chat_service),
+    llm_service: LLMConfigService = Depends(get_llm_service),
+    config: ChatSettings = Depends(get_chat_settings),
+) -> StreamingResponse | ChatCompletionResponse:
+    """Answer one chat turn, streamed over SSE or as one JSON reply.
+
+    Resolves the AI key and judges a first message for scope before anything is written. Then it
+    opens the conversation, records the incoming turn and answers it under the conversation's job.
+    An upstream failure is a 502, an unexpected one a 500; both are recorded as failed turns.
+    """
+    user_id: int = cast(int, current_user.id)
+    provider_name, model, api_key = await _resolve_llm_config(request, user_id, session, service, llm_service)
     classifier_analytics = ChatClassifierAnalytics(
+        background_tasks=background_tasks, provider=provider_name, actor_id=str(user_id)
+    )
+    turn = TurnContext(
+        request=request,
+        user_id=user_id,
+        provider_name=provider_name,
+        model=model,
+        api_key=api_key,
+        query_text=get_last_user_text(request.messages),
+        request_attachment_names=[m.attachment.name for m in request.messages if m.attachment],
+        classifier_analytics=classifier_analytics,
+        session=session,
+        service=service,
+        config=config,
         background_tasks=background_tasks,
-        provider=provider_name,
-        actor_id=str(user_id),
     )
     # The jobs offered on this request; a switched-off plugin's job is left out.
     jobs = await enabled_responsibilities(session)
     scope_classifier = MessageScopeClassifier(jobs, provider_name, api_key, user_id, classifier_analytics)
 
-    # A file uploaded with the message is base64 content, not a Document row, so its name exists
-    # only here — both scope checks below need it.
-    request_attachment_names = [m.attachment.name for m in request.messages if m.attachment]
-
-    # Judged above get_or_create_conversation so an out-of-scope first message writes no row.
-    _skip_main_scope_check = False
     first_responsibility: str | None = None
-    if not conversation_uuid:
-        # Nothing is persisted yet, and there is no uuid to log a refusal against.
-        first_responsibility = await scope_classifier.responsibility_for(query_text, [], request_attachment_names, None)
+    if not request.conversation_id:
+        first_responsibility = await scope_classifier.responsibility_for(
+            turn.query_text, [], turn.request_attachment_names, None
+        )
         if first_responsibility is None:
             return _refusal_response(REFUSAL_MESSAGE, request.stream, None, model, provider_name)
-        # Already judged, so the check below would spend a second call on the same message.
-        _skip_main_scope_check = True
 
     conversation, conversation_was_created = await service.get_or_create_conversation(
         session,
-        conversation_uuid=conversation_uuid,
+        conversation_uuid=request.conversation_id,
         user_id=user_id,
         llm_config_id=request.llm_config_id,
         provider=provider_name,
@@ -197,277 +464,19 @@ async def chat_completion(
         title=extract_title_from_messages(request.messages, max_length=config.title_max_length),
         responsibility=first_responsibility,
     )
-    conversation_id = cast(int, conversation.id)
     # The job this conversation does decides the turn's reply, system prompt and tools.
     responsibility = stored_responsibility(conversation, jobs)
-    turn_analytics = ChatTurnAnalytics(
-        background_tasks=background_tasks,
-        conversation_id=str(conversation.uuid),
-        provider=provider_name,
-        model=model,
-        actor_id=str(user_id),
-    )
-    attachment_analytics = ChatAttachmentAnalytics(
-        background_tasks=background_tasks,
-        conversation_id=str(conversation.uuid),
-        actor_id=str(user_id),
-    )
-    if conversation_was_created:
-        schedule_title_generation(
-            background_tasks,
-            service,
-            conversation_id=conversation_id,
-            user_id=user_id,
-            messages=request.messages,
-            provider_name=provider_name,
-            api_key=api_key,
-            model=model,
-            config=config,
-        )
-        # Queued after the title task, not before. Starlette runs the background queue as a
-        # plain sequential loop with no per-task isolation, and analytics emits propagate
-        # their failures by design, so an emit queued first would let an analytics outage
-        # silently cost the conversation its title. Keep analytics last in this queue.
-        # Timed by the row, not by this call: this task runs only after the response has
-        # completed, which for a streamed turn is after the whole stream.
-        turn_analytics.schedule_conversation_started(occurred_at=conversation.created_at)
-
-    if request.document_ids:
-        attached = await service.attach_owned_documents(session, conversation_id, request.document_ids, user_id)
-        for attachment in attached.created:
-            attachment_analytics.schedule_document_attached(
-                document_id=attachment.document_id,
-                source="completion_request",
-                occurred_at=attachment.attached_at,
-            )
-        if attached.skipped_count:
-            # The instructor named documents that were dropped and the reply says nothing
-            # about it, so this is the only record that their turn was not what they asked
-            # for. Nothing records the moment, so it is stamped here.
-            attachment_analytics.schedule_documents_skipped(
-                requested_count=attached.requested_count,
-                skipped_count=attached.skipped_count,
-                occurred_at=datetime.now(timezone.utc),
-            )
-    incoming_messages = await service.add_incoming_messages(session, conversation_id, request.messages)
-    for stored in incoming_messages:
-        # Instructor turns only: an assistant turn in the request is history the client
-        # replayed, and assistant output is counted by chat.completion_served instead.
-        if stored.role != "user":
-            continue
-        turn_analytics.schedule_message_sent(
-            message_length=len(stored.content),
-            has_attachment=stored.message_type == "attachment",
-            occurred_at=stored.created_at,
-        )
-
-    db_messages = await service.get_conversation_messages(session=session, conversation_id=conversation_id)
+    turn_analytics, attachment_analytics = await record_incoming_turn(conversation, conversation_was_created, turn)
+    db_messages = await service.get_conversation_messages(session=session, conversation_id=cast(int, conversation.id))
 
     try:
-        # Both classifiers need these: scope, to know documents are in play, and search, to
-        # judge the message against them.
-        conversation_documents = await service.list_conversation_attachments(
-            session=session, conversation_id=conversation_id
+        return await _answer_turn(
+            turn, scope_classifier, conversation, responsibility, db_messages, turn_analytics, attachment_analytics
         )
-        attached_documents = conversation_documents.ready
-        attached_document_names = [document.name for document in attached_documents]
-        for unusable in conversation_documents.unusable:
-            # Attached as far as the instructor is concerned, but not ingestible, so this
-            # turn runs as though it were not there. Stamped here: nothing records the
-            # moment a document was passed over.
-            attachment_analytics.schedule_attachment_unusable(
-                document_id=cast(int, unusable.id),
-                status=_unusable_status(unusable),
-                occurred_at=datetime.now(timezone.utc),
-            )
-
-        turn_end: str | None = None
-        if not _skip_main_scope_check:
-            prior_history: list[HistoryTurn] = [
-                {"role": m.role, "content": m.content}
-                for m in db_messages
-                if m is not db_messages[-1] or not (m.role == "user" and m.content == query_text)
-            ]
-            # Ingested documents plus anything uploaded with this message, which has no row.
-            turn_attachment_names = list(dict.fromkeys(attached_document_names + request_attachment_names))
-            judged = await scope_classifier.responsibility_for(
-                query_text,
-                prior_history,
-                turn_attachment_names or None,
-                conversation.uuid,
-                responsibility.name,
-            )
-            turn_end = turn_reply(judged, responsibility.name)
-            if turn_end == REDIRECT_MESSAGE:
-                logger.info(
-                    "Redirected conversation %s: stored job %s, judged job %s",
-                    conversation.uuid,
-                    responsibility.name,
-                    judged,
-                )
-
-        if turn_end is not None:
-            await service.add_message(
-                session=session,
-                conversation_id=conversation_id,
-                role="assistant",
-                content=gettext(turn_end),
-                message_type="text",
-            )
-            return _refusal_response(turn_end, request.stream, conversation.uuid, model, provider_name)
-
-        provider = get_provider(
-            provider_name=provider_name,
-            api_key=api_key,
-            model=model,
-            system_prompt=render_system_prompt(responsibility),
-            temperature=request.temperature,
-            max_tool_executions=config.max_tool_executions,
-        )
-
-        # Only asked when there is something to search and something to search for.
-        rag_search_required = False
-        if attached_documents and query_text:
-            search_classifier = RAGSearchClassifier(provider_name, api_key, user_id, classifier_analytics)
-            rag_search_required = await search_classifier.requires_search(
-                query_text, attached_documents, conversation.uuid
-            )
-        # A skip is worth telling the client about only when the classifier weighed it.
-        rag_search_declined = bool(attached_documents) and bool(query_text) and not rag_search_required
-
-        messages, unresolved_messages = await assemble_provider_messages(
-            request, db_messages, attached_documents, query_text, rag_search_required, provider
-        )
-
-        tools = await resolve_tools(request, responsibility, get_tool_registry())
-        if tools and request.include_system_tools_message:
-            tool_descriptions = [f"- {tool.name}: {tool.description}" for tool in tools]
-            tool_list_message = "You have access to the following tools:\n" + "\n".join(tool_descriptions)
-            messages.insert(0, {"role": "system", "content": tool_list_message})
-
-        lms_credentials_message = await build_lms_credentials_message(
-            session=session,
-            user_id=user_id,
-            tools=tools,
-        )
-        if lms_credentials_message:
-            provider.system_prompt += f"\n\n{lms_credentials_message}"
-
-        if request.stream:
-            # Gated together so no LLM is built for a turn that will not retrieve.
-            rag_unresolved = unresolved_messages if rag_search_required else None
-            rag_llm = provider.create_llm() if rag_search_required else None
-            # A turn is stoppable only if the caller named it; scripts and the MCP surface do not.
-            # The stream task registers and releases it, so a request that never gets that far
-            # leaves the registry untouched.
-            turn_key = str(request.turn_id) if request.turn_id else None
-            processor = ChatStreamProcessor(
-                provider,
-                messages,
-                conversation,
-                service,
-                tools,
-                rag_unresolved,
-                user_id,
-                rag_llm,
-                rag_search_required,
-                rag_search_declined,
-                analytics=turn_analytics.attribution,
-                turn_id=turn_key,
-            )
-            return StreamingResponse(
-                # The stream task outlives this response — it writes its analytics after the
-                # SSE sentinel — so the holder keeps it referenced until it finishes.
-                processor.stream(),
-                media_type="text/event-stream",
-            )
-        else:
-            response = await provider.send_message(
-                messages=messages,
-                max_tokens=request.max_tokens,
-                tools=tools,
-            )
-
-            tokens_used = response.get("metadata", {}).get("usage_metadata", {}).get("total_tokens")
-            tool_calls = response.get("tool_calls")
-
-            assistant_message = await service.add_message(
-                session=session,
-                conversation_id=conversation_id,
-                role="assistant",
-                content=response["content"],
-                tokens_used=tokens_used,
-                metadata=response.get("metadata"),
-                message_type="text",
-            )
-
-            # Executions live under metadata: response["tool_calls"] is hard-coded to None
-            # by every provider, so reading it would count zero forever.
-            response_metadata = response.get("metadata") or {}
-            executions = response_metadata.get("tool_executions") or []
-            turn_analytics.schedule_completion(
-                rag_used=rag_search_required,
-                streamed=False,
-                executed_tools=tool_names(executions),
-                occurred_at=assistant_message.created_at,
-            )
-
-            return ChatCompletionResponse(
-                message=ChatMessage(
-                    role="assistant",
-                    content=response["content"],
-                ),
-                conversation_id=conversation.uuid,
-                model=model,
-                provider=provider_name,
-                tokens_used=tokens_used,
-                tool_calls=tool_calls,
-                metadata=response.get("metadata", {}),
-            )
-
     except (RAGSearchError, *LLM_PROVIDER_API_ERRORS) as exc:
-        # Both are an upstream service failing the turn: the user is told, and the conversation
-        # keeps the message so a reload still shows what happened.
-        detail = (
-            _("Failed to determine retrieval intent. Please try again.")
-            if isinstance(exc, RAGSearchError)
-            else streaming_error_message(exc)
-        )
-        logger.error("Conversation %s failed on %s: %s", conversation_id, type(exc).__name__, exc)
-        await service.add_message(
-            session=session,
-            conversation_id=conversation_id,
-            role="assistant",
-            content=detail,
-            is_error=True,
-        )
-        record_turn_failed(
-            conversation_id=str(conversation.uuid),
-            provider=provider_name,
-            model=model,
-            cause=(
-                TurnFailureCause.RAG_SEARCH_ERROR
-                if isinstance(exc, RAGSearchError)
-                else TurnFailureCause.PROVIDER_API_ERROR
-            ),
-            streamed=request.stream,
-            actor_id=str(user_id),
-        )
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=detail) from exc
-    except (ValueError, RuntimeError, ValidationError, LangChainException) as e:
-        logger.error("Chat completion failed: %s", e)
-        record_turn_failed(
-            conversation_id=str(conversation.uuid),
-            provider=provider_name,
-            model=model,
-            cause=TurnFailureCause.UNEXPECTED,
-            streamed=request.stream,
-            actor_id=str(user_id),
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=_("Chat completion failed"),
-        ) from e
+        raise await _upstream_failure(exc, conversation, turn) from exc
+    except (ValueError, RuntimeError, ValidationError, LangChainException) as exc:
+        raise _unexpected_failure(exc, conversation, turn) from exc
 
 
 @router.post("/turns/{turn_id}/stop", status_code=status.HTTP_204_NO_CONTENT)
