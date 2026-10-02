@@ -47,6 +47,32 @@ PXC_SMOKE_CONTEXT_ID = "smoke"
 # imports only pxc:sandbox/state, so a generated sandbox can call nothing else on the host.
 PXC_SANDBOX_WIT = PXC_ACTIVITY_ROOT / "mcq" / "pxc.wit"
 
+# The pxc plugin's prompt and contract texts.
+PXC_ASSET_DIR = Path(__file__).parent / "assets"
+
+# The bundled activity pxc_about hands the agent as its worked example, and the files it shows.
+PXC_ABOUT_EXAMPLE = "mcq"
+PXC_ABOUT_FILES = ("pxc.wit", "manifest.json", "sandbox.js", "ui.js")
+
+# The MCP category every pxc tool registers under, which the pxc-activity chat job claims.
+PXC_TOOL_CATEGORY = "pxc"
+
+# The chat job that builds activities.
+PXC_RESPONSIBILITY_NAME = "pxc-activity"
+
+# What the chat classifier reads to route a conversation to the activity builder.
+PXC_ACTIVITY_SCOPE = (
+    "Building interactive PXC learning activities that learners use inside a course, such as "
+    "quizzes, matching or sorting exercises, flashcards, polls, fill-in-the-blank exercises or "
+    "small simulations. This covers describing an activity, answering the assistant's questions "
+    "about it, asking to build, change, fix or preview an activity, and listing or reopening "
+    "activities the author built. Short replies, choices or confirmations that answer the "
+    "assistant's own questions about an activity belong here too."
+)
+
+# Formatted by chat with current_datetime and refusal_message.
+PXC_ACTIVITY_SYSTEM_PROMPT = (PXC_ASSET_DIR / "pxc_activity_system_prompt.txt").read_text(encoding="utf-8").strip()
+
 # The most of a build step's stderr kept in memory, in bytes: the end of it, where the cause is.
 # The rest is read and dropped, so a step flooding stderr can neither block nor exhaust memory.
 PXC_BUILD_STDERR_LIMIT_BYTES = int(os.getenv("PXC_BUILD_STDERR_LIMIT_BYTES", "65536"))

@@ -140,3 +140,17 @@ def asset_path(activity_name: str, file_path: str) -> Path:
         logger.warning("Declared asset %s of activity %s is missing on disk", file_path, activity_name)
         raise PxcAssetNotFound(f"No such asset: {file_path}")
     return path
+
+
+def parse_activity_id(activity_id: str) -> UUID:
+    """Parse the id of a generated activity, as an agent or a caller gives it.
+
+    Raises:
+        PxcActivityNotFound: if the text is not a UUID. A malformed id reads like any other
+            unknown one, and it never reaches a filesystem path.
+    """
+    try:
+        return UUID(activity_id)
+    except ValueError as err:
+        logger.warning("Refused a malformed activity id %r: %s", activity_id, err)
+        raise PxcActivityNotFound(f"Unknown activity: {activity_id}") from err
