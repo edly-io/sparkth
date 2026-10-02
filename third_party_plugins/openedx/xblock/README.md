@@ -88,11 +88,11 @@ Nothing in the transport contradicts it: actions are not acknowledged one by one
 only as long as the page, so an action still queued when the page reloads is lost.
 
 What the author does get is a notice once the edit is known to be undeliverable. A lapsed token
-closes the socket with code 1008, every reconnect presents that same token and is refused, and
-after a bounded number of attempts `sparkth-pxc.js` stops retrying and puts a message at the top
-of the embed saying the connection is gone and the page needs reloading. The queued edit is
-still lost — the notice is what makes the loss visible rather than silent, and it is worth
-knowing that the earlier success message was about the queue, not the server.
+closes the socket with code 4401 (4000 plus the HTTP status), and a missing activity with 4404.
+`sparkth-pxc.js` then stops retrying and puts a message at the top of the embed that names the
+cause and asks for a reload. Any other drop gets a generic "disconnected" message after a bounded
+number of retries. The queued edit is still lost: the notice makes the loss visible, and the
+earlier success message was about the queue, not the server.
 
 ## Django settings
 
@@ -202,6 +202,7 @@ token in the query string, never by cookie. The activity configuration is inline
 page, and the client scripts, the activity assets and the action POSTs answer with
 `Access-Control-Allow-Origin: *` (the POSTs also answer their preflight).
 
-A response rendered by an exception handler, such as a 401 for an expired token, carries no CORS
-header, so the browser reports it as a network failure rather than a status. The client treats
-both the same way: the action is not sent and stays queued.
+The plugin's own errors, such as a 401 for an expired token, carry the same header, so the
+client reads the status and shows the same notices as the socket. FastAPI's 422 for a malformed
+request, an unhandled 500 and the 403 for a disabled plugin carry no CORS header, so the browser
+reports them as a network failure. In every failure the action is not sent and stays queued.

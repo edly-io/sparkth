@@ -2,11 +2,8 @@ import sys
 from pathlib import Path
 
 import pytest
-from fastapi import Request
 from httpx import AsyncClient
 
-from sparkth.main import assemble_app
-from sparkth.plugins.pxc.routes import _socket_url
 from sparkth.plugins.pxc.tests.conftest import inline_config
 from sparkth.plugins.pxc.tokens import mint_launch_token
 
@@ -231,25 +228,16 @@ async def test_the_embed_shell_carries_the_socket_url_for_this_launch(client: As
     assert ws_url.endswith(f"/api/v1/pxc/ws?token={token}")
 
 
-def test_socket_url_upgrades_a_tls_request_to_wss() -> None:
-    """The ``https`` branch, which the ``client`` fixture's ``http://test`` base URL never reaches."""
-    request = Request(
-        {
-            "type": "http",
-            "scheme": "https",
-            "method": "GET",
-            "path": "/api/v1/pxc/embed",
-            "query_string": b"",
-            "headers": [(b"host", b"example.com")],
-            "server": ("example.com", 443),
-            "router": assemble_app().router,
-        }
-    )
+@pytest.mark.wasm
+async def test_the_embed_shell_upgrades_a_tls_launch_to_wss(client: AsyncClient, token: str) -> None:
+    client.base_url = "https://test"
 
-    ws_url = _socket_url(request, "tok-123")
+    response = await client.get("/api/v1/pxc/embed", params={"token": token})
+
+    ws_url = inline_config(response.text).ws_url
 
     assert ws_url.startswith("wss://")
-    assert ws_url.endswith("/api/v1/pxc/ws?token=tok-123")
+    assert ws_url.endswith(f"/api/v1/pxc/ws?token={token}")
 
 
 @pytest.mark.wasm
@@ -297,6 +285,21 @@ async def test_an_action_allows_any_origin(client: AsyncClient, token: str) -> N
     response = await client.post("/api/v1/pxc/actions/answer.submit", params={"token": token}, json=[0])
 
     assert response.status_code == 204
+    assert response.headers["access-control-allow-origin"] == "*"
+
+
+async def test_an_action_refused_for_its_token_is_readable_from_any_origin(client: AsyncClient) -> None:
+    # Without the header the browser hides the 401 and reports a network failure.
+    response = await client.post("/api/v1/pxc/actions/answer.submit", params={"token": "not-a-token"}, json=[0])
+
+    assert response.status_code == 401
+    assert response.headers["access-control-allow-origin"] == "*"
+
+
+async def test_a_missing_asset_is_readable_from_any_origin(client: AsyncClient, token: str) -> None:
+    response = await client.get("/api/v1/pxc/assets/no-such-file.js", params={"token": token})
+
+    assert response.status_code == 404
     assert response.headers["access-control-allow-origin"] == "*"
 
 
