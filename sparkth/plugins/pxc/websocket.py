@@ -9,6 +9,7 @@ from pxc.lib.runtime import ActivityRuntime
 from starlette.websockets import WebSocket
 
 from sparkth.lib.log import get_logger
+from sparkth.plugins.pxc.constants import PXC_CLOSE_INVALID_TOKEN
 from sparkth.plugins.pxc.event_bus import publish_events
 from sparkth.plugins.pxc.exceptions import PxcActionRejected, PxcInvalidLaunchToken, PxcSandboxFailure
 from sparkth.plugins.pxc.runtime import run_action
@@ -37,7 +38,7 @@ async def run_action_frames(websocket: WebSocket, runtime: ActivityRuntime, toke
                 runtime.activity_id,
                 err,
             )
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            await websocket.close(code=PXC_CLOSE_INVALID_TOKEN)
             return
         except PxcActionRejected as err:
             # A client bug, not a connection fault: the socket stays open.

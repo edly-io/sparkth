@@ -22,7 +22,7 @@ class FakeSocket extends EventTarget {
   readyState = 0;
   sent: string[] = [];
   onopen: (() => void) | null = null;
-  onclose: (() => void) | null = null;
+  onclose: ((event: CloseEvent) => void) | null = null;
   onmessage: ((event: MessageEvent) => void) | null = null;
 
   constructor(public url: string) {
@@ -41,6 +41,15 @@ class FakeSocket extends EventTarget {
     this.onopen?.();
     this.dispatchEvent(new Event("open"));
   }
+
+  closeFromServer(code: number): void {
+    this.readyState = 3;
+    this.onclose?.(new CloseEvent("close", { code }));
+  }
+}
+
+function notice(): string | null | undefined {
+  return document.querySelector('[role="alert"]')?.textContent;
 }
 
 interface ActivityElement extends HTMLElement {
@@ -70,6 +79,7 @@ describe("SparkthPXC", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     document.body.innerHTML = "";
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -140,5 +150,50 @@ describe("SparkthPXC", () => {
     socket.open();
 
     await vi.waitFor(() => expect(sentActions(socket)).toEqual(["answer.submit"]));
+  });
+
+  it("says the session expired and stops reconnecting when the socket's token is refused", () => {
+    vi.useFakeTimers();
+    mountActivity();
+
+    FakeSocket.instances[0].closeFromServer(4401);
+    vi.advanceTimersByTime(10_000);
+
+    expect(notice()).toBe("Your session has expired. Reload this page to continue.");
+    expect(FakeSocket.instances).toHaveLength(1);
+  });
+
+  it("says the activity is gone and stops reconnecting when the server cannot find it", () => {
+    vi.useFakeTimers();
+    mountActivity();
+
+    FakeSocket.instances[0].closeFromServer(4404);
+    vi.advanceTimersByTime(10_000);
+
+    expect(notice()).toBe("This activity is no longer available.");
+    expect(FakeSocket.instances).toHaveLength(1);
+  });
+
+  it("reconnects without a notice after an ordinary disconnect", () => {
+    vi.useFakeTimers();
+    mountActivity();
+
+    FakeSocket.instances[0].closeFromServer(1006);
+    vi.advanceTimersByTime(10_000);
+
+    expect(notice()).toBeUndefined();
+    expect(FakeSocket.instances.length).toBeGreaterThan(1);
+  });
+
+  it("says the session expired when a post is refused for its token", async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 401 }));
+    const activity = mountActivity();
+    FakeSocket.instances[0].open();
+
+    await activity.sendAction("config.save", OVERSIZED);
+
+    await vi.waitFor(() =>
+      expect(notice()).toBe("Your session has expired. Reload this page to continue."),
+    );
   });
 });
