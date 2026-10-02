@@ -3,7 +3,9 @@
 A *responsibility* is one job a chat conversation can be for, such as designing a course. Every
 conversation does exactly one. The chat plugin asks a classifier which enabled job a new
 conversation's first message belongs to, stores the answer on the conversation, and from then on
-builds each turn from that job: its system prompt and the MCP tool categories it binds.
+builds each turn from that job: its system prompt and the MCP tool categories it binds. Chat reads
+the enabled jobs on every request. A later message for a different job is redirected to a new
+conversation, and a job with no tool categories binds every category no job claims.
 
 The hook lives in ``sparkth.lib`` so a plugin can register a job without importing chat. It is
 keyed by plugin, so a job is offered only while its plugin is switched on. A plugin registers

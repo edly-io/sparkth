@@ -29,9 +29,10 @@ from sparkth.lib.i18n import gettext
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
 from sparkth.lib.testing import AddTranslation
-from sparkth.plugins.chat.constants import REFUSAL_MESSAGE
+from sparkth.plugins.chat.constants import REDIRECT_MESSAGE, REFUSAL_MESSAGE
 from sparkth.plugins.chat.models import Conversation
-from sparkth.plugins.chat.prompt import get_course_design_system_prompt
+from sparkth.plugins.chat.prompt import render_system_prompt
+from sparkth.plugins.chat.responsibilities import COURSE_DESIGN
 from sparkth.plugins.chat.routes.utils.stream_processor import stream_out_of_scope_refusal
 from sparkth.plugins.chat.types import ConversationDocuments
 
@@ -150,6 +151,7 @@ class TestRefusalIsExtractable:
         }
 
         assert REFUSAL_MESSAGE in messages
+        assert REDIRECT_MESSAGE in messages
 
 
 class TestRefusalInTheSystemPrompt:
@@ -158,12 +160,12 @@ class TestRefusalInTheSystemPrompt:
         source even under a non-default locale — not the locale-rendered string."""
         translation_catalog(REFUSAL_MESSAGE, SPANISH)
         with locale_context("es"):
-            prompt = get_course_design_system_prompt()
+            prompt = render_system_prompt(COURSE_DESIGN)
         assert REFUSAL_MESSAGE in prompt
         assert SPANISH not in prompt
 
     def test_model_is_told_to_send_it_in_the_conversation_language(self) -> None:
-        assert "Send it in the language of the conversation" in get_course_design_system_prompt()
+        assert "Send it in the language of the conversation" in render_system_prompt(COURSE_DESIGN)
 
 
 class TestRefusalAtTheStreamingRenderSite:
@@ -179,7 +181,7 @@ class TestRefusalAtTheStreamingRenderSite:
         wire even when the render site is translating correctly."""
         translation_catalog(REFUSAL_MESSAGE, SPANISH)
         with locale_context("es"):
-            chunks = [chunk async for chunk in stream_out_of_scope_refusal()]
+            chunks = [chunk async for chunk in stream_out_of_scope_refusal(REFUSAL_MESSAGE)]
         payload = json.loads(chunks[0].removeprefix("data: ").strip())
         assert payload["content"] == SPANISH
 
@@ -207,7 +209,7 @@ class TestRefusalAtTheNonStreamingRenderSites:
             locale_context("es"),
             patch(
                 "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
-                return_value=MagicMock(in_scope=AsyncMock(return_value=False)),
+                return_value=MagicMock(responsibility_for=AsyncMock(return_value=None)),
             ),
         ):
             response = await client.post(
@@ -257,7 +259,7 @@ class TestRefusalAtTheNonStreamingRenderSites:
             patch("sparkth.plugins.chat.routes.completions.get_provider"),
             patch(
                 "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
-                return_value=MagicMock(in_scope=AsyncMock(return_value=False)),
+                return_value=MagicMock(responsibility_for=AsyncMock(return_value=None)),
             ),
             patch(
                 "sparkth.plugins.chat.service.ChatService.get_conversation_messages",

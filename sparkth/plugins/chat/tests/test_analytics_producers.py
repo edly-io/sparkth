@@ -108,7 +108,7 @@ def _non_streaming_provider(
 def _in_scope_classifier() -> AsyncMock:
     """A MessageScopeClassifier instance mock that judges every message in scope."""
     classifier = AsyncMock()
-    classifier.in_scope = AsyncMock(return_value=True)
+    classifier.responsibility_for = AsyncMock(return_value="course-design")
     return classifier
 
 
@@ -229,7 +229,7 @@ async def test_refused_first_message_starts_no_conversation_and_emits_nothing(
     config_id = await _seed_llm_config(session, current_user.id or 1)
 
     refusing = AsyncMock()
-    refusing.in_scope = AsyncMock(return_value=False)
+    refusing.responsibility_for = AsyncMock(return_value=None)
 
     with (
         patch("sparkth.plugins.chat.routes.completions.get_provider"),
@@ -513,7 +513,7 @@ async def test_refused_query_emits_no_completion_served(
     conversation_uuid = await _seed_conversation(session, current_user.id or 1, config_id)
 
     refusing = AsyncMock()
-    refusing.in_scope = AsyncMock(return_value=False)
+    refusing.responsibility_for = AsyncMock(return_value=None)
 
     with (
         patch("sparkth.plugins.chat.routes.completions.get_provider"),

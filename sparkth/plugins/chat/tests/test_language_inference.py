@@ -20,7 +20,8 @@ from sparkth.lib.language import SUPPORTED_LANGUAGES
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
 from sparkth.plugins.chat.models import Conversation
-from sparkth.plugins.chat.prompt import get_course_design_system_prompt
+from sparkth.plugins.chat.prompt import render_system_prompt
+from sparkth.plugins.chat.responsibilities import COURSE_DESIGN
 from sparkth.plugins.chat.types import ConversationDocuments
 
 
@@ -101,7 +102,7 @@ async def _system_prompt_for_one_request(client: AsyncClient, seed: _Seeded) -> 
         patch("sparkth.plugins.chat.routes.completions.ChatStreamProcessor") as mock_processor_cls,
     ):
         mock_classifier = MagicMock()
-        mock_classifier.in_scope = AsyncMock(return_value=True)
+        mock_classifier.responsibility_for = AsyncMock(return_value="course-design")
         mock_classifier_cls.return_value = mock_classifier
 
         mock_message = MagicMock()
@@ -158,7 +159,7 @@ async def _scheduled_title_task_kwargs(client: AsyncClient, llm_config_id: int) 
         patch("sparkth.plugins.chat.conversation_title.generate_conversation_title") as mock_generate_title,
     ):
         mock_classifier = MagicMock()
-        mock_classifier.in_scope = AsyncMock(return_value=True)
+        mock_classifier.responsibility_for = AsyncMock(return_value="course-design")
         mock_classifier_cls.return_value = mock_classifier
 
         mock_message = MagicMock()
@@ -193,15 +194,15 @@ class TestOutputLanguageDirective:
     """The directive is the whole mechanism — there is no resolved tag behind it."""
 
     def test_instructs_following_the_latest_user_message(self) -> None:
-        assert "same language as the user's most recent message" in get_course_design_system_prompt()
+        assert "same language as the user's most recent message" in render_system_prompt(COURSE_DESIGN)
 
     def test_instructs_switching_when_the_user_switches(self) -> None:
-        assert "change with them from that message onward" in get_course_design_system_prompt()
+        assert "change with them from that message onward" in render_system_prompt(COURSE_DESIGN)
 
     def test_honours_an_explicit_request_for_another_course_language(self) -> None:
         """A user writing in one language may ask for the course in another. This
         sentence is the only expression of that rule — no data field carries it."""
-        assert "honour that request for the course content" in get_course_design_system_prompt()
+        assert "honour that request for the course content" in render_system_prompt(COURSE_DESIGN)
 
     def test_pins_no_specific_language(self) -> None:
         """No language name may be injected, and no placeholder may survive.
@@ -211,7 +212,7 @@ class TestOutputLanguageDirective:
         appears unconditionally. The remaining names are the discriminating ones — if
         any of them is present, something is still resolving and injecting a tag.
         """
-        prompt = get_course_design_system_prompt()
+        prompt = render_system_prompt(COURSE_DESIGN)
         assert "{language_name}" not in prompt
         injectable = {info.name for info in SUPPORTED_LANGUAGES.values() if info.name != "English"}
         assert not any(name in prompt for name in injectable)

@@ -34,6 +34,8 @@ class Conversation(TimestampedModel, SQLModel, table=True):
     provider: str = Field(max_length=50, nullable=False)
     model: str = Field(max_length=100, nullable=False)
     title: str | None = Field(default=None, max_length=255)
+    # The chat responsibility this conversation does; NULL reads as course-design.
+    responsibility: str | None = Field(default=None, max_length=64)
     total_tokens_used: int = Field(default=0)
     total_cost: float = Field(default=0.0)
 

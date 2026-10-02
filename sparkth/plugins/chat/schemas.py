@@ -173,6 +173,7 @@ class MessageScopeInput(BaseModel):
     query: str
     history: list[HistoryTurn] = Field(default_factory=list)
     attached_document_names: list[str] = Field(default_factory=list)
+    current_job: str | None = None
 
 
 class ClassifierVerdict(BaseModel):
@@ -195,9 +196,14 @@ class ClassifierVerdict(BaseModel):
 
 
 class MessageScopeVerdict(ClassifierVerdict):
-    """Whether a chat turn falls within the assistant's learning-design scope."""
+    """Which registered chat job a turn belongs to, if any."""
 
-    in_scope: bool
+    responsibility: str | None = Field(
+        description=(
+            "The name of the job the message belongs to, exactly as listed in the instructions, "
+            "or null when it belongs to none of them."
+        ),
+    )
 
 
 class DocumentHeadings(BaseModel):

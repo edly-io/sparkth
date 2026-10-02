@@ -67,7 +67,9 @@ PXC_ACTIVITY_SCOPE = (
     "small simulations. This covers describing an activity, answering the assistant's questions "
     "about it, asking to build, change, fix or preview an activity, and listing or reopening "
     "activities the author built. Short replies, choices or confirmations that answer the "
-    "assistant's own questions about an activity belong here too."
+    "assistant's own questions about an activity belong here too. Placing or adding a built "
+    "activity into a course or an LMS unit is not part of this job: that belongs to the "
+    "conversation that designs the course."
 )
 
 # Formatted by chat with current_datetime and refusal_message.

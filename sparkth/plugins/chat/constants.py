@@ -22,6 +22,10 @@ RAG_CONTEXT_PROMPT = get_asset("rag_context_replacement_prompt.txt")
 MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT = get_asset("message_scope_classifier_system_prompt.txt")
 RAG_SEARCH_CLASSIFIER_SYSTEM_PROMPT = get_asset("rag_search_classifier_system_prompt.txt")
 LMS_RULES = get_asset("lms_rules_system_prompt.txt")
+COURSE_DESIGN_SCOPE = get_asset("course_design_scope.txt")
+
+# The job a conversation does when its row stores none.
+DEFAULT_RESPONSIBILITY = "course-design"
 
 # How many prior turns reach the scope classifier.
 MESSAGE_SCOPE_CLASSIFIER_CONVERSATION_HISTORY = 6
@@ -31,6 +35,12 @@ MESSAGE_SCOPE_CLASSIFIER_CONVERSATION_HISTORY = 6
 # LazyString allows. It is rendered with gettext() at each of those boundaries.
 REFUSAL_MESSAGE: str = gettext_noop(
     "I'm a course creation assistant and can only help with designing and building courses."
+)
+
+# Ends a turn that belongs to a different job than the conversation's. Generic, since chat
+# names no other job. Marked and rendered like REFUSAL_MESSAGE.
+REDIRECT_MESSAGE: str = gettext_noop(
+    "That request belongs to a different kind of conversation. Start a new conversation to work on it."
 )
 
 LLM_PROVIDER_API_ERRORS = (
