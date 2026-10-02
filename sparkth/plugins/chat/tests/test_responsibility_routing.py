@@ -62,12 +62,30 @@ def _classifier_answering(responsibility: str | None) -> MagicMock:
     return MagicMock(responsibility_for=AsyncMock(return_value=responsibility))
 
 
-async def _turn(client: AsyncClient, config_id: int, conversation_uuid: str | None = None) -> Any:
+def _tool(name: str) -> MagicMock:
+    tool = MagicMock()
+    tool.name = name
+    return tool
+
+
+def _registry() -> MagicMock:
+    """Two tools: one in a category only course design binds, one in the stub job's category."""
+    registry = MagicMock()
+    registry.get_all_tools.return_value = [_tool("openedx_create_xblock"), _tool("stub_build")]
+    registry.category_for.side_effect = {"openedx_create_xblock": "openedx-course", "stub_build": "stub-tools"}.get
+    return registry
+
+
+def _bound_tool_names(provider: MagicMock) -> list[str]:
+    return [tool.name for tool in provider.send_message.await_args.kwargs["tools"]]
+
+
+async def _turn(client: AsyncClient, config_id: int, conversation_uuid: str | None = None, tools: str = "none") -> Any:
     body: dict[str, Any] = {
         "llm_config_id": config_id,
         "messages": [{"role": "user", "content": "Build it"}],
         "stream": False,
-        "tools": "none",
+        "tools": tools,
     }
     if conversation_uuid:
         body["conversation_id"] = conversation_uuid
@@ -244,3 +262,43 @@ class TestLaterTurnsFollowTheStoredJob:
 
         assert response.json()["message"]["content"] == "On it."
         assert render.call_args.args[0] == COURSE_DESIGN
+
+    async def test_the_stored_job_decides_which_tools_are_bound(
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_job: ChatResponsibility
+    ) -> None:
+        config_id = await _seed_llm_config(session, current_user.id or 1)
+        conversation_uuid = await _seed_conversation(session, current_user.id or 1, "stub-job")
+        provider = _provider()
+
+        with (
+            patch(
+                "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
+                return_value=_classifier_answering("stub-job"),
+            ),
+            patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=provider),
+            patch("sparkth.plugins.chat.routes.completions.get_tool_registry", return_value=_registry()),
+        ):
+            await _turn(client, config_id, conversation_uuid, "*")
+
+        assert _bound_tool_names(provider) == ["stub_build"]
+
+    async def test_a_switched_off_jobs_tools_are_not_bound_by_course_design(
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_job: ChatResponsibility
+    ) -> None:
+        config_id = await _seed_llm_config(session, current_user.id or 1)
+        conversation_uuid = await _seed_conversation(session, current_user.id or 1, None)
+        session.add(Plugin(name="stub", enabled=False))
+        await session.commit()
+        provider = _provider()
+
+        with (
+            patch(
+                "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
+                return_value=_classifier_answering("course-design"),
+            ),
+            patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=provider),
+            patch("sparkth.plugins.chat.routes.completions.get_tool_registry", return_value=_registry()),
+        ):
+            await _turn(client, config_id, conversation_uuid, "*")
+
+        assert _bound_tool_names(provider) == ["openedx_create_xblock"]

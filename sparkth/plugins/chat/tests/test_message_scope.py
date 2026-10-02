@@ -2,7 +2,7 @@
 
 Model selection, input validation and failure translation belong to the base and are covered
 in test_base_classifier.py. What is asserted here is what makes this classifier itself: how a
-turn is rendered for the model, the empty-turn rule it decides without one, the single boolean
+turn is rendered for the model, the empty-turn rule it decides without one, the job name
 callers act on, and the logging a refusal leaves behind — a refusal ends the turn, so the log
 is the only record that it happened.
 """
@@ -63,6 +63,22 @@ class TestTurnRendering:
         await _classifier_with(chain).responsibility_for("design a quiz")
 
         assert _sent_messages(chain)[0].content == render_scope_classifier_prompt(_JOBS)
+
+    @pytest.mark.asyncio
+    async def test_the_stored_job_of_a_later_turn_reaches_the_model(self) -> None:
+        chain = _chain_choosing("course-design")
+
+        await _classifier_with(chain).responsibility_for("yes", None, None, uuid4(), "course-design")
+
+        assert "course-design" in str(_sent_messages(chain)[-1].content)
+
+    @pytest.mark.asyncio
+    async def test_a_first_message_names_no_current_job(self) -> None:
+        chain = _chain_choosing("course-design")
+
+        await _classifier_with(chain).responsibility_for("design a quiz")
+
+        assert _sent_messages(chain)[-1].content == "design a quiz"
 
     @pytest.mark.asyncio
     async def test_history_is_replayed_as_alternating_turns(self) -> None:

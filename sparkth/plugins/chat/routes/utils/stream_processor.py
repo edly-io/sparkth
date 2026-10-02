@@ -57,7 +57,7 @@ class StreamedCompletion:
 
 
 async def stream_out_of_scope_refusal(message: str) -> AsyncGenerator[str, None]:
-    """Yield a single SSE done-event carrying a fixed reply that ends the turn.
+    """Yield a single SSE done-event carrying a fixed reply that ends the turn: the refusal or the redirect.
 
     ``message`` is a ``gettext_noop`` source constant (the refusal, or the redirect to a new
     conversation). It is written by the backend, not a model, so it renders under the active

@@ -56,7 +56,8 @@ class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdi
         history is replayed as alternating turns instead of being summarised. Roles the model
         has no turn type for (``tool``, ``system``) are dropped: they are not what the user
         asked. Attachment names ride on the current turn, because a message about "these
-        documents" can only be judged if the classifier knows documents are in play.
+        documents" can only be judged if the classifier knows documents are in play. So does
+        the job the conversation is already doing, which settles a message that fits several jobs.
         """
         messages: list[BaseMessage] = []
         for turn in payload.history[-MESSAGE_SCOPE_CLASSIFIER_CONVERSATION_HISTORY:]:
@@ -66,13 +67,13 @@ class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdi
                 case "assistant":
                     messages.append(AIMessage(content=turn["content"]))
 
-        current_turn = payload.query
+        notes: list[str] = []
+        if payload.current_job:
+            notes.append(f'[This conversation has been doing the job "{payload.current_job}"]')
         if payload.attached_document_names:
             document_list = ", ".join(f'"{name}"' for name in payload.attached_document_names)
-            current_turn = (
-                f"[The user has attached the following documents to this conversation: {document_list}]"
-                f"\n\n{payload.query}"
-            )
+            notes.append(f"[The user has attached the following documents to this conversation: {document_list}]")
+        current_turn = "\n".join(notes) + f"\n\n{payload.query}" if notes else payload.query
         messages.append(HumanMessage(content=current_turn))
         return messages
 
@@ -88,7 +89,8 @@ class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdi
 
         ``query`` may be empty when documents are attached; the attachment names are judged
         instead. ``conversation_uuid`` never reaches the model. It is logged so a decision can
-        be traced, and it is ``None`` on a new chat's first message.
+        be traced, and it is ``None`` on a new chat's first message. On a later turn ``fallback``
+        is the stored job, which is also shown to the model as the job the conversation is doing.
 
         Fails open to ``fallback``: the default job on a first message, the stored job on a
         later turn. That covers a failed classification and a name that is not among the offered
@@ -98,6 +100,7 @@ class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdi
             query=query,
             history=history or [],
             attached_document_names=attached_document_names or [],
+            current_job=fallback if conversation_uuid else None,
         )
         try:
             verdict = await self.classify(payload)

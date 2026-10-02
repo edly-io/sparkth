@@ -15,7 +15,7 @@ class TestLearningDesignSystemPrompt:
         assert "SCOPE & GUARDRAILS" not in self.prompt
 
     def test_scope_taxonomy_lives_in_the_classifier(self) -> None:
-        """The in/out-of-scope lists and their worked examples belong to the scope classifier's
+        """The job scopes and their worked examples belong to the scope classifier's
         prompt only; two copies drift, and the classifier's is the one that decides."""
         for duplicate in (
             "Allowed tasks:",

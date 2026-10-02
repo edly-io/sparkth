@@ -173,6 +173,7 @@ class MessageScopeInput(BaseModel):
     query: str
     history: list[HistoryTurn] = Field(default_factory=list)
     attached_document_names: list[str] = Field(default_factory=list)
+    current_job: str | None = None
 
 
 class ClassifierVerdict(BaseModel):

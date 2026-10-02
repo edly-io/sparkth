@@ -27,6 +27,7 @@ msgstr ""
 "Je suis un assistant de création de cours et je peux uniquement vous "
 "aider à concevoir et à créer des cours."
 
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
 #: sparkth/plugins/chat/constants.py:43
 msgid ""
 "That request belongs to a different kind of conversation. Start a new "

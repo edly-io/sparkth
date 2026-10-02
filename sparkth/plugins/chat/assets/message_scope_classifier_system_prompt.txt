@@ -10,6 +10,8 @@ JOBS:
 
 Set responsibility to the name of the job the message belongs to, exactly as written after JOB.
 
+When a message fits more than one job, choose the job the conversation has been doing so far, or the job named "{default_job}" when this is the first message.
+
 Judge the topic of the request, not whether the assistant can carry it out — the assistant decides that itself and explains when it can't. A request for something the assistant may be unable to do, such as an unsupported platform or file format, still belongs to the job whose topic it is.
 
 These belong to a job, never to null:

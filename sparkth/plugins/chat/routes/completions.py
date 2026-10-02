@@ -85,7 +85,7 @@ def _refusal_response(
     model: str,
     provider_name: str,
 ) -> StreamingResponse | ChatCompletionResponse:
-    """A fixed reply that ends the turn, in whichever shape the client asked for.
+    """A fixed reply (the refusal or the redirect) that ends the turn, in the shape the client asked for.
 
     ``message`` is the refusal or the redirect source constant, rendered under the request
     locale. ``conversation_uuid`` is None when the turn was refused before any conversation was
