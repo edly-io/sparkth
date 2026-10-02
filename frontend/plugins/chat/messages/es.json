@@ -9,6 +9,8 @@
     "statusSkippingRag": "Respondiendo sin los archivos adjuntos…",
     "statusGenerating": "Escribiendo la respuesta…",
     "stopped": "Detenido",
+    "optionsTypeElse": "¿Quieres algo más? Escríbelo en el cuadro de mensaje de abajo.",
+    "optionsNoneSelected": "No se seleccionó ninguna opción",
     "stopGenerating": "Detener la generación",
     "aiKeyMissing": "Todavía no has añadido una clave de IA a Sparkth. Añade una y luego selecciónala en la configuración de Componer.",
     "aiKeyMissingAction": "Añadir una clave de IA",

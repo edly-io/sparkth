@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -5,15 +6,22 @@ import { useChatInput } from "@/plugins/chat/hooks/useChatInput";
 
 function setup(accepted: boolean) {
   const onSend = vi.fn(() => Promise.resolve(accepted));
-  const { result } = renderHook(() =>
-    useChatInput({
-      token: "test-token",
-      conversationId: null,
-      attachments: [],
-      setAttachments: vi.fn(),
-      onSend,
-    }),
-  );
+  const { result } = renderHook(() => {
+    const [message, setMessage] = useState("");
+    return {
+      message,
+      setMessage,
+      ...useChatInput({
+        message,
+        setMessage,
+        token: "test-token",
+        conversationId: null,
+        attachments: [],
+        setAttachments: vi.fn(),
+        onSend,
+      }),
+    };
+  });
   return { result, onSend };
 }
 
