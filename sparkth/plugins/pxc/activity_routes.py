@@ -5,7 +5,7 @@ with no bearer token through to the route, so the dependency is what turns it aw
 routes carry a launch token instead and declare no such dependency, so they are unaffected.
 """
 
-from typing import Literal, cast
+from typing import cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -15,6 +15,7 @@ from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
 from sparkth.lib.models import User
 from sparkth.plugins.pxc.activities import activity_dir, preview_url
+from sparkth.plugins.pxc.enums import PreviewPermission
 from sparkth.plugins.pxc.schemas import ActivityLaunch, ActivitySummary
 from sparkth.plugins.pxc.store import get_owned_activity, list_owned_activities
 from sparkth.plugins.pxc.tokens import mint_preview_token
@@ -44,7 +45,7 @@ async def list_activities(
 async def launch_activity(
     activity_id: UUID,
     request: Request,
-    permission: Literal["play", "edit"] = Query(),
+    permission: PreviewPermission = Query(),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
 ) -> ActivityLaunch:
