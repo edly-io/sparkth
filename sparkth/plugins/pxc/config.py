@@ -36,8 +36,8 @@ class PxcSettings(BaseSettings):
     # How long a launch token stays valid. Short: it is minted per page render.
     launch_token_ttl_seconds: int = 300
 
-    # The activity type published by the "pxc" contributor. One bundled sample is served for
-    # every request by design (L5); an authoring module chooses per placement later.
+    # The activity the "pxc" contributor places when the author chooses none. Any bundled
+    # activity name; authors pick their own activities through the contributor's options.
     default_activity: str = "mcq"
 
     # The directory whose node_modules holds componentize-js, which compiles an author's
