@@ -1,6 +1,7 @@
 """The learner-facing surface, mounted at ``/api/v1/pxc``.
 
 These requests carry no Sparkth session; the launch token in the query string authenticates them.
+The author's own session-authenticated routes live in ``activity_routes``.
 
 Every call into the PXC runtime is dispatched to a worker thread. The sandbox executes
 WebAssembly synchronously on the calling thread, so running it inline would block the event

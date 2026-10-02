@@ -910,6 +910,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/pxc/activities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Activities
+         * @description The activities this user built, newest first.
+         */
+        get: operations["list_activities_api_v1_pxc_activities_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pxc/activities/{activity_id}/launch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Launch Activity
+         * @description An embed URL that previews one of this user's activities, as a learner or as its author.
+         *
+         *     The activity's files are resolved before a token is minted, so a row whose files are
+         *     missing from ``PXC_DATA_DIR`` never yields an embed URL that would fail on load.
+         *
+         *     Raises:
+         *         PxcActivityNotFound: if the activity does not exist, another user owns it, or its files
+         *             are missing.
+         *         PxcLaunchNotConfigured: if no launch secret is configured.
+         */
+        get: operations["launch_activity_api_v1_pxc_activities__activity_id__launch_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/pxc/assets/{file_path}": {
         parameters: {
             query?: never;
@@ -1330,6 +1378,36 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * ActivityLaunch
+         * @description Where the preview page iframes one activity for its author.
+         */
+        ActivityLaunch: {
+            /** Embed Url */
+            embed_url: string;
+        };
+        /**
+         * ActivitySummary
+         * @description One of an author's activities, as the Activities page lists it.
+         */
+        ActivitySummary: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Description */
+            description: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Preview Url */
+            preview_url: string;
+            /** Title */
+            title: string;
+        };
         /**
          * AttachedDocumentResponse
          * @description Document info returned by the list-attachments endpoint.
@@ -1992,6 +2070,12 @@ export interface components {
             /** Allowed */
             allowed: boolean;
         };
+        /**
+         * PreviewPermission
+         * @description The permissions an author may preview their own activity under.
+         * @enum {string}
+         */
+        PreviewPermission: "play" | "edit";
         /** ProviderCatalogResponse */
         ProviderCatalogResponse: {
             /** Default Model */
@@ -4093,6 +4177,59 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_activities_api_v1_pxc_activities_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivitySummary"][];
+                };
+            };
+        };
+    };
+    launch_activity_api_v1_pxc_activities__activity_id__launch_get: {
+        parameters: {
+            query: {
+                permission: components["schemas"]["PreviewPermission"];
+            };
+            header?: never;
+            path: {
+                activity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityLaunch"];
+                };
             };
             /** @description Validation Error */
             422: {
