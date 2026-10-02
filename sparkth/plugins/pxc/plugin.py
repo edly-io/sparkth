@@ -15,6 +15,7 @@ from sparkth.lib.i18n import gettext_noop
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.lib.routes import register_router
 from sparkth.plugins.pxc.activity_routes import router as activity_router
+from sparkth.plugins.pxc.constants import PXC_CORS_HEADERS
 from sparkth.plugins.pxc.contributor import build_pxc_block
 from sparkth.plugins.pxc.exceptions import (
     PxcActionRejected,
@@ -30,13 +31,14 @@ from sparkth.plugins.pxc.routes import router as learner_router
 # A bad launch token is 401: the token is the learner's only credential here, and the caller
 # can get a fresh one by reloading the unit. A duplicate activity name is 500 — it is a broken
 # deployment, not a bad request. An unconfigured launch secret is 503: the author's request is
-# fine and the deployment is not.
-register_exception_handler(PxcActivityNotFound, status.HTTP_404_NOT_FOUND)
-register_exception_handler(PxcAssetNotFound, status.HTTP_404_NOT_FOUND)
-register_exception_handler(PxcInvalidLaunchToken, status.HTTP_401_UNAUTHORIZED)
-register_exception_handler(PxcActionRejected, status.HTTP_422_UNPROCESSABLE_CONTENT)
+# fine and the deployment is not. Errors the embed page can hit carry CORS headers so it can
+# read them.
+register_exception_handler(PxcActivityNotFound, status.HTTP_404_NOT_FOUND, PXC_CORS_HEADERS)
+register_exception_handler(PxcAssetNotFound, status.HTTP_404_NOT_FOUND, PXC_CORS_HEADERS)
+register_exception_handler(PxcInvalidLaunchToken, status.HTTP_401_UNAUTHORIZED, PXC_CORS_HEADERS)
+register_exception_handler(PxcActionRejected, status.HTTP_422_UNPROCESSABLE_CONTENT, PXC_CORS_HEADERS)
 register_exception_handler(PxcLaunchNotConfigured, status.HTTP_503_SERVICE_UNAVAILABLE)
-register_exception_handler(PxcSandboxFailure, status.HTTP_502_BAD_GATEWAY)
+register_exception_handler(PxcSandboxFailure, status.HTTP_502_BAD_GATEWAY, PXC_CORS_HEADERS)
 register_exception_handler(PxcDuplicateActivityName, status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # PLUGIN_ROUTERS keeps one router per plugin, so both surfaces go in under one parent.

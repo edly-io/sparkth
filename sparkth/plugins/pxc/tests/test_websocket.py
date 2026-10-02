@@ -12,6 +12,7 @@ from fastapi import status
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
+from sparkth.plugins.pxc.constants import PXC_CLOSE_ACTIVITY_NOT_FOUND, PXC_CLOSE_INVALID_TOKEN
 from sparkth.plugins.pxc.event_bus import EVENT_BUS
 from sparkth.plugins.pxc.tests.conftest import inline_config
 from sparkth.plugins.pxc.tokens import mint_launch_token
@@ -25,26 +26,27 @@ def test_a_socket_without_a_token_is_refused(ws_client: TestClient) -> None:
     assert refusal.value.code == status.WS_1008_POLICY_VIOLATION
 
 
-def test_a_socket_with_a_bad_token_is_closed_with_a_policy_violation(ws_client: TestClient) -> None:
-    # 1008, not 401: a WebSocket route cannot produce an HTTP status, and the plugin's
-    # registered exception handlers render only for HTTP requests.
+def test_a_socket_with_a_bad_token_is_accepted_then_closed_as_invalid_token(ws_client: TestClient) -> None:
+    # Accepted first: a browser sees the close code only after a completed handshake.
     with pytest.raises(WebSocketDisconnect) as refusal:
-        with ws_client.websocket_connect("/api/v1/pxc/ws?token=not-a-token"):
-            pass
+        with ws_client.websocket_connect("/api/v1/pxc/ws?token=not-a-token") as socket:
+            socket.receive_text()
 
-    assert refusal.value.code == status.WS_1008_POLICY_VIOLATION
+    assert refusal.value.code == PXC_CLOSE_INVALID_TOKEN
 
 
-def test_a_socket_for_an_unbundled_activity_is_closed(ws_client: TestClient, configured_secret: str) -> None:
+def test_a_socket_for_an_unbundled_activity_is_closed_as_not_found(
+    ws_client: TestClient, configured_secret: str
+) -> None:
     token = mint_launch_token(
         "no-such-activity", "placement-1", "course-v1:X+Y+Z", "learner-7", "play", configured_secret, 300
     )
 
     with pytest.raises(WebSocketDisconnect) as refusal:
-        with ws_client.websocket_connect(f"/api/v1/pxc/ws?token={token}"):
-            pass
+        with ws_client.websocket_connect(f"/api/v1/pxc/ws?token={token}") as socket:
+            socket.receive_text()
 
-    assert refusal.value.code == status.WS_1008_POLICY_VIOLATION
+    assert refusal.value.code == PXC_CLOSE_ACTIVITY_NOT_FOUND
 
 
 def test_a_socket_with_a_valid_token_is_accepted(ws_client: TestClient, configured_secret: str) -> None:
@@ -195,7 +197,7 @@ def test_an_action_after_the_token_lapses_closes_the_socket(
             socket.send_json({"action": "answer.submit", "value": [0], "permission": "play"})
             socket.receive_json()
 
-    assert refusal.value.code == status.WS_1008_POLICY_VIOLATION
+    assert refusal.value.code == PXC_CLOSE_INVALID_TOKEN
 
 
 @pytest.mark.wasm
