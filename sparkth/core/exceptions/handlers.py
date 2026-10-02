@@ -30,11 +30,14 @@ EXCEPTION_HANDLERS: KeyedItemHook[type[Exception], tuple[type[Exception], Except
 )
 
 
-def register_exception_handler(exc_type: type[Exception], status_code: int) -> None:
+def register_exception_handler(
+    exc_type: type[Exception], status_code: int, headers: dict[str, str] | None = None
+) -> None:
     """Map ``exc_type`` (and, via MRO, its subclasses) to HTTP ``status_code``.
 
     Registers a handler on the global ``EXCEPTION_HANDLERS`` registry that renders the
-    exception as ``{"detail": str(exc)}``. A second registration for the same type raises
+    exception as ``{"detail": str(exc)}`` with ``headers``, such as CORS headers a cross-origin
+    caller needs to read the error. A second registration for the same type raises
     ``ValueError``, as does a ``status_code`` outside the 4xx/5xx error range — this
     registry is for error statuses only.
 
@@ -51,6 +54,6 @@ def register_exception_handler(exc_type: type[Exception], status_code: int) -> N
 
     async def handler(request: Request, exc: Exception) -> JSONResponse:
         logger.warning("Handled %s -> HTTP %d: %s", type(exc).__name__, status_code, exc)
-        return JSONResponse(status_code=status_code, content={"detail": str(exc)})
+        return JSONResponse(status_code=status_code, content={"detail": str(exc)}, headers=headers)
 
     EXCEPTION_HANDLERS.add_item((exc_type, handler))
