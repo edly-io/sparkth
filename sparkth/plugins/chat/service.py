@@ -62,8 +62,8 @@ class ChatService:
     ) -> tuple[Conversation, bool]:
         """Resolve the conversation a request names, or start one when it names none.
 
-        ``title`` and ``responsibility`` are used only when starting one. Ownership is part of resolving: a uuid that
-        belongs to another user is as absent as one that does not exist.
+        ``title`` and ``responsibility`` are used only when starting one. Ownership is part of
+        resolving: a uuid that belongs to another user is as absent as one that does not exist.
 
         Returns:
             The conversation, and whether this call started it. Callers that do first-turn work —

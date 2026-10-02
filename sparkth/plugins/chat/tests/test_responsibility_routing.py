@@ -1,9 +1,11 @@
 """A conversation does one job: chosen on its first message, followed on every later turn."""
 
+import logging
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID
 
+import pytest
 from httpx import AsyncClient
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -147,6 +149,31 @@ class TestLaterTurnsFollowTheStoredJob:
         assert response.json()["message"]["content"] == REDIRECT_MESSAGE
         assert await _last_assistant_text(session, conversation_uuid) == REDIRECT_MESSAGE
         get_provider.assert_not_called()
+
+    async def test_a_redirect_is_logged_with_both_jobs(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+        stub_job: ChatResponsibility,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        config_id = await _seed_llm_config(session, current_user.id or 1)
+        conversation_uuid = await _seed_conversation(session, current_user.id or 1, "stub-job")
+
+        with (
+            caplog.at_level(logging.INFO),
+            patch(
+                "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
+                return_value=_classifier_answering("course-design"),
+            ),
+        ):
+            await _turn(client, config_id, conversation_uuid)
+
+        message = next(r.getMessage() for r in caplog.records if "Redirected conversation" in r.getMessage())
+        assert conversation_uuid in message
+        assert "stub-job" in message
+        assert "course-design" in message
 
     async def test_course_design_is_redirected_out_of_another_jobs_conversation(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_job: ChatResponsibility

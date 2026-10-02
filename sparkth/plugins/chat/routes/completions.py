@@ -33,7 +33,7 @@ from sparkth.plugins.chat.analytics import (
 )
 from sparkth.plugins.chat.classifiers import MessageScopeClassifier, RAGSearchClassifier
 from sparkth.plugins.chat.config import ChatSettings, get_chat_settings
-from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, REFUSAL_MESSAGE
+from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, REDIRECT_MESSAGE, REFUSAL_MESSAGE
 from sparkth.plugins.chat.conversation_title import extract_title_from_messages, schedule_title_generation
 from sparkth.plugins.chat.exceptions import RAGSearchError
 from sparkth.plugins.chat.lms_credentials import build_lms_credentials_message
@@ -298,6 +298,13 @@ async def chat_completion(
                 responsibility.name,
             )
             turn_end = turn_reply(judged, responsibility.name)
+            if turn_end == REDIRECT_MESSAGE:
+                logger.info(
+                    "Redirected conversation %s: stored job %s, judged job %s",
+                    conversation.uuid,
+                    responsibility.name,
+                    judged,
+                )
 
         if turn_end is not None:
             await service.add_message(

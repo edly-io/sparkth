@@ -202,9 +202,9 @@ Plugin code raises typed exceptions; FastAPI translates them to `HTTPException` 
 - `ChatService` owns conversation logic and history management
 - LLM backends (OpenAI, Anthropic, Google) are abstracted in the shared `sparkth/llm/` layer — `providers.py` (provider registry + valid models) and `service.py` — not inside the chat plugin
 - Two classifiers in `classifiers/` decide, before the chat model is reached, which registered
-  chat job a turn belongs to, if any (`MessageScopeClassifier`) and whether answering it needs the attached documents
-  (`RAGSearchClassifier`). Both are one structured-output call on the cheapest model of the
-  user's provider, sharing `BaseClassifier` for everything but the judgement
+  chat job a turn belongs to, if any (`MessageScopeClassifier`) and whether answering it needs
+  the attached documents (`RAGSearchClassifier`). Both are one structured-output call on the
+  cheapest model of the user's provider, sharing `BaseClassifier` for everything but the judgement
 - Stored LLM API keys are encrypted at rest with Fernet via `EncryptionService` (`sparkth/core/encryption.py`); key from `LLM_ENCRYPTION_KEY`. Conversation contents themselves are not encrypted
 - Redis (`sparkth/core/cache.py`) backs the rate limiting enforced in `chat/middleware.py` — per-minute request/chat limits and a concurrent-stream cap, configured in `chat/config.py`
 

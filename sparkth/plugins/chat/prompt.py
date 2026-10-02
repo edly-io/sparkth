@@ -1,7 +1,11 @@
 from datetime import datetime
 
 from sparkth.lib.chat.hooks import ChatResponsibility
-from sparkth.plugins.chat.constants import MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT, REFUSAL_MESSAGE
+from sparkth.plugins.chat.constants import (
+    DEFAULT_RESPONSIBILITY,
+    MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT,
+    REFUSAL_MESSAGE,
+)
 
 
 def render_system_prompt(responsibility: ChatResponsibility) -> str:
@@ -28,4 +32,4 @@ def render_scope_classifier_prompt(jobs: dict[str, ChatResponsibility]) -> str:
     enabled jobs, so nothing depends on which plugin was imported first.
     """
     listed = "\n\n".join(f'JOB "{name}":\n{responsibility.scope}' for name, responsibility in jobs.items())
-    return MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT.format(responsibilities=listed)
+    return MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT.format(responsibilities=listed, default_job=DEFAULT_RESPONSIBILITY)
