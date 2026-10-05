@@ -341,8 +341,8 @@ class PluginService:
                 outcome=AuditOutcome.SUCCESS,
                 target=AuditTarget(type="user_plugin", id=str(user_plugin.id)),
                 change=AuditChange(
-                    old={"plugin": plugin_name, "enabled": previously_enabled},
-                    new={"plugin": plugin_name, "enabled": enabled},
+                    old=self._create_enabled_audit_snapshot(plugin_name, previously_enabled),
+                    new=self._create_enabled_audit_snapshot(plugin_name, enabled),
                 ),
             ),
         )
@@ -357,7 +357,11 @@ class PluginService:
         return (await session.exec(select(Plugin.name).where(col(Plugin.id) == plugin_id))).first()
 
     @staticmethod
-    def _config_snapshot(plugin_name: str | None, config: dict[str, Any]) -> dict[str, Any]:
+    def _create_enabled_audit_snapshot(plugin_name: str | None, enabled: bool | None) -> dict[str, Any]:
+        return {"plugin": plugin_name, "enabled": enabled}
+
+    @staticmethod
+    def _create_config_audit_snapshot(plugin_name: str | None, config: dict[str, Any]) -> dict[str, Any]:
         """What an audit event records about a plugin config: the key names only.
 
         Plugin configs are mostly credentials under plugin-specific key names
@@ -379,7 +383,7 @@ class PluginService:
             UserPluginConfigCreatedAuditEvent(
                 outcome=AuditOutcome.SUCCESS,
                 target=AuditTarget(type="user_plugin", id=str(user_plugin.id)),
-                change=AuditChange(new=self._config_snapshot(plugin_name, user_config)),
+                change=AuditChange(new=self._create_config_audit_snapshot(plugin_name, user_config)),
             ),
         )
         await session.commit()
@@ -439,8 +443,8 @@ class PluginService:
                 outcome=AuditOutcome.SUCCESS,
                 target=AuditTarget(type="user_plugin", id=str(user_plugin.id)),
                 change=AuditChange(
-                    old=self._config_snapshot(plugin.name, previous_config),
-                    new=self._config_snapshot(plugin.name, validated_config),
+                    old=self._create_config_audit_snapshot(plugin.name, previous_config),
+                    new=self._create_config_audit_snapshot(plugin.name, validated_config),
                 ),
             ),
         )

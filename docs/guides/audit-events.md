@@ -97,11 +97,15 @@ sealed into `canonical_bytes`. They cannot be edited afterwards, so what goes in
 **Redaction is by exact key name, and only a backstop.** `redact` replaces the value of any key in
 `SECRET_KEYS` (`password`, `token`, `api_key`, `auth`, ...) at any depth. It cannot recognise
 `lms_password`, `signing_secret` or a key a plugin invented. Design the snapshot so it would be
-safe with redaction switched off:
+safe with redaction switched off. Build it in a private helper named `_create_audit_snapshot`
+next to the code that records the event, or `_create_<kind>_audit_snapshot` when the module
+records more than one shape (`_create_identity_audit_snapshot`, `_create_key_audit_snapshot` in
+the LLM config service). Never write a snapshot dict inline in the `AuditChange(...)` call: one
+helper per shape keeps what gets sealed in a single place a reviewer can check.
 
 - **Never key material.** Record a masked form (`masked_key`) or nothing.
 - **Plugin or other free-form configs: key names only.** `{"plugin": name, "keys": sorted(config)}`
-  is the shape to copy (`PluginService._config_snapshot`).
+  is the shape to copy (`PluginService._create_config_audit_snapshot`).
 - **Never the actor's own identity in a snapshot.** The actor's username rides on `actor_label`,
   which sits outside the seal so a GDPR erasure can blank it. A username copied into `change.new`
   is sealed and can never be erased. (`auth.registered` records only the `method` for this
