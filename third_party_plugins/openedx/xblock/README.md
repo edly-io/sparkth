@@ -82,16 +82,17 @@ after it lapses. The socket re-verifies the token on every action, so this bound
 socket session exactly as it applies to the HTTP routes.
 
 A refused save is not reported as an error at the moment it is refused. `sendAction` resolves as
-soon as the action reaches the browser's IndexedDB queue, before any network round-trip, so the
-activity's own "Configuration saved!" message appears for an edit the server has not seen yet.
-Nothing in the transport can contradict it: actions are not acknowledged individually.
+soon as the action is in the page's in-memory queue, before any network round-trip, so the
+activity's own "Configuration saved!" message can appear for an edit the server has not seen yet.
+Nothing in the transport contradicts it: actions are not acknowledged one by one. The queue lives
+only as long as the page, so an action still queued when the page reloads is lost.
 
 What the author does get is a notice once the edit is known to be undeliverable. A lapsed token
-closes the socket with code 1008, every reconnect presents that same token and is refused, and
-after a bounded number of attempts `sparkth-pxc.js` stops retrying and puts a message at the top
-of the embed saying the connection is gone and the page needs reloading. The queued edit is
-still lost — the notice is what makes the loss visible rather than silent, and it is worth
-knowing that the earlier success message was about the queue, not the server.
+closes the socket with code 4401 (4000 plus the HTTP status), and a missing activity with 4404.
+`sparkth-pxc.js` then stops retrying and puts a message at the top of the embed that names the
+cause and asks for a reload. Any other drop gets a generic "disconnected" message after a bounded
+number of retries. The queued edit is still lost: the notice makes the loss visible, and the
+earlier success message was about the queue, not the server.
 
 ## Django settings
 
@@ -144,7 +145,7 @@ nothing in this application trusts a forwarded-proto header: there is no
 `ProxyHeadersMiddleware` and no `X-Forwarded-Proto` handling anywhere in `sparkth/`, the
 Dockerfile, or the Makefile. Behind a TLS-terminating proxy or ingress whose address is not in
 uvicorn's trusted `forwarded_allow_ips` (default `127.0.0.1`), an HTTPS learner is seen as
-`http`, so the config's `ws_url` comes back `ws://` and the browser refuses it as mixed
+`http`, so the inline configuration's `ws_url` comes back `ws://` and the browser refuses it as mixed
 content.
 
 Configure the proxy-header trust for any TLS deployment (uvicorn's `--forwarded-allow-ips`, or
@@ -170,34 +171,38 @@ The trigger is any network interruption more than `SPARKTH_PXC_LAUNCH_TOKEN_TTL_
 (default 300 seconds) after the page rendered. Raising that TTL is the operator's only lever on
 how long a session can survive one.
 
-Re-fetching the configuration to obtain a fresh token is **not** an available remedy, which is
-worth stating because it is the obvious one to reach for. The configuration route authenticates
-with the very token that has expired, so a client in this state cannot reach it; and the
-configuration it returns carries that same token rather than a new one. Recovering inside the
-browser requires a credential the browser does not have, so any real fix has to change where
-the socket's authorization comes from.
+Reloading the configuration inside the page is **not** an available remedy, which is worth
+stating because it is the obvious one to reach for. The configuration is written into the embed
+page when it is served, and it carries that page's own launch token rather than a new one.
+Recovering inside the browser requires a credential the browser does not have, so any real fix
+has to change where the socket's authorization comes from.
 
 ## Security
 
-The embed iframe is sandboxed with `allow-scripts allow-forms allow-same-origin`.
-`allow-same-origin` is required: without it the frame gets an opaque origin, so its `fetch()`
-call to Sparkth's own config route becomes cross-origin and is blocked. The same attribute also
-means the activity's third-party `ui.js` runs with Sparkth's origin, not an isolated one:
-`pxc.js`'s `_loadScript` loads it with `await import(url)` into the surrounding document — a
-closed shadow root isolates markup, not script — so `ui.js` executes in the same JavaScript realm
-as the rest of the embed shell.
+An activity's `ui.js` is third-party code. `pxc.js`'s `_loadScript` loads it with
+`await import(url)` into the embed document, so it runs in the same JavaScript realm as the
+embed shell; a closed shadow root isolates markup, not script. The embed therefore must not run
+on Sparkth's origin, where `frontend/lib/auth-tokens.ts` keeps the signed-in user's bearer token
+in `localStorage`.
 
-That origin holds more than the shell's own markup. `frontend/lib/auth-tokens.ts` writes the
-signed-in user's bearer token to `localStorage` on this same Sparkth origin, so an untrusted
-activity's `ui.js` running inside the shell can read it.
+Two independent layers force an opaque origin:
 
-This is bounded today, not closed: browsers partition storage for third-party iframes, and only
-Sparkth's own bundled sample activity ships, so nothing untrusted actually loads through this
-path yet. It stops being bounded the moment a third party can supply an activity's `ui.js`.
+- The iframe is sandboxed with `allow-scripts allow-forms` and without `allow-same-origin`.
+- Sparkth serves the embed page and every activity asset with
+  `Content-Security-Policy: sandbox allow-scripts allow-forms`. The document gets an opaque
+  origin however it is opened: this iframe, an embedding page that grants `allow-same-origin`, a
+  direct link, or Sparkth's own preview page.
 
-The way to close it: `pxc.js`'s `_initIframe` path already exists for this — a nested iframe
-sandboxed with `allow-scripts allow-forms` and no `allow-same-origin`, talking to its parent by
-`postMessage` instead of a same-origin `fetch()`. `SparkthPXC.connectedCallback` deliberately does
-not take that path today. Moving onto it, or serving the embed route from a separate origin so
-there is no Sparkth-authenticated `localStorage` to read in the first place, are the two
-directions forward.
+In an opaque origin the activity code cannot reach Sparkth's `localStorage` or any other storage
+or cookie of Sparkth's origin. IndexedDB and `localStorage` throw there, which is why the client
+keeps its action queue in memory.
+
+The page needs nothing from Sparkth's origin. Every route it uses authenticates by the launch
+token in the query string, never by cookie. The activity configuration is inlined in the embed
+page, and the client scripts, the activity assets and the action POSTs answer with
+`Access-Control-Allow-Origin: *` (the POSTs also answer their preflight).
+
+The plugin's own errors, such as a 401 for an expired token, carry the same header, so the
+client reads the status and shows the same notices as the socket. FastAPI's 422 for a malformed
+request, an unhandled 500 and the 403 for a disabled plugin carry no CORS header, so the browser
+reports them as a network failure. In every failure the action is not sent and stays queued.

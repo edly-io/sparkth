@@ -368,7 +368,9 @@ register_exception_handler(MyAppError, 409)
 ```
 
 Now any route that raises `MyAppError` returns `409` with `{"detail": str(exc)}` — no
-per-route `try/except`. A mapping on a base exception also catches its subclasses.
+per-route `try/except`. A mapping on a base exception also catches its subclasses. An optional
+third argument adds response headers, such as the CORS headers a cross-origin caller needs to
+read the error.
 
 ## Translations (Optional)
 

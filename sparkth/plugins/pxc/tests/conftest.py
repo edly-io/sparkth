@@ -16,10 +16,17 @@ from sparkth.main import assemble_app
 from sparkth.plugins.pxc.activities import activity_dir
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.event_bus import EVENT_BUS
+from sparkth.plugins.pxc.schemas import ActivityConfig
 
 SANDBOX_WASM = activity_dir("mcq") / "sandbox.wasm"
 
 LAUNCH_SECRET = "a-shared-secret-of-at-least-32-bytes"
+
+
+def inline_config(html: str) -> ActivityConfig:
+    """The configuration the embed route inlined into this page, parsed as the client parses it."""
+    script = html.split('<script type="application/json">')[1].split("</script>")[0]
+    return ActivityConfig.model_validate_json(script)
 
 
 def pytest_runtest_setup(item: pytest.Item) -> None:
