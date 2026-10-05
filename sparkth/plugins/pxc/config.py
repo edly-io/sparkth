@@ -40,8 +40,7 @@ class PxcSettings(BaseSettings):
     # activity name; authors pick their own activities through the contributor's options.
     default_activity: str = "mcq"
 
-    # The directory whose node_modules holds componentize-js, which compiles an author's
-    # activity. `make pxc.activities.build` installs it here, and the image ships it here too.
+    # The directory whose node_modules holds componentize-js, which compiles an author's activity.
     toolchain_dir: Path = Path("./sparkth/plugins/pxc/activities/mcq")
 
     # How long each step of an activity build (the compile, then the smoke test) may run.
