@@ -8,6 +8,7 @@ and only the token travels through the browser.
 """
 
 from typing import Any
+from uuid import uuid4
 
 from django.conf import settings
 from web_fragments.fragment import Fragment
@@ -124,6 +125,31 @@ class SparkthPxcXBlock(XBlock):
                 settings.SPARKTH_PXC_LAUNCH_TOKEN_TTL_SECONDS,
             )
         )
+
+    def studio_post_duplicate(self, store: Any, source_item: Any) -> bool:
+        """Give a block copied with Studio's Duplicate a placement of its own.
+
+        Studio copies every settings field, ``placement`` included, so the copy would otherwise
+        share the original's activity data. The copy starts from the activity's defaults.
+        Returns ``False``: the block has no children for Studio to copy.
+        """
+        self._take_new_placement(store)
+        return False
+
+    def studio_post_paste(self, store: Any, source_node: Any) -> bool:
+        """Give a block pasted from Studio's clipboard a placement of its own.
+
+        The same as ``studio_post_duplicate``, for Copy then Paste.
+        """
+        self._take_new_placement(store)
+        return False
+
+    def _take_new_placement(self, store: Any) -> None:
+        """Mint a fresh placement id and save it, since Studio does not save after these hooks."""
+        self.placement = str(uuid4())
+        self.save()
+        # No user id reaches these hooks; edx-platform's own blocks save with None the same way.
+        store.update_item(self, None)
 
     def _course_id(self) -> str:
         """The course this block sits in, from its usage id's course key."""
