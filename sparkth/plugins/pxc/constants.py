@@ -43,9 +43,9 @@ PXC_PREVIEW_USER_PREFIX = "sparkth-"
 # The course, placement and learner id the build's smoke test reads state as.
 PXC_SMOKE_CONTEXT_ID = "smoke"
 
-# The WIT world every generated activity compiles against: the bundled sample's. That world
-# imports only pxc:sandbox/state, so a generated sandbox can call nothing else on the host.
-PXC_SANDBOX_WIT = PXC_ACTIVITY_ROOT / "mcq" / "pxc.wit"
+# The WIT world every sandbox compiles against. It imports only pxc:sandbox/state, so a sandbox
+# can call nothing else on the host.
+PXC_SANDBOX_WIT = Path(__file__).parent / "builder" / "toolchain" / "pxc.wit"
 
 # The most of a build step's stderr kept in memory, in bytes: the end of it, where the cause is.
 # The rest is read and dropped, so a step flooding stderr can neither block nor exhaust memory.

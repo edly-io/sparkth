@@ -17,12 +17,12 @@ from fastapi.testclient import TestClient
 from sparkth.main import assemble_app
 from sparkth.plugins.pxc.activities import activity_dir
 from sparkth.plugins.pxc.config import get_pxc_settings
-from sparkth.plugins.pxc.constants import PXC_ACTIVITY_ROOT
 from sparkth.plugins.pxc.event_bus import EVENT_BUS
 from sparkth.plugins.pxc.schemas import ActivityConfig
 
 SANDBOX_WASM = activity_dir("mcq") / "sandbox.wasm"
-COMPONENTIZE_JS = PXC_ACTIVITY_ROOT / "mcq" / "node_modules" / ".bin" / "componentize-js"
+TOOLCHAIN_DIR = Path(__file__).parent.parent / "builder" / "toolchain"
+COMPONENTIZE_JS = TOOLCHAIN_DIR / "node_modules" / ".bin" / "componentize-js"
 
 LAUNCH_SECRET = "a-shared-secret-of-at-least-32-bytes"
 
@@ -53,7 +53,7 @@ def pxc_settings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[No
     monkeypatch.setenv("PXC_LAUNCH_SECRET", "")
     monkeypatch.setenv("PXC_LAUNCH_TOKEN_TTL_SECONDS", "300")
     monkeypatch.setenv("PXC_DEFAULT_ACTIVITY", "mcq")
-    monkeypatch.setenv("PXC_TOOLCHAIN_DIR", str(PXC_ACTIVITY_ROOT / "mcq"))
+    monkeypatch.setenv("PXC_TOOLCHAIN_DIR", str(TOOLCHAIN_DIR))
     monkeypatch.setenv("PXC_BUILD_TIMEOUT_SECONDS", "120")
     monkeypatch.setenv("PXC_BUILD_CONCURRENCY", "2")
     get_pxc_settings.cache_clear()

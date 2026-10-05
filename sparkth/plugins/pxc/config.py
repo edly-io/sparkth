@@ -41,7 +41,7 @@ class PxcSettings(BaseSettings):
     default_activity: str = "mcq"
 
     # The directory whose node_modules holds componentize-js, which compiles an author's activity.
-    toolchain_dir: Path = Path("./sparkth/plugins/pxc/activities/mcq")
+    toolchain_dir: Path = Path("./sparkth/plugins/pxc/builder/toolchain")
 
     # How long each step of an activity build (the compile, then the smoke test) may run.
     build_timeout_seconds: int = 120

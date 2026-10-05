@@ -12,11 +12,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends make \
 
 WORKDIR /build
 
-COPY sparkth/plugins/pxc/activities/mcq/package.json sparkth/plugins/pxc/activities/mcq/package-lock.json ./
-RUN npm ci
+COPY sparkth/plugins/pxc/builder/toolchain/ ./builder/toolchain/
+RUN npm ci --prefix builder/toolchain && touch builder/toolchain/node_modules
 
-COPY sparkth/plugins/pxc/activities/mcq/ ./
-RUN make build
+COPY sparkth/plugins/pxc/activities/mcq/ ./activities/mcq/
+RUN make -C activities/mcq build
 
 # -------------------
 # Stage 1: Build frontend
@@ -90,13 +90,13 @@ COPY --from=builder      --chown=nonroot:nonroot /app            /app
 COPY --from=catalog-builder --chown=nonroot:nonroot /app/sparkth /app/sparkth
 COPY --from=frontend-builder --chown=nonroot:nonroot /frontend/out /app/frontend/out
 COPY --from=pxc-activity-builder --chown=nonroot:nonroot \
-     /build/sandbox.wasm \
+     /build/activities/mcq/sandbox.wasm \
      /app/sparkth/plugins/pxc/activities/mcq/sandbox.wasm
 
 # Authors' activities are compiled in this container: Node, plus the toolchain at the path
 # PXC_TOOLCHAIN_DIR names in .env, which compose's env_file would override any ENV with.
 COPY --from=pxc-activity-builder /usr/local/bin/node /usr/local/bin/node
-COPY --from=pxc-activity-builder /build/node_modules /app/sparkth/plugins/pxc/activities/mcq/node_modules
+COPY --from=pxc-activity-builder /build/builder/toolchain/node_modules /app/sparkth/plugins/pxc/builder/toolchain/node_modules
 RUN node --version
 
 ENV PATH="/app/.venv/bin:$PATH"

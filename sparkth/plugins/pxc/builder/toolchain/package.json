@@ -1,5 +1,5 @@
 {
-  "//": "Node toolchain for building this activity's WASM sandbox (make build), not an app.",
+  "//": "Node toolchain the activity builder compiles WASM sandboxes with, not an app.",
   "name": "pxc-activity",
   "private": true,
   "dependencies": {
