@@ -4,7 +4,7 @@ import "@/../sparkth/plugins/pxc/static/sparkth-pxc.js";
 
 const CONFIG = {
   activity: "mcq",
-  context: { activity_id: "placement-1", course_id: "course-v1:X+Y+Z", user_id: "learner-7" },
+  context: { activity_id: "instance-1", course_id: "course-v1:X+Y+Z", user_id: "learner-7" },
   permission: "play",
   state: { question: "2 + 2?" },
   ui_url: "https://sparkth.test/api/v1/pxc/assets/ui.js?token=tok",

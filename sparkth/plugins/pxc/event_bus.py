@@ -39,20 +39,20 @@ def subscribe_socket(activity: str, websocket: WebSocket, claims: LaunchClaims) 
         claims.user_id,
         claims.permission,
         claims.course_id,
-        claims.placement,
+        claims.activity_instance,
     )
     return subscriber
 
 
-async def publish_events(activity: str, placement: str, events: list[PendingEvent]) -> None:
+async def publish_events(activity: str, activity_instance: str, events: list[PendingEvent]) -> None:
     """Fan out one action's events to every subscriber their context and permission admit."""
     try:
         await EVENT_BUS.publish(activity, events)
     except RuntimeError as err:
         logger.error(
-            "PXC event fan-out stopped early for %s (placement=%s, events=%s): %s",
+            "PXC event fan-out stopped early for %s (activity_instance=%s, events=%s): %s",
             activity,
-            placement,
+            activity_instance,
             [event["name"] for event in events],
             err,
         )

@@ -48,7 +48,7 @@ def test_a_secret_from_configuration_is_what_verifies_a_token(monkeypatch: pytes
     get_pxc_settings.cache_clear()
 
     token = mint_launch_token(
-        "mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", "play", "configured-in-env-local-not-exported", 300
+        "mcq", "instance-1", "course-v1:X+Y+Z", "learner-7", "play", "configured-in-env-local-not-exported", 300
     )
 
     assert read_launch_token(token).activity == "mcq"

@@ -6,19 +6,19 @@ import pytest
 from pxc.lib.permission import Permission
 from uuid6 import uuid7
 
-from sparkth.plugins.pxc.constants import PXC_PREVIEW_COURSE_ID, PXC_PREVIEW_PLACEMENT
+from sparkth.plugins.pxc.constants import PXC_PREVIEW_ACTIVITY_INSTANCE, PXC_PREVIEW_COURSE_ID
 from sparkth.plugins.pxc.enums import PreviewPermission
 from sparkth.plugins.pxc.exceptions import PxcInvalidLaunchToken, PxcLaunchNotConfigured
 from sparkth.plugins.pxc.tokens import LaunchClaims, mint_launch_token, mint_preview_token, read_launch_token
 
-CLAIMS = ("mcq", "placement-1", "course-v1:X+Y+Z", "learner-7")
+CLAIMS = ("mcq", "instance-1", "course-v1:X+Y+Z", "learner-7")
 OTHER_SECRET = "a-different-secret-of-32-plus-bytes"
 
 
 def test_a_minted_token_reads_back_its_claims(configured_secret: str) -> None:
     claims = read_launch_token(mint_launch_token(*CLAIMS, "play", configured_secret, 300))
 
-    assert claims == LaunchClaims("mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", Permission.play)
+    assert claims == LaunchClaims("mcq", "instance-1", "course-v1:X+Y+Z", "learner-7", Permission.play)
 
 
 def test_a_token_signed_with_another_secret_is_refused(configured_secret: str) -> None:
@@ -26,7 +26,7 @@ def test_a_token_signed_with_another_secret_is_refused(configured_secret: str) -
         read_launch_token(mint_launch_token(*CLAIMS, "play", OTHER_SECRET, 300))
 
 
-def test_a_signature_mismatch_is_logged_with_the_claimed_activity_and_placement(
+def test_a_signature_mismatch_is_logged_with_the_claimed_activity_and_activity_instance(
     configured_secret: str, caplog: pytest.LogCaptureFixture
 ) -> None:
     # A secret mismatch between Sparkth and the XBlock — the most likely production failure per
@@ -39,7 +39,7 @@ def test_a_signature_mismatch_is_logged_with_the_claimed_activity_and_placement(
             read_launch_token(token)
 
     assert "mcq" in caplog.text
-    assert "placement-1" in caplog.text
+    assert "instance-1" in caplog.text
     # Never the secret or any part of the token itself.
     assert configured_secret not in caplog.text
     assert token not in caplog.text
@@ -64,10 +64,10 @@ def test_a_signature_mismatch_with_an_undecodable_payload_is_still_logged(
 
 def test_a_tampered_payload_is_refused(configured_secret: str) -> None:
     # Distinct from the wrong-secret case above: both segments here were signed with the real
-    # secret, just not together. This is what stops a learner swapping in another placement's
+    # secret, just not together. This is what stops a learner swapping in another activity instance's
     # payload from a token they legitimately hold.
     header, _, signature = mint_launch_token(*CLAIMS, "play", configured_secret, 300).split(".")
-    forged = mint_launch_token("mcq", "placement-2", "course-v1:X+Y+Z", "learner-7", "play", configured_secret, 300)
+    forged = mint_launch_token("mcq", "instance-2", "course-v1:X+Y+Z", "learner-7", "play", configured_secret, 300)
 
     with pytest.raises(PxcInvalidLaunchToken, match="signature"):
         read_launch_token(f"{header}.{forged.split('.')[1]}.{signature}")
@@ -87,7 +87,7 @@ def test_an_expired_token_is_refused(configured_secret: str, monkeypatch: pytest
 def test_a_token_without_an_expiry_is_refused(configured_secret: str) -> None:
     # A token that never expires is a permanent launch credential in a URL, so an absent `exp`
     # is refused rather than treated as "no deadline".
-    token = jwt.encode({"act": "mcq", "plc": "p1", "cid": "c", "uid": "u"}, configured_secret, algorithm="HS256")
+    token = jwt.encode({"act": "mcq", "ins": "p1", "cid": "c", "uid": "u"}, configured_secret, algorithm="HS256")
 
     with pytest.raises(PxcInvalidLaunchToken, match="Malformed"):
         read_launch_token(token)
@@ -97,7 +97,7 @@ def test_a_token_asking_for_the_none_algorithm_is_refused(configured_secret: str
     # `alg: none` is the standing JWT attack: the header asks the verifier to skip the signature
     # entirely. Refused because the decode pins the accepted algorithms to HS256.
     unsigned = jwt.encode(
-        {"act": "mcq", "plc": "p1", "cid": "c", "uid": "u", "exp": int(time.time()) + 300},
+        {"act": "mcq", "ins": "p1", "cid": "c", "uid": "u", "exp": int(time.time()) + 300},
         key="",
         algorithm="none",
     )
@@ -125,7 +125,7 @@ def test_an_exp_that_overflows_to_infinity_is_refused(configured_secret: str) ->
     # PyJWT coerces `exp` with `int()`, which raises OverflowError — not an InvalidTokenError —
     # on a JSON infinity. Uncaught, that is a 500 where every other bad token is a 401.
     token = jwt.encode(
-        {"act": "mcq", "plc": "p1", "cid": "c", "uid": "u", "exp": 1e400}, configured_secret, algorithm="HS256"
+        {"act": "mcq", "ins": "p1", "cid": "c", "uid": "u", "exp": 1e400}, configured_secret, algorithm="HS256"
     )
 
     with pytest.raises(PxcInvalidLaunchToken, match="Malformed"):
@@ -168,7 +168,7 @@ def test_a_token_without_a_permission_claim_is_treated_as_play(configured_secret
     token = jwt.encode(
         {
             "act": "mcq",
-            "plc": "placement-1",
+            "ins": "instance-1",
             "cid": "course-v1:X+Y+Z",
             "uid": "learner-7",
             "exp": int(time.time()) + 300,
@@ -188,7 +188,7 @@ def test_an_unrecognised_permission_claim_degrades_to_play_and_is_logged(
     token = jwt.encode(
         {
             "act": "mcq",
-            "plc": "placement-1",
+            "ins": "instance-1",
             "cid": "course-v1:X+Y+Z",
             "uid": "learner-7",
             "exp": int(time.time()) + 300,
@@ -205,7 +205,7 @@ def test_an_unrecognised_permission_claim_degrades_to_play_and_is_logged(
     assert "superuser" in caplog.text
     # Correlate the warning to a launch the way a bad-signature warning already does.
     assert "mcq" in caplog.text
-    assert "placement-1" in caplog.text
+    assert "instance-1" in caplog.text
     # Never the secret or any part of the token itself.
     assert configured_secret not in caplog.text
     assert token not in caplog.text
@@ -217,7 +217,7 @@ def test_a_preview_token_launches_the_authors_own_activity(configured_secret: st
     claims = read_launch_token(mint_preview_token(activity_id, 7, PreviewPermission.EDIT))
 
     assert claims == LaunchClaims(
-        str(activity_id), PXC_PREVIEW_PLACEMENT, PXC_PREVIEW_COURSE_ID, "sparkth-7", Permission.edit
+        str(activity_id), PXC_PREVIEW_ACTIVITY_INSTANCE, PXC_PREVIEW_COURSE_ID, "sparkth-7", Permission.edit
     )
 
 

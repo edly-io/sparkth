@@ -33,7 +33,7 @@ async def run_action_frames(websocket: WebSocket, runtime: ActivityRuntime, toke
             await _run_one_action(runtime, token, frame)
         except PxcInvalidLaunchToken as err:
             logger.warning(
-                "Closing a PXC socket whose token no longer verifies on %s (placement=%s): %s",
+                "Closing a PXC socket whose token no longer verifies on %s (activity_instance=%s): %s",
                 runtime.name,
                 runtime.activity_id,
                 err,
@@ -43,7 +43,7 @@ async def run_action_frames(websocket: WebSocket, runtime: ActivityRuntime, toke
         except PxcActionRejected as err:
             # A client bug, not a connection fault: the socket stays open.
             logger.warning(
-                "Rejected a PXC socket action %s on %s (placement=%s): %s",
+                "Rejected a PXC socket action %s on %s (activity_instance=%s): %s",
                 frame["action"],
                 runtime.name,
                 runtime.activity_id,
@@ -52,7 +52,7 @@ async def run_action_frames(websocket: WebSocket, runtime: ActivityRuntime, toke
         except PxcSandboxFailure as err:
             # The activity's fault, not the connection's: the socket stays open.
             logger.error(
-                "PXC sandbox failed running socket action %s on %s (placement=%s): %s",
+                "PXC sandbox failed running socket action %s on %s (activity_instance=%s): %s",
                 frame["action"],
                 runtime.name,
                 runtime.activity_id,
@@ -74,7 +74,7 @@ async def _read_action_frame(websocket: WebSocket, runtime: ActivityRuntime) -> 
         # The stack has unwound by the time close() runs, so there is headroom to send it.
         # Logged with %r so the exception type says which cause arrived.
         logger.warning(
-            "Refusing a PXC socket frame the loop cannot read as JSON text on %s (placement=%s): %r",
+            "Refusing a PXC socket frame the loop cannot read as JSON text on %s (activity_instance=%s): %r",
             runtime.name,
             runtime.activity_id,
             err,
@@ -84,7 +84,7 @@ async def _read_action_frame(websocket: WebSocket, runtime: ActivityRuntime) -> 
 
     if not isinstance(frame, dict) or "action" not in frame:
         logger.warning(
-            "Refusing a PXC socket frame with no action on %s (placement=%s)",
+            "Refusing a PXC socket frame with no action on %s (activity_instance=%s)",
             runtime.name,
             runtime.activity_id,
         )
@@ -109,4 +109,4 @@ async def _run_one_action(runtime: ActivityRuntime, token: str, frame: dict[str,
     action_name = str(frame["action"])
     action_value: FieldType = frame.get("value", "")
     events = await asyncio.to_thread(run_action, runtime, action_name, action_value)
-    await publish_events(claims.activity, claims.placement, events)
+    await publish_events(claims.activity, claims.activity_instance, events)

@@ -24,7 +24,7 @@ CONTRIBUTOR_NAMES = ("fake", "broken", "bare", "canvas-only", "no-targets", "opt
 
 
 async def build_fake(course_id: str, option_id: str | None) -> ContentBlock:
-    return ContentBlock("Fake Activity", "fake", {"placement": "p-1", "activity": "mcq"})
+    return ContentBlock("Fake Activity", "fake", {"activity_instance": "p-1", "activity": "mcq"})
 
 
 @pytest.fixture(autouse=True)
@@ -82,7 +82,7 @@ async def test_creates_the_block_the_contributor_declares(fake_contributor: Cont
         "course-v1:X+Y+Z",
         "block-v1:X+Y+Z+type@fake+block@b1",
         None,
-        {"placement": "p-1", "activity": "mcq"},
+        {"activity_instance": "p-1", "activity": "mcq"},
     )
     assert result["response"]["locator"] == "block-v1:X+Y+Z+type@fake+block@b1"
     assert result["response"]["category"] == "fake"

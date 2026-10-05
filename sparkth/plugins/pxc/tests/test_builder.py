@@ -275,7 +275,7 @@ async def test_a_built_activity_is_stored_and_launches(session: AsyncSession) ->
     assert activity_dir(activity_id) == generated_activity_dir(activity_id)
     assert json.loads((generated_activity_dir(activity_id) / "manifest.json").read_text())["name"] == activity_id
     assert (await get_owned_activity(session, activity.id, OWNER)).title == "Two plus two"
-    runtime = build_runtime(LaunchClaims(activity_id, "placement-1", "course-v1:X+Y+Z", "learner-7", Permission.play))
+    runtime = build_runtime(LaunchClaims(activity_id, "instance-1", "course-v1:X+Y+Z", "learner-7", Permission.play))
     assert read_state(runtime)["question"] == "What is 2 + 2?"
 
 
@@ -348,7 +348,7 @@ async def test_non_ascii_content_survives_the_build(session: AsyncSession) -> No
 
     activity = await build_activity(source, OWNER)
 
-    claims = LaunchClaims(str(activity.id), "placement-1", "course-v1:X+Y+Z", "learner-7", Permission.play)
+    claims = LaunchClaims(str(activity.id), "instance-1", "course-v1:X+Y+Z", "learner-7", Permission.play)
     assert read_state(build_runtime(claims))["question"] == question
     assert (await get_owned_activity(session, activity.id, OWNER)).title == "Capitales — été"
 

@@ -28,16 +28,16 @@ def claims_in(html: str) -> dict[str, Any]:
 
 @pytest.fixture
 def block() -> SparkthPxcXBlock:
-    """A constructed block with an activity and placement already set."""
+    """A constructed block with an activity and activity instance already set."""
     made = SparkthPxcXBlock(ToyRuntime(), scope_ids=ScopeIds("learner-7", "pxc", "def-1", "usage-1"))
     made.activity = "mcq"
-    made.placement = "placement-1"
+    made.activity_instance = "instance-1"
     return made
 
 
 def test_the_iframe_points_at_sparkths_embed_route_with_a_token() -> None:
     html = build_embed_iframe(
-        "https://sparkth.example/", "mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", "play", SECRET, 300
+        "https://sparkth.example/", "mcq", "instance-1", "course-v1:X+Y+Z", "learner-7", "play", SECRET, 300
     )
 
     assert 'src="https://sparkth.example/api/v1/pxc/embed?token=' in html
@@ -46,7 +46,7 @@ def test_the_iframe_points_at_sparkths_embed_route_with_a_token() -> None:
 
 def test_the_iframe_is_sandboxed_without_same_origin_access() -> None:
     html = build_embed_iframe(
-        "https://sparkth.example", "mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", "play", SECRET, 300
+        "https://sparkth.example", "mcq", "instance-1", "course-v1:X+Y+Z", "learner-7", "play", SECRET, 300
     )
 
     assert 'sandbox="allow-scripts allow-forms"' in html
@@ -54,7 +54,7 @@ def test_the_iframe_is_sandboxed_without_same_origin_access() -> None:
 
 def test_a_trailing_slash_on_the_base_url_does_not_double_up() -> None:
     html = build_embed_iframe(
-        "https://sparkth.example/", "mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", "play", SECRET, 300
+        "https://sparkth.example/", "mcq", "instance-1", "course-v1:X+Y+Z", "learner-7", "play", SECRET, 300
     )
 
     assert "example//api" not in html
@@ -62,7 +62,7 @@ def test_a_trailing_slash_on_the_base_url_does_not_double_up() -> None:
 
 def test_the_token_carries_the_requested_permission() -> None:
     edit = build_embed_iframe(
-        "https://sparkth.example", "mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", "edit", SECRET, 300
+        "https://sparkth.example", "mcq", "instance-1", "course-v1:X+Y+Z", "learner-7", "edit", SECRET, 300
     )
 
     assert claims_in(edit)["prm"] == "edit"
@@ -71,7 +71,7 @@ def test_the_token_carries_the_requested_permission() -> None:
 def test_the_editor_markup_explains_that_studios_buttons_do_not_apply() -> None:
     # An editor learns this from the screen or not at all; the README reaches nobody mid-edit.
     html = build_editor_html(
-        "https://sparkth.example", "mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", SECRET, 300
+        "https://sparkth.example", "mcq", "instance-1", "course-v1:X+Y+Z", "learner-7", SECRET, 300
     )
 
     assert "stored in Sparkth" in html
@@ -110,17 +110,17 @@ COPY_HOOKS = [
 
 
 @pytest.mark.parametrize("copy_hook", COPY_HOOKS)
-def test_a_copied_block_takes_a_placement_of_its_own(
+def test_a_copied_block_takes_an_activity_instance_of_its_own(
     block: SparkthPxcXBlock, copy_hook: Callable[[SparkthPxcXBlock, MagicMock], bool]
 ) -> None:
     # Studio copies every settings field, so without this the copy shares the original's state.
     copy_hook(block, MagicMock())
 
-    assert block.placement not in ("", "placement-1")
+    assert block.activity_instance not in ("", "instance-1")
 
 
 @pytest.mark.parametrize("copy_hook", COPY_HOOKS)
-def test_a_copied_blocks_new_placement_is_saved(
+def test_a_copied_blocks_new_activity_instance_is_saved(
     block: SparkthPxcXBlock, copy_hook: Callable[[SparkthPxcXBlock, MagicMock], bool]
 ) -> None:
     store = MagicMock()

@@ -1,7 +1,7 @@
 """Tests for the ``"pxc"`` content contributor.
 
 Covers what ``build_pxc_block`` produces (a ``ContentBlock`` naming the bundled activity and a
-fresh placement id per call), that it writes nothing, that a placement it mints launches with
+fresh activity instance id per call), that it writes nothing, that an activity instance it mints launches with
 the activity's own configuration, that constructing the plugin registers it on the
 ``LMS_CONTENT_CONTRIBUTORS`` hook, and that the ``openedx`` plugin can publish it end to end.
 """
@@ -43,11 +43,11 @@ async def test_the_block_is_a_pxc_block_naming_the_activity() -> None:
     assert block.attributes["activity"] == "mcq"
 
 
-async def test_every_placement_gets_its_own_id() -> None:
+async def test_every_activity_instance_gets_its_own_id() -> None:
     first = await build_pxc_block("course-v1:X+Y+Z", None)
     second = await build_pxc_block("course-v1:X+Y+Z", None)
 
-    assert first.attributes["placement"] != second.attributes["placement"]
+    assert first.attributes["activity_instance"] != second.attributes["activity_instance"]
 
 
 async def test_building_a_block_writes_nothing(tmp_path: Path) -> None:
@@ -62,12 +62,12 @@ async def test_building_a_block_writes_nothing(tmp_path: Path) -> None:
 
 
 @pytest.mark.wasm
-async def test_a_minted_placement_launches_with_the_activitys_own_configuration() -> None:
+async def test_a_minted_activity_instance_launches_with_the_activitys_own_configuration() -> None:
     # What the seeding was for: a learner opening a freshly placed activity sees a question
     # rather than a blank. The activity declares it as its fields' defaults, and the runtime
-    # serves those for any placement nobody has configured yet.
+    # serves those for any activity instance nobody has configured yet.
     block = await build_pxc_block("course-v1:X+Y+Z", None)
-    claims = LaunchClaims("mcq", block.attributes["placement"], "course-v1:X+Y+Z", "learner-7", Permission.play)
+    claims = LaunchClaims("mcq", block.attributes["activity_instance"], "course-v1:X+Y+Z", "learner-7", Permission.play)
 
     state = read_state(build_runtime(claims))
 

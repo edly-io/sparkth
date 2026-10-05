@@ -7,7 +7,7 @@ import pytest
 
 from sparkth.plugins.pxc.field_store.sqlite import SqliteFieldStore
 
-SCOPE = ("course-v1:X+Y+Z", "mcq", "placement-1", "learner-7")
+SCOPE = ("course-v1:X+Y+Z", "mcq", "instance-1", "learner-7")
 
 
 @pytest.fixture
@@ -42,7 +42,7 @@ def test_structured_values_survive_a_round_trip(store: SqliteFieldStore) -> None
 
 def test_one_learners_value_does_not_answer_for_another(store: SqliteFieldStore) -> None:
     store.set(*SCOPE, "question", "mine")
-    store.set("course-v1:X+Y+Z", "mcq", "placement-1", "learner-8", "question", "theirs")
+    store.set("course-v1:X+Y+Z", "mcq", "instance-1", "learner-8", "question", "theirs")
 
     assert store.get(*SCOPE, "question") == "mine"
 
@@ -58,7 +58,7 @@ def test_deleting_reports_whether_anything_was_there(store: SqliteFieldStore) ->
 def test_keys_lists_the_stored_composite_keys(store: SqliteFieldStore) -> None:
     store.set(*SCOPE, "question", "q")
 
-    assert store.keys() == ["pxc.mcq.course-v1:X+Y+Z.placement-1.learner-7.question"]
+    assert store.keys() == ["pxc.mcq.course-v1:X+Y+Z.instance-1.learner-7.question"]
 
 
 def test_the_file_is_opened_in_wal_mode(store: SqliteFieldStore, tmp_path: Path) -> None:
@@ -146,7 +146,7 @@ def test_log_delete_before_returns_how_many_it_removed(store: SqliteFieldStore) 
 
 def test_log_clear_empties_only_this_learners_log(store: SqliteFieldStore) -> None:
     store.log_append(*SCOPE, "events", {"n": 1})
-    store.log_append("course-v1:X+Y+Z", "mcq", "placement-1", "learner-8", "events", {"n": 9})
+    store.log_append("course-v1:X+Y+Z", "mcq", "instance-1", "learner-8", "events", {"n": 9})
 
     assert store.log_clear(*SCOPE, "events") == 1
-    assert len(store.log_get_after("course-v1:X+Y+Z", "mcq", "placement-1", "learner-8", "events", None, 10)) == 1
+    assert len(store.log_get_after("course-v1:X+Y+Z", "mcq", "instance-1", "learner-8", "events", None, 10)) == 1

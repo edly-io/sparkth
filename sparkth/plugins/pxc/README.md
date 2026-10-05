@@ -38,9 +38,9 @@ does not repeat the list.
 An authoring agent lists contributors with the `openedx` plugin's
 `openedx_list_content_contributors` tool. The `pxc` entry's `options` are the bundled activities
 followed by the author's own, the latter by title. The agent then calls
-`openedx_add_plugin_content` with `contributor: "pxc"` and the chosen `option_id`. That mints a
-placement here and asks Studio to create a block of category `pxc`, which the installed XBlock
-provides. With no `option_id` the placement names `PXC_DEFAULT_ACTIVITY`.
+`openedx_add_plugin_content` with `contributor: "pxc"` and the chosen `option_id`. That mints an
+activity instance here and asks Studio to create a block of category `pxc`, which the installed XBlock
+provides. With no `option_id` the activity instance names `PXC_DEFAULT_ACTIVITY`.
 
 Only an activity's author can place a generated activity: the builder checks ownership again
 when it builds, whatever the id's origin. Studio creates the block on the draft branch, so the unit
@@ -95,7 +95,7 @@ every call.
 One directory per activity under `activities/`, each holding a `manifest.json` that declares the
 activity's name, fields, actions and events. Nothing in this plugin knows what any particular
 activity contains: an activity declares its own starting configuration as the `default` on each
-of its fields, and the runtime serves those for a placement nobody has configured yet.
+of its fields, and the runtime serves those for an activity instance nobody has configured yet.
 `PXC_DEFAULT_ACTIVITY` names the one the content contributor places in a course when the author
 chooses no activity.
 
@@ -106,7 +106,7 @@ A generated activity's row is immutable, keyed by id and owner. Its files live u
 disk, with no database read.
 
 Two session routes let an author list their activities and open a preview; another user's id is
-a 404. Previews use a fixed course and placement, shared by the Student and Author views.
+a 404. Previews use a fixed course and activity instance, shared by the Student and Author views.
 
 ## Building an activity
 

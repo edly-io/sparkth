@@ -87,7 +87,7 @@ async def _activity_config(claims: LaunchClaims, token: str, request: Request) -
     # page's data-pxc-token itself in SparkthPXC's methods.
     return ActivityConfig(
         activity=claims.activity,
-        context=LaunchContext(activity_id=claims.placement, course_id=claims.course_id, user_id=claims.user_id),
+        context=LaunchContext(activity_id=claims.activity_instance, course_id=claims.course_id, user_id=claims.user_id),
         permission=runtime.permission.value,
         state=dict(state),
         ui_url=f"{base}/assets/{runtime.ui_path}?token={token}",
@@ -148,7 +148,7 @@ async def submit_action(
         raise PxcActionRejected("Request body is not JSON this server can read") from err
     runtime = await asyncio.to_thread(build_runtime, claims)
     events = await asyncio.to_thread(run_action, runtime, action_name, action_value)
-    await publish_events(claims.activity, claims.placement, events)
+    await publish_events(claims.activity, claims.activity_instance, events)
     return Response(status_code=status.HTTP_204_NO_CONTENT, headers=PXC_CORS_HEADERS)
 
 

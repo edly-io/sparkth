@@ -2,7 +2,7 @@
 
 The file is the activity type's boundary (D1): one file holds every course the type appears in
 and every learner who answered, keyed the way PXC's runtime already keys state — by course,
-placement and learner. There is no Alembic migration, because these tables are not part of the
+activity instance and learner. There is no Alembic migration, because these tables are not part of the
 application schema.
 
 Values are JSON-encoded rather than stored in typed columns, which keeps arrays and objects

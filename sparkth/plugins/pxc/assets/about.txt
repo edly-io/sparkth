@@ -18,16 +18,16 @@ MANIFEST RULES
   the activity's starting content: a learner opening a freshly placed activity sees them, so
   make them a complete, realistic example rather than empty values.
 - The scope decides who shares a value. One activity can be placed in many lessons and many
-  courses, and each placement is a separate copy.
-  - "activity": shared by everyone on one placement. For the author's configuration:
+  courses, and each activity instance is a separate copy.
+  - "activity": shared by everyone on one activity instance. For the author's configuration:
     questions, choices, answer keys.
-  - "user,activity": one per learner on one placement. For a learner's own answers or progress
+  - "user,activity": one per learner on one activity instance. For a learner's own answers or progress
     in that lesson.
-  - "course": shared by everyone on every placement in one course. For a course-wide
+  - "course": shared by everyone on every activity instance in one course. For a course-wide
     leaderboard or tally.
-  - "user,course": one per learner across every placement in one course. For a learner's
+  - "user,course": one per learner across every activity instance in one course. For a learner's
     running score in the course.
-  - "global": shared by everyone on every placement in every course. Rarely right; for data
+  - "global": shared by everyone on every activity instance in every course. Rarely right; for data
     every course must see.
   - "user,global": one per learner across every course. For a learner's own preference that
     should follow them everywhere.
@@ -58,7 +58,7 @@ PERMISSION RULES
 - Every viewer has exactly one permission:
   - "view" sees the activity and cannot act;
   - "play" is a learner;
-  - "edit" is an author configuring the placement.
+  - "edit" is an author configuring the activity instance.
 - Actions are refused in "view" before they reach the sandbox.
 - "config.save" must check that the permission is "edit", and ignore the action otherwise.
   Only an author may change the configuration.

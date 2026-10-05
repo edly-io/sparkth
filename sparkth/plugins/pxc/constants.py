@@ -25,10 +25,10 @@ PXC_PREFLIGHT_HEADERS = {
     "Access-Control-Max-Age": "86400",
 }
 
-# The course and placement every author preview launches into. Fixed, so an author's Student
-# and Author views share one placement and what one saves shows in the other.
+# The course and activity instance every author preview launches into. Fixed, so an author's Student
+# and Author views share one activity instance and what one saves shows in the other.
 PXC_PREVIEW_COURSE_ID = "sparkth-preview"
-PXC_PREVIEW_PLACEMENT = "preview"
+PXC_PREVIEW_ACTIVITY_INSTANCE = "preview"
 
 # The longest build error handed back to the agent, in characters. Compiler and smoke output
 # keep their end, where the cause is; a manifest schema message keeps its start.
@@ -40,7 +40,7 @@ PXC_MAX_SOURCE_CHARS = int(os.getenv("PXC_MAX_SOURCE_CHARS", "200000"))
 # Prefixed onto a Sparkth user id in a preview token, so it never equals an Open edX learner id.
 PXC_PREVIEW_USER_PREFIX = "sparkth-"
 
-# The course, placement and learner id the build's smoke test reads state as.
+# The course, activity instance and learner id the build's smoke test reads state as.
 PXC_SMOKE_CONTEXT_ID = "smoke"
 
 # The WIT world every generated activity compiles against: the bundled sample's. That world

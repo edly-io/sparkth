@@ -2,15 +2,15 @@
 
 An Open edX XBlock that renders a PXC activity hosted by Sparkth inside a course unit.
 
-The block itself stores no activity data — only the activity type's name and the placement id
+The block itself stores no activity data — only the activity type's name and the activity instance id
 that Sparkth minted when the course content was published. When a learner opens the unit, the
 block mints a short-lived, signed launch token carrying the learner's Open edX user id, the
-course id and the placement id, and renders a sandboxed iframe pointed at Sparkth's embed route
+course id and the activity instance id, and renders a sandboxed iframe pointed at Sparkth's embed route
 with that token. Sparkth verifies the token's signature, resolves the learner's identity from
 its claims, and serves the activity; all activity state (answers, scores, progress) is stored
 and stays in Sparkth, and never reaches the Open edX gradebook.
 
-A block copied in Studio, with Duplicate or with Copy then Paste, gets a new placement id, so the
+A block copied in Studio, with Duplicate or with Copy then Paste, gets a new activity instance id, so the
 copy keeps its own activity data instead of sharing the original's. The copy starts from the
 activity's defaults, not from the original's configuration.
 
@@ -135,7 +135,7 @@ grade to Open edX's gradebook — that integration does not exist yet.
 
 An activity's clients exchange events through an in-memory bus inside a single Sparkth
 process. Two learners on one activity therefore have to be served by the same process: run
-Sparkth with **one** uvicorn worker and one replica, or route by placement so that both
+Sparkth with **one** uvicorn worker and one replica, or route by activity instance so that both
 parties land together.
 
 With more than one worker the failure is silent. Each learner's actions succeed, each sees
