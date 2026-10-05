@@ -17,13 +17,22 @@ MANIFEST RULES
 - Every field declares a "type" and a "scope", and should declare a "default". The defaults are
   the activity's starting content: a learner opening a freshly placed activity sees them, so
   make them a complete, realistic example rather than empty values.
-- The scope decides who shares a value.
-  - "activity" is shared by everyone on one placement. Use it for the author's configuration:
+- The scope decides who shares a value. One activity can be placed in many lessons and many
+  courses, and each placement is a separate copy.
+  - "activity": shared by everyone on one placement. For the author's configuration:
     questions, choices, answer keys.
-  - "user,activity" is kept per learner on one placement. Use it for a learner's own answers
-    or progress.
-  - The course and global scopes share data across placements. Use them only when the author
-    asks for that.
+  - "user,activity": one per learner on one placement. For a learner's own answers or progress
+    in that lesson.
+  - "course": shared by everyone on every placement in one course. For a course-wide
+    leaderboard or tally.
+  - "user,course": one per learner across every placement in one course. For a learner's
+    running score in the course.
+  - "global": shared by everyone on every placement in every course. Rarely right; for data
+    every course must see.
+  - "user,global": one per learner across every course. For a learner's own preference that
+    should follow them everywhere.
+- Use "activity" and "user,activity" unless the author has chosen to carry data over between
+  lessons or courses.
 - Every action and event declares the JSON schema of its value. An action whose value does not
   match its schema is rejected before the sandbox sees it.
 - ui.js and sandbox.js are each capped at {max_source_chars} characters; longer files are
