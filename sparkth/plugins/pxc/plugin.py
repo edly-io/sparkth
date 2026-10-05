@@ -18,7 +18,6 @@ from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.lib.routes import register_router
 from sparkth.plugins.pxc import tools as pxc_tools
-from sparkth.plugins.pxc.activity_routes import router as activity_router
 from sparkth.plugins.pxc.constants import (
     PXC_ACTIVITY_SCOPE,
     PXC_ACTIVITY_SYSTEM_PROMPT,
@@ -37,6 +36,7 @@ from sparkth.plugins.pxc.exceptions import (
     PxcSandboxFailure,
 )
 from sparkth.plugins.pxc.routes import router as learner_router
+from sparkth.plugins.pxc.routes.activities import router as activity_router
 
 # A bad launch token is 401: the token is the learner's only credential here, and the caller
 # can get a fresh one by reloading the unit. A duplicate activity name is 500 — it is a broken
