@@ -3,7 +3,7 @@ import { stubLoginActivity, todayUtc } from "./utils/analytics";
 
 /**
  * Analytics dashboard. Runs as the seeded superuser (auth.setup.ts), with the read API
- * stubbed (utils/analytics.ts). Each view issue adds its own specs here.
+ * stubbed (utils/analytics.ts). Each view adds its own specs here.
  */
 test.describe("analytics", () => {
   test("redirects to the dashboard when analytics access is denied", async ({ page }) => {
