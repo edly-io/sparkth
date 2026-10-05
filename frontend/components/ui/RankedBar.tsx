@@ -28,9 +28,9 @@ export function RankedBar({
   return (
     <figure className={cn("space-y-2", className)}>
       <ol aria-hidden="true" className="space-y-2">
-        {ranked.map((d) => (
+        {ranked.map((d, i) => (
           <li
-            key={d.label}
+            key={i}
             className="grid grid-cols-[minmax(0,10rem)_1fr_auto] items-center gap-3 text-sm"
           >
             <span className="truncate text-foreground" title={d.label}>

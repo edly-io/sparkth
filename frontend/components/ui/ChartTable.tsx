@@ -14,8 +14,8 @@ export function ChartTable({
       <caption>{caption}</caption>
       <thead>
         <tr>
-          {headers.map((h) => (
-            <th key={h} scope="col">
+          {headers.map((h, i) => (
+            <th key={i} scope="col">
               {h}
             </th>
           ))}

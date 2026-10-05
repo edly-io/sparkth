@@ -73,6 +73,18 @@ describe("BarChart", () => {
     expect(Math.max(...ys)).toBeGreaterThan(Math.min(...ys));
   });
 
+  it("formats the hover tooltip the same way as the table", () => {
+    const { container } = render(
+      <BarChart
+        data={[{ label: "Jul 1", value: 12345 }]}
+        caption="c"
+        headers={["Date", "Logins"]}
+        formatValue={(n) => `#${n}`}
+      />,
+    );
+    expect(container.querySelector("rect title")).toHaveTextContent("Jul 1: #12345");
+  });
+
   it("renders with empty data without crashing", () => {
     const { container } = render(<BarChart data={[]} caption="c" headers={["Date", "Logins"]} />);
     expect(container.querySelector("svg")).toBeInTheDocument();

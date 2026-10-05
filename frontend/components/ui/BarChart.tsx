@@ -70,7 +70,7 @@ export function BarChart({
           return (
             <rect key={i} x={x} y={y} width={barW} height={barH} rx={2} className="fill-current">
               {/* native tooltip — no JS tooltip machinery */}
-              <title>{`${d.label}: ${d.value}`}</title>
+              <title>{`${d.label}: ${formatValue(d.value)}`}</title>
             </rect>
           );
         })}
