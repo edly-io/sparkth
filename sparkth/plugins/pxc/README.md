@@ -17,36 +17,29 @@ side needs. This one covers only the Sparkth side.
 
 ## What a working deployment needs
 
-1. **The sandbox binaries.** `make pxc.activities.build` compiles each bundled activity's
-   `sandbox.wasm`. They are not in git, and an activity whose binary is missing fails at launch.
+1. **The sandbox binaries.** Each bundled activity's `sandbox.wasm` is compiled from its source.
+   The binaries are not in git, and an activity whose binary is missing fails at launch.
 2. **A shared secret.** `PXC_LAUNCH_SECRET` here and `SPARKTH_PXC_LAUNCH_SECRET` on the Open edX
    side must hold the same value. A mismatch fails every learner's launch with a 401, logged
    here as a signature mismatch.
 3. **The XBlock**, installed as above.
 4. **Persistent storage.** `PXC_DATA_DIR` holds all learner state and all generated activities.
-   The production compose file mounts the `pxc_data` volume there; any other deployment needs a
-   persistent volume at that path. It is local disk, so replicas must share it.
 5. **The build toolchain.** Activities compile on the server, from the `node_modules` under
-   `PXC_TOOLCHAIN_DIR`, with `node` on `PATH`. `make pxc.activities.build` installs both locally,
-   and the image ships them.
+   `PXC_TOOLCHAIN_DIR`, with `node` on `PATH`.
 
 `.env` is the source of truth for every setting and carries a comment on each one; this file
 does not repeat the list.
 
 ## Placing one in a course
 
-An authoring agent lists contributors with the `openedx` plugin's
-`openedx_list_content_contributors` tool. The `pxc` entry's `options` are the bundled activities
-followed by the author's own, the latter by title. The agent then calls
-`openedx_add_plugin_content` with `contributor: "pxc"` and the chosen `option_id`. That mints a
-placement here and asks Studio to create a block of category `pxc`, which the installed XBlock
-provides. With no `option_id` the placement names `PXC_DEFAULT_ACTIVITY`.
+The plugin registers the `pxc` content contributor. Its options are the bundled activities
+followed by the author's own, the latter by title. Building a block for a chosen activity mints a
+placement here and returns a block of category `pxc`, which the installed XBlock provides. With no
+activity chosen, the placement names `PXC_DEFAULT_ACTIVITY`.
 
 Only an activity's author can place a generated activity: the builder checks ownership again
-when it builds, whatever the id's origin. Studio creates the block on the draft branch, so the unit
-must be published before a learner sees anything — [`third_party_plugins/openedx/xblock/README.md`](../../../third_party_plugins/openedx/xblock/README.md)
-covers that and the Advanced Module List, which is optional and only affects Studio's component
-picker.
+when it builds, whatever the id's origin. Publishing the unit is covered by the
+[XBlock README](../../../third_party_plugins/openedx/xblock/README.md).
 
 ## The Activities page
 
