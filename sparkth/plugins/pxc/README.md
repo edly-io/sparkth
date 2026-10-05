@@ -24,8 +24,8 @@ side needs. This one covers only the Sparkth side.
    here as a signature mismatch.
 3. **The XBlock**, installed as above.
 4. **Persistent storage.** `PXC_DATA_DIR` holds all learner state and all generated activities.
-5. **The build toolchain.** Activities compile on the server, from the `node_modules` under
-   `PXC_TOOLCHAIN_DIR`, with `node` on `PATH`.
+5. **The build toolchain.** Activities compile on the server, with `compile.mjs` and the
+   `node_modules` under `PXC_TOOLCHAIN_DIR`, and `node` on `PATH`.
 
 `.env` is the source of truth for every setting and carries a comment on each one; this file
 does not repeat the list.
@@ -57,7 +57,7 @@ agent builds it and replies with a preview link that opens the activity on the S
 
 | Tool | Returns |
 |---|---|
-| `pxc_about` | The contract: file rules, the manifest JSON schema, and a complete worked example |
+| `pxc_about` | The contract: file rules and the manifest JSON schema |
 | `pxc_build_activity` | The id and preview link of a newly built activity |
 | `pxc_list_activities` | The author's activities, newest first, each with id, title, description, creation time and preview link |
 | `pxc_get_activity_source` | One of the author's activities as its title, description, manifest, `ui.js` and `sandbox.js` |
@@ -73,8 +73,7 @@ authenticated chat session; on the unauthenticated `/ai/mcp` endpoint they fail 
 A built activity never changes: an edit builds a new one.
 
 The job's prompt lives in `assets/pxc_activity_system_prompt.txt` and caps build attempts at
-three. The contract text lives in `assets/about.txt`; the example files are read from `mcq` on
-every call.
+three. The contract text lives in `assets/about.txt`.
 
 ## Adding an activity
 

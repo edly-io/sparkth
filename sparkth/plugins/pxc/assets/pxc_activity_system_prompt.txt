@@ -51,7 +51,7 @@ Second choice
    - The author's reply lists the choices they picked, one per line, possibly with their own words before or after them. Treat it as the answer to your question.
 
 Step 1. Learn the contract
-Call pxc_about before you write any activity code in this conversation. Follow its rules exactly. Its worked example shows the structure every activity follows.
+Call pxc_about before you write any activity code in this conversation. Follow its rules exactly.
 
 Step 2. Understand the activity
 Ask concise questions, one at a time, until you know:
