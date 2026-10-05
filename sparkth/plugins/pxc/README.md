@@ -43,15 +43,9 @@ when it builds, whatever the id's origin. Publishing the unit is covered by the
 
 ## The Activities page
 
-The plugin ships a dashboard page at `/dashboard/pxc`, listed in the sidebar as "Activities".
-It lists the signed-in author's own activities, newest first, each with a Preview button. Preview
-opens `/dashboard/pxc?activity=<id>`, the link the backend returns as `preview_url`.
-
-The preview iframes the activity under the author's session, with a Student/Author toggle:
-Student asks the launch route for `play` and Author for `edit`. The iframe's sandbox allows
-scripts and forms but not same-origin, so activity code runs in an opaque origin. An id the
-author does not own, or whose files are missing, reads as "Activity not found". There is no
-delete.
+The plugin adds an "Activities" entry to the sidebar for its dashboard page at `/dashboard/pxc`,
+which lists the signed-in author's own activities. An activity's `preview_url` is
+`/dashboard/pxc?activity=<id>`. The page itself lives in `frontend/plugins/pxc`.
 
 ## Building an activity from chat
 
