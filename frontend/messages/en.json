@@ -39,7 +39,7 @@
         "invalidDate": "Enter valid start and end dates.",
         "startAfterEnd": "The start date must be on or before the end date.",
         "inFuture": "The end date can't be in the future.",
-        "tooFarBack": "The start date can't be more than 365 days ago."
+        "tooFarBack": "The start date must be within the last {days} days."
       }
     }
   },

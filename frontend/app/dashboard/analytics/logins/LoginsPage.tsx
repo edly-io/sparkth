@@ -25,7 +25,7 @@ import { usePeriod } from "../usePeriod";
 
 type State =
   | { status: "loading" }
-  | { status: "ready"; points: LoginActivityPoint[]; from: IsoDate; to: IsoDate }
+  | { status: "ready"; points: LoginActivityPoint[]; from: IsoDate }
   | { status: "forbidden" }
   | { status: "error" };
 
@@ -43,12 +43,12 @@ export default function LoginsPage() {
   useEffect(() => {
     if (!token) return;
     let active = true;
-    const { from, to } = period;
+    const { from } = period;
     setState({ status: "loading" });
     // The API only counts back from today, so ask for enough days to reach `from`.
     fetchLoginActivity(token, { days: daysInclusive(from, toIsoDate(new Date())) })
       .then((points) => {
-        if (active) setState({ status: "ready", points, from, to });
+        if (active) setState({ status: "ready", points, from });
       })
       .catch((err) => {
         if (!active) return;
@@ -61,7 +61,8 @@ export default function LoginsPage() {
     return () => {
       active = false;
     };
-  }, [token, period.from, period.to, reloadKey]);
+    // `to` and the bucket only reshape the loaded points, so changing them doesn't refetch.
+  }, [token, period.from, reloadKey]);
 
   const retry = useCallback(() => setReloadKey((key) => key + 1), []);
 
@@ -109,7 +110,7 @@ export default function LoginsPage() {
         <AnalyticsContent
           points={state.points}
           from={state.from}
-          to={state.to}
+          to={period.to}
           bucket={period.bucket}
         />
       )}

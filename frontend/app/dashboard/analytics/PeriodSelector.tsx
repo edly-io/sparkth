@@ -2,9 +2,10 @@
 
 import { useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
-import { useSearchParams } from "next/navigation";
 import {
+  addDays,
   BUCKETS,
+  MAX_RANGE_DAYS,
   PRESETS,
   presetPeriod,
   toIsoDate,
@@ -20,17 +21,19 @@ import { usePeriod } from "./usePeriod";
 
 const PRESET_KEYS = Object.keys(PRESETS) as Preset[];
 
-// Keyed on the query so local state (custom toggle, draft, inline error) reseeds whenever the
-// URL changes underneath the mounted layout, e.g. via the sidebar link. Keyed here rather than in
-// the layout because useSearchParams must sit inside the layout's Suspense boundary.
+// Remounts (reseeding the custom toggle, draft and inline error) when the range in the URL
+// changes, but not for a bucket change, so an unapplied custom draft survives it.
 export function PeriodSelector() {
-  return <PeriodControls key={useSearchParams().toString()} />;
+  const { period } = usePeriod();
+  return <PeriodControls key={period.preset ?? `${period.from}|${period.to}`} />;
 }
 
 function PeriodControls() {
   const t = useTranslations("analytics.period");
   const { period, error: urlError, setPeriod } = usePeriod();
   const today = toIsoDate(new Date());
+  // The read API counts back from today, so a start older than this can't be served.
+  const earliestStart = addDays(today, -(MAX_RANGE_DAYS - 1));
   const [custom, setCustom] = useState(period.preset === null);
   const [draft, setDraft] = useState({ from: period.from, to: period.to });
   const [draftError, setDraftError] = useState<RangeError | null>(null);
@@ -44,14 +47,16 @@ function PeriodControls() {
     }
     setCustom(false);
     setDraftError(null);
-    setPeriod(presetPeriod(value as Preset, period.bucket, today));
+    setPeriod((current) => presetPeriod(value as Preset, current.bucket, today));
   }
 
   function applyCustom(event: FormEvent) {
     event.preventDefault();
     const rangeError = validateRange(draft.from, draft.to, today);
     setDraftError(rangeError);
-    if (rangeError === null) setPeriod({ ...draft, bucket: period.bucket, preset: null });
+    if (rangeError === null) {
+      setPeriod((current) => ({ ...draft, bucket: current.bucket, preset: null }));
+    }
   }
 
   const describedBy = error ? "period-error" : undefined;
@@ -78,6 +83,7 @@ function PeriodControls() {
               id="period-from"
               label={t("from")}
               value={draft.from}
+              min={earliestStart}
               max={today}
               aria-invalid={error !== null}
               aria-describedby={describedBy}
@@ -90,6 +96,7 @@ function PeriodControls() {
               id="period-to"
               label={t("to")}
               value={draft.to}
+              min={earliestStart}
               max={today}
               aria-invalid={error !== null}
               aria-describedby={describedBy}
@@ -106,13 +113,16 @@ function PeriodControls() {
           id="period-bucket"
           label={t("bucket")}
           value={period.bucket}
-          onChange={(e) => setPeriod({ ...period, bucket: e.target.value as Bucket })}
+          onChange={(e) => {
+            const bucket = e.target.value as Bucket;
+            setPeriod((current) => ({ ...current, bucket }));
+          }}
           options={BUCKETS.map((b) => ({ value: b, label: t(`buckets.${b}`) }))}
         />
       </div>
       {error && (
         <p id="period-error" role="alert" className="w-full text-sm text-error-600">
-          {t(`errors.${error}`)}
+          {t(`errors.${error}`, { days: MAX_RANGE_DAYS })}
         </p>
       )}
     </div>

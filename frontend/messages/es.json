@@ -39,7 +39,7 @@
         "invalidDate": "Introduce fechas de inicio y fin válidas.",
         "startAfterEnd": "La fecha de inicio debe ser anterior o igual a la fecha de fin.",
         "inFuture": "La fecha de fin no puede estar en el futuro.",
-        "tooFarBack": "La fecha de inicio no puede ser de hace más de 365 días."
+        "tooFarBack": "La fecha de inicio debe estar dentro de los últimos {days} días."
       }
     }
   },

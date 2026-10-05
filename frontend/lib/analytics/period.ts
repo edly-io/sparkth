@@ -5,8 +5,6 @@ export const PRESETS = { "7d": 7, "30d": 30, "90d": 90, "12m": 365 } as const;
 export type Preset = keyof typeof PRESETS;
 export const DEFAULT_PRESET: Preset = "30d";
 export const BUCKETS: readonly Bucket[] = ["day", "week", "month"];
-// The read API's `days` ceiling. It counts back from today, so this bounds how far back a
-// range may start (not its length) until the API takes explicit ranges.
 export const MAX_RANGE_DAYS = 365;
 
 export interface Period {
@@ -34,8 +32,10 @@ export function validateRange(from: string, to: string, today: IsoDate): RangeEr
   return null;
 }
 
-// Reads a period from URL params. An invalid custom range falls back to the default preset
-// and reports why, so a bad shared link still renders.
+/**
+ * Reads a period from URL params. An invalid custom range falls back to the default preset
+ * and reports why, so a bad shared link still renders.
+ */
 export function parsePeriod(
   params: { get(name: string): string | null },
   today: IsoDate,

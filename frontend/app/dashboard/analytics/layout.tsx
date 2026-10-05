@@ -48,7 +48,6 @@ export default function AnalyticsLayout({ children }: { children: React.ReactNod
         )}
         {access === "denied" && <Forbidden />}
         {access === "allowed" && (
-          // useSearchParams needs a Suspense boundary under static export.
           <Suspense fallback={null}>
             <div className="flex flex-col gap-6 lg:flex-row">
               <AnalyticsNav />

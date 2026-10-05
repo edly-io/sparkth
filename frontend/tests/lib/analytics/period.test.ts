@@ -23,13 +23,13 @@ describe("validateRange", () => {
   it.each([
     ["2026-07-10", "2026-07-01", "startAfterEnd"],
     ["2026-07-01", "2026-07-25", "inFuture"],
-    ["2025-07-24", "2026-07-01", "tooFarBack"], // 366 days back from today
+    ["2025-07-24", "2026-07-01", "tooFarBack"], // 365 days back: outside the API's 365-day window
     ["2026-02-30", "2026-03-01", "invalidDate"],
     ["", "2026-07-01", "invalidDate"],
   ])("rejects %s → %s as %s", (from, to, error) => {
     expect(validateRange(from, to, TODAY)).toBe(error);
   });
-  it("allows a start exactly 365 days back", () => {
+  it("allows a start 364 days back, the oldest day the API's 365-day window covers", () => {
     expect(validateRange("2025-07-25", TODAY, TODAY)).toBeNull();
   });
 });

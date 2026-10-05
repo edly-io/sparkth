@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 // fireEvent for date inputs: user-event typing into type="date" is unreliable under jsdom.
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { NextIntlClientProvider } from "next-intl";
+import en from "@/messages/en.json";
 import { renderWithIntl } from "../../../intl-test-utils";
 
 const nav = vi.hoisted(() => ({ search: "", replace: vi.fn() }));
@@ -12,6 +14,14 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { PeriodSelector } from "@/app/dashboard/analytics/PeriodSelector";
+
+function intl(ui: React.ReactElement) {
+  return (
+    <NextIntlClientProvider locale="en" messages={en}>
+      {ui}
+    </NextIntlClientProvider>
+  );
+}
 
 beforeEach(() => {
   nav.search = "";
@@ -65,6 +75,35 @@ describe("PeriodSelector", () => {
   it("explains why an invalid link fell back to the default", () => {
     nav.search = "from=2024-01-01&to=2024-01-10";
     renderWithIntl(<PeriodSelector />);
-    expect(screen.getByRole("alert")).toHaveTextContent(/more than 365 days ago/i);
+    expect(screen.getByRole("alert")).toHaveTextContent(/within the last 365 days/i);
+  });
+
+  it("keeps both of two quick changes made before the URL updates", async () => {
+    renderWithIntl(<PeriodSelector />);
+    // The mocked router never updates the URL, like a second change landing before the first.
+    await userEvent.selectOptions(screen.getByLabelText("Period"), "7d");
+    await userEvent.selectOptions(screen.getByLabelText("Group by"), "week");
+    expect(nav.replace).toHaveBeenLastCalledWith(
+      "/dashboard/analytics/logins?range=7d&bucket=week",
+    );
+  });
+
+  it("keeps an unapplied custom draft when only the bucket changes", async () => {
+    const { rerender } = render(intl(<PeriodSelector />));
+    await userEvent.selectOptions(screen.getByLabelText("Period"), "custom");
+    fireEvent.change(screen.getByLabelText("Start date"), { target: { value: "2026-07-01" } });
+    await userEvent.selectOptions(screen.getByLabelText("Group by"), "week");
+
+    nav.search = "range=30d&bucket=week"; // the bucket change lands
+    rerender(intl(<PeriodSelector />));
+
+    expect(screen.getByLabelText("Start date")).toHaveValue("2026-07-01");
+  });
+
+  it("only offers start dates inside the API's 365-day window", async () => {
+    renderWithIntl(<PeriodSelector />);
+    await userEvent.selectOptions(screen.getByLabelText("Period"), "custom");
+    expect(screen.getByLabelText("Start date")).toHaveAttribute("min", "2025-07-25");
+    expect(screen.getByLabelText("Start date")).toHaveAttribute("max", "2026-07-24");
   });
 });

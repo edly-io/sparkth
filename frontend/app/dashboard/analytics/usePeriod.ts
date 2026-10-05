@@ -1,11 +1,9 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { parsePeriod, periodQuery, toIsoDate, type Period } from "@/lib/analytics";
 
-// The analytics period lives only in the URL, so it survives reloads, view switches and
-// shared links. `replace`, not `push`: tweaking the period shouldn't flood Back.
 export function usePeriod() {
   const params = useSearchParams();
   const router = useRouter();
@@ -16,9 +14,20 @@ export function usePeriod() {
     () => parsePeriod(new URLSearchParams(query), today),
     [query, today],
   );
+  // The last query written but not yet in the URL: router.replace lands after a commit, so a
+  // second change made before then must build on the first, not on the rendered period.
+  const pending = useRef<string | null>(null);
+  useEffect(() => {
+    pending.current = null;
+  }, [query]);
   const setPeriod = useCallback(
-    (next: Period) => router.replace(`${pathname}?${periodQuery(next)}`),
-    [router, pathname],
+    (update: (current: Period) => Period) => {
+      const current = parsePeriod(new URLSearchParams(pending.current ?? query), today).period;
+      const next = periodQuery(update(current));
+      pending.current = next;
+      router.replace(`${pathname}?${next}`);
+    },
+    [router, pathname, query, today],
   );
   return { period, error, setPeriod };
 }

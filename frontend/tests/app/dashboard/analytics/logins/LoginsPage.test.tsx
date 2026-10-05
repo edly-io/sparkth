@@ -275,6 +275,22 @@ describe("LoginsPage period", () => {
     expect(fetchLoginActivity).toHaveBeenCalledTimes(1);
   });
 
+  it("re-buckets without refetching when only the end date changes", async () => {
+    nav.search = "from=2026-07-01&to=2026-07-10";
+    vi.mocked(fetchLoginActivity).mockResolvedValue([
+      { day: "2026-07-05", login_count: 2 },
+      { day: "2026-07-12", login_count: 3 },
+    ]);
+    const { rerender } = render(intl(<LoginsPage />));
+    const totalCard = (await screen.findByText("Total logins")).parentElement as HTMLElement;
+    expect(within(totalCard).getByText("2")).toBeInTheDocument();
+
+    nav.search = "from=2026-07-01&to=2026-07-15";
+    rerender(intl(<LoginsPage />));
+    expect(await within(totalCard).findByText("5")).toBeInTheDocument();
+    expect(fetchLoginActivity).toHaveBeenCalledTimes(1);
+  });
+
   it("labels a month bucket by month", async () => {
     nav.search = "range=30d&bucket=month";
     vi.mocked(fetchLoginActivity).mockResolvedValue([{ day: "2026-07-21", login_count: 3 }]);
