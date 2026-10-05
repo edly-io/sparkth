@@ -50,10 +50,6 @@ PXC_SANDBOX_WIT = PXC_ACTIVITY_ROOT / "mcq" / "pxc.wit"
 # The pxc plugin's prompt and contract texts.
 PXC_ASSET_DIR = Path(__file__).parent / "assets"
 
-# The bundled activity pxc_about hands the agent as its worked example, and the files it shows.
-PXC_ABOUT_EXAMPLE = "mcq"
-PXC_ABOUT_FILES = ("pxc.wit", "manifest.json", "sandbox.js", "ui.js")
-
 # The MCP category every pxc tool registers under, which the pxc-activity chat job claims.
 PXC_TOOL_CATEGORY = "pxc"
 
