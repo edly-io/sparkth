@@ -1,8 +1,8 @@
 """The author-facing surface, mounted beside the learner routes at ``/api/v1/pxc``.
 
-Every route here depends on ``get_current_user``. ``PluginAccessMiddleware`` lets a request
-with no bearer token through to the route, so the dependency is what turns it away. The learner
-routes carry a launch token instead and declare no such dependency, so they are unaffected.
+Every route here depends on ``get_current_user``, which is what turns away a request with no
+signed-in author. The learner routes carry a launch token instead and declare no such
+dependency, so they are unaffected.
 """
 
 from typing import cast
