@@ -11,14 +11,14 @@ from sparkth.plugins.pxc.enums import PreviewPermission
 from sparkth.plugins.pxc.exceptions import PxcInvalidLaunchToken, PxcLaunchNotConfigured
 from sparkth.plugins.pxc.tokens import LaunchClaims, mint_launch_token, mint_preview_token, read_launch_token
 
-CLAIMS = ("mcq", "instance-1", "course-v1:X+Y+Z", "learner-7")
+CLAIMS = ("mcq", "instance-1", "course-1", "learner-7")
 OTHER_SECRET = "a-different-secret-of-32-plus-bytes"
 
 
 def test_a_minted_token_reads_back_its_claims(configured_secret: str) -> None:
     claims = read_launch_token(mint_launch_token(*CLAIMS, "play", configured_secret, 300))
 
-    assert claims == LaunchClaims("mcq", "instance-1", "course-v1:X+Y+Z", "learner-7", Permission.play)
+    assert claims == LaunchClaims("mcq", "instance-1", "course-1", "learner-7", Permission.play)
 
 
 def test_a_token_signed_with_another_secret_is_refused(configured_secret: str) -> None:
@@ -29,9 +29,9 @@ def test_a_token_signed_with_another_secret_is_refused(configured_secret: str) -
 def test_a_signature_mismatch_is_logged_with_the_claimed_activity_and_activity_instance(
     configured_secret: str, caplog: pytest.LogCaptureFixture
 ) -> None:
-    # A secret mismatch between Sparkth and the XBlock — the most likely production failure per
-    # the XBlock's README — produces a genuine token signed with the wrong secret. Without the hint,
-    # an operator sees learners failing with 401s and has no server-side trace of why.
+    # A secret mismatch between Sparkth and the LMS, the most likely production failure, produces
+    # a genuine token signed with the wrong secret. Without the hint, an operator sees learners
+    # failing with 401s and has no server-side trace of why.
     token = mint_launch_token(*CLAIMS, "play", OTHER_SECRET, 300)
 
     with caplog.at_level(logging.WARNING, logger="sparkth.plugins.pxc.tokens"):
@@ -67,7 +67,7 @@ def test_a_tampered_payload_is_refused(configured_secret: str) -> None:
     # secret, just not together. This is what stops a learner swapping in another activity instance's
     # payload from a token they legitimately hold.
     header, _, signature = mint_launch_token(*CLAIMS, "play", configured_secret, 300).split(".")
-    forged = mint_launch_token("mcq", "instance-2", "course-v1:X+Y+Z", "learner-7", "play", configured_secret, 300)
+    forged = mint_launch_token("mcq", "instance-2", "course-1", "learner-7", "play", configured_secret, 300)
 
     with pytest.raises(PxcInvalidLaunchToken, match="signature"):
         read_launch_token(f"{header}.{forged.split('.')[1]}.{signature}")
@@ -164,12 +164,12 @@ def test_escalating_the_permission_claim_breaks_the_signature(configured_secret:
 
 
 def test_a_token_without_a_permission_claim_is_treated_as_play(configured_secret: str) -> None:
-    # An XBlock older than the claim must still launch, in the least-privileged mode.
+    # An LMS integration older than the claim must still launch, in the least-privileged mode.
     token = jwt.encode(
         {
             "act": "mcq",
             "ins": "instance-1",
-            "cid": "course-v1:X+Y+Z",
+            "cid": "course-1",
             "uid": "learner-7",
             "exp": int(time.time()) + 300,
         },
@@ -189,7 +189,7 @@ def test_an_unrecognised_permission_claim_degrades_to_play_and_is_logged(
         {
             "act": "mcq",
             "ins": "instance-1",
-            "cid": "course-v1:X+Y+Z",
+            "cid": "course-1",
             "uid": "learner-7",
             "exp": int(time.time()) + 300,
             "prm": "superuser",
@@ -221,8 +221,8 @@ def test_a_preview_token_launches_the_authors_own_activity(configured_secret: st
     )
 
 
-def test_a_preview_learner_never_shares_an_open_edx_learners_id(configured_secret: str) -> None:
-    # Open edX launches carry its own numeric ids; user-scoped fields would collide on "7".
+def test_a_preview_learner_never_shares_an_lms_learners_id(configured_secret: str) -> None:
+    # LMS launches carry their own numeric ids; user-scoped fields would collide on "7".
     assert read_launch_token(mint_preview_token(uuid7(), 7, PreviewPermission.PLAY)).user_id != "7"
 
 

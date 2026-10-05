@@ -10,7 +10,7 @@ from sparkth.plugins.pxc.tokens import mint_launch_token
 
 @pytest.fixture
 def token(configured_secret: str) -> str:
-    return mint_launch_token("mcq", "instance-1", "course-v1:X+Y+Z", "learner-7", "play", configured_secret, 300)
+    return mint_launch_token("mcq", "instance-1", "course-1", "learner-7", "play", configured_secret, 300)
 
 
 async def test_the_embed_shell_without_a_token_is_rejected(client: AsyncClient) -> None:
@@ -85,7 +85,7 @@ async def test_the_embed_shell_inlines_the_state_and_the_learners_context(client
     config = inline_config(response.text)
     assert config.context.model_dump() == {
         "activity_id": "instance-1",
-        "course_id": "course-v1:X+Y+Z",
+        "course_id": "course-1",
         "user_id": "learner-7",
     }
     assert config.permission == "play"
@@ -96,7 +96,7 @@ async def test_the_embed_shell_inlines_the_state_and_the_learners_context(client
 async def test_the_embed_shell_reports_the_permission_the_token_asked_for(
     client: AsyncClient, configured_secret: str
 ) -> None:
-    edit_token = mint_launch_token("mcq", "instance-1", "course-v1:X+Y+Z", "learner-7", "edit", configured_secret, 300)
+    edit_token = mint_launch_token("mcq", "instance-1", "course-1", "learner-7", "edit", configured_secret, 300)
 
     response = await client.get("/api/v1/pxc/embed", params={"token": edit_token})
 
@@ -110,7 +110,7 @@ async def test_inlined_state_cannot_close_the_configuration_script(
 ) -> None:
     # An author's saved text lands in the page verbatim; unescaped, this would end the JSON block.
     question = "</script><script>alert(1)</script>"
-    edit_token = mint_launch_token("mcq", "instance-1", "course-v1:X+Y+Z", "learner-7", "edit", configured_secret, 300)
+    edit_token = mint_launch_token("mcq", "instance-1", "course-1", "learner-7", "edit", configured_secret, 300)
     saved = {"question": question, "answers": ["yes", "no"], "correct_answers": [0]}
     save = await client.post("/api/v1/pxc/actions/config.save", params={"token": edit_token}, json=saved)
     assert save.status_code == 204

@@ -4,7 +4,7 @@ from pathlib import Path
 # Bundled activity sources, one directory per activity type.
 PXC_ACTIVITY_ROOT = Path(__file__).parent / "activities"
 
-# Must equal the entry point name the XBlock registers, so it is not configurable.
+# The block type an LMS integration renders a PXC activity under, so it is not configurable.
 PXC_BLOCK_CATEGORY = "pxc"
 
 # Any origin is allowed: the embed page's origin is opaque, and learner routes use launch tokens.
@@ -37,7 +37,7 @@ PXC_BUILD_ERROR_LIMIT = int(os.getenv("PXC_BUILD_ERROR_LIMIT", "4000"))
 # The longest ui.js or sandbox.js an agent may submit, in characters, refused before any compile.
 PXC_MAX_SOURCE_CHARS = int(os.getenv("PXC_MAX_SOURCE_CHARS", "200000"))
 
-# Prefixed onto a Sparkth user id in a preview token, so it never equals an Open edX learner id.
+# Prefixed onto a Sparkth user id in a preview token, so it never equals an LMS learner id.
 PXC_PREVIEW_USER_PREFIX = "sparkth-"
 
 # The course, activity instance and learner id the build's smoke test reads state as.
@@ -68,7 +68,7 @@ PXC_ACTIVITY_SCOPE = (
     "about it, asking to build, change, fix or preview an activity, and listing or reopening "
     "activities the author built. Short replies, choices or confirmations that answer the "
     "assistant's own questions about an activity belong here too. Placing or adding a built "
-    "activity into a course or an LMS unit is not part of this job: that belongs to the "
+    "activity into a course or a lesson is not part of this job: that belongs to the "
     "conversation that designs the course."
 )
 

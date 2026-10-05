@@ -10,8 +10,8 @@ from sparkth.plugins.pxc.exceptions import PxcActionRejected, PxcActivityNotFoun
 from sparkth.plugins.pxc.runtime import build_runtime, read_state, run_action
 from sparkth.plugins.pxc.tokens import LaunchClaims
 
-CLAIMS = LaunchClaims("mcq", "instance-1", "course-v1:X+Y+Z", "learner-7", Permission.play)
-EDIT_CLAIMS = LaunchClaims("mcq", "instance-1", "course-v1:X+Y+Z", "learner-7", Permission.edit)
+CLAIMS = LaunchClaims("mcq", "instance-1", "course-1", "learner-7", Permission.play)
+EDIT_CLAIMS = LaunchClaims("mcq", "instance-1", "course-1", "learner-7", Permission.edit)
 
 
 def test_the_runtime_is_built_for_the_claimed_activity_instance_and_learner() -> None:
@@ -19,7 +19,7 @@ def test_the_runtime_is_built_for_the_claimed_activity_instance_and_learner() ->
 
     assert runtime.name == "mcq"
     assert runtime.activity_id == "instance-1"
-    assert runtime.course_id == "course-v1:X+Y+Z"
+    assert runtime.course_id == "course-1"
     assert runtime.user_id == "learner-7"
 
 
@@ -33,7 +33,7 @@ def test_the_runtime_takes_its_permission_from_the_claims() -> None:
 
 def test_an_unknown_activity_is_rejected() -> None:
     with pytest.raises(PxcActivityNotFound):
-        build_runtime(LaunchClaims("absent", "instance-1", "course-v1:X+Y+Z", "learner-7", Permission.play))
+        build_runtime(LaunchClaims("absent", "instance-1", "course-1", "learner-7", Permission.play))
 
 
 def test_the_state_file_is_the_activity_types_own(tmp_path: Path) -> None:
@@ -46,7 +46,7 @@ def test_the_state_file_is_the_activity_types_own(tmp_path: Path) -> None:
 def test_state_reads_the_seeded_configuration() -> None:
     runtime = build_runtime(CLAIMS)
     # "question" is scoped "activity" in the manifest, which blanks the learner segment.
-    runtime.field_store.set("course-v1:X+Y+Z", "mcq", "instance-1", "", "question", "What is 2 + 2?")
+    runtime.field_store.set("course-1", "mcq", "instance-1", "", "question", "What is 2 + 2?")
 
     assert read_state(runtime)["question"] == "What is 2 + 2?"
 
@@ -61,7 +61,7 @@ def test_an_undeclared_action_is_rejected() -> None:
 def test_submitting_an_answer_returns_the_activitys_events() -> None:
     runtime = build_runtime(CLAIMS)
     # All three fields are scoped "activity" in the manifest, which blanks the learner segment.
-    scope = ("course-v1:X+Y+Z", "mcq", "instance-1", "")
+    scope = ("course-1", "mcq", "instance-1", "")
     runtime.field_store.set(*scope, "question", "What is 2 + 2?")
     runtime.field_store.set(*scope, "answers", ["3", "4"])
     runtime.field_store.set(*scope, "correct_answers", [1])
@@ -77,7 +77,7 @@ def test_configuration_saves_with_edit_and_is_ignored_with_play() -> None:
     # mode and passes the permission through, and activity/sandbox.js returns early from
     # handleConfigSave unless it is "edit". A play-mode config.save is therefore silently
     # ignored rather than raising, which is what this asserts.
-    scope = ("course-v1:X+Y+Z", "mcq", "instance-1", "")
+    scope = ("course-1", "mcq", "instance-1", "")
     seeded = build_runtime(EDIT_CLAIMS)
     seeded.field_store.set(*scope, "question", "Original?")
     seeded.field_store.set(*scope, "answers", ["a", "b"])
@@ -106,6 +106,6 @@ def test_a_generated_activity_launches_from_its_own_directory() -> None:
     manifest = json.loads((activity_dir("mcq") / "manifest.json").read_text())
     (directory / "manifest.json").write_text(json.dumps({**manifest, "name": activity_id}))
 
-    runtime = build_runtime(LaunchClaims(activity_id, "instance-1", "course-v1:X+Y+Z", "learner-7", Permission.play))
+    runtime = build_runtime(LaunchClaims(activity_id, "instance-1", "course-1", "learner-7", Permission.play))
 
     assert runtime.name == activity_id

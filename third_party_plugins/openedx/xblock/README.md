@@ -210,3 +210,7 @@ The plugin's own errors, such as a 401 for an expired token, carry the same head
 client reads the status and shows the same notices as the socket. FastAPI's 422 for a malformed
 request, an unhandled 500 and the 403 for a disabled plugin carry no CORS header, so the browser
 reports them as a network failure. In every failure the action is not sent and stays queued.
+
+Course staff who edit this block's `activity` field directly in Studio or in OLX can point it at
+any activity id, and the block signs it. Sparkth checks that an author owns an activity only
+when its agent places it in a course.

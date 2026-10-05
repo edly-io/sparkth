@@ -46,7 +46,7 @@ from sparkth.plugins.pxc.routes import router as learner_router
 from sparkth.plugins.pxc.routes.activities import router as activity_router
 
 # A bad launch token is 401: the token is the learner's only credential here, and the caller
-# can get a fresh one by reloading the unit. A duplicate activity name is 500 — it is a broken
+# can get a fresh one by reloading the page. A duplicate activity name is 500 — it is a broken
 # deployment, not a bad request. An unconfigured launch secret is 503: the author's request is
 # fine and the deployment is not. Errors the embed page can hit carry CORS headers so it can
 # read them.

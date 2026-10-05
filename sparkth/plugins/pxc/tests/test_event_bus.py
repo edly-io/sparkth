@@ -23,14 +23,14 @@ class StubSocket:
 
 
 def _claims(permission: Permission, activity_instance: str = "instance-1", user_id: str = "learner-7") -> LaunchClaims:
-    return LaunchClaims("mcq", activity_instance, "course-v1:X+Y+Z", user_id, permission)
+    return LaunchClaims("mcq", activity_instance, "course-1", user_id, permission)
 
 
 def _event(permission: str, activity_instance: str = "instance-1") -> PendingEvent:
     return {
         "name": "answer.result",
         "value": '{"correct": true}',
-        "context": {"activity_id": activity_instance, "course_id": "course-v1:X+Y+Z"},
+        "context": {"activity_id": activity_instance, "course_id": "course-1"},
         "permission": permission,
     }
 

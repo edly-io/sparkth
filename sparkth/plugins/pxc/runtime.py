@@ -24,9 +24,8 @@ def build_runtime(claims: LaunchClaims) -> ActivityRuntime:
     """Build the runtime for the launch these claims describe.
 
     Permission comes from the launch token's verified claims, not from the request: the
-    signature is what makes it trustworthy. Open edX decides it — ``student_view`` mints
-    ``play``, ``studio_view`` mints ``edit`` — because only Open edX knows who may author the
-    course.
+    signature is what makes it trustworthy. The LMS decides it, because only the LMS knows who
+    may author the course.
 
     Raises:
         PxcActivityNotFound: if the claimed activity is neither bundled nor a generated

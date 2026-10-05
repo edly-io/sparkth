@@ -6,23 +6,22 @@ course holds only a reference to the activity.
 
 ## This plugin is one half of an integration
 
-Enabling it in Sparkth is not enough to put an activity in a course. The other half is
-[`sparkth-pxc-xblock`](../../../third_party_plugins/openedx/xblock/README.md), a separate Python distribution that **must be
-installed into the Open edX instance**. It is what renders the activity inside a unit and what
-mints the signed launch token this plugin verifies. Without it, Studio cannot resolve the `pxc`
-block a published activity refers to and a learner sees nothing at all.
+Enabling it in Sparkth is not enough to put an activity in a course. The other half is an
+integration **installed into the LMS**: it renders the activity inside a course page and mints
+the signed launch token this plugin verifies. Without it, the LMS cannot show a placed activity
+and a learner sees nothing at all.
 
-That README covers installing it, publishing the unit, and the Django settings the Open edX
-side needs. This one covers only the Sparkth side.
+Each integration lives under `third_party_plugins/` with its own installation guide. This README
+covers only the Sparkth side.
 
 ## What a working deployment needs
 
 1. **The sandbox binaries.** Each bundled activity's `sandbox.wasm` is compiled from its source.
    The binaries are not in git, and an activity whose binary is missing fails at launch.
-2. **A shared secret.** `PXC_LAUNCH_SECRET` here and `SPARKTH_PXC_LAUNCH_SECRET` on the Open edX
-   side must hold the same value. A mismatch fails every learner's launch with a 401, logged
-   here as a signature mismatch.
-3. **The XBlock**, installed as above.
+2. **A shared secret.** `PXC_LAUNCH_SECRET` here and the LMS integration's launch secret must
+   hold the same value. A mismatch fails every learner's launch with a 401, logged here as a
+   signature mismatch.
+3. **The LMS integration**, installed as above.
 4. **Persistent storage.** `PXC_DATA_DIR` holds all learner state and all generated activities.
 5. **The build toolchain.** Activities compile on the server, from the `node_modules` under
    `PXC_TOOLCHAIN_DIR`, with `node` on `PATH`.
@@ -34,12 +33,11 @@ does not repeat the list.
 
 The plugin registers the `pxc` content contributor. Its options are the bundled activities
 followed by the author's own, the latter by title. Building a block for a chosen activity mints an
-activity instance here and returns a block of category `pxc`, which the installed XBlock provides.
+activity instance here and returns a block of category `pxc`, which the LMS integration renders.
 With no activity chosen, the activity instance names `PXC_DEFAULT_ACTIVITY`.
 
 Only an activity's author can place a generated activity: the builder checks ownership again
-when it builds, whatever the id's origin. Publishing the unit is covered by the
-[XBlock README](../../../third_party_plugins/openedx/xblock/README.md).
+when it builds, whatever the id's origin.
 
 ## The Activities page
 
@@ -121,6 +119,5 @@ TODO: move builds to a worker container.
 ## Known limits
 
 - Learner actions have no execution limit. That is pxc-lib's to fix.
-- Course staff who edit the XBlock's `activity` field directly in Studio or OLX can point it at
-  any activity id, and the XBlock signs it. Ownership is checked only when the agent places
-  content.
+- Course staff who edit an LMS block's activity reference directly can point it at any activity
+  id, and the LMS signs it. Ownership is checked only when the agent places content.

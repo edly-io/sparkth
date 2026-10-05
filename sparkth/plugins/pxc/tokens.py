@@ -1,29 +1,23 @@
-"""The launch token: how a learner's identity reaches Sparkth from Open edX.
+"""The launch token: how a learner's identity reaches Sparkth from the LMS that embeds an activity.
 
-The XBlock mints a short-lived HS256 JWT carrying the Open edX user id, course id and
-activity instance, signed with a secret shared between the two servers; this plugin verifies the
-signature and takes the learner's identity from the token, so it never looks up a
-learner itself. The one token Sparkth mints is an author's preview of their own activity
-(``mint_preview_token``). The secret stays server-side at both ends and only the token travels through the
-browser, which is what makes the identity trustworthy rather than client-asserted.
+The LMS mints a short-lived HS256 JWT carrying its user id, course id and activity instance,
+signed with a secret shared between the two servers. This plugin verifies the signature and
+takes the learner's identity from the token, so it never looks up a learner itself. The one
+token Sparkth mints is an author's preview of their own activity (``mint_preview_token``). The
+secret stays server-side at both ends and only the token travels through the browser, which is
+what makes the identity trustworthy rather than client-asserted.
 
 The claim names are the plugin's own — ``act``, ``ins``, ``cid``, ``uid`` — since none of the
-registered JWT claims describe an activity instance or an activity type. Only ``exp`` is standard, and
-it is PyJWT that enforces it.
+registered JWT claims describe an activity instance or an activity type. Only ``exp`` is
+standard, and it is PyJWT that enforces it.
 
-Permission travels as the ``prm`` claim, inside the signed payload, so a caller still cannot
-ask for ``edit`` — altering the claim invalidates the signature. Which permission a launch
-gets is decided by the XBlock, the only party that knows whether the viewer may author the
-course: ``student_view`` mints ``play`` and ``studio_view`` mints ``edit``. That delegation
-holds only while Open edX's ``FEATURES['ENABLE_XBLOCK_VIEW_ENDPOINT']`` stays off, which is the
-default — with it on, the LMS's ``xblock_view`` endpoint renders any ``view_name``, including
-``studio_view``, for any authenticated user with access to the block, so an enrolled learner
-can request one directly and receive an ``edit`` token. The consequence is that the shared
-secret grants ``edit`` as well as ``play``.
+Permission travels as the ``prm`` claim, inside the signed payload, so a caller cannot ask for
+``edit``: altering the claim invalidates the signature. The LMS decides which permission a
+launch gets, since only it knows whether the viewer may author the course. So the shared secret
+grants ``edit`` as well as ``play``.
 
 ``pxc.lib.signing`` is not used: it reads ``PXC_SIGNING_SECRET`` from the environment and then
-unconditionally reassigns it to ``b"dev-insecure-default"``, discarding the configured value
-(L8). Reported upstream.
+unconditionally reassigns it to ``b"dev-insecure-default"``, discarding the configured value.
 """
 
 from dataclasses import dataclass
@@ -80,7 +74,7 @@ def _unverified_claims_hint(token: str) -> str:
 def _read_permission(value: object, activity: str, activity_instance: str) -> Permission:
     """The permission a verified token asks for, degrading to ``play`` when it names none.
 
-    Absent means an XBlock older than the claim; unrecognised means version skew or a bug,
+    Absent means an LMS integration older than the claim; unrecognised means version skew or a bug,
     since the claim sits inside the signed payload. Both take the least privilege rather than
     failing an otherwise legitimate launch. ``activity``/``activity_instance`` are logged alongside an
     unrecognised value so the warning can be correlated to a specific launch, the way
@@ -111,7 +105,7 @@ def mint_launch_token(
 ) -> str:
     """Return a token carrying these claims, signed with ``secret`` and valid for ``ttl`` seconds.
 
-    The XBlock mints LMS launches. Sparkth mints only an author's preview, through
+    The LMS mints learner launches. Sparkth mints only an author's preview, through
     ``mint_preview_token``, and tests mint tokens to exercise verification. Both halves of the
     format are defined here.
 
@@ -135,7 +129,7 @@ def mint_preview_token(activity_id: UUID, user_id: int, permission: PreviewPermi
     """A launch token for an author previewing their own generated activity inside Sparkth.
 
     The preview is the one launch Sparkth mints itself. It goes into a fixed preview course and
-    activity instance, as a learner id namespaced away from Open edX's. The caller has already checked
+    activity instance, as a learner id namespaced away from any LMS's. The caller has already checked
     that the user owns the activity; the token only carries that decision to the embed.
 
     Raises:
@@ -163,7 +157,7 @@ def read_launch_token(token: str) -> LaunchClaims:
 
     A bad signature is logged at ``warning`` level with a best-effort, explicitly unverified
     activity and activity instance hint (see ``_unverified_claims_hint``) — the most likely production cause
-    is a shared-secret mismatch between Sparkth and the XBlock, which otherwise leaves an
+    is a shared-secret mismatch between Sparkth and the LMS, which otherwise leaves an
     operator with nothing but learner-reported 401s.
 
     ``OverflowError`` is caught alongside PyJWT's own errors because it is the one malformed
