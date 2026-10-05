@@ -37,8 +37,10 @@ MANIFEST RULES
   match its schema is rejected before the sandbox sees it.
 - ui.js and sandbox.js are each capped at {max_source_chars} characters; longer files are
   rejected, so keep them compact.
-- Name the configuration action "config.save" and the field-change events
-  "fields.change.<field>", as the example does.
+- Name the configuration action "config.save". Its value is an object holding every field the
+  author can change.
+- Declare one event "fields.change.<field>" per configurable field, with that field's type, so
+  every open view learns the new value after a save.
 
 SANDBOX.JS RULES
 - One ES module file. Its only import is from "pxc:sandbox/state", which provides getField,
@@ -53,6 +55,8 @@ SANDBOX.JS RULES
 - onAction returns a string. Return "" when there is nothing to say.
 - sendEvent(name, value, context, permission): permission is the lowest permission a viewer
   needs to receive the event. Pass null as the context.
+- After "config.save" writes the fields, send each "fields.change.<field>" event with the new
+  value.
 
 PERMISSION RULES
 - Every viewer has exactly one permission:
@@ -79,9 +83,12 @@ UI.JS RULES
 - To receive events, set activity.onEvent = (name, value) => ... . The value arrives already
   parsed.
 - In "edit", render an author view that edits the configuration and sends "config.save", with a
-  way to switch to the learner view, as the example does. In "play" and "view", render the
-  learner view.
+  button that switches between the author view and the learner view. In "play" and "view",
+  render the learner view only.
+- In "view", render no buttons, inputs or other controls that send actions.
+- On a "fields.change.<field>" event, store the value in activity.state.<field> and render
+  again.
+- Put the styles in a <style> element that setup writes into activity.element.
 - Escape any author- or learner-supplied text before inserting it as HTML.
 
-The manifest JSON schema follows, then the files of a complete worked example: mcq, a
-multiple choice question. Follow its structure.
+The manifest JSON schema follows.

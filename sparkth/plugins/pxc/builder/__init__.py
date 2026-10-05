@@ -39,7 +39,12 @@ from sparkth.lib.db import session_scope
 from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.activities import generated_activity_dir
 from sparkth.plugins.pxc.config import get_pxc_settings
-from sparkth.plugins.pxc.constants import PXC_BUILD_ERROR_LIMIT, PXC_BUILD_STDERR_LIMIT_BYTES, PXC_SANDBOX_WIT
+from sparkth.plugins.pxc.constants import (
+    PXC_BUILD_ERROR_LIMIT,
+    PXC_BUILD_STDERR_LIMIT_BYTES,
+    PXC_COMPILE_TOOLCHAIN_MISSING,
+    PXC_SANDBOX_WIT,
+)
 from sparkth.plugins.pxc.exceptions import PxcBuildTimedOut, PxcCompileFailed, PxcManifestInvalid, PxcSmokeTestFailed
 from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.schemas import ActivitySource
@@ -153,61 +158,64 @@ async def run_bounded(argv: list[str], cwd: Path, step: str) -> tuple[int, str]:
     return returncode, stderr.decode("utf-8", "replace")
 
 
-def agent_error(stderr: str, build_dir: Path) -> str:
-    """A step's stderr cut down to what helps the agent fix its code.
-
-    Lines from the toolchain's own stack (``    at`` frames and paths into ``node_modules``)
-    say where the compiler failed, not where the activity did. The build directory's path is
-    noise to the agent. What remains is capped at ``PXC_BUILD_ERROR_LIMIT`` characters, keeping
-    the end, where the cause is.
-    """
-    kept = [line for line in stderr.splitlines() if not line.startswith("    at ") and "/node_modules/" not in line]
-    text = "\n".join(kept).replace(f"{build_dir}/", "").replace(str(build_dir), "").strip()
-    return text[-PXC_BUILD_ERROR_LIMIT:]
-
-
 def _bare_env() -> dict[str, str]:
     """The environment for a child that runs the agent's code: no secret of this process reaches it."""
     return {"PATH": os.environ.get("PATH", os.defpath), "NO_COLOR": "1"}
 
 
+def _toolchain_missing(detail: object) -> PxcCompileFailed:
+    """Log that the toolchain cannot run, and the error that tells the agent it is not at fault."""
+    logger.error("PXC build toolchain is not usable at %s: %s", get_pxc_settings().toolchain_dir, detail)
+    return PxcCompileFailed(
+        "The activity build toolchain is not installed on this server. This is not a problem with the code."
+    )
+
+
 async def compile_sandbox(sandbox_js: str, compile_dir: Path, output: Path) -> None:
-    """Compile ``sandbox_js`` with componentize-js into the component at ``output``.
+    """Compile ``sandbox_js`` with the toolchain's ``compile.mjs`` into the component at ``output``.
 
     ``compile_dir`` must be empty and absolute. The compile runs there, so it is the module's
     whole filesystem at compile time, when its top-level code runs: componentize-js maps the
     process cwd as the root a source under it can import from. ``output`` lies outside it.
 
+    ``compile.mjs`` writes only the cause of a failure, so its stderr goes to the agent as it is,
+    keeping the last ``PXC_BUILD_ERROR_LIMIT`` characters.
+
     Raises:
-        PxcCompileFailed: with the compiler's trimmed stderr, or if the toolchain is missing.
+        PxcCompileFailed: with the cause of the failure, or if the toolchain is missing.
         PxcBuildTimedOut: if the compile outlives the timeout.
     """
+    script = get_pxc_settings().toolchain_dir.resolve() / "compile.mjs"
+    if not script.is_file():
+        raise _toolchain_missing(f"{script} does not exist")
     (compile_dir / "sandbox.js").write_text(sandbox_js, encoding="utf-8")
-    compiler = get_pxc_settings().toolchain_dir.resolve() / "node_modules" / ".bin" / "componentize-js"
-    argv = [str(compiler), "sandbox.js", "--wit", str(PXC_SANDBOX_WIT), "--world-name", "activity"]
-    argv += ["--disable", "http", "--disable", "fetch-event", "-o", str(output)]
+    argv = ["node", str(script), "sandbox.js", str(PXC_SANDBOX_WIT), str(output)]
     try:
         returncode, stderr = await run_bounded(argv, compile_dir, "Compiling sandbox.js")
     except (FileNotFoundError, PermissionError) as err:
-        logger.error("PXC build toolchain is not usable at %s: %s", compiler, err)
-        raise PxcCompileFailed(
-            "The activity build toolchain is not installed on this server. This is not a problem with the code."
-        ) from err
+        raise _toolchain_missing(err) from err
+    if returncode == PXC_COMPILE_TOOLCHAIN_MISSING:
+        raise _toolchain_missing(stderr.strip())
     if returncode != 0:
-        raise PxcCompileFailed(f"sandbox.js failed to compile:\n{agent_error(stderr, compile_dir)}")
+        raise PxcCompileFailed(f"sandbox.js failed to compile:\n{stderr.strip()[-PXC_BUILD_ERROR_LIMIT:]}")
 
 
 async def smoke_test_activity(directory: Path) -> None:
     """Run ``get_state`` under ``play`` and ``edit`` in a child process.
 
+    The child runs inside ``directory`` and is handed it as ``.``, so no server path can appear
+    in what it reports.
+
     Raises:
         PxcSmokeTestFailed: with the sandbox's own error output, trimmed.
         PxcBuildTimedOut: if ``get_state`` does not return within the timeout.
     """
-    argv = [sys.executable, "-m", "sparkth.plugins.pxc.smoke", str(directory)]
+    argv = [sys.executable, "-m", "sparkth.plugins.pxc.smoke", "."]
     returncode, stderr = await run_bounded(argv, directory, "The get_state smoke test")
     if returncode != 0:
-        raise PxcSmokeTestFailed(f"sandbox.js compiled, but get_state failed:\n{agent_error(stderr, directory)}")
+        raise PxcSmokeTestFailed(
+            f"sandbox.js compiled, but get_state failed:\n{stderr.strip()[-PXC_BUILD_ERROR_LIMIT:]}"
+        )
 
 
 async def stage_activity(work: Path, manifest: dict[str, object], source: ActivitySource) -> Path:

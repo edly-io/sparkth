@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -15,7 +16,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.plugins.pxc.activities import activity_dir, generated_activity_dir
 from sparkth.plugins.pxc.builder import (
-    agent_error,
     build_activity,
     compile_sandbox,
     run_bounded,
@@ -33,11 +33,13 @@ from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.runtime import build_runtime, read_state
 from sparkth.plugins.pxc.schemas import ActivitySource
 from sparkth.plugins.pxc.store import get_owned_activity, list_owned_activities
+from sparkth.plugins.pxc.tests.conftest import TOOLCHAIN_DIR
 from sparkth.plugins.pxc.tokens import LaunchClaims
 
 OWNER = 1
 MCQ = activity_dir("mcq")
 MCQ_MANIFEST: dict[str, object] = json.loads((MCQ / "manifest.json").read_text())
+MCQ_SANDBOX_JS = (MCQ / "sandbox.js").read_text()
 
 
 def test_the_manifest_is_named_after_the_activity_id() -> None:
@@ -180,30 +182,65 @@ async def test_cancelling_a_step_kills_its_process_group(tmp_path: Path) -> None
     assert _process_gone(int(pid_file.read_text()))
 
 
-def test_agent_errors_drop_toolchain_frames_and_the_build_path(tmp_path: Path) -> None:
-    stderr = (
-        "file:///opt/x/node_modules/@bytecodealliance/componentize-js/src/componentize.js:302\n"
-        "Error: Failed to initialize component:\n"
-        "    at componentize (file:///opt/x/node_modules/a.js:1:1)\n"
-        f"ReferenceError: {tmp_path}/sandbox.js:3:1 boom\n"
-    )
-
-    assert (
-        agent_error(stderr, tmp_path) == "Error: Failed to initialize component:\nReferenceError: sandbox.js:3:1 boom"
-    )
-
-
-def test_agent_errors_keep_the_end_of_a_long_output(tmp_path: Path) -> None:
-    trimmed = agent_error("early noise\n" + "x" * PXC_BUILD_ERROR_LIMIT + "\nthe cause", tmp_path)
-
-    assert trimmed.endswith("the cause")
-    assert len(trimmed) == PXC_BUILD_ERROR_LIMIT
+THROWS_AT_TOP_LEVEL = (
+    'throw new Error("boom");\nexport function onAction() { return ""; }\nexport function getState() { return "{}"; }\n'
+)
 
 
 def _compile_dir(tmp_path: Path) -> Path:
     directory = tmp_path / "compile"
     directory.mkdir()
     return directory
+
+
+async def _compile_error(sandbox_js: str, tmp_path: Path) -> str:
+    """The message a failed compile of ``sandbox_js`` hands the agent."""
+    with pytest.raises(PxcCompileFailed) as refused:
+        await compile_sandbox(sandbox_js, _compile_dir(tmp_path), tmp_path / "sandbox.wasm")
+    return str(refused.value)
+
+
+@pytest.mark.wasm
+async def test_a_syntax_error_names_the_line_it_is_on(tmp_path: Path) -> None:
+    sandbox_js = 'export function getState() { return "{}"\nexport function onAction() { return ""; }}}\n'
+
+    message = await _compile_error(sandbox_js, tmp_path)
+
+    assert "Unexpected token" in message
+    assert "[sandbox.js:2:" in message
+
+
+@pytest.mark.wasm
+async def test_a_top_level_throw_names_the_line_it_came_from(tmp_path: Path) -> None:
+    assert "sandbox.js:1:7 Error: boom" in await _compile_error(THROWS_AT_TOP_LEVEL, tmp_path)
+
+
+@pytest.mark.wasm
+async def test_a_missing_export_names_the_function_to_define(tmp_path: Path) -> None:
+    sandbox_js = 'export function getState() { return "{}"; }\n'
+
+    assert 'does not export a "onAction" function' in await _compile_error(sandbox_js, tmp_path)
+
+
+@pytest.mark.wasm
+async def test_a_compile_error_carries_no_toolchain_stack_or_server_path(tmp_path: Path) -> None:
+    message = await _compile_error(THROWS_AT_TOP_LEVEL, tmp_path)
+
+    assert "node_modules" not in message
+    assert str(tmp_path) not in message
+
+
+@pytest.mark.wasm
+async def test_a_compile_error_keeps_the_end_of_a_long_message(tmp_path: Path) -> None:
+    sandbox_js = (
+        f'throw new Error("{"x" * PXC_BUILD_ERROR_LIMIT}");\n'
+        'export function onAction() { return ""; }\nexport function getState() { return "{}"; }\n'
+    )
+
+    message = await _compile_error(sandbox_js, tmp_path)
+
+    assert len(message) <= len("sandbox.js failed to compile:\n") + PXC_BUILD_ERROR_LIMIT
+    assert message.endswith("@sandbox.js:1:7")
 
 
 @pytest.mark.wasm
@@ -290,6 +327,7 @@ async def test_a_failing_get_state_leaves_no_activity_behind(session: AsyncSessi
         await build_activity(_mcq_source(throwing), OWNER)
 
     assert "boom" in str(failed.value)
+    assert str(tmp_path) not in str(failed.value)
     assert await list_owned_activities(session, OWNER) == []
     assert list((tmp_path / "builds").iterdir()) == []
     assert not (tmp_path / "activities").exists()
@@ -327,6 +365,22 @@ async def test_a_missing_toolchain_fails_without_blaming_the_code(
 
     assert "toolchain is not installed" in str(failed.value)
     assert list((tmp_path / "builds").iterdir()) == []
+
+
+@pytest.mark.wasm
+async def test_a_toolchain_without_its_packages_fails_without_blaming_the_code(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    toolchain = tmp_path / "toolchain"
+    toolchain.mkdir()
+    shutil.copyfile(TOOLCHAIN_DIR / "compile.mjs", toolchain / "compile.mjs")
+    monkeypatch.setenv("PXC_TOOLCHAIN_DIR", str(toolchain))
+    get_pxc_settings.cache_clear()
+
+    with pytest.raises(PxcCompileFailed) as failed:
+        await compile_sandbox(MCQ_SANDBOX_JS, _compile_dir(tmp_path), tmp_path / "sandbox.wasm")
+
+    assert "toolchain is not installed" in str(failed.value)
 
 
 async def test_an_invalid_manifest_fails_before_anything_is_written(tmp_path: Path) -> None:

@@ -13,9 +13,9 @@ from pxc.lib.manifest_types import PxcActivityManifest
 from sparkth.lib.auth import current_user_id
 from sparkth.lib.db import session_scope
 from sparkth.lib.log import get_logger
-from sparkth.plugins.pxc.activities import activity_dir, generated_activity_dir, parse_activity_id, preview_url
+from sparkth.plugins.pxc.activities import generated_activity_dir, parse_activity_id, preview_url
 from sparkth.plugins.pxc.builder import build_activity
-from sparkth.plugins.pxc.constants import PXC_ABOUT_EXAMPLE, PXC_ABOUT_FILES, PXC_ASSET_DIR, PXC_MAX_SOURCE_CHARS
+from sparkth.plugins.pxc.constants import PXC_ASSET_DIR, PXC_MAX_SOURCE_CHARS
 from sparkth.plugins.pxc.exceptions import PxcManifestInvalid
 from sparkth.plugins.pxc.schemas import ActivitySource
 from sparkth.plugins.pxc.store import get_owned_activity, list_owned_activities
@@ -24,19 +24,13 @@ logger = get_logger(__name__)
 
 
 async def pxc_about() -> dict[str, str]:
-    """Explain how a PXC activity is built: its files, the manifest schema, the permission rules,
-    and a complete worked example.
+    """Explain how a PXC activity is built: its files, the manifest schema and the permission rules.
 
     Call this before writing any activity code, and follow its rules exactly.
     """
-    example = activity_dir(PXC_ABOUT_EXAMPLE)
-    files = "\n\n".join(
-        f"--- {PXC_ABOUT_EXAMPLE}/{name} ---\n{(example / name).read_text(encoding='utf-8')}"
-        for name in PXC_ABOUT_FILES
-    )
     rules = (PXC_ASSET_DIR / "about.txt").read_text(encoding="utf-8").format(max_source_chars=PXC_MAX_SOURCE_CHARS)
     schema = json.dumps(PxcActivityManifest.model_json_schema(), indent=2)
-    return {"about": f"{rules}\n\n--- manifest JSON schema ---\n{schema}\n\n{files}"}
+    return {"about": f"{rules}\n\n--- manifest JSON schema ---\n{schema}"}
 
 
 def _manifest_object(manifest: dict[str, object] | str) -> dict[str, object]:
