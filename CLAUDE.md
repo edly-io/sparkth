@@ -121,7 +121,9 @@ services, which provide the Postgres/Timescale instance) or in the `analytics-ti
 CI job (runs on every non-draft PR). The pg fixtures apply the analytics migrations to
 the target DB (so the aggregate exists and the migration DDL is exercised) and reset state via
 truncate + full refresh between tests — continuous aggregates can't use transaction-rollback
-isolation because `refresh_continuous_aggregate` cannot run inside a transaction.
+isolation because `refresh_continuous_aggregate` cannot run inside a transaction. After
+migrating they pause the aggregates' refresh policies (whose first run would otherwise overlap a
+test's refresh and fail it with `LockNotAvailableError`), so the tests are the only refresher.
 
 ## Database Migrations
 
@@ -219,3 +221,5 @@ opening a pull request, or committing LLM-generated code. Conventional Commits a
 | Database migrations (Alembic, split heads, backfill) | [.claude/skills/database-migrations/SKILL.md](.claude/skills/database-migrations/SKILL.md) |
 | Analytics events (what to record, which seam, payload safety) | [docs/guides/analytics-events.md](docs/guides/analytics-events.md) |
 | Analytics events: proposing them (agent workflow) | [.claude/skills/analytics-events/SKILL.md](.claude/skills/analytics-events/SKILL.md) |
+| Audit events (what to record, snapshot safety, transaction, fail-closed) | [docs/guides/audit-events.md](docs/guides/audit-events.md) |
+| Audit events: proposing them (agent workflow) | [.claude/skills/audit-events/SKILL.md](.claude/skills/audit-events/SKILL.md) |

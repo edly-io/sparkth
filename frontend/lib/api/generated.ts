@@ -63,6 +63,9 @@ export interface paths {
          *     2. Fetches user info from Google
          *     3. Creates or links the user account
          *     4. Redirects to frontend with JWT token
+         *
+         *     A completed login emits ``user.logged_in``; a callback that redirects back to the
+         *     login page with an error logged nobody in, so it emits nothing.
          */
         get: operations["google_callback_api_v1_auth_google_callback_get"];
         put?: never;
@@ -514,6 +517,9 @@ export interface paths {
         /**
          * Oauth Callback
          * @description Handle OAuth callback from Google.
+         *
+         *     The user is identified by the signed ``state``, not a session, so it is
+         *     bound as the audit actor here for the ``googledrive.connected`` record.
          */
         get: operations["oauth_callback_api_v1_google_drive_oauth_callback_get"];
         put?: never;
@@ -1072,6 +1078,9 @@ export interface paths {
         /**
          * Oauth Callback
          * @description Handle Slack OAuth redirect, persist workspace token.
+         *
+         *     The user is identified by the signed ``state``, not a session, so it is
+         *     bound as the audit actor here for the ``slack.connected`` record.
          */
         get: operations["oauth_callback_api_v1_slack_oauth_callback_get"];
         put?: never;

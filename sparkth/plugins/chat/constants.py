@@ -30,8 +30,7 @@ MESSAGE_SCOPE_CLASSIFIER_CONVERSATION_HISTORY = 6
 # json.dumps'd onto the SSE stream, and assigned to a pydantic field — none of which a
 # LazyString allows. It is rendered with gettext() at each of those boundaries.
 REFUSAL_MESSAGE: str = gettext_noop(
-    "I'm a course creation assistant and can only help with designing and building "
-    "courses. Is there a course you'd like to create?"
+    "I'm a course creation assistant and can only help with designing and building courses."
 )
 
 LLM_PROVIDER_API_ERRORS = (

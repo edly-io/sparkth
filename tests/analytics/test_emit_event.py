@@ -22,13 +22,13 @@ from sparkth.lib.analytics import UnknownEventTypeError, emit_event
 
 
 async def test_emits_a_row_for_a_registered_event(analytics_session: AsyncSession) -> None:
-    await emit_event("user.logged_in", 1, {"username": "instructor"}, actor_id="7")
+    await emit_event("user.logged_in", 1, {"method": "password"}, actor_id="7")
 
     row = (await analytics_session.execute(select(raw_events))).mappings().one()
     assert row["event_type"] == "user.logged_in"
     assert row["event_version"] == 1
     assert row["actor_id"] == "7"
-    assert row["payload"] == {"username": "instructor"}
+    assert row["payload"] == {"method": "password"}
 
 
 async def test_unknown_event_type_propagates(analytics_session: AsyncSession) -> None:
@@ -40,7 +40,7 @@ async def test_unknown_event_type_propagates(analytics_session: AsyncSession) ->
 
 
 async def test_invalid_payload_propagates(analytics_session: AsyncSession) -> None:
-    # user.logged_in requires `username`; extra="forbid" also rejects unknown keys.
+    # user.logged_in requires `method`; extra="forbid" also rejects unknown keys.
     with pytest.raises(ValidationError):
         await emit_event("user.logged_in", 1, {"wrong_field": "x"})
 
@@ -58,7 +58,7 @@ async def test_gateway_failures_propagate(error: Exception) -> None:
         patch("sparkth.lib.analytics.ingest_event", side_effect=error),
         pytest.raises(type(error)),
     ):
-        await emit_event("user.logged_in", 1, {"username": "instructor"})
+        await emit_event("user.logged_in", 1, {"method": "password"})
 
 
 async def test_session_acquisition_failure_propagates() -> None:
@@ -73,7 +73,7 @@ async def test_session_acquisition_failure_propagates() -> None:
         patch("sparkth.lib.analytics.analytics_session_scope", _failing_scope),
         pytest.raises(SQLAlchemyError),
     ):
-        await emit_event("user.logged_in", 1, {"username": "instructor"})
+        await emit_event("user.logged_in", 1, {"method": "password"})
 
 
 async def test_an_explicit_occurred_at_is_stored_rather_than_now(analytics_session: AsyncSession) -> None:
@@ -85,7 +85,7 @@ async def test_an_explicit_occurred_at_is_stored_rather_than_now(analytics_sessi
     """
     happened = datetime(2026, 9, 18, 9, 15, tzinfo=timezone.utc)
 
-    await emit_event("user.logged_in", 1, {"username": "instructor"}, actor_id="7", occurred_at=happened)
+    await emit_event("user.logged_in", 1, {"method": "password"}, actor_id="7", occurred_at=happened)
 
     row = (await analytics_session.execute(select(raw_events))).mappings().one()
     stored = row["occurred_at"]
@@ -97,7 +97,7 @@ async def test_occurred_at_defaults_to_now_when_the_caller_omits_it(analytics_se
     so a producer with nothing better to offer is not forced to invent a time."""
     before = datetime.now(timezone.utc)
 
-    await emit_event("user.logged_in", 1, {"username": "instructor"}, actor_id="7")
+    await emit_event("user.logged_in", 1, {"method": "password"}, actor_id="7")
 
     row = (await analytics_session.execute(select(raw_events))).mappings().one()
     stored = row["occurred_at"]

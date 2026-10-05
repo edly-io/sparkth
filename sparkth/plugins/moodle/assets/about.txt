@@ -1,0 +1,15 @@
+Moodle vocabulary, structure and behaviour.
+
+Structure: Course -> Sections -> Activities.
+- Course: identified by an integer id; has a fullname, a shortname that must be unique on
+  the site, and a category (categoryid). Courses use the "topics" format.
+- Section: a numbered block of the course page (a topic/week). Sections are appended in
+  order; place activities in one by its sectionnum.
+- Activity: an item inside a section. These tools create Page activities (an HTML lesson)
+  and Quiz activities. Quiz questions are multichoice or truefalse and are stored in the
+  course's question bank.
+
+Publish: Moodle has no draft/publish step. Everything these tools create is visible
+immediately to users enrolled in the course; learners who are not enrolled see nothing.
+Visibility is controlled with show/hide in Moodle itself, which these tools do not change.
+When the author asks to "publish a course to Moodle", they mean create it there.

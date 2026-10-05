@@ -72,6 +72,8 @@ class MyLmsConfig(PluginConfig):
 
 Both methods default to `None` on the base class, so non-LMS plugins require no changes. The injection is fully automatic once the config class is contributed to the `CONFIG_SCHEMAS` hook (see below).
 
+An LMS plugin should also ship a zero-argument `<prefix>about` tool (e.g. `mylms_about`) returning `{"about": <text>}` that explains the LMS's course structure, its vocabulary, and what "publish" means there, with the text kept in the plugin's `assets/about.txt`. LMSs use the same words for different things (Canvas "publish" makes content visible; Moodle has no publish step), so the chat LLM reads this before acting. See `canvas_about`, `openedx_about` and `moodle_about`.
+
 
 ## Register the plugin configuration class
 
@@ -459,6 +461,16 @@ for handler, category in tools:
     MCP_TOOLS.add_item(self, Tool(handler, category=category))
 ```
 
+### Declaring your own audit events
+
+A plugin that changes security-relevant state outside a tool (such as connecting a
+third-party account) declares its own audit events in a module of its own, under a category
+named after the plugin (`googledrive.connected`, `slack.disconnected`), registers them on
+`AUDIT_EVENTS` from `sparkth.lib.audit.hooks`. The classes register when the code that
+records them imports the module, so no side-effect import is needed.
+The audit events guide (`docs/guides/audit-events.md`) covers what a snapshot may carry, which
+transaction to record in, and how to test it.
+
 ### Tool executions are audited
 
 `Tool` wraps the handler with `sparkth.lib.audit.audited_tool` at
@@ -473,6 +485,8 @@ keys like `token` or `password` are replaced wholesale), and exception
 messages recorded on failure are scrubbed of secret-keyed values and length
 bounded, but do not put secrets or free-text PII in argument names or values
 that redaction cannot recognize. Handlers need no audit code of their own.
+What else to record in the audit trail, and how, is in the
+[audit events guide](audit-events.md).
 
 ## Content contributors
 

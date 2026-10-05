@@ -144,13 +144,28 @@ class LoginAuditEvent(BaseAuditEvent):
 
 @AUDIT_EVENTS.register
 @dataclass(frozen=True, slots=True, kw_only=True)
-class RegisteredAuditEvent(MutationAuditEvent):
-    """An account was created, by password registration or Google sign-up.
+class PermissionDeniedAuditEvent(BaseAuditEvent):
+    """A ``Permission.require*`` dependency refused a request with 403.
 
-    The new user is both actor and target; ``change.new`` carries only the
-    ``method`` (``password`` or ``google``). The username rides on the actor
-    label, which a GDPR erasure can blank; a sealed payload never carries the
-    actor's own identity.
+    ``target`` is the permission checked; ``error_detail`` names the scope
+    (and the scope object id from the route's path, when the scope has one).
+    The actor is the authenticated caller bound by ``get_current_user``.
+    """
+
+    event_type: ClassVar[str] = "permission.denied"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class RegisteredAuditEvent(MutationAuditEvent):
+    """An account was created: password registration, Google sign-up, or the CLI.
+
+    ``target`` is the new user and ``change.new`` carries only the ``method``
+    (``password``, ``google`` or ``cli``). A self-registration has the new
+    user as actor too, with the username on the actor label, which a GDPR
+    erasure can blank; a sealed payload never carries the actor's own
+    identity. An account created by ``users create-user`` has the CLI system
+    actor instead.
     """
 
     event_type: ClassVar[str] = "auth.registered"
@@ -170,11 +185,45 @@ class EmailVerifiedAuditEvent(BaseAuditEvent):
 
 @AUDIT_EVENTS.register
 @dataclass(frozen=True, slots=True, kw_only=True)
+class PasswordResetAuditEvent(MutationAuditEvent):
+    """A user's password was replaced by an operator (``users reset-password``).
+
+    ``target`` is the user; ``change.new`` carries only the ``method``
+    (``cli``), never the password or its hash.
+    """
+
+    event_type: ClassVar[str] = "auth.password_reset"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
 class GoogleLinkedAuditEvent(MutationAuditEvent):
     """A Google identity was attached to an existing account: a new way to
     log in, so a credential-lifecycle event."""
 
     event_type: ClassVar[str] = "auth.google_linked"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class WhitelistEntryAddedAuditEvent(MutationAuditEvent):
+    """An email or domain was added to the registration allowlist.
+
+    ``target`` is the entry; ``change.new`` carries the normalized ``value``
+    and its ``entry_type`` (``email`` or ``domain``): the value is the
+    evidence of who was allowed to register.
+    """
+
+    event_type: ClassVar[str] = "whitelist.entry_added"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class WhitelistEntryRemovedAuditEvent(MutationAuditEvent):
+    """An allowlist entry was removed. ``change.old`` carries its ``value``
+    and ``entry_type``."""
+
+    event_type: ClassVar[str] = "whitelist.entry_removed"
 
 
 @AUDIT_EVENTS.register
@@ -249,6 +298,122 @@ class UserPluginEnabledChangedAuditEvent(MutationAuditEvent):
     """A user enabled or disabled a plugin for themselves."""
 
     event_type: ClassVar[str] = "user_plugin.enabled_changed"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class RoleCreatedAuditEvent(MutationAuditEvent):
+    """A role was created; ``change.new`` carries its name and description."""
+
+    event_type: ClassVar[str] = "role.created"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class RoleUpdatedAuditEvent(MutationAuditEvent):
+    """A role's name or description changed."""
+
+    event_type: ClassVar[str] = "role.updated"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class RoleDeletedAuditEvent(MutationAuditEvent):
+    """A role was deleted along with its grants; ``change.old`` carries its name and description."""
+
+    event_type: ClassVar[str] = "role.deleted"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class RolePermissionGrantedAuditEvent(MutationAuditEvent):
+    """A permission was granted to a role that did not hold it."""
+
+    event_type: ClassVar[str] = "role.permission_granted"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class RolePermissionRevokedAuditEvent(MutationAuditEvent):
+    """A permission a role held was revoked from it."""
+
+    event_type: ClassVar[str] = "role.permission_revoked"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class RoleAssignedAuditEvent(MutationAuditEvent):
+    """A role was assigned to a user at a scope.
+
+    ``target`` is the user; the snapshot carries the role name, the scope kind, and
+    the scope object id. Recorded only when a new assignment was created.
+    """
+
+    event_type: ClassVar[str] = "role.assigned"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class RoleUnassignedAuditEvent(MutationAuditEvent):
+    """A user's active assignment of a role at a scope was revoked."""
+
+    event_type: ClassVar[str] = "role.unassigned"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class GroupCreatedAuditEvent(MutationAuditEvent):
+    """A group was created; ``change.new`` carries its name and description."""
+
+    event_type: ClassVar[str] = "group.created"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class GroupUpdatedAuditEvent(MutationAuditEvent):
+    """A group's name or description changed."""
+
+    event_type: ClassVar[str] = "group.updated"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class GroupDeletedAuditEvent(MutationAuditEvent):
+    """A group was deleted along with its membership and assignment history."""
+
+    event_type: ClassVar[str] = "group.deleted"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class GroupMemberAddedAuditEvent(MutationAuditEvent):
+    """A user joined a group; the snapshot carries the ``user_id``."""
+
+    event_type: ClassVar[str] = "group.member_added"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class GroupMemberRemovedAuditEvent(MutationAuditEvent):
+    """A user's active membership in a group was removed."""
+
+    event_type: ClassVar[str] = "group.member_removed"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class GroupRoleAssignedAuditEvent(MutationAuditEvent):
+    """A role was assigned to a group at a scope (snapshot shaped like ``role.assigned``)."""
+
+    event_type: ClassVar[str] = "group.role_assigned"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class GroupRoleRevokedAuditEvent(MutationAuditEvent):
+    """A group's active assignment of a role at a scope was revoked."""
+
+    event_type: ClassVar[str] = "group.role_revoked"
 
 
 @AUDIT_EVENTS.register

@@ -1,0 +1,19 @@
+Canvas vocabulary, structure and behaviour.
+
+Structure: Course -> Modules -> Module items.
+- Course: identified by an integer course_id; created inside an account (account_id).
+- Module: an ordered group of items within a course (a unit/week/topic).
+- Module item: a pointer placed in a module. Its type is one of Page, Quiz, Assignment,
+  Discussion, File, ExternalUrl, ExternalTool or SubHeader (a text label, no content).
+- Page: an HTML wiki page, identified by its url slug. Pages exist on their own in the
+  course; create the page first, then add it to a module as a Page module item.
+- Quiz: holds Questions (created separately, per quiz). Add it to a module as a Quiz item.
+
+Publish: in Canvas, "publish" means making something visible to students. Every course,
+module, page and quiz is either published or unpublished; unpublished content is invisible
+to students. Creating content on Canvas is "create", not "publish".
+- A course is created unpublished unless offer=true is passed to canvas_create_course.
+- Modules, pages and quizzes are published through their "published" field.
+- A published item inside an unpublished course or module is still hidden from students.
+When the author asks to "publish a course to Canvas", they usually mean create it there.
+Only set offer or published to true when the author asks for students to see the content.

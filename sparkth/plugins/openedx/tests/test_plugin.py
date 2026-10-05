@@ -5,7 +5,9 @@ from sparkth.lib.frontend import (
     get_plugin_sidebar_entry,
     plugin_has_frontend,
 )
+from sparkth.lib.mcp.hooks import MCP_TOOLS
 from sparkth.plugins.openedx.plugin import OpenEdxPlugin
+from sparkth.plugins.openedx.tools import openedx_about
 
 
 def test_declares_explicit_name() -> None:
@@ -23,3 +25,12 @@ def test_declares_display_info_but_no_frontend() -> None:
     # Backend-only plugin: no frontend page, no sidebar entry.
     assert plugin_has_frontend("open-edx") is False
     assert get_plugin_sidebar_entry("open-edx") is None
+
+
+async def test_registers_about_tool() -> None:
+    plugin = OpenEdxPlugin()
+    names = {tool.name for owner, tool in MCP_TOOLS.iter_items() if owner is plugin}
+    assert "openedx_about" in names
+
+    about = (await openedx_about())["about"]
+    assert "publish" in about.lower()

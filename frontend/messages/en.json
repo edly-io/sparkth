@@ -3,6 +3,7 @@
     "title": "Welcome to <brand>Sparkth</brand>",
     "tagline": "Your AI-powered platform for creating engaging educational content. Transform your resources into courses with ease.",
     "getStarted": "Get Started",
-    "signIn": "Sign in"
+    "signIn": "Sign in",
+    "privacyPolicy": "Privacy Policy"
   }
 }

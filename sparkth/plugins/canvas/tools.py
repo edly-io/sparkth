@@ -1,5 +1,6 @@
 """
 Canvas MCP tools, including:
+- LMS vocabulary (about)
 - Authentication
 - Course management
 - Module management
@@ -8,6 +9,7 @@ Canvas MCP tools, including:
 - Quiz and question management
 """
 
+from pathlib import Path
 from typing import Any
 
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
@@ -408,3 +410,12 @@ async def canvas_delete_question(params: QuestionParams) -> dict[str, Any]:
         return _lms_error(e)
     except ValueError as e:
         return {"error": {"message": str(e)}}
+
+
+async def canvas_about() -> dict[str, Any]:
+    """Explain Canvas's vocabulary, course structure and what "publish" means in Canvas.
+
+    Read this before creating, changing or publishing Canvas content, or when a Canvas
+    term is ambiguous.
+    """
+    return {"about": (Path(__file__).parent / "assets" / "about.txt").read_text(encoding="utf-8")}

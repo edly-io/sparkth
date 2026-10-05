@@ -18,11 +18,12 @@ event store and emptied aggregates, not a rolled-back transaction.
 import os
 import subprocess
 import sys
+import time
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from pathlib import Path
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -32,6 +33,19 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 
 _LIST_CAGGS = text("SELECT view_name FROM timescaledb_information.continuous_aggregates ORDER BY view_name")
 _REFRESH_CAGG = text("CALL refresh_continuous_aggregate(CAST(:name AS regclass), NULL, NULL)")
+_PAUSE_REFRESH_POLICIES = text(
+    "SELECT alter_job(job_id, scheduled => false) FROM timescaledb_information.jobs"
+    " WHERE proc_name = 'policy_refresh_continuous_aggregate'"
+)
+# A running policy shows in job_stats and as its own backend; either means it still holds the aggregate.
+_REFRESH_POLICY_RUNNING = text(
+    "SELECT EXISTS (SELECT 1 FROM timescaledb_information.job_stats s"
+    " JOIN timescaledb_information.jobs j USING (job_id)"
+    " WHERE j.proc_name = 'policy_refresh_continuous_aggregate' AND s.job_status = 'Running')"
+    " OR EXISTS (SELECT 1 FROM pg_stat_activity"
+    " WHERE application_name LIKE 'Refresh Continuous Aggregate Policy%')"
+)
+_POLICY_DRAIN_TIMEOUT_S = 60
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
@@ -74,6 +88,29 @@ def _pg_migrated(pg_url: str) -> None:
         env={**os.environ, "ANALYTICS_DATABASE_URL": pg_url},
         check=True,
     )
+    _stop_refresh_policies(pg_url)
+
+
+def _stop_refresh_policies(pg_url: str) -> None:
+    """Pause every refresh policy and wait out a run already under way.
+
+    The migration's ``add_continuous_aggregate_policy`` starts the policy's first run
+    straight away, at a moment the background scheduler picks. TimescaleDB allows one
+    refresh per aggregate at a time, so that run failed whichever test's own full refresh it
+    overlapped (``LockNotAvailableError``). The tests refresh explicitly and never rely on
+    the policy, so pausing it leaves them as the only refresher.
+    """
+    engine = create_engine(pg_url, isolation_level="AUTOCOMMIT")
+    try:
+        with engine.connect() as conn:
+            conn.execute(_PAUSE_REFRESH_POLICIES)
+            deadline = time.monotonic() + _POLICY_DRAIN_TIMEOUT_S
+            while conn.execute(_REFRESH_POLICY_RUNNING).scalar():
+                if time.monotonic() > deadline:
+                    raise TimeoutError(f"a refresh policy was still running after {_POLICY_DRAIN_TIMEOUT_S}s")
+                time.sleep(0.1)
+    finally:
+        engine.dispose()
 
 
 @pytest.fixture

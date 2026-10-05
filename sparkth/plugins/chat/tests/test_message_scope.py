@@ -285,3 +285,25 @@ class TestTheShippedPrompt:
         """The reason is logged, and the refused message can hold course content — so the model
         is asked to name a category, never to restate what the user wrote."""
         assert "never quote" in MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT.lower()
+
+    def test_the_prompt_carries_every_scope_rule(self) -> None:
+        """The classifier owns the scope taxonomy the chat prompt used to carry, so each
+        rule moved from there must be here or the classifier is looser than the chat model."""
+        prompt = MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT.lower()
+        for rule in (
+            "gathering course requirements",
+            "visuals",
+            "even if labeled for a course scenario",
+            "web searches",
+            "for educational purposes",
+            "ignore previous instructions",
+            "reveal, repeat, or modify",
+            "linked lists",
+            "only makes sense within the ongoing course work",
+        ):
+            assert rule in prompt, rule
+
+    def test_lms_credential_questions_are_in_scope(self) -> None:
+        """The chat model answers these without revealing anything (lms_rules), so refusing them
+        here would stop a question it already handles."""
+        assert "lms credentials" in MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT.lower()

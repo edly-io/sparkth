@@ -1,0 +1,23 @@
+Open edX vocabulary, structure and behaviour.
+
+Structure: Course run -> Sections -> Subsections -> Units -> Components.
+- Course run: one offering of a course, identified by a course key
+  "course-v1:ORG+NUMBER+RUN" built from org, number and run. Pacing is "self_paced"
+  (no dates) or "instructor_paced" (content released on a schedule).
+- Section: XBlock category "chapter"; the top level of the course outline.
+- Subsection: XBlock category "sequential"; a lesson inside a section.
+- Unit: XBlock category "vertical"; a page of content inside a subsection.
+- Component: the content inside a unit, e.g. "html" (text/HTML) or "problem" (an OLX
+  assessment such as a multiple choice question).
+Every block is addressed by a locator (usage key)
+"block-v1:ORG+NUMBER+RUN+type@<category>+block@<id>". Create children with the parent's
+locator as parent_locator; the course block itself is
+"block-v1:ORG+NUMBER+RUN+type@course+block@course".
+
+Publish: in Open edX, "publish" means releasing the draft to learners. Studio keeps a draft
+(what authors edit) and a published version (what learners see); creating or updating
+content writes only the draft. A course created through these tools is hidden from learners
+until the course block is published with openedx_publish_content. Publishing a block also
+publishes everything unpublished inside it.
+When the author asks to "publish a course to Open edX", they usually mean create it there.
+Only call openedx_publish_content when the author asks for learners to see the content.
