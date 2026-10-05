@@ -1,13 +1,19 @@
 import { test, expect } from "@playwright/test";
-import { denyPermission, stubLoginActivity, todayUtc } from "./utils/analytics";
+import { stubLoginActivity, stubPermission, todayUtc } from "./utils/analytics";
 
 /**
- * Analytics dashboard. Runs as the seeded superuser (auth.setup.ts), with the read API
- * stubbed (utils/analytics.ts). Each view adds its own specs here.
+ * Analytics dashboard. Runs as the seeded e2e user (auth.setup.ts), which has no roles, so
+ * analytics.read and the read API are stubbed (utils/analytics.ts). Each view adds its own
+ * specs here.
  */
+test.beforeEach(async ({ page }) => {
+  await stubPermission(page, "analytics.read", true);
+});
+
 test.describe("analytics", () => {
   test("redirects to the dashboard without analytics.read", async ({ page }) => {
-    await denyPermission(page, "analytics.read");
+    // Registered after the beforeEach grant, so this route wins.
+    await stubPermission(page, "analytics.read", false);
     await page.goto("/dashboard/analytics/logins");
     await expect(page).toHaveURL(/\/dashboard\/?$/);
   });
