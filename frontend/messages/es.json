@@ -6,16 +6,40 @@
     "retry": "Reintentar",
     "logins": {
       "title": "Inicios de sesión",
-      "subtitle": "Actividad diaria de inicios de sesión en los últimos {days} días (UTC).",
-      "empty": "No hay inicios de sesión en los últimos {days} días.",
+      "subtitle": "Actividad de inicios de sesión, {range} (UTC).",
+      "empty": "No hay inicios de sesión en este periodo.",
       "totalLogins": "Inicios de sesión totales",
-      "busiestDay": "Día con más actividad",
-      "lastDays": "últimos {days} días",
-      "chartLabel": "Inicios de sesión diarios en los últimos {days} días"
+      "busiestBucket": "{bucket, select, day {Día} week {Semana} other {Mes}} con más actividad",
+      "chartLabel": "Inicios de sesión, {range}"
     },
     "nav": {
       "label": "Vistas de analíticas",
       "logins": "Inicios de sesión"
+    },
+    "period": {
+      "range": "Periodo",
+      "presets": {
+        "7d": "Últimos 7 días",
+        "30d": "Últimos 30 días",
+        "90d": "Últimos 90 días",
+        "12m": "Últimos 12 meses",
+        "custom": "Rango personalizado"
+      },
+      "from": "Fecha de inicio",
+      "to": "Fecha de fin",
+      "apply": "Aplicar",
+      "bucket": "Agrupar por",
+      "buckets": {
+        "day": "Día",
+        "week": "Semana",
+        "month": "Mes"
+      },
+      "errors": {
+        "invalidDate": "Introduce fechas de inicio y fin válidas.",
+        "startAfterEnd": "La fecha de inicio debe ser anterior o igual a la fecha de fin.",
+        "inFuture": "La fecha de fin no puede estar en el futuro.",
+        "tooFarBack": "La fecha de inicio no puede ser de hace más de 365 días."
+      }
     }
   },
   "home": {

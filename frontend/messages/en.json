@@ -6,16 +6,40 @@
     "retry": "Try again",
     "logins": {
       "title": "Logins",
-      "subtitle": "Daily login activity over the last {days} days (UTC).",
-      "empty": "No logins in the last {days} days.",
+      "subtitle": "Login activity, {range} (UTC).",
+      "empty": "No logins in this period.",
       "totalLogins": "Total logins",
-      "busiestDay": "Busiest day",
-      "lastDays": "last {days} days",
-      "chartLabel": "Daily logins over the last {days} days"
+      "busiestBucket": "Busiest {bucket, select, day {day} week {week} other {month}}",
+      "chartLabel": "Logins, {range}"
     },
     "nav": {
       "label": "Analytics views",
       "logins": "Logins"
+    },
+    "period": {
+      "range": "Period",
+      "presets": {
+        "7d": "Last 7 days",
+        "30d": "Last 30 days",
+        "90d": "Last 90 days",
+        "12m": "Last 12 months",
+        "custom": "Custom range"
+      },
+      "from": "Start date",
+      "to": "End date",
+      "apply": "Apply",
+      "bucket": "Group by",
+      "buckets": {
+        "day": "Day",
+        "week": "Week",
+        "month": "Month"
+      },
+      "errors": {
+        "invalidDate": "Enter valid start and end dates.",
+        "startAfterEnd": "The start date must be on or before the end date.",
+        "inFuture": "The end date can't be in the future.",
+        "tooFarBack": "The start date can't be more than 365 days ago."
+      }
     }
   },
   "home": {

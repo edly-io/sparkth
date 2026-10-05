@@ -24,7 +24,7 @@ test.describe("analytics", () => {
   test("shows the empty state for a period with no logins", async ({ page }) => {
     await stubLoginActivity(page, []);
     await page.goto("/dashboard/analytics/logins");
-    await expect(page.getByText(/no logins in the last 30 days/i)).toBeVisible();
+    await expect(page.getByText(/no logins in this period/i)).toBeVisible();
   });
 
   test("shows login totals when there is data", async ({ page }) => {
@@ -56,5 +56,48 @@ test.describe("analytics", () => {
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );
     expect(overflow).toBeLessThanOrEqual(0);
+  });
+});
+
+test.describe("analytics period", () => {
+  test.beforeEach(async ({ page }) => {
+    await stubLoginActivity(page, [{ day: todayUtc(), login_count: 4 }]);
+  });
+
+  test("a preset and bucket survive a reload", async ({ page }) => {
+    await page.goto("/dashboard/analytics/logins");
+    await page.getByLabel("Period").selectOption("7d");
+    await page.getByLabel("Group by").selectOption("week");
+    await expect(page).toHaveURL(/range=7d&bucket=week/);
+    await page.reload();
+    await expect(page.getByLabel("Period")).toHaveValue("7d");
+    await expect(page.getByLabel("Group by")).toHaveValue("week");
+  });
+
+  test("a custom range is written to the URL", async ({ page }) => {
+    await page.goto("/dashboard/analytics/logins");
+    await page.getByLabel("Period").selectOption("custom");
+    await page.getByLabel("Start date").fill("2026-01-01");
+    await page.getByLabel("End date").fill("2026-01-31");
+    await page.getByRole("button", { name: "Apply" }).click();
+    await expect(page).toHaveURL(/from=2026-01-01&to=2026-01-31/);
+  });
+
+  test("an inverted custom range is blocked inline", async ({ page }) => {
+    await page.goto("/dashboard/analytics/logins");
+    await page.getByLabel("Period").selectOption("custom");
+    await page.getByLabel("Start date").fill("2026-01-31");
+    await page.getByLabel("End date").fill("2026-01-01");
+    await page.getByRole("button", { name: "Apply" }).click();
+    await expect(page.getByRole("alert")).toContainText(/start date must be on or before/i);
+    await expect(page).not.toHaveURL(/from=/);
+  });
+
+  test("switching views keeps the period", async ({ page }) => {
+    await page.goto("/dashboard/analytics/logins?range=90d&bucket=month");
+    await expect(page.getByRole("link", { name: "Logins" })).toHaveAttribute(
+      "href",
+      /range=90d&bucket=month/,
+    );
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { ChartColumn } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/lib/auth-context";
@@ -8,6 +8,7 @@ import { checkPermission } from "@/lib/permissions";
 import { Forbidden } from "@/components/Forbidden";
 import { Spinner } from "@/components/Spinner";
 import { AnalyticsNav } from "./AnalyticsNav";
+import { PeriodSelector } from "./PeriodSelector";
 
 type Access = "checking" | "allowed" | "denied";
 
@@ -47,10 +48,16 @@ export default function AnalyticsLayout({ children }: { children: React.ReactNod
         )}
         {access === "denied" && <Forbidden />}
         {access === "allowed" && (
-          <div className="flex flex-col gap-6 lg:flex-row">
-            <AnalyticsNav />
-            <div className="min-w-0 flex-1">{children}</div>
-          </div>
+          // useSearchParams needs a Suspense boundary under static export.
+          <Suspense fallback={null}>
+            <div className="flex flex-col gap-6 lg:flex-row">
+              <AnalyticsNav />
+              <div className="min-w-0 flex-1 space-y-6">
+                <PeriodSelector />
+                {children}
+              </div>
+            </div>
+          </Suspense>
         )}
       </div>
     </div>

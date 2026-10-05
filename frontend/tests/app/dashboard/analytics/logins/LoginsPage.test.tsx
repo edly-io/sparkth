@@ -20,6 +20,13 @@ vi.mock("@/lib/analytics", async (importOriginal) => {
   return { ...actual, fetchLoginActivity: vi.fn() };
 });
 
+const nav = vi.hoisted(() => ({ search: "" }));
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(nav.search),
+  useRouter: () => ({ replace: vi.fn() }),
+  usePathname: () => "/dashboard/analytics/logins",
+}));
+
 import { fetchLoginActivity, type LoginActivityPoint } from "@/lib/analytics";
 import LoginsPage from "@/app/dashboard/analytics/logins/LoginsPage";
 
@@ -35,6 +42,7 @@ function intl(ui: React.ReactElement) {
 beforeEach(() => {
   vi.clearAllMocks();
   auth.token = "test-token";
+  nav.search = "";
 });
 
 describe("LoginsPage states", () => {
@@ -89,7 +97,7 @@ describe("LoginsPage states", () => {
 
     renderWithIntl(<LoginsPage />);
 
-    expect(await screen.findByText(/no logins in the last 30 days/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no logins in this period/i)).toBeInTheDocument();
   });
 
   it("labels the window as UTC in the subheading so dates are not misread across timezones", () => {
@@ -99,7 +107,7 @@ describe("LoginsPage states", () => {
 
     // Dates are UTC-bucketed server-side (see lib/analytics reads); the subheading must say
     // so, or a user in another timezone reads the last bar as "today" and it disagrees.
-    expect(screen.getByText(/over the last 30 days \(UTC\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/\(UTC\)/)).toBeInTheDocument();
   });
 
   it("shows the 403 view when access is revoked, without disclosing permission details", async () => {
@@ -190,7 +198,7 @@ describe("LoginsPage empty-window composition", () => {
 
     renderWithIntl(<LoginsPage />);
 
-    expect(await screen.findByText(/no logins in the last 30 days/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no logins in this period/i)).toBeInTheDocument();
     expect(screen.queryByText("Total logins")).not.toBeInTheDocument();
     expect(screen.queryByText("Busiest day")).not.toBeInTheDocument();
   });
@@ -235,30 +243,30 @@ describe("LoginsPage stale-response guard", () => {
   });
 });
 
-describe("LoginsPage window stability", () => {
+describe("LoginsPage period", () => {
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date("2026-07-24T12:00:00Z"));
   });
+  afterEach(() => vi.useRealTimers());
 
-  afterEach(() => {
-    vi.useRealTimers();
+  it("fetches enough days to cover a custom range and totals only that range", async () => {
+    nav.search = "from=2026-07-01&to=2026-07-10";
+    vi.mocked(fetchLoginActivity).mockResolvedValue([
+      { day: "2026-07-20", login_count: 9 }, // after `to`: excluded
+      { day: "2026-07-05", login_count: 2 },
+    ]);
+    renderWithIntl(<LoginsPage />);
+    const totalCard = (await screen.findByText("Total logins")).parentElement as HTMLElement;
+    expect(within(totalCard).getByText("2")).toBeInTheDocument();
+    expect(fetchLoginActivity).toHaveBeenCalledWith("test-token", { days: 24 }); // 07-01..07-24
   });
 
-  it("keeps the window pinned to the fetched data across an unrelated re-render", async () => {
-    vi.mocked(fetchLoginActivity).mockResolvedValue([{ day: "2026-06-25", login_count: 5 }]);
-
-    const { rerender } = renderWithIntl(<LoginsPage />);
-
-    const totalCard = (await screen.findByText("Total logins")).parentElement as HTMLElement;
-    expect(within(totalCard).getByText("5")).toBeInTheDocument();
-
-    // A day passes, then something unrelated re-renders the page (same `points`).
-    vi.setSystemTime(new Date("2026-07-25T12:00:00Z"));
-    rerender(intl(<LoginsPage />));
-
-    expect(within(totalCard).getByText("5")).toBeInTheDocument();
-    const busiestCard = screen.getByText("Busiest day").parentElement as HTMLElement;
-    expect(within(busiestCard).getByText("Jun 25, 2026")).toBeInTheDocument();
+  it("re-buckets without refetching when only the bucket changes", async () => {
+    nav.search = "range=30d&bucket=week";
+    vi.mocked(fetchLoginActivity).mockResolvedValue([{ day: "2026-07-21", login_count: 3 }]);
+    renderWithIntl(<LoginsPage />);
+    expect(await screen.findByText("Busiest week")).toBeInTheDocument();
+    expect(fetchLoginActivity).toHaveBeenCalledTimes(1);
   });
 });

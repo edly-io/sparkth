@@ -1,24 +1,6 @@
 import { describe, it, expect } from "vitest";
 
-import { buildDailySeries, buildSeries, bucketStart, summarize } from "@/lib/analytics";
-
-describe("buildDailySeries", () => {
-  it("zero-fills a continuous oldest→newest series over the window", () => {
-    const now = new Date("2026-07-23T12:00:00Z");
-    const points = [
-      { day: "2026-07-23", login_count: 5 },
-      { day: "2026-07-21", login_count: 2 },
-    ];
-
-    const series = buildDailySeries(points, 3, now);
-
-    expect(series).toEqual([
-      { label: "2026-07-21", value: 2 },
-      { label: "2026-07-22", value: 0 },
-      { label: "2026-07-23", value: 5 },
-    ]);
-  });
-});
+import { buildSeries, bucketStart, summarize } from "@/lib/analytics";
 
 describe("summarize", () => {
   it("derives total logins and the busiest day from a windowed series", () => {

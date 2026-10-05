@@ -5,6 +5,8 @@ import { renderWithIntl } from "../../../intl-test-utils";
 vi.mock("@/lib/auth-context", () => ({ useAuth: () => ({ token: "test-token" }) }));
 vi.mock("next/navigation", () => ({
   usePathname: () => "/dashboard/analytics/logins",
+  useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({ replace: vi.fn() }),
 }));
 const checkPermission = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/permissions", () => ({ checkPermission }));
