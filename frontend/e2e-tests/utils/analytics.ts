@@ -11,17 +11,21 @@ export async function stubLoginActivity(page: Page, body: unknown, status = 200)
 }
 
 /**
- * Makes `GET /api/v1/permissions/can` deny one permission and pass every other check through,
- * simulating a user who lacks it (the seeded superuser holds all of them).
+ * Makes `GET /api/v1/permissions/can` answer `allowed` for one permission and pass every other
+ * check through. The seeded e2e user has no roles, so specs grant or deny what they need here.
  */
-export async function denyPermission(page: Page, permission: string): Promise<void> {
+export async function stubPermission(
+  page: Page,
+  permission: string,
+  allowed: boolean,
+): Promise<void> {
   await page.route("**/api/v1/permissions/can**", (route) => {
     const url = new URL(route.request().url());
     if (url.searchParams.get("permission") !== permission) return route.continue();
     return route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ allowed: false }),
+      body: JSON.stringify({ allowed }),
     });
   });
 }
