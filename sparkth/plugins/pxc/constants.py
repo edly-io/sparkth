@@ -43,16 +43,15 @@ PXC_PREVIEW_USER_PREFIX = "sparkth-"
 # The course, placement and learner id the build's smoke test reads state as.
 PXC_SMOKE_CONTEXT_ID = "smoke"
 
-# The WIT world every generated activity compiles against: the bundled sample's. That world
-# imports only pxc:sandbox/state, so a generated sandbox can call nothing else on the host.
-PXC_SANDBOX_WIT = PXC_ACTIVITY_ROOT / "mcq" / "pxc.wit"
+# The WIT world every sandbox compiles against. It imports only pxc:sandbox/state, so a sandbox
+# can call nothing else on the host.
+PXC_SANDBOX_WIT = Path(__file__).parent / "builder" / "toolchain" / "pxc.wit"
+
+# The exit status of the toolchain's compile.mjs when its packages are not installed.
+PXC_COMPILE_TOOLCHAIN_MISSING = 2
 
 # The pxc plugin's prompt and contract texts.
 PXC_ASSET_DIR = Path(__file__).parent / "assets"
-
-# The bundled activity pxc_about hands the agent as its worked example, and the files it shows.
-PXC_ABOUT_EXAMPLE = "mcq"
-PXC_ABOUT_FILES = ("pxc.wit", "manifest.json", "sandbox.js", "ui.js")
 
 # The MCP category every pxc tool registers under, which the pxc-activity chat job claims.
 PXC_TOOL_CATEGORY = "pxc"
