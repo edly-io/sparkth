@@ -24,8 +24,6 @@ side needs. This one covers only the Sparkth side.
    here as a signature mismatch.
 3. **The XBlock**, installed as above.
 4. **Persistent storage.** `PXC_DATA_DIR` holds all learner state and all generated activities.
-   The production compose file mounts the `pxc_data` volume there; any other deployment needs a
-   persistent volume at that path. It is local disk, so replicas must share it.
 
 `.env` is the source of truth for every setting and carries a comment on each one; this file
 does not repeat the list.
