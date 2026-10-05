@@ -1,4 +1,18 @@
 {
+  "analytics": {
+    "title": "Analíticas",
+    "loading": "Cargando analíticas…",
+    "loadError": "No pudimos cargar las analíticas. Inténtalo de nuevo.",
+    "retry": "Reintentar",
+    "logins": {
+      "subtitle": "Actividad diaria de inicios de sesión en los últimos {days} días (UTC).",
+      "empty": "No hay inicios de sesión en los últimos {days} días.",
+      "totalLogins": "Inicios de sesión totales",
+      "busiestDay": "Día con más actividad",
+      "lastDays": "últimos {days} días",
+      "chartLabel": "Inicios de sesión diarios en los últimos {days} días"
+    }
+  },
   "home": {
     "title": "Bienvenido a <brand>Sparkth</brand>",
     "tagline": "Tu plataforma impulsada por IA para crear contenido educativo atractivo. Transforma tus recursos en cursos con facilidad.",
