@@ -1,6 +1,6 @@
 {
   "analytics": {
-    "title": "Analytique",
+    "title": "Analyses",
     "loading": "Chargement des analyses…",
     "loadError": "Nous n'avons pas pu charger les analyses. Veuillez réessayer.",
     "retry": "Réessayer",

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { redirect } from "next/navigation";
 import { NextIntlClientProvider } from "next-intl";
@@ -76,17 +76,16 @@ describe("AnalyticsPage states", () => {
   });
 
   it("formats the busiest day as a UTC date even when the browser is west of UTC", async () => {
-    // 2026-07-23 00:00 UTC is still 2026-07-22 in America/Los_Angeles; the label must not slip a day.
-    const original = process.env.TZ;
-    process.env.TZ = "America/Los_Angeles";
-    try {
-      vi.mocked(fetchLoginActivity).mockResolvedValue([{ day: "2026-07-23", login_count: 3 }]);
-      renderWithIntl(<AnalyticsPage />);
-      const busiestCard = (await screen.findByText("Busiest day")).parentElement as HTMLElement;
-      expect(within(busiestCard).getByText("Jul 23, 2026")).toBeInTheDocument();
-    } finally {
-      process.env.TZ = original;
-    }
+    // The real LocaleProvider passes the browser's zone to next-intl; 2026-07-23 00:00 UTC is
+    // still 2026-07-22 in America/Los_Angeles, so the label slips a day unless formatDay pins UTC.
+    vi.mocked(fetchLoginActivity).mockResolvedValue([{ day: "2026-07-23", login_count: 3 }]);
+    render(
+      <NextIntlClientProvider locale="en" messages={en} timeZone="America/Los_Angeles">
+        <AnalyticsPage />
+      </NextIntlClientProvider>,
+    );
+    const busiestCard = (await screen.findByText("Busiest day")).parentElement as HTMLElement;
+    expect(within(busiestCard).getByText("Jul 23, 2026")).toBeInTheDocument();
   });
 
   it("shows an empty state when there are no logins", async () => {
