@@ -5,12 +5,17 @@
     "loadError": "Nous n'avons pas pu charger les analyses. Veuillez réessayer.",
     "retry": "Réessayer",
     "logins": {
+      "title": "Connexions",
       "subtitle": "Activité de connexion quotidienne au cours des {days} derniers jours (UTC).",
       "empty": "Aucune connexion au cours des {days} derniers jours.",
       "totalLogins": "Connexions totales",
       "busiestDay": "Jour le plus actif",
       "lastDays": "{days} derniers jours",
       "chartLabel": "Connexions quotidiennes au cours des {days} derniers jours"
+    },
+    "nav": {
+      "label": "Vues des analyses",
+      "logins": "Connexions"
     }
   },
   "home": {

@@ -5,12 +5,17 @@
     "loadError": "No pudimos cargar las analíticas. Inténtalo de nuevo.",
     "retry": "Reintentar",
     "logins": {
+      "title": "Inicios de sesión",
       "subtitle": "Actividad diaria de inicios de sesión en los últimos {days} días (UTC).",
       "empty": "No hay inicios de sesión en los últimos {days} días.",
       "totalLogins": "Inicios de sesión totales",
       "busiestDay": "Día con más actividad",
       "lastDays": "últimos {days} días",
       "chartLabel": "Inicios de sesión diarios en los últimos {days} días"
+    },
+    "nav": {
+      "label": "Vistas de analíticas",
+      "logins": "Inicios de sesión"
     }
   },
   "home": {

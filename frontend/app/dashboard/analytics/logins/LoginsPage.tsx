@@ -25,7 +25,7 @@ type State =
   | { status: "forbidden" }
   | { status: "error" };
 
-export default function AnalyticsPage() {
+export default function LoginsPage() {
   const { token } = useAuth();
   const t = useTranslations("analytics");
   const [state, setState] = useState<State>({ status: "loading" });
@@ -59,43 +59,38 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background transition-colors">
-      <div className="mx-auto px-4 py-4 sm:py-8 sm:px-6 lg:px-8">
-        <div className="mb-6 sm:mb-8 flex items-center gap-3">
-          <ChartColumn className="w-6 h-6 text-primary-500" />
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">{t("title")}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {t("logins.subtitle", { days: LOGIN_ACTIVITY_DAYS })}
-            </p>
+    <div>
+      <div className="mb-6">
+        <h2 className="text-xl font-semibold text-foreground">{t("logins.title")}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {t("logins.subtitle", { days: LOGIN_ACTIVITY_DAYS })}
+        </p>
+      </div>
+
+      {state.status === "loading" && (
+        <div className="flex items-center justify-center py-24">
+          <div className="text-center">
+            <Spinner className="mx-auto mb-4" />
+            <p className="text-muted-foreground">{t("loading")}</p>
           </div>
         </div>
+      )}
 
-        {state.status === "loading" && (
-          <div className="flex items-center justify-center py-24">
-            <div className="text-center">
-              <Spinner className="mx-auto mb-4" />
-              <p className="text-muted-foreground">{t("loading")}</p>
-            </div>
+      {state.status === "error" && (
+        <Alert severity="error">
+          <div className="flex items-center justify-between gap-3">
+            <span>{t("loadError")}</span>
+            <Button variant="ghost" size="sm" onClick={retry}>
+              <RefreshCw className="w-4 h-4 mr-1" aria-hidden="true" />
+              {t("retry")}
+            </Button>
           </div>
-        )}
+        </Alert>
+      )}
 
-        {state.status === "error" && (
-          <Alert severity="error">
-            <div className="flex items-center justify-between gap-3">
-              <span>{t("loadError")}</span>
-              <Button variant="ghost" size="sm" onClick={retry}>
-                <RefreshCw className="w-4 h-4 mr-1" aria-hidden="true" />
-                {t("retry")}
-              </Button>
-            </div>
-          </Alert>
-        )}
-
-        {state.status === "ready" && (
-          <AnalyticsContent points={state.points} fetchedAt={state.fetchedAt} />
-        )}
-      </div>
+      {state.status === "ready" && (
+        <AnalyticsContent points={state.points} fetchedAt={state.fetchedAt} />
+      )}
     </div>
   );
 }
