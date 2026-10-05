@@ -1,0 +1,10 @@
+{
+  "//": "Node toolchain the activity builder compiles WASM sandboxes with, not an app.",
+  "name": "pxc-activity",
+  "private": true,
+  "dependencies": {
+    "@bytecodealliance/componentize-js": "^0.19.3",
+    "@bytecodealliance/jco": "^1.17.3",
+    "oxc-parser": "^0.76.0"
+  }
+}

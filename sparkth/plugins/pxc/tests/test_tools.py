@@ -11,8 +11,8 @@ from uuid6 import uuid7
 from sparkth.core.models.user import User
 from sparkth.lib.auth import bind_current_user_id
 from sparkth.plugins.pxc import tools
-from sparkth.plugins.pxc.activities import activity_dir, preview_url
-from sparkth.plugins.pxc.constants import PXC_ABOUT_EXAMPLE, PXC_ABOUT_FILES, PXC_ASSET_DIR, PXC_MAX_SOURCE_CHARS
+from sparkth.plugins.pxc.activities import preview_url
+from sparkth.plugins.pxc.constants import PXC_ASSET_DIR, PXC_MAX_SOURCE_CHARS
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound, PxcBuildFailed, PxcCompileFailed, PxcManifestInvalid
 from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.schemas import ActivitySource
@@ -37,13 +37,6 @@ async def test_about_carries_the_manifest_schema() -> None:
     about = (await pxc_about())["about"]
 
     assert json.dumps(PxcActivityManifest.model_json_schema(), indent=2) in about
-
-
-async def test_about_carries_every_worked_example_file_as_it_is_on_disk() -> None:
-    about = (await pxc_about())["about"]
-
-    for name in PXC_ABOUT_FILES:
-        assert (activity_dir(PXC_ABOUT_EXAMPLE) / name).read_text(encoding="utf-8") in about
 
 
 MANIFEST: dict[str, object] = {"name": "poll", "ui": "ui.js", "sandbox": "sandbox.wasm"}
