@@ -4,6 +4,7 @@
   "private": true,
   "dependencies": {
     "@bytecodealliance/componentize-js": "^0.19.3",
-    "@bytecodealliance/jco": "^1.17.3"
+    "@bytecodealliance/jco": "^1.17.3",
+    "oxc-parser": "^0.76.0"
   }
 }

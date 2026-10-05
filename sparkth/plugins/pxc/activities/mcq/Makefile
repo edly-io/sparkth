@@ -9,5 +9,5 @@ $(TOOLCHAIN)/node_modules: $(TOOLCHAIN)/package-lock.json
 	touch $(TOOLCHAIN)/node_modules
 
 # Compiled with the activity builder's toolchain, the way the builder compiles one.
-sandbox.wasm: sandbox.js $(TOOLCHAIN)/pxc.wit $(TOOLCHAIN)/node_modules
-	$(TOOLCHAIN)/node_modules/.bin/componentize-js sandbox.js --wit $(TOOLCHAIN)/pxc.wit --world-name activity --disable http --disable fetch-event -o sandbox.wasm
+sandbox.wasm: sandbox.js $(TOOLCHAIN)/compile.mjs $(TOOLCHAIN)/pxc.wit $(TOOLCHAIN)/node_modules
+	node $(TOOLCHAIN)/compile.mjs sandbox.js $(TOOLCHAIN)/pxc.wit sandbox.wasm

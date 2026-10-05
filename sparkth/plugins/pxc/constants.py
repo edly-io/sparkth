@@ -47,6 +47,9 @@ PXC_SMOKE_CONTEXT_ID = "smoke"
 # can call nothing else on the host.
 PXC_SANDBOX_WIT = Path(__file__).parent / "builder" / "toolchain" / "pxc.wit"
 
+# The exit status of the toolchain's compile.mjs when its packages are not installed.
+PXC_COMPILE_TOOLCHAIN_MISSING = 2
+
 # The most of a build step's stderr kept in memory, in bytes: the end of it, where the cause is.
 # The rest is read and dropped, so a step flooding stderr can neither block nor exhaust memory.
 PXC_BUILD_STDERR_LIMIT_BYTES = int(os.getenv("PXC_BUILD_STDERR_LIMIT_BYTES", "65536"))
