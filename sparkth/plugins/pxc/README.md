@@ -24,8 +24,8 @@ side needs. This one covers only the Sparkth side.
    here as a signature mismatch.
 3. **The XBlock**, installed as above.
 4. **Persistent storage.** `PXC_DATA_DIR` holds all learner state and all generated activities.
-5. **The build toolchain.** Activities compile on the server, from the `node_modules` under
-   `PXC_TOOLCHAIN_DIR`, with `node` on `PATH`.
+5. **The build toolchain.** Activities compile on the server, with `compile.mjs` and the
+   `node_modules` under `PXC_TOOLCHAIN_DIR`, and `node` on `PATH`.
 
 `.env` is the source of truth for every setting and carries a comment on each one; this file
 does not repeat the list.
