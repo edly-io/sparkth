@@ -130,8 +130,14 @@ function AnalyticsContent({
 }) {
   const t = useTranslations("analytics.logins");
   const format = useFormatter();
-  const formatDay = (day: string) =>
-    format.dateTime(utc(day), { dateStyle: "medium", timeZone: "UTC" });
+  // A bucket label is its first day: a week reads "Week of <Monday>", a month its month name.
+  const formatBucket = (day: string) => {
+    if (bucket === "month") {
+      return format.dateTime(utc(day), { month: "short", year: "numeric", timeZone: "UTC" });
+    }
+    const date = format.dateTime(utc(day), { dateStyle: "medium", timeZone: "UTC" });
+    return bucket === "week" ? t("weekOf", { date }) : date;
+  };
   const range = format.dateTimeRange(utc(from), utc(to), { dateStyle: "medium", timeZone: "UTC" });
   const { series, total, busiest } = useMemo(() => {
     const series = buildSeries(
@@ -157,12 +163,12 @@ function AnalyticsContent({
         <StatCard
           title={t("busiestBucket", { bucket })}
           value={busiest ? format.number(busiest.value) : "—"}
-          hint={busiest ? formatDay(busiest.label) : undefined}
+          hint={busiest ? formatBucket(busiest.label) : undefined}
         />
       </div>
       <div className="bg-card rounded-xl border border-border p-6">
         <BarChart
-          data={series.map((d) => ({ label: formatDay(d.label), value: d.value }))}
+          data={series.map((d) => ({ label: formatBucket(d.label), value: d.value }))}
           aria-label={t("chartLabel", { range })}
         />
       </div>

@@ -3,7 +3,7 @@ import type { LoginActivityPoint } from "@/lib/analytics/types";
 
 export async function fetchLoginActivity(
   token: string,
-  { days = 30 }: { days?: number } = {},
+  { days }: { days: number },
 ): Promise<LoginActivityPoint[]> {
   return call<LoginActivityPoint[]>(() =>
     api.GET("/api/v1/analytics/login-activity", {

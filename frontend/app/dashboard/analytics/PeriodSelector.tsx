@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
+import { useSearchParams } from "next/navigation";
 import {
   BUCKETS,
   PRESETS,
@@ -19,7 +20,14 @@ import { usePeriod } from "./usePeriod";
 
 const PRESET_KEYS = Object.keys(PRESETS) as Preset[];
 
+// Keyed on the query so local state (custom toggle, draft, inline error) reseeds whenever the
+// URL changes underneath the mounted layout, e.g. via the sidebar link. Keyed here rather than in
+// the layout because useSearchParams must sit inside the layout's Suspense boundary.
 export function PeriodSelector() {
+  return <PeriodControls key={useSearchParams().toString()} />;
+}
+
+function PeriodControls() {
   const t = useTranslations("analytics.period");
   const { period, error: urlError, setPeriod } = usePeriod();
   const today = toIsoDate(new Date());

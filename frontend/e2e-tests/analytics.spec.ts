@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { stubLoginActivity, stubPermission, todayUtc } from "./utils/analytics";
+import { daysAgoUtc, stubLoginActivity, stubPermission, todayUtc } from "./utils/analytics";
 
 /**
  * Analytics dashboard. Runs as the seeded e2e user (auth.setup.ts), which has no roles, so
@@ -77,19 +77,23 @@ test.describe("analytics period", () => {
   test("a custom range is written to the URL", async ({ page }) => {
     await page.goto("/dashboard/analytics/logins");
     await page.getByLabel("Period").selectOption("custom");
-    await page.getByLabel("Start date").fill("2026-01-01");
-    await page.getByLabel("End date").fill("2026-01-31");
+    // Relative to today, so the range never falls outside the selectable window.
+    const from = daysAgoUtc(30);
+    const to = daysAgoUtc(1);
+    await page.getByLabel("Start date").fill(from);
+    await page.getByLabel("End date").fill(to);
     await page.getByRole("button", { name: "Apply" }).click();
-    await expect(page).toHaveURL(/from=2026-01-01&to=2026-01-31/);
+    await expect(page).toHaveURL(new RegExp(`from=${from}&to=${to}`));
   });
 
   test("an inverted custom range is blocked inline", async ({ page }) => {
     await page.goto("/dashboard/analytics/logins");
     await page.getByLabel("Period").selectOption("custom");
-    await page.getByLabel("Start date").fill("2026-01-31");
-    await page.getByLabel("End date").fill("2026-01-01");
+    await page.getByLabel("Start date").fill(daysAgoUtc(1));
+    await page.getByLabel("End date").fill(daysAgoUtc(30));
     await page.getByRole("button", { name: "Apply" }).click();
-    await expect(page.getByRole("alert")).toContainText(/start date must be on or before/i);
+    // Not getByRole("alert"): Next's route announcer also carries role="alert".
+    await expect(page.locator("#period-error")).toContainText(/start date must be on or before/i);
     await expect(page).not.toHaveURL(/from=/);
   });
 

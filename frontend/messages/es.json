@@ -10,6 +10,7 @@
       "empty": "No hay inicios de sesión en este periodo.",
       "totalLogins": "Inicios de sesión totales",
       "busiestBucket": "{bucket, select, day {Día} week {Semana} other {Mes}} con más actividad",
+      "weekOf": "Semana del {date}",
       "chartLabel": "Inicios de sesión, {range}"
     },
     "nav": {

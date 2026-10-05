@@ -10,6 +10,7 @@
       "empty": "Aucune connexion sur cette période.",
       "totalLogins": "Connexions totales",
       "busiestBucket": "{bucket, select, day {Jour} week {Semaine} other {Mois}} le plus actif",
+      "weekOf": "Semaine du {date}",
       "chartLabel": "Connexions, {range}"
     },
     "nav": {

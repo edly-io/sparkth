@@ -10,6 +10,7 @@
       "empty": "No logins in this period.",
       "totalLogins": "Total logins",
       "busiestBucket": "Busiest {bucket, select, day {day} week {week} other {month}}",
+      "weekOf": "Week of {date}",
       "chartLabel": "Logins, {range}"
     },
     "nav": {

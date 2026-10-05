@@ -30,18 +30,10 @@ describe("fetchLoginActivity", () => {
     expect(result).toEqual(points);
   });
 
-  it("defaults to 30 days when none is given", async () => {
-    const spy = mockFetch([]);
-
-    await fetchLoginActivity("test-token");
-
-    expect(new URL(sentRequest(spy).url).searchParams.get("days")).toBe("30");
-  });
-
   it("wraps a transport failure as an ApiRequestError", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("network down"));
 
-    const error = await fetchLoginActivity("test-token").catch((e: unknown) => e);
+    const error = await fetchLoginActivity("test-token", { days: 30 }).catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(ApiRequestError);
     expect((error as ApiRequestError).message).toMatch(/unable to connect/i);
@@ -50,7 +42,7 @@ describe("fetchLoginActivity", () => {
   it("propagates an ApiRequestError with its status intact", async () => {
     mockFetch({ detail: "Permission denied" }, 403);
 
-    const error = await fetchLoginActivity("test-token").catch((e: unknown) => e);
+    const error = await fetchLoginActivity("test-token", { days: 30 }).catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(ApiRequestError);
     expect((error as ApiRequestError).status).toBe(403);

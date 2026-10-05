@@ -20,5 +20,5 @@ export function usePeriod() {
     (next: Period) => router.replace(`${pathname}?${periodQuery(next)}`),
     [router, pathname],
   );
-  return { period, error, setPeriod, query };
+  return { period, error, setPeriod };
 }

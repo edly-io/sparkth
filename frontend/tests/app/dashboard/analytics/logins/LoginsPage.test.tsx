@@ -169,7 +169,7 @@ describe("LoginsPage stat/chart window consistency", () => {
   it("derives the stat tiles from the same 30-day window as the chart, not the raw response", async () => {
     // The read API's window floor is inclusive (`>= now - days`), so it can return a login
     // dated exactly `today - DAYS` (2026-06-24, 30 days before 2026-07-24). But the 30-slot
-    // chart built by buildDailySeries only spans [today-29 .. today] (oldest slot 2026-06-25),
+    // chart built by buildSeries only spans [today-29 .. today] (oldest slot 2026-06-25),
     // so that boundary day has no bar. Only 2026-07-23 is inside the chart's window.
     vi.mocked(fetchLoginActivity).mockResolvedValue([
       { day: "2026-06-24", login_count: 5 },
@@ -265,8 +265,29 @@ describe("LoginsPage period", () => {
   it("re-buckets without refetching when only the bucket changes", async () => {
     nav.search = "range=30d&bucket=week";
     vi.mocked(fetchLoginActivity).mockResolvedValue([{ day: "2026-07-21", login_count: 3 }]);
-    renderWithIntl(<LoginsPage />);
+    const { rerender } = render(intl(<LoginsPage />));
     expect(await screen.findByText("Busiest week")).toBeInTheDocument();
+
+    nav.search = "range=30d&bucket=month";
+    rerender(intl(<LoginsPage />));
+    const busiestCard = (await screen.findByText("Busiest month")).parentElement as HTMLElement;
+    expect(within(busiestCard).getByText("Jul 2026")).toBeInTheDocument();
     expect(fetchLoginActivity).toHaveBeenCalledTimes(1);
+  });
+
+  it("labels a month bucket by month", async () => {
+    nav.search = "range=30d&bucket=month";
+    vi.mocked(fetchLoginActivity).mockResolvedValue([{ day: "2026-07-21", login_count: 3 }]);
+    renderWithIntl(<LoginsPage />);
+    const busiestCard = (await screen.findByText("Busiest month")).parentElement as HTMLElement;
+    expect(within(busiestCard).getByText("Jul 2026")).toBeInTheDocument();
+  });
+
+  it("labels a week bucket by its Monday", async () => {
+    nav.search = "range=30d&bucket=week";
+    vi.mocked(fetchLoginActivity).mockResolvedValue([{ day: "2026-07-21", login_count: 3 }]);
+    renderWithIntl(<LoginsPage />);
+    const busiestCard = (await screen.findByText("Busiest week")).parentElement as HTMLElement;
+    expect(within(busiestCard).getByText("Week of Jul 20, 2026")).toBeInTheDocument();
   });
 });
