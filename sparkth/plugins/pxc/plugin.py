@@ -57,7 +57,7 @@ pxc_router.include_router(learner_router)
 pxc_router.include_router(activity_router)
 
 # The chat job that builds activities; it alone sees the pxc tools.
-PXC_ACTIVITY = ChatResponsibility(
+PXC_ACTIVITY_BUILDER = ChatResponsibility(
     PXC_BUILDER_RESPONSIBILITY_NAME,
     PXC_ACTIVITY_BUILDER_SCOPE,
     PXC_ACTIVITY_BUILDER_SYSTEM_PROMPT,
@@ -79,7 +79,7 @@ class PxcPlugin(SparkthPlugin):
                 gettext_noop("Portable, sandboxed learning activities hosted by Sparkth"),
             ),
         )
-        CHAT_RESPONSIBILITIES.add_item(self, PXC_ACTIVITY)
+        CHAT_RESPONSIBILITIES.add_item(self, PXC_ACTIVITY_BUILDER)
         MCP_TOOLS.add_items(
             self,
             [
