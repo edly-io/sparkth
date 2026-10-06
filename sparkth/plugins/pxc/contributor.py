@@ -50,6 +50,8 @@ async def list_pxc_options() -> list[ContentOption]:
 async def build_pxc_block(course_id: str, activity_id: str | None) -> ContentBlock:
     """Mint a placement in ``course_id`` for the chosen activity, and describe its block.
 
+    The block is titled after the activity: a generated one's title, or a bundled one's name.
+
     ``activity_id`` is the hook's ``option_id``: a bundled activity's name or one of the
     caller's generated activity ids. ``None`` places ``PXC_DEFAULT_ACTIVITY``. ``course_id`` is
     unused: a placement id is unique on its own, and the parameter is the contributor hook's
@@ -59,10 +61,14 @@ async def build_pxc_block(course_id: str, activity_id: str | None) -> ContentBlo
         ContentBuildError: if the default names no bundled activity, or the chosen activity is
             unknown or not the caller's own.
     """
-    activity = default_activity() if activity_id is None else await placeable_activity(activity_id)
+    if activity_id is None:
+        name = default_activity()
+        activity = ContentOption(name, name)
+    else:
+        activity = await placeable_activity(activity_id)
     placement = str(uuid7())
-    logger.info("Placed PXC activity %s as placement %s in course %s", activity, placement, course_id)
-    return ContentBlock("PXC Activity", PXC_BLOCK_CATEGORY, {"activity": activity, "placement": placement})
+    logger.info("Placed PXC activity %s as placement %s in course %s", activity.id, placement, course_id)
+    return ContentBlock(activity.label, PXC_BLOCK_CATEGORY, {"activity": activity.id, "placement": placement})
 
 
 def default_activity() -> str:
@@ -80,8 +86,10 @@ def default_activity() -> str:
     return activity
 
 
-async def placeable_activity(activity_id: str) -> str:
-    """The activity name a placement carries for ``activity_id``, if the caller may place it.
+async def placeable_activity(activity_id: str) -> ContentOption:
+    """The activity a placement carries for ``activity_id``, if the caller may place it.
+
+    Returned as the option the caller chose: its id, and its label, which titles the block.
 
     A bundled name is open to everyone. Anything else must be a generated activity owned by the
     authenticated caller. An unknown id, a malformed one, someone else's and an anonymous
@@ -91,7 +99,7 @@ async def placeable_activity(activity_id: str) -> str:
         ContentBuildError: if the caller may not place this activity.
     """
     if activity_id in activity_names():
-        return activity_id
+        return ContentOption(activity_id, activity_id)
     try:
         generated_id = parse_activity_id(activity_id)
         owner_user_id = current_user_id()
@@ -100,4 +108,4 @@ async def placeable_activity(activity_id: str) -> str:
     except (PxcActivityNotFound, NoAuthenticatedUser) as err:
         logger.warning("Refused to place PXC activity %r: %s", activity_id, err)
         raise ContentBuildError(f"No activity you can place has the id {activity_id!r}") from err
-    return str(activity.id)
+    return ContentOption(str(activity.id), activity.title)

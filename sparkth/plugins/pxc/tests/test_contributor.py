@@ -200,6 +200,18 @@ async def test_the_owner_places_their_own_activity(authored_activity: PxcActivit
     assert block.attributes["activity"] == str(authored_activity.id)
 
 
+async def test_a_placed_block_is_titled_after_its_activity(
+    authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    act_as(authors[0])
+
+    generated = await build_pxc_block("course-v1:X+Y+Z", str(authored_activity.id))
+    bundled = await build_pxc_block("course-v1:X+Y+Z", "mcq")
+
+    assert generated.title == "Capital cities"
+    assert bundled.title == "mcq"
+
+
 async def test_another_author_cannot_place_someone_elses_activity(
     authored_activity: PxcActivity, authors: tuple[User, User]
 ) -> None:
