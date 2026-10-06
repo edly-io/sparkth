@@ -10,6 +10,7 @@ from sparkth.plugins.pxc.activities import (
     activity_names,
     generated_activity_dir,
     index_activities,
+    parse_activity_id,
     preview_url,
     state_file,
 )
@@ -80,6 +81,14 @@ def test_a_non_canonical_id_is_rejected_even_when_its_directory_exists() -> None
 
     with pytest.raises(PxcActivityNotFound):
         activity_dir(activity_id)
+
+
+def test_an_id_parses_only_in_its_canonical_spelling() -> None:
+    activity_id = uuid7()
+
+    assert parse_activity_id(str(activity_id)) == activity_id
+    with pytest.raises(PxcActivityNotFound):
+        parse_activity_id(str(activity_id).upper())
 
 
 @pytest.mark.parametrize("name", ["../mcq", "/etc", "not-a-uuid"])

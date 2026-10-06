@@ -49,7 +49,7 @@ which lists the signed-in author's own activities. An activity's `preview_url` i
 
 ## Building an activity from chat
 
-The plugin registers the `pxc-activity` chat job with its system prompt, the scope the chat
+The plugin registers the `pxc-activity-builder` chat job with its system prompt, the scope the chat
 classifier reads, and the `pxc` tool category. A conversation routed to the job binds only the
 tools in that category. Its contract: the author describes an activity in plain words, and the
 agent builds it and replies with a preview link that opens the activity on the Sparkth
@@ -72,8 +72,9 @@ authenticated chat session; on the unauthenticated `/ai/mcp` endpoint they fail 
 
 A built activity never changes: an edit builds a new one.
 
-The job's prompt lives in `assets/pxc_activity_system_prompt.txt` and caps build attempts at
-three. The contract text lives in `assets/about.txt`.
+The job's prompt lives in `assets/pxc_activity_building_system_prompt.txt` and caps build
+attempts at three. The contract text lives in `assets/about.txt`, and the scope the classifier
+reads in `assets/pxc_activity_building_scope.txt`.
 
 ## Adding an activity
 
