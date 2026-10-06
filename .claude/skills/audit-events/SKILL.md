@@ -69,6 +69,8 @@ All are explained in the guide; none is a judgement call.
   Never key material, never config values (key names only), never content, never the actor's own
   identity (it belongs on the erasable actor label, not in the sealed payload). `error_detail`
   comes from `scrub_error_detail(exc)` or a fixed system-authored string, never `str(exc)`.
+  Build every snapshot in a `_create_audit_snapshot` helper (`_create_<kind>_audit_snapshot`
+  when a module records more than one shape), never as an inline dict.
 - **Never swallow an audit write.** It is fail-closed: a record failure must fail the action. No
   `try`/`except` that turns it into success, and a broad handler that reports errors to a user
   or model must let `AuditCaptureError` through.

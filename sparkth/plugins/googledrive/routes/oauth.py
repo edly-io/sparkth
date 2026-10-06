@@ -4,12 +4,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.lib.audit.context import UserActor, bind_audit_actor
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
 from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
 from sparkth.plugins.googledrive.oauth import (
+    connect_drive,
     decode_state,
     decrypt_token,
     delete_token,
@@ -19,7 +21,6 @@ from sparkth.plugins.googledrive.oauth import (
     get_user_info,
     get_valid_access_token,
     revoke_token,
-    save_tokens,
 )
 from sparkth.plugins.googledrive.routes.dependencies import require_user_id
 from sparkth.plugins.googledrive.routes.route_utils import get_drive_credentials
@@ -49,7 +50,11 @@ async def oauth_callback(
     state: str = Query(...),
     session: AsyncSession = Depends(get_async_session),
 ) -> RedirectResponse:
-    """Handle OAuth callback from Google."""
+    """Handle OAuth callback from Google.
+
+    The user is identified by the signed ``state``, not a session, so it is
+    bound as the audit actor here for the ``googledrive.connected`` record.
+    """
     from itsdangerous import BadSignature, SignatureExpired
 
     try:
@@ -59,6 +64,7 @@ async def oauth_callback(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_("OAuth state expired. Please try again."))
     except BadSignature, KeyError, ValueError, TypeError:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_("Invalid OAuth state."))
+    bind_audit_actor(UserActor(id=str(user_id)))
 
     client_id, client_secret, redirect_uri = get_drive_credentials()
 
@@ -80,7 +86,7 @@ async def oauth_callback(
         )
 
     try:
-        await save_tokens(
+        await connect_drive(
             session,
             user_id,
             token_data["access_token"],

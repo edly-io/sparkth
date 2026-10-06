@@ -35,14 +35,19 @@ logger = get_logger(__name__)
 _CACHE_PREFIX = "llm_config"
 
 
-def _identity(config: LLMConfig) -> dict[str, str]:
+def _create_identity_audit_snapshot(config: LLMConfig) -> dict[str, str]:
     """The non-secret description of a config used in create/delete snapshots."""
     return {"name": config.name, "provider": config.provider, "model": config.model}
 
 
-def _mutable(config: LLMConfig) -> dict[str, str | bool]:
+def _create_mutable_audit_snapshot(config: LLMConfig) -> dict[str, str | bool]:
     """The fields ``update``/``set_active`` may change, for before/after snapshots."""
     return {"name": config.name, "model": config.model, "is_active": config.is_active}
+
+
+def _create_key_audit_snapshot(masked_key: str) -> dict[str, str]:
+    """The masked form of a config's key, for key-rotation snapshots."""
+    return {"masked_key": masked_key}
 
 
 def _target(config: LLMConfig) -> AuditTarget:
@@ -108,7 +113,9 @@ class LLMConfigService:
         await record_event(
             session,
             LLMConfigCreatedAuditEvent(
-                outcome=AuditOutcome.SUCCESS, target=_target(config), change=AuditChange(new=_identity(config))
+                outcome=AuditOutcome.SUCCESS,
+                target=_target(config),
+                change=AuditChange(new=_create_identity_audit_snapshot(config)),
             ),
         )
         logger.info("Created LLMConfig id=%s for user_id=%s provider=%s", config.id, user_id, provider)
@@ -152,7 +159,7 @@ class LLMConfigService:
         config = await self.get(session, user_id, config_id)
         if config is None:
             raise LLMConfigNotFoundError(config_id, user_id)
-        before = _mutable(config)
+        before = _create_mutable_audit_snapshot(config)
         if name is not None:
             await self._assert_name_available(session, user_id, name, exclude_id=config_id)
             config.name = name
@@ -177,7 +184,7 @@ class LLMConfigService:
             LLMConfigUpdatedAuditEvent(
                 outcome=AuditOutcome.SUCCESS,
                 target=_target(config),
-                change=AuditChange(old=before, new=_mutable(config)),
+                change=AuditChange(old=before, new=_create_mutable_audit_snapshot(config)),
             ),
         )
         logger.info("Updated LLMConfig id=%s for user_id=%s", config.id, user_id)
@@ -206,7 +213,10 @@ class LLMConfigService:
             LLMConfigKeyRotatedAuditEvent(
                 outcome=AuditOutcome.SUCCESS,
                 target=_target(config),
-                change=AuditChange(old={"masked_key": previous_masked_key}, new={"masked_key": config.masked_key}),
+                change=AuditChange(
+                    old=_create_key_audit_snapshot(previous_masked_key),
+                    new=_create_key_audit_snapshot(config.masked_key),
+                ),
             ),
         )
         cache_key = self.cache.make_key(_CACHE_PREFIX, str(user_id), str(config_id))
@@ -224,7 +234,9 @@ class LLMConfigService:
         await record_event(
             session,
             LLMConfigDeletedAuditEvent(
-                outcome=AuditOutcome.SUCCESS, target=_target(config), change=AuditChange(old=_identity(config))
+                outcome=AuditOutcome.SUCCESS,
+                target=_target(config),
+                change=AuditChange(old=_create_identity_audit_snapshot(config)),
             ),
         )
         cache_key = self.cache.make_key(_CACHE_PREFIX, str(user_id), str(config_id))
@@ -244,7 +256,7 @@ class LLMConfigService:
         config = result.first()
         if config is None:
             raise LLMConfigNotFoundError(config_id, user_id)
-        before = _mutable(config)
+        before = _create_mutable_audit_snapshot(config)
         config.is_active = is_active
         config.update_timestamp()
         session.add(config)
@@ -255,7 +267,7 @@ class LLMConfigService:
             LLMConfigUpdatedAuditEvent(
                 outcome=AuditOutcome.SUCCESS,
                 target=_target(config),
-                change=AuditChange(old=before, new=_mutable(config)),
+                change=AuditChange(old=before, new=_create_mutable_audit_snapshot(config)),
             ),
         )
         if not is_active:
