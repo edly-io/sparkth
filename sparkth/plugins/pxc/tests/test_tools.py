@@ -88,6 +88,14 @@ async def test_manifest_text_that_is_not_json_is_refused_with_a_fixable_message(
     assert "not valid JSON" in str(refused.value)
 
 
+async def test_manifest_json_that_is_not_an_object_is_refused_as_the_wrong_type() -> None:
+    bind_current_user_id(7)
+    with pytest.raises(PxcManifestInvalid) as refused:
+        await pxc_build_activity("Poll", "A one-question poll", "[1, 2]", "ui", "sandbox")
+
+    assert str(refused.value) == "manifest must be a JSON object, got list"
+
+
 async def test_list_returns_the_authors_activities_with_preview_links(
     authored_activity: PxcActivity, authors: tuple[User, User]
 ) -> None:
