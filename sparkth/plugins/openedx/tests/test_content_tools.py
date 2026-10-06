@@ -263,3 +263,15 @@ async def test_an_option_for_a_contributor_without_options_is_refused_and_create
     create.assert_not_awaited()
     cast(AsyncMock, fake_contributor.builders["open-edx"]).assert_not_awaited()
     assert "fake" in result["error"]["message"]
+
+
+async def test_a_contributor_with_options_and_none_chosen_is_refused_and_creates_nothing(
+    optioned_contributor: ContentContributor,
+) -> None:
+    # Nothing is placed by default: the author must have chosen what to place.
+    with patch("sparkth.plugins.openedx.tools.openedx_create_basic_component", new=AsyncMock()) as create:
+        result = await openedx_add_plugin_content(add_args("optioned"))
+
+    create.assert_not_awaited()
+    cast(AsyncMock, optioned_contributor.builders["open-edx"]).assert_not_awaited()
+    assert "option_id" in result["error"]["message"]

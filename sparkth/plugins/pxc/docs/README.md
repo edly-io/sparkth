@@ -34,13 +34,17 @@ does not repeat the list.
 
 ## Placing one in a course
 
-The plugin registers the `pxc` content contributor. Its options are the bundled activities
-followed by the author's own, the latter by title. Building a block for a chosen activity mints an
-activity instance here and returns a block of category `pxc`, which the LMS integration renders.
-With no activity chosen, the activity instance names `PXC_DEFAULT_ACTIVITY`.
+An author places an activity from a course design conversation:
 
-Only an activity's author can place a generated activity: the builder checks ownership again
-when it builds, whatever the id's origin.
+1. The agent lists the activities the author can place: the bundled samples, then the author's
+   own activities by title.
+2. The author picks one. If they pick none, nothing is placed.
+3. Sparkth creates a new activity instance for it, with its own id and its own learner data.
+4. The LMS course gets a `pxc` block that holds only that id. The LMS integration shows the
+   activity through it.
+
+An author can place only their own activities and the bundled samples. Sparkth checks this
+again when it places the activity, so an id from anywhere else is refused.
 
 ## The Activities page
 
@@ -83,8 +87,6 @@ One directory per activity under `activities/`, each holding a `manifest.json` t
 activity's name, fields, actions and events. Nothing in this plugin knows what any particular
 activity contains: an activity declares its own starting configuration as the `default` on each
 of its fields, and the runtime serves those for an activity instance nobody has configured yet.
-`PXC_DEFAULT_ACTIVITY` names the one the content contributor places in a course when the author
-chooses no activity.
 
 ## Generated activities
 

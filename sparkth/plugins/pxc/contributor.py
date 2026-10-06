@@ -18,8 +18,7 @@ from sparkth.lib.content.hooks import ContentBlock, ContentOption
 from sparkth.lib.db import session_scope
 from sparkth.lib.exceptions.auth import NoAuthenticatedUser
 from sparkth.lib.log import get_logger
-from sparkth.plugins.pxc.activities import activity_dir, activity_names, parse_activity_id
-from sparkth.plugins.pxc.config import get_pxc_settings
+from sparkth.plugins.pxc.activities import activity_names, parse_activity_id
 from sparkth.plugins.pxc.constants import PXC_BLOCK_CATEGORY
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound
 from sparkth.plugins.pxc.store import get_owned_activity, list_owned_activities
@@ -48,35 +47,23 @@ async def build_pxc_block(course_id: str, activity_id: str | None) -> ContentBlo
     """Mint an activity instance in ``course_id`` for the chosen activity, and describe its block.
 
     ``activity_id`` is the hook's ``option_id``: a bundled activity's name or one of the
-    caller's generated activity ids. ``None`` places ``PXC_DEFAULT_ACTIVITY``. ``course_id`` is
-    unused: an activity instance id is unique on its own, and the parameter is the contributor hook's
-    shared signature.
+    caller's generated activity ids. There is no default activity, so ``None`` places nothing.
+    ``course_id`` is unused: an activity instance id is unique on its own, and the parameter is
+    the contributor hook's shared signature.
 
     Raises:
-        ContentBuildError: if the default names no bundled activity, or the chosen activity is
-            unknown or not the caller's own.
+        ContentBuildError: if no activity was chosen, or the chosen activity is unknown or not
+            the caller's own.
     """
-    activity = default_activity() if activity_id is None else await placeable_activity(activity_id)
+    if activity_id is None:
+        logger.warning("Refused to place a PXC activity in course %s: none was chosen", course_id)
+        raise ContentBuildError("Choose an activity to place: pass one of the contributor's options")
+    activity = await placeable_activity(activity_id)
     activity_instance = str(uuid7())
     logger.info("Placed PXC activity %s as activity_instance %s in course %s", activity, activity_instance, course_id)
     return ContentBlock(
         "PXC Activity", PXC_BLOCK_CATEGORY, {"activity": activity, "activity_instance": activity_instance}
     )
-
-
-def default_activity() -> str:
-    """``PXC_DEFAULT_ACTIVITY``, checked so a misconfigured deployment is refused when the activity is placed.
-
-    Raises:
-        ContentBuildError: if it names no known activity.
-    """
-    activity = get_pxc_settings().default_activity
-    try:
-        activity_dir(activity)
-    except PxcActivityNotFound as err:
-        logger.error("PXC_DEFAULT_ACTIVITY names an unknown activity %r: %s", activity, err)
-        raise ContentBuildError(f"PXC_DEFAULT_ACTIVITY names an unknown activity: {activity!r}") from err
-    return activity
 
 
 async def placeable_activity(activity_id: str) -> str:

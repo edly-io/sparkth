@@ -62,7 +62,6 @@ def pxc_settings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[No
     monkeypatch.setenv("PXC_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("PXC_LAUNCH_SECRET", "")
     monkeypatch.setenv("PXC_LAUNCH_TOKEN_TTL_SECONDS", "300")
-    monkeypatch.setenv("PXC_DEFAULT_ACTIVITY", "mcq")
     monkeypatch.setenv("PXC_TOOLCHAIN_DIR", str(TOOLCHAIN_DIR))
     monkeypatch.setenv("PXC_BUILD_TIMEOUT_SECONDS", "120")
     monkeypatch.setenv("PXC_BUILD_CONCURRENCY", "2")

@@ -133,7 +133,8 @@ class AddPluginContentArgs(BaseModel):
         default=None,
         description=(
             "Which of the contributor's options to publish: an `id` from that contributor's "
-            "`options` in `openedx_list_content_contributors`. Omit it to publish the "
-            "contributor's default."
+            "`options` in `openedx_list_content_contributors`. Required for a contributor that "
+            "offers options: ask the author which one, and publish nothing if they decline. Omit "
+            "it for a contributor that offers none."
         ),
     )
