@@ -14,10 +14,10 @@ import pytest
 from pxc.lib.permission import Permission
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.models.user import User
 from sparkth.lib.content.exceptions import ContentBuildError
 from sparkth.lib.content.hooks import LMS_CONTENT_CONTRIBUTORS, ContentOption
 from sparkth.lib.exceptions.auth import NoAuthenticatedUser
+from sparkth.lib.models import User
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import PXC_BLOCK_CATEGORY
 from sparkth.plugins.pxc.contributor import build_pxc_block, list_pxc_options
