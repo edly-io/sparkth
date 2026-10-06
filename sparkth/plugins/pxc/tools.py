@@ -1,7 +1,5 @@
 """The pxc MCP tools: the PXC contract, and building, listing and reading back activities.
 
-Every tool that touches an author's activities reads the author from ``current_user_id()``.
-No tool takes a user id, so the model can neither supply one nor forge one.
 The tools need an authenticated chat session. Over the unauthenticated MCP endpoint they raise
 ``NoAuthenticatedUser``.
 """
