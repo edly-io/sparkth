@@ -46,7 +46,7 @@ def test_the_plugin_registers_the_activity_job() -> None:
 
 
 def test_the_activity_job_claims_the_pxc_tools() -> None:
-    assert PXC_ACTIVITY.name == "pxc-activity"
+    assert PXC_ACTIVITY.name == "pxc-activity-builder"
     assert PXC_ACTIVITY.tool_categories == frozenset({"pxc"})
 
 

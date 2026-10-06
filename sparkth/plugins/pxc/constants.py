@@ -53,17 +53,17 @@ PXC_COMPILE_TOOLCHAIN_MISSING = 2
 # The pxc plugin's prompt and contract texts.
 PXC_ASSET_DIR = Path(__file__).parent / "assets"
 
-# The MCP category every pxc tool registers under, which the pxc-activity chat job claims.
+# The MCP category every pxc tool registers under, which the pxc-activity-builder chat job claims.
 PXC_TOOL_CATEGORY = "pxc"
 
 # The chat job that builds activities.
-PXC_RESPONSIBILITY_NAME = "pxc-activity"
+PXC_BUILDER_RESPONSIBILITY_NAME = "pxc-activity-builder"
 
 # What the chat classifier reads to route a conversation to the activity builder.
-PXC_ACTIVITY_SCOPE = (PXC_ASSET_DIR / "pxc_activity_building_scope.txt").read_text(encoding="utf-8").strip()
+PXC_ACTIVITY_BUILDER_SCOPE = (PXC_ASSET_DIR / "pxc_activity_building_scope.txt").read_text(encoding="utf-8").strip()
 
 # Formatted by chat with current_datetime and refusal_message.
-PXC_ACTIVITY_SYSTEM_PROMPT = (
+PXC_ACTIVITY_BUILDER_SYSTEM_PROMPT = (
     (PXC_ASSET_DIR / "pxc_activity_building_system_prompt.txt").read_text(encoding="utf-8").strip()
 )
 
