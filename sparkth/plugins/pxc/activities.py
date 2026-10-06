@@ -56,19 +56,6 @@ def generated_activity_dir(activity_id: str) -> Path:
     return get_pxc_settings().data_dir / "activities" / activity_id
 
 
-def _is_canonical_id(name: str) -> bool:
-    """Whether ``name`` is a UUID in its canonical spelling, the only form a generated id takes.
-
-    It is also what keeps a lookup inside the activities directory: no path-escaping name
-    parses as a UUID.
-    """
-    try:
-        return str(UUID(name)) == name
-    except ValueError:
-        logger.debug("Activity name %r is neither bundled nor a generated id", name)
-        return False
-
-
 def activity_dir(activity_name: str) -> Path:
     """The source directory of one activity: a bundled one by name, else a generated one by id.
 
@@ -82,10 +69,9 @@ def activity_dir(activity_name: str) -> Path:
     directory = _ACTIVITIES.get(activity_name)
     if directory is not None:
         return directory
-    if _is_canonical_id(activity_name):
-        generated = generated_activity_dir(activity_name)
-        if (generated / "manifest.json").is_file():
-            return generated
+    generated = generated_activity_dir(str(parse_activity_id(activity_name)))
+    if (generated / "manifest.json").is_file():
+        return generated
     raise PxcActivityNotFound(f"Unknown activity type: {activity_name}")
 
 
@@ -143,14 +129,21 @@ def asset_path(activity_name: str, file_path: str) -> Path:
 
 
 def parse_activity_id(activity_id: str) -> UUID:
-    """Parse the id of a generated activity, as an agent or a caller gives it.
+    """Parse the id of a generated activity, accepted only in its canonical spelling.
+
+    One spelling per activity keeps its state in one place. No path-escaping text parses, so a
+    parsed id never leaves the activities directory.
 
     Raises:
-        PxcActivityNotFound: if the text is not a UUID. A malformed id reads like any other
-            unknown one, and it never reaches a filesystem path.
+        PxcActivityNotFound: if the text is not a UUID in its canonical spelling. A malformed id
+            reads like any other unknown one.
     """
     try:
-        return UUID(activity_id)
+        parsed = UUID(activity_id)
     except ValueError as err:
         logger.warning("Refused a malformed activity id %r: %s", activity_id, err)
         raise PxcActivityNotFound(f"Unknown activity: {activity_id}") from err
+    if str(parsed) != activity_id:
+        logger.warning("Refused a non-canonical activity id %r", activity_id)
+        raise PxcActivityNotFound(f"Unknown activity: {activity_id}")
+    return parsed

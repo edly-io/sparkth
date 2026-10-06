@@ -26,10 +26,10 @@ from sparkth.lib.plugins import SparkthPlugin
 from sparkth.lib.routes import register_router
 from sparkth.plugins.pxc import tools as pxc_tools
 from sparkth.plugins.pxc.constants import (
-    PXC_ACTIVITY_SCOPE,
-    PXC_ACTIVITY_SYSTEM_PROMPT,
+    PXC_ACTIVITY_BUILDER_SCOPE,
+    PXC_ACTIVITY_BUILDER_SYSTEM_PROMPT,
+    PXC_BUILDER_RESPONSIBILITY_NAME,
     PXC_CORS_HEADERS,
-    PXC_RESPONSIBILITY_NAME,
     PXC_TOOL_CATEGORY,
 )
 from sparkth.plugins.pxc.contributor import build_pxc_block, list_pxc_options
@@ -64,10 +64,10 @@ pxc_router.include_router(learner_router)
 pxc_router.include_router(activity_router)
 
 # The chat job that builds activities; it alone sees the pxc tools.
-PXC_ACTIVITY = ChatResponsibility(
-    PXC_RESPONSIBILITY_NAME,
-    PXC_ACTIVITY_SCOPE,
-    PXC_ACTIVITY_SYSTEM_PROMPT,
+PXC_ACTIVITY_BUILDER = ChatResponsibility(
+    PXC_BUILDER_RESPONSIBILITY_NAME,
+    PXC_ACTIVITY_BUILDER_SCOPE,
+    PXC_ACTIVITY_BUILDER_SYSTEM_PROMPT,
     frozenset({PXC_TOOL_CATEGORY}),
 )
 
@@ -88,7 +88,7 @@ class PxcPlugin(SparkthPlugin):
         )
         SIDEBAR_ENTRIES.add_item(self, SidebarEntry(gettext_noop("Activities"), icon="blocks", order=2))
         FRONTEND_APPS.add_item(self, FrontendApp())
-        CHAT_RESPONSIBILITIES.add_item(self, PXC_ACTIVITY)
+        CHAT_RESPONSIBILITIES.add_item(self, PXC_ACTIVITY_BUILDER)
         MCP_TOOLS.add_items(
             self,
             [
