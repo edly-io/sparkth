@@ -34,7 +34,7 @@ def _entry_target(entry: WhitelistedEmail) -> AuditTarget:
     return AuditTarget(type="whitelist_entry", id=str(entry.id))
 
 
-def _entry_snapshot(entry: WhitelistedEmail) -> dict[str, str]:
+def _create_audit_snapshot(entry: WhitelistedEmail) -> dict[str, str]:
     return {"value": entry.value, "entry_type": entry.entry_type}
 
 
@@ -94,7 +94,7 @@ class WhitelistService:
             WhitelistEntryAddedAuditEvent(
                 outcome=AuditOutcome.SUCCESS,
                 target=_entry_target(entry),
-                change=AuditChange(new=_entry_snapshot(entry)),
+                change=AuditChange(new=_create_audit_snapshot(entry)),
             ),
         )
         try:
@@ -136,7 +136,7 @@ class WhitelistService:
             WhitelistEntryRemovedAuditEvent(
                 outcome=AuditOutcome.SUCCESS,
                 target=_entry_target(entry),
-                change=AuditChange(old=_entry_snapshot(entry)),
+                change=AuditChange(old=_create_audit_snapshot(entry)),
             ),
         )
         await session.delete(entry)

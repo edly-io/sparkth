@@ -2,6 +2,8 @@
 
 Module-level async functions, consistent with the engine in this package. The
 role-management API (``sparkth/api/v1/permissions``) imports them from here directly.
+Every change is recorded as a ``role.*`` audit event in the same transaction as the
+change itself; an idempotent call that changes nothing records nothing.
 """
 
 from sqlmodel import col, select
@@ -14,14 +16,43 @@ from sparkth.core.permissions.exceptions import (
     RoleNotFound,
 )
 from sparkth.core.permissions.models import Role, RoleAssignment, RolePermission
+from sparkth.lib.audit import record_event
+from sparkth.lib.audit.events import (
+    AuditChange,
+    AuditOutcome,
+    AuditTarget,
+    RoleCreatedAuditEvent,
+    RoleDeletedAuditEvent,
+    RolePermissionGrantedAuditEvent,
+    RolePermissionRevokedAuditEvent,
+    RoleUpdatedAuditEvent,
+)
+
+
+def _target(role_id: int | None) -> AuditTarget:
+    return AuditTarget(type="role", id=str(role_id))
+
+
+def _create_audit_snapshot(role: Role) -> dict[str, str | None]:
+    return {"name": role.name, "description": role.description}
 
 
 async def create_role(name: str, description: str | None, session: AsyncSession) -> Role:
-    """Create and return a role. Raises RoleAlreadyExists if the name is already taken."""
+    """Create and return a role, recording ``role.created``.
+
+    Raises RoleAlreadyExists if the name is already taken.
+    """
     if (await session.exec(select(Role).where(Role.name == name))).first() is not None:
         raise RoleAlreadyExists(name)
     role = Role(name=name, description=description)
     session.add(role)
+    await session.flush()
+    await record_event(
+        session,
+        RoleCreatedAuditEvent(
+            outcome=AuditOutcome.SUCCESS, target=_target(role.id), change=AuditChange(new=_create_audit_snapshot(role))
+        ),
+    )
     await session.commit()
     await session.refresh(role)
     return role
@@ -41,27 +72,39 @@ async def get_role(role_id: int, session: AsyncSession) -> Role:
 
 
 async def update_role(role_id: int, name: str | None, description: str | None, session: AsyncSession) -> Role:
-    """Update a role's name and/or description and return it.
+    """Update a role's name and/or description, record ``role.updated``, and return it.
 
-    A None argument leaves that field unchanged. Raises RoleNotFound if the role is
-    missing, or RoleAlreadyExists if name collides with another role.
+    A None argument leaves that field unchanged; an update that changes nothing records
+    nothing. Raises RoleNotFound if the role is missing, or RoleAlreadyExists if name
+    collides with another role.
     """
     role = await get_role(role_id, session)
+    before = _create_audit_snapshot(role)
     if name is not None and name != role.name:
         if (await session.exec(select(Role).where(Role.name == name))).first() is not None:
             raise RoleAlreadyExists(name)
         role.name = name
     if description is not None:
         role.description = description
+    if _create_audit_snapshot(role) == before:
+        return role
     role.update_timestamp()
     session.add(role)
+    await record_event(
+        session,
+        RoleUpdatedAuditEvent(
+            outcome=AuditOutcome.SUCCESS,
+            target=_target(role.id),
+            change=AuditChange(old=before, new=_create_audit_snapshot(role)),
+        ),
+    )
     await session.commit()
     await session.refresh(role)
     return role
 
 
 async def delete_role(role_id: int, session: AsyncSession) -> None:
-    """Delete a role together with its permission grants.
+    """Delete a role together with its permission grants, recording ``role.deleted``.
 
     Raises RoleNotFound if the role is missing, or RoleInUse if it still has an active
     assignment. Only active assignments block; historical (soft-deleted) assignment rows
@@ -87,13 +130,20 @@ async def delete_role(role_id: int, session: AsyncSession) -> None:
     for assignment in (await session.exec(select(RoleAssignment).where(RoleAssignment.role_id == role_id))).all():
         await session.delete(assignment)
     await session.delete(role)
+    await record_event(
+        session,
+        RoleDeletedAuditEvent(
+            outcome=AuditOutcome.SUCCESS, target=_target(role_id), change=AuditChange(old=_create_audit_snapshot(role))
+        ),
+    )
     await session.commit()
 
 
 async def add_role_permission(role_id: int, permission: str, session: AsyncSession) -> Role:
-    """Grant permission to the role (idempotent — a no-op if it's already granted) and return the role.
+    """Grant permission to the role (idempotent: a no-op if it's already granted) and return the role.
 
-    Returning the role lets callers build a response without re-fetching it. Raises RoleNotFound
+    A new grant records ``role.permission_granted``; a no-op records nothing. Returning the
+    role lets callers build a response without re-fetching it. Raises RoleNotFound
     (no such role) or PermissionNotFound (permission is not registered).
     """
     role = await get_role(role_id, session)
@@ -108,13 +158,22 @@ async def add_role_permission(role_id: int, permission: str, session: AsyncSessi
     ).first()
     if existing is None:
         session.add(RolePermission(role_id=role_id, permission=permission))
+        await record_event(
+            session,
+            RolePermissionGrantedAuditEvent(
+                outcome=AuditOutcome.SUCCESS,
+                target=_target(role_id),
+                change=AuditChange(new={"permission": permission}),
+            ),
+        )
         await session.commit()
     return role
 
 
 async def remove_role_permission(role_id: int, permission: str, session: AsyncSession) -> None:
-    """Revoke permission from the role (idempotent — a no-op if it isn't granted).
+    """Revoke permission from the role (idempotent: a no-op if it isn't granted).
 
+    Revoking a held grant records ``role.permission_revoked``; a no-op records nothing.
     Raises RoleNotFound if the role is missing.
     """
     await get_role(role_id, session)
@@ -128,6 +187,14 @@ async def remove_role_permission(role_id: int, permission: str, session: AsyncSe
     ).first()
     if grant is not None:
         await session.delete(grant)
+        await record_event(
+            session,
+            RolePermissionRevokedAuditEvent(
+                outcome=AuditOutcome.SUCCESS,
+                target=_target(role_id),
+                change=AuditChange(old={"permission": permission}),
+            ),
+        )
         await session.commit()
 
 
