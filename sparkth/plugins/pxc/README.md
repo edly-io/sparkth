@@ -64,8 +64,9 @@ authenticated chat session; on the unauthenticated `/ai/mcp` endpoint they fail 
 
 A built activity never changes: an edit builds a new one.
 
-The job's prompt lives in `assets/pxc_activity_system_prompt.txt` and caps build attempts at
-three. The contract text lives in `assets/about.txt`.
+The job's prompt lives in `assets/pxc_activity_building_system_prompt.txt` and caps build
+attempts at three. The contract text lives in `assets/about.txt`, and the scope the classifier
+reads in `assets/pxc_activity_building_scope.txt`.
 
 ## Adding an activity
 

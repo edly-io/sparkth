@@ -60,17 +60,12 @@ PXC_TOOL_CATEGORY = "pxc"
 PXC_RESPONSIBILITY_NAME = "pxc-activity"
 
 # What the chat classifier reads to route a conversation to the activity builder.
-PXC_ACTIVITY_SCOPE = (
-    "Building interactive PXC learning activities that learners use inside a course, such as "
-    "quizzes, matching or sorting exercises, flashcards, polls, fill-in-the-blank exercises or "
-    "small simulations. This covers describing an activity, answering the assistant's questions "
-    "about it, asking to build, change, fix or preview an activity, and listing or reopening "
-    "activities the author built. Short replies, choices or confirmations that answer the "
-    "assistant's own questions about an activity belong here too."
-)
+PXC_ACTIVITY_SCOPE = (PXC_ASSET_DIR / "pxc_activity_building_scope.txt").read_text(encoding="utf-8").strip()
 
 # Formatted by chat with current_datetime and refusal_message.
-PXC_ACTIVITY_SYSTEM_PROMPT = (PXC_ASSET_DIR / "pxc_activity_system_prompt.txt").read_text(encoding="utf-8").strip()
+PXC_ACTIVITY_SYSTEM_PROMPT = (
+    (PXC_ASSET_DIR / "pxc_activity_building_system_prompt.txt").read_text(encoding="utf-8").strip()
+)
 
 # The most of a build step's stderr kept in memory, in bytes: the end of it, where the cause is.
 # The rest is read and dropped, so a step flooding stderr can neither block nor exhaust memory.
