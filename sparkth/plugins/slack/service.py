@@ -7,8 +7,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.lib.audit import record_event
+from sparkth.lib.audit.events import AuditChange, AuditOutcome, AuditTarget
 from sparkth.lib.log import get_logger
 from sparkth.lib.settings import get_settings
+from sparkth.plugins.slack.audit import SLACK_WORKSPACE_TARGET, SlackConnectedAuditEvent, SlackDisconnectedAuditEvent
 from sparkth.plugins.slack.exceptions import UserAlreadyConnectedError, WorkspaceAlreadyConnectedError
 from sparkth.plugins.slack.models import SlackWorkspace
 
@@ -32,6 +35,10 @@ def decrypt_token(encrypted: str) -> str:
         raise ValueError("Failed to decrypt Slack bot token") from exc
 
 
+def _create_audit_snapshot(workspace: SlackWorkspace) -> dict[str, str]:
+    return {"team_id": workspace.team_id, "bot_user_id": workspace.bot_user_id}
+
+
 def get_workspace_service() -> "WorkspaceService":
     """FastAPI dependency that returns a WorkspaceService."""
     return WorkspaceService()
@@ -49,7 +56,14 @@ class WorkspaceService:
         bot_token: str,
         bot_user_id: str,
     ) -> SlackWorkspace:
-        """Persist a new workspace connection. Raises if already connected."""
+        """Persist a new workspace connection and record ``slack.connected``.
+
+        The audit row commits atomically with the workspace (fail-closed).
+
+        Raises:
+            UserAlreadyConnectedError: The user already has an active workspace.
+            WorkspaceAlreadyConnectedError: The team is connected to another user.
+        """
         workspace = SlackWorkspace(
             user_id=user_id,
             team_id=team_id,
@@ -60,6 +74,15 @@ class WorkspaceService:
         try:
             async with session.begin_nested():
                 session.add(workspace)
+                await session.flush()
+                await record_event(
+                    session,
+                    SlackConnectedAuditEvent(
+                        outcome=AuditOutcome.SUCCESS,
+                        target=AuditTarget(type=SLACK_WORKSPACE_TARGET, id=str(workspace.id)),
+                        change=AuditChange(new=_create_audit_snapshot(workspace)),
+                    ),
+                )
         except IntegrityError:
             existing_for_user = (
                 await session.exec(
@@ -117,9 +140,22 @@ class WorkspaceService:
         ).first()
 
     async def delete(self, session: AsyncSession, user_id: int) -> None:
+        """Soft-delete the user's active workspace and record ``slack.disconnected``.
+
+        The audit row commits atomically with the deletion (fail-closed); a user
+        with no active workspace is a no-op that records nothing.
+        """
         workspace = await self.get(session, user_id)
         if workspace:
             workspace.soft_delete()
             workspace.is_active = False
             session.add(workspace)
+            await record_event(
+                session,
+                SlackDisconnectedAuditEvent(
+                    outcome=AuditOutcome.SUCCESS,
+                    target=AuditTarget(type=SLACK_WORKSPACE_TARGET, id=str(workspace.id)),
+                    change=AuditChange(old=_create_audit_snapshot(workspace)),
+                ),
+            )
             await session.commit()
