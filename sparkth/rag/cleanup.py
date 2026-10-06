@@ -1,6 +1,8 @@
 """RAG cleanup: remove chunks orphaned by soft-deleted Documents."""
 
 import asyncio
+from collections.abc import Collection
+from typing import Any
 
 from sqlalchemy import delete
 from sqlmodel import col, select
@@ -14,6 +16,10 @@ from sparkth.lib.log import configure_logging, get_logger
 from sparkth.rag.models import DocumentChunk, DocumentChunkLink
 
 logger = get_logger(__name__)
+
+
+def _create_audit_snapshot(document_ids: Collection[int], purged_chunk_ids: Collection[int]) -> dict[str, Any]:
+    return {"document_ids": sorted(document_ids), "purged_chunk_count": len(purged_chunk_ids)}
 
 
 async def cleanup_deleted_documents() -> None:
@@ -90,12 +96,7 @@ async def cleanup_deleted_documents() -> None:
                     outcome=AuditOutcome.SUCCESS,
                     actor=SystemActor(label="rag-cleanup"),
                     target=AuditTarget(type="rag_corpus"),
-                    change=AuditChange(
-                        old={
-                            "document_ids": sorted(deleted_doc_ids),
-                            "purged_chunk_count": len(orphan_chunk_ids),
-                        }
-                    ),
+                    change=AuditChange(old=_create_audit_snapshot(deleted_doc_ids, orphan_chunk_ids)),
                 ),
             )
         await session.commit()

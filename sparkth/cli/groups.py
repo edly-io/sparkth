@@ -8,6 +8,7 @@ import typer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.cli.audit_context import cli_audit_context
 from sparkth.core.models.user import User
 from sparkth.lib.db import session_scope
 from sparkth.lib.permissions import (
@@ -66,12 +67,13 @@ async def _add_member(identifier: str, group_name: str) -> None:
     database layer is async; this is the awaited implementation. Exits non-zero if the
     user or group is missing.
     """
-    async with session_scope() as session:
-        user_id, username = await _resolve_user(identifier, session)
-        group_id = await _resolve_group_id(group_name, session)
-        await add_group_member(user_id, group_id, session)
-        await session.commit()
-        typer.secho(f"Added {username} to group '{group_name}'.", fg=typer.colors.GREEN)
+    with cli_audit_context():
+        async with session_scope() as session:
+            user_id, username = await _resolve_user(identifier, session)
+            group_id = await _resolve_group_id(group_name, session)
+            await add_group_member(user_id, group_id, session)
+            await session.commit()
+            typer.secho(f"Added {username} to group '{group_name}'.", fg=typer.colors.GREEN)
 
 
 @app.command("remove-member")
@@ -90,12 +92,13 @@ async def _remove_member(identifier: str, group_name: str) -> None:
     database layer is async; this is the awaited implementation. Exits non-zero if the
     user or group is missing; removing a user who is not a member is a no-op.
     """
-    async with session_scope() as session:
-        user_id, username = await _resolve_user(identifier, session)
-        group_id = await _resolve_group_id(group_name, session)
-        await remove_group_member(user_id, group_id, session)
-        await session.commit()
-        typer.secho(f"Removed {username} from group '{group_name}'.", fg=typer.colors.GREEN)
+    with cli_audit_context():
+        async with session_scope() as session:
+            user_id, username = await _resolve_user(identifier, session)
+            group_id = await _resolve_group_id(group_name, session)
+            await remove_group_member(user_id, group_id, session)
+            await session.commit()
+            typer.secho(f"Removed {username} from group '{group_name}'.", fg=typer.colors.GREEN)
 
 
 @app.command("assign-role-to-group")
@@ -125,22 +128,23 @@ async def _assign_role_to_group(group_name: str, role: str, scope: str, scope_ob
     except PermissionScopeNotFound:
         typer.secho(f"Unknown scope kind: '{scope}'", fg=typer.colors.RED)
         raise typer.Exit(code=1) from None
-    async with session_scope() as session:
-        group_id = await _resolve_group_id(group_name, session)
-        try:
-            await assign_role_to_group(group_id, role, permission_scope, scope_object_id, session)
-        except RoleNotFound:
-            typer.secho(f"Role '{role}' not found!", fg=typer.colors.RED)
-            raise typer.Exit(code=1) from None
-        except InvalidScopeObjectId:
-            typer.secho(
-                f"Invalid --scope-object-id for scope '{scope}': "
-                "objectless scopes take no object id; object-bearing scopes require one.",
-                fg=typer.colors.RED,
-            )
-            raise typer.Exit(code=1) from None
-        await session.commit()
-        typer.secho(f"Assigned role '{role}' to group '{group_name}' (scope: {scope}).", fg=typer.colors.GREEN)
+    with cli_audit_context():
+        async with session_scope() as session:
+            group_id = await _resolve_group_id(group_name, session)
+            try:
+                await assign_role_to_group(group_id, role, permission_scope, scope_object_id, session)
+            except RoleNotFound:
+                typer.secho(f"Role '{role}' not found!", fg=typer.colors.RED)
+                raise typer.Exit(code=1) from None
+            except InvalidScopeObjectId:
+                typer.secho(
+                    f"Invalid --scope-object-id for scope '{scope}': "
+                    "objectless scopes take no object id; object-bearing scopes require one.",
+                    fg=typer.colors.RED,
+                )
+                raise typer.Exit(code=1) from None
+            await session.commit()
+            typer.secho(f"Assigned role '{role}' to group '{group_name}' (scope: {scope}).", fg=typer.colors.GREEN)
 
 
 @app.command("revoke-role-from-group")
@@ -170,8 +174,9 @@ async def _revoke_role_from_group(group_name: str, role: str, scope: str, scope_
     except PermissionScopeNotFound:
         typer.secho(f"Unknown scope kind: '{scope}'", fg=typer.colors.RED)
         raise typer.Exit(code=1) from None
-    async with session_scope() as session:
-        group_id = await _resolve_group_id(group_name, session)
-        await revoke_role_from_group(group_id, role, permission_scope, scope_object_id, session)
-        await session.commit()
-        typer.secho(f"Revoked role '{role}' from group '{group_name}' (scope: {scope}).", fg=typer.colors.GREEN)
+    with cli_audit_context():
+        async with session_scope() as session:
+            group_id = await _resolve_group_id(group_name, session)
+            await revoke_role_from_group(group_id, role, permission_scope, scope_object_id, session)
+            await session.commit()
+            typer.secho(f"Revoked role '{role}' from group '{group_name}' (scope: {scope}).", fg=typer.colors.GREEN)
