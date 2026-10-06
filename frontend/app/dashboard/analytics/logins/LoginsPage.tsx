@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { redirect } from "next/navigation";
+import { useFormatter, useTranslations } from "next-intl";
 import { ChartColumn, RefreshCw } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -16,16 +16,18 @@ import { BarChart } from "@/components/ui/BarChart";
 import { StatCard } from "@/components/ui/StatCard";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
+import { Forbidden } from "@/components/Forbidden";
 import { Spinner } from "@/components/Spinner";
 
 type State =
   | { status: "loading" }
   | { status: "ready"; points: LoginActivityPoint[]; fetchedAt: Date }
   | { status: "forbidden" }
-  | { status: "error"; message: string };
+  | { status: "error" };
 
-export default function AnalyticsPage() {
+export default function LoginsPage() {
   const { token } = useAuth();
+  const t = useTranslations("analytics");
   const [state, setState] = useState<State>({ status: "loading" });
 
   const [reloadKey, setReloadKey] = useState(0);
@@ -42,7 +44,7 @@ export default function AnalyticsPage() {
         if (err instanceof ApiRequestError && err.status === 403) {
           setState({ status: "forbidden" });
         } else {
-          setState({ status: "error", message: "We couldn't load analytics. Please try again." });
+          setState({ status: "error" });
         }
       });
     return () => {
@@ -52,48 +54,44 @@ export default function AnalyticsPage() {
 
   const retry = useCallback(() => setReloadKey((key) => key + 1), []);
 
+  // Access revoked after the layout's check: the read API answered 403.
   if (state.status === "forbidden") {
-    redirect("/dashboard");
+    return <Forbidden />;
   }
 
   return (
-    <div className="min-h-screen bg-background transition-colors">
-      <div className="mx-auto px-4 py-4 sm:py-8 sm:px-6 lg:px-8">
-        <div className="mb-6 sm:mb-8 flex items-center gap-3">
-          <ChartColumn className="w-6 h-6 text-primary-500" />
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Analytics</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Daily login activity over the last {LOGIN_ACTIVITY_DAYS} days (UTC).
-            </p>
+    <div>
+      <div className="mb-6">
+        <h2 className="text-xl font-semibold text-foreground">{t("logins.title")}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {t("logins.subtitle", { days: LOGIN_ACTIVITY_DAYS })}
+        </p>
+      </div>
+
+      {state.status === "loading" && (
+        <div className="flex items-center justify-center py-24">
+          <div className="text-center">
+            <Spinner className="mx-auto mb-4" />
+            <p className="text-muted-foreground">{t("loading")}</p>
           </div>
         </div>
+      )}
 
-        {state.status === "loading" && (
-          <div className="flex items-center justify-center py-24">
-            <div className="text-center">
-              <Spinner className="mx-auto mb-4" />
-              <p className="text-muted-foreground">Loading analytics…</p>
-            </div>
+      {state.status === "error" && (
+        <Alert severity="error">
+          <div className="flex items-center justify-between gap-3">
+            <span>{t("loadError")}</span>
+            <Button variant="ghost" size="sm" onClick={retry}>
+              <RefreshCw className="w-4 h-4 mr-1" aria-hidden="true" />
+              {t("retry")}
+            </Button>
           </div>
-        )}
+        </Alert>
+      )}
 
-        {state.status === "error" && (
-          <Alert severity="error">
-            <div className="flex items-center justify-between gap-3">
-              <span>{state.message}</span>
-              <Button variant="ghost" size="sm" onClick={retry}>
-                <RefreshCw className="w-4 h-4 mr-1" aria-hidden="true" />
-                Try again
-              </Button>
-            </div>
-          </Alert>
-        )}
-
-        {state.status === "ready" && (
-          <AnalyticsContent points={state.points} fetchedAt={state.fetchedAt} />
-        )}
-      </div>
+      {state.status === "ready" && (
+        <AnalyticsContent points={state.points} fetchedAt={state.fetchedAt} />
+      )}
     </div>
   );
 }
@@ -105,6 +103,11 @@ function AnalyticsContent({
   points: LoginActivityPoint[];
   fetchedAt: Date;
 }) {
+  const t = useTranslations("analytics.logins");
+  const format = useFormatter();
+  // API days are UTC calendar days; format them in UTC or a user west of UTC sees the day before.
+  const formatDay = (day: string) =>
+    format.dateTime(new Date(`${day}T00:00:00Z`), { dateStyle: "medium", timeZone: "UTC" });
   const { series, total, busiest } = useMemo(() => {
     const series = buildDailySeries(points, LOGIN_ACTIVITY_DAYS, fetchedAt);
     return { series, ...summarize(series) };
@@ -114,7 +117,7 @@ function AnalyticsContent({
     return (
       <div className="bg-card rounded-lg shadow-sm p-12 text-center border border-border">
         <ChartColumn className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
-        <p className="text-muted-foreground">No logins in the last {LOGIN_ACTIVITY_DAYS} days.</p>
+        <p className="text-muted-foreground">{t("empty", { days: LOGIN_ACTIVITY_DAYS })}</p>
       </div>
     );
   }
@@ -122,11 +125,22 @@ function AnalyticsContent({
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <StatCard title="Total logins" value={total} hint={`last ${LOGIN_ACTIVITY_DAYS} days`} />
-        <StatCard title="Busiest day" value={busiest?.value ?? "—"} hint={busiest?.label} />
+        <StatCard
+          title={t("totalLogins")}
+          value={format.number(total)}
+          hint={t("lastDays", { days: LOGIN_ACTIVITY_DAYS })}
+        />
+        <StatCard
+          title={t("busiestDay")}
+          value={busiest ? format.number(busiest.value) : "—"}
+          hint={busiest ? formatDay(busiest.label) : undefined}
+        />
       </div>
       <div className="bg-card rounded-xl border border-border p-6">
-        <BarChart data={series} />
+        <BarChart
+          data={series.map((d) => ({ label: formatDay(d.label), value: d.value }))}
+          aria-label={t("chartLabel", { days: LOGIN_ACTIVITY_DAYS })}
+        />
       </div>
     </div>
   );

@@ -23,8 +23,12 @@ from sparkth.lib.permissions.scopes import GLOBAL
 app = typer.Typer(help="User management commands")
 
 
+def _create_audit_snapshot() -> dict[str, str]:
+    return {"method": "cli"}
+
+
 def _cli_change(user: User) -> tuple[AuditTarget, AuditChange]:
-    return AuditTarget(type="user", id=str(user.id)), AuditChange(new={"method": "cli"})
+    return AuditTarget(type="user", id=str(user.id)), AuditChange(new=_create_audit_snapshot())
 
 
 @app.command()

@@ -10,6 +10,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.cli import roles
 from sparkth.core.models.user import User
 from sparkth.core.permissions.models import Role, RoleAssignment
+from sparkth.lib.testing import AuditEventsFetcher
 
 
 @pytest.fixture
@@ -108,3 +109,15 @@ async def test_assign_role_objectless_whitelist_scope_with_id_exits(cli_session:
     with pytest.raises(typer.Exit):
         await roles._assign_role("alice", "admin", "whitelist", "42")
     assert (await cli_session.exec(select(RoleAssignment))).all() == []
+
+
+async def test_assign_role_attributes_its_audit_event_to_the_cli(
+    cli_session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    await _seed_user_and_role(cli_session)
+
+    await roles._assign_role("alice", "admin", "global", None)
+
+    (event,) = await audit_events()
+    assert (event.category, event.action) == ("role", "assigned")
+    assert (event.source, event.actor_type, event.actor_label) == ("cli", "system", "cli")

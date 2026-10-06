@@ -40,6 +40,14 @@ DEFAULT_RETENTION_KEY = "*"
 MAINTENANCE_ACTOR = SystemActor(label="audit-maintenance")
 
 
+def _create_purge_audit_snapshot(category: str, retention_days: int, deleted_rows: int) -> dict[str, str | int]:
+    return {"category": category, "retention_days": retention_days, "deleted_rows": deleted_rows}
+
+
+def _create_erasure_audit_snapshot(rows: int) -> dict[str, int]:
+    return {"rows": rows}
+
+
 @asynccontextmanager
 async def append_only_unlocked(session: AsyncSession) -> AsyncIterator[None]:
     """Let ``session``'s current transaction update or delete ``audit_events``.
@@ -97,7 +105,7 @@ async def purge_expired_events() -> dict[str, int]:
                     outcome=AuditOutcome.SUCCESS,
                     actor=MAINTENANCE_ACTOR,
                     target=AuditTarget(type="audit_category", id=category),
-                    change=AuditChange(old={"category": category, "retention_days": days, "deleted_rows": rows}),
+                    change=AuditChange(old=_create_purge_audit_snapshot(category, days, rows)),
                 ),
             )
         await session.commit()
@@ -131,7 +139,7 @@ async def erase_actor(user_id: int) -> int:
                 outcome=AuditOutcome.SUCCESS,
                 actor=MAINTENANCE_ACTOR,
                 target=AuditTarget(type="user", id=actor_id),
-                change=AuditChange(old={"rows": rows}),
+                change=AuditChange(old=_create_erasure_audit_snapshot(rows)),
             ),
         )
         await session.commit()
