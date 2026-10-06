@@ -1,9 +1,33 @@
 {
+  "analytics": {
+    "title": "Analytics",
+    "loading": "Loading analytics…",
+    "loadError": "We couldn't load analytics. Please try again.",
+    "retry": "Try again",
+    "logins": {
+      "title": "Logins",
+      "subtitle": "Daily login activity over the last {days} days (UTC).",
+      "empty": "No logins in the last {days} days.",
+      "totalLogins": "Total logins",
+      "busiestDay": "Busiest day",
+      "lastDays": "last {days} days",
+      "chartLabel": "Daily logins over the last {days} days"
+    },
+    "nav": {
+      "label": "Analytics views",
+      "logins": "Logins"
+    }
+  },
   "home": {
     "title": "Welcome to <brand>Sparkth</brand>",
     "tagline": "Your AI-powered platform for creating engaging educational content. Transform your resources into courses with ease.",
     "getStarted": "Get Started",
     "signIn": "Sign in",
     "privacyPolicy": "Privacy Policy"
+  },
+  "forbidden": {
+    "title": "You don't have access to this page",
+    "message": "Ask an administrator if you need access.",
+    "back": "Back to dashboard"
   }
 }

@@ -3,6 +3,8 @@
 Module-level async functions mirroring the role engine. The CRUD functions commit
 (like ``roles.py``); the membership and assignment functions only flush (like
 ``assign_role`` / ``revoke_role``), so their callers own the transaction boundary.
+Every change is recorded as a ``group.*`` audit event in that same transaction; an
+idempotent call that changes nothing records nothing.
 Authored with LLM (Claude) assistance.
 """
 
@@ -11,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.core.permissions import _create_grant_audit_snapshot
 from sparkth.core.permissions.exceptions import (
     GroupAlreadyExists,
     GroupInUse,
@@ -19,26 +22,57 @@ from sparkth.core.permissions.exceptions import (
 )
 from sparkth.core.permissions.models import Group, GroupMembership, GroupRoleAssignment, Role
 from sparkth.core.permissions.scopes import PermissionScope
+from sparkth.lib.audit import record_event
+from sparkth.lib.audit.events import (
+    AuditChange,
+    AuditOutcome,
+    AuditTarget,
+    GroupCreatedAuditEvent,
+    GroupDeletedAuditEvent,
+    GroupMemberAddedAuditEvent,
+    GroupMemberRemovedAuditEvent,
+    GroupRoleAssignedAuditEvent,
+    GroupRoleRevokedAuditEvent,
+    GroupUpdatedAuditEvent,
+)
+
+
+def _target(group_id: int | None) -> AuditTarget:
+    return AuditTarget(type="group", id=str(group_id))
+
+
+def _create_audit_snapshot(group: Group) -> dict[str, str | None]:
+    return {"name": group.name, "description": group.description}
 
 
 async def create_group(name: str, description: str | None, session: AsyncSession) -> Group:
-    """Create and return a group. Raises GroupAlreadyExists if the name is already taken.
+    """Create and return a group, recording ``group.created``.
 
-    Race-safe: when a concurrent create takes the name between the pre-check and the
-    commit, the unique-index IntegrityError is translated into GroupAlreadyExists (the
-    name index is the only constraint on user_group that can fire here). The membership
-    and assignment functions below use a savepoint for the same job because they only
-    flush; the CRUD functions own the commit, so translating there is enough.
+    Raises GroupAlreadyExists if the name is already taken. Race-safe: when a concurrent
+    create takes the name between the pre-check and the insert, the unique-index
+    IntegrityError is translated into GroupAlreadyExists (the name index is the only
+    constraint on user_group that can fire here). The membership and assignment functions
+    below use a savepoint for the same job because they only flush; the CRUD functions own
+    the transaction, so rolling it back is enough.
     """
     if (await session.exec(select(Group).where(Group.name == name))).first() is not None:
         raise GroupAlreadyExists(name)
     group = Group(name=name, description=description)
     session.add(group)
     try:
-        await session.commit()
+        await session.flush()
     except IntegrityError:
         await session.rollback()
         raise GroupAlreadyExists(name)
+    await record_event(
+        session,
+        GroupCreatedAuditEvent(
+            outcome=AuditOutcome.SUCCESS,
+            target=_target(group.id),
+            change=AuditChange(new=_create_audit_snapshot(group)),
+        ),
+    )
+    await session.commit()
     await session.refresh(group)
     return group
 
@@ -65,36 +99,48 @@ async def get_group_by_name(name: str, session: AsyncSession) -> Group:
 
 
 async def update_group(group_id: int, name: str | None, description: str | None, session: AsyncSession) -> Group:
-    """Update a group's name and/or description and return it.
+    """Update a group's name and/or description, record ``group.updated``, and return it.
 
-    A None argument leaves that field unchanged. Raises GroupNotFound if the group is
-    missing, or GroupAlreadyExists if name collides with another group (race-safe, like
-    create_group).
+    A None argument leaves that field unchanged; an update that changes nothing records
+    nothing. Raises GroupNotFound if the group is missing, or GroupAlreadyExists if name
+    collides with another group (race-safe, like create_group).
     """
     group = await get_group(group_id, session)
+    before = _create_audit_snapshot(group)
     if name is not None and name != group.name:
         if (await session.exec(select(Group).where(Group.name == name))).first() is not None:
             raise GroupAlreadyExists(name)
         group.name = name
     if description is not None:
         group.description = description
+    if _create_audit_snapshot(group) == before:
+        return group
     group.update_timestamp()
     session.add(group)
     try:
-        await session.commit()
+        await session.flush()
     except IntegrityError:
-        # A concurrent create/rename took the name between the pre-check and the commit;
+        # A concurrent create/rename took the name between the pre-check and the flush;
         # only the name unique index can fire here (translated like create_group).
         await session.rollback()
         if name is None:
             raise
         raise GroupAlreadyExists(name)
+    await record_event(
+        session,
+        GroupUpdatedAuditEvent(
+            outcome=AuditOutcome.SUCCESS,
+            target=_target(group.id),
+            change=AuditChange(old=before, new=_create_audit_snapshot(group)),
+        ),
+    )
+    await session.commit()
     await session.refresh(group)
     return group
 
 
 async def delete_group(group_id: int, session: AsyncSession) -> None:
-    """Delete a group together with its membership and assignment history.
+    """Delete a group together with its membership and assignment history, recording ``group.deleted``.
 
     Raises GroupNotFound if the group is missing, or GroupInUse if it still has an active
     role assignment. Members alone do not block; membership rows (active and historical)
@@ -118,6 +164,14 @@ async def delete_group(group_id: int, session: AsyncSession) -> None:
     await session.execute(delete(GroupMembership).where(col(GroupMembership.group_id) == group_id))
     await session.execute(delete(GroupRoleAssignment).where(col(GroupRoleAssignment.group_id) == group_id))
     await session.delete(group)
+    await record_event(
+        session,
+        GroupDeletedAuditEvent(
+            outcome=AuditOutcome.SUCCESS,
+            target=_target(group_id),
+            change=AuditChange(old=_create_audit_snapshot(group)),
+        ),
+    )
     await session.commit()
 
 
@@ -140,7 +194,8 @@ async def add_group_member(user_id: int, group_id: int, session: AsyncSession) -
 
     Idempotent and race-safe under the same savepoint pattern as assign_role. Raises
     GroupNotFound. Rows are recorded with source="manual"; rule-derived rows will be owned
-    by dynamic-membership recompute and are never created here.
+    by dynamic-membership recompute and are never created here. Creating the membership
+    records ``group.member_added``; returning an existing one records nothing.
     """
     await get_group(group_id, session)
     existing = await _find_active_membership(user_id, group_id, session)
@@ -153,7 +208,6 @@ async def add_group_member(user_id: int, group_id: int, session: AsyncSession) -
             membership = GroupMembership(user_id=user_id, group_id=group_id)
             session.add(membership)
             await session.flush()
-        return membership
     except IntegrityError:
         # A concurrent add inserted the same (user, group) after our check; return that
         # winner to stay idempotent, re-raise if it's somehow still not visible.
@@ -161,18 +215,36 @@ async def add_group_member(user_id: int, group_id: int, session: AsyncSession) -
         if winner is None:
             raise
         return winner
+    await record_event(
+        session,
+        GroupMemberAddedAuditEvent(
+            outcome=AuditOutcome.SUCCESS, target=_target(group_id), change=AuditChange(new={"user_id": user_id})
+        ),
+    )
+    return membership
 
 
 async def remove_group_member(user_id: int, group_id: int, session: AsyncSession) -> None:
-    """Soft-delete the user's active memberships in the group (a no-op when there are none)."""
+    """Soft-delete the user's active memberships in the group (a no-op when there are none).
+
+    Removing an active membership records ``group.member_removed``; a no-op records nothing.
+    """
     statement = select(GroupMembership).where(
         GroupMembership.user_id == user_id,
         GroupMembership.group_id == group_id,
         GroupMembership.is_deleted == False,
     )
-    for membership in (await session.exec(statement)).all():
+    memberships = (await session.exec(statement)).all()
+    for membership in memberships:
         membership.soft_delete()
     await session.flush()
+    if memberships:
+        await record_event(
+            session,
+            GroupMemberRemovedAuditEvent(
+                outcome=AuditOutcome.SUCCESS, target=_target(group_id), change=AuditChange(old={"user_id": user_id})
+            ),
+        )
 
 
 async def get_group_members(group_id: int, session: AsyncSession) -> list[int]:
@@ -220,6 +292,8 @@ async def assign_role_to_group(
 
     Idempotent and race-safe (savepoint + re-query, like assign_role). Raises GroupNotFound,
     RoleNotFound, or InvalidScopeObjectId if the (scope, object id) pairing is invalid.
+    Creating the assignment records ``group.role_assigned``; returning an existing one
+    records nothing.
     """
     permission_scope.validate_object_id(scope_object_id)
     await get_group(group_id, session)
@@ -238,7 +312,6 @@ async def assign_role_to_group(
             )
             session.add(assignment)
             await session.flush()
-        return assignment
     except IntegrityError:
         # A concurrent assign inserted the same (group, role, scope) after our check; return
         # that winner to stay idempotent, re-raise if it's somehow still not visible.
@@ -246,6 +319,15 @@ async def assign_role_to_group(
         if winner is None:
             raise
         return winner
+    await record_event(
+        session,
+        GroupRoleAssignedAuditEvent(
+            outcome=AuditOutcome.SUCCESS,
+            target=_target(group_id),
+            change=AuditChange(new=_create_grant_audit_snapshot(role_name, permission_scope, scope_object_id)),
+        ),
+    )
+    return assignment
 
 
 async def revoke_role_from_group(
@@ -255,7 +337,10 @@ async def revoke_role_from_group(
     scope_object_id: str | None,
     session: AsyncSession,
 ) -> None:
-    """Soft-delete all active assignments of role_name to the group at the exact scope."""
+    """Soft-delete all active assignments of role_name to the group at the exact scope.
+
+    Revoking an active assignment records ``group.role_revoked``; a no-op records nothing.
+    """
     statement = (
         select(GroupRoleAssignment)
         .join(Role, col(Role.id) == col(GroupRoleAssignment.role_id))
@@ -267,11 +352,21 @@ async def revoke_role_from_group(
             GroupRoleAssignment.is_deleted == False,
         )
     )
-    for assignment in (await session.exec(statement)).all():
+    assignments = (await session.exec(statement)).all()
+    for assignment in assignments:
         # Already tracked by the session (they came from this query), so mutating them marks
-        # them dirty — no session.add needed.
+        # them dirty, no session.add needed.
         assignment.soft_delete()
     await session.flush()
+    if assignments:
+        await record_event(
+            session,
+            GroupRoleRevokedAuditEvent(
+                outcome=AuditOutcome.SUCCESS,
+                target=_target(group_id),
+                change=AuditChange(old=_create_grant_audit_snapshot(role_name, permission_scope, scope_object_id)),
+            ),
+        )
 
 
 async def get_group_roles(group_id: int, session: AsyncSession) -> list[GroupRoleAssignment]:
