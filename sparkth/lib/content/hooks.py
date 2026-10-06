@@ -58,19 +58,12 @@ class ContentContributor:
     ``description`` is human-facing: it is what a publishing tool lists
     back to an agent choosing a contributor.
 
-    ``builders`` is keyed by the publishing plugin's own name, so its keys are the LMSes this
-    contributor targets. Each builder is awaited with the destination course id and the chosen
-    option's id. The option id is ``None`` when the caller chose none, and a builder then builds
-    its default block. A builder reports a failure, including an option the caller may not use,
-    by raising :class:`~sparkth.lib.content.exceptions.ContentBuildError`.
+    ``builders`` is keyed by the publishing plugin's (LMS's) own name, so its keys are the LMSes this
+    contributor targets. A builder reports a failure by raising
+    :class:`~sparkth.lib.content.exceptions.ContentBuildError`.
 
     ``list_options``, when set, returns the options the authenticated caller may choose from.
-    A contributor whose options depend on the caller reads the caller with
-    :func:`sparkth.lib.auth.current_user_id` itself, so a publishing tool never handles
-    identity. A builder must re-check the chosen id, including that the caller may use it,
-    rather than trust that it came from this list.
-
-    Leave ``list_options`` ``None`` for a contributor that builds one kind of block; a publishing
+    Leave it ``None`` for a contributor that builds one kind of block; a publishing
     tool then refuses any option id.
 
     ``list_options`` and the builders must be module-level functions. Re-registering an equal
@@ -98,9 +91,7 @@ def register_content_contributor(contributor: ContentContributor) -> None:
     its own tests build their own instances — so each construction re-registers the same
     contributor. Re-registering an *equal* one is therefore a no-op, and the first
     registration is the one kept. Only a *different* contributor claiming a registered name
-    raises :class:`~sparkth.lib.content.exceptions.DuplicateContentContributorError`, which
-    is the collision worth failing on: a publishing tool resolves by name, so two unequal
-    contributors sharing one name would silently build whichever registered first.
+    raises :class:`~sparkth.lib.content.exceptions.DuplicateContentContributorError`.
 
     Equality is what separates the two cases, so a contributor must stay a value with
     field-wise equality — that is why ``ContentContributor`` is a frozen dataclass rather
