@@ -36,14 +36,12 @@ def _ingested_event(
     )
 
 
-def _success_change(filename: str, result: IngestionResult) -> AuditChange:
-    return AuditChange(
-        new={
-            "filename": filename,
-            "new_chunks": result.new_chunks,
-            "reused_chunks": result.reused_chunks,
-        }
-    )
+def _create_audit_snapshot(filename: str, result: IngestionResult) -> dict[str, str | int]:
+    return {
+        "filename": filename,
+        "new_chunks": result.new_chunks,
+        "reused_chunks": result.reused_chunks,
+    }
 
 
 async def ingest_document(
@@ -94,7 +92,11 @@ async def ingest_document(
                 # join; the attempt is still recorded, in its own transaction.
                 result = IngestionResult(new_chunks=0, reused_chunks=0)
                 await record_event_now(
-                    _ingested_event(document_id, AuditOutcome.SUCCESS, change=_success_change(filename, result))
+                    _ingested_event(
+                        document_id,
+                        AuditOutcome.SUCCESS,
+                        change=AuditChange(new=_create_audit_snapshot(filename, result)),
+                    )
                 )
                 return result
 
@@ -105,7 +107,11 @@ async def ingest_document(
                 result = IngestionResult(new_chunks=new_count, reused_chunks=reused_count)
                 await record_event(
                     session,
-                    _ingested_event(document_id, AuditOutcome.SUCCESS, change=_success_change(filename, result)),
+                    _ingested_event(
+                        document_id,
+                        AuditOutcome.SUCCESS,
+                        change=AuditChange(new=_create_audit_snapshot(filename, result)),
+                    ),
                 )
                 await session.commit()
     except (UnsupportedFileTypeError, ScannedPDFError) as exc:

@@ -131,6 +131,27 @@ From application code, use the façade (`sparkth.lib.permissions`): `add_group_m
 per-group delegation scope (like the per-role `role` scope) waits on object-bearing scope
 cascade ([#420](https://github.com/edly-io/sparkth/issues/420) Phase 2).
 
+## Audit trail
+
+Every change to access control is written to the audit trail, in the same transaction as
+the change itself, so a change that fails or is rolled back leaves no record. The engine
+functions record the events, so the REST API, the CLI, and application code are all covered;
+CLI commands are attributed to the `cli` system actor.
+
+| Event | Recorded by | Target | Snapshot |
+|---|---|---|---|
+| `role.created`, `role.updated`, `role.deleted` | `create_role`, `update_role`, `delete_role` | `role` | name and description (before and after for an update) |
+| `role.permission_granted`, `role.permission_revoked` | `add_role_permission`, `remove_role_permission` | `role` | the permission |
+| `role.assigned`, `role.unassigned` | `assign_role`, `revoke_role` | `user` | role, scope, and scope object id |
+| `group.created`, `group.updated`, `group.deleted` | `create_group`, `update_group`, `delete_group` | `group` | name and description (before and after for an update) |
+| `group.member_added`, `group.member_removed` | `add_group_member`, `remove_group_member` | `group` | the member's user id |
+| `group.role_assigned`, `group.role_revoked` | `assign_role_to_group`, `revoke_role_from_group` | `group` | role, scope, and scope object id |
+
+The grant, assign, and add-member functions are idempotent, and so are their revoke and
+remove counterparts: a call that changes nothing (the grant already exists, or there is
+nothing active to revoke) records nothing. Likewise an update that leaves a role's or group's
+name and description as they were records nothing.
+
 ## Extending the permission system
 
 **Declare a permission or scope kind** — a plugin declares its own from its `__init__`,

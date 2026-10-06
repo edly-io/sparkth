@@ -1,12 +1,14 @@
-import type { Metadata } from "next";
-import { LOGIN_ACTIVITY_DAYS } from "@/lib/analytics";
-import AnalyticsPage from "./AnalyticsPage";
+"use client";
 
-export const metadata: Metadata = {
-  title: "Analytics | Sparkth",
-  description: `Login activity over the last ${LOGIN_ACTIVITY_DAYS} days`,
-};
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
-export default function Page() {
-  return <AnalyticsPage />;
+// No Overview view yet: the analytics root forwards to the first view. Client-side because
+// the production build is a static export with no server to redirect.
+export default function AnalyticsIndex() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/dashboard/analytics/logins");
+  }, [router]);
+  return null;
 }
