@@ -3,10 +3,7 @@
 Building an activity instance names an activity and mints an id for it. That id is the only thing the
 course holds about the activity instance, and nothing about it is persisted here: no state, no table.
 
-The options are every bundled activity, which anyone may place, followed by the caller's own
-generated activities, which only their author may place. The builder re-checks the chosen id's ownership
-rather than trust that it came from that list. With no option chosen, the block
-names ``PXC_DEFAULT_ACTIVITY``.
+The options are the activities the user may place in their course.
 
 Nothing about any particular activity's content appears here. An activity declares its initial
 configuration as the defaults on its manifest's fields, and the runtime serves those for any
