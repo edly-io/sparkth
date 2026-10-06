@@ -71,5 +71,9 @@ PXC_ACTIVITY_BUILDER_SYSTEM_PROMPT = (
 # The rest is read and dropped, so a step flooding stderr can neither block nor exhaust memory.
 PXC_BUILD_STDERR_LIMIT_BYTES = int(os.getenv("PXC_BUILD_STDERR_LIMIT_BYTES", "65536"))
 
+# The most of an author's own activities offered for placing, newest first. Every option reaches
+# the model, so the list is capped; an older activity can still be placed by its id.
+PXC_MAX_PLACEABLE_ACTIVITIES = int(os.getenv("PXC_MAX_PLACEABLE_ACTIVITIES", "50"))
+
 # The longest activity description an agent may submit, in characters.
 PXC_MAX_DESCRIPTION_CHARS = int(os.getenv("PXC_MAX_DESCRIPTION_CHARS", "2000"))

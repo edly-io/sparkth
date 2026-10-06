@@ -7,21 +7,24 @@ the activity's own configuration, and that constructing the plugin registers it 
 """
 
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 from pxc.lib.permission import Permission
+from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.models.user import User
 from sparkth.lib.content.exceptions import ContentBuildError
 from sparkth.lib.content.hooks import LMS_CONTENT_CONTRIBUTORS, ContentOption
 from sparkth.lib.exceptions.auth import NoAuthenticatedUser
+from sparkth.lib.models import User
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import PXC_BLOCK_CATEGORY
 from sparkth.plugins.pxc.contributor import build_pxc_block, list_pxc_options
 from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.plugin import PxcPlugin
 from sparkth.plugins.pxc.runtime import build_runtime, read_state
+from sparkth.plugins.pxc.store import insert_activity
 from sparkth.plugins.pxc.tests.conftest import act_as
 from sparkth.plugins.pxc.tokens import LaunchClaims
 
@@ -117,6 +120,25 @@ async def test_options_are_the_bundled_activities_then_the_authors_own(
     assert options == [ContentOption("mcq", "mcq"), ContentOption(str(authored_activity.id), "Capital cities")]
 
 
+async def test_options_offer_only_the_authors_newest_activities(
+    session: AsyncSession, authors: tuple[User, User], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Every option reaches the model, so a prolific author's list is capped at the newest.
+    monkeypatch.setattr("sparkth.plugins.pxc.contributor.PXC_MAX_PLACEABLE_ACTIVITIES", 2)
+    owner = authors[0]
+    assert owner.id is not None
+    for day in (1, 2, 3):
+        created_at = datetime(2026, 10, day, tzinfo=UTC)
+        await insert_activity(
+            session, PxcActivity(owner_user_id=owner.id, title=f"Day {day}", description="", created_at=created_at)
+        )
+    act_as(owner)
+
+    options = await list_pxc_options()
+
+    assert [option.label for option in options] == ["mcq", "Day 3", "Day 2"]
+
+
 async def test_options_leave_out_another_authors_activities(
     authored_activity: PxcActivity, authors: tuple[User, User]
 ) -> None:
@@ -147,6 +169,18 @@ async def test_the_owner_places_their_own_activity(authored_activity: PxcActivit
     block = await build_pxc_block("course-1", str(authored_activity.id))
 
     assert block.attributes["activity"] == str(authored_activity.id)
+
+
+async def test_a_placed_block_is_titled_after_its_activity(
+    authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    act_as(authors[0])
+
+    generated = await build_pxc_block("course-v1:X+Y+Z", str(authored_activity.id))
+    bundled = await build_pxc_block("course-v1:X+Y+Z", "mcq")
+
+    assert generated.title == "Capital cities"
+    assert bundled.title == "mcq"
 
 
 async def test_another_author_cannot_place_someone_elses_activity(
