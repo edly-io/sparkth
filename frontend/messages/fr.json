@@ -24,5 +24,10 @@
     "getStarted": "Commencer",
     "signIn": "Se connecter",
     "privacyPolicy": "Politique de confidentialité"
+  },
+  "forbidden": {
+    "title": "Vous n'avez pas accès à cette page",
+    "message": "Demandez l'accès à un administrateur si nécessaire.",
+    "back": "Retour au tableau de bord"
   }
 }

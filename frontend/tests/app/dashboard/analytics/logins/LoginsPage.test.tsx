@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { redirect } from "next/navigation";
 import { NextIntlClientProvider } from "next-intl";
 
 import en from "@/messages/en.json";
@@ -20,9 +19,6 @@ vi.mock("@/lib/analytics", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/analytics")>();
   return { ...actual, fetchLoginActivity: vi.fn() };
 });
-
-// Denied access redirects; stub redirect so we can assert it (and keep render from navigating).
-vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 
 import { fetchLoginActivity, type LoginActivityPoint } from "@/lib/analytics";
 import LoginsPage from "@/app/dashboard/analytics/logins/LoginsPage";
@@ -106,14 +102,16 @@ describe("LoginsPage states", () => {
     expect(screen.getByText(/over the last 30 days \(UTC\)/i)).toBeInTheDocument();
   });
 
-  it("redirects to the dashboard on 403 without disclosing permission details", async () => {
+  it("shows the 403 view when access is revoked, without disclosing permission details", async () => {
     vi.mocked(fetchLoginActivity).mockRejectedValue(
       new ApiRequestError({ message: "Permission denied", fieldErrors: {} }, 403),
     );
 
     renderWithIntl(<LoginsPage />);
 
-    await waitFor(() => expect(redirect).toHaveBeenCalledWith("/dashboard"));
+    expect(
+      await screen.findByRole("heading", { name: "You don't have access to this page" }),
+    ).toBeInTheDocument();
     // No permission name is disclosed anywhere.
     expect(screen.queryByText(/analytics\.read/i)).not.toBeInTheDocument();
   });

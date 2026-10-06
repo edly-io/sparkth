@@ -1,11 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
-import { redirect } from "next/navigation";
+import { screen } from "@testing-library/react";
 import { renderWithIntl } from "../../../intl-test-utils";
 
 vi.mock("@/lib/auth-context", () => ({ useAuth: () => ({ token: "test-token" }) }));
 vi.mock("next/navigation", () => ({
-  redirect: vi.fn(),
   usePathname: () => "/dashboard/analytics/logins",
 }));
 const checkPermission = vi.hoisted(() => vi.fn());
@@ -41,14 +39,22 @@ describe("AnalyticsLayout", () => {
     expect(screen.queryByText("view body")).not.toBeInTheDocument();
   });
 
-  it("redirects to the dashboard when denied", async () => {
+  it("shows the 403 view instead of the rail and the view when denied", async () => {
     checkPermission.mockResolvedValue(false);
     renderWithIntl(
       <AnalyticsLayout>
         <p>view body</p>
       </AnalyticsLayout>,
     );
-    await waitFor(() => expect(redirect).toHaveBeenCalledWith("/dashboard"));
+    expect(
+      await screen.findByRole("heading", { name: "You don't have access to this page" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Back to dashboard" })).toHaveAttribute(
+      "href",
+      "/dashboard",
+    );
+    expect(screen.queryByText("view body")).not.toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Analytics views" })).not.toBeInTheDocument();
   });
 
   it("fails closed when the check itself errors", async () => {
@@ -58,6 +64,9 @@ describe("AnalyticsLayout", () => {
         <p>view body</p>
       </AnalyticsLayout>,
     );
-    await waitFor(() => expect(redirect).toHaveBeenCalledWith("/dashboard"));
+    expect(
+      await screen.findByRole("heading", { name: "You don't have access to this page" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("view body")).not.toBeInTheDocument();
   });
 });

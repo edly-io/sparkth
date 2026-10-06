@@ -11,11 +11,14 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe("analytics", () => {
-  test("redirects to the dashboard without analytics.read", async ({ page }) => {
+  test("shows the 403 view without analytics.read, staying on the URL", async ({ page }) => {
     // Registered after the beforeEach grant, so this route wins.
     await stubPermission(page, "analytics.read", false);
     await page.goto("/dashboard/analytics/logins");
-    await expect(page).toHaveURL(/\/dashboard\/?$/);
+    await expect(
+      page.getByRole("heading", { name: "You don't have access to this page" }),
+    ).toBeVisible();
+    await expect(page).toHaveURL(/\/dashboard\/analytics\/logins\/?$/);
   });
 
   test("shows the empty state for a period with no logins", async ({ page }) => {

@@ -24,5 +24,10 @@
     "getStarted": "Comenzar",
     "signIn": "Iniciar sesión",
     "privacyPolicy": "Política de privacidad"
+  },
+  "forbidden": {
+    "title": "No tienes acceso a esta página",
+    "message": "Pide acceso a un administrador si lo necesitas.",
+    "back": "Volver al panel"
   }
 }

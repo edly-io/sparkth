@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { redirect } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import { ChartColumn, RefreshCw } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
@@ -17,6 +16,7 @@ import { BarChart } from "@/components/ui/BarChart";
 import { StatCard } from "@/components/ui/StatCard";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
+import { Forbidden } from "@/components/Forbidden";
 import { Spinner } from "@/components/Spinner";
 
 type State =
@@ -54,8 +54,9 @@ export default function LoginsPage() {
 
   const retry = useCallback(() => setReloadKey((key) => key + 1), []);
 
+  // Access revoked after the layout's check: the read API answered 403.
   if (state.status === "forbidden") {
-    redirect("/dashboard");
+    return <Forbidden />;
   }
 
   return (
