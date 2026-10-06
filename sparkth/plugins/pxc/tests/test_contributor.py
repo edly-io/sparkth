@@ -7,10 +7,12 @@ the activity's own configuration, that constructing the plugin registers it on t
 """
 
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 from pxc.lib.permission import Permission
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.user import User
 from sparkth.lib.content.exceptions import ContentBuildError
@@ -22,6 +24,7 @@ from sparkth.plugins.pxc.contributor import build_pxc_block, list_pxc_options
 from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.plugin import PxcPlugin
 from sparkth.plugins.pxc.runtime import build_runtime, read_state
+from sparkth.plugins.pxc.store import insert_activity
 from sparkth.plugins.pxc.tests.conftest import act_as
 from sparkth.plugins.pxc.tokens import LaunchClaims
 
@@ -144,6 +147,25 @@ async def test_options_are_the_bundled_activities_then_the_authors_own(
     options = await list_pxc_options()
 
     assert options == [ContentOption("mcq", "mcq"), ContentOption(str(authored_activity.id), "Capital cities")]
+
+
+async def test_options_offer_only_the_authors_newest_activities(
+    session: AsyncSession, authors: tuple[User, User], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Every option reaches the model, so a prolific author's list is capped at the newest.
+    monkeypatch.setattr("sparkth.plugins.pxc.contributor.PXC_MAX_PLACEABLE_ACTIVITIES", 2)
+    owner = authors[0]
+    assert owner.id is not None
+    for day in (1, 2, 3):
+        created_at = datetime(2026, 10, day, tzinfo=UTC)
+        await insert_activity(
+            session, PxcActivity(owner_user_id=owner.id, title=f"Day {day}", description="", created_at=created_at)
+        )
+    act_as(owner)
+
+    options = await list_pxc_options()
+
+    assert [option.label for option in options] == ["mcq", "Day 3", "Day 2"]
 
 
 async def test_options_leave_out_another_authors_activities(
