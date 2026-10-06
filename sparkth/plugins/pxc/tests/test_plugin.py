@@ -3,7 +3,7 @@ from sparkth.lib.frontend import plugin_has_frontend
 from sparkth.lib.frontend.hooks import DISPLAY_INFO, SIDEBAR_ENTRIES, SidebarEntry
 from sparkth.lib.mcp.hooks import MCP_TOOLS
 from sparkth.lib.plugins import get_plugin_loader
-from sparkth.plugins.pxc.plugin import PXC_ACTIVITY, PxcPlugin
+from sparkth.plugins.pxc.plugin import PXC_ACTIVITY_BUILDER, PxcPlugin
 
 
 def test_the_plugin_is_named_pxc() -> None:
@@ -43,17 +43,17 @@ def test_the_plugin_registers_the_activity_job() -> None:
 
     jobs = [job for owner, job in CHAT_RESPONSIBILITIES.iter_items() if owner is plugin]
 
-    assert jobs == [PXC_ACTIVITY]
+    assert jobs == [PXC_ACTIVITY_BUILDER]
 
 
 def test_the_activity_job_claims_the_pxc_tools() -> None:
-    assert PXC_ACTIVITY.name == "pxc-activity"
-    assert PXC_ACTIVITY.tool_categories == frozenset({"pxc"})
+    assert PXC_ACTIVITY_BUILDER.name == "pxc-activity-builder"
+    assert PXC_ACTIVITY_BUILDER.tool_categories == frozenset({"pxc"})
 
 
 def test_the_activity_system_prompt_renders_with_the_refusal_sentence() -> None:
     # Chat renders it with str.format, so a stray brace in the asset would raise here.
-    rendered = PXC_ACTIVITY.system_prompt.format(current_datetime="2026-10-01", refusal_message="REFUSAL")
+    rendered = PXC_ACTIVITY_BUILDER.system_prompt.format(current_datetime="2026-10-01", refusal_message="REFUSAL")
 
     assert "REFUSAL" in rendered
 
