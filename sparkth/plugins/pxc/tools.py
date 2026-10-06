@@ -49,7 +49,7 @@ def _manifest_object(manifest: dict[str, object] | str) -> dict[str, object]:
         raise PxcManifestInvalid(f"manifest is not valid JSON: {err}") from err
     if not isinstance(parsed, dict):
         logger.info("pxc_build_activity refused a JSON manifest of type %s", type(parsed).__name__)
-        raise PxcManifestInvalid(f"manifest is not valid JSON: expected an object, got {type(parsed).__name__}")
+        raise PxcManifestInvalid(f"manifest must be a JSON object, got {type(parsed).__name__}")
     return parsed
 
 
