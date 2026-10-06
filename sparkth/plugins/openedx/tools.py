@@ -893,7 +893,7 @@ async def openedx_add_plugin_content(payload: AddPluginContentArgs) -> dict[str,
     it fails.
 
     `option_id` picks one of the contributor's options, from `openedx_list_content_contributors`.
-    It is handed to the builder, which checks that the caller may use it. A contributor that
+    It is handed to the builder. A contributor that
     offers no options refuses any `option_id`.
 
     Parameters:
