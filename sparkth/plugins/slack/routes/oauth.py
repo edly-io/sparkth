@@ -7,6 +7,7 @@ from itsdangerous import BadSignature, SignatureExpired
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.lib.audit.context import UserActor, bind_audit_actor
 from sparkth.lib.db import get_async_session
 from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
@@ -56,7 +57,11 @@ async def oauth_callback(
     service: WorkspaceService = Depends(get_workspace_service),
     session: AsyncSession = Depends(get_async_session),
 ) -> RedirectResponse:
-    """Handle Slack OAuth redirect, persist workspace token."""
+    """Handle Slack OAuth redirect, persist workspace token.
+
+    The user is identified by the signed ``state``, not a session, so it is
+    bound as the audit actor here for the ``slack.connected`` record.
+    """
     try:
         state_data = decode_state(state)
         user_id = state_data["user_id"]
@@ -68,6 +73,7 @@ async def oauth_callback(
     except (BadSignature, KeyError, ValueError, TypeError) as exc:
         logger.warning("Invalid Slack OAuth state received: %s", exc)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_("Invalid OAuth state.")) from exc
+    bind_audit_actor(UserActor(id=str(user_id)))
 
     creds = get_slack_credentials()
 
