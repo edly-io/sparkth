@@ -2,6 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { redirect } from "next/navigation";
+import { NextIntlClientProvider } from "next-intl";
+
+import en from "@/messages/en.json";
+import { renderWithIntl } from "../../../intl-test-utils";
 
 import { ApiRequestError } from "@/lib/api";
 
@@ -22,6 +26,15 @@ vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 
 import { fetchLoginActivity, type LoginActivityPoint } from "@/lib/analytics";
 import AnalyticsPage from "@/app/dashboard/analytics/AnalyticsPage";
+
+// rerender must re-wrap, since renderWithIntl returns the bare RTL result.
+function intl(ui: React.ReactElement) {
+  return (
+    <NextIntlClientProvider locale="en" messages={en}>
+      {ui}
+    </NextIntlClientProvider>
+  );
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -52,7 +65,7 @@ describe("AnalyticsPage states", () => {
       { day: "2026-07-22", login_count: 2 },
     ]);
 
-    const { container } = render(<AnalyticsPage />);
+    const { container } = renderWithIntl(<AnalyticsPage />);
 
     // loading first
     expect(screen.getByText(/loading/i)).toBeInTheDocument();
@@ -62,10 +75,23 @@ describe("AnalyticsPage states", () => {
     await waitFor(() => expect(container.querySelector("svg[role='img']")).toBeInTheDocument());
   });
 
+  it("formats the busiest day as a UTC date even when the browser is west of UTC", async () => {
+    // The real LocaleProvider passes the browser's zone to next-intl; 2026-07-23 00:00 UTC is
+    // still 2026-07-22 in America/Los_Angeles, so the label slips a day unless formatDay pins UTC.
+    vi.mocked(fetchLoginActivity).mockResolvedValue([{ day: "2026-07-23", login_count: 3 }]);
+    render(
+      <NextIntlClientProvider locale="en" messages={en} timeZone="America/Los_Angeles">
+        <AnalyticsPage />
+      </NextIntlClientProvider>,
+    );
+    const busiestCard = (await screen.findByText("Busiest day")).parentElement as HTMLElement;
+    expect(within(busiestCard).getByText("Jul 23, 2026")).toBeInTheDocument();
+  });
+
   it("shows an empty state when there are no logins", async () => {
     vi.mocked(fetchLoginActivity).mockResolvedValue([]);
 
-    render(<AnalyticsPage />);
+    renderWithIntl(<AnalyticsPage />);
 
     expect(await screen.findByText(/no logins in the last 30 days/i)).toBeInTheDocument();
   });
@@ -73,7 +99,7 @@ describe("AnalyticsPage states", () => {
   it("labels the window as UTC in the subheading so dates are not misread across timezones", () => {
     vi.mocked(fetchLoginActivity).mockResolvedValue([]);
 
-    render(<AnalyticsPage />);
+    renderWithIntl(<AnalyticsPage />);
 
     // Dates are UTC-bucketed server-side (see lib/analytics reads); the subheading must say
     // so, or a user in another timezone reads the last bar as "today" and it disagrees.
@@ -85,7 +111,7 @@ describe("AnalyticsPage states", () => {
       new ApiRequestError({ message: "Permission denied", fieldErrors: {} }, 403),
     );
 
-    render(<AnalyticsPage />);
+    renderWithIntl(<AnalyticsPage />);
 
     await waitFor(() => expect(redirect).toHaveBeenCalledWith("/dashboard"));
     // No permission name is disclosed anywhere.
@@ -97,7 +123,7 @@ describe("AnalyticsPage states", () => {
       new ApiRequestError({ message: "boom", fieldErrors: {} }, 500),
     );
 
-    render(<AnalyticsPage />);
+    renderWithIntl(<AnalyticsPage />);
 
     expect(
       await screen.findByText(/couldn't load|could not load|failed to load/i),
@@ -112,7 +138,7 @@ describe("AnalyticsPage states", () => {
         { day: "2026-07-22", login_count: 2 },
       ]);
 
-    render(<AnalyticsPage />);
+    renderWithIntl(<AnalyticsPage />);
 
     await userEvent.click(await screen.findByRole("button", { name: /try again/i }));
 
@@ -144,7 +170,7 @@ describe("AnalyticsPage stat/chart window consistency", () => {
       { day: "2026-07-23", login_count: 2 },
     ]);
 
-    render(<AnalyticsPage />);
+    renderWithIntl(<AnalyticsPage />);
 
     const totalCard = (await screen.findByText("Total logins")).parentElement as HTMLElement;
     // Windowed total is 2 (only 2026-07-23), not 7 (5 + 2 from the raw response).
@@ -153,9 +179,9 @@ describe("AnalyticsPage stat/chart window consistency", () => {
     const busiestCard = screen.getByText("Busiest day").parentElement as HTMLElement;
     // Busiest in-window day is 2026-07-23 (count 2), not the out-of-window 2026-06-24 (count 5).
     expect(within(busiestCard).getByText("2")).toBeInTheDocument();
-    expect(within(busiestCard).getByText("2026-07-23")).toBeInTheDocument();
+    expect(within(busiestCard).getByText("Jul 23, 2026")).toBeInTheDocument();
 
-    expect(screen.queryByText("2026-06-24")).not.toBeInTheDocument();
+    expect(screen.queryByText("Jun 24, 2026")).not.toBeInTheDocument();
     expect(screen.queryByText("7")).not.toBeInTheDocument();
   });
 });
@@ -164,7 +190,7 @@ describe("AnalyticsPage empty-window composition", () => {
   it("shows the empty state when the API returns rows but all fall outside the chart window", async () => {
     vi.mocked(fetchLoginActivity).mockResolvedValue([{ day: "2000-01-01", login_count: 5 }]);
 
-    render(<AnalyticsPage />);
+    renderWithIntl(<AnalyticsPage />);
 
     expect(await screen.findByText(/no logins in the last 30 days/i)).toBeInTheDocument();
     expect(screen.queryByText("Total logins")).not.toBeInTheDocument();
@@ -190,10 +216,10 @@ describe("AnalyticsPage stale-response guard", () => {
       .mockReturnValueOnce(second.promise);
 
     auth.token = "token-A";
-    const { rerender } = render(<AnalyticsPage />); // fetches with token-A (first, pending)
+    const { rerender } = renderWithIntl(<AnalyticsPage />); // fetches with token-A (first, pending)
 
     auth.token = "token-B";
-    rerender(<AnalyticsPage />); // token changed → refetch with token-B (second, pending)
+    rerender(intl(<AnalyticsPage />)); // token changed → refetch with token-B (second, pending)
 
     // The newer request (B) resolves first and is shown…
     await act(async () => {
@@ -224,17 +250,17 @@ describe("AnalyticsPage window stability", () => {
   it("keeps the window pinned to the fetched data across an unrelated re-render", async () => {
     vi.mocked(fetchLoginActivity).mockResolvedValue([{ day: "2026-06-25", login_count: 5 }]);
 
-    const { rerender } = render(<AnalyticsPage />);
+    const { rerender } = renderWithIntl(<AnalyticsPage />);
 
     const totalCard = (await screen.findByText("Total logins")).parentElement as HTMLElement;
     expect(within(totalCard).getByText("5")).toBeInTheDocument();
 
     // A day passes, then something unrelated re-renders the page (same `points`).
     vi.setSystemTime(new Date("2026-07-25T12:00:00Z"));
-    rerender(<AnalyticsPage />);
+    rerender(intl(<AnalyticsPage />));
 
     expect(within(totalCard).getByText("5")).toBeInTheDocument();
     const busiestCard = screen.getByText("Busiest day").parentElement as HTMLElement;
-    expect(within(busiestCard).getByText("2026-06-25")).toBeInTheDocument();
+    expect(within(busiestCard).getByText("Jun 25, 2026")).toBeInTheDocument();
   });
 });

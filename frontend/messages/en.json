@@ -1,4 +1,18 @@
 {
+  "analytics": {
+    "title": "Analytics",
+    "loading": "Loading analytics…",
+    "loadError": "We couldn't load analytics. Please try again.",
+    "retry": "Try again",
+    "logins": {
+      "subtitle": "Daily login activity over the last {days} days (UTC).",
+      "empty": "No logins in the last {days} days.",
+      "totalLogins": "Total logins",
+      "busiestDay": "Busiest day",
+      "lastDays": "last {days} days",
+      "chartLabel": "Daily logins over the last {days} days"
+    }
+  },
   "home": {
     "title": "Welcome to <brand>Sparkth</brand>",
     "tagline": "Your AI-powered platform for creating engaging educational content. Transform your resources into courses with ease.",
