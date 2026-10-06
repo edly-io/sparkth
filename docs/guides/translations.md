@@ -270,6 +270,13 @@ keys. Unknown keys are a TypeScript error: the catalogs are bound to
 next-intl's types via the `Messages` type in `frontend/lib/i18n/messages.ts`
 (referenced from `frontend/lib/i18n/next-intl.d.ts`).
 
+Analytics dates are UTC calendar days. `LocaleProvider` renders in the browser's time zone,
+so format them with an explicit `timeZone: "UTC"`, or a user west of UTC sees the day before:
+
+```tsx
+format.dateTime(new Date(`${day}T00:00:00Z`), { dateStyle: "medium", timeZone: "UTC" });
+```
+
 ### Plugin catalogs
 
 A frontend plugin owns its catalogs, mirroring the backend containment rule:

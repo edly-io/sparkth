@@ -36,8 +36,15 @@ from sparkth.core.permissions.models import (
     RolePermission,
 )
 from sparkth.core.permissions.scopes import GLOBAL, PermissionScope
-from sparkth.lib.audit import record_event_now
-from sparkth.lib.audit.events import AuditOutcome, AuditTarget, PermissionDeniedAuditEvent
+from sparkth.lib.audit import record_event, record_event_now
+from sparkth.lib.audit.events import (
+    AuditChange,
+    AuditOutcome,
+    AuditTarget,
+    PermissionDeniedAuditEvent,
+    RoleAssignedAuditEvent,
+    RoleUnassignedAuditEvent,
+)
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
 from sparkth.lib.hooks import SingleNamedItemHook
@@ -259,6 +266,13 @@ def _granted_role_ids_clause(
     )
 
 
+def _create_grant_audit_snapshot(
+    role_name: str, permission_scope: PermissionScope, scope_object_id: str | None
+) -> dict[str, str | None]:
+    """Audit snapshot of a role grant at a scope, shared by user and group assignments."""
+    return {"role": role_name, "scope": permission_scope.name, "scope_object_id": scope_object_id}
+
+
 async def _find_active_assignment(
     user_id: int,
     role_id: int,
@@ -334,6 +348,9 @@ async def assign_role(
     between the existence check and our insert, the unique index rejects ours; we recover by
     re-querying and returning the winner instead of surfacing the IntegrityError.
 
+    Creating the assignment records ``role.assigned`` in the caller's transaction; returning
+    an existing (or concurrently inserted) assignment records nothing.
+
     Raises RoleNotFound if the role does not exist. Raises InvalidScopeObjectId if the
     (permission_scope, scope_object_id) pairing is invalid (see PermissionScope.validate_object_id).
     """
@@ -353,7 +370,6 @@ async def assign_role(
             )
             session.add(assignment)
             await session.flush()
-        return assignment
     except IntegrityError:
         # A concurrent assign_role inserted the same (user, role, scope) after our check, so
         # the unique index rejected ours. Re-query and return that winner to stay idempotent;
@@ -362,6 +378,15 @@ async def assign_role(
         if winner is None:
             raise
         return winner
+    await record_event(
+        session,
+        RoleAssignedAuditEvent(
+            outcome=AuditOutcome.SUCCESS,
+            target=AuditTarget(type="user", id=str(user_id)),
+            change=AuditChange(new=_create_grant_audit_snapshot(role_name, permission_scope, scope_object_id)),
+        ),
+    )
+    return assignment
 
 
 async def revoke_role(
@@ -371,7 +396,11 @@ async def revoke_role(
     scope_object_id: str | None,
     session: AsyncSession,
 ) -> None:
-    """Soft-delete all active assignments of role_name for user_id at the given permission scope."""
+    """Soft-delete all active assignments of role_name for user_id at the given permission scope.
+
+    Revoking an active assignment records ``role.unassigned`` in the caller's transaction; a
+    call that finds nothing active records nothing.
+    """
     statement = (
         select(RoleAssignment)
         .join(Role, col(Role.id) == col(RoleAssignment.role_id))
@@ -389,3 +418,12 @@ async def revoke_role(
         # them dirty — no session.add needed.
         assignment.soft_delete()
     await session.flush()
+    if assignments:
+        await record_event(
+            session,
+            RoleUnassignedAuditEvent(
+                outcome=AuditOutcome.SUCCESS,
+                target=AuditTarget(type="user", id=str(user_id)),
+                change=AuditChange(old=_create_grant_audit_snapshot(role_name, permission_scope, scope_object_id)),
+            ),
+        )
