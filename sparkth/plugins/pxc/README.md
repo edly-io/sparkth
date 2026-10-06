@@ -32,13 +32,18 @@ does not repeat the list.
 
 ## Placing one in a course
 
-The plugin registers the `pxc` content contributor. Its options are the bundled activities
-followed by the author's own, the latter by title. Building a block for a chosen activity mints a
-placement here and returns a block of category `pxc`, which the installed XBlock provides. With no
-activity chosen, the placement names `PXC_DEFAULT_ACTIVITY`.
+An author places an activity from a course design conversation:
 
-Only an activity's author can place a generated activity: the builder checks ownership again
-when it builds, whatever the id's origin. Publishing the unit is covered by the
+1. The agent lists the activities the author can place: the bundled samples, then the author's
+   own activities by title.
+2. The author picks one. If they pick none, `PXC_DEFAULT_ACTIVITY` is placed.
+3. Sparkth creates a new placement for it, with its own id and its own learner data.
+4. The course gets a `pxc` block that holds only that id. The installed XBlock shows the
+   activity through it.
+
+An author can place only their own activities and the bundled samples. Sparkth checks this
+again when it places the activity, so an id from anywhere else is refused. Publishing the unit
+is covered by the
 [XBlock README](../../../third_party_plugins/openedx/xblock/README.md).
 
 ## Building an activity from chat
