@@ -38,13 +38,11 @@ An author places an activity from a course design conversation:
    own activities by title.
 2. The author picks one. If they pick none, `PXC_DEFAULT_ACTIVITY` is placed.
 3. Sparkth creates a new placement for it, with its own id and its own learner data.
-4. The course gets a `pxc` block that holds only that id. The installed XBlock shows the
+4. The LMS course gets a `pxc` block that holds only that id. The LMS integration shows the
    activity through it.
 
 An author can place only their own activities and the bundled samples. Sparkth checks this
-again when it places the activity, so an id from anywhere else is refused. Publishing the unit
-is covered by the
-[XBlock README](../../../third_party_plugins/openedx/xblock/README.md).
+again when it places the activity, so an id from anywhere else is refused.
 
 ## Building an activity from chat
 
@@ -120,6 +118,5 @@ TODO: move builds to a worker container.
 ## Known limits
 
 - Learner actions have no execution limit. That is pxc-lib's to fix.
-- Course staff who edit the XBlock's `activity` field directly in Studio or OLX can point it at
-  any activity id, and the XBlock signs it. Ownership is checked only when the agent places
-  content.
+- Course staff who edit an LMS block's activity reference directly can point it at any activity
+  id, and the LMS signs it. Ownership is checked only when the agent places content.
