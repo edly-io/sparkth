@@ -11,6 +11,7 @@ from sparkth.cli.main import app as root_cli
 from sparkth.core.models.user import User
 from sparkth.core.permissions import groups as group_engine
 from sparkth.core.permissions.models import GroupMembership, GroupRoleAssignment, Role
+from sparkth.lib.testing import AuditEventsFetcher
 
 
 async def _seed_user_and_group(session: AsyncSession) -> tuple[User, int]:
@@ -213,3 +214,23 @@ def test_cli_wires_assign_role_to_group(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr("sparkth.cli.groups._assign_role_to_group", _fake)
     result = CliRunner().invoke(root_cli, ["groups", "assign-role-to-group", "cs-staff", "grader"])
     assert result.exit_code == 0
+
+
+async def test_group_commands_attribute_their_audit_events_to_the_cli(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch, audit_events: AuditEventsFetcher
+) -> None:
+    import sparkth.cli.groups as cli_groups
+
+    monkeypatch.setattr(cli_groups, "get_plugin_loader", lambda: None)
+    await _seed_user_and_group(session)
+    session.add(Role(name="grader"))
+    await session.commit()
+
+    await cli_groups._add_member("alice", "cs-staff")
+    await cli_groups._remove_member("alice", "cs-staff")
+    await cli_groups._assign_role_to_group("cs-staff", "grader", "global", None)
+    await cli_groups._revoke_role_from_group("cs-staff", "grader", "global", None)
+
+    events = [e for e in await audit_events() if e.action != "created"]
+    assert [e.action for e in events] == ["member_added", "member_removed", "role_assigned", "role_revoked"]
+    assert {(e.source, e.actor_type, e.actor_label) for e in events} == {("cli", "system", "cli")}
