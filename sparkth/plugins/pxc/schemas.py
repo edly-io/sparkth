@@ -1,10 +1,22 @@
+import json
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import AfterValidator, BaseModel, Field, StringConstraints
 
 from sparkth.plugins.pxc.constants import PXC_MAX_DESCRIPTION_CHARS, PXC_MAX_SOURCE_CHARS
+
+
+def within_source_limit(manifest: dict[str, object]) -> dict[str, object]:
+    """Refuse a manifest whose JSON is longer than ``PXC_MAX_SOURCE_CHARS``, the cap on each script.
+
+    Raises:
+        ValueError: if the manifest is over the limit.
+    """
+    if len(json.dumps(manifest)) > PXC_MAX_SOURCE_CHARS:
+        raise ValueError(f"manifest is longer than {PXC_MAX_SOURCE_CHARS} characters as JSON")
+    return manifest
 
 
 class LaunchContext(BaseModel):
@@ -47,8 +59,8 @@ class ActivityLaunch(BaseModel):
 class ActivitySource(BaseModel):
     """The files an agent writes for one activity, and how the activity is listed."""
 
-    title: str = Field(min_length=1, max_length=255)
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
     description: str = Field(max_length=PXC_MAX_DESCRIPTION_CHARS)
-    manifest: dict[str, object]
+    manifest: Annotated[dict[str, object], AfterValidator(within_source_limit)]
     ui_js: str = Field(max_length=PXC_MAX_SOURCE_CHARS)
     sandbox_js: str = Field(max_length=PXC_MAX_SOURCE_CHARS)
