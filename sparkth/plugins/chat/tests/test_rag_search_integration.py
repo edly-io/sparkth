@@ -109,7 +109,7 @@ class TestIntentRouterIntegration:
         ):
             # Scope classifier says in-scope
             mock_scope = AsyncMock()
-            mock_scope.in_scope = AsyncMock(return_value=True)
+            mock_scope.responsibility_for = AsyncMock(return_value="course-design")
             mock_cls_cls.return_value = mock_scope
 
             # Router says retrieve=True
@@ -192,7 +192,7 @@ class TestIntentRouterIntegration:
             patch("sparkth.plugins.chat.routes.completions.ChatStreamProcessor") as mock_processor_cls,
         ):
             mock_scope = AsyncMock()
-            mock_scope.in_scope = AsyncMock(return_value=True)
+            mock_scope.responsibility_for = AsyncMock(return_value="course-design")
             mock_cls_cls.return_value = mock_scope
 
             mock_router = MagicMock()
@@ -270,7 +270,7 @@ class TestIntentRouterIntegration:
             ) as mock_add_msg,
         ):
             mock_scope = AsyncMock()
-            mock_scope.in_scope = AsyncMock(return_value=True)
+            mock_scope.responsibility_for = AsyncMock(return_value="course-design")
             mock_cls_cls.return_value = mock_scope
 
             mock_router = MagicMock()
@@ -344,7 +344,7 @@ class TestIntentRouterIntegration:
             ) as mock_add_msg,
         ):
             mock_scope = AsyncMock()
-            mock_scope.in_scope = AsyncMock(return_value=True)
+            mock_scope.responsibility_for = AsyncMock(return_value="course-design")
             mock_cls_cls.return_value = mock_scope
 
             mock_router_cls.return_value = MagicMock()
@@ -408,7 +408,7 @@ class TestIntentRouterIntegration:
             ) as mock_get_msgs,
         ):
             mock_scope = AsyncMock()
-            mock_scope.in_scope = AsyncMock(return_value=True)
+            mock_scope.responsibility_for = AsyncMock(return_value="course-design")
             mock_cls_cls.return_value = mock_scope
 
             mock_router = MagicMock()
@@ -483,7 +483,7 @@ def _configure_base_mocks(
     mock_get_provider: MagicMock,
 ) -> None:
     mock_scope = MagicMock()
-    mock_scope.in_scope = AsyncMock(return_value=True)
+    mock_scope.responsibility_for = AsyncMock(return_value="course-design")
     mock_cls_cls.return_value = mock_scope
     mock_list.return_value = ConversationDocuments(ready=[], unusable=[])
     mock_get_msgs.return_value = []
@@ -708,7 +708,7 @@ class TestProviderApiErrorPersistence:
             ) as mock_get_msgs,
         ):
             mock_scope = AsyncMock()
-            mock_scope.in_scope = AsyncMock(return_value=True)
+            mock_scope.responsibility_for = AsyncMock(return_value="course-design")
             mock_cls_cls.return_value = mock_scope
 
             mock_router = MagicMock()
@@ -770,7 +770,7 @@ class TestProviderApiErrorPersistence:
             ) as mock_get_msgs,
         ):
             mock_scope = AsyncMock()
-            mock_scope.in_scope = AsyncMock(return_value=True)
+            mock_scope.responsibility_for = AsyncMock(return_value="course-design")
             mock_cls_cls.return_value = mock_scope
 
             mock_router = MagicMock()

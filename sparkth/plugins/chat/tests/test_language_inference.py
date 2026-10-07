@@ -101,7 +101,7 @@ async def _system_prompt_for_one_request(client: AsyncClient, seed: _Seeded) -> 
         patch("sparkth.plugins.chat.routes.completions.ChatStreamProcessor") as mock_processor_cls,
     ):
         mock_classifier = MagicMock()
-        mock_classifier.in_scope = AsyncMock(return_value=True)
+        mock_classifier.responsibility_for = AsyncMock(return_value="course-design")
         mock_classifier_cls.return_value = mock_classifier
 
         mock_message = MagicMock()
@@ -158,7 +158,7 @@ async def _scheduled_title_task_kwargs(client: AsyncClient, llm_config_id: int) 
         patch("sparkth.plugins.chat.conversation_title.generate_conversation_title") as mock_generate_title,
     ):
         mock_classifier = MagicMock()
-        mock_classifier.in_scope = AsyncMock(return_value=True)
+        mock_classifier.responsibility_for = AsyncMock(return_value="course-design")
         mock_classifier_cls.return_value = mock_classifier
 
         mock_message = MagicMock()
