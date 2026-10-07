@@ -67,7 +67,7 @@ For bug fixes: write a test that reproduces the bug first, verify it fails, then
 
 Documentation includes:
 
-- **Docstrings** — module, class, and function docstrings must reflect current behaviour. If a function no longer does what its docstring says, update the docstring in the same commit.
+- **Docstrings** — module, class, and function docstrings must reflect current behaviour. If a function no longer does what its docstring says, update the docstring in the same commit. Describe what the code does now — not its history, versioning policy, or why an earlier design changed.
 - **Inline comments** — remove or update comments that describe logic that has changed. Never leave comments that contradict the code.
 - **Markdown files** — `CLAUDE.md`, `README.md`, plugin guides, and any other `.md` files must be updated when commands, architecture, configuration, or behaviour they describe changes.
 
