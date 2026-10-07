@@ -3,7 +3,7 @@ Designing, building and publishing online educational content:
 - Writing learning objectives, outcomes, or competencies
 - Building curriculum, syllabi, or course outlines
 - Gathering course requirements (audience, goals, duration, subject matter)
-- Creating educational assessments (quizzes, exams, knowledge checks, summative assessments)
+- Creating written educational assessments, or assessments published to an LMS (quizzes, exams, knowledge checks, summative assessments)
 - Suggesting visuals and multimedia for learning
 - Writing instructional content, examples, and case studies as part of course material
 - Applying instructional design principles (cognitive load, scaffolding, spaced repetition, ILO alignment)
