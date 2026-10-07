@@ -19,6 +19,7 @@ from sparkth.plugins.chat.analytics.events import (
     ChatTurnFailed,
     ScopeVerdict,
     StopPoint,
+    ToolOutcome,
     TurnFailureCause,
 )
 from sparkth.plugins.chat.analytics.utils import (
@@ -26,11 +27,12 @@ from sparkth.plugins.chat.analytics.utils import (
     ChatAttachmentAnalytics,
     ChatClassifierAnalytics,
     ChatTurnAnalytics,
+    ExecutedTool,
     as_utc,
     emit_completion,
     emit_documents_detached,
+    executed_tools_from,
     record_turn_failed,
-    tool_names,
 )
 
 __all__ = [
@@ -49,12 +51,14 @@ __all__ = [
     "ChatToolInvoked",
     "ChatTurnAnalytics",
     "ChatTurnFailed",
+    "ExecutedTool",
     "ScopeVerdict",
     "StopPoint",
+    "ToolOutcome",
     "TurnFailureCause",
     "as_utc",
     "emit_completion",
     "emit_documents_detached",
+    "executed_tools_from",
     "record_turn_failed",
-    "tool_names",
 ]

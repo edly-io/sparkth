@@ -26,11 +26,12 @@ from sparkth.lib.rag import (
 )
 from sparkth.plugins.chat.analytics import (
     AnalyticsAttribution,
+    ExecutedTool,
     StopPoint,
     TurnFailureCause,
     emit_completion,
+    executed_tools_from,
     record_turn_failed,
-    tool_names,
 )
 from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, RAG_CONTEXT_PROMPT, REFUSAL_MESSAGE
 from sparkth.plugins.chat.detached import detach
@@ -54,7 +55,7 @@ class StreamedCompletion:
     stop landed, ``None`` for a turn that ran to the end.
     """
 
-    executed_tools: list[str]
+    executed_tools: list[ExecutedTool]
     occurred_at: datetime
     stopped_at: StopPoint | None
 
@@ -378,7 +379,7 @@ class ChatStreamProcessor:
                         {"status": "tool_call", "tool_name": event["name"], "tool_status": "running", "done": False}
                     )
                 elif event["type"] == "tool_end":
-                    completed_tool_calls.append({"name": event["name"]})
+                    completed_tool_calls.append({"name": event["name"], "failure": event.get("failure")})
                     await self._emit(
                         {"status": "tool_call", "tool_name": event["name"], "tool_status": "done", "done": False}
                     )
@@ -423,8 +424,11 @@ class ChatStreamProcessor:
         metadata: dict[str, Any] = {}
         if confirmed_rag_sections:
             metadata["rag_sections"] = confirmed_rag_sections
-        if completed_tool_calls:
-            metadata["tool_calls"] = completed_tool_calls
+        # The stored and streamed tool calls keep their name-only shape; the failure reaches
+        # analytics through the executed-tools list, not through this payload.
+        tool_calls = [{"name": call["name"]} for call in completed_tool_calls]
+        if tool_calls:
+            metadata["tool_calls"] = tool_calls
         stopped = stopped_at is not None
         if stopped:
             metadata["stopped"] = True
@@ -449,7 +453,7 @@ class ChatStreamProcessor:
                     "attachment_name": None,
                     "attachment_size": None,
                     "rag_sections": confirmed_rag_sections or None,
-                    "tool_calls": completed_tool_calls or None,
+                    "tool_calls": tool_calls or None,
                     "stopped": stopped,
                 },
             }
@@ -461,7 +465,7 @@ class ChatStreamProcessor:
         # transcript. _process_and_stream emits these after that guard, and after the
         # stream has closed.
         return StreamedCompletion(
-            executed_tools=tool_names(completed_tool_calls),
+            executed_tools=executed_tools_from(completed_tool_calls),
             occurred_at=assistant_message.created_at,
             stopped_at=stopped_at,
         )

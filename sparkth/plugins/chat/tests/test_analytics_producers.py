@@ -17,6 +17,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from httpx import AsyncClient
+from langchain_core.messages import AIMessage
 from sqlalchemy import select
 from sqlmodel import col
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -24,11 +25,14 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.core.analytics.models import raw_events
 from sparkth.lib.analytics import ingest_event as real_ingest_event
 from sparkth.lib.encryption import get_encryption_service
+from sparkth.lib.llm import get_provider
+from sparkth.lib.mcp.hooks import Tool
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
 from sparkth.plugins.chat.detached import join_live_tasks
 from sparkth.plugins.chat.models import Conversation, Message
 from sparkth.plugins.chat.routes.utils.live_turns import request_stop
+from sparkth.plugins.chat.tools import convert_mcp_to_langchain_tool
 
 COMPLETIONS_URL = "/api/v1/chat/completions"
 
@@ -500,7 +504,7 @@ async def test_non_streaming_tool_executions_emit_tool_invoked(
     ]
     # Tool arguments and outputs must never reach a payload.
     for event in invoked:
-        assert set(event) == {"conversation_id", "tool_name", "tool_category"}
+        assert set(event) == {"conversation_id", "tool_name", "tool_category", "outcome", "failure_kind"}
         assert "Data Privacy" not in str(event)
 
 
@@ -904,3 +908,92 @@ async def test_event_times_come_from_the_rows_they_describe(
 
     assert started == _as_utc(conversation.created_at)
     assert sent == _as_utc(instructor_turn.created_at)
+
+
+async def create_page(title: str) -> dict[str, Any]:
+    """Create a page."""
+    return {"page_id": 1, "title": title}
+
+
+async def publish_page(title: str) -> dict[str, Any]:
+    """Publish a page."""
+    # Longer than the 500 characters the non-streaming path keeps of a tool's output, so a
+    # classification read from the truncated copy would see unparseable text.
+    return {"error": {"status_code": 401, "message": "Invalid access token. " + "x" * 600}}
+
+
+async def delete_page(title: str) -> dict[str, Any]:
+    """Delete a page."""
+    raise ValueError("the LMS went away")
+
+
+class _ToolCallingLLM:
+    """Asks for one call of each tool, then answers once their results are in."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def bind_tools(self, tools: list[Any]) -> "_ToolCallingLLM":
+        return self
+
+    async def ainvoke(self, messages: list[Any]) -> AIMessage:
+        self.calls += 1
+        if self.calls == 1:
+            return AIMessage(
+                content="",
+                tool_calls=[
+                    {"name": handler.__name__, "args": {"title": "Data Privacy"}, "id": f"call_{index}"}
+                    for index, handler in enumerate((create_page, publish_page, delete_page))
+                ],
+            )
+        return AIMessage(content="Done.", usage_metadata={"input_tokens": 1, "output_tokens": 1, "total_tokens": 2})
+
+
+@pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
+async def test_tool_invoked_records_whether_each_call_succeeded(
+    stream: bool,
+    client: AsyncClient,
+    current_user: User,
+    session: AsyncSession,
+    analytics_session: AsyncSession,
+) -> None:
+    """Real tools through the real provider loop: a success, a returned error, and a raise."""
+    config_id = await _seed_llm_config(session, current_user.id or 1)
+    provider = get_provider("openai", api_key="sk-test", model="gpt-4o")
+    llm = _ToolCallingLLM()
+    tools = [convert_mcp_to_langchain_tool(Tool(handler)) for handler in (create_page, publish_page, delete_page)]
+
+    with (
+        patch.object(provider, "_create_llm", lambda streaming=False, callbacks=None: llm),
+        patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=provider),
+        patch("sparkth.plugins.chat.routes.completions.resolve_tools", AsyncMock(return_value=tools)),
+        patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_scope_cls,
+        patch("sparkth.plugins.chat.conversation_title.get_provider", return_value=_non_streaming_provider()),
+    ):
+        mock_scope_cls.return_value = _in_scope_classifier()
+        response = await client.post(
+            COMPLETIONS_URL,
+            json={
+                "llm_config_id": config_id,
+                "messages": [{"role": "user", "content": "Create a page on data privacy"}],
+                "stream": stream,
+                "tools": "none",
+            },
+        )
+        await join_live_tasks()
+
+    assert response.status_code == 200
+
+    rows = (await analytics_session.execute(select(raw_events))).mappings().all()
+    invoked = [row for row in rows if row["event_type"] == "chat.tool_invoked"]
+    assert {row["event_version"] for row in invoked} == {1}
+    assert [
+        (row["payload"]["tool_name"], row["payload"]["outcome"], row["payload"]["failure_kind"]) for row in invoked
+    ] == [
+        ("create_page", "succeeded", None),
+        ("publish_page", "failed", "auth"),
+        ("delete_page", "failed", "unknown"),
+    ]
+    # The error message and the tool's arguments never reach a payload.
+    assert "Invalid access token" not in str([row["payload"] for row in invoked])
+    assert "Data Privacy" not in str([row["payload"] for row in invoked])

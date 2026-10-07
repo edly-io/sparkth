@@ -15,6 +15,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from pydantic import ValidationError
 
+from sparkth.lib.audit import ToolFailureKind, tool_failure
 from sparkth.lib.audit.context import AuditSource, ai_audit_context
 from sparkth.lib.audit.events import AuditModelInfo
 from sparkth.lib.audit.exceptions import AuditCaptureError
@@ -35,6 +36,17 @@ def serialize_result(result: Any) -> str:
         except TypeError, ValueError:
             return str(result)
     return str(result)
+
+
+def _reported_failure(result: Any) -> ToolFailureKind | None:
+    """Classify a tool's result, decoding the JSON text the chat tool wrappers return."""
+    if isinstance(result, str):
+        try:
+            result = json.loads(result)
+        except ValueError, RecursionError:
+            logger.debug("Tool result is not JSON; reading it as a success")
+            return None
+    return tool_failure(result)
 
 
 class StreamingCallbackHandler(AsyncCallbackHandler):
@@ -232,7 +244,7 @@ class BaseChatProvider(ABC):
 
                     logger.debug(f"Executing tool: {tool_name} with args: {tool_args}")
                     with ai_audit_context(source=AuditSource.CHAT, model=self._audit_model_info(response)):
-                        tool_result = await self._execute_tool(tool_name, tool_args, tools)
+                        tool_result, failure = await self._execute_tool(tool_name, tool_args, tools)
                     serialized_result = serialize_result(tool_result)
 
                     tool_executions.append(
@@ -240,6 +252,7 @@ class BaseChatProvider(ABC):
                             "tool": tool_name,
                             "tool_input": tool_args,
                             "output": serialized_result[:500],
+                            "failure": failure,
                         }
                     )
 
@@ -285,8 +298,14 @@ class BaseChatProvider(ABC):
             },
         }
 
-    async def _execute_tool(self, tool_name: str, tool_args: dict[str, Any], tools: list[Any]) -> Any:
-        """Execute a tool by name with the given arguments."""
+    async def _execute_tool(
+        self, tool_name: str, tool_args: dict[str, Any], tools: list[Any]
+    ) -> tuple[Any, ToolFailureKind | None]:
+        """Execute a tool by name, returning its result and how it failed (None on success).
+
+        Invalid arguments or a tool name that is not bound are a validation failure; a tool that
+        raised or could not be called is an unknown one.
+        """
         for tool in tools:
             if tool.name == tool_name:
                 try:
@@ -297,7 +316,7 @@ class BaseChatProvider(ABC):
                             tool_args = validated.model_dump()
                         except (ValidationError, TypeError, ValueError) as e:
                             logger.warning(f"Tool '{tool_name}' argument validation failed: {e}")
-                            return f"Invalid arguments for tool '{tool_name}': {e}"
+                            return f"Invalid arguments for tool '{tool_name}': {e}", ToolFailureKind.VALIDATION
 
                     result = None
 
@@ -318,10 +337,10 @@ class BaseChatProvider(ABC):
                     elif hasattr(tool, "run"):
                         result = tool.run(**tool_args)
                     else:
-                        return f"Tool '{tool_name}' has no callable method"
+                        return f"Tool '{tool_name}' has no callable method", ToolFailureKind.UNKNOWN
 
                     logger.info(f"Tool '{tool_name}' executed successfully")
-                    return result
+                    return result, _reported_failure(result)
 
                 # A fail-closed capture refusal is the audit infrastructure
                 # failing, not the tool: it must surface as a hard failure,
@@ -335,9 +354,9 @@ class BaseChatProvider(ABC):
                 # legitimate errors from arbitrary third-party tool implementations.
                 except Exception as e:
                     logger.error(f"Error executing tool '{tool_name}': {e}", exc_info=True)
-                    return f"Error executing tool '{tool_name}': {str(e)}"
+                    return f"Error executing tool '{tool_name}': {str(e)}", ToolFailureKind.UNKNOWN
 
-        return f"Tool '{tool_name}' not found"
+        return f"Tool '{tool_name}' not found", ToolFailureKind.VALIDATION
 
     async def stream_message(
         self, messages: list[dict[str, Any]], max_tokens: int | None = None, tools: list[Any] | None = None
@@ -347,7 +366,8 @@ class BaseChatProvider(ABC):
         Yields typed event dicts:
           {"type": "token",     "content": str}   — text to display
           {"type": "tool_start","name": str}       — tool execution beginning
-          {"type": "tool_end",  "name": str}       — tool execution finished
+          {"type": "tool_end",  "name": str, "failure": ToolFailureKind | None}
+                                                   — tool execution finished, and how it failed
         """
         if tools:
             async for event in self._stream_message_with_tools(messages, tools):
@@ -406,9 +426,9 @@ class BaseChatProvider(ABC):
                     yield {"type": "tool_start", "name": tool_name}
                     logger.debug(f"Executing tool: {tool_name} with args: {tool_args}")
                     with ai_audit_context(source=AuditSource.CHAT, model=self._audit_model_info(response)):
-                        tool_result = await self._execute_tool(tool_name, tool_args, tools)
+                        tool_result, failure = await self._execute_tool(tool_name, tool_args, tools)
                     serialized_result = serialize_result(tool_result)
-                    yield {"type": "tool_end", "name": tool_name}
+                    yield {"type": "tool_end", "name": tool_name, "failure": failure}
 
                     langchain_messages.append(
                         ToolMessage(content=serialized_result, tool_call_id=tool_id, name=tool_name)
