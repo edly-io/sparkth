@@ -38,7 +38,7 @@ from sparkth.plugins.chat.conversation_title import extract_title_from_messages,
 from sparkth.plugins.chat.exceptions import RAGSearchError
 from sparkth.plugins.chat.lms_credentials import build_lms_credentials_message
 from sparkth.plugins.chat.messages import get_last_user_text
-from sparkth.plugins.chat.prompt import get_course_design_system_prompt
+from sparkth.plugins.chat.prompt import render_system_prompt
 from sparkth.plugins.chat.responsibilities import stored_responsibility
 from sparkth.plugins.chat.routes.utils import resolve_tools
 from sparkth.plugins.chat.routes.utils.live_turns import request_stop
@@ -196,7 +196,7 @@ async def chat_completion(
         responsibility=first_responsibility,
     )
     conversation_id = cast(int, conversation.id)
-    # The job this conversation does; a later turn is judged against it.
+    # The job this conversation does decides how a later turn is judged, its system prompt and tools.
     responsibility = stored_responsibility(conversation, jobs)
     turn_analytics = ChatTurnAnalytics(
         background_tasks=background_tasks,
@@ -312,7 +312,7 @@ async def chat_completion(
             provider_name=provider_name,
             api_key=api_key,
             model=model,
-            system_prompt=get_course_design_system_prompt(),
+            system_prompt=render_system_prompt(responsibility),
             temperature=request.temperature,
             max_tool_executions=config.max_tool_executions,
         )
@@ -331,7 +331,7 @@ async def chat_completion(
             request, db_messages, attached_documents, query_text, rag_search_required, provider
         )
 
-        tools = await resolve_tools(request, get_tool_registry())
+        tools = await resolve_tools(request, responsibility, get_tool_registry())
         if tools and request.include_system_tools_message:
             tool_descriptions = [f"- {tool.name}: {tool.description}" for tool in tools]
             tool_list_message = "You have access to the following tools:\n" + "\n".join(tool_descriptions)

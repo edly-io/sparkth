@@ -1,7 +1,11 @@
 import json
 from typing import Any
 
+from langchain_core.tools import BaseTool
+
+from sparkth.lib.chat.hooks import ChatResponsibility
 from sparkth.lib.log import get_logger
+from sparkth.plugins.chat.responsibilities import binds_category
 from sparkth.plugins.chat.schemas import ChatCompletionRequest
 from sparkth.plugins.chat.tools import ToolRegistry
 
@@ -10,22 +14,28 @@ logger = get_logger(__name__)
 
 async def resolve_tools(
     request: ChatCompletionRequest,
+    responsibility: ChatResponsibility,
     tool_registry: ToolRegistry,
-) -> list[Any] | None:
-    """Resolve the tool list from the request's tools field."""
+) -> list[BaseTool] | None:
+    """Resolve the request's tools, keeping only the categories the conversation's job binds.
+
+    The job filter applies to every request shape, so naming another job's tool explicitly
+    does not bind it either.
+    """
     if request.tools == "none" or request.tools == []:
         logger.info("Tools explicitly disabled")
         return None
     if request.tools == "*" or request.tools == "all":
         tools = tool_registry.get_all_tools()
-        logger.info("Auto-including all %d available tools (default)", len(tools))
-        return tools
-    if request.tools and isinstance(request.tools, list):
+    elif request.tools and isinstance(request.tools, list):
         tools = tool_registry.get_tools_by_names(request.tools)
         if not tools:
             logger.warning("No tools found for: %s", request.tools)
-        return tools
-    return None
+    else:
+        return None
+    bound = [tool for tool in tools if binds_category(responsibility, tool_registry.category_for(tool.name))]
+    logger.info("Bound %d of %d requested tools for responsibility %s", len(bound), len(tools), responsibility.name)
+    return bound
 
 
 def parse_metadata_list(model_metadata: str | None, key: str) -> list[dict[str, Any]] | None:

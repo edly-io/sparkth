@@ -1,12 +1,13 @@
 from datetime import datetime
 
 from sparkth.plugins.chat.constants import REFUSAL_MESSAGE
-from sparkth.plugins.chat.prompt import get_course_design_system_prompt
+from sparkth.plugins.chat.prompt import render_system_prompt
+from sparkth.plugins.chat.responsibilities import COURSE_DESIGN
 
 
 class TestLearningDesignSystemPrompt:
     def setup_method(self) -> None:
-        self.prompt = get_course_design_system_prompt()
+        self.prompt = render_system_prompt(COURSE_DESIGN)
 
     def test_response_boundaries_section_present(self) -> None:
         """Named for what it is: a fallback and response rules, not a second classifier."""
@@ -14,7 +15,7 @@ class TestLearningDesignSystemPrompt:
         assert "SCOPE & GUARDRAILS" not in self.prompt
 
     def test_scope_taxonomy_lives_in_the_classifier(self) -> None:
-        """The in/out-of-scope lists and their worked examples belong to the scope classifier's
+        """The job scopes and their worked examples belong to the scope classifier's
         prompt only; two copies drift, and the classifier's is the one that decides."""
         for duplicate in (
             "Allowed tasks:",
@@ -64,15 +65,15 @@ class TestSystemPromptLanguage:
         Asserts on the exact sentence rather than banning the phrase family: the
         directive legitimately talks about the language the user writes in, and a
         broader assertion would fail on a harmless rewording."""
-        assert "Write in the user's language" not in get_course_design_system_prompt()
+        assert "Write in the user's language" not in render_system_prompt(COURSE_DESIGN)
 
     def test_directive_covers_content_not_just_replies(self) -> None:
-        prompt = get_course_design_system_prompt()
+        prompt = render_system_prompt(COURSE_DESIGN)
         for part in ("assessment questions", "answer options", "feedback"):
             assert part in prompt
 
     def test_refusal_sentence_is_not_carved_out_of_the_directive(self) -> None:
         """The refusal follows the conversation like everything else the model writes,
         so no exception may re-appear telling the model to reproduce it verbatim."""
-        prompt = get_course_design_system_prompt()
+        prompt = render_system_prompt(COURSE_DESIGN)
         assert "reproduce it exactly as given" not in prompt
