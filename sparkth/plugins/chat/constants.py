@@ -22,6 +22,10 @@ RAG_CONTEXT_PROMPT = get_asset("rag_context_replacement_prompt.txt")
 MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT = get_asset("message_scope_classifier_system_prompt.txt")
 RAG_SEARCH_CLASSIFIER_SYSTEM_PROMPT = get_asset("rag_search_classifier_system_prompt.txt")
 LMS_RULES = get_asset("lms_rules_system_prompt.txt")
+COURSE_DESIGN_SCOPE = get_asset("course_design_scope.txt")
+
+# The job a conversation does when its row stores none.
+DEFAULT_RESPONSIBILITY = "course-design"
 
 # How many prior turns reach the scope classifier.
 MESSAGE_SCOPE_CLASSIFIER_CONVERSATION_HISTORY = 6
