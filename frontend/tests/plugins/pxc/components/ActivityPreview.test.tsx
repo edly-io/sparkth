@@ -73,15 +73,16 @@ describe("ActivityPreview", () => {
     expect(screen.getByTitle("Activity preview")).toBeInTheDocument();
   });
 
-  it("says the activity was not found on a 404", async () => {
+  it.each([404, 422])("says the activity was not found on a %i, with no retry", async (status) => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(getActivityEmbedUrl).mockRejectedValue(
-      new ApiRequestError({ message: "Activity not found", fieldErrors: {} }, 404),
+      new ApiRequestError({ message: "Activity not found", fieldErrors: {} }, status),
     );
 
     renderWithIntl(<ActivityPreview activityId={ACTIVITY_ID} />, pxcEn);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Activity not found");
+    expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
     expect(screen.queryByTitle("Activity preview")).not.toBeInTheDocument();
   });
 
@@ -91,9 +92,23 @@ describe("ActivityPreview", () => {
 
     renderWithIntl(<ActivityPreview activityId={ACTIVITY_ID} />, pxcEn);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Could not load the activity. Please try again.",
+    expect(await screen.findByText("Could not load the activity.")).toBeInTheDocument();
+  });
+
+  it("refetches the launch when Try again is clicked after a failure", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(getActivityEmbedUrl)
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValueOnce("/api/v1/pxc/embed?token=play");
+    renderWithIntl(<ActivityPreview activityId={ACTIVITY_ID} />, pxcEn);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByTitle("Activity preview")).toHaveAttribute(
+      "src",
+      "/api/v1/pxc/embed?token=play",
     );
+    expect(getActivityEmbedUrl).toHaveBeenCalledTimes(2);
   });
 
   it("announces the loading state while the launch is pending", () => {
