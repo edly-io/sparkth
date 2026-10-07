@@ -2,7 +2,7 @@
   "pxc": {
     "title": "Activités",
     "subtitle": "Les activités interactives que vous avez créées dans Composer",
-    "loadFailed": "Impossible de charger vos activités. Veuillez réessayer.",
+    "loadFailed": "Impossible de charger vos activités.",
     "emptyTitle": "Aucune activité pour le moment",
     "emptyBody": "Décrivez une activité dans Composer et l'assistant la crée pour vous.",
     "openCompose": "Ouvrir Composer",
@@ -15,8 +15,9 @@
     "studentView": "Étudiant",
     "authorView": "Auteur",
     "notFound": "Activité introuvable",
-    "launchFailed": "Impossible de charger l'activité. Veuillez réessayer.",
+    "launchFailed": "Impossible de charger l'activité.",
     "frameTitle": "Aperçu de l'activité",
-    "loadingActivity": "Chargement de l'activité"
+    "loadingActivity": "Chargement de l'activité",
+    "retry": "Réessayer"
   }
 }
