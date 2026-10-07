@@ -1,21 +1,12 @@
-import type { LoginActivityPoint } from "@/lib/analytics/types";
 import { addDays, parseIsoDate, toIsoDate, type IsoDate } from "@/lib/analytics/dates";
 
+// One bucket of a series: its start date (`YYYY-MM-DD`: the day itself, the Monday of its
+// week, or the 1st of its month) and its total. Kept structurally identical to the chart's
+// `BarChartDatum` so a series can be passed straight to a chart without the data layer
+// importing a UI type.
 export interface BucketCount {
   label: string;
   value: number;
-}
-
-export function buildDailySeries(
-  points: LoginActivityPoint[],
-  days: number,
-  now: Date,
-): BucketCount[] {
-  const to = toIsoDate(now);
-  return buildSeries(
-    points.map((p) => ({ day: p.day, value: p.login_count })),
-    { from: addDays(to, 1 - days), to, bucket: "day" },
-  );
 }
 
 export function summarize(series: BucketCount[]): {
