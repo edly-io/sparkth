@@ -92,6 +92,23 @@ def test_a_description_over_the_size_limit_is_refused() -> None:
         )
 
 
+@pytest.mark.parametrize("title", ["", " ", "\t\n"])
+def test_a_blank_title_is_refused(title: str) -> None:
+    with pytest.raises(ValidationError):
+        ActivitySource.model_validate(
+            {"title": title, "description": "d", "manifest": {}, "ui_js": "", "sandbox_js": ""}
+        )
+
+
+def test_a_manifest_over_the_size_limit_is_refused_before_any_build() -> None:
+    manifest = {"padding": "x" * PXC_MAX_SOURCE_CHARS}
+
+    with pytest.raises(ValidationError):
+        ActivitySource.model_validate(
+            {"title": "t", "description": "d", "manifest": manifest, "ui_js": "", "sandbox_js": ""}
+        )
+
+
 # Starts a grandchild that sleeps, records its pid in argv[1], then sleeps itself.
 SPAWNS_A_GRANDCHILD = (
     "import subprocess, sys, time\n"
