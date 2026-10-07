@@ -18,7 +18,8 @@ side needs. This one covers only the Sparkth side.
 ## What a working deployment needs
 
 1. **The sandbox binaries.** Each bundled activity's `sandbox.wasm` is compiled from its source.
-   The binaries are not in git, and an activity whose binary is missing fails at launch.
+   The binaries are not in git, and an activity whose binary is missing fails at launch. The
+   Docker image compiles them. To build them manually, run `make pxc.activities.build`.
 2. **A shared secret.** `PXC_LAUNCH_SECRET` here and `SPARKTH_PXC_LAUNCH_SECRET` on the Open edX
    side must hold the same value. A mismatch fails every learner's launch with a 401, logged
    here as a signature mismatch.
