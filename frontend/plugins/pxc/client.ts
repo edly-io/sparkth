@@ -1,7 +1,7 @@
 import { api, bearer, call, type Schema } from "@/lib/api";
 
 export type ActivitySummary = Schema<"ActivitySummary">;
-export type LaunchPermission = "play" | "edit";
+export type LaunchPermission = Schema<"PreviewPermission">;
 
 export async function listActivities(
   token: string,
