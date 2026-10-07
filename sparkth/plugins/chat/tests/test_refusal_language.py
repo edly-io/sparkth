@@ -29,7 +29,7 @@ from sparkth.lib.i18n import gettext
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
 from sparkth.lib.testing import AddTranslation
-from sparkth.plugins.chat.constants import REFUSAL_MESSAGE
+from sparkth.plugins.chat.constants import REDIRECT_MESSAGE, REFUSAL_MESSAGE
 from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.prompt import render_system_prompt
 from sparkth.plugins.chat.responsibilities import COURSE_DESIGN
@@ -151,6 +151,7 @@ class TestRefusalIsExtractable:
         }
 
         assert REFUSAL_MESSAGE in messages
+        assert REDIRECT_MESSAGE in messages
 
 
 class TestRefusalInTheSystemPrompt:
@@ -180,7 +181,7 @@ class TestRefusalAtTheStreamingRenderSite:
         wire even when the render site is translating correctly."""
         translation_catalog(REFUSAL_MESSAGE, SPANISH)
         with locale_context("es"):
-            chunks = [chunk async for chunk in stream_out_of_scope_refusal()]
+            chunks = [chunk async for chunk in stream_out_of_scope_refusal(REFUSAL_MESSAGE)]
         payload = json.loads(chunks[0].removeprefix("data: ").strip())
         assert payload["content"] == SPANISH
 

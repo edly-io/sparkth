@@ -139,7 +139,7 @@ class ChatAttachmentUnusable(AnalyticsEventSchema):
 class ScopeVerdict(StrEnum):
     """What the scope classifier decided about one turn.
 
-    ``IN_SCOPE`` means an offered job was chosen.
+    ``IN_SCOPE`` means an offered job was chosen, including one that will be redirected.
     """
 
     IN_SCOPE = "in_scope"

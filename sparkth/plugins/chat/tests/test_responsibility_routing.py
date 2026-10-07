@@ -1,9 +1,11 @@
 """A conversation does one job: chosen on its first message, followed on every later turn."""
 
+import logging
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID
 
+import pytest
 from httpx import AsyncClient
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -13,9 +15,9 @@ from sparkth.lib.chat.hooks import ChatResponsibility
 from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
-from sparkth.plugins.chat.constants import REFUSAL_MESSAGE
+from sparkth.plugins.chat.constants import REDIRECT_MESSAGE, REFUSAL_MESSAGE
 from sparkth.plugins.chat.exceptions import ClassifierError
-from sparkth.plugins.chat.models import Conversation
+from sparkth.plugins.chat.models import Conversation, Message
 from sparkth.plugins.chat.prompt import render_system_prompt
 from sparkth.plugins.chat.responsibilities import COURSE_DESIGN
 
@@ -96,6 +98,16 @@ async def _stored_job(session: AsyncSession, conversation_uuid: str) -> str | No
     return result.one().responsibility
 
 
+async def _last_assistant_text(session: AsyncSession, conversation_uuid: str) -> str:
+    result = await session.exec(
+        select(Message)
+        .join(Conversation, col(Message.conversation_id) == col(Conversation.id))
+        .where(col(Conversation.uuid) == UUID(conversation_uuid), col(Message.role) == "assistant")
+        .order_by(col(Message.id).desc())
+    )
+    return result.first().content  # type: ignore[union-attr]
+
+
 class TestTheFirstMessageChoosesTheJob:
     async def test_the_classified_job_is_stored_on_the_new_conversation(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_job: ChatResponsibility
@@ -137,6 +149,64 @@ class TestTheFirstMessageChoosesTheJob:
 
 
 class TestLaterTurnsFollowTheStoredJob:
+    async def test_another_job_is_redirected_without_reaching_the_model(
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_job: ChatResponsibility
+    ) -> None:
+        config_id = await _seed_llm_config(session, current_user.id or 1)
+        conversation_uuid = await _seed_conversation(session, current_user.id or 1, None)
+
+        with (
+            patch(
+                "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
+                return_value=_classifier_answering("stub-job"),
+            ),
+            patch("sparkth.plugins.chat.routes.completions.get_provider") as get_provider,
+        ):
+            response = await _turn(client, config_id, conversation_uuid)
+
+        assert response.json()["message"]["content"] == REDIRECT_MESSAGE
+        assert await _last_assistant_text(session, conversation_uuid) == REDIRECT_MESSAGE
+        get_provider.assert_not_called()
+
+    async def test_a_redirect_is_logged_with_both_jobs(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+        stub_job: ChatResponsibility,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        config_id = await _seed_llm_config(session, current_user.id or 1)
+        conversation_uuid = await _seed_conversation(session, current_user.id or 1, "stub-job")
+
+        with (
+            caplog.at_level(logging.INFO),
+            patch(
+                "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
+                return_value=_classifier_answering("course-design"),
+            ),
+        ):
+            await _turn(client, config_id, conversation_uuid)
+
+        message = next(r.getMessage() for r in caplog.records if "Redirected conversation" in r.getMessage())
+        assert conversation_uuid in message
+        assert "stub-job" in message
+        assert "course-design" in message
+
+    async def test_course_design_is_redirected_out_of_another_jobs_conversation(
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_job: ChatResponsibility
+    ) -> None:
+        config_id = await _seed_llm_config(session, current_user.id or 1)
+        conversation_uuid = await _seed_conversation(session, current_user.id or 1, "stub-job")
+
+        with patch(
+            "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
+            return_value=_classifier_answering("course-design"),
+        ):
+            response = await _turn(client, config_id, conversation_uuid)
+
+        assert response.json()["message"]["content"] == REDIRECT_MESSAGE
+
     async def test_no_job_is_refused(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_job: ChatResponsibility
     ) -> None:

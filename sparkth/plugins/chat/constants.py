@@ -37,6 +37,12 @@ REFUSAL_MESSAGE: str = gettext_noop(
     "I'm a course creation assistant and can only help with designing and building courses."
 )
 
+# Ends a turn that belongs to a different job than the conversation's. Generic, since chat
+# names no other job. Marked and rendered like REFUSAL_MESSAGE.
+REDIRECT_MESSAGE: str = gettext_noop(
+    "That request belongs to a different kind of conversation. Start a new conversation to work on it."
+)
+
 LLM_PROVIDER_API_ERRORS = (
     anthropic.AuthenticationError,
     anthropic.PermissionDeniedError,
