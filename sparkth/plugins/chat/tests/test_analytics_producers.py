@@ -13,7 +13,7 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from httpx import AsyncClient
@@ -28,6 +28,7 @@ from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
 from sparkth.plugins.chat.detached import join_live_tasks
 from sparkth.plugins.chat.models import Conversation, Message
+from sparkth.plugins.chat.routes.utils.live_turns import request_stop
 
 COMPLETIONS_URL = "/api/v1/chat/completions"
 
@@ -434,6 +435,7 @@ async def test_non_streaming_completion_emits_completion_served(
     assert served[0]["streamed"] is False
     assert served[0]["rag_used"] is False
     assert served[0]["tool_call_count"] == 0
+    assert served[0]["stopped_at"] is None
     assert served[0]["provider"] == "openai"
     assert served[0]["model"] == "gpt-4o"
     assert served[0]["conversation_id"] == str(response.json()["conversation_id"])
@@ -647,6 +649,7 @@ async def test_streaming_completion_emits_served_and_tool_invoked(
     assert served[0]["streamed"] is True
     assert served[0]["rag_used"] is False
     assert served[0]["tool_call_count"] == 2
+    assert served[0]["stopped_at"] is None
     assert served[0]["provider"] == "openai"
     assert served[0]["model"] == "gpt-4o"
 
@@ -692,7 +695,55 @@ async def test_streaming_completion_without_tools_emits_zero_count(
     served = await _events(analytics_session, "chat.completion_served")
     assert len(served) == 1
     assert served[0]["tool_call_count"] == 0
+    assert served[0]["stopped_at"] is None
     assert await _events(analytics_session, "chat.tool_invoked") == []
+
+
+async def test_a_turn_stopped_mid_stream_records_where_it_stopped(
+    client: AsyncClient,
+    current_user: User,
+    session: AsyncSession,
+    analytics_session: AsyncSession,
+) -> None:
+    config_id = await _seed_llm_config(session, current_user.id or 1)
+    turn_id = str(uuid4())
+
+    async def _stream(*args: Any, **kwargs: Any) -> Any:
+        yield {"type": "token", "content": "Half a "}
+        request_stop(turn_id, current_user.id or 1)
+        yield {"type": "token", "content": "sentence"}
+        yield {"type": "token", "content": " that never arrives"}
+
+    provider = _streaming_provider([])
+    provider.stream_message = _stream
+
+    with (
+        patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=provider),
+        patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_scope_cls,
+        patch("sparkth.plugins.chat.conversation_title.get_provider", return_value=_non_streaming_provider()),
+    ):
+        mock_scope_cls.return_value = _in_scope_classifier()
+        response = await client.post(
+            COMPLETIONS_URL,
+            json={
+                "llm_config_id": config_id,
+                "messages": [{"role": "user", "content": "Create a course on ethics"}],
+                "stream": True,
+                "tools": "none",
+                "turn_id": turn_id,
+            },
+        )
+        await join_live_tasks()
+
+    assert response.status_code == 200
+
+    rows = [
+        row
+        for row in (await analytics_session.execute(select(raw_events))).mappings().all()
+        if row["event_type"] == "chat.completion_served"
+    ]
+    assert [row["event_version"] for row in rows] == [1]
+    assert rows[0]["payload"]["stopped_at"] == "streaming"
 
 
 async def test_streaming_analytics_failure_does_not_corrupt_the_conversation(
