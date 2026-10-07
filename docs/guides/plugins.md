@@ -609,6 +609,30 @@ A job is offered only while its plugin is enabled system-wide. `name` is stored 
 conversation doing the job, so never rename it once shipped. If two plugins claim one name, the
 first by plugin name wins and the other is logged and ignored.
 
+### How chat uses a job
+
+Chat reads the enabled jobs on every request. It registers one of its own, `course-design`,
+which claims no tool categories.
+
+- **New conversation.** The first message is classified against the `scope` of every enabled
+  job, and the chosen name is stored on the conversation. A message that fits no job is
+  refused with a fixed sentence, and no conversation is written.
+- **Later turns.** A message for the stored job proceeds. A message for another registered job
+  gets a fixed redirect to start a new conversation, because a conversation never changes job.
+  A message that fits no job is refused. Both sentences are rendered in the interface
+  language.
+- **Classification failure.** The turn proceeds: as `course-design` on a first message, as the
+  stored job afterwards.
+- **Prompt and tools.** Each turn's system prompt is the stored job's `system_prompt`. Its
+  tools are those whose `MCP_TOOLS` category is in the job's `tool_categories`. A job with no
+  categories gets every category no other job claims, so claiming a category hides those tools
+  from course design. Categories claimed by a switched-off plugin's job stay hidden too.
+- **Stored job not enabled.** A conversation whose stored job is no longer enabled, because
+  its plugin was switched off or removed, runs as `course-design`.
+
+Plugin-specific knowledge belongs in a `<prefix>about` tool, not in a job's `system_prompt`;
+see the LMS `about` tool [above](#lms-plugins-automatic-credential-injection) for the convention.
+
 ## Reacting to a deleted document
 
 A plugin that stores rows referencing a core `Document` has to clear them when the document

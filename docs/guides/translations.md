@@ -48,9 +48,11 @@ The practical consequences worth knowing:
 The out-of-scope chat refusal is the one string that touches both. When the assistant
 model itself judges a request out of scope, it is handed the English source and told to
 send it in the conversation's language. A faster check can also catch the request first;
-a classification step may run there, but it only decides whether the request is in scope
-— the backend writes the refusal sentence itself rather than a model, so that refusal
-follows the interface language instead.
+a classification step may run there, but it only picks which registered chat job the
+request belongs to, or none — the backend writes the refusal sentence itself rather than a
+model, so that refusal follows the interface language instead. A request for a different
+job than the conversation's gets a second fixed sentence, the redirect to a new
+conversation, which also follows the interface language.
 
 ## Backend
 

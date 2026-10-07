@@ -53,10 +53,10 @@ which lists the signed-in author's own activities. An activity's `preview_url` i
 
 ## Building an activity from chat
 
-The plugin registers the `pxc-activity-builder` chat job with its system prompt, the scope the chat
-classifier reads, and the `pxc` tool category. A conversation routed to the job binds only the
-tools in that category. Its contract: the author describes an activity in plain words, and the
-agent builds it and replies with a preview link that opens the activity on the Sparkth
+The plugin registers the `pxc-activity-builder` chat job with its system prompt, its scope and
+the `pxc` tool category. A conversation routed to the job binds only the tools in that category.
+Its contract: the author describes an activity in plain words, and the agent builds it and
+replies with a preview link that opens the activity on the Sparkth
 `/dashboard/pxc` page.
 
 | Tool | Returns |
