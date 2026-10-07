@@ -9,6 +9,7 @@ import { Spinner } from "@/components/Spinner";
 import { ApiRequestError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { getActivityEmbedUrl, type LaunchPermission } from "@/plugins/pxc/client";
+import { RetryAlert } from "@/plugins/pxc/components/RetryAlert";
 
 const ACTIVITIES_PATH = "/dashboard/pxc";
 
@@ -24,8 +25,11 @@ function freshView(permission: LaunchPermission): LaunchView {
   return { permission, embedUrl: null, error: null };
 }
 
+// A malformed id fails path validation (422), which for the author is a missing activity too.
 function launchErrorOf(error: unknown): LaunchError {
-  return error instanceof ApiRequestError && error.status === 404 ? "notFound" : "failed";
+  return error instanceof ApiRequestError && (error.status === 404 || error.status === 422)
+    ? "notFound"
+    : "failed";
 }
 
 function PermissionToggle({
@@ -58,10 +62,16 @@ function PermissionToggle({
   );
 }
 
-function PreviewBody({ view }: { view: LaunchView }): React.JSX.Element {
+function PreviewBody({
+  view,
+  onRetry,
+}: {
+  view: LaunchView;
+  onRetry: () => void;
+}): React.JSX.Element {
   const t = useTranslations("pxc");
   if (view.error === "notFound") return <Alert severity="error">{t("notFound")}</Alert>;
-  if (view.error === "failed") return <Alert severity="error">{t("launchFailed")}</Alert>;
+  if (view.error === "failed") return <RetryAlert message={t("launchFailed")} onRetry={onRetry} />;
   if (view.embedUrl === null) {
     return (
       <div role="status" aria-label={t("loadingActivity")}>
@@ -85,6 +95,7 @@ export function ActivityPreview({ activityId }: { activityId: string }): React.J
   const { token } = useAuth();
   const t = useTranslations("pxc");
   const [view, setView] = useState<LaunchView>(freshView("play"));
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!token) return;
@@ -100,7 +111,12 @@ export function ActivityPreview({ activityId }: { activityId: string }): React.J
         setView((current) => ({ ...current, error: launchErrorOf(error) }));
       });
     return () => controller.abort();
-  }, [token, activityId, view.permission]);
+  }, [token, activityId, view.permission, reloadKey]);
+
+  const retry = (): void => {
+    setView((current) => freshView(current.permission));
+    setReloadKey((key) => key + 1);
+  };
 
   return (
     <div className="flex h-full flex-col">
@@ -118,7 +134,7 @@ export function ActivityPreview({ activityId }: { activityId: string }): React.J
         />
       </div>
       <div className="flex-1 overflow-y-auto p-6">
-        <PreviewBody view={view} />
+        <PreviewBody view={view} onRetry={retry} />
       </div>
     </div>
   );
