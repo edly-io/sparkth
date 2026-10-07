@@ -24,8 +24,8 @@ class PxcSettings(BaseSettings):
         extra="ignore",
     )
 
-    # Holds each activity's SQLite state file, its file storage under storage/ and generated
-    # activities under activities/<id>/.
+    # Holds each activity's SQLite state file, its file storage under storage/, generated
+    # activities under activities/<id>/ and build scratch under builds/.
     data_dir: Path = Path("./data/pxc")
 
     # Shared with the Open edX XBlock. The XBlock signs a launch token with it and this plugin
