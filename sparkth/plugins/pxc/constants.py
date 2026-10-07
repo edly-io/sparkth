@@ -34,7 +34,8 @@ PXC_PREVIEW_PLACEMENT = "preview"
 # keep their end, where the cause is; a manifest schema message keeps its start.
 PXC_BUILD_ERROR_LIMIT = int(os.getenv("PXC_BUILD_ERROR_LIMIT", "4000"))
 
-# The longest ui.js or sandbox.js an agent may submit, in characters, refused before any compile.
+# The longest ui.js, sandbox.js or manifest (as JSON) an agent may submit, in characters, refused
+# before any compile.
 PXC_MAX_SOURCE_CHARS = int(os.getenv("PXC_MAX_SOURCE_CHARS", "200000"))
 
 # Prefixed onto a Sparkth user id in a preview token, so it never equals an Open edX learner id.
