@@ -9,23 +9,17 @@ import { Spinner } from "@/components/Spinner";
 import { ApiRequestError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { getActivityEmbedUrl, type LaunchPermission } from "@/plugins/pxc/client";
+import { RetryAlert } from "@/plugins/pxc/components/RetryAlert";
 
 const ACTIVITIES_PATH = "/dashboard/pxc";
 
 type LaunchError = "notFound" | "failed";
 
-interface LaunchView {
-  permission: LaunchPermission;
-  embedUrl: string | null;
-  error: LaunchError | null;
-}
-
-function freshView(permission: LaunchPermission): LaunchView {
-  return { permission, embedUrl: null, error: null };
-}
-
+// A malformed id fails path validation (422), which for the author is a missing activity too.
 function launchErrorOf(error: unknown): LaunchError {
-  return error instanceof ApiRequestError && error.status === 404 ? "notFound" : "failed";
+  return error instanceof ApiRequestError && (error.status === 404 || error.status === 422)
+    ? "notFound"
+    : "failed";
 }
 
 function PermissionToggle({
@@ -58,11 +52,38 @@ function PermissionToggle({
   );
 }
 
-function PreviewBody({ view }: { view: LaunchView }): React.JSX.Element {
+// One launch of the activity. The parent keys it by permission and attempt, so a toggle or a
+// retry mounts a fresh launch.
+function LaunchFrame({
+  activityId,
+  permission,
+  onRetry,
+}: {
+  activityId: string;
+  permission: LaunchPermission;
+  onRetry: () => void;
+}): React.JSX.Element {
+  const { token } = useAuth();
   const t = useTranslations("pxc");
-  if (view.error === "notFound") return <Alert severity="error">{t("notFound")}</Alert>;
-  if (view.error === "failed") return <Alert severity="error">{t("launchFailed")}</Alert>;
-  if (view.embedUrl === null) {
+  const [embedUrl, setEmbedUrl] = useState<string | null>(null);
+  const [error, setError] = useState<LaunchError | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    const controller = new AbortController();
+    getActivityEmbedUrl(token, activityId, permission, controller.signal)
+      .then(setEmbedUrl)
+      .catch((launchError: unknown) => {
+        if (controller.signal.aborted) return;
+        console.error(`pxc: failed to launch activity ${activityId}`, launchError);
+        setError(launchErrorOf(launchError));
+      });
+    return () => controller.abort();
+  }, [token, activityId, permission]);
+
+  if (error === "notFound") return <Alert severity="error">{t("notFound")}</Alert>;
+  if (error === "failed") return <RetryAlert message={t("launchFailed")} onRetry={onRetry} />;
+  if (embedUrl === null) {
     return (
       <div role="status" aria-label={t("loadingActivity")}>
         <Spinner className="mx-auto" />
@@ -72,7 +93,7 @@ function PreviewBody({ view }: { view: LaunchView }): React.JSX.Element {
   // No allow-same-origin: activity code runs in an opaque origin and cannot reach Sparkth.
   return (
     <iframe
-      src={view.embedUrl}
+      src={embedUrl}
       title={t("frameTitle")}
       sandbox="allow-scripts allow-forms"
       className="h-full min-h-[600px] w-full rounded-lg border border-border bg-white"
@@ -82,25 +103,9 @@ function PreviewBody({ view }: { view: LaunchView }): React.JSX.Element {
 
 // One activity iframed under the chosen permission; the parent keys it by activity id.
 export function ActivityPreview({ activityId }: { activityId: string }): React.JSX.Element {
-  const { token } = useAuth();
   const t = useTranslations("pxc");
-  const [view, setView] = useState<LaunchView>(freshView("play"));
-
-  useEffect(() => {
-    if (!token) return;
-    const controller = new AbortController();
-    getActivityEmbedUrl(token, activityId, view.permission, controller.signal)
-      .then((embedUrl) => {
-        // A launch that lands after a toggle belongs to the old view.
-        if (!controller.signal.aborted) setView((current) => ({ ...current, embedUrl }));
-      })
-      .catch((error: unknown) => {
-        if (controller.signal.aborted) return;
-        console.error(`pxc: failed to launch activity ${activityId}`, error);
-        setView((current) => ({ ...current, error: launchErrorOf(error) }));
-      });
-    return () => controller.abort();
-  }, [token, activityId, view.permission]);
+  const [permission, setPermission] = useState<LaunchPermission>("play");
+  const [attempt, setAttempt] = useState(0);
 
   return (
     <div className="flex h-full flex-col">
@@ -108,17 +113,15 @@ export function ActivityPreview({ activityId }: { activityId: string }): React.J
         <Link href={ACTIVITIES_PATH} className="text-sm text-primary-600 hover:underline">
           {t("backToList")}
         </Link>
-        <PermissionToggle
-          value={view.permission}
-          onChange={(permission) =>
-            setView((current) =>
-              current.permission === permission ? current : freshView(permission),
-            )
-          }
-        />
+        <PermissionToggle value={permission} onChange={setPermission} />
       </div>
       <div className="flex-1 overflow-y-auto p-6">
-        <PreviewBody view={view} />
+        <LaunchFrame
+          key={`${permission}:${attempt}`}
+          activityId={activityId}
+          permission={permission}
+          onRetry={() => setAttempt((count) => count + 1)}
+        />
       </div>
     </div>
   );
