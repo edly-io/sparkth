@@ -43,12 +43,14 @@ class ChatMessageSent(AnalyticsEventSchema):
 
 
 class ChatCompletionServed(AnalyticsEventSchema):
-    """A completion the LLM actually produced was served.
+    """A turn's reply was served, including one the author stopped before or during the reply.
 
     Not every delivered reply emits this: the RAG-no-results and streaming-error branches
     reply without an LLM completion.
     ``rag_used`` means retrieval was *decided on*, not that it returned anything.
     ``tool_call_count`` counts attempts.
+    ``stopped_at`` is where the author's stop landed, or ``None`` for a turn that ran to the
+    end; a ``before_model`` stop persists an empty reply.
     """
 
     event_type = "chat.completion_served"
@@ -60,6 +62,7 @@ class ChatCompletionServed(AnalyticsEventSchema):
     streamed: bool
     rag_used: bool
     tool_call_count: NonNegativeInt
+    stopped_at: StopPoint | None
 
 
 class ChatToolInvoked(AnalyticsEventSchema):
@@ -186,6 +189,16 @@ class ChatRagSearchClassified(AnalyticsEventSchema):
     requires_search: bool
     document_count: NonNegativeInt
     documents_with_unreadable_structure: NonNegativeInt
+
+
+class StopPoint(StrEnum):
+    """Where in a turn the author's stop landed.
+
+    A closed set on purpose: it names a phase the system chose, never anything the author typed.
+    """
+
+    BEFORE_MODEL = "before_model"
+    STREAMING = "streaming"
 
 
 class TurnFailureCause(StrEnum):
