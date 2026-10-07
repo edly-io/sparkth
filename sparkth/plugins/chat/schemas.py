@@ -205,6 +205,14 @@ class MessageScopeVerdict(ClassifierVerdict):
         ),
     )
 
+    @field_validator("responsibility")
+    @classmethod
+    def read_text_null_as_none(cls, v: str | None) -> str | None:
+        """Read a blank, ``"null"`` or ``"none"`` answer as no job, since some providers spell null as text."""
+        if v is None or v.strip().lower() in {"", "null", "none"}:
+            return None
+        return v
+
 
 class DocumentHeadings(BaseModel):
     """One attached document as the search classifier sees it: a name and its section paths.
