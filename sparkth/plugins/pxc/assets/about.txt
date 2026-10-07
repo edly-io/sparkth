@@ -35,8 +35,8 @@ MANIFEST RULES
   lessons or courses.
 - Every action and event declares the JSON schema of its value. An action whose value does not
   match its schema is rejected before the sandbox sees it.
-- ui.js and sandbox.js are each capped at {max_source_chars} characters; longer files are
-  rejected, so keep them compact.
+- ui.js, sandbox.js and the manifest (as JSON) are each capped at {max_source_chars}
+  characters; longer ones are rejected, so keep them compact.
 - Name the configuration action "config.save". Its value is an object holding every field the
   author can change.
 - Declare one event "fields.change.<field>" per configurable field, with that field's type, so
