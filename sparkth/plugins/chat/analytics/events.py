@@ -10,6 +10,7 @@ from typing import Literal
 from pydantic import NonNegativeInt
 
 from sparkth.lib.analytics import AnalyticsEventSchema
+from sparkth.lib.audit import ToolFailureKind
 
 
 class ChatConversationStarted(AnalyticsEventSchema):
@@ -68,10 +69,21 @@ class ChatCompletionServed(AnalyticsEventSchema):
     stopped_at: StopPoint | None
 
 
+class ToolOutcome(StrEnum):
+    """Whether a tool call did what it was asked."""
+
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
 class ChatToolInvoked(AnalyticsEventSchema):
     """One tool execution — the authoring-output event.
 
-    Counts attempts, so it is not proof the authoring action succeeded.
+    Counts attempts; ``outcome`` says whether the call succeeded. ``failure_kind`` is
+    ``None`` exactly when it did; a tool that raised is ``unknown``.
+    Fields added after the event shipped stay on v1 because they are additive: rows written
+    earlier lack the key. Bump the version only when an existing field's meaning or shape
+    changes.
     """
 
     event_type = "chat.tool_invoked"
@@ -80,6 +92,8 @@ class ChatToolInvoked(AnalyticsEventSchema):
     conversation_id: str
     tool_name: str
     tool_category: str
+    outcome: ToolOutcome
+    failure_kind: ToolFailureKind | None
 
 
 class ChatDocumentAttached(AnalyticsEventSchema):

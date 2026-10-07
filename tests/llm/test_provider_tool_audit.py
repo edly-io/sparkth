@@ -13,7 +13,7 @@ from sqlalchemy.exc import OperationalError
 from sparkth.lib.audit import audited_tool
 from sparkth.lib.audit.exceptions import AuditCaptureError
 from sparkth.lib.testing import AuditEventsFetcher
-from sparkth.llm.providers import AnthropicProvider, GoogleProvider, OpenAIProvider
+from sparkth.llm.providers import AnthropicProvider, GoogleProvider, OpenAIProvider, _reported_failure
 
 
 class FakeToolCallingLLM:
@@ -118,3 +118,7 @@ def test_every_provider_declares_its_provider_name() -> None:
     assert OpenAIProvider.provider_name == "openai"
     assert AnthropicProvider.provider_name == "anthropic"
     assert GoogleProvider.provider_name == "google"
+
+
+def test_deeply_nested_json_result_is_not_classified_as_a_failure() -> None:
+    assert _reported_failure("[" * 100_000 + "]" * 100_000) is None

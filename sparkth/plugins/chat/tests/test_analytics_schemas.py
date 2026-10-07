@@ -16,6 +16,7 @@ from fastapi import BackgroundTasks
 from pydantic import ValidationError
 
 from sparkth.lib.analytics import AnalyticsEventSchema, get_event_schema
+from sparkth.lib.audit import ToolFailureKind
 from sparkth.plugins.chat.analytics import (
     AnalyticsAttribution,
     ChatCompletionServed,
@@ -23,9 +24,11 @@ from sparkth.plugins.chat.analytics import (
     ChatMessageSent,
     ChatToolInvoked,
     ChatTurnAnalytics,
+    ExecutedTool,
     StopPoint,
+    ToolOutcome,
     emit_completion,
-    tool_names,
+    executed_tools_from,
 )
 
 ALL_SCHEMAS = [
@@ -63,7 +66,13 @@ VALID_PAYLOADS: list[tuple[type[AnalyticsEventSchema], dict[str, Any]]] = [
     ),
     (
         ChatToolInvoked,
-        {"conversation_id": "abc", "tool_name": "openedx_create_xblock", "tool_category": "openedx-course"},
+        {
+            "conversation_id": "abc",
+            "tool_name": "openedx_create_xblock",
+            "tool_category": "openedx-course",
+            "outcome": "succeeded",
+            "failure_kind": None,
+        },
     ),
 ]
 
@@ -118,9 +127,12 @@ def test_tool_invoked_payload() -> None:
         conversation_id="abc",
         tool_name="openedx_create_xblock",
         tool_category="openedx-course",
+        outcome=ToolOutcome.FAILED,
+        failure_kind=ToolFailureKind.AUTH,
     )
     assert event.tool_name == "openedx_create_xblock"
     assert event.tool_category == "openedx-course"
+    assert event.model_dump(mode="json")["failure_kind"] == "auth"
 
 
 @pytest.mark.parametrize(("schema", "payload"), VALID_PAYLOADS, ids=[schema.event_type for schema, _ in VALID_PAYLOADS])
@@ -161,6 +173,24 @@ def _completion_payload(**overrides: Any) -> dict[str, Any]:
         "stopped_at": None,
         **overrides,
     }
+
+
+@pytest.mark.parametrize("field", ["outcome", "failure_kind"])
+def test_tool_invoked_requires_its_outcome_fields(field: str) -> None:
+    """New writes must carry the keys, so a missing one is a producer bug."""
+    payload: dict[str, Any] = {
+        "conversation_id": "abc",
+        "tool_name": "openedx_create_xblock",
+        "tool_category": "openedx-course",
+        "outcome": "succeeded",
+        "failure_kind": None,
+    }
+    del payload[field]
+
+    with pytest.raises(ValidationError) as exc_info:
+        ChatToolInvoked(**payload)
+
+    assert [error["type"] for error in exc_info.value.errors()] == ["missing"]
 
 
 def test_completion_served_requires_stopped_at() -> None:
@@ -206,30 +236,39 @@ def test_attribution_is_frozen() -> None:
         attribution.provider = "changed"  # type: ignore[misc]
 
 
-class TestToolNames:
+class TestExecutedToolsFrom:
     """One normaliser for both completion paths' differently-shaped records."""
 
     def test_reads_streaming_shape(self) -> None:
-        records = [{"name": "openedx_create_xblock"}, {"name": "canvas_create_quiz"}]
-        assert tool_names(records) == ["openedx_create_xblock", "canvas_create_quiz"]
+        records: list[dict[str, Any]] = [
+            {"name": "openedx_create_xblock", "failure": None},
+            {"name": "canvas_create_quiz", "failure": ToolFailureKind.AUTH},
+        ]
+        assert executed_tools_from(records) == [
+            ExecutedTool("openedx_create_xblock", None),
+            ExecutedTool("canvas_create_quiz", ToolFailureKind.AUTH),
+        ]
 
     def test_reads_non_streaming_shape(self) -> None:
         records = [
             {"tool": "openedx_create_xblock", "tool_input": {"a": 1}, "output": "created"},
-            {"tool": "canvas_create_quiz", "tool_input": {}, "output": "ok"},
+            {"tool": "canvas_create_quiz", "tool_input": {}, "output": "ok", "failure": ToolFailureKind.NOT_FOUND},
         ]
-        assert tool_names(records) == ["openedx_create_xblock", "canvas_create_quiz"]
+        assert executed_tools_from(records) == [
+            ExecutedTool("openedx_create_xblock", None),
+            ExecutedTool("canvas_create_quiz", ToolFailureKind.NOT_FOUND),
+        ]
 
     def test_returns_only_names_never_inputs_or_outputs(self) -> None:
         """tool_input and output can hold course content — they must never be read."""
         records = [{"tool": "openedx_create_xblock", "tool_input": {"secret": "pii"}, "output": "learner data"}]
-        assert tool_names(records) == ["openedx_create_xblock"]
+        assert executed_tools_from(records) == [ExecutedTool("openedx_create_xblock", None)]
 
     def test_empty_list_yields_no_names(self) -> None:
-        assert tool_names([]) == []
+        assert executed_tools_from([]) == []
 
     def test_records_without_a_usable_name_are_dropped(self) -> None:
-        assert tool_names([{"tool_input": {}}, {"name": ""}, {"name": None}]) == []
+        assert executed_tools_from([{"tool_input": {}}, {"name": ""}, {"name": None}]) == []
 
     def test_a_dropped_record_is_logged_with_keys_only(self, caplog: pytest.LogCaptureFixture) -> None:
         """A silent drop would zero tool analytics with no trace if a path renamed its key.
@@ -238,7 +277,7 @@ class TestToolNames:
         """
         record = {"tool_input": {"secret": "pii"}, "output": "learner data"}
         with caplog.at_level(logging.WARNING, logger="sparkth.plugins.chat.analytics.utils"):
-            assert tool_names([record]) == []
+            assert executed_tools_from([record]) == []
 
         assert "tool_input" in caplog.text
         assert "pii" not in caplog.text
@@ -247,7 +286,7 @@ class TestToolNames:
     def test_preserves_order_and_duplicates(self) -> None:
         """Two executions of the same tool are two authoring actions, not one."""
         records = [{"name": "canvas_create_question"}, {"name": "canvas_create_question"}]
-        assert tool_names(records) == ["canvas_create_question", "canvas_create_question"]
+        assert executed_tools_from(records) == [ExecutedTool("canvas_create_question", None)] * 2
 
 
 MOMENT = datetime(2026, 9, 18, 12, 30, tzinfo=timezone.utc)
@@ -326,7 +365,10 @@ class TestSchedulingATurnEvent:
                 model="claude-sonnet-5",
                 rag_used=True,
                 streamed=True,
-                executed_tools=["openedx_create_xblock", "canvas_create_quiz"],
+                executed_tools=[
+                    ExecutedTool("openedx_create_xblock", None),
+                    ExecutedTool("canvas_create_quiz", ToolFailureKind.UPSTREAM),
+                ],
                 occurred_at=MOMENT,
             )
 
@@ -354,6 +396,10 @@ class TestSchedulingATurnEvent:
             "canvas_create_quiz",
         ]
         assert landed[1].payload["tool_category"] == "openedx-course"
+        assert [(event.payload["outcome"], event.payload["failure_kind"]) for event in landed[1:]] == [
+            ("succeeded", None),
+            ("failed", "upstream"),
+        ]
         # The tools ran during the completion and neither path times them individually,
         # so the whole group shares the moment the reply was delivered.
         assert {event.occurred_at for event in landed} == {MOMENT}

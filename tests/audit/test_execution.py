@@ -11,7 +11,7 @@ from sqlalchemy.exc import OperationalError
 
 from sparkth.core.audit.constants import REDACTED, TOOL_INVOCATION_TARGET_TYPE
 from sparkth.core.audit.execution import AsyncToolHandler
-from sparkth.lib.audit import audited_tool, record_event_now
+from sparkth.lib.audit import ToolFailureKind, audited_tool, record_event_now, tool_failure
 from sparkth.lib.audit.context import AuditSource, ai_audit_context
 from sparkth.lib.audit.events import (
     AuditModelInfo,
@@ -274,3 +274,27 @@ def test_wrapper_preserves_handler_identity_and_schema() -> None:
 def test_wrapping_twice_is_idempotent() -> None:
     wrapped = audited_tool(sample_tool)
     assert audited_tool(wrapped) is wrapped
+
+
+@pytest.mark.parametrize(
+    ("result", "expected"),
+    [
+        ({"error": {"status_code": 401, "message": "x"}}, ToolFailureKind.AUTH),
+        ({"error": {"status_code": 403, "message": "x"}}, ToolFailureKind.AUTH),
+        ({"error": {"status_code": 404, "message": "x"}}, ToolFailureKind.NOT_FOUND),
+        ({"error": {"status_code": 400, "message": "x"}}, ToolFailureKind.VALIDATION),
+        ({"error": {"status_code": 409, "message": "x"}}, ToolFailureKind.VALIDATION),
+        ({"error": {"status_code": 422, "message": "x"}}, ToolFailureKind.VALIDATION),
+        ({"error": {"status_code": 500, "message": "x"}}, ToolFailureKind.UPSTREAM),
+        ({"error": {"status_code": 502, "message": "x"}}, ToolFailureKind.UPSTREAM),
+        ({"error": {"status_code": 200, "message": "unparseable body"}}, ToolFailureKind.UPSTREAM),
+        ({"error": {"status_code": 429, "message": "x"}}, ToolFailureKind.UNKNOWN),
+        ({"error": {"message": "x"}}, ToolFailureKind.UNKNOWN),
+        ({"error": "x"}, ToolFailureKind.UNKNOWN),
+        ({"course_id": 5, "title": "Data Privacy"}, None),
+        ("plain text", None),
+        (None, None),
+    ],
+)
+def test_tool_failure_classifies_the_returned_error(result: object, expected: ToolFailureKind | None) -> None:
+    assert tool_failure(result) == expected

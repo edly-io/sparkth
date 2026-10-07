@@ -27,8 +27,8 @@ from sparkth.plugins.chat.analytics import (
     ChatClassifierAnalytics,
     ChatTurnAnalytics,
     TurnFailureCause,
+    executed_tools_from,
     record_turn_failed,
-    tool_names,
 )
 from sparkth.plugins.chat.classifiers import MessageScopeClassifier, RAGSearchClassifier
 from sparkth.plugins.chat.config import ChatSettings, get_chat_settings
@@ -389,7 +389,7 @@ async def chat_completion(
             turn_analytics.schedule_completion(
                 rag_used=rag_search_required,
                 streamed=False,
-                executed_tools=tool_names(executions),
+                executed_tools=executed_tools_from(executions),
                 occurred_at=assistant_message.created_at,
             )
 
