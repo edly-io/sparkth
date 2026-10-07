@@ -2,7 +2,7 @@
   "pxc": {
     "title": "Actividades",
     "subtitle": "Actividades interactivas que creaste en Componer",
-    "loadFailed": "No se pudieron cargar tus actividades. Inténtalo de nuevo.",
+    "loadFailed": "No se pudieron cargar tus actividades.",
     "emptyTitle": "Aún no hay actividades",
     "emptyBody": "Describe una actividad en Componer y el asistente la creará por ti.",
     "openCompose": "Abrir Componer",
@@ -15,8 +15,9 @@
     "studentView": "Estudiante",
     "authorView": "Autor",
     "notFound": "Actividad no encontrada",
-    "launchFailed": "No se pudo cargar la actividad. Inténtalo de nuevo.",
+    "launchFailed": "No se pudo cargar la actividad.",
     "frameTitle": "Vista previa de la actividad",
-    "loadingActivity": "Cargando la actividad"
+    "loadingActivity": "Cargando la actividad",
+    "retry": "Reintentar"
   }
 }

@@ -74,7 +74,7 @@ PXC_ACTIVITY_BUILDER = ChatResponsibility(
 
 class PxcPlugin(SparkthPlugin):
     """Hosts PXC activities, builds new ones from chat, serves them to learners inside another
-    LMS's course, and ships the authors' Activities page at ``/dashboard/pxc``."""
+    LMS's course."""
 
     def __init__(self) -> None:
         super().__init__("pxc")

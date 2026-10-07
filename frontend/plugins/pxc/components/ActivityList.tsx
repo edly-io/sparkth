@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
-import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Spinner } from "@/components/Spinner";
 import { useAuth } from "@/lib/auth-context";
 import { listActivities, type ActivitySummary } from "@/plugins/pxc/client";
+import { RetryAlert } from "@/plugins/pxc/components/RetryAlert";
 
 const COMPOSE_PATH = "/dashboard/chat";
 
@@ -51,12 +51,14 @@ function EmptyState(): React.JSX.Element {
 function ActivityListBody({
   activities,
   failed,
+  onRetry,
 }: {
   activities: ActivitySummary[] | null;
   failed: boolean;
+  onRetry: () => void;
 }): React.JSX.Element {
   const t = useTranslations("pxc");
-  if (failed) return <Alert severity="error">{t("loadFailed")}</Alert>;
+  if (failed) return <RetryAlert message={t("loadFailed")} onRetry={onRetry} />;
   if (activities === null) {
     return (
       <div role="status" aria-label={t("loading")}>
@@ -82,6 +84,7 @@ export function ActivityList(): React.JSX.Element {
   const t = useTranslations("pxc");
   const [activities, setActivities] = useState<ActivitySummary[] | null>(null);
   const [failed, setFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!token) return;
@@ -94,7 +97,12 @@ export function ActivityList(): React.JSX.Element {
         setFailed(true);
       });
     return () => controller.abort();
-  }, [token]);
+  }, [token, reloadKey]);
+
+  const retry = (): void => {
+    setFailed(false);
+    setReloadKey((key) => key + 1);
+  };
 
   return (
     <div className="flex h-full flex-col">
@@ -103,7 +111,7 @@ export function ActivityList(): React.JSX.Element {
         <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
       </div>
       <div className="flex-1 overflow-y-auto p-6">
-        <ActivityListBody activities={activities} failed={failed} />
+        <ActivityListBody activities={activities} failed={failed} onRetry={retry} />
       </div>
     </div>
   );
