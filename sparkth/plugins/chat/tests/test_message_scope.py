@@ -172,6 +172,12 @@ class TestTheJobCallersActOn:
         )
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("answer", ["null", "None", "", "  "])
+    async def test_a_text_no_job_answer_returns_none(self, answer: str) -> None:
+        """A provider can spell null as text; that is still no job, not an unknown job name."""
+        assert await _classifier_with(_chain_choosing(answer)).responsibility_for("capital of France?") is None
+
+    @pytest.mark.asyncio
     async def test_a_job_not_offered_returns_the_fallback(self) -> None:
         """A name the model made up, or a disabled plugin's job, is a malformed answer, and a
         refusal is never inferred from one."""
