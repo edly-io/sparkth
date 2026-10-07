@@ -185,6 +185,9 @@ Do not hand-write audit code in a tool. Three seams record every execution:
 - The FastMCP `ToolCallAuditMiddleware` records protocol-level failures that never reach a
   handler (unknown tool, invalid input).
 
+A tool that returns `{"error": ...}` instead of raising is recorded as `tool.failed` (its `error_detail`
+is the failure kind and status code, never the message). The RAG agent's callback seam does not.
+
 `tests/audit/test_capture_completeness.py` pins the set of modules allowed to construct executable
 tools. A new execution path that fails it needs one of the seams above, not an exemption.
 

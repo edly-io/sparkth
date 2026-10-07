@@ -432,7 +432,7 @@ class ToolInvokedAuditEvent(AIActionAuditEvent):
 @AUDIT_EVENTS.register
 @dataclass(frozen=True, slots=True, kw_only=True)
 class ToolCompletedAuditEvent(AIActionAuditEvent):
-    """An AI tool call whose handler returned normally."""
+    """An AI tool call whose handler returned a result that is not an ``{"error": ...}`` report."""
 
     event_type: ClassVar[str] = "tool.completed"
 
@@ -440,8 +440,9 @@ class ToolCompletedAuditEvent(AIActionAuditEvent):
 @AUDIT_EVENTS.register
 @dataclass(frozen=True, slots=True, kw_only=True)
 class ToolFailedAuditEvent(AIActionAuditEvent):
-    """An AI tool call whose handler raised, or that failed before reaching
-    a handler (protocol-level: unknown tool, input validation)."""
+    """An AI tool call whose handler raised or returned an ``{"error": ...}`` report,
+    or that failed before reaching a handler (protocol-level: unknown tool,
+    input validation)."""
 
     event_type: ClassVar[str] = "tool.failed"
 

@@ -77,6 +77,55 @@ async def test_failure_records_failed_event_and_reraises(audit_events: AuditEven
     assert invoked.target_id == failed.target_id
 
 
+async def test_returned_error_records_failed_event_and_returns_result(audit_events: AuditEventsFetcher) -> None:
+    returned = {"error": {"status_code": 401, "message": "secret course title"}}
+
+    async def erroring_tool() -> dict[str, Any]:
+        """Returns an error."""
+        return returned
+
+    result = await audited_tool(erroring_tool)()
+
+    assert result is returned
+    invoked, failed = await audit_events()
+    assert (failed.category, failed.action) == ("tool", "failed")
+    assert failed.outcome == "failure"
+    assert failed.error_detail == "returned error: auth (status 401)"
+    assert "secret course title" not in str(failed.error_detail)
+    assert invoked.target_id == failed.target_id
+
+
+async def test_returned_error_without_status_code_records_the_kind_only(audit_events: AuditEventsFetcher) -> None:
+    async def erroring_tool() -> dict[str, Any]:
+        """Returns an error."""
+        return {"error": "nope"}
+
+    await audited_tool(erroring_tool)()
+
+    _, failed = await audit_events()
+    assert failed.error_detail == "returned error: unknown"
+
+
+async def test_returned_error_write_failure_raises_audit_capture_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    writes = 0
+
+    async def flaky_write(event: Any) -> Any:
+        nonlocal writes
+        writes += 1
+        if writes > 1:
+            raise OperationalError("INSERT", {}, Exception("audit db down"))
+        return None
+
+    monkeypatch.setattr("sparkth.core.audit.execution.record_event_now", flaky_write)
+
+    async def erroring_tool() -> dict[str, Any]:
+        """Returns an error."""
+        return {"error": {"status_code": 500}}
+
+    with pytest.raises(AuditCaptureError):
+        await audited_tool(erroring_tool)()
+
+
 async def test_invoked_write_failure_refuses_execution(monkeypatch: pytest.MonkeyPatch) -> None:
     executed = False
 

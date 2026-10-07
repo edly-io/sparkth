@@ -6,16 +6,18 @@ construction and the FastMCP server's directly-registered tools wrap
 explicitly. Tools executed through LangChain (the RAG search agent's) carry
 no wrapping; the process-global callback handler in
 :mod:`sparkth.core.audit.callbacks` records those runs instead. Failure
-semantics are fail-closed (NIST AU-5): a
-``tool.invoked`` event is committed *before* the handler runs, so a write
-failure refuses the call (surfaced as the distinct
-:class:`~sparkth.core.audit.exceptions.AuditCaptureError` so execution seams
-never mistake it for a tool error) and a crash mid-execution still leaves the
-invocation on record; a second ``tool.completed`` / ``tool.failed`` event
-records the outcome. A ``tool.failed`` write that itself fails is logged and
-suppressed: the invocation is already on record, so the handler's own
-exception surfaces and the missing outcome event is the abnormal-termination
-signal. Corrections are new events, never updates.
+semantics are fail-closed (NIST AU-5): a ``tool.invoked`` event is committed
+*before* the handler runs, so a write failure refuses the call (surfaced as the
+distinct :class:`~sparkth.core.audit.exceptions.AuditCaptureError` so execution
+seams never mistake it for a tool error) and a crash mid-execution still leaves
+the invocation on record; a second ``tool.completed`` / ``tool.failed`` event
+records the outcome (``tool.failed`` also when the handler returns an error
+instead of raising, see :func:`tool_failure`). When the handler raised, a
+``tool.failed`` write that itself fails is logged and suppressed: the
+invocation is already on record, so the handler's own exception surfaces and
+the missing outcome event is the abnormal-termination signal. When the handler
+returned, a failed outcome write (``tool.completed`` or ``tool.failed``) raises
+:class:`~sparkth.core.audit.exceptions.AuditCaptureError`. Corrections are new events, never updates.
 
 :func:`tool_failure` names the failure a handler reported by returning
 ``{"error": ...}`` rather than raising.
@@ -80,6 +82,11 @@ def audited_tool(handler: AsyncToolHandler) -> AsyncToolHandler:
     actor come from the audit context as usual. Already-wrapped handlers are
     returned unchanged, so seams can wrap defensively.
 
+    A handler that returns ``{"error": ...}`` (see :func:`tool_failure`) is
+    recorded as ``tool.failed`` with a system-authored detail (the failure
+    kind and status code, never the error's message); its result is returned
+    unchanged.
+
     Raises:
         TypeError: ``handler`` is not a coroutine function. Every seam
             (FastMCP, the chat tool wrappers, the RAG agent) awaits the
@@ -90,9 +97,9 @@ def audited_tool(handler: AsyncToolHandler) -> AsyncToolHandler:
     Raises (from the returned wrapper):
         AuditCaptureError: The ``tool.invoked`` write failed and the handler
             was **not** executed (fail-closed refusal), or the handler
-            succeeded but the ``tool.completed`` write failed (the outcome
-            cannot be attested). The failed storage error is chained as the
-            cause.
+            returned but the ``tool.completed`` / ``tool.failed`` write for its
+            result failed (the outcome cannot be attested). The failed storage
+            error is chained as the cause.
     """
     if getattr(handler, "__audit_wrapped__", False):
         return handler
@@ -138,13 +145,23 @@ def audited_tool(handler: AsyncToolHandler) -> AsyncToolHandler:
                 # error must surface, not the audit store's.
                 logger.exception("Audit 'tool.failed' write failed for tool '%s'", handler.__name__)
             raise
-        try:
-            await record_event_now(
-                ToolCompletedAuditEvent(outcome=AuditOutcome.SUCCESS, tool=call, model=model, target=target)
+        kind = tool_failure(result)
+        outcome_event: ToolCompletedAuditEvent | ToolFailedAuditEvent
+        if kind is None:
+            outcome_event = ToolCompletedAuditEvent(outcome=AuditOutcome.SUCCESS, tool=call, model=model, target=target)
+        else:
+            outcome_event = ToolFailedAuditEvent(
+                outcome=AuditOutcome.FAILURE,
+                tool=call,
+                model=model,
+                target=target,
+                error_detail=_returned_error_detail(kind, result),
             )
+        try:
+            await record_event_now(outcome_event)
         except SQLAlchemyError as exc:
-            logger.exception("Audit 'tool.completed' write failed for tool '%s'", handler.__name__)
-            raise AuditCaptureError("tool.completed", handler.__name__) from exc
+            logger.exception("Audit 'tool.%s' write failed for tool '%s'", outcome_event.action, handler.__name__)
+            raise AuditCaptureError(f"tool.{outcome_event.action}", handler.__name__) from exc
         return result
 
     # setattr keeps mypy strict happy: functions have no declared attributes.
@@ -191,6 +208,14 @@ def tool_failure(result: object) -> ToolFailureKind | None:
     if status >= 500 or 200 <= status < 300:
         return ToolFailureKind.UPSTREAM
     return ToolFailureKind.UNKNOWN
+
+
+def _returned_error_detail(kind: ToolFailureKind, result: Any) -> str:
+    """System-authored detail for a returned error: the kind and status code, never its message."""
+    detail = f"returned error: {kind}"
+    error = result["error"]
+    status = error.get("status_code") if isinstance(error, Mapping) else None
+    return f"{detail} (status {status})" if isinstance(status, int) else detail
 
 
 def _named_jsonable_args(handler: AsyncToolHandler, args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
