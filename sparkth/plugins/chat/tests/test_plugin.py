@@ -1,5 +1,8 @@
 """Tests for the chat plugin's declared identity and frontend metadata."""
 
+import logging
+
+import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.chat.hooks import enabled_responsibilities
@@ -32,8 +35,14 @@ def test_declares_frontend_metadata() -> None:
     assert plugin_has_frontend("chat") is True
 
 
-async def test_offers_course_design_and_survives_a_second_construction(session: AsyncSession) -> None:
+async def test_offers_course_design_and_survives_a_second_construction(
+    session: AsyncSession, caplog: pytest.LogCaptureFixture
+) -> None:
     """The loader builds the plugin, and tests build it again; the job is offered once."""
     plugin = ChatPlugin()  # noqa: F841 - keeps the weakly-keyed hook entry alive
 
-    assert (await enabled_responsibilities(session))["course-design"] == COURSE_DESIGN
+    with caplog.at_level(logging.ERROR, logger="sparkth.lib.chat.hooks"):
+        jobs = await enabled_responsibilities(session)
+
+    assert jobs["course-design"] == COURSE_DESIGN
+    assert not [record for record in caplog.records if record.name == "sparkth.lib.chat.hooks"]
