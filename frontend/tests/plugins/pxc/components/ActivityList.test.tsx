@@ -1,4 +1,5 @@
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { ActivityList } from "@/plugins/pxc/components/ActivityList";
@@ -68,8 +69,20 @@ describe("ActivityList", () => {
 
     renderWithIntl(<ActivityList />, pxcEn);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Could not load your activities. Please try again.",
-    );
+    expect(await screen.findByText("Could not load your activities.")).toBeInTheDocument();
+  });
+
+  it("refetches the list when Try again is clicked after a failure", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(listActivities)
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValueOnce([ACTIVITY]);
+    renderWithIntl(<ActivityList />, pxcEn);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByRole("heading", { name: "Photosynthesis quiz" })).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(listActivities).toHaveBeenCalledTimes(2);
   });
 });
