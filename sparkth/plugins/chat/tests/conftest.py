@@ -9,7 +9,9 @@ from sparkth.lib.chat.hooks import CHAT_RESPONSIBILITIES, ChatResponsibility
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.plugins.chat.detached import join_live_tasks
 
-STUB_JOB = ChatResponsibility("stub-job", "Stub scope text.", "STUB SYSTEM PROMPT", frozenset({"stub-tools"}))
+STUB_JOB = ChatResponsibility(
+    "stub-job", "Stub job", "Stub scope text.", "STUB SYSTEM PROMPT", frozenset({"stub-tools"})
+)
 
 
 @pytest.fixture(autouse=True)

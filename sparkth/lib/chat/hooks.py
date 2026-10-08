@@ -9,7 +9,7 @@ The hook lives in ``sparkth.lib`` so a plugin can register a job without importi
 keyed by plugin, so a job is offered only while its plugin is switched on. A plugin registers
 one job from its ``__init__``::
 
-    CHAT_RESPONSIBILITIES.add_item(self, ChatResponsibility("my-job", SCOPE, PROMPT, frozenset({"my-tools"})))
+    CHAT_RESPONSIBILITIES.add_item(self, ChatResponsibility("my-job", LABEL, SCOPE, PROMPT, frozenset({"my-tools"})))
 """
 
 from dataclasses import dataclass
@@ -30,8 +30,9 @@ class ChatResponsibility:
 
     ``name`` is a slug, stored on every conversation doing this job, so it must never change
     once shipped. It is at most ``CHAT_RESPONSIBILITY_NAME_MAX_LENGTH`` characters, the size of
-    that stored column, and a longer one raises ``ValueError``. ``scope`` is the text the
-    classifier reads to decide whether a message belongs to this job. ``system_prompt`` is a
+    that stored column, and a longer one raises ``ValueError``. ``label`` is the job's name as
+    authors see it, marked with ``gettext_noop`` and translated where it is shown. ``scope`` is
+    the text the classifier reads to decide whether a message belongs to this job. ``system_prompt`` is a
     ``str.format`` template that receives ``current_datetime`` and ``refusal_message``, so any
     other literal brace is doubled.
     ``tool_categories`` names the ``MCP_TOOLS`` categories this job claims.
@@ -40,6 +41,7 @@ class ChatResponsibility:
     """
 
     name: str
+    label: str
     scope: str
     system_prompt: str
     tool_categories: frozenset[str]
@@ -80,3 +82,15 @@ async def enabled_responsibilities(session: AsyncSession) -> dict[str, ChatRespo
                 responsibility.name,
             )
     return jobs
+
+
+def registered_responsibility(name: str) -> ChatResponsibility | None:
+    """Return the job registered as ``name``, whether or not its plugin is switched on.
+
+    When two plugins claim one name, the first in plugin-name order is returned, the same one
+    :func:`enabled_responsibilities` keeps.
+    """
+    for _plugin, responsibility in CHAT_RESPONSIBILITIES.iter_items():
+        if responsibility.name == name:
+            return responsibility
+    return None

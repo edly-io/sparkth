@@ -7,22 +7,27 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.plugin import Plugin
 from sparkth.lib.chat.constants import CHAT_RESPONSIBILITY_NAME_MAX_LENGTH
-from sparkth.lib.chat.hooks import CHAT_RESPONSIBILITIES, ChatResponsibility, enabled_responsibilities
+from sparkth.lib.chat.hooks import (
+    CHAT_RESPONSIBILITIES,
+    ChatResponsibility,
+    enabled_responsibilities,
+    registered_responsibility,
+)
 from sparkth.lib.plugins import SparkthPlugin
 
-STUB = ChatResponsibility("stub-job", "Stub scope.", "Stub prompt {current_datetime}", frozenset({"stub"}))
+STUB = ChatResponsibility("stub-job", "Stub job", "Stub scope.", "Stub prompt {current_datetime}", frozenset({"stub"}))
 
 
 def test_a_name_at_the_length_limit_is_accepted() -> None:
     name = "x" * CHAT_RESPONSIBILITY_NAME_MAX_LENGTH
 
-    assert ChatResponsibility(name, "Scope.", "Prompt", frozenset()).name == name
+    assert ChatResponsibility(name, "Label", "Scope.", "Prompt", frozenset()).name == name
 
 
 def test_a_name_longer_than_a_conversation_can_store_is_refused() -> None:
     """Every conversation stores the name, so a longer one would fail its first message."""
     with pytest.raises(ValueError):
-        ChatResponsibility("x" * (CHAT_RESPONSIBILITY_NAME_MAX_LENGTH + 1), "Scope.", "Prompt", frozenset())
+        ChatResponsibility("x" * (CHAT_RESPONSIBILITY_NAME_MAX_LENGTH + 1), "Label", "Scope.", "Prompt", frozenset())
 
 
 @pytest.fixture
@@ -67,10 +72,24 @@ async def test_a_second_plugin_claiming_the_name_is_ignored_and_logged(
 ) -> None:
     """Conversations store the name, so two jobs under one name would route each other's."""
     rival = SparkthPlugin("zz-rival")
-    CHAT_RESPONSIBILITIES.add_item(rival, ChatResponsibility("stub-job", "Other.", "Other", frozenset()))
+    CHAT_RESPONSIBILITIES.add_item(rival, ChatResponsibility("stub-job", "Other", "Other.", "Other", frozenset()))
 
     with caplog.at_level(logging.ERROR, logger="sparkth.lib.chat.hooks"):
         jobs = await enabled_responsibilities(session)
 
     assert jobs["stub-job"] == STUB
     assert "zz-rival" in caplog.text
+
+
+async def test_a_job_of_a_switched_off_plugin_is_still_registered(
+    session: AsyncSession, stub_plugin: SparkthPlugin
+) -> None:
+    """Its conversations still need its label to say why they cannot continue."""
+    session.add(Plugin(name="stub", enabled=False))
+    await session.commit()
+
+    assert registered_responsibility("stub-job") == STUB
+
+
+def test_a_name_no_plugin_registers_is_not_registered() -> None:
+    assert registered_responsibility("gone-job") is None
