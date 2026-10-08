@@ -1,10 +1,11 @@
 """What a conversation's stored job resolves to."""
 
-import logging
-
 import pytest
 
+from sparkth.core.i18n import locale_context
 from sparkth.lib.chat.hooks import ChatResponsibility
+from sparkth.lib.testing import AddTranslation
+from sparkth.plugins.chat.exceptions import ResponsibilityNotEnabled
 from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.responsibilities import COURSE_DESIGN, stored_responsibility
 
@@ -24,9 +25,19 @@ class TestStoredResponsibility:
 
         assert stored_responsibility(_conversation("stub-job"), jobs) is stub_job
 
-    def test_a_job_not_enabled_falls_back_to_course_design(self, caplog: pytest.LogCaptureFixture) -> None:
-        """Its plugin may be switched off or removed; its conversations stay usable."""
-        with caplog.at_level(logging.WARNING, logger="sparkth.plugins.chat.responsibilities"):
-            assert stored_responsibility(_conversation("stub-job"), _JOBS) == COURSE_DESIGN
+    def test_a_job_whose_plugin_is_switched_off_is_refused_by_its_label(
+        self, stub_job: ChatResponsibility, translation_catalog: AddTranslation
+    ) -> None:
+        """The author is told which job the conversation is for, in their language."""
+        translation_catalog(stub_job.label, "Trabajo stub")
 
-        assert "stub-job" in caplog.text
+        with locale_context("es"), pytest.raises(ResponsibilityNotEnabled) as raised:
+            stored_responsibility(_conversation("stub-job"), _JOBS)
+
+        assert "Trabajo stub" in str(raised.value)
+
+    def test_a_job_no_plugin_registers_is_refused_by_its_stored_name(self) -> None:
+        with pytest.raises(ResponsibilityNotEnabled) as raised:
+            stored_responsibility(_conversation("gone-job"), _JOBS)
+
+        assert "gone-job" in str(raised.value)

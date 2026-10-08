@@ -26,6 +26,8 @@ COURSE_DESIGN_SCOPE = get_asset("course_design_scope.txt")
 
 # The job a conversation does when its row stores none.
 DEFAULT_RESPONSIBILITY = "course-design"
+# That job's name as authors see it.
+COURSE_DESIGN_LABEL = gettext_noop("Course design")
 
 # How many prior turns reach the scope classifier.
 MESSAGE_SCOPE_CLASSIFIER_CONVERSATION_HISTORY = 6
