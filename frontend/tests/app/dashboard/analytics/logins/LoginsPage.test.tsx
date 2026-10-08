@@ -69,14 +69,14 @@ describe("LoginsPage states", () => {
       { day: "2026-07-22", login_count: 2 },
     ]);
 
-    const { container } = renderWithIntl(<LoginsPage />);
+    renderWithIntl(<LoginsPage />);
 
     // loading first
     expect(screen.getByText(/loading/i)).toBeInTheDocument();
 
     // then content: total logins stat + a chart
     expect(await screen.findByText("5")).toBeInTheDocument();
-    await waitFor(() => expect(container.querySelector("svg[role='img']")).toBeInTheDocument());
+    expect(screen.getByRole("table", { name: /logins,/i })).toBeInTheDocument();
   });
 
   it("formats the busiest day as a UTC date even when the browser is west of UTC", async () => {
