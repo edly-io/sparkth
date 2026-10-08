@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Alert } from "@/components/ui/Alert";
@@ -103,10 +104,23 @@ function LaunchFrame({
   );
 }
 
-// One activity iframed under the chosen permission; the parent keys it by activity id.
-export function ActivityPreview({ activityId }: { activityId: string }): React.JSX.Element {
+// The preview's URL. The Author view is kept in it, so a reload stays in that view.
+function previewPath(activityId: string, permission: LaunchPermission): string {
+  const query = new URLSearchParams({ activity: activityId });
+  if (permission === "edit") query.set("as", "edit");
+  return `${ACTIVITIES_PATH}?${query}`;
+}
+
+// One activity iframed under the permission from the URL; the parent keys it by activity id.
+export function ActivityPreview({
+  activityId,
+  permission,
+}: {
+  activityId: string;
+  permission: LaunchPermission;
+}): React.JSX.Element {
   const t = useTranslations("pxc");
-  const [permission, setPermission] = useState<LaunchPermission>("play");
+  const router = useRouter();
   const [attempt, setAttempt] = useState(0);
 
   return (
@@ -115,7 +129,10 @@ export function ActivityPreview({ activityId }: { activityId: string }): React.J
         <Link href={ACTIVITIES_PATH} className="text-sm text-primary-600 hover:underline">
           {t("backToList")}
         </Link>
-        <PermissionToggle value={permission} onChange={setPermission} />
+        <PermissionToggle
+          value={permission}
+          onChange={(next) => router.replace(previewPath(activityId, next))}
+        />
       </div>
       <div className="flex-1 overflow-y-auto p-6">
         <LaunchFrame
