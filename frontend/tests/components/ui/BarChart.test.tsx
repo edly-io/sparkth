@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 
 import { BarChart } from "@/components/ui/BarChart";
 
@@ -12,6 +12,8 @@ describe("BarChart", () => {
           { label: "b", value: 2 },
           { label: "c", value: 0 },
         ]}
+        caption="c"
+        headers={["Date", "Logins"]}
       />,
     );
     expect(container.querySelectorAll("rect")).toHaveLength(3);
@@ -27,6 +29,8 @@ describe("BarChart", () => {
             { label: "Mon", value: 1 },
             { label: "Mon", value: 2 },
           ]}
+          caption="c"
+          headers={["Date", "Logins"]}
         />,
       );
       expect(container.querySelectorAll("rect")).toHaveLength(2);
@@ -36,9 +40,16 @@ describe("BarChart", () => {
     }
   });
 
-  it("exposes an accessible name describing the series", () => {
-    const { getByRole } = render(<BarChart data={[{ label: "a", value: 1 }]} />);
-    expect(getByRole("img")).toHaveAccessibleName(/bar chart/i);
+  it("hides the SVG and exposes the data as a captioned table", () => {
+    const { container } = render(
+      <BarChart
+        data={[{ label: "a", value: 1 }]}
+        caption="Logins by day"
+        headers={["Date", "Logins"]}
+      />,
+    );
+    expect(container.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByRole("table", { name: "Logins by day" })).toBeInTheDocument();
   });
 
   it("draws a bottom baseline so zero/low days have a visible floor", () => {
@@ -52,6 +63,8 @@ describe("BarChart", () => {
           { label: "a", value: 0 },
           { label: "b", value: 3 },
         ]}
+        caption="c"
+        headers={["Date", "Logins"]}
       />,
     );
     const ys = Array.from(container.querySelectorAll("line"))
@@ -60,9 +73,21 @@ describe("BarChart", () => {
     expect(Math.max(...ys)).toBeGreaterThan(Math.min(...ys));
   });
 
+  it("formats the hover tooltip the same way as the table", () => {
+    const { container } = render(
+      <BarChart
+        data={[{ label: "Jul 1", value: 12345 }]}
+        caption="c"
+        headers={["Date", "Logins"]}
+        formatValue={(n) => `#${n}`}
+      />,
+    );
+    expect(container.querySelector("rect title")).toHaveTextContent("Jul 1: #12345");
+  });
+
   it("renders with empty data without crashing", () => {
-    const { container, getByRole } = render(<BarChart data={[]} />);
-    expect(getByRole("img")).toBeInTheDocument();
+    const { container } = render(<BarChart data={[]} caption="c" headers={["Date", "Logins"]} />);
+    expect(container.querySelector("svg")).toBeInTheDocument();
     expect(container.querySelectorAll("rect")).toHaveLength(0);
   });
 });
