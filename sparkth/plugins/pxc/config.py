@@ -24,8 +24,8 @@ class PxcSettings(BaseSettings):
         extra="ignore",
     )
 
-    # Holds each activity's SQLite state file, its file storage under storage/ and generated
-    # activities under activities/<id>/.
+    # Holds each activity's SQLite state file, its file storage under storage/, generated
+    # activities under activities/<id>/ and build scratch under builds/.
     data_dir: Path = Path("./data/pxc")
 
     # Shared with the Open edX XBlock. The XBlock signs a launch token with it and this plugin
@@ -39,6 +39,16 @@ class PxcSettings(BaseSettings):
     # The activity type published by the "pxc" contributor. One bundled sample is served for
     # every request by design (L5); an authoring module chooses per placement later.
     default_activity: str = "mcq"
+
+    # The directory holding compile.mjs and the node_modules it compiles an author's activity with.
+    toolchain_dir: Path = Path("./sparkth/plugins/pxc/builder/toolchain")
+
+    # How long each step of an activity build (the compile, then the smoke test) may run.
+    build_timeout_seconds: int = 120
+
+    # How many activity builds may run at once in this process. Each compile peaks near 600 MB.
+    # TODO: move activity builds to a dedicated worker container to make this scale.
+    build_concurrency: int = 2
 
 
 @lru_cache

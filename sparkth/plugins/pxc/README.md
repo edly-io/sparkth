@@ -25,6 +25,8 @@ side needs. This one covers only the Sparkth side.
    here as a signature mismatch.
 3. **The XBlock**, installed as above.
 4. **Persistent storage.** `PXC_DATA_DIR` holds all learner state and all generated activities.
+5. **The build toolchain.** Activities compile on the server, with `compile.mjs` and the
+   `node_modules` under `PXC_TOOLCHAIN_DIR`, and `node` on `PATH`.
 
 `.env` is the source of truth for every setting and carries a comment on each one; this file
 does not repeat the list.
@@ -54,3 +56,29 @@ disk, with no database read.
 
 Two session routes let an author list their activities and open a preview; another user's id is
 a 404. Previews use a fixed course and placement, shared by the Student and Author views.
+
+## Building an activity
+
+A build runs these steps in order:
+
+1. Validate the source: no assets or capabilities, fixed file names, and the name is set by the
+   server.
+2. Compile `sandbox.js` against the bundled `pxc.wit`.
+3. Smoke-test the result in a child process, calling `get_state` for both play and edit.
+4. Move the directory into place.
+5. Insert the row.
+
+A failure is written for the authoring agent to act on. An edit builds a new activity under a new
+id; the old one is untouched.
+
+A compile sees only its own directory, so a sandbox can import only `pxc:sandbox/*`: builtins,
+packages and relative paths fail to load. Each step has a timeout and is killed together with its
+children. A built directory also holds `sandbox.wasm.bin`, the runtime's compiled-component cache,
+so the first learner launch skips that compile.
+
+Concurrency is limited per process, and builds run inside the web container at about 600 MB per
+compile.
+
+TODO: move builds to a worker container.
+
+Known limit: learner actions have no execution limit. That is pxc-lib's to fix.
