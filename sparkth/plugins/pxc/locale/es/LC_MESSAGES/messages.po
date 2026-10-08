@@ -18,6 +18,11 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/pxc/constants.py:56
+msgid "PXC activity builder"
+msgstr "Creador de actividades PXC"
+
 #: sparkth/plugins/pxc/plugin.py:85
 msgid "PXC Activities"
 msgstr "Actividades PXC"

@@ -575,7 +575,8 @@ registering a `ChatResponsibility` from `sparkth.lib.chat.hooks`.
 
 A `ChatResponsibility` has four fields:
 
-- `name` is a slug that identifies the job.
+- `name` is a slug that identifies the job. It is at most 64 characters, and a longer one raises
+  `ValueError`.
 - `scope` is the text a classifier reads to decide whether a message belongs to the job.
 - `system_prompt` is a `str.format` template that receives `current_datetime` and
   `refusal_message`, so any other literal brace in it must be doubled.
