@@ -5,6 +5,7 @@ from sparkth.plugins.chat.constants import (
     COURSE_DESIGN_SYSTEM_PROMPT,
     DEFAULT_RESPONSIBILITY,
     MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT,
+    NO_RESPONSIBILITY,
     REFUSAL_MESSAGE,
 )
 
@@ -36,4 +37,6 @@ def render_scope_classifier_prompt(jobs: dict[str, ChatResponsibility]) -> str:
     enabled jobs, so nothing depends on which plugin was imported first.
     """
     listed = "\n\n".join(f'JOB "{name}":\n{responsibility.scope}' for name, responsibility in jobs.items())
-    return MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT.format(responsibilities=listed, default_job=DEFAULT_RESPONSIBILITY)
+    return MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT.format(
+        responsibilities=listed, default_job=DEFAULT_RESPONSIBILITY, no_job=NO_RESPONSIBILITY
+    )
