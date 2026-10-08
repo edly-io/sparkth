@@ -130,6 +130,7 @@ function AnalyticsContent({
   bucket: Bucket;
 }) {
   const t = useTranslations("analytics.logins");
+  const tTable = useTranslations("analytics.table");
   const format = useFormatter();
   // A bucket label is its first day: a week reads "Week of <Monday>", a month its month name.
   const formatBucket = (day: string) => {
@@ -170,7 +171,9 @@ function AnalyticsContent({
       <div className="bg-card rounded-xl border border-border p-6">
         <BarChart
           data={series.map((d) => ({ label: formatBucket(d.label), value: d.value }))}
-          aria-label={t("chartLabel", { range })}
+          caption={t("chartCaption", { range })}
+          headers={[tTable("date"), tTable("logins")]}
+          formatValue={(n) => format.number(n)}
         />
       </div>
     </div>
