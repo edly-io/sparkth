@@ -1,10 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
+import en from "@/messages/en.json";
 import { renderWithIntl } from "../../../intl-test-utils";
 
 vi.mock("@/lib/auth-context", () => ({ useAuth: () => ({ token: "test-token" }) }));
+const nav = vi.hoisted(() => ({ search: "" }));
 vi.mock("next/navigation", () => ({
   usePathname: () => "/dashboard/analytics/logins",
+  useSearchParams: () => new URLSearchParams(nav.search),
+  useRouter: () => ({ replace: vi.fn() }),
 }));
 const checkPermission = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/permissions", () => ({ checkPermission }));
@@ -13,6 +18,7 @@ import AnalyticsLayout from "@/app/dashboard/analytics/layout";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  nav.search = "";
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -68,5 +74,27 @@ describe("AnalyticsLayout", () => {
       await screen.findByRole("heading", { name: "You don't have access to this page" }),
     ).toBeInTheDocument();
     expect(screen.queryByText("view body")).not.toBeInTheDocument();
+  });
+
+  it("resets the period selector when the URL's period changes", async () => {
+    checkPermission.mockResolvedValue(true);
+    const day = (ago: number) => new Date(Date.now() - ago * 86_400_000).toISOString().slice(0, 10);
+    nav.search = `from=${day(20)}&to=${day(10)}`;
+    const ui = () => (
+      <NextIntlClientProvider locale="en" messages={en}>
+        <AnalyticsLayout>
+          <p>view body</p>
+        </AnalyticsLayout>
+      </NextIntlClientProvider>
+    );
+    const { rerender } = render(ui());
+    expect(await screen.findByLabelText("Period")).toHaveValue("custom");
+    expect(screen.getByLabelText("Start date")).toHaveValue(day(20));
+
+    // e.g. the sidebar link: same layout instance, URL without a period.
+    nav.search = "";
+    rerender(ui());
+    expect(screen.getByLabelText("Period")).toHaveValue("30d");
+    expect(screen.queryByLabelText("Start date")).not.toBeInTheDocument();
   });
 });
