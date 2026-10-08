@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { LogIn } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -14,6 +14,7 @@ export const ANALYTICS_VIEWS = [
 export function AnalyticsNav() {
   const t = useTranslations("analytics.nav");
   const pathname = usePathname();
+  const query = useSearchParams().toString();
 
   return (
     <nav aria-label={t("label")} className="lg:w-48 lg:shrink-0">
@@ -24,7 +25,7 @@ export function AnalyticsNav() {
           return (
             <li key={key}>
               <Link
-                href={href}
+                href={query ? `${href}?${query}` : href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
