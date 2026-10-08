@@ -15,6 +15,7 @@
     "studentView": "Estudiante",
     "authorView": "Autor",
     "notFound": "Actividad no encontrada",
+    "notConfigured": "Las vistas previas no están configuradas en este servidor.",
     "launchFailed": "No se pudo cargar la actividad.",
     "frameTitle": "Vista previa de la actividad",
     "loadingActivity": "Cargando la actividad",

@@ -10,6 +10,7 @@ const searchParams = vi.hoisted(() => ({ value: new URLSearchParams() }));
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => searchParams.value,
+  useRouter: () => ({ replace: vi.fn() }),
 }));
 
 vi.mock("@/lib/auth-context", () => ({
@@ -49,5 +50,19 @@ describe("PxcActivities", () => {
       expect.any(AbortSignal),
     );
     expect(listActivities).not.toHaveBeenCalled();
+  });
+
+  it("opens the author view when the query string asks for it", async () => {
+    searchParams.value = new URLSearchParams("activity=act-1&as=edit");
+
+    renderWithIntl(<PxcActivities />, pxcEn);
+
+    expect(await screen.findByTitle("Activity preview")).toBeInTheDocument();
+    expect(getActivityEmbedUrl).toHaveBeenCalledWith(
+      "test-token",
+      "act-1",
+      "edit",
+      expect.any(AbortSignal),
+    );
   });
 });
