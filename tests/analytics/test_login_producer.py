@@ -156,8 +156,8 @@ async def test_google_signup_counts_as_a_login(
         response = await client.get(GOOGLE_CALLBACK_URL)
     assert response.status_code == 302
 
-    rows = (await analytics_session.execute(select(raw_events))).mappings().all()
-    assert [row["payload"] for row in rows] == [{"method": "google"}]
+    result = await analytics_session.execute(select(raw_events).where(raw_events.c.event_type == "user.logged_in"))
+    assert [row["payload"] for row in result.mappings().all()] == [{"method": "google"}]
 
 
 async def test_refused_google_login_emits_nothing(
