@@ -86,6 +86,21 @@ describe("ActivityPreview", () => {
     expect(screen.queryByTitle("Activity preview")).not.toBeInTheDocument();
   });
 
+  it("says previews are not set up on a 503, with no retry", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(getActivityEmbedUrl).mockRejectedValue(
+      new ApiRequestError({ message: "Launch not configured", fieldErrors: {} }, 503),
+    );
+
+    renderWithIntl(<ActivityPreview activityId={ACTIVITY_ID} />, pxcEn);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Previews aren't set up on this server.",
+    );
+    expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Activity preview")).not.toBeInTheDocument();
+  });
+
   it("reports a generic failure for any other error", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(getActivityEmbedUrl).mockRejectedValue(new Error("boom"));

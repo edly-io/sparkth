@@ -15,6 +15,7 @@
     "studentView": "Student",
     "authorView": "Author",
     "notFound": "Activity not found",
+    "notConfigured": "Previews aren't set up on this server.",
     "launchFailed": "Could not load the activity.",
     "frameTitle": "Activity preview",
     "loadingActivity": "Loading activity",

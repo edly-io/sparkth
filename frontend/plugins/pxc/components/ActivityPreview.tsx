@@ -13,13 +13,14 @@ import { RetryAlert } from "@/plugins/pxc/components/RetryAlert";
 
 const ACTIVITIES_PATH = "/dashboard/pxc";
 
-type LaunchError = "notFound" | "failed";
+type LaunchError = "notFound" | "notConfigured" | "failed";
 
 // A malformed id fails path validation (422), which for the author is a missing activity too.
+// A 503 means the server has no launch secret, which a retry cannot fix.
 function launchErrorOf(error: unknown): LaunchError {
-  return error instanceof ApiRequestError && (error.status === 404 || error.status === 422)
-    ? "notFound"
-    : "failed";
+  if (!(error instanceof ApiRequestError)) return "failed";
+  if (error.status === 404 || error.status === 422) return "notFound";
+  return error.status === 503 ? "notConfigured" : "failed";
 }
 
 function PermissionToggle({
@@ -82,6 +83,7 @@ function LaunchFrame({
   }, [token, activityId, permission]);
 
   if (error === "notFound") return <Alert severity="error">{t("notFound")}</Alert>;
+  if (error === "notConfigured") return <Alert severity="error">{t("notConfigured")}</Alert>;
   if (error === "failed") return <RetryAlert message={t("launchFailed")} onRetry={onRetry} />;
   if (embedUrl === null) {
     return (
