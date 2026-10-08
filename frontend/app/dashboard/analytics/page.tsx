@@ -1,14 +1,13 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
-// No Overview view yet: the analytics root forwards to the first view. Client-side because
-// the production build is a static export with no server to redirect.
 export default function AnalyticsIndex() {
   const router = useRouter();
+  const query = useSearchParams().toString();
   useEffect(() => {
-    router.replace("/dashboard/analytics/logins");
-  }, [router]);
+    router.replace(`/dashboard/analytics/logins${query ? `?${query}` : ""}`);
+  }, [router, query]);
   return null;
 }
