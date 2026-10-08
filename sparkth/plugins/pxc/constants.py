@@ -36,7 +36,7 @@ PXC_BUILD_ERROR_LIMIT = int(os.getenv("PXC_BUILD_ERROR_LIMIT", "4000"))
 
 # The longest ui.js, sandbox.js or manifest (as JSON) an agent may submit, in characters, refused
 # before any compile.
-PXC_MAX_SOURCE_CHARS = int(os.getenv("PXC_MAX_SOURCE_CHARS", "200000"))
+PXC_MAX_SOURCE_CHARS = int(os.getenv("PXC_MAX_SOURCE_CHARS", "20000"))
 
 # Prefixed onto a Sparkth user id in a preview token, so it never equals an LMS learner id.
 PXC_PREVIEW_USER_PREFIX = "sparkth-"
@@ -78,3 +78,6 @@ PXC_MAX_PLACEABLE_ACTIVITIES = int(os.getenv("PXC_MAX_PLACEABLE_ACTIVITIES", "50
 
 # The longest activity description an agent may submit, in characters.
 PXC_MAX_DESCRIPTION_CHARS = int(os.getenv("PXC_MAX_DESCRIPTION_CHARS", "2000"))
+
+# How many of the author's most recent activities pxc_list_activities returns by default.
+PXC_LIST_ACTIVITIES_LIMIT = int(os.getenv("PXC_LIST_ACTIVITIES_LIMIT", "20"))
