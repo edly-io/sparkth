@@ -31,3 +31,6 @@ export async function stubPermission(
 }
 
 export const todayUtc = (): string => new Date().toISOString().slice(0, 10);
+
+export const daysAgoUtc = (days: number): string =>
+  new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
