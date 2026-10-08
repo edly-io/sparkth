@@ -573,10 +573,12 @@ A *responsibility* is one job a chat conversation can be for, such as designing 
 conversation does exactly one. A plugin offers a job to chat without importing chat, by
 registering a `ChatResponsibility` from `sparkth.lib.chat.hooks`.
 
-A `ChatResponsibility` has four fields:
+A `ChatResponsibility` has five fields:
 
 - `name` is a slug that identifies the job. It is at most 64 characters, and a longer one raises
   `ValueError`.
+- `label` is the job's name as authors see it. Mark it with `gettext_noop`, because chat
+  translates it where it is shown.
 - `scope` is the text a classifier reads to decide whether a message belongs to the job.
 - `system_prompt` is a `str.format` template that receives `current_datetime` and
   `refusal_message`, so any other literal brace in it must be doubled.
@@ -588,9 +590,11 @@ A plugin registers one job from its `__init__`, keyed by the plugin instance:
 ```python
 # sparkth/plugins/myappplugin/plugin.py
 from sparkth.lib.chat.hooks import CHAT_RESPONSIBILITIES, ChatResponsibility
+from sparkth.lib.i18n import gettext_noop
 
 MY_JOB = ChatResponsibility(
     "my-job",
+    gettext_noop("My App builder"),
     "Requests to build or change things in My App.",
     "You help with My App. It is {current_datetime}. Decline anything else: {refusal_message}",
     frozenset({"my-app"}),
@@ -628,8 +632,10 @@ which claims no tool categories.
   tools are those whose `MCP_TOOLS` category is in the job's `tool_categories`. A job with no
   categories gets every category no other job claims, so claiming a category hides those tools
   from course design. Categories claimed by a switched-off plugin's job stay hidden too.
-- **Stored job not enabled.** A conversation whose stored job is no longer enabled, because
-  its plugin was switched off or removed, runs as `course-design`.
+- **Stored job not enabled.** A turn in a conversation whose stored job is no longer enabled,
+  because its plugin was switched off or removed, is refused with a `403`. Its detail names the
+  job by its translated `label`, or by its stored `name` when no plugin registers it any more.
+  Nothing is sent to the model or stored.
 
 Plugin-specific knowledge belongs in a `<prefix>about` tool, not in a job's `system_prompt`;
 see the LMS `about` tool [above](#lms-plugins-automatic-credential-injection) for the convention.
