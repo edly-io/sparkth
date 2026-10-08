@@ -7,7 +7,8 @@ response.
 
 
 class PxcActivityNotFound(Exception):
-    """No bundled or generated activity goes by this name, or the caller does not own the one asked for."""
+    """No bundled or generated activity goes by this name, the caller does not own the one asked for,
+    or its files are gone."""
 
 
 class PxcDuplicateActivityName(Exception):
