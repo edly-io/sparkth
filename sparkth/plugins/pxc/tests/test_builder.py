@@ -22,12 +22,6 @@ from sparkth.plugins.pxc.builder import (
     validate_manifest,
 )
 from sparkth.plugins.pxc.config import get_pxc_settings
-from sparkth.plugins.pxc.constants import (
-    PXC_BUILD_ERROR_LIMIT,
-    PXC_BUILD_STDERR_LIMIT_BYTES,
-    PXC_MAX_DESCRIPTION_CHARS,
-    PXC_MAX_SOURCE_CHARS,
-)
 from sparkth.plugins.pxc.exceptions import PxcBuildTimedOut, PxcCompileFailed, PxcManifestInvalid, PxcSmokeTestFailed
 from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.runtime import build_runtime, read_state
@@ -72,23 +66,35 @@ def test_a_manifest_breaking_a_build_rule_is_refused(change: dict[str, object], 
 
 
 @pytest.mark.parametrize("field", ["ui_js", "sandbox_js"])
-def test_source_over_the_size_limit_is_refused_before_any_build(field: str) -> None:
-    sources = {"ui_js": "", "sandbox_js": "", field: "x" * (PXC_MAX_SOURCE_CHARS + 1)}
+def test_source_over_the_configured_size_limit_is_refused_before_any_build(
+    field: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PXC_MAX_SOURCE_CHARS", "10")
+    get_pxc_settings.cache_clear()
+    sources = {"ui_js": "", "sandbox_js": "", field: "x" * 11}
 
     with pytest.raises(ValidationError):
         ActivitySource.model_validate({"title": "t", "description": "d", "manifest": {}, **sources})
 
 
-def test_a_description_over_the_size_limit_is_refused() -> None:
+def test_source_at_the_configured_size_limit_is_accepted(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PXC_MAX_SOURCE_CHARS", "10")
+    get_pxc_settings.cache_clear()
+
+    source = ActivitySource.model_validate(
+        {"title": "t", "description": "d", "manifest": {}, "ui_js": "x" * 10, "sandbox_js": "x" * 10}
+    )
+
+    assert source.ui_js == "x" * 10
+
+
+def test_a_description_over_the_configured_size_limit_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PXC_MAX_DESCRIPTION_CHARS", "10")
+    get_pxc_settings.cache_clear()
+
     with pytest.raises(ValidationError):
         ActivitySource.model_validate(
-            {
-                "title": "t",
-                "description": "x" * (PXC_MAX_DESCRIPTION_CHARS + 1),
-                "manifest": {},
-                "ui_js": "",
-                "sandbox_js": "",
-            }
+            {"title": "t", "description": "x" * 11, "manifest": {}, "ui_js": "", "sandbox_js": ""}
         )
 
 
@@ -100,8 +106,12 @@ def test_a_blank_title_is_refused(title: str) -> None:
         )
 
 
-def test_a_manifest_over_the_size_limit_is_refused_before_any_build() -> None:
-    manifest = {"padding": "x" * PXC_MAX_SOURCE_CHARS}
+def test_a_manifest_over_the_configured_size_limit_is_refused_before_any_build(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PXC_MAX_SOURCE_CHARS", "10")
+    get_pxc_settings.cache_clear()
+    manifest = {"padding": "x" * 10}
 
     with pytest.raises(ValidationError):
         ActivitySource.model_validate(
@@ -142,13 +152,15 @@ async def test_a_step_returns_its_exit_code_and_stderr(tmp_path: Path) -> None:
     assert await run_bounded([sys.executable, "-c", script], tmp_path, "A step") == (3, "boom")
 
 
-async def test_a_step_keeps_only_the_end_of_a_flood_of_stderr(tmp_path: Path) -> None:
-    script = f"import sys; sys.stderr.write('x' * {PXC_BUILD_STDERR_LIMIT_BYTES * 4}); sys.stderr.write('END')"
+async def test_a_step_keeps_only_the_end_of_a_flood_of_stderr(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PXC_BUILD_STDERR_LIMIT_BYTES", "1024")
+    get_pxc_settings.cache_clear()
+    script = "import sys; sys.stderr.write('x' * 4096); sys.stderr.write('END')"
 
     returncode, stderr = await run_bounded([sys.executable, "-c", script], tmp_path, "A step")
 
     assert returncode == 0
-    assert len(stderr) <= PXC_BUILD_STDERR_LIMIT_BYTES
+    assert len(stderr) <= 1024
     assert stderr.endswith("END")
 
 
@@ -249,14 +261,15 @@ async def test_a_compile_error_carries_no_toolchain_stack_or_server_path(tmp_pat
 
 @pytest.mark.wasm
 async def test_a_compile_error_keeps_the_end_of_a_long_message(tmp_path: Path) -> None:
+    limit = get_pxc_settings().build_error_limit
     sandbox_js = (
-        f'throw new Error("{"x" * PXC_BUILD_ERROR_LIMIT}");\n'
+        f'throw new Error("{"x" * limit}");\n'
         'export function onAction() { return ""; }\nexport function getState() { return "{}"; }\n'
     )
 
     message = await _compile_error(sandbox_js, tmp_path)
 
-    assert len(message) <= len("sandbox.js failed to compile:\n") + PXC_BUILD_ERROR_LIMIT
+    assert len(message) <= len("sandbox.js failed to compile:\n") + limit
     assert message.endswith("@sandbox.js:1:7")
 
 
