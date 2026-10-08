@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.plugins.service import system_disabled_plugin_names
+from sparkth.lib.chat.constants import CHAT_RESPONSIBILITY_NAME_MAX_LENGTH
 from sparkth.lib.hooks import PluginHook
 from sparkth.lib.log import get_logger
 
@@ -28,9 +29,11 @@ class ChatResponsibility:
     """One job a chat conversation can be for.
 
     ``name`` is a slug, stored on every conversation doing this job, so it must never change
-    once shipped. ``scope`` is the text the classifier reads to decide whether a message
-    belongs to this job. ``system_prompt`` is a ``str.format`` template that receives
-    ``current_datetime`` and ``refusal_message``, so any other literal brace is doubled.
+    once shipped. It is at most ``CHAT_RESPONSIBILITY_NAME_MAX_LENGTH`` characters, the size of
+    that stored column, and a longer one raises ``ValueError``. ``scope`` is the text the
+    classifier reads to decide whether a message belongs to this job. ``system_prompt`` is a
+    ``str.format`` template that receives ``current_datetime`` and ``refusal_message``, so any
+    other literal brace is doubled.
     ``tool_categories`` names the ``MCP_TOOLS`` categories this job claims.
 
     A frozen dataclass, so the copies registered by repeated plugin constructions compare equal.
@@ -40,6 +43,12 @@ class ChatResponsibility:
     scope: str
     system_prompt: str
     tool_categories: frozenset[str]
+
+    def __post_init__(self) -> None:
+        if len(self.name) > CHAT_RESPONSIBILITY_NAME_MAX_LENGTH:
+            raise ValueError(
+                f"Chat responsibility name {self.name!r} exceeds {CHAT_RESPONSIBILITY_NAME_MAX_LENGTH} characters"
+            )
 
 
 # One chat responsibility per plugin, consumed by the chat plugin. Keyed by plugin instance,

@@ -6,10 +6,23 @@ import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.plugin import Plugin
+from sparkth.lib.chat.constants import CHAT_RESPONSIBILITY_NAME_MAX_LENGTH
 from sparkth.lib.chat.hooks import CHAT_RESPONSIBILITIES, ChatResponsibility, enabled_responsibilities
 from sparkth.lib.plugins import SparkthPlugin
 
 STUB = ChatResponsibility("stub-job", "Stub scope.", "Stub prompt {current_datetime}", frozenset({"stub"}))
+
+
+def test_a_name_at_the_length_limit_is_accepted() -> None:
+    name = "x" * CHAT_RESPONSIBILITY_NAME_MAX_LENGTH
+
+    assert ChatResponsibility(name, "Scope.", "Prompt", frozenset()).name == name
+
+
+def test_a_name_longer_than_a_conversation_can_store_is_refused() -> None:
+    """Every conversation stores the name, so a longer one would fail its first message."""
+    with pytest.raises(ValueError):
+        ChatResponsibility("x" * (CHAT_RESPONSIBILITY_NAME_MAX_LENGTH + 1), "Scope.", "Prompt", frozenset())
 
 
 @pytest.fixture
