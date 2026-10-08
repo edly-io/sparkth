@@ -20,7 +20,9 @@ function ActivityRow({ activity }: { activity: ActivitySummary }): React.JSX.Ele
     <Card variant="outlined" className="flex items-center justify-between gap-4 p-4">
       <div className="min-w-0">
         <h3 className="font-semibold text-foreground">{activity.title}</h3>
-        <p className="text-sm text-muted-foreground">{activity.description}</p>
+        <p className="line-clamp-2 text-sm text-muted-foreground" title={activity.description}>
+          {activity.description}
+        </p>
         <p className="mt-1 text-xs text-muted">{t("createdOn", { date: created })}</p>
       </div>
       <Button asChild variant="outline" size="sm">
