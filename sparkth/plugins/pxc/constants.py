@@ -36,7 +36,7 @@ PXC_BUILD_ERROR_LIMIT = int(os.getenv("PXC_BUILD_ERROR_LIMIT", "4000"))
 
 # The longest ui.js, sandbox.js or manifest (as JSON) an agent may submit, in characters, refused
 # before any compile.
-PXC_MAX_SOURCE_CHARS = int(os.getenv("PXC_MAX_SOURCE_CHARS", "200000"))
+PXC_MAX_SOURCE_CHARS = int(os.getenv("PXC_MAX_SOURCE_CHARS", "20000"))
 
 # Prefixed onto a Sparkth user id in a preview token, so it never equals an Open edX learner id.
 PXC_PREVIEW_USER_PREFIX = "sparkth-"
