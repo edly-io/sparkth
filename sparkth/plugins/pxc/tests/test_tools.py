@@ -13,9 +13,9 @@ from sparkth.core.models.user import User
 from sparkth.lib.auth import bind_current_user_id
 from sparkth.lib.exceptions.auth import NoAuthenticatedUser
 from sparkth.lib.models import utc_now
-from sparkth.plugins.pxc import tools
 from sparkth.plugins.pxc.activities import generated_activity_dir, preview_url
-from sparkth.plugins.pxc.constants import PXC_ASSET_DIR, PXC_MAX_SOURCE_CHARS
+from sparkth.plugins.pxc.config import get_pxc_settings
+from sparkth.plugins.pxc.constants import PXC_ASSET_DIR
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound, PxcBuildFailed, PxcCompileFailed, PxcManifestInvalid
 from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.schemas import ActivitySource
@@ -28,13 +28,14 @@ async def test_about_carries_the_contract_rules() -> None:
     about = (await pxc_about())["about"]
 
     rules = (PXC_ASSET_DIR / "about.txt").read_text(encoding="utf-8")
-    assert rules.format(max_source_chars=PXC_MAX_SOURCE_CHARS) in about
+    assert rules.format(max_source_chars=get_pxc_settings().max_source_chars) in about
 
 
-async def test_about_states_the_current_source_size_cap(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(tools, "PXC_MAX_SOURCE_CHARS", 12345)
+async def test_about_states_the_configured_source_size_cap(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PXC_MAX_SOURCE_CHARS", "12345")
+    get_pxc_settings.cache_clear()
 
-    assert "12345" in (await tools.pxc_about())["about"]
+    assert "12345" in (await pxc_about())["about"]
 
 
 async def test_about_carries_the_manifest_schema() -> None:
@@ -140,6 +141,26 @@ async def test_list_keeps_only_the_newest_activities_up_to_the_limit(
     act_as(authors[0])
 
     result = await pxc_list_activities(1)
+
+    assert [listed["activity_id"] for listed in result["activities"]] == [str(authored_activity.id)]
+
+
+async def test_list_defaults_to_the_configured_limit(
+    session: AsyncSession, authored_activity: PxcActivity, authors: tuple[User, User], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PXC_LIST_ACTIVITIES_LIMIT", "1")
+    get_pxc_settings.cache_clear()
+    older = PxcActivity(
+        owner_user_id=authored_activity.owner_user_id,
+        title="Older",
+        description="Built a day earlier",
+        created_at=utc_now() - timedelta(days=1),
+    )
+    await insert_activity(session, older)
+    await session.commit()
+    act_as(authors[0])
+
+    result = await pxc_list_activities()
 
     assert [listed["activity_id"] for listed in result["activities"]] == [str(authored_activity.id)]
 
