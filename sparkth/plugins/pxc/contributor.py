@@ -31,7 +31,7 @@ async def list_pxc_options() -> list[ContentOption]:
     """The activities the caller may place: every bundled one, then the caller's newest own.
 
     The caller's own are capped at ``PXC_LIST_ACTIVITIES_LIMIT``, since every option reaches
-    the model. An older one is still placeable by its id.
+    the model.
 
     With nobody authenticated only the bundled activities are offered, so listing contributors
     keeps working for a caller that carries no identity.
