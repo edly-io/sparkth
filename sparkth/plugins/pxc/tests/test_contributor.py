@@ -147,7 +147,33 @@ async def test_options_are_the_bundled_activities_then_the_authors_own(
 
     options = await list_pxc_options()
 
-    assert options == [ContentOption("mcq", "mcq"), ContentOption(str(authored_activity.id), "Capital cities")]
+    built_at = f"{authored_activity.created_at:%Y-%m-%d %H:%M} UTC"
+    assert options == [
+        ContentOption("mcq", "mcq"),
+        ContentOption(str(authored_activity.id), f"Capital cities ({built_at})"),
+    ]
+
+
+async def test_activities_sharing_a_title_get_distinct_labels(
+    session: AsyncSession, authors: tuple[User, User]
+) -> None:
+    # An edit builds a new activity under the same title, so the build time tells them apart.
+    owner = authors[0]
+    assert owner.id is not None
+    for hour in (9, 10):
+        created_at = datetime(2026, 10, 8, hour, 30, tzinfo=UTC)
+        await insert_activity(
+            session, PxcActivity(owner_user_id=owner.id, title="Fractions", description="", created_at=created_at)
+        )
+    act_as(owner)
+
+    options = await list_pxc_options()
+
+    assert [option.label for option in options] == [
+        "mcq",
+        "Fractions (2026-10-08 10:30 UTC)",
+        "Fractions (2026-10-08 09:30 UTC)",
+    ]
 
 
 async def test_options_offer_only_the_authors_newest_activities(
@@ -167,7 +193,11 @@ async def test_options_offer_only_the_authors_newest_activities(
 
     options = await list_pxc_options()
 
-    assert [option.label for option in options] == ["mcq", "Day 3", "Day 2"]
+    assert [option.label for option in options] == [
+        "mcq",
+        "Day 3 (2026-10-03 00:00 UTC)",
+        "Day 2 (2026-10-02 00:00 UTC)",
+    ]
 
 
 async def test_options_leave_out_another_authors_activities(

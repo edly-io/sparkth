@@ -31,7 +31,8 @@ async def list_pxc_options() -> list[ContentOption]:
     """The activities the caller may place: every bundled one, then the caller's newest own.
 
     The caller's own are capped at ``PXC_LIST_ACTIVITIES_LIMIT``, since every option reaches
-    the model.
+    the model. Each is labelled with its title and build time in UTC: an edit builds a new
+    activity, usually under the same title, and the time is what tells them apart.
 
     With nobody authenticated only the bundled activities are offered, so listing contributors
     keeps working for a caller that carries no identity.
@@ -44,7 +45,10 @@ async def list_pxc_options() -> list[ContentOption]:
         return bundled
     async with session_scope() as session:
         owned = await list_owned_activities(session, owner_user_id, get_pxc_settings().list_activities_limit)
-    return bundled + [ContentOption(str(activity.id), activity.title) for activity in owned]
+    return bundled + [
+        ContentOption(str(activity.id), f"{activity.title} ({activity.created_at:%Y-%m-%d %H:%M} UTC)")
+        for activity in owned
+    ]
 
 
 async def build_pxc_block(course_id: str, activity_id: str | None) -> ContentBlock:
