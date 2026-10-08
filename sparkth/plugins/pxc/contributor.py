@@ -92,8 +92,9 @@ async def placeable_activity(activity_id: str) -> ContentOption:
     Returned as the option the caller chose: its id, and its label, which titles the block.
 
     A bundled name is open to everyone. Anything else must be a generated activity owned by the
-    authenticated caller. An unknown id, a malformed one, someone else's and an anonymous
-    caller all get one message, which does not reveal whether the activity exists.
+    authenticated caller, with its files still on disk. An unknown id, a malformed one, someone
+    else's, one whose files are gone and an anonymous caller all get one message, which does not
+    reveal whether the activity exists.
 
     Raises:
         ContentBuildError: if the caller may not place this activity.
@@ -105,6 +106,7 @@ async def placeable_activity(activity_id: str) -> ContentOption:
         owner_user_id = current_user_id()
         async with session_scope() as session:
             activity = await get_owned_activity(session, generated_id, owner_user_id)
+        activity_dir(str(activity.id))
     except (PxcActivityNotFound, NoAuthenticatedUser) as err:
         logger.warning("Refused to place PXC activity %r: %s", activity_id, err)
         raise ContentBuildError(f"No activity you can place has the id {activity_id!r}") from err

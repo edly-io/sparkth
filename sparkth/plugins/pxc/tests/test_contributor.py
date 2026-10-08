@@ -18,6 +18,7 @@ from sparkth.lib.content.exceptions import ContentBuildError
 from sparkth.lib.content.hooks import LMS_CONTENT_CONTRIBUTORS, ContentOption
 from sparkth.lib.exceptions.auth import NoAuthenticatedUser
 from sparkth.lib.models import User
+from sparkth.plugins.pxc.activities import generated_activity_dir
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import PXC_BLOCK_CATEGORY
 from sparkth.plugins.pxc.contributor import build_pxc_block, list_pxc_options
@@ -217,6 +218,16 @@ async def test_another_author_cannot_place_someone_elses_activity(
     authored_activity: PxcActivity, authors: tuple[User, User]
 ) -> None:
     act_as(authors[1])
+
+    with pytest.raises(ContentBuildError):
+        await build_pxc_block("course-v1:X+Y+Z", str(authored_activity.id))
+
+
+async def test_an_owned_activity_whose_files_are_gone_cannot_be_placed(
+    authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    act_as(authors[0])
+    (generated_activity_dir(str(authored_activity.id)) / "manifest.json").unlink()
 
     with pytest.raises(ContentBuildError):
         await build_pxc_block("course-v1:X+Y+Z", str(authored_activity.id))
