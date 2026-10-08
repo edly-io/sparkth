@@ -11,7 +11,11 @@
       "totalLogins": "Total logins",
       "busiestBucket": "Busiest {bucket, select, day {day} week {week} other {month}}",
       "weekOf": "Week of {date}",
-      "chartLabel": "Logins, {range}"
+      "chartCaption": "Logins, {range}"
+    },
+    "table": {
+      "date": "Date",
+      "logins": "Logins"
     },
     "nav": {
       "label": "Analytics views",

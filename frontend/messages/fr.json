@@ -11,7 +11,11 @@
       "totalLogins": "Connexions totales",
       "busiestBucket": "{bucket, select, day {Jour le plus actif} week {Semaine la plus active} other {Mois le plus actif}}",
       "weekOf": "Semaine du {date}",
-      "chartLabel": "Connexions, {range}"
+      "chartCaption": "Connexions, {range}"
+    },
+    "table": {
+      "date": "Date",
+      "logins": "Connexions"
     },
     "nav": {
       "label": "Vues des analyses",
