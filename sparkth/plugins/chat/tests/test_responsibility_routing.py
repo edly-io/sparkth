@@ -13,11 +13,11 @@ from sparkth.lib.chat.hooks import ChatResponsibility
 from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
+from sparkth.lib.testing import AddTranslation
 from sparkth.plugins.chat.constants import REFUSAL_MESSAGE
 from sparkth.plugins.chat.exceptions import ClassifierError
-from sparkth.plugins.chat.models import Conversation
+from sparkth.plugins.chat.models import Conversation, Message
 from sparkth.plugins.chat.prompt import render_system_prompt
-from sparkth.plugins.chat.responsibilities import COURSE_DESIGN
 
 COMPLETIONS_URL = "/api/v1/chat/completions"
 
@@ -171,27 +171,36 @@ class TestLaterTurnsFollowTheStoredJob:
         assert response.status_code == 200
         assert render.call_args.args[0] is stub_job
 
-    async def test_a_conversation_whose_plugin_is_switched_off_runs_as_course_design(
-        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_job: ChatResponsibility
+    async def test_a_conversation_whose_plugin_is_switched_off_is_refused_by_its_label(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+        stub_job: ChatResponsibility,
+        translation_catalog: AddTranslation,
     ) -> None:
-        """Switching off the plugin that registered a job leaves its conversations usable."""
+        """The author is told, in their language, which job the conversation is for; nothing runs."""
         config_id = await _seed_llm_config(session, current_user.id or 1)
         conversation_uuid = await _seed_conversation(session, current_user.id or 1, "stub-job")
         session.add(Plugin(name="stub", enabled=False))
         await session.commit()
+        translation_catalog(stub_job.label, "Trabajo stub")
+        client.headers["Accept-Language"] = "es"
+        provider = _provider()
 
         with (
             patch(
                 "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
                 return_value=_classifier_answering("course-design"),
             ),
-            patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=_provider()),
-            patch("sparkth.plugins.chat.routes.completions.render_system_prompt", wraps=render_system_prompt) as render,
+            patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=provider),
         ):
             response = await _turn(client, config_id, conversation_uuid)
 
-        assert response.json()["message"]["content"] == "On it."
-        assert render.call_args.args[0] == COURSE_DESIGN
+        assert response.status_code == 403
+        assert "Trabajo stub" in response.json()["detail"]
+        provider.send_message.assert_not_awaited()
+        assert (await session.exec(select(Message))).all() == []
 
     async def test_the_stored_job_decides_which_tools_are_bound(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_job: ChatResponsibility
