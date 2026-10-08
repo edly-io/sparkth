@@ -11,7 +11,7 @@ from uuid6 import uuid7
 from sparkth.core.models.user import User
 from sparkth.lib.auth import bind_current_user_id
 from sparkth.plugins.pxc import tools
-from sparkth.plugins.pxc.activities import preview_url
+from sparkth.plugins.pxc.activities import generated_activity_dir, preview_url
 from sparkth.plugins.pxc.constants import PXC_ASSET_DIR, PXC_MAX_SOURCE_CHARS
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound, PxcBuildFailed, PxcCompileFailed, PxcManifestInvalid
 from sparkth.plugins.pxc.models import PxcActivity
@@ -145,6 +145,30 @@ async def test_source_refuses_another_authors_activity(
     authored_activity: PxcActivity, authors: tuple[User, User]
 ) -> None:
     act_as(authors[1])
+
+    with pytest.raises(PxcActivityNotFound):
+        await pxc_get_activity_source(str(authored_activity.id))
+
+
+async def test_source_with_missing_files_is_not_found_without_a_server_path(
+    authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    act_as(authors[0])
+    directory = generated_activity_dir(str(authored_activity.id))
+    (directory / "ui.js").unlink()
+
+    with pytest.raises(PxcActivityNotFound) as refused:
+        await pxc_get_activity_source(str(authored_activity.id))
+
+    assert str(refused.value) == f"Unknown activity: {authored_activity.id}"
+
+
+async def test_source_with_an_unreadable_manifest_is_not_found(
+    authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    act_as(authors[0])
+    directory = generated_activity_dir(str(authored_activity.id))
+    (directory / "manifest.json").write_text("{not json", encoding="utf-8")
 
     with pytest.raises(PxcActivityNotFound):
         await pxc_get_activity_source(str(authored_activity.id))

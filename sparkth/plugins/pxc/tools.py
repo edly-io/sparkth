@@ -14,7 +14,7 @@ from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.activities import generated_activity_dir, parse_activity_id, preview_url
 from sparkth.plugins.pxc.builder import build_activity
 from sparkth.plugins.pxc.constants import PXC_ASSET_DIR, PXC_MAX_SOURCE_CHARS
-from sparkth.plugins.pxc.exceptions import PxcManifestInvalid
+from sparkth.plugins.pxc.exceptions import PxcActivityNotFound, PxcManifestInvalid
 from sparkth.plugins.pxc.schemas import ActivitySource
 from sparkth.plugins.pxc.store import get_owned_activity, list_owned_activities
 
@@ -109,11 +109,18 @@ async def pxc_get_activity_source(activity_id: str) -> dict[str, object]:
     async with session_scope() as session:
         activity = await get_owned_activity(session, parse_activity_id(activity_id), current_user_id())
     directory = generated_activity_dir(str(activity.id))
+    try:
+        manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+        ui_js = (directory / "ui.js").read_text(encoding="utf-8")
+        sandbox_js = (directory / "sandbox.js").read_text(encoding="utf-8")
+    except (OSError, json.JSONDecodeError) as err:
+        logger.error("PXC activity %s has a row but its files cannot be read: %s", activity.id, err)
+        raise PxcActivityNotFound(f"Unknown activity: {activity.id}") from err
     return {
         "activity_id": str(activity.id),
         "title": activity.title,
         "description": activity.description,
-        "manifest": json.loads((directory / "manifest.json").read_text(encoding="utf-8")),
-        "ui_js": (directory / "ui.js").read_text(encoding="utf-8"),
-        "sandbox_js": (directory / "sandbox.js").read_text(encoding="utf-8"),
+        "manifest": manifest,
+        "ui_js": ui_js,
+        "sandbox_js": sandbox_js,
     }
