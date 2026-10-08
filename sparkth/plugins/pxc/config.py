@@ -46,6 +46,26 @@ class PxcSettings(BaseSettings):
     # TODO: move activity builds to a dedicated worker container to make this scale.
     build_concurrency: int = 2
 
+    # The longest build error handed back to the agent, in characters. Compiler and smoke output
+    # keep their end, where the cause is; a manifest schema message keeps its start.
+    build_error_limit: int = 4000
+
+    # The most of a build step's stderr kept in memory, in bytes: the end of it, where the cause
+    # is. The rest is read and dropped, so a step flooding stderr can neither block nor exhaust
+    # memory.
+    build_stderr_limit_bytes: int = 65536
+
+    # The longest ui.js, sandbox.js or manifest (as JSON) an agent may submit, in characters,
+    # refused before any compile.
+    max_source_chars: int = 20000
+
+    # The longest activity description an agent may submit, in characters.
+    max_description_chars: int = 2000
+
+    # How many of an author's newest activities reach the model: the pxc_list_activities default,
+    # and the cap on the author's activities offered for placing in a course.
+    list_activities_limit: int = 20
+
 
 @lru_cache
 def get_pxc_settings() -> PxcSettings:

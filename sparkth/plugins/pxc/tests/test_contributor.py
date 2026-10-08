@@ -18,6 +18,8 @@ from sparkth.lib.content.exceptions import ContentBuildError
 from sparkth.lib.content.hooks import LMS_CONTENT_CONTRIBUTORS, ContentOption
 from sparkth.lib.exceptions.auth import NoAuthenticatedUser
 from sparkth.lib.models import User
+from sparkth.plugins.pxc.activities import generated_activity_dir
+from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import PXC_BLOCK_CATEGORY
 from sparkth.plugins.pxc.contributor import build_pxc_block, list_pxc_options
 from sparkth.plugins.pxc.models import PxcActivity
@@ -111,14 +113,41 @@ async def test_options_are_the_bundled_activities_then_the_authors_own(
 
     options = await list_pxc_options()
 
-    assert options == [ContentOption("mcq", "mcq"), ContentOption(str(authored_activity.id), "Capital cities")]
+    built_at = f"{authored_activity.created_at:%Y-%m-%d %H:%M} UTC"
+    assert options == [
+        ContentOption("mcq", "mcq"),
+        ContentOption(str(authored_activity.id), f"Capital cities ({built_at})"),
+    ]
+
+
+async def test_activities_sharing_a_title_get_distinct_labels(
+    session: AsyncSession, authors: tuple[User, User]
+) -> None:
+    # An edit builds a new activity under the same title, so the build time tells them apart.
+    owner = authors[0]
+    assert owner.id is not None
+    for hour in (9, 10):
+        created_at = datetime(2026, 10, 8, hour, 30, tzinfo=UTC)
+        await insert_activity(
+            session, PxcActivity(owner_user_id=owner.id, title="Fractions", description="", created_at=created_at)
+        )
+    act_as(owner)
+
+    options = await list_pxc_options()
+
+    assert [option.label for option in options] == [
+        "mcq",
+        "Fractions (2026-10-08 10:30 UTC)",
+        "Fractions (2026-10-08 09:30 UTC)",
+    ]
 
 
 async def test_options_offer_only_the_authors_newest_activities(
     session: AsyncSession, authors: tuple[User, User], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Every option reaches the model, so a prolific author's list is capped at the newest.
-    monkeypatch.setattr("sparkth.plugins.pxc.contributor.PXC_MAX_PLACEABLE_ACTIVITIES", 2)
+    monkeypatch.setenv("PXC_LIST_ACTIVITIES_LIMIT", "2")
+    get_pxc_settings.cache_clear()
     owner = authors[0]
     assert owner.id is not None
     for day in (1, 2, 3):
@@ -130,7 +159,11 @@ async def test_options_offer_only_the_authors_newest_activities(
 
     options = await list_pxc_options()
 
-    assert [option.label for option in options] == ["mcq", "Day 3", "Day 2"]
+    assert [option.label for option in options] == [
+        "mcq",
+        "Day 3 (2026-10-03 00:00 UTC)",
+        "Day 2 (2026-10-02 00:00 UTC)",
+    ]
 
 
 async def test_options_leave_out_another_authors_activities(
@@ -184,6 +217,16 @@ async def test_another_author_cannot_place_someone_elses_activity(
 
     with pytest.raises(ContentBuildError):
         await build_pxc_block("course-1", str(authored_activity.id))
+
+
+async def test_an_owned_activity_whose_files_are_gone_cannot_be_placed(
+    authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    act_as(authors[0])
+    (generated_activity_dir(str(authored_activity.id)) / "manifest.json").unlink()
+
+    with pytest.raises(ContentBuildError):
+        await build_pxc_block("course-v1:X+Y+Z", str(authored_activity.id))
 
 
 async def test_a_generated_activity_cannot_be_placed_with_nobody_authenticated(
