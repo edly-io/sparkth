@@ -153,14 +153,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * Chat Completion
-         * @description Answer one chat turn, streamed over SSE or as one JSON reply.
-         *
-         *     Resolves the AI key and judges a first message for scope before anything is written. Then it
-         *     opens the conversation, records the incoming turn and answers it under the conversation's job.
-         *     An upstream failure is a 502, an unexpected one a 500; both are recorded as failed turns.
-         */
+        /** Chat Completion */
         post: operations["chat_completion_api_v1_chat_completions_post"];
         delete?: never;
         options?: never;
