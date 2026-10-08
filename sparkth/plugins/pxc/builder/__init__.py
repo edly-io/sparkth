@@ -40,8 +40,6 @@ from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.activities import generated_activity_dir
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import (
-    PXC_BUILD_ERROR_LIMIT,
-    PXC_BUILD_STDERR_LIMIT_BYTES,
     PXC_COMPILE_TOOLCHAIN_MISSING,
     PXC_SANDBOX_WIT,
 )
@@ -93,7 +91,7 @@ def validate_manifest(manifest: dict[str, object], activity_id: str) -> dict[str
         )
         logger.info("Refused the manifest of PXC activity %s: %s", activity_id, problems)
         raise PxcManifestInvalid(
-            f"manifest.json does not match the PXC manifest schema: {problems}"[:PXC_BUILD_ERROR_LIMIT]
+            f"manifest.json does not match the PXC manifest schema: {problems}"[: get_pxc_settings().build_error_limit]
         ) from err
     violations = _manifest_rule_violations(parsed)
     if violations:
@@ -112,9 +110,10 @@ def _kill_group(pid: int, step: str) -> None:
 
 async def _read_tail(stream: asyncio.StreamReader) -> bytes:
     """Read ``stream`` to its end, keeping only its last ``PXC_BUILD_STDERR_LIMIT_BYTES``."""
+    limit = get_pxc_settings().build_stderr_limit_bytes
     tail = b""
-    while chunk := await stream.read(PXC_BUILD_STDERR_LIMIT_BYTES):
-        tail = (tail + chunk)[-PXC_BUILD_STDERR_LIMIT_BYTES:]
+    while chunk := await stream.read(limit):
+        tail = (tail + chunk)[-limit:]
     return tail
 
 
@@ -197,7 +196,9 @@ async def compile_sandbox(sandbox_js: str, compile_dir: Path, output: Path) -> N
     if returncode == PXC_COMPILE_TOOLCHAIN_MISSING:
         raise _toolchain_missing(stderr.strip())
     if returncode != 0:
-        raise PxcCompileFailed(f"sandbox.js failed to compile:\n{stderr.strip()[-PXC_BUILD_ERROR_LIMIT:]}")
+        raise PxcCompileFailed(
+            f"sandbox.js failed to compile:\n{stderr.strip()[-get_pxc_settings().build_error_limit :]}"
+        )
 
 
 async def smoke_test_activity(directory: Path) -> None:
@@ -214,7 +215,7 @@ async def smoke_test_activity(directory: Path) -> None:
     returncode, stderr = await run_bounded(argv, directory, "The get_state smoke test")
     if returncode != 0:
         raise PxcSmokeTestFailed(
-            f"sandbox.js compiled, but get_state failed:\n{stderr.strip()[-PXC_BUILD_ERROR_LIMIT:]}"
+            f"sandbox.js compiled, but get_state failed:\n{stderr.strip()[-get_pxc_settings().build_error_limit :]}"
         )
 
 

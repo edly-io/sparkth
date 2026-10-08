@@ -17,6 +17,11 @@ def test_the_pxc_prefix_maps_onto_the_settings_field_names(monkeypatch: pytest.M
     monkeypatch.setenv("PXC_TOOLCHAIN_DIR", "/opt/somewhere/toolchain")
     monkeypatch.setenv("PXC_BUILD_TIMEOUT_SECONDS", "7")
     monkeypatch.setenv("PXC_BUILD_CONCURRENCY", "3")
+    monkeypatch.setenv("PXC_BUILD_ERROR_LIMIT", "11")
+    monkeypatch.setenv("PXC_BUILD_STDERR_LIMIT_BYTES", "12")
+    monkeypatch.setenv("PXC_MAX_SOURCE_CHARS", "13")
+    monkeypatch.setenv("PXC_MAX_DESCRIPTION_CHARS", "14")
+    monkeypatch.setenv("PXC_LIST_ACTIVITIES_LIMIT", "15")
     get_pxc_settings.cache_clear()
 
     settings = get_pxc_settings()
@@ -28,6 +33,11 @@ def test_the_pxc_prefix_maps_onto_the_settings_field_names(monkeypatch: pytest.M
     assert str(settings.toolchain_dir) == "/opt/somewhere/toolchain"
     assert settings.build_timeout_seconds == 7
     assert settings.build_concurrency == 3
+    assert settings.build_error_limit == 11
+    assert settings.build_stderr_limit_bytes == 12
+    assert settings.max_source_chars == 13
+    assert settings.max_description_chars == 14
+    assert settings.list_activities_limit == 15
 
 
 def test_only_pxc_prefixed_variables_are_read(monkeypatch: pytest.MonkeyPatch) -> None:
