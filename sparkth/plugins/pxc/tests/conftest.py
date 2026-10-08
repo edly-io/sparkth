@@ -65,6 +65,11 @@ def pxc_settings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[No
     monkeypatch.setenv("PXC_TOOLCHAIN_DIR", str(TOOLCHAIN_DIR))
     monkeypatch.setenv("PXC_BUILD_TIMEOUT_SECONDS", "120")
     monkeypatch.setenv("PXC_BUILD_CONCURRENCY", "2")
+    monkeypatch.setenv("PXC_BUILD_ERROR_LIMIT", "4000")
+    monkeypatch.setenv("PXC_BUILD_STDERR_LIMIT_BYTES", "65536")
+    monkeypatch.setenv("PXC_MAX_SOURCE_CHARS", "20000")
+    monkeypatch.setenv("PXC_MAX_DESCRIPTION_CHARS", "2000")
+    monkeypatch.setenv("PXC_LIST_ACTIVITIES_LIMIT", "20")
     get_pxc_settings.cache_clear()
     yield
     get_pxc_settings.cache_clear()
