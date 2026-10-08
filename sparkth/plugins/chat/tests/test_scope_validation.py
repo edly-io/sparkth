@@ -153,7 +153,7 @@ class TestAnExistingConversationSeesTheWholeTurnToo:
             )
 
         assert response.status_code == 200
-        query, _history, attachments, _uuid, _fallback = MockClassifier.return_value.responsibility_for.await_args.args
+        query, _history, attachments, _uuid, _job = MockClassifier.return_value.responsibility_for.await_args.args
         assert query == ""
         assert attachments == ["syllabus.pdf"]
 
