@@ -66,6 +66,7 @@ async def pxc_build_activity(
     If the build fails, the error explains why (an invalid manifest, a rejected import, compiler
     output, or the sandbox failing to start). Fix the files and call this again.
     """
+    owner = current_user_id()
     source = ActivitySource(
         title=title,
         description=description,
@@ -73,7 +74,7 @@ async def pxc_build_activity(
         ui_js=ui_js,
         sandbox_js=sandbox_js,
     )
-    activity = await build_activity(source, current_user_id())
+    activity = await build_activity(source, owner)
     return {"activity_id": str(activity.id), "preview_url": preview_url(activity.id)}
 
 
@@ -84,8 +85,9 @@ async def pxc_list_activities(limit: int = PXC_LIST_ACTIVITIES_LIMIT) -> dict[st
     tool calls are not kept in the conversation. Raise `limit` only when the activity you need
     is older than the ones returned.
     """
+    owner = current_user_id()
     async with session_scope() as session:
-        activities = await list_owned_activities(session, current_user_id(), limit)
+        activities = await list_owned_activities(session, owner, limit)
     return {
         "activities": [
             {
@@ -106,8 +108,9 @@ async def pxc_get_activity_source(activity_id: str) -> dict[str, object]:
     `pxc_build_activity`, which creates a new activity. Only the activity's own author can read
     it.
     """
+    owner = current_user_id()
     async with session_scope() as session:
-        activity = await get_owned_activity(session, parse_activity_id(activity_id), current_user_id())
+        activity = await get_owned_activity(session, parse_activity_id(activity_id), owner)
     directory = generated_activity_dir(str(activity.id))
     try:
         manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))

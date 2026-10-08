@@ -11,6 +11,7 @@ from uuid6 import uuid7
 
 from sparkth.core.models.user import User
 from sparkth.lib.auth import bind_current_user_id
+from sparkth.lib.exceptions.auth import NoAuthenticatedUser
 from sparkth.lib.models import utc_now
 from sparkth.plugins.pxc import tools
 from sparkth.plugins.pxc.activities import generated_activity_dir, preview_url
@@ -89,6 +90,11 @@ async def test_manifest_text_that_is_not_json_is_refused_with_a_fixable_message(
         await pxc_build_activity("Poll", "A one-question poll", "{not json", "ui", "sandbox")
 
     assert "not valid JSON" in str(refused.value)
+
+
+async def test_an_unauthenticated_build_is_refused_before_its_manifest_is_read() -> None:
+    with pytest.raises(NoAuthenticatedUser):
+        await pxc_build_activity("Poll", "A one-question poll", "{not json", "ui", "sandbox")
 
 
 async def test_manifest_json_that_is_not_an_object_is_refused_as_the_wrong_type() -> None:
@@ -192,6 +198,11 @@ async def test_source_with_an_unreadable_manifest_is_not_found(
 
     with pytest.raises(PxcActivityNotFound):
         await pxc_get_activity_source(str(authored_activity.id))
+
+
+async def test_an_unauthenticated_source_read_is_refused_before_its_id_is_read() -> None:
+    with pytest.raises(NoAuthenticatedUser):
+        await pxc_get_activity_source("../../mcq")
 
 
 async def test_source_refuses_an_id_that_is_not_a_uuid(authors: tuple[User, User]) -> None:
