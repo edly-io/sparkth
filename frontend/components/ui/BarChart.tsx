@@ -1,13 +1,16 @@
-import { SVGAttributes, forwardRef } from "react";
-import { cn } from "@/lib/utils";
+import { ChartTable } from "@/components/ui/ChartTable";
 
 export interface BarChartDatum {
   label: string;
   value: number;
 }
 
-interface BarChartProps extends SVGAttributes<SVGSVGElement> {
+interface BarChartProps {
   data: BarChartDatum[];
+  caption: string;
+  headers: [string, string];
+  formatValue?: (n: number) => string;
+  className?: string;
 }
 
 // Internal viewBox coordinate space (not pixels). The SVG scales to its
@@ -19,26 +22,29 @@ const PAD_TOP = 8; // headroom above the tallest bar
 const PAD_BOTTOM = 20; // room for the x-axis labels
 const GAP_RATIO = 0.2; // fraction of each slot left as inter-bar gap
 
-// A themed, accessible bar chart in the shadcn style — pure SVG, zero
-// dependencies. Bars, gridline, and labels colour from theme CSS variables via
-// Tailwind utilities, so it renders correctly in light and dark mode.
-export const BarChart = forwardRef<SVGSVGElement, BarChartProps>(
-  ({ data, className, ...props }, ref) => {
-    const max = Math.max(1, ...data.map((d) => d.value));
-    const plotW = VIEW_W - PAD_X * 2;
-    const plotH = VIEW_H - PAD_TOP - PAD_BOTTOM;
-    const slot = data.length > 0 ? plotW / data.length : plotW;
-    const barW = slot * (1 - GAP_RATIO);
-    const total = data.reduce((sum, d) => sum + d.value, 0);
+// A themed bar chart in the shadcn style — pure SVG, zero dependencies. Bars,
+// gridline, and labels colour from theme CSS variables via Tailwind utilities, so it
+// renders correctly in light and dark mode. The SVG is hidden from assistive tech;
+// the data is read from the ChartTable.
+export function BarChart({
+  data,
+  caption,
+  headers,
+  formatValue = String,
+  className,
+}: BarChartProps) {
+  const max = Math.max(1, ...data.map((d) => d.value));
+  const plotW = VIEW_W - PAD_X * 2;
+  const plotH = VIEW_H - PAD_TOP - PAD_BOTTOM;
+  const slot = data.length > 0 ? plotW / data.length : plotW;
+  const barW = slot * (1 - GAP_RATIO);
 
-    return (
+  return (
+    <figure className={className}>
       <svg
-        ref={ref}
-        role="img"
-        aria-label={`Bar chart of ${data.length} data points totalling ${total}`}
+        aria-hidden="true"
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-        className={cn("w-full h-auto text-primary-500", className)}
-        {...props}
+        className="w-full h-auto text-primary-500"
       >
         {/* max-value gridline */}
         <line
@@ -64,7 +70,7 @@ export const BarChart = forwardRef<SVGSVGElement, BarChartProps>(
           return (
             <rect key={i} x={x} y={y} width={barW} height={barH} rx={2} className="fill-current">
               {/* native tooltip — no JS tooltip machinery */}
-              <title>{`${d.label}: ${d.value}`}</title>
+              <title>{`${d.label}: ${formatValue(d.value)}`}</title>
             </rect>
           );
         })}
@@ -89,8 +95,11 @@ export const BarChart = forwardRef<SVGSVGElement, BarChartProps>(
           </text>
         )}
       </svg>
-    );
-  },
-);
-
-BarChart.displayName = "BarChart";
+      <ChartTable
+        caption={caption}
+        headers={headers}
+        rows={data.map((d) => [d.label, formatValue(d.value)])}
+      />
+    </figure>
+  );
+}
