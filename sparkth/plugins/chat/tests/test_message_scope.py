@@ -81,6 +81,15 @@ class TestTurnRendering:
         assert _sent_messages(chain)[-1].content == "design a quiz"
 
     @pytest.mark.asyncio
+    async def test_a_thread_id_alone_names_no_current_job(self) -> None:
+        """The note comes from the job passed as the conversation's own, not from a thread id."""
+        chain = _chain_choosing("course-design")
+
+        await _classifier_with(chain).responsibility_for("yes", None, None, uuid4())
+
+        assert _sent_messages(chain)[-1].content == "yes"
+
+    @pytest.mark.asyncio
     async def test_history_is_replayed_as_alternating_turns(self) -> None:
         """The prompt judges scope from the conversation, so prior turns must arrive as turns
         rather than as a summary the model has to unpack."""
@@ -184,7 +193,7 @@ class TestTheJobCallersActOn:
         assert await classifier.responsibility_for("q", None, None, None, "course-design") == "course-design"
 
     @pytest.mark.asyncio
-    async def test_a_failure_returns_the_callers_fallback(self) -> None:
+    async def test_a_failure_keeps_the_current_job(self) -> None:
         """Later turns pass the stored job, so a broken call keeps the conversation on it."""
         chain = MagicMock()
         chain.ainvoke = AsyncMock(side_effect=LangChainException("provider timeout"))
