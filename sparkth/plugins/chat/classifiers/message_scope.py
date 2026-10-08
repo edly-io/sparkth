@@ -1,8 +1,8 @@
 """The message-scope classifier: which registered chat job is this turn for?
 
 A turn that fits no job ends with the refusal sentence and never reaches the chat model. So this
-module fails open, answering with the caller's fallback job when the classification fails or
-names no offered job, and it logs every refusal it decides.
+module fails open, answering with the conversation's current job, or the default job on a first
+message, when the classification fails or names no offered job. It logs every refusal it decides.
 """
 
 from datetime import datetime, timezone
@@ -38,9 +38,10 @@ class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdi
         analytics: ChatClassifierAnalytics | None = None,
     ) -> None:
         """``jobs`` is this request's enabled jobs by name, from ``enabled_responsibilities``. The
-        prompt lists them, and the answer schema accepts only their names or ``NO_RESPONSIBILITY``. ``user_id`` never
-        reaches the model; it is logged, and is all a refusal on a first message can be traced
-        by. ``analytics`` is optional: without it a decision is simply not measured.
+        prompt lists them, and the answer schema accepts only their names or
+        ``NO_RESPONSIBILITY``. ``user_id`` never reaches the model; it is logged, and is all a
+        refusal on a first message can be traced by. ``analytics`` is optional: without it a
+        decision is simply not measured.
         """
         super().__init__(
             render_scope_classifier_prompt(jobs),
@@ -86,26 +87,27 @@ class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdi
         history: list[HistoryTurn] | None = None,
         attached_document_names: list[str] | None = None,
         conversation_uuid: UUID | None = None,
-        fallback: str = DEFAULT_RESPONSIBILITY,
+        current_job: str | None = None,
     ) -> str | None:
         """Return the name of the offered job this turn belongs to, or ``None`` for none.
 
         ``query`` may be empty when documents are attached; the attachment names are judged
         instead. ``conversation_uuid`` never reaches the model. It is logged so a decision can
-        be traced, and it is ``None`` on a new chat's first message. On a later turn ``fallback``
-        is the stored job, which is also shown to the model as the job the conversation is doing.
+        be traced, and it is ``None`` on a new chat's first message. ``current_job`` is the job
+        the conversation is doing on a later turn, shown to the model, and ``None`` on a first
+        message.
 
-        Fails open to ``fallback``: the default job on a first message, the stored job on a
-        later turn. That covers a failed classification, including an answer that is not an
-        offered job and so fails the schema, because a refusal ends the turn and is never inferred
-        from an error.
+        Fails open to ``current_job``, or to the default job on a first message. That covers a
+        failed classification, including an answer that is not an offered job and so fails the
+        schema, because a refusal ends the turn and is never inferred from an error.
         """
         payload = MessageScopeInput(
             query=query,
             history=history or [],
             attached_document_names=attached_document_names or [],
-            current_job=fallback if conversation_uuid else None,
+            current_job=current_job,
         )
+        fallback = current_job or DEFAULT_RESPONSIBILITY
         try:
             verdict = await self.classify(payload)
         except ClassifierError as exc:
