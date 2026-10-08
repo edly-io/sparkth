@@ -13,6 +13,10 @@ class DocumentNotFound(Exception):
     """
 
 
+class ResponsibilityNotEnabled(Exception):
+    """Raised when a conversation's stored job is not enabled, because its plugin is switched off or removed."""
+
+
 class RAGSearchError(Exception):
     """Raised when the search classifier cannot decide whether to retrieve."""
 
