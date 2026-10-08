@@ -13,7 +13,7 @@ from sparkth.lib.db import session_scope
 from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.activities import generated_activity_dir, parse_activity_id, preview_url
 from sparkth.plugins.pxc.builder import build_activity
-from sparkth.plugins.pxc.constants import PXC_ASSET_DIR, PXC_MAX_SOURCE_CHARS
+from sparkth.plugins.pxc.constants import PXC_ASSET_DIR, PXC_LIST_ACTIVITIES_LIMIT, PXC_MAX_SOURCE_CHARS
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound, PxcManifestInvalid
 from sparkth.plugins.pxc.schemas import ActivitySource
 from sparkth.plugins.pxc.store import get_owned_activity, list_owned_activities
@@ -77,20 +77,20 @@ async def pxc_build_activity(
     return {"activity_id": str(activity.id), "preview_url": preview_url(activity.id)}
 
 
-async def pxc_list_activities() -> dict[str, list[dict[str, str]]]:
-    """List the activities the author has built, newest first, each with its preview link.
+async def pxc_list_activities(limit: int = PXC_LIST_ACTIVITIES_LIMIT) -> dict[str, list[dict[str, str]]]:
+    """List the author's `limit` most recent activities, newest first, each with its preview link.
 
     Use this to find an activity's id or preview link from an earlier turn: results of earlier
-    tool calls are not kept in the conversation.
+    tool calls are not kept in the conversation. Raise `limit` only when the activity you need
+    is older than the ones returned.
     """
     async with session_scope() as session:
-        activities = await list_owned_activities(session, current_user_id())
+        activities = await list_owned_activities(session, current_user_id(), limit)
     return {
         "activities": [
             {
                 "activity_id": str(activity.id),
                 "title": activity.title,
-                "description": activity.description,
                 "created_at": activity.created_at.isoformat(),
                 "preview_url": preview_url(activity.id),
             }

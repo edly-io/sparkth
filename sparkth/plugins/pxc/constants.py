@@ -74,3 +74,6 @@ PXC_BUILD_STDERR_LIMIT_BYTES = int(os.getenv("PXC_BUILD_STDERR_LIMIT_BYTES", "65
 
 # The longest activity description an agent may submit, in characters.
 PXC_MAX_DESCRIPTION_CHARS = int(os.getenv("PXC_MAX_DESCRIPTION_CHARS", "2000"))
+
+# How many of the author's most recent activities pxc_list_activities returns by default.
+PXC_LIST_ACTIVITIES_LIMIT = int(os.getenv("PXC_LIST_ACTIVITIES_LIMIT", "20"))
