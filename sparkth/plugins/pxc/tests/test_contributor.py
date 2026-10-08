@@ -153,7 +153,8 @@ async def test_options_offer_only_the_authors_newest_activities(
     session: AsyncSession, authors: tuple[User, User], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Every option reaches the model, so a prolific author's list is capped at the newest.
-    monkeypatch.setattr("sparkth.plugins.pxc.contributor.PXC_MAX_PLACEABLE_ACTIVITIES", 2)
+    monkeypatch.setenv("PXC_LIST_ACTIVITIES_LIMIT", "2")
+    get_pxc_settings.cache_clear()
     owner = authors[0]
     assert owner.id is not None
     for day in (1, 2, 3):

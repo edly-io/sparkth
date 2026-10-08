@@ -20,7 +20,7 @@ from sparkth.lib.exceptions.auth import NoAuthenticatedUser
 from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.activities import activity_dir, activity_names, parse_activity_id
 from sparkth.plugins.pxc.config import get_pxc_settings
-from sparkth.plugins.pxc.constants import PXC_BLOCK_CATEGORY, PXC_MAX_PLACEABLE_ACTIVITIES
+from sparkth.plugins.pxc.constants import PXC_BLOCK_CATEGORY
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound
 from sparkth.plugins.pxc.store import get_owned_activity, list_owned_activities
 
@@ -30,7 +30,7 @@ logger = get_logger(__name__)
 async def list_pxc_options() -> list[ContentOption]:
     """The activities the caller may place: every bundled one, then the caller's newest own.
 
-    The caller's own are capped at ``PXC_MAX_PLACEABLE_ACTIVITIES``, since every option reaches
+    The caller's own are capped at ``PXC_LIST_ACTIVITIES_LIMIT``, since every option reaches
     the model. An older one is still placeable by its id.
 
     With nobody authenticated only the bundled activities are offered, so listing contributors
@@ -43,7 +43,7 @@ async def list_pxc_options() -> list[ContentOption]:
         logger.info("Listing PXC options with no authenticated user, bundled only: %s", err)
         return bundled
     async with session_scope() as session:
-        owned = await list_owned_activities(session, owner_user_id, PXC_MAX_PLACEABLE_ACTIVITIES)
+        owned = await list_owned_activities(session, owner_user_id, get_pxc_settings().list_activities_limit)
     return bundled + [ContentOption(str(activity.id), activity.title) for activity in owned]
 
 
