@@ -141,9 +141,9 @@ def parse_activity_id(activity_id: str) -> UUID:
     try:
         parsed = UUID(activity_id)
     except ValueError as err:
-        logger.warning("Refused a malformed activity id %r: %s", activity_id, err)
+        logger.info("Refused a malformed activity id %r: %s", activity_id, err)
         raise PxcActivityNotFound(f"Unknown activity: {activity_id}") from err
     if str(parsed) != activity_id:
-        logger.warning("Refused a non-canonical activity id %r", activity_id)
+        logger.info("Refused a non-canonical activity id %r", activity_id)
         raise PxcActivityNotFound(f"Unknown activity: {activity_id}")
     return parsed
