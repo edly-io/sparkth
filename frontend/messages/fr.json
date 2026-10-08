@@ -6,16 +6,41 @@
     "retry": "Réessayer",
     "logins": {
       "title": "Connexions",
-      "subtitle": "Activité de connexion quotidienne au cours des {days} derniers jours (UTC).",
-      "empty": "Aucune connexion au cours des {days} derniers jours.",
+      "subtitle": "Activité de connexion, {range} (UTC).",
+      "empty": "Aucune connexion sur cette période.",
       "totalLogins": "Connexions totales",
-      "busiestDay": "Jour le plus actif",
-      "lastDays": "{days} derniers jours",
-      "chartLabel": "Connexions quotidiennes au cours des {days} derniers jours"
+      "busiestBucket": "{bucket, select, day {Jour le plus actif} week {Semaine la plus active} other {Mois le plus actif}}",
+      "weekOf": "Semaine du {date}",
+      "chartLabel": "Connexions, {range}"
     },
     "nav": {
       "label": "Vues des analyses",
       "logins": "Connexions"
+    },
+    "period": {
+      "range": "Période",
+      "presets": {
+        "7d": "7 derniers jours",
+        "30d": "30 derniers jours",
+        "90d": "90 derniers jours",
+        "12m": "12 derniers mois",
+        "custom": "Plage personnalisée"
+      },
+      "from": "Date de début",
+      "to": "Date de fin",
+      "apply": "Appliquer",
+      "bucket": "Regrouper par",
+      "buckets": {
+        "day": "Jour",
+        "week": "Semaine",
+        "month": "Mois"
+      },
+      "errors": {
+        "invalidDate": "Saisissez des dates de début et de fin valides.",
+        "startAfterEnd": "La date de début doit être antérieure ou égale à la date de fin.",
+        "inFuture": "La date de fin ne peut pas être dans le futur.",
+        "tooFarBack": "La date de début doit se situer dans les {days} derniers jours."
+      }
     }
   },
   "home": {
