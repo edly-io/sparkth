@@ -14,10 +14,14 @@ from sparkth.lib.chat.hooks import ChatResponsibility
 from sparkth.lib.log import get_logger
 from sparkth.plugins.chat.analytics import ChatClassifierAnalytics, ScopeVerdict
 from sparkth.plugins.chat.classifiers.base import BaseClassifier
-from sparkth.plugins.chat.constants import DEFAULT_RESPONSIBILITY, MESSAGE_SCOPE_CLASSIFIER_CONVERSATION_HISTORY
+from sparkth.plugins.chat.constants import (
+    DEFAULT_RESPONSIBILITY,
+    MESSAGE_SCOPE_CLASSIFIER_CONVERSATION_HISTORY,
+    NO_RESPONSIBILITY,
+)
 from sparkth.plugins.chat.exceptions import ClassifierError
 from sparkth.plugins.chat.prompt import render_scope_classifier_prompt
-from sparkth.plugins.chat.schemas import HistoryTurn, MessageScopeInput, MessageScopeVerdict
+from sparkth.plugins.chat.schemas import HistoryTurn, MessageScopeInput, MessageScopeVerdict, scope_verdict_model
 
 logger = get_logger(__name__)
 
@@ -34,17 +38,16 @@ class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdi
         analytics: ChatClassifierAnalytics | None = None,
     ) -> None:
         """``jobs`` is this request's enabled jobs by name, from ``enabled_responsibilities``. The
-        prompt lists them, and an answer naming any other job is not trusted. ``user_id`` never
+        prompt lists them, and the answer schema accepts only their names or ``NO_RESPONSIBILITY``. ``user_id`` never
         reaches the model; it is logged, and is all a refusal on a first message can be traced
         by. ``analytics`` is optional: without it a decision is simply not measured.
         """
         super().__init__(
             render_scope_classifier_prompt(jobs),
-            MessageScopeVerdict,
+            scope_verdict_model(jobs),
             provider_name,
             api_key,
         )
-        self._jobs = jobs
         self._user_id = user_id
         self._analytics = analytics
 
@@ -93,8 +96,9 @@ class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdi
         is the stored job, which is also shown to the model as the job the conversation is doing.
 
         Fails open to ``fallback``: the default job on a first message, the stored job on a
-        later turn. That covers a failed classification and a name that is not among the offered
-        jobs, because a refusal ends the turn and is never inferred from an error.
+        later turn. That covers a failed classification, including an answer that is not an
+        offered job and so fails the schema, because a refusal ends the turn and is never inferred
+        from an error.
         """
         payload = MessageScopeInput(
             query=query,
@@ -116,29 +120,17 @@ class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdi
             self._record(ScopeVerdict.NOT_JUDGED, conversation_uuid, history, attached_document_names, query)
             return fallback
 
-        if verdict.responsibility is not None and verdict.responsibility not in self._jobs:
-            logger.warning(
-                "Message scope classifier named no offered job, defaulting to responsibility=%s: "
-                "user_id=%s conversation_uuid=%s model=%s name_len=%d",
-                fallback,
-                self._user_id,
-                conversation_uuid,
-                self.model,
-                len(verdict.responsibility),
-            )
-            self._record(ScopeVerdict.NOT_JUDGED, conversation_uuid, history, attached_document_names, query)
-            return fallback
-
-        if verdict.responsibility is None:
+        job = None if verdict.responsibility == NO_RESPONSIBILITY else verdict.responsibility
+        if job is None:
             self._log_refusal(verdict, conversation_uuid, history, attached_document_names, query)
         self._record(
-            ScopeVerdict.OUT_OF_SCOPE if verdict.responsibility is None else ScopeVerdict.IN_SCOPE,
+            ScopeVerdict.OUT_OF_SCOPE if job is None else ScopeVerdict.IN_SCOPE,
             conversation_uuid,
             history,
             attached_document_names,
             query,
         )
-        return verdict.responsibility
+        return job
 
     def _log_refusal(
         self,
