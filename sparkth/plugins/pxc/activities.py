@@ -1,14 +1,17 @@
-"""Resolve an activity type by name to its source directory, its manifest and its state file.
+"""Resolve an activity by name to its source directory, its manifest and its state file.
 
-An activity type is identified by the ``name`` at the root of its ``manifest.json``. That name
-is also its state file's name, so one file holds every course the type appears in and every
-learner who answered — the file boundary matches the ``<activity_name>`` segment PXC's own key
-scheme starts with.
+Two kinds of activity resolve here. A bundled activity ships in ``activities/`` and is named by
+the ``name`` at the root of its ``manifest.json``. A generated activity was built by an author.
+Its name is its id, and its files live under ``generated_activity_dir(id)``. The name is also
+the state file's name, so one file holds every course the activity appears in and every learner
+who answered. That file boundary matches the ``<activity_name>`` segment PXC's own key scheme
+starts with.
 """
 
 import json
 from functools import cache
 from pathlib import Path
+from uuid import UUID
 
 from pxc.lib.manifest_types import PxcActivityManifest
 
@@ -48,24 +51,55 @@ def activity_names() -> list[str]:
     return sorted(_ACTIVITIES)
 
 
+def generated_activity_dir(activity_id: str) -> Path:
+    """Where a generated activity's files live, whether or not it has been built yet."""
+    return get_pxc_settings().data_dir / "activities" / activity_id
+
+
+def _is_canonical_id(name: str) -> bool:
+    """Whether ``name`` is a UUID in its canonical spelling, the only form a generated id takes.
+
+    It is also what keeps a lookup inside the activities directory: no path-escaping name
+    parses as a UUID.
+    """
+    try:
+        return str(UUID(name)) == name
+    except ValueError:
+        logger.debug("Activity name %r is neither bundled nor a generated id", name)
+        return False
+
+
 def activity_dir(activity_name: str) -> Path:
-    """The source directory of one activity type.
+    """The source directory of one activity: a bundled one by name, else a generated one by id.
+
+    Bundled activities are looked up first. A generated activity resolves from its directory
+    alone, so a learner's launch needs no database read.
 
     Raises:
-        PxcActivityNotFound: if no bundled activity goes by this name.
+        PxcActivityNotFound: if no bundled activity goes by this name and no generated activity
+            has been built under it.
     """
     directory = _ACTIVITIES.get(activity_name)
-    if directory is None:
-        raise PxcActivityNotFound(f"Unknown activity type: {activity_name}")
-    return directory
+    if directory is not None:
+        return directory
+    if _is_canonical_id(activity_name):
+        generated = generated_activity_dir(activity_name)
+        if (generated / "manifest.json").is_file():
+            return generated
+    raise PxcActivityNotFound(f"Unknown activity type: {activity_name}")
+
+
+def preview_url(activity_id: UUID) -> str:
+    """The Sparkth page that previews one generated activity, relative to the frontend's root."""
+    return f"/dashboard/pxc?activity={activity_id}"
 
 
 def state_file(activity_name: str) -> Path:
-    """The SQLite file holding every learner's state for one activity type.
+    """The SQLite file holding every learner's state for one activity.
 
     Raises:
-        PxcActivityNotFound: if no bundled activity goes by this name — also rejects a
-            path-escaping name, since it can never match an indexed activity.
+        PxcActivityNotFound: if no bundled or generated activity goes by this name. That also
+            rejects a path-escaping name, which can never match one.
     """
     activity_dir(activity_name)
     return get_pxc_settings().data_dir / f"{activity_name}.sqlite3"
@@ -73,13 +107,13 @@ def state_file(activity_name: str) -> Path:
 
 @cache
 def activity_manifest(activity_name: str) -> PxcActivityManifest:
-    """The parsed manifest of one activity type.
+    """The parsed manifest of one activity.
 
-    Cached for the life of the process, on the same assumption as the index above: the bundled
-    activities do not change at runtime.
+    Cached for the life of the process. Neither kind of activity changes once written: the
+    bundled ones ship with the code, and a generated one is never rebuilt in place.
 
     Raises:
-        PxcActivityNotFound: if no bundled activity goes by this name.
+        PxcActivityNotFound: if no activity goes by this name.
     """
     manifest_path = activity_dir(activity_name) / "manifest.json"
     return PxcActivityManifest.model_validate_json(manifest_path.read_text(encoding="utf-8"))
@@ -94,7 +128,7 @@ def asset_path(activity_name: str, file_path: str) -> Path:
     it is ever joined.
 
     Raises:
-        PxcActivityNotFound: if no bundled activity goes by this name.
+        PxcActivityNotFound: if no activity goes by this name.
         PxcAssetNotFound: if the manifest does not declare the file, or it is missing on disk.
     """
     manifest = activity_manifest(activity_name)

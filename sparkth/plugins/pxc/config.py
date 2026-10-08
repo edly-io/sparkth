@@ -24,8 +24,8 @@ class PxcSettings(BaseSettings):
         extra="ignore",
     )
 
-    # Where the per-activity-type SQLite state files and the activities' file storage live.
-    # One file per activity type holds every course and every learner for that type (D1).
+    # Holds each activity's SQLite state file, its file storage under storage/ and generated
+    # activities under activities/<id>/.
     data_dir: Path = Path("./data/pxc")
 
     # Shared with the Open edX XBlock. The XBlock signs a launch token with it and this plugin

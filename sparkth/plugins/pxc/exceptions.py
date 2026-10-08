@@ -7,7 +7,7 @@ response.
 
 
 class PxcActivityNotFound(Exception):
-    """No bundled activity type goes by this name."""
+    """No bundled or generated activity goes by this name, or the caller does not own the one asked for."""
 
 
 class PxcDuplicateActivityName(Exception):
@@ -32,3 +32,7 @@ class PxcActionRejected(Exception):
 
 class PxcSandboxFailure(Exception):
     """The activity's WebAssembly sandbox failed to run."""
+
+
+class PxcLaunchNotConfigured(Exception):
+    """Sparkth cannot mint a launch token because ``PXC_LAUNCH_SECRET`` is empty."""
