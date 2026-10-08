@@ -11,7 +11,11 @@
       "totalLogins": "Inicios de sesión totales",
       "busiestBucket": "{bucket, select, day {Día} week {Semana} other {Mes}} con más actividad",
       "weekOf": "Semana del {date}",
-      "chartLabel": "Inicios de sesión, {range}"
+      "chartCaption": "Inicios de sesión, {range}"
+    },
+    "table": {
+      "date": "Fecha",
+      "logins": "Inicios de sesión"
     },
     "nav": {
       "label": "Vistas de analíticas",
