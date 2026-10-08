@@ -15,7 +15,12 @@ validates the plugin-name namespace and collision before calling
 
 from sparkth.core.analytics.exceptions import UnknownEventTypeError
 from sparkth.core.analytics.schemas.base import AnalyticsEventSchema
-from sparkth.core.analytics.schemas.v1 import AssessmentSubmitted, UserLoggedIn
+from sparkth.core.analytics.schemas.v1 import (
+    AssessmentSubmitted,
+    UserEmailVerified,
+    UserLoggedIn,
+    UserRegistered,
+)
 from sparkth.lib.hooks import KeyedItemHook
 
 # Every event the platform knows. Core events are seeded just below; plugins add
@@ -26,6 +31,8 @@ ANALYTICS_EVENTS: KeyedItemHook[tuple[str, int], type[AnalyticsEventSchema]] = K
 )
 ANALYTICS_EVENTS.add_item(AssessmentSubmitted)
 ANALYTICS_EVENTS.add_item(UserLoggedIn)
+ANALYTICS_EVENTS.add_item(UserRegistered)
+ANALYTICS_EVENTS.add_item(UserEmailVerified)
 
 
 def get_event_schema(event_type: str, version: int) -> type[AnalyticsEventSchema]:

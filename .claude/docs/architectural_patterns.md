@@ -177,6 +177,8 @@ async def endpoint(
 - Login analytics: every successful login emits `user.logged_in` with its `LoginMethod`
   (`sparkth/core/analytics/schemas/v1/user_logged_in.py`). A new login method adds a member
   there and emits from its route, or the login chart silently undercounts it.
+- Signup analytics: each account-creation path emits `user.registered {method}`; `/verify-email`
+  emits `user.email_verified`; a Google signup is verified on creation, so it gets no verification event.
 - `HTTPBearer` security scheme used on all protected routes
 
 ---
