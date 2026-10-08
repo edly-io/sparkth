@@ -17,9 +17,10 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
 from sparkth.lib.chat.hooks import ChatResponsibility
 from sparkth.plugins.chat.classifiers import MessageScopeClassifier
+from sparkth.plugins.chat.constants import NO_RESPONSIBILITY
 from sparkth.plugins.chat.prompt import render_scope_classifier_prompt
 from sparkth.plugins.chat.responsibilities import COURSE_DESIGN
-from sparkth.plugins.chat.schemas import HistoryTurn, MessageScopeVerdict
+from sparkth.plugins.chat.schemas import HistoryTurn
 
 _LOGGER = "sparkth.plugins.chat.classifiers.message_scope"
 
@@ -40,11 +41,10 @@ def _classifier_with(chain: MagicMock, jobs: dict[str, ChatResponsibility] | Non
         return MessageScopeClassifier(jobs or _JOBS, "anthropic", "test-key", _USER_ID)
 
 
-def _chain_choosing(responsibility: str | None, refusal_reason: str = "") -> MagicMock:
+def _chain_choosing(responsibility: str, refusal_reason: str = "") -> MagicMock:
+    """A chain answering with a raw mapping, which the classifier validates against its own schema."""
     chain = MagicMock()
-    chain.ainvoke = AsyncMock(
-        return_value=MessageScopeVerdict(responsibility=responsibility, refusal_reason=refusal_reason)
-    )
+    chain.ainvoke = AsyncMock(return_value={"responsibility": responsibility, "refusal_reason": refusal_reason})
     return chain
 
 
@@ -168,20 +168,18 @@ class TestTheJobCallersActOn:
     @pytest.mark.asyncio
     async def test_no_job_returns_none(self) -> None:
         assert (
-            await _classifier_with(_chain_choosing(None)).responsibility_for("What is the capital of France?") is None
+            await _classifier_with(_chain_choosing(NO_RESPONSIBILITY)).responsibility_for(
+                "What is the capital of France?"
+            )
+            is None
         )
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("answer", ["null", "None", "", "  "])
-    async def test_a_text_no_job_answer_returns_none(self, answer: str) -> None:
-        """A provider can spell null as text; that is still no job, not an unknown job name."""
-        assert await _classifier_with(_chain_choosing(answer)).responsibility_for("capital of France?") is None
-
-    @pytest.mark.asyncio
-    async def test_a_job_not_offered_returns_the_fallback(self) -> None:
-        """A name the model made up, or a disabled plugin's job, is a malformed answer, and a
-        refusal is never inferred from one."""
-        classifier = _classifier_with(_chain_choosing("stub-job"))
+    @pytest.mark.parametrize("answer", ["stub-job", "null", ""])
+    async def test_an_answer_outside_the_offered_names_returns_the_fallback(self, answer: str) -> None:
+        """A made-up name, a disabled plugin's job or a spelled-out null fails the schema, and a
+        refusal is never inferred from a malformed answer."""
+        classifier = _classifier_with(_chain_choosing(answer))
 
         assert await classifier.responsibility_for("q", None, None, None, "course-design") == "course-design"
 
@@ -192,6 +190,19 @@ class TestTheJobCallersActOn:
         chain.ainvoke = AsyncMock(side_effect=LangChainException("provider timeout"))
 
         assert await _classifier_with(chain).responsibility_for("q", None, None, None, "stub-job") == "stub-job"
+
+
+class TestTheAnswerIsLimitedToTheOfferedJobs:
+    def test_the_provider_may_answer_only_an_offered_job_or_none(self, stub_job: ChatResponsibility) -> None:
+        """The names reach the provider as an enum, so it cannot answer with any other job."""
+        llm = MagicMock()
+        provider = MagicMock()
+        provider.create_llm.return_value = llm
+        with patch("sparkth.plugins.chat.classifiers.base.get_provider", return_value=provider):
+            MessageScopeClassifier({**_JOBS, stub_job.name: stub_job}, "anthropic", "test-key", _USER_ID)
+
+        schema = llm.with_structured_output.call_args.args[0].model_json_schema()
+        assert schema["properties"]["responsibility"]["enum"] == ["course-design", "stub-job", NO_RESPONSIBILITY]
 
 
 class TestThePromptListsTheOfferedJobs:
@@ -259,6 +270,14 @@ class TestFailingOpen:
         assert f"user_id={_USER_ID}" in caplog.text
         assert str(conversation_uuid) in caplog.text
 
+    @pytest.mark.asyncio
+    async def test_a_rejected_answer_is_never_logged(self, caplog: pytest.LogCaptureFixture) -> None:
+        """An answer that fails the schema can echo the message, which may hold course content."""
+        with caplog.at_level(logging.WARNING, logger=_LOGGER):
+            await _classifier_with(_chain_choosing("Week 3 confidential syllabus")).responsibility_for("q")
+
+        assert "confidential syllabus" not in caplog.text
+
 
 class TestRefusalLogging:
     """What a refusal must leave behind for whoever reads a user's report."""
@@ -266,7 +285,9 @@ class TestRefusalLogging:
     @pytest.mark.asyncio
     async def test_the_deciding_model_is_named(self, caplog: pytest.LogCaptureFixture) -> None:
         with caplog.at_level(logging.WARNING, logger=_LOGGER):
-            await _classifier_with(_chain_choosing(None)).responsibility_for("What is the capital of France?")
+            await _classifier_with(_chain_choosing(NO_RESPONSIBILITY)).responsibility_for(
+                "What is the capital of France?"
+            )
 
         assert "claude-haiku-4-5" in caplog.text
 
@@ -276,7 +297,7 @@ class TestRefusalLogging:
         history: list[HistoryTurn] = [{"role": "user", "content": f"turn {i}"} for i in range(9)]
 
         with caplog.at_level(logging.WARNING, logger=_LOGGER):
-            await _classifier_with(_chain_choosing(None)).responsibility_for("no", history)
+            await _classifier_with(_chain_choosing(NO_RESPONSIBILITY)).responsibility_for("no", history)
 
         assert "history_turns=9" in caplog.text
 
@@ -285,7 +306,9 @@ class TestRefusalLogging:
         """The first message of a chat is refused before a conversation exists, so the user is the
         only thing that can tie that refusal to the person who reported it."""
         with caplog.at_level(logging.WARNING, logger=_LOGGER):
-            await _classifier_with(_chain_choosing(None)).responsibility_for("What is the capital of France?")
+            await _classifier_with(_chain_choosing(NO_RESPONSIBILITY)).responsibility_for(
+                "What is the capital of France?"
+            )
 
         assert f"user_id={_USER_ID}" in caplog.text
 
@@ -294,7 +317,9 @@ class TestRefusalLogging:
         conversation_uuid = uuid4()
 
         with caplog.at_level(logging.WARNING, logger=_LOGGER):
-            await _classifier_with(_chain_choosing(None)).responsibility_for("no", None, None, conversation_uuid)
+            await _classifier_with(_chain_choosing(NO_RESPONSIBILITY)).responsibility_for(
+                "no", None, None, conversation_uuid
+            )
 
         assert str(conversation_uuid) in caplog.text
 
@@ -302,7 +327,9 @@ class TestRefusalLogging:
     async def test_the_message_text_is_never_logged(self, caplog: pytest.LogCaptureFixture) -> None:
         """A refused message can still hold course content; only its length may be recorded."""
         with caplog.at_level(logging.WARNING, logger=_LOGGER):
-            await _classifier_with(_chain_choosing(None)).responsibility_for("Acme Corp onboarding secrets")
+            await _classifier_with(_chain_choosing(NO_RESPONSIBILITY)).responsibility_for(
+                "Acme Corp onboarding secrets"
+            )
 
         assert "Acme Corp" not in caplog.text
         assert "query_len=28" in caplog.text
@@ -311,7 +338,7 @@ class TestRefusalLogging:
     async def test_the_reason_the_model_gave_is_logged(self, caplog: pytest.LogCaptureFixture) -> None:
         """Which rule a refusal fell under is the one thing counts cannot convey — without it a
         reviewer sees that a turn was refused but not what the model took it for."""
-        chain = _chain_choosing(None, "general knowledge question")
+        chain = _chain_choosing(NO_RESPONSIBILITY, "general knowledge question")
 
         with caplog.at_level(logging.WARNING, logger=_LOGGER):
             await _classifier_with(chain).responsibility_for("What is the capital of France?")
@@ -322,7 +349,7 @@ class TestRefusalLogging:
     async def test_a_refusal_with_no_reason_still_logs(self, caplog: pytest.LogCaptureFixture) -> None:
         """The field is optional, so a model that omits it must not cost the refusal its log."""
         with caplog.at_level(logging.WARNING, logger=_LOGGER):
-            await _classifier_with(_chain_choosing(None)).responsibility_for("no")
+            await _classifier_with(_chain_choosing(NO_RESPONSIBILITY)).responsibility_for("no")
 
         assert "Scope classifier refused a message" in caplog.text
 

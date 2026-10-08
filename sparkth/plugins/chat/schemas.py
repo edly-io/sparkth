@@ -1,10 +1,13 @@
 import base64
 import binascii
+from collections.abc import Iterable
 from datetime import datetime
-from typing import Any, TypedDict
+from typing import Any, Literal, TypedDict
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, create_model, field_validator
+
+from sparkth.plugins.chat.constants import NO_RESPONSIBILITY
 
 MAX_FILE_SIZE = 30 * 1024 * 1024  # 30MB
 
@@ -198,20 +201,33 @@ class ClassifierVerdict(BaseModel):
 class MessageScopeVerdict(ClassifierVerdict):
     """Which registered chat job a turn belongs to, if any."""
 
-    responsibility: str | None = Field(
+    # A rejected answer can echo the message, and validation errors are logged.
+    model_config = ConfigDict(hide_input_in_errors=True)
+
+    responsibility: str = Field(
         description=(
             "The name of the job the message belongs to, exactly as listed in the instructions, "
-            "or null when it belongs to none of them."
+            f'or "{NO_RESPONSIBILITY}" when it belongs to none of them.'
         ),
     )
 
-    @field_validator("responsibility")
-    @classmethod
-    def read_text_null_as_none(cls, v: str | None) -> str | None:
-        """Read a blank, ``"null"`` or ``"none"`` answer as no job, since some providers spell null as text."""
-        if v is None or v.strip().lower() in {"", "null", "none"}:
-            return None
-        return v
+
+def scope_verdict_model(job_names: Iterable[str]) -> type[MessageScopeVerdict]:
+    """Return the verdict model for one request, whose ``responsibility`` is one of ``job_names``
+    or ``NO_RESPONSIBILITY``.
+
+    The names reach the provider as an enum, so the model can only answer with an offered job,
+    and any other answer fails validation. The class docstring is the tool description the
+    provider sees, so it is carried over.
+    """
+    names = (*job_names, NO_RESPONSIBILITY)
+    description = MessageScopeVerdict.model_fields["responsibility"].description
+    return create_model(
+        "MessageScopeVerdict",
+        __base__=MessageScopeVerdict,
+        __doc__=MessageScopeVerdict.__doc__,
+        responsibility=(Literal[names], Field(description=description)),
+    )
 
 
 class DocumentHeadings(BaseModel):
