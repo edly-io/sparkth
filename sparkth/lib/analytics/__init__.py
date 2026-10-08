@@ -21,6 +21,7 @@ from types import ModuleType
 from typing import Any
 
 from sparkth.core.analytics import ANALYTICS_EVENTS, get_event_schema
+from sparkth.core.analytics.enums import Bucket
 from sparkth.core.analytics.exceptions import (
     ContinuousAggregateNotFound,
     DuplicateEventTypeError,
@@ -29,8 +30,9 @@ from sparkth.core.analytics.exceptions import (
 )
 from sparkth.core.analytics.gateway import ingest_event
 from sparkth.core.analytics.maintenance import backfill_continuous_aggregates
-from sparkth.core.analytics.reads import LoginActivityPoint, get_login_activity
+from sparkth.core.analytics.reads import get_login_activity, get_logins
 from sparkth.core.analytics.schemas.base import AnalyticsEventSchema
+from sparkth.core.analytics.schemas.reads import LoginActivityPoint, LoginsPoint
 from sparkth.lib.db import analytics_session_scope
 from sparkth.lib.log import get_logger
 from sparkth.lib.plugins import SparkthPlugin
@@ -39,6 +41,7 @@ logger = get_logger(__name__)
 
 __all__ = [
     "AnalyticsEventSchema",
+    "Bucket",
     "ContinuousAggregateNotFound",
     "DuplicateEventTypeError",
     "EventNamespaceError",
@@ -50,6 +53,8 @@ __all__ = [
     "get_event_schema",
     "LoginActivityPoint",
     "get_login_activity",
+    "LoginsPoint",
+    "get_logins",
     "ingest_event",
     "register_event_schema",
     "register_event_schemas",
