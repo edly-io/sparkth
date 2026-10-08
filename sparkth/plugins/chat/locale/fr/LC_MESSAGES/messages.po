@@ -19,6 +19,11 @@ msgstr ""
 "Generated-By: Babel 2.18.0\n"
 
 # Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/chat/constants.py:30
+msgid "Course design"
+msgstr "Conception de cours"
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
 #: sparkth/plugins/chat/constants.py:37
 msgid ""
 "I'm a course creation assistant and can only help with designing and "
@@ -46,6 +51,16 @@ msgstr "Transformez vos ressources en cours grâce à l'IA"
 #: sparkth/plugins/chat/plugin.py:55
 msgid "Create Course"
 msgstr "Créer un cours"
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/chat/responsibilities.py:41
+#, python-brace-format
+msgid ""
+"This conversation is for {job}, and the plugin that provides it is turned"
+" off, so nothing more can be done here."
+msgstr ""
+"Cette conversation concerne {job}, et le plugin qui le fournit est désactivé, "
+"donc plus rien ne peut être fait ici."
 
 #: sparkth/plugins/chat/service.py:115
 msgid "Conversation not found"

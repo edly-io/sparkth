@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from sparkth.lib.i18n import gettext_noop
+
 # Bundled activity sources, one directory per activity type.
 PXC_ACTIVITY_ROOT = Path(__file__).parent / "activities"
 
@@ -50,6 +52,8 @@ PXC_TOOL_CATEGORY = "pxc"
 
 # The chat job that builds activities.
 PXC_BUILDER_RESPONSIBILITY_NAME = "pxc-activity-builder"
+# That job's name as authors see it.
+PXC_BUILDER_RESPONSIBILITY_LABEL = gettext_noop("PXC activity builder")
 
 # What the chat classifier reads to route a conversation to the activity builder.
 PXC_ACTIVITY_BUILDER_SCOPE = (PXC_ASSET_DIR / "pxc_activity_building_scope.txt").read_text(encoding="utf-8").strip()
