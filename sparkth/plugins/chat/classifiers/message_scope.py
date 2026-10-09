@@ -1,7 +1,8 @@
-"""The message-scope classifier: is this chat turn about designing a course?
+"""The message-scope classifier: which registered chat job is this turn for?
 
-A negative verdict ends the turn — the chat model is never reached and the user gets the
-refusal sentence — so this module fails open and logs every refusal it decides.
+A turn that fits no job ends with the refusal sentence and never reaches the chat model. So this
+module fails open, answering with the conversation's current job, or the default job on a first
+message, when the classification fails or names no offered job. It logs every refusal it decides.
 """
 
 from datetime import datetime, timezone
@@ -9,36 +10,42 @@ from uuid import UUID
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
+from sparkth.lib.chat.hooks import ChatResponsibility
 from sparkth.lib.log import get_logger
 from sparkth.plugins.chat.analytics import ChatClassifierAnalytics, ScopeVerdict
 from sparkth.plugins.chat.classifiers.base import BaseClassifier
 from sparkth.plugins.chat.constants import (
+    DEFAULT_RESPONSIBILITY,
     MESSAGE_SCOPE_CLASSIFIER_CONVERSATION_HISTORY,
-    MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT,
+    NO_RESPONSIBILITY,
 )
 from sparkth.plugins.chat.exceptions import ClassifierError
-from sparkth.plugins.chat.schemas import HistoryTurn, MessageScopeInput, MessageScopeVerdict
+from sparkth.plugins.chat.prompt import render_scope_classifier_prompt
+from sparkth.plugins.chat.schemas import HistoryTurn, MessageScopeInput, MessageScopeVerdict, scope_verdict_model
 
 logger = get_logger(__name__)
 
 
 class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdict]):
-    """Decides whether a chat turn falls within the assistant's learning-design scope."""
+    """Decides which registered chat job a turn belongs to, or that it belongs to none."""
 
     def __init__(
         self,
+        jobs: dict[str, ChatResponsibility],
         provider_name: str,
         api_key: str,
         user_id: int,
         analytics: ChatClassifierAnalytics | None = None,
     ) -> None:
-        """``user_id`` never reaches the model; it is logged, and is all a refusal on a first
-        message can be traced by. ``analytics`` is optional: without it a decision is simply
-        not measured.
+        """``jobs`` is this request's enabled jobs by name, from ``enabled_responsibilities``. The
+        prompt lists them, and the answer schema accepts only their names or
+        ``NO_RESPONSIBILITY``. ``user_id`` never reaches the model; it is logged, and is all a
+        refusal on a first message can be traced by. ``analytics`` is optional: without it a
+        decision is simply not measured.
         """
         super().__init__(
-            MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT,
-            MessageScopeVerdict,
+            render_scope_classifier_prompt(jobs),
+            scope_verdict_model(jobs),
             provider_name,
             api_key,
         )
@@ -48,12 +55,13 @@ class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdi
     def _build_messages(self, payload: MessageScopeInput) -> list[BaseMessage]:
         """Replay the recent conversation as real turns, then the current message.
 
-        The prompt judges scope from the conversation rather than the latest message alone —
-        "yes, for nurses" is in scope only as a reply to a question the assistant asked — so
+        The prompt judges the job from the conversation rather than the latest message alone —
+        "yes, for nurses" belongs to a job only as a reply to a question the assistant asked — so
         history is replayed as alternating turns instead of being summarised. Roles the model
         has no turn type for (``tool``, ``system``) are dropped: they are not what the user
         asked. Attachment names ride on the current turn, because a message about "these
-        documents" can only be judged if the classifier knows documents are in play.
+        documents" can only be judged if the classifier knows documents are in play. So does
+        the job the conversation is already doing, which settles a message that fits several jobs.
         """
         messages: list[BaseMessage] = []
         for turn in payload.history[-MESSAGE_SCOPE_CLASSIFIER_CONVERSATION_HISTORY:]:
@@ -63,79 +71,92 @@ class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdi
                 case "assistant":
                     messages.append(AIMessage(content=turn["content"]))
 
-        current_turn = payload.query
+        notes: list[str] = []
+        if payload.current_job:
+            notes.append(f'[This conversation has been doing the job "{payload.current_job}"]')
         if payload.attached_document_names:
             document_list = ", ".join(f'"{name}"' for name in payload.attached_document_names)
-            current_turn = (
-                f"[The user has attached the following documents to this conversation: {document_list}]"
-                f"\n\n{payload.query}"
-            )
+            notes.append(f"[The user has attached the following documents to this conversation: {document_list}]")
+        current_turn = "\n".join(notes) + f"\n\n{payload.query}" if notes else payload.query
         messages.append(HumanMessage(content=current_turn))
         return messages
 
-    async def in_scope(
+    async def responsibility_for(
         self,
         query: str,
         history: list[HistoryTurn] | None = None,
         attached_document_names: list[str] | None = None,
         conversation_uuid: UUID | None = None,
-    ) -> bool:
-        """Return whether this turn is in scope, as the single boolean callers act on.
+        current_job: str | None = None,
+    ) -> str | None:
+        """Return the name of the offered job this turn belongs to, or ``None`` for none.
 
-        Judging scope is all this does. A turn is expected to carry something the user sent —
-        text, attachments, or both — and the request boundary rejects one that carries neither,
-        so nothing here compensates for a turn that is missing. ``query`` may legitimately be
-        empty when documents are attached: sending a document with no words is how a user asks
-        the assistant to read it, and the attachment names are what the model judges instead.
+        ``query`` may be empty when documents are attached; the attachment names are judged
+        instead. ``conversation_uuid`` never reaches the model. It is logged so a decision can
+        be traced, and it is ``None`` on a new chat's first message. ``current_job`` is the job
+        the conversation is doing on a later turn, shown to the model, and ``None`` on a first
+        message.
 
-        ``conversation_uuid`` never reaches the model. It is logged on a refusal so the
-        decision can be traced to the thread a user reports, and is ``None`` on the first
-        message of a new chat, which is judged before any conversation row exists.
-
-        Fails open: a failed classification is treated as in scope, leaving the chat model's
-        own system prompt to refuse if it must. A refusal ends the turn, so it is never
-        inferred from an error.
+        Fails open to ``current_job``, or to the default job on a first message. That covers a
+        failed classification, including an answer that is not an offered job and so fails the
+        schema, because a refusal ends the turn and is never inferred from an error.
         """
         payload = MessageScopeInput(
             query=query,
             history=history or [],
             attached_document_names=attached_document_names or [],
+            current_job=current_job,
         )
+        fallback = current_job or DEFAULT_RESPONSIBILITY
         try:
             verdict = await self.classify(payload)
         except ClassifierError as exc:
             logger.warning(
-                "Message scope classifier failed, defaulting to in_scope=True: user_id=%s conversation_uuid=%s: %s",
+                "Message scope classifier failed, defaulting to responsibility=%s: user_id=%s conversation_uuid=%s: %s",
+                fallback,
                 self._user_id,
                 conversation_uuid,
                 exc,
             )
             # Recorded, not silent: the rate of turns admitted unjudged is invisible otherwise.
             self._record(ScopeVerdict.NOT_JUDGED, conversation_uuid, history, attached_document_names, query)
-            return True
+            return fallback
 
-        if not verdict.in_scope:
-            # The only record of a refusal: the chat model is never reached. Counts and lengths
-            # only, since the message may hold course content.
-            logger.warning(
-                "Scope classifier refused a message: user_id=%s conversation_uuid=%s model=%s "
-                "reason=%r history_turns=%d attachments=%d query_len=%d",
-                self._user_id,
-                conversation_uuid,
-                self.model,
-                verdict.refusal_reason,
-                len(history or []),
-                len(attached_document_names or []),
-                len(query),
-            )
+        job = None if verdict.responsibility == NO_RESPONSIBILITY else verdict.responsibility
+        if job is None:
+            self._log_refusal(verdict, conversation_uuid, history, attached_document_names, query)
         self._record(
-            ScopeVerdict.IN_SCOPE if verdict.in_scope else ScopeVerdict.OUT_OF_SCOPE,
+            ScopeVerdict.OUT_OF_SCOPE if job is None else ScopeVerdict.IN_SCOPE,
             conversation_uuid,
             history,
             attached_document_names,
             query,
         )
-        return verdict.in_scope
+        return job
+
+    def _log_refusal(
+        self,
+        verdict: MessageScopeVerdict,
+        conversation_uuid: UUID | None,
+        history: list[HistoryTurn] | None,
+        attached_document_names: list[str] | None,
+        query: str,
+    ) -> None:
+        """Log a refusal, the only record of it since the chat model is never reached.
+
+        Counts and lengths only, because the message may hold course content.
+        """
+        logger.warning(
+            "Scope classifier refused a message: user_id=%s conversation_uuid=%s model=%s "
+            "reason=%r history_turns=%d attachments=%d query_len=%d",
+            self._user_id,
+            conversation_uuid,
+            self.model,
+            verdict.refusal_reason,
+            len(history or []),
+            len(attached_document_names or []),
+            len(query),
+        )
 
     def _record(
         self,

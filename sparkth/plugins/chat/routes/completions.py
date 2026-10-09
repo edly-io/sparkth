@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.auth import get_current_user
+from sparkth.lib.chat.hooks import enabled_responsibilities
 from sparkth.lib.db import get_async_session
 from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.lib.i18n import _, gettext
@@ -38,6 +39,7 @@ from sparkth.plugins.chat.exceptions import RAGSearchError
 from sparkth.plugins.chat.lms_credentials import build_lms_credentials_message
 from sparkth.plugins.chat.messages import get_last_user_text
 from sparkth.plugins.chat.prompt import get_course_design_system_prompt
+from sparkth.plugins.chat.responsibilities import stored_responsibility
 from sparkth.plugins.chat.routes.utils import resolve_tools
 from sparkth.plugins.chat.routes.utils.live_turns import request_stop
 from sparkth.plugins.chat.routes.utils.message_assembly import assemble_provider_messages
@@ -164,7 +166,9 @@ async def chat_completion(
         provider=provider_name,
         actor_id=str(user_id),
     )
-    scope_classifier = MessageScopeClassifier(provider_name, api_key, user_id, classifier_analytics)
+    # The jobs offered on this request; a switched-off plugin's job is left out.
+    jobs = await enabled_responsibilities(session)
+    scope_classifier = MessageScopeClassifier(jobs, provider_name, api_key, user_id, classifier_analytics)
 
     # A file uploaded with the message is base64 content, not a Document row, so its name exists
     # only here — both scope checks below need it.
@@ -172,9 +176,11 @@ async def chat_completion(
 
     # Judged above get_or_create_conversation so an out-of-scope first message writes no row.
     _skip_main_scope_check = False
+    first_responsibility: str | None = None
     if not conversation_uuid:
         # Nothing is persisted yet, and there is no uuid to log a refusal against.
-        if not await scope_classifier.in_scope(query_text, [], request_attachment_names, None):
+        first_responsibility = await scope_classifier.responsibility_for(query_text, [], request_attachment_names, None)
+        if first_responsibility is None:
             return _refusal_response(request.stream, None, model, provider_name)
         # Already judged, so the check below would spend a second call on the same message.
         _skip_main_scope_check = True
@@ -187,8 +193,11 @@ async def chat_completion(
         provider=provider_name,
         model=model,
         title=extract_title_from_messages(request.messages, max_length=config.title_max_length),
+        responsibility=first_responsibility,
     )
     conversation_id = cast(int, conversation.id)
+    # The job this conversation does; a later turn is judged against it.
+    responsibility = stored_responsibility(conversation, jobs)
     turn_analytics = ChatTurnAnalytics(
         background_tasks=background_tasks,
         conversation_id=str(conversation.uuid),
@@ -278,12 +287,14 @@ async def chat_completion(
             ]
             # Ingested documents plus anything uploaded with this message, which has no row.
             turn_attachment_names = list(dict.fromkeys(attached_document_names + request_attachment_names))
-            _in_scope = await scope_classifier.in_scope(
+            judged = await scope_classifier.responsibility_for(
                 query_text,
                 prior_history,
                 turn_attachment_names or None,
                 conversation.uuid,
+                responsibility.name,
             )
+            _in_scope = judged is not None
         else:
             _in_scope = True
 

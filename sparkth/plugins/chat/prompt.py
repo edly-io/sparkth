@@ -1,6 +1,13 @@
 from datetime import datetime
 
-from sparkth.plugins.chat.constants import COURSE_DESIGN_SYSTEM_PROMPT, REFUSAL_MESSAGE
+from sparkth.lib.chat.hooks import ChatResponsibility
+from sparkth.plugins.chat.constants import (
+    COURSE_DESIGN_SYSTEM_PROMPT,
+    DEFAULT_RESPONSIBILITY,
+    MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT,
+    NO_RESPONSIBILITY,
+    REFUSAL_MESSAGE,
+)
 
 
 def get_course_design_system_prompt() -> str:
@@ -19,4 +26,17 @@ def get_course_design_system_prompt() -> str:
     return COURSE_DESIGN_SYSTEM_PROMPT.format(
         current_datetime=datetime.now(),
         refusal_message=REFUSAL_MESSAGE,
+    )
+
+
+def render_scope_classifier_prompt(jobs: dict[str, ChatResponsibility]) -> str:
+    """Render the scope classifier's system prompt, listing ``jobs``.
+
+    Each job appears under its name, which is the value the classifier must answer with, and
+    its scope, which is what the classifier judges against. Rendered per request from the
+    enabled jobs, so nothing depends on which plugin was imported first.
+    """
+    listed = "\n\n".join(f'JOB "{name}":\n{responsibility.scope}' for name, responsibility in jobs.items())
+    return MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT.format(
+        responsibilities=listed, default_job=DEFAULT_RESPONSIBILITY, no_job=NO_RESPONSIBILITY
     )
