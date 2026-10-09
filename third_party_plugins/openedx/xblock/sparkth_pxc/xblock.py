@@ -1,10 +1,10 @@
 """An XBlock that holds a reference to a Sparkth-hosted PXC activity and renders it.
 
-The block itself stores no activity data: only the activity type's name and the placement id
-Sparkth minted at publish time. Before rendering it mints a short-lived token carrying the
-Open edX user id, course id and placement, signed with the secret shared with Sparkth, and
-renders an iframe at Sparkth carrying that token. The secret stays server-side at both ends
-and only the token travels through the browser.
+The block itself stores no activity data: only the activity type's name and a placement id,
+minted by Sparkth at publish time or by the block when it is copied in Studio. Before rendering
+it mints a short-lived token carrying the Open edX user id, course id and placement, signed with
+the secret shared with Sparkth, and renders an iframe at Sparkth carrying that token. The secret
+stays server-side at both ends and only the token travels through the browser.
 """
 
 from typing import Any
@@ -87,7 +87,10 @@ class SparkthPxcXBlock(XBlock):
         display_name="Placement",
         default="",
         scope=Scope.settings,
-        help="The placement id Sparkth minted for this block, set when the course was published.",
+        help=(
+            "The placement id that keeps this block's activity data apart: minted by Sparkth on "
+            "publish, or by the block when copied in Studio."
+        ),
     )
 
     def student_view(self, context: dict[str, Any] | None = None) -> Fragment:
