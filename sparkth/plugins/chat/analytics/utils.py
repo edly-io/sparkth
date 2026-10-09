@@ -29,6 +29,7 @@ from sparkth.plugins.chat.analytics.events import (
     ChatToolInvoked,
     ChatTurnFailed,
     ScopeVerdict,
+    StopPoint,
     TurnFailureCause,
 )
 from sparkth.plugins.chat.detached import detach
@@ -147,6 +148,7 @@ async def emit_completion(
     streamed: bool,
     executed_tools: list[str],
     occurred_at: datetime,
+    stopped_at: StopPoint | None = None,
 ) -> None:
     """Emit one completion and one ``chat.tool_invoked`` per tool it executed.
 
@@ -161,6 +163,7 @@ async def emit_completion(
             streamed=streamed,
             rag_used=rag_used,
             tool_call_count=len(executed_tools),
+            stopped_at=stopped_at,
         ),
         *(
             ChatToolInvoked(

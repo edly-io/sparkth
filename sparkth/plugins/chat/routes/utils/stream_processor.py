@@ -26,6 +26,7 @@ from sparkth.lib.rag import (
 )
 from sparkth.plugins.chat.analytics import (
     AnalyticsAttribution,
+    StopPoint,
     TurnFailureCause,
     emit_completion,
     record_turn_failed,
@@ -49,11 +50,13 @@ class StreamedCompletion:
 
     ``occurred_at`` is the assistant message's own ``created_at`` rather than the time the
     emit runs: the emits deliberately happen after the stream has closed, so timing them
-    there would place the completion later than it was.
+    there would place the completion later than it was. ``stopped_at`` is where the author's
+    stop landed, ``None`` for a turn that ran to the end.
     """
 
     executed_tools: list[str]
     occurred_at: datetime
+    stopped_at: StopPoint | None
 
 
 async def stream_out_of_scope_refusal(message: str) -> AsyncGenerator[str, None]:
@@ -403,14 +406,15 @@ class ChatStreamProcessor:
         confirmed_rag_sections: list[dict[str, str | None]],
         completed_tool_calls: list[dict[str, Any]],
         bg_session: AsyncSession,
-        stopped: bool = False,
+        stopped_at: StopPoint | None = None,
     ) -> StreamedCompletion:
         """Persist the assistant message, emit the done SSE, and return what it completed.
 
         The done payload includes the full message object so the client can update its
-        state without a separate fetch after the stream closes. ``stopped`` marks a turn
-        that ended early because the author asked it to, so it is written into the message
-        metadata (for a page reload to still show it) and onto the done payload itself.
+        state without a separate fetch after the stream closes. ``stopped_at`` marks a turn
+        that ended early because the author asked it to, so a boolean ``stopped`` is written
+        into the message metadata (for a page reload to still show it) and onto the done
+        payload itself.
 
         Returns:
             The tools this completion executed and when the reply was stored, for the
@@ -422,6 +426,7 @@ class ChatStreamProcessor:
             metadata["rag_sections"] = confirmed_rag_sections
         if completed_tool_calls:
             metadata["tool_calls"] = completed_tool_calls
+        stopped = stopped_at is not None
         if stopped:
             metadata["stopped"] = True
         assistant_message = await self.service.add_message(
@@ -459,6 +464,7 @@ class ChatStreamProcessor:
         return StreamedCompletion(
             executed_tools=tool_names(completed_tool_calls),
             occurred_at=assistant_message.created_at,
+            stopped_at=stopped_at,
         )
 
     async def _run_llm_phase(
@@ -475,7 +481,11 @@ class ChatStreamProcessor:
             return None
         full_response, completed_tool_calls, stopped = result
         return await self._persist_and_emit_done(
-            full_response, confirmed_rag_sections, completed_tool_calls, bg_session, stopped
+            full_response,
+            confirmed_rag_sections,
+            completed_tool_calls,
+            bg_session,
+            StopPoint.STREAMING if stopped else None,
         )
 
     async def _run(self, bg_session: AsyncSession) -> StreamedCompletion | None:
@@ -487,12 +497,12 @@ class ChatStreamProcessor:
         persists a turn, just an empty one carrying the ``stopped`` marker.
         """
         if self._stop_is_requested():
-            return await self._persist_and_emit_done("", [], [], bg_session, True)
+            return await self._persist_and_emit_done("", [], [], bg_session, StopPoint.BEFORE_MODEL)
         confirmed_rag_sections = await self._run_rag_phase(bg_session)
         if confirmed_rag_sections is None:
             return None
         if self._stop_is_requested():
-            return await self._persist_and_emit_done("", confirmed_rag_sections, [], bg_session, True)
+            return await self._persist_and_emit_done("", confirmed_rag_sections, [], bg_session, StopPoint.BEFORE_MODEL)
         self._strip_unresolved_document_blocks()
         return await self._run_llm_phase(confirmed_rag_sections, bg_session)
 
@@ -542,6 +552,7 @@ class ChatStreamProcessor:
             streamed=True,
             executed_tools=completion.executed_tools,
             occurred_at=completion.occurred_at,
+            stopped_at=completion.stopped_at,
         )
 
     async def stream(self) -> AsyncGenerator[str, None]:
