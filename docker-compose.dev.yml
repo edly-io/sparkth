@@ -1,8 +1,8 @@
-# Production stack: nginx reverse proxy, Sparkth app, TimescaleDB/Postgres (app +
-# analytics DBs), and Redis. See the "Production" section of README.md.
+# Single-host dev stack: nginx reverse proxy, Sparkth app, TimescaleDB/Postgres (app +
+# analytics DBs), and Redis. See the "Dev deployment" section of README.md.
 #
 # Every service loads .env and then .env.local (later entries win). .env.local is
-# mandatory and must carry the production overrides listed at the top of .env,
+# mandatory and must carry the overrides listed at the top of .env,
 # including the in-network connection URLs (DATABASE_URL, ANALYTICS_DATABASE_URL,
 # REDIS_URL pointing at the db and redis services); compose fails to start if it
 # is missing. Migrations are not run automatically — apply them with the
