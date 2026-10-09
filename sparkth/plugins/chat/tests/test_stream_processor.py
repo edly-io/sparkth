@@ -356,7 +356,7 @@ class TestCollectStreamResponse:
         result = await processor._collect_stream_response(MagicMock())
         assert result is not None
         _, tool_calls, stopped = result
-        assert tool_calls == [{"name": "search_web"}]
+        assert tool_calls == [{"name": "search_web", "failure": None}]
         assert stopped is False
 
     @pytest.mark.asyncio

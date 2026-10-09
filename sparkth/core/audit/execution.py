@@ -16,6 +16,9 @@ records the outcome. A ``tool.failed`` write that itself fails is logged and
 suppressed: the invocation is already on record, so the handler's own
 exception surfaces and the missing outcome event is the abnormal-termination
 signal. Corrections are new events, never updates.
+
+:func:`tool_failure` names the failure a handler reported by returning
+``{"error": ...}`` rather than raising.
 """
 
 import functools
@@ -23,6 +26,7 @@ import inspect
 from collections.abc import Awaitable, Callable, Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
+from enum import StrEnum
 from typing import Any
 from uuid import uuid4
 
@@ -146,6 +150,47 @@ def audited_tool(handler: AsyncToolHandler) -> AsyncToolHandler:
     # setattr keeps mypy strict happy: functions have no declared attributes.
     setattr(audited, "__audit_wrapped__", True)
     return audited
+
+
+class ToolFailureKind(StrEnum):
+    """Why a tool call failed, as named by the error it returned."""
+
+    AUTH = "auth"
+    NOT_FOUND = "not_found"
+    VALIDATION = "validation"
+    UPSTREAM = "upstream"
+    UNKNOWN = "unknown"
+
+
+_FAILURE_BY_STATUS = {
+    401: ToolFailureKind.AUTH,
+    403: ToolFailureKind.AUTH,
+    404: ToolFailureKind.NOT_FOUND,
+    400: ToolFailureKind.VALIDATION,
+    409: ToolFailureKind.VALIDATION,
+    422: ToolFailureKind.VALIDATION,
+}
+
+
+def tool_failure(result: object) -> ToolFailureKind | None:
+    """The failure a tool reported by returning ``{"error": ...}``, or None on success.
+
+    Classified by ``result["error"]["status_code"]``: 401/403 auth, 404 not found,
+    400/409/422 validation, 5xx upstream, and a 2xx (a success body that could not be
+    parsed) upstream too; any other or missing code is unknown. Moodle reports every
+    non-auth failure as 400, so a Moodle not-found surfaces as validation.
+    """
+    if not isinstance(result, Mapping) or result.get("error") is None:
+        return None
+    error = result["error"]
+    status = error.get("status_code") if isinstance(error, Mapping) else None
+    if not isinstance(status, int):
+        return ToolFailureKind.UNKNOWN
+    if status in _FAILURE_BY_STATUS:
+        return _FAILURE_BY_STATUS[status]
+    if status >= 500 or 200 <= status < 300:
+        return ToolFailureKind.UPSTREAM
+    return ToolFailureKind.UNKNOWN
 
 
 def _named_jsonable_args(handler: AsyncToolHandler, args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:

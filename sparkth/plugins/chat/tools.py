@@ -180,23 +180,23 @@ def convert_mcp_to_langchain_tool(mcp_tool: Tool) -> BaseTool:
     )
 
     async def tool_func(**kwargs: Any) -> str:
-        """Async wrapper for MCP tool handler."""
-        try:
-            logger.debug("Tool '%s' received raw args: %s", name, kwargs)
+        """Async wrapper for MCP tool handler.
 
-            # Convert arguments to match handler's expected types
-            converted_args = convert_args_to_handler_types(kwargs, handler_hints)
-            logger.debug("Tool '%s' converted args: %s", name, converted_args)
-            result = await handler(**converted_args)
+        A handler's exception propagates: the chat provider loop turns it into the
+        model-visible error and records the call as failed.
+        """
+        logger.debug("Tool '%s' received raw args: %s", name, kwargs)
 
-            if isinstance(result, (dict, list)):
-                return json.dumps(result, indent=2, default=str)
-            if isinstance(result, BaseModel):
-                return result.model_dump_json(indent=2)
-            return str(result)
-        except (ValidationError, ValueError, TypeError, RuntimeError) as e:
-            logger.error("Error executing tool '%s': %s", name, e, exc_info=True)
-            return f"Error executing tool: {str(e)}"
+        # Convert arguments to match handler's expected types
+        converted_args = convert_args_to_handler_types(kwargs, handler_hints)
+        logger.debug("Tool '%s' converted args: %s", name, converted_args)
+        result = await handler(**converted_args)
+
+        if isinstance(result, (dict, list)):
+            return json.dumps(result, indent=2, default=str)
+        if isinstance(result, BaseModel):
+            return result.model_dump_json(indent=2)
+        return str(result)
 
     def sync_tool_func(**kwargs: Any) -> str:
         """Sync wrapper for MCP tool handler."""
