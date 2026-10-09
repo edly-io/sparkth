@@ -12,7 +12,8 @@ and stays in Sparkth, and never reaches the Open edX gradebook.
 
 A block copied in Studio, with Duplicate or with Copy then Paste, gets a new activity instance id, so the
 copy keeps its own activity data instead of sharing the original's. The copy starts from the
-activity's defaults, not from the original's configuration.
+activity's defaults, not from the original's configuration, and the editing view's notice tells
+the author so.
 
 This package is a separate Python distribution, installed into the Open edX instance rather than
 into Sparkth. It is not a Django app — no models, no migrations, no `INSTALLED_APPS` entry — and
@@ -37,7 +38,8 @@ what registers the `pxc` entry point, and it is the only step Sparkth's publishi
 Adding `pxc` to the course's **Advanced Module List** in Studio's Advanced Settings is
 optional, and only affects course authors: it is what puts the block in Studio's *Advanced*
 component picker. It does not gate blocks created through the Studio API, and it does not
-gate rendering in the LMS.
+gate rendering in the LMS. A block added from that picker has no activity, so both its views
+show a notice saying so instead of launching: activities are placed in a course from Sparkth.
 
 **A published block is required, though.** `openedx_add_plugin_content` creates the block in
 Studio's draft branch. The LMS reads the published branch, so until the unit is published the
