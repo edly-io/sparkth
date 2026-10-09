@@ -33,12 +33,12 @@ def build_embed_iframe(
     """
     token = mint_launch_token(activity, placement, course_id, user_id, permission, secret, ttl)
     base = base_url.rstrip("/")
-    # allow-same-origin is required: the embedded page fetches its own config from Sparkth, and
-    # without it the frame gets an opaque origin, making that fetch cross-origin and blocked.
+    # No allow-same-origin: the frame keeps an opaque origin, so activity code in it cannot reach
+    # the storage of the origin that serves it.
     return (
         f'<iframe src="{base}/api/v1/pxc/embed?token={token}"'
         ' style="width:100%;border:none;display:block;min-height:24em"'
-        ' sandbox="allow-scripts allow-forms allow-same-origin"></iframe>'
+        ' sandbox="allow-scripts allow-forms"></iframe>'
     )
 
 

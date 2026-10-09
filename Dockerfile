@@ -3,6 +3,7 @@
 # -------------------
 # componentize-js compiles the sample activity's sandbox to WebAssembly. The binary is a build
 # product and is never committed (D2), so the image builds it rather than copying it in.
+# The same toolchain is copied into the runtime image, where it compiles authors' activities.
 FROM node:22-trixie-slim AS pxc-activity-builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends make \
@@ -11,11 +12,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends make \
 
 WORKDIR /build
 
-COPY sparkth/plugins/pxc/activities/mcq/package.json sparkth/plugins/pxc/activities/mcq/package-lock.json ./
-RUN npm ci
+COPY sparkth/plugins/pxc/builder/toolchain/ ./builder/toolchain/
+RUN npm ci --prefix builder/toolchain && touch builder/toolchain/node_modules
 
-COPY sparkth/plugins/pxc/activities/mcq/ ./
-RUN make build
+COPY sparkth/plugins/pxc/activities/mcq/ ./activities/mcq/
+RUN make -C activities/mcq build
 
 # -------------------
 # Stage 1: Build frontend
@@ -89,14 +90,24 @@ COPY --from=builder      --chown=nonroot:nonroot /app            /app
 COPY --from=catalog-builder --chown=nonroot:nonroot /app/sparkth /app/sparkth
 COPY --from=frontend-builder --chown=nonroot:nonroot /frontend/out /app/frontend/out
 COPY --from=pxc-activity-builder --chown=nonroot:nonroot \
-     /build/sandbox.wasm \
+     /build/activities/mcq/sandbox.wasm \
      /app/sparkth/plugins/pxc/activities/mcq/sandbox.wasm
+
+# Authors' activities are compiled in this container: Node, plus the toolchain at the path
+# PXC_TOOLCHAIN_DIR names in .env, which compose's env_file would override any ENV with.
+COPY --from=pxc-activity-builder /usr/local/bin/node /usr/local/bin/node
+COPY --from=pxc-activity-builder /build/builder/toolchain/node_modules /app/sparkth/plugins/pxc/builder/toolchain/node_modules
+RUN node --version
 
 ENV PATH="/app/.venv/bin:$PATH"
 ENV LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libjemalloc.so.2"
 # The production image bundles the frontend export and serves it from the
 # backend; real env vars win over the .env default, so this stays on in k8s.
 ENV SERVE_FRONTEND="true"
+
+# PXC_DATA_DIR (.env) resolved against WORKDIR. Created and owned by nonroot here, so the
+# pxc_data volume docker-compose.prod.yml mounts over it starts out writable.
+RUN mkdir -p /app/data/pxc && chown -R nonroot:nonroot /app/data
 
 USER nonroot
 

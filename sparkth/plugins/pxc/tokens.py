@@ -2,8 +2,9 @@
 
 The XBlock mints a short-lived HS256 JWT carrying the Open edX user id, course id and
 placement, signed with a secret shared between the two servers; this plugin verifies the
-signature and takes the learner's identity from the token, so it never generates or looks up a
-user itself. The secret stays server-side at both ends and only the token travels through the
+signature and takes the learner's identity from the token, so it never looks up a
+learner itself. The one token Sparkth mints is an author's preview of their own activity
+(``mint_preview_token``). The secret stays server-side at both ends and only the token travels through the
 browser, which is what makes the identity trustworthy rather than client-asserted.
 
 The claim names are the plugin's own — ``act``, ``plc``, ``cid``, ``uid`` — since none of the
@@ -27,13 +28,16 @@ unconditionally reassigns it to ``b"dev-insecure-default"``, discarding the conf
 
 from dataclasses import dataclass
 from time import time
+from uuid import UUID
 
 import jwt
 from pxc.lib.permission import Permission
 
 from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.config import get_pxc_settings
-from sparkth.plugins.pxc.exceptions import PxcInvalidLaunchToken
+from sparkth.plugins.pxc.constants import PXC_PREVIEW_COURSE_ID, PXC_PREVIEW_PLACEMENT, PXC_PREVIEW_USER_PREFIX
+from sparkth.plugins.pxc.enums import PreviewPermission
+from sparkth.plugins.pxc.exceptions import PxcInvalidLaunchToken, PxcLaunchNotConfigured
 
 logger = get_logger(__name__)
 
@@ -107,9 +111,9 @@ def mint_launch_token(
 ) -> str:
     """Return a token carrying these claims, signed with ``secret`` and valid for ``ttl`` seconds.
 
-    Sparkth itself only verifies tokens — the XBlock is what mints them in production. This
-    lives here so the verification path has something to verify under test, and so both halves
-    of the format are defined in one place.
+    The XBlock mints LMS launches. Sparkth mints only an author's preview, through
+    ``mint_preview_token``, and tests mint tokens to exercise verification. Both halves of the
+    format are defined here.
 
     ``ttl`` defaults to the configured lifetime, resolved per call rather than as an argument
     default so it is not frozen at import time.
@@ -125,6 +129,30 @@ def mint_launch_token(
         "exp": int(time()) + ttl,
     }
     return jwt.encode(claims, secret, algorithm=LAUNCH_TOKEN_ALGORITHM)
+
+
+def mint_preview_token(activity_id: UUID, user_id: int, permission: PreviewPermission) -> str:
+    """A launch token for an author previewing their own generated activity inside Sparkth.
+
+    The preview is the one launch Sparkth mints itself. It goes into a fixed preview course and
+    placement, as a learner id namespaced away from Open edX's. The caller has already checked
+    that the user owns the activity; the token only carries that decision to the embed.
+
+    Raises:
+        PxcLaunchNotConfigured: if ``PXC_LAUNCH_SECRET`` is empty, since PyJWT refuses an empty key.
+    """
+    secret = get_pxc_settings().launch_secret
+    if not secret:
+        logger.error("PXC_LAUNCH_SECRET is not configured; cannot mint a preview token for %s", activity_id)
+        raise PxcLaunchNotConfigured("Activity previews are not configured on this server")
+    return mint_launch_token(
+        str(activity_id),
+        PXC_PREVIEW_PLACEMENT,
+        PXC_PREVIEW_COURSE_ID,
+        f"{PXC_PREVIEW_USER_PREFIX}{user_id}",
+        permission,
+        secret,
+    )
 
 
 def read_launch_token(token: str) -> LaunchClaims:

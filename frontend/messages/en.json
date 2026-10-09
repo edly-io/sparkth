@@ -1,9 +1,62 @@
 {
+  "analytics": {
+    "title": "Analytics",
+    "loading": "Loading analytics…",
+    "loadError": "We couldn't load analytics. Please try again.",
+    "retry": "Try again",
+    "logins": {
+      "title": "Logins",
+      "subtitle": "Login activity, {range} (UTC).",
+      "empty": "No logins in this period.",
+      "totalLogins": "Total logins",
+      "busiestBucket": "Busiest {bucket, select, day {day} week {week} other {month}}",
+      "weekOf": "Week of {date}",
+      "chartCaption": "Logins, {range}"
+    },
+    "table": {
+      "date": "Date",
+      "logins": "Logins"
+    },
+    "nav": {
+      "label": "Analytics views",
+      "logins": "Logins"
+    },
+    "period": {
+      "range": "Period",
+      "presets": {
+        "7d": "Last 7 days",
+        "30d": "Last 30 days",
+        "90d": "Last 90 days",
+        "12m": "Last 12 months",
+        "custom": "Custom range"
+      },
+      "from": "Start date",
+      "to": "End date",
+      "apply": "Apply",
+      "bucket": "Group by",
+      "buckets": {
+        "day": "Day",
+        "week": "Week",
+        "month": "Month"
+      },
+      "errors": {
+        "invalidDate": "Enter valid start and end dates.",
+        "startAfterEnd": "The start date must be on or before the end date.",
+        "inFuture": "The end date can't be in the future.",
+        "tooFarBack": "The start date must be within the last {days} days."
+      }
+    }
+  },
   "home": {
     "title": "Welcome to <brand>Sparkth</brand>",
     "tagline": "Your AI-powered platform for creating engaging educational content. Transform your resources into courses with ease.",
     "getStarted": "Get Started",
     "signIn": "Sign in",
     "privacyPolicy": "Privacy Policy"
+  },
+  "forbidden": {
+    "title": "You don't have access to this page",
+    "message": "Ask an administrator if you need access.",
+    "back": "Back to dashboard"
   }
 }

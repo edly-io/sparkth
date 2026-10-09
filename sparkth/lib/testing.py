@@ -42,7 +42,7 @@ from sparkth.core.audit.models import AuditEvent
 from sparkth.core.cache import get_cache_service
 from sparkth.core.db import dispose_engine, get_engine
 from sparkth.core.models.user import User
-from sparkth.lib.auth import get_current_user
+from sparkth.lib.auth import bind_current_user_id, get_current_user
 from sparkth.lib.i18n import LOCALE_DIRS
 from sparkth.main import app
 
@@ -169,6 +169,8 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient]:
 async def current_user(client: AsyncClient) -> AsyncGenerator[User, None]:
     """
     Create a test user and login with this user in all views.
+
+    Binds only the user id for `current_user_id`, not the audit actor.
     """
     transport = cast(ASGITransport, client._transport)
     app_instance = cast(FastAPI, transport.app)
@@ -181,6 +183,7 @@ async def current_user(client: AsyncClient) -> AsyncGenerator[User, None]:
     )
 
     async def override_user() -> User:
+        bind_current_user_id(cast(int, user.id))
         return user
 
     app_instance.dependency_overrides[get_current_user] = override_user

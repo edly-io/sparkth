@@ -1,3 +1,4 @@
+import asyncio
 import json
 import uuid
 from collections.abc import AsyncGenerator
@@ -12,6 +13,7 @@ from sparkth.lib.rag import (
     RAGRetrievalError,
     RetrievedChunk,
 )
+from sparkth.plugins.chat.analytics import StopPoint
 from sparkth.plugins.chat.routes.utils.live_turns import request_stop
 from sparkth.plugins.chat.routes.utils.stream_processor import ChatStreamProcessor
 from sparkth.plugins.chat.schemas import ChatMessage
@@ -556,3 +558,70 @@ class TestStopHonoured:
         _make_processor(provider=SimpleProvider(), turn_id="turn-7", user_id=1)
 
         assert request_stop("turn-7", 1) is False
+
+
+class TestStopPoint:
+    """``StreamedCompletion.stopped_at`` names the phase a stop landed in."""
+
+    @staticmethod
+    def _stopping_provider(stop: asyncio.Event) -> Any:
+        class Provider:
+            model = "test-model"
+
+            async def stream_message(
+                self, messages: list[dict[str, Any]], tools: list[Any] | None = None
+            ) -> AsyncGenerator[dict[str, Any], None]:
+                yield {"type": "token", "content": "Half"}
+                stop.set()
+                yield {"type": "token", "content": " done"}
+                yield {"type": "token", "content": " never"}
+
+        return Provider()
+
+    @pytest.mark.asyncio
+    async def test_a_stop_before_retrieval_is_before_the_model(self) -> None:
+        processor = _make_processor()
+        processor.stop_requested = asyncio.Event()
+        processor.stop_requested.set()
+
+        completion = await processor._run(MagicMock())
+
+        assert completion is not None
+        assert completion.stopped_at == StopPoint.BEFORE_MODEL
+
+    @pytest.mark.asyncio
+    async def test_a_stop_after_retrieval_is_before_the_model(self) -> None:
+        processor = _make_processor()
+        processor.stop_requested = asyncio.Event()
+
+        async def rag_phase(_session: Any) -> list[dict[str, str | None]]:
+            assert processor.stop_requested is not None
+            processor.stop_requested.set()
+            return []
+
+        with patch.object(processor, "_run_rag_phase", rag_phase):
+            completion = await processor._run(MagicMock())
+
+        assert completion is not None
+        assert completion.stopped_at == StopPoint.BEFORE_MODEL
+
+    @pytest.mark.asyncio
+    async def test_a_stop_while_streaming_is_streaming(self) -> None:
+        stop = asyncio.Event()
+        processor = _make_processor(provider=self._stopping_provider(stop))
+        processor.stop_requested = stop
+
+        completion = await processor._run(MagicMock())
+
+        assert completion is not None
+        assert completion.stopped_at == StopPoint.STREAMING
+
+    @pytest.mark.asyncio
+    async def test_an_uninterrupted_turn_has_no_stop_point(self) -> None:
+        processor = _make_processor(provider=SimpleProvider())
+        processor.stop_requested = asyncio.Event()
+
+        completion = await processor._run(MagicMock())
+
+        assert completion is not None
+        assert completion.stopped_at is None

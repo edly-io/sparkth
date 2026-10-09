@@ -1,6 +1,22 @@
-from typing import Any
+import json
+from datetime import datetime
+from typing import Annotated, Any
+from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import AfterValidator, BaseModel, Field, StringConstraints
+
+from sparkth.plugins.pxc.constants import PXC_MAX_DESCRIPTION_CHARS, PXC_MAX_SOURCE_CHARS
+
+
+def within_source_limit(manifest: dict[str, object]) -> dict[str, object]:
+    """Refuse a manifest whose JSON is longer than ``PXC_MAX_SOURCE_CHARS``, the cap on each script.
+
+    Raises:
+        ValueError: if the manifest is over the limit.
+    """
+    if len(json.dumps(manifest)) > PXC_MAX_SOURCE_CHARS:
+        raise ValueError(f"manifest is longer than {PXC_MAX_SOURCE_CHARS} characters as JSON")
+    return manifest
 
 
 class LaunchContext(BaseModel):
@@ -12,7 +28,7 @@ class LaunchContext(BaseModel):
 
 
 class ActivityConfig(BaseModel):
-    """Everything the embed shell needs to render one activity for one learner."""
+    """Everything the embed shell needs to render one activity for one learner, inlined into its page."""
 
     activity: str
     context: LaunchContext
@@ -22,3 +38,29 @@ class ActivityConfig(BaseModel):
     asset_base_url: str
     action_base_url: str
     ws_url: str
+
+
+class ActivitySummary(BaseModel):
+    """One of an author's activities, as the Activities page lists it."""
+
+    id: UUID
+    title: str
+    description: str
+    created_at: datetime
+    preview_url: str
+
+
+class ActivityLaunch(BaseModel):
+    """Where the preview page iframes one activity for its author."""
+
+    embed_url: str
+
+
+class ActivitySource(BaseModel):
+    """The files an agent writes for one activity, and how the activity is listed."""
+
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
+    description: str = Field(max_length=PXC_MAX_DESCRIPTION_CHARS)
+    manifest: Annotated[dict[str, object], AfterValidator(within_source_limit)]
+    ui_js: str = Field(max_length=PXC_MAX_SOURCE_CHARS)
+    sandbox_js: str = Field(max_length=PXC_MAX_SOURCE_CHARS)

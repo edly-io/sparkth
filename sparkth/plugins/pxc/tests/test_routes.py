@@ -1,21 +1,11 @@
-import re
 import sys
 from pathlib import Path
 
 import pytest
-from fastapi import Request
 from httpx import AsyncClient
 
-from sparkth.main import assemble_app
-from sparkth.plugins.pxc.routes import _socket_url
+from sparkth.plugins.pxc.tests.conftest import inline_config
 from sparkth.plugins.pxc.tokens import mint_launch_token
-
-
-def _extract_attr(html: str, attr: str) -> str:
-    """The value of one double-quoted HTML attribute, for tests that drive a route's own markup."""
-    match = re.search(f'{attr}="([^"]*)"', html)
-    assert match, f"{attr} not found in: {html}"
-    return match.group(1)
 
 
 @pytest.fixture
@@ -23,16 +13,10 @@ def token(configured_secret: str) -> str:
     return mint_launch_token("mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", "play", configured_secret, 300)
 
 
-async def test_config_without_a_token_is_rejected(client: AsyncClient) -> None:
-    response = await client.get("/api/v1/pxc/config")
+async def test_the_embed_shell_without_a_token_is_rejected(client: AsyncClient) -> None:
+    response = await client.get("/api/v1/pxc/embed")
 
     assert response.status_code == 422
-
-
-async def test_config_with_a_bad_token_is_unauthorized(client: AsyncClient) -> None:
-    response = await client.get("/api/v1/pxc/config", params={"token": "not-a-token"})
-
-    assert response.status_code == 401
 
 
 async def test_an_action_with_a_bad_token_is_unauthorized(client: AsyncClient) -> None:
@@ -42,14 +26,12 @@ async def test_an_action_with_a_bad_token_is_unauthorized(client: AsyncClient) -
 
 
 async def test_the_embed_shell_with_a_bad_token_is_unauthorized(client: AsyncClient) -> None:
-    # Guards embed_activity's unbound read_launch_token(token) call: without this test, deleting
-    # that line entirely would leave every other test green, and a reader could mistake the
-    # discarded result for a pointless call and remove it.
     response = await client.get("/api/v1/pxc/embed", params={"token": "not-a-token"})
 
     assert response.status_code == 401
 
 
+@pytest.mark.wasm
 async def test_the_embed_shell_renders_the_activity_element(client: AsyncClient, token: str) -> None:
     response = await client.get("/api/v1/pxc/embed", params={"token": token})
 
@@ -58,11 +40,12 @@ async def test_the_embed_shell_renders_the_activity_element(client: AsyncClient,
     assert token in response.text
 
 
+@pytest.mark.wasm
 async def test_the_embed_shell_carries_the_token_as_its_own_attribute(client: AsyncClient, token: str) -> None:
     # pxc.js's _initFromAttrs() reads data-pxc-token into this._pxcToken, which the client then
     # appends itself when it builds action and asset URLs — see the action-URL test below. The
-    # existing "renders the activity element" test only proves the token appears somewhere (it
-    # is already inside data-config-url's query string), not that this attribute exists.
+    # "renders the activity element" test only proves the token appears somewhere (it is also
+    # inside the inline configuration's URLs), not that this attribute exists.
     response = await client.get("/api/v1/pxc/embed", params={"token": token})
 
     assert f'data-pxc-token="{token}"' in response.text
@@ -75,12 +58,8 @@ async def test_the_client_route_serves_the_bundled_pxc_component(client: AsyncCl
     assert "class PXC" in response.text
 
 
-# TODO (#680): `sparkth-pxc.js` needs a vitest suite that executes it. Nothing here can: a
-# route test reads the served source as text, and asserting on that text pins formatting rather
-# than behaviour — it breaks on a reformat that changes nothing and passes on a rewrite that
-# breaks the client. The socket URL coming from the configuration, `_postAction` returning
-# false rather than throwing, the launch token on every asset URL, and the reconnect ceiling
-# and its notice are all unguarded until then.
+# TODO (#680): the vitest suite for `sparkth-pxc.js` does not yet cover the launch token on
+# every asset URL, or the reconnect ceiling and its notice.
 
 
 async def test_the_client_route_refuses_a_name_it_does_not_own(client: AsyncClient) -> None:
@@ -99,28 +78,46 @@ async def test_an_undeclared_asset_is_not_served(client: AsyncClient, token: str
 
 
 @pytest.mark.wasm
-async def test_config_returns_the_state_and_the_learners_context(client: AsyncClient, token: str) -> None:
-    response = await client.get("/api/v1/pxc/config", params={"token": token})
+async def test_the_embed_shell_inlines_the_state_and_the_learners_context(client: AsyncClient, token: str) -> None:
+    response = await client.get("/api/v1/pxc/embed", params={"token": token})
 
     assert response.status_code == 200
-    body = response.json()
-    assert body["context"] == {
+    config = inline_config(response.text)
+    assert config.context.model_dump() == {
         "activity_id": "placement-1",
         "course_id": "course-v1:X+Y+Z",
         "user_id": "learner-7",
     }
-    assert body["permission"] == "play"
-    assert body["ui_url"].endswith("/api/v1/pxc/assets/ui.js?token=" + token)
+    assert config.permission == "play"
+    assert config.ui_url.endswith("/api/v1/pxc/assets/ui.js?token=" + token)
 
 
 @pytest.mark.wasm
-async def test_config_reports_the_permission_the_token_asked_for(client: AsyncClient, configured_secret: str) -> None:
+async def test_the_embed_shell_reports_the_permission_the_token_asked_for(
+    client: AsyncClient, configured_secret: str
+) -> None:
     edit_token = mint_launch_token("mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", "edit", configured_secret, 300)
 
-    response = await client.get("/api/v1/pxc/config", params={"token": edit_token})
+    response = await client.get("/api/v1/pxc/embed", params={"token": edit_token})
 
     assert response.status_code == 200
-    assert response.json()["permission"] == "edit"
+    assert inline_config(response.text).permission == "edit"
+
+
+@pytest.mark.wasm
+async def test_inlined_state_cannot_close_the_configuration_script(
+    client: AsyncClient, token: str, configured_secret: str
+) -> None:
+    # An author's saved text lands in the page verbatim; unescaped, this would end the JSON block.
+    question = "</script><script>alert(1)</script>"
+    edit_token = mint_launch_token("mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", "edit", configured_secret, 300)
+    saved = {"question": question, "answers": ["yes", "no"], "correct_answers": [0]}
+    save = await client.post("/api/v1/pxc/actions/config.save", params={"token": edit_token}, json=saved)
+    assert save.status_code == 204
+
+    response = await client.get("/api/v1/pxc/embed", params={"token": token})
+
+    assert inline_config(response.text).state["question"] == question
 
 
 async def test_the_activitys_ui_script_is_served(client: AsyncClient, token: str) -> None:
@@ -156,21 +153,17 @@ async def test_an_undeclared_action_is_unprocessable(client: AsyncClient, token:
 @pytest.mark.wasm
 async def test_the_shells_own_action_url_can_submit_an_answer(client: AsyncClient, token: str) -> None:
     # Every other test in this file injects the token via params={"token": ...} by hand, so none
-    # of them consumes the embed shell's own markup. That leaves data-action-url and
-    # action_base_url unchecked for the token they need: submit_action declares token as a
-    # required query parameter, and nothing else here builds the URL the way the browser does.
+    # of them consumes the embed shell's own output. That leaves action_base_url unchecked for
+    # the token it needs: submit_action declares token as a required query parameter, and
+    # nothing else here builds the URL the way the browser does.
     #
-    # This test drives the shell's own output instead: it extracts data-action-url and
-    # data-pxc-token exactly as sparkth-pxc.js's _postAction() does — appending
-    # "/{action}?token={token}" to the base — and POSTs to that composed URL. The JS
-    # composition itself has no test harness here (it is a backend-served static asset, outside
-    # frontend/tests/'s vitest include), so this pins the server half of the contract: the shell
-    # must emit a base URL and a token the client can combine into one submit_action accepts.
+    # This test reads action_base_url from the inline configuration and appends
+    # "/{action}?token={token}" exactly as sparkth-pxc.js's _postAction() does. The vitest
+    # suite pins the client half; this pins the server half.
     embed_response = await client.get("/api/v1/pxc/embed", params={"token": token})
-    action_base_url = _extract_attr(embed_response.text, "data-action-url")
-    shell_token = _extract_attr(embed_response.text, "data-pxc-token")
+    action_base_url = inline_config(embed_response.text).action_base_url
 
-    action_url = f"{action_base_url}/answer.submit?token={shell_token}"
+    action_url = f"{action_base_url}/answer.submit?token={token}"
     response = await client.post(action_url, json=[0])
 
     assert response.status_code == 204
@@ -224,36 +217,27 @@ async def test_a_deeply_nested_action_body_is_unprocessable(client: AsyncClient,
 
 
 @pytest.mark.wasm
-async def test_config_carries_the_socket_url_for_this_launch(client: AsyncClient, token: str) -> None:
+async def test_the_embed_shell_carries_the_socket_url_for_this_launch(client: AsyncClient, token: str) -> None:
     # The client sets this on pxc.js's this._wsUrl. Without it, _getWebsocketUrl() falls back
     # to the upstream default of /api/activity/{activity_id}/ws, which Sparkth does not serve.
-    response = await client.get("/api/v1/pxc/config", params={"token": token})
+    response = await client.get("/api/v1/pxc/embed", params={"token": token})
 
-    ws_url = response.json()["ws_url"]
+    ws_url = inline_config(response.text).ws_url
 
     assert ws_url.startswith("ws://")
     assert ws_url.endswith(f"/api/v1/pxc/ws?token={token}")
 
 
-def test_socket_url_upgrades_a_tls_request_to_wss() -> None:
-    """The ``https`` branch, which the ``client`` fixture's ``http://test`` base URL never reaches."""
-    request = Request(
-        {
-            "type": "http",
-            "scheme": "https",
-            "method": "GET",
-            "path": "/api/v1/pxc/config",
-            "query_string": b"",
-            "headers": [(b"host", b"example.com")],
-            "server": ("example.com", 443),
-            "router": assemble_app().router,
-        }
-    )
+@pytest.mark.wasm
+async def test_the_embed_shell_upgrades_a_tls_launch_to_wss(client: AsyncClient, token: str) -> None:
+    client.base_url = "https://test"
 
-    ws_url = _socket_url(request, "tok-123")
+    response = await client.get("/api/v1/pxc/embed", params={"token": token})
+
+    ws_url = inline_config(response.text).ws_url
 
     assert ws_url.startswith("wss://")
-    assert ws_url.endswith("/api/v1/pxc/ws?token=tok-123")
+    assert ws_url.endswith(f"/api/v1/pxc/ws?token={token}")
 
 
 @pytest.mark.wasm
@@ -264,3 +248,72 @@ async def test_an_action_returns_no_content(client: AsyncClient, token: str) -> 
 
     assert response.status_code == 204
     assert response.content == b""
+
+
+async def test_a_client_script_allows_any_origin(client: AsyncClient) -> None:
+    # The embed page's origin is opaque, so loading its module scripts is a cross-origin fetch.
+    response = await client.get("/api/v1/pxc/client/sparkth-pxc.js")
+
+    assert response.headers["access-control-allow-origin"] == "*"
+
+
+async def test_an_activity_asset_allows_any_origin(client: AsyncClient, token: str) -> None:
+    response = await client.get("/api/v1/pxc/assets/ui.js", params={"token": token})
+
+    assert response.headers["access-control-allow-origin"] == "*"
+
+
+async def test_an_action_preflight_is_answered_without_a_token(client: AsyncClient) -> None:
+    # A browser sends the preflight before the POST, and without the POST's query credentials.
+    response = await client.options(
+        "/api/v1/pxc/actions/answer.submit",
+        headers={
+            "Origin": "null",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+
+    assert response.status_code == 204
+    assert response.headers["access-control-allow-origin"] == "*"
+    assert response.headers["access-control-allow-methods"] == "POST"
+    assert response.headers["access-control-allow-headers"] == "Content-Type"
+    assert response.headers["access-control-max-age"] == "86400"
+
+
+@pytest.mark.wasm
+async def test_an_action_allows_any_origin(client: AsyncClient, token: str) -> None:
+    response = await client.post("/api/v1/pxc/actions/answer.submit", params={"token": token}, json=[0])
+
+    assert response.status_code == 204
+    assert response.headers["access-control-allow-origin"] == "*"
+
+
+async def test_an_action_refused_for_its_token_is_readable_from_any_origin(client: AsyncClient) -> None:
+    # Without the header the browser hides the 401 and reports a network failure.
+    response = await client.post("/api/v1/pxc/actions/answer.submit", params={"token": "not-a-token"}, json=[0])
+
+    assert response.status_code == 401
+    assert response.headers["access-control-allow-origin"] == "*"
+
+
+async def test_a_missing_asset_is_readable_from_any_origin(client: AsyncClient, token: str) -> None:
+    response = await client.get("/api/v1/pxc/assets/no-such-file.js", params={"token": token})
+
+    assert response.status_code == 404
+    assert response.headers["access-control-allow-origin"] == "*"
+
+
+async def test_an_activity_asset_opens_in_a_sandbox(client: AsyncClient, token: str) -> None:
+    # Opened directly, an asset would otherwise run with Sparkth's origin and reach its storage.
+    response = await client.get("/api/v1/pxc/assets/ui.js", params={"token": token})
+
+    assert response.headers["content-security-policy"] == "sandbox allow-scripts allow-forms"
+
+
+@pytest.mark.wasm
+async def test_the_embed_shell_opens_in_a_sandbox(client: AsyncClient, token: str) -> None:
+    # The header, not the iframe attribute, is what holds for a direct link or any embedding page.
+    response = await client.get("/api/v1/pxc/embed", params={"token": token})
+
+    assert response.headers["content-security-policy"] == "sandbox allow-scripts allow-forms"

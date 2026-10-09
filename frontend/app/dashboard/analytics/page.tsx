@@ -1,12 +1,13 @@
-import type { Metadata } from "next";
-import { LOGIN_ACTIVITY_DAYS } from "@/lib/analytics";
-import AnalyticsPage from "./AnalyticsPage";
+"use client";
 
-export const metadata: Metadata = {
-  title: "Analytics | Sparkth",
-  description: `Login activity over the last ${LOGIN_ACTIVITY_DAYS} days`,
-};
+import { useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
-export default function Page() {
-  return <AnalyticsPage />;
+export default function AnalyticsIndex() {
+  const router = useRouter();
+  const query = useSearchParams().toString();
+  useEffect(() => {
+    router.replace(`/dashboard/analytics/logins${query ? `?${query}` : ""}`);
+  }, [router, query]);
+  return null;
 }

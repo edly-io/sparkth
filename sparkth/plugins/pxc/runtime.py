@@ -29,7 +29,8 @@ def build_runtime(claims: LaunchClaims) -> ActivityRuntime:
     course.
 
     Raises:
-        PxcActivityNotFound: if the claimed activity type is not bundled.
+        PxcActivityNotFound: if the claimed activity is neither bundled nor a generated
+            activity on disk.
     """
     return ActivityRuntime(
         activity_dir(claims.activity),

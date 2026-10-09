@@ -3,7 +3,9 @@
 ``sandbox.wasm`` is a build product, kept out of git (D2), so a clean checkout has none.
 ``ActivityRuntime`` can be constructed without it — wasmtime is only invoked on the first
 sandbox call — so only tests that actually run the sandbox carry the ``wasm`` marker, and
-those skip when the binary is absent. CI builds it, so they run there.
+those skip when the binary is absent. CI builds it, so they run there. Tests that compile an
+activity carry the same marker, since `make pxc.activities.build` installs the toolchain they
+need along with the binary.
 """
 
 from collections.abc import Iterator
@@ -16,15 +18,24 @@ from sparkth.main import assemble_app
 from sparkth.plugins.pxc.activities import activity_dir
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.event_bus import EVENT_BUS
+from sparkth.plugins.pxc.schemas import ActivityConfig
 
 SANDBOX_WASM = activity_dir("mcq") / "sandbox.wasm"
+TOOLCHAIN_DIR = Path(__file__).parent.parent / "builder" / "toolchain"
+COMPONENTIZE_JS = TOOLCHAIN_DIR / "node_modules" / ".bin" / "componentize-js"
 
 LAUNCH_SECRET = "a-shared-secret-of-at-least-32-bytes"
 
 
+def inline_config(html: str) -> ActivityConfig:
+    """The configuration the embed route inlined into this page, parsed as the client parses it."""
+    script = html.split('<script type="application/json">')[1].split("</script>")[0]
+    return ActivityConfig.model_validate_json(script)
+
+
 def pytest_runtest_setup(item: pytest.Item) -> None:
-    if "wasm" in item.keywords and not SANDBOX_WASM.exists():
-        pytest.skip("sandbox.wasm is not built; run `make pxc.activities.build`")
+    if "wasm" in item.keywords and not (SANDBOX_WASM.exists() and COMPONENTIZE_JS.exists()):
+        pytest.skip("the PXC activity toolchain is not installed; run `make pxc.activities.build`")
 
 
 @pytest.fixture(autouse=True)
@@ -42,6 +53,9 @@ def pxc_settings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[No
     monkeypatch.setenv("PXC_LAUNCH_SECRET", "")
     monkeypatch.setenv("PXC_LAUNCH_TOKEN_TTL_SECONDS", "300")
     monkeypatch.setenv("PXC_DEFAULT_ACTIVITY", "mcq")
+    monkeypatch.setenv("PXC_TOOLCHAIN_DIR", str(TOOLCHAIN_DIR))
+    monkeypatch.setenv("PXC_BUILD_TIMEOUT_SECONDS", "120")
+    monkeypatch.setenv("PXC_BUILD_CONCURRENCY", "2")
     get_pxc_settings.cache_clear()
     yield
     get_pxc_settings.cache_clear()

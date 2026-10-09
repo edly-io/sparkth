@@ -1,9 +1,62 @@
 {
+  "analytics": {
+    "title": "Analíticas",
+    "loading": "Cargando analíticas…",
+    "loadError": "No pudimos cargar las analíticas. Inténtalo de nuevo.",
+    "retry": "Reintentar",
+    "logins": {
+      "title": "Inicios de sesión",
+      "subtitle": "Actividad de inicios de sesión, {range} (UTC).",
+      "empty": "No hay inicios de sesión en este periodo.",
+      "totalLogins": "Inicios de sesión totales",
+      "busiestBucket": "{bucket, select, day {Día} week {Semana} other {Mes}} con más actividad",
+      "weekOf": "Semana del {date}",
+      "chartCaption": "Inicios de sesión, {range}"
+    },
+    "table": {
+      "date": "Fecha",
+      "logins": "Inicios de sesión"
+    },
+    "nav": {
+      "label": "Vistas de analíticas",
+      "logins": "Inicios de sesión"
+    },
+    "period": {
+      "range": "Periodo",
+      "presets": {
+        "7d": "Últimos 7 días",
+        "30d": "Últimos 30 días",
+        "90d": "Últimos 90 días",
+        "12m": "Últimos 12 meses",
+        "custom": "Rango personalizado"
+      },
+      "from": "Fecha de inicio",
+      "to": "Fecha de fin",
+      "apply": "Aplicar",
+      "bucket": "Agrupar por",
+      "buckets": {
+        "day": "Día",
+        "week": "Semana",
+        "month": "Mes"
+      },
+      "errors": {
+        "invalidDate": "Introduce fechas de inicio y fin válidas.",
+        "startAfterEnd": "La fecha de inicio debe ser anterior o igual a la fecha de fin.",
+        "inFuture": "La fecha de fin no puede estar en el futuro.",
+        "tooFarBack": "La fecha de inicio debe estar dentro de los últimos {days} días."
+      }
+    }
+  },
   "home": {
     "title": "Bienvenido a <brand>Sparkth</brand>",
     "tagline": "Tu plataforma impulsada por IA para crear contenido educativo atractivo. Transforma tus recursos en cursos con facilidad.",
     "getStarted": "Comenzar",
     "signIn": "Iniciar sesión",
     "privacyPolicy": "Política de privacidad"
+  },
+  "forbidden": {
+    "title": "No tienes acceso a esta página",
+    "message": "Pide acceso a un administrador si lo necesitas.",
+    "back": "Volver al panel"
   }
 }

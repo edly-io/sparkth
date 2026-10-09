@@ -32,3 +32,7 @@ guide](../guides/plugins.md) for the how-to; this page is the generated referenc
 ## Content contributor exceptions
 
 ::: sparkth.lib.content.exceptions
+
+## Chat responsibility hooks
+
+::: sparkth.lib.chat.hooks

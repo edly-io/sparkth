@@ -4,9 +4,12 @@ import time
 import jwt
 import pytest
 from pxc.lib.permission import Permission
+from uuid6 import uuid7
 
-from sparkth.plugins.pxc.exceptions import PxcInvalidLaunchToken
-from sparkth.plugins.pxc.tokens import LaunchClaims, mint_launch_token, read_launch_token
+from sparkth.plugins.pxc.constants import PXC_PREVIEW_COURSE_ID, PXC_PREVIEW_PLACEMENT
+from sparkth.plugins.pxc.enums import PreviewPermission
+from sparkth.plugins.pxc.exceptions import PxcInvalidLaunchToken, PxcLaunchNotConfigured
+from sparkth.plugins.pxc.tokens import LaunchClaims, mint_launch_token, mint_preview_token, read_launch_token
 
 CLAIMS = ("mcq", "placement-1", "course-v1:X+Y+Z", "learner-7")
 OTHER_SECRET = "a-different-secret-of-32-plus-bytes"
@@ -206,3 +209,23 @@ def test_an_unrecognised_permission_claim_degrades_to_play_and_is_logged(
     # Never the secret or any part of the token itself.
     assert configured_secret not in caplog.text
     assert token not in caplog.text
+
+
+def test_a_preview_token_launches_the_authors_own_activity(configured_secret: str) -> None:
+    activity_id = uuid7()
+
+    claims = read_launch_token(mint_preview_token(activity_id, 7, PreviewPermission.EDIT))
+
+    assert claims == LaunchClaims(
+        str(activity_id), PXC_PREVIEW_PLACEMENT, PXC_PREVIEW_COURSE_ID, "sparkth-7", Permission.edit
+    )
+
+
+def test_a_preview_learner_never_shares_an_open_edx_learners_id(configured_secret: str) -> None:
+    # Open edX launches carry its own numeric ids; user-scoped fields would collide on "7".
+    assert read_launch_token(mint_preview_token(uuid7(), 7, PreviewPermission.PLAY)).user_id != "7"
+
+
+def test_a_preview_token_needs_a_configured_secret() -> None:
+    with pytest.raises(PxcLaunchNotConfigured):
+        mint_preview_token(uuid7(), 7, PreviewPermission.PLAY)

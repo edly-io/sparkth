@@ -1,0 +1,64 @@
+"use client";
+
+import { Suspense, useEffect, useState } from "react";
+import { ChartColumn } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { useAuth } from "@/lib/auth-context";
+import { checkPermission } from "@/lib/permissions";
+import { Forbidden } from "@/components/Forbidden";
+import { Spinner } from "@/components/Spinner";
+import { AnalyticsNav } from "./AnalyticsNav";
+import { PeriodSelector } from "./PeriodSelector";
+
+type Access = "checking" | "allowed" | "denied";
+
+export default function AnalyticsLayout({ children }: { children: React.ReactNode }) {
+  const { token } = useAuth();
+  const t = useTranslations("analytics");
+  const [access, setAccess] = useState<Access>("checking");
+
+  useEffect(() => {
+    if (!token) return;
+    let active = true;
+    setAccess("checking");
+    checkPermission(token, "analytics.read")
+      .then((allowed) => {
+        if (active) setAccess(allowed ? "allowed" : "denied");
+      })
+      .catch((error: unknown) => {
+        console.error("Analytics permission check failed:", error);
+        if (active) setAccess("denied");
+      });
+    return () => {
+      active = false;
+    };
+  }, [token]);
+
+  return (
+    <div className="min-h-screen bg-background transition-colors">
+      <div className="mx-auto px-4 py-4 sm:py-8 sm:px-6 lg:px-8">
+        <div className="mb-6 flex items-center gap-3">
+          <ChartColumn className="w-6 h-6 text-primary-500" aria-hidden="true" />
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">{t("title")}</h1>
+        </div>
+        {access === "checking" && (
+          <div className="flex justify-center py-24">
+            <Spinner />
+          </div>
+        )}
+        {access === "denied" && <Forbidden />}
+        {access === "allowed" && (
+          <Suspense fallback={null}>
+            <div className="flex flex-col gap-6 lg:flex-row">
+              <AnalyticsNav />
+              <div className="min-w-0 flex-1 space-y-6">
+                <PeriodSelector />
+                {children}
+              </div>
+            </div>
+          </Suspense>
+        )}
+      </div>
+    </div>
+  );
+}

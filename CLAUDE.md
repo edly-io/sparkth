@@ -90,10 +90,14 @@ named for what they hold, so which one a new test belongs in is never a guess:
 
 - **Unit (vitest)** → [`frontend/tests/`](frontend/tests/), a single central mirror of the source
   file's path: `components/ui/BarChart.tsx` → `frontend/tests/components/ui/BarChart.test.tsx`,
-  and the `lib` suite sits under `frontend/tests/lib/` (e.g. `lib/analytics/` →
-  `frontend/tests/lib/analytics.test.ts`). The mirror is enforced by `include:
+  and the `lib` suite sits under `frontend/tests/lib/` (e.g. `lib/analytics/series.ts` →
+  `frontend/tests/lib/analytics/series.test.ts`). The mirror is enforced by `include:
   ["tests/**/*.test.{ts,tsx}"]` in `frontend/vitest.config.ts` — a unit test placed anywhere
   else is silently never run.
+  - A browser script that lives outside `frontend/` mirrors its repo path under
+    `frontend/tests/`: `sparkth/plugins/pxc/static/sparkth-pxc.js` →
+    `frontend/tests/sparkth/plugins/pxc/static/sparkth-pxc.test.ts`. Such a test imports the
+    script as `@/../<repo path>`.
 - **E2E (Playwright)** → [`frontend/e2e-tests/`](frontend/e2e-tests/), pointed at by `testDir` in
   `frontend/playwright.config.ts`, outside the vitest `include` above, and run with
   `make test.e2e`.

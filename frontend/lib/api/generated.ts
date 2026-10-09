@@ -913,6 +913,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/pxc/activities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Activities
+         * @description The activities this user built, newest first.
+         */
+        get: operations["list_activities_api_v1_pxc_activities_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pxc/activities/{activity_id}/launch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Launch Activity
+         * @description An embed URL that previews one of this user's activities, as a learner or as its author.
+         *
+         *     The activity's files are resolved before a token is minted, so a row whose files are
+         *     missing from ``PXC_DATA_DIR`` never yields an embed URL that would fail on load.
+         *
+         *     Raises:
+         *         PxcActivityNotFound: if the activity does not exist, another user owns it, or its files
+         *             are missing.
+         *         PxcLaunchNotConfigured: if no launch secret is configured.
+         */
+        get: operations["launch_activity_api_v1_pxc_activities__activity_id__launch_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/pxc/assets/{file_path}": {
         parameters: {
             query?: never;
@@ -963,28 +1011,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/pxc/config": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Activity Config
-         * @description This activity's state, context and asset URLs for the launching learner.
-         *
-         *     Takes the raw token as well as the claims, because the URLs it hands back carry it.
-         */
-        get: operations["activity_config_api_v1_pxc_config_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/pxc/embed": {
         parameters: {
             query?: never;
@@ -996,8 +1022,11 @@ export interface paths {
          * Embed Activity
          * @description The document an LMS iframes to show one activity to one learner.
          *
-         *     Gated by the dependency rather than a claims parameter: the shell hands the raw token to the
-         *     client and reads nothing out of it.
+         *     The activity's configuration is inlined as a JSON script element, so the client reads it
+         *     without a request of its own.
+         *
+         *     Served under a sandbox CSP, so the document has an opaque origin however it is opened, and
+         *     activity code in it cannot reach Sparkth's own storage.
          */
         get: operations["embed_activity_api_v1_pxc_embed_get"];
         put?: never;
@@ -1356,27 +1385,34 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
-         * ActivityConfig
-         * @description Everything the embed shell needs to render one activity for one learner.
+         * ActivityLaunch
+         * @description Where the preview page iframes one activity for its author.
          */
-        ActivityConfig: {
-            /** Action Base Url */
-            action_base_url: string;
-            /** Activity */
-            activity: string;
-            /** Asset Base Url */
-            asset_base_url: string;
-            context: components["schemas"]["LaunchContext"];
-            /** Permission */
-            permission: string;
-            /** State */
-            state: {
-                [key: string]: unknown;
-            };
-            /** Ui Url */
-            ui_url: string;
-            /** Ws Url */
-            ws_url: string;
+        ActivityLaunch: {
+            /** Embed Url */
+            embed_url: string;
+        };
+        /**
+         * ActivitySummary
+         * @description One of an author's activities, as the Activities page lists it.
+         */
+        ActivitySummary: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Description */
+            description: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Preview Url */
+            preview_url: string;
+            /** Title */
+            title: string;
         };
         /**
          * AttachedDocumentResponse
@@ -1924,18 +1960,6 @@ export interface components {
             name?: string | null;
         };
         /**
-         * LaunchContext
-         * @description The identifiers the activity's client code needs, mirroring PXC's context shape.
-         */
-        LaunchContext: {
-            /** Activity Id */
-            activity_id: string;
-            /** Course Id */
-            course_id: string;
-            /** User Id */
-            user_id: string;
-        };
-        /**
          * LoginActivityPoint
          * @description One day's login count. ``day`` is an ISO ``YYYY-MM-DD`` string.
          */
@@ -2052,6 +2076,12 @@ export interface components {
             /** Allowed */
             allowed: boolean;
         };
+        /**
+         * PreviewPermission
+         * @description The permissions an author may preview their own activity under.
+         * @enum {string}
+         */
+        PreviewPermission: "play" | "edit";
         /** ProviderCatalogResponse */
         ProviderCatalogResponse: {
             /** Default Model */
@@ -4165,6 +4195,59 @@ export interface operations {
             };
         };
     };
+    list_activities_api_v1_pxc_activities_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivitySummary"][];
+                };
+            };
+        };
+    };
+    launch_activity_api_v1_pxc_activities__activity_id__launch_get: {
+        parameters: {
+            query: {
+                permission: components["schemas"]["PreviewPermission"];
+            };
+            header?: never;
+            path: {
+                activity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityLaunch"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     activity_asset_api_v1_pxc_assets__file_path__get: {
         parameters: {
             query: {
@@ -4216,37 +4299,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    activity_config_api_v1_pxc_config_get: {
-        parameters: {
-            query: {
-                token: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ActivityConfig"];
                 };
             };
             /** @description Validation Error */
