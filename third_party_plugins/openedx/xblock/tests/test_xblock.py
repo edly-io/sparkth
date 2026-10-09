@@ -110,6 +110,26 @@ def test_only_the_editing_view_carries_the_notice(block: SparkthPxcXBlock) -> No
     assert "stored in Sparkth" not in str(block.student_view().content)
 
 
+VIEWS = [
+    pytest.param(lambda block: block.student_view(), id="learner"),
+    pytest.param(lambda block: block.studio_view(), id="editor"),
+]
+
+
+# A block added from Studio's Advanced menu has no activity and no placement: Sparkth never placed one.
+@pytest.mark.parametrize("field", ["activity", "placement"])
+@pytest.mark.parametrize("view", VIEWS)
+def test_a_block_missing_its_activity_says_so_instead_of_launching(
+    block: SparkthPxcXBlock, field: str, view: Callable[[SparkthPxcXBlock], Any]
+) -> None:
+    setattr(block, field, "")
+
+    html = str(view(block).content)
+
+    assert "This block has no activity yet" in html
+    assert "<iframe" not in html
+
+
 # Studio's two ways of copying a block: Duplicate, and Copy then Paste.
 COPY_HOOKS = [
     pytest.param(lambda block, store: block.studio_post_duplicate(store, None), id="duplicate"),
