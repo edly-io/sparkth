@@ -40,6 +40,35 @@ must be published before a learner sees anything — [`third_party_plugins/opene
 covers that and the Advanced Module List, which is optional and only affects Studio's component
 picker.
 
+## Building an activity from chat
+
+The plugin registers the `pxc-activity-builder` chat job with its system prompt, the scope the chat
+classifier reads, and the `pxc` tool category. A conversation routed to the job binds only the
+tools in that category. Its contract: the author describes an activity in plain words, and the
+agent builds it and replies with a preview link that opens the activity on the Sparkth
+`/dashboard/pxc` page.
+
+| Tool | Returns |
+|---|---|
+| `pxc_about` | The contract: file rules and the manifest JSON schema |
+| `pxc_build_activity` | The id and preview link of a newly built activity |
+| `pxc_list_activities` | The author's most recent activities (20 by default, set by `PXC_LIST_ACTIVITIES_LIMIT`), newest first, each with id, title, creation time and preview link |
+| `pxc_get_activity_source` | One of the author's activities as its title, description, manifest, `ui.js` and `sandbox.js` |
+
+A build failure is raised, not returned, and the agent reads its message to fix the files and
+try again.
+
+Every tool reads the author from the authenticated request, never from an argument, and the two
+read tools are owner-only: another author's activity is reported as unknown. The tools need an
+authenticated chat session; on the unauthenticated `/ai/mcp` endpoint they fail with
+`NoAuthenticatedUser`.
+
+A built activity never changes: an edit builds a new one.
+
+The job's prompt lives in `assets/pxc_activity_building_system_prompt.txt` and caps build
+attempts at three. The contract text lives in `assets/about.txt`, and the scope the classifier
+reads in `assets/pxc_activity_building_scope.txt`.
+
 ## Adding an activity
 
 One directory per activity under `activities/`, each holding a `manifest.json` that declares the

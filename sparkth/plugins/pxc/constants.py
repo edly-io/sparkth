@@ -36,7 +36,7 @@ PXC_BUILD_ERROR_LIMIT = int(os.getenv("PXC_BUILD_ERROR_LIMIT", "4000"))
 
 # The longest ui.js, sandbox.js or manifest (as JSON) an agent may submit, in characters, refused
 # before any compile.
-PXC_MAX_SOURCE_CHARS = int(os.getenv("PXC_MAX_SOURCE_CHARS", "200000"))
+PXC_MAX_SOURCE_CHARS = int(os.getenv("PXC_MAX_SOURCE_CHARS", "20000"))
 
 # Prefixed onto a Sparkth user id in a preview token, so it never equals an Open edX learner id.
 PXC_PREVIEW_USER_PREFIX = "sparkth-"
@@ -51,9 +51,29 @@ PXC_SANDBOX_WIT = Path(__file__).parent / "builder" / "toolchain" / "pxc.wit"
 # The exit status of the toolchain's compile.mjs when its packages are not installed.
 PXC_COMPILE_TOOLCHAIN_MISSING = 2
 
+# The pxc plugin's prompt and contract texts.
+PXC_ASSET_DIR = Path(__file__).parent / "assets"
+
+# The MCP category every pxc tool registers under, which the pxc-activity-builder chat job claims.
+PXC_TOOL_CATEGORY = "pxc"
+
+# The chat job that builds activities.
+PXC_BUILDER_RESPONSIBILITY_NAME = "pxc-activity-builder"
+
+# What the chat classifier reads to route a conversation to the activity builder.
+PXC_ACTIVITY_BUILDER_SCOPE = (PXC_ASSET_DIR / "pxc_activity_building_scope.txt").read_text(encoding="utf-8").strip()
+
+# Formatted by chat with current_datetime and refusal_message.
+PXC_ACTIVITY_BUILDER_SYSTEM_PROMPT = (
+    (PXC_ASSET_DIR / "pxc_activity_building_system_prompt.txt").read_text(encoding="utf-8").strip()
+)
+
 # The most of a build step's stderr kept in memory, in bytes: the end of it, where the cause is.
 # The rest is read and dropped, so a step flooding stderr can neither block nor exhaust memory.
 PXC_BUILD_STDERR_LIMIT_BYTES = int(os.getenv("PXC_BUILD_STDERR_LIMIT_BYTES", "65536"))
 
 # The longest activity description an agent may submit, in characters.
 PXC_MAX_DESCRIPTION_CHARS = int(os.getenv("PXC_MAX_DESCRIPTION_CHARS", "2000"))
+
+# How many of the author's most recent activities pxc_list_activities returns by default.
+PXC_LIST_ACTIVITIES_LIMIT = int(os.getenv("PXC_LIST_ACTIVITIES_LIMIT", "20"))

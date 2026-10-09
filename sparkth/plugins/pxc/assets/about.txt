@@ -1,0 +1,94 @@
+PXC activity contract: what an activity is made of and the rules it must follow.
+
+An activity is three files you write, plus one the server supplies:
+- manifest.json declares the activity's fields (its stored data), its actions (what the UI may
+  send to the sandbox) and its events (what the sandbox may send back to the UI).
+- sandbox.js is the activity's backend. The server compiles it to WebAssembly against pxc.wit
+  and runs it. It is the only code that reads or writes stored data.
+- ui.js is the activity's frontend. It runs in the viewer's browser.
+- pxc.wit is the interface between the sandbox and the host. The server supplies it; do not
+  write it.
+
+MANIFEST RULES
+- "ui" must be "ui.js" and "sandbox" must be "sandbox.wasm".
+- Do not declare "assets" or "capabilities". Everything the UI needs, its styles included,
+  lives in ui.js.
+- The server replaces "name" with the new activity's id, so any value is accepted.
+- Every field declares a "type" and a "scope", and should declare a "default". The defaults are
+  the activity's starting content: a learner opening a freshly placed activity sees them, so
+  make them a complete, realistic example rather than empty values.
+- The scope decides who shares a value. One activity can be placed in many lessons and many
+  courses, and each placement is a separate copy.
+  - "activity": shared by everyone on one placement. For the author's configuration:
+    questions, choices, answer keys.
+  - "user,activity": one per learner on one placement. For a learner's own answers or progress
+    in that lesson.
+  - "course": shared by everyone on every placement in one course. For a course-wide
+    leaderboard or tally.
+  - "user,course": one per learner across every placement in one course. For a learner's
+    running score in the course.
+  - "global": shared by everyone on every placement in every course. Rarely right; for data
+    every course must see.
+  - "user,global": one per learner across every course. For a learner's own preference that
+    should follow them everywhere.
+- Use "activity" and "user,activity" unless the author has chosen to carry data over between
+  lessons or courses.
+- Every action and event declares the JSON schema of its value. An action whose value does not
+  match its schema is rejected before the sandbox sees it.
+- ui.js, sandbox.js and the manifest (as JSON) are each capped at {max_source_chars}
+  characters; longer ones are rejected, so keep them compact.
+- Name the configuration action "config.save". Its value is an object holding every field the
+  author can change.
+- Declare one event "fields.change.<field>" per configurable field, with that field's type, so
+  every open view learns the new value after a save.
+
+SANDBOX.JS RULES
+- One ES module file. Its only import is from "pxc:sandbox/state", which provides getField,
+  setField and sendEvent. Do not import anything else: no npm packages, no other module, no
+  network, no filesystem.
+- Export onAction(name, value, context, permission) and getState(context, permission).
+- Values cross the boundary as JSON strings:
+  - parse an action's value with JSON.parse;
+  - getField returns a JSON string, so parse it;
+  - pass JSON.stringify'd values to setField and sendEvent;
+  - return getState's object with JSON.stringify.
+- onAction returns a string. Return "" when there is nothing to say.
+- sendEvent(name, value, context, permission): permission is the lowest permission a viewer
+  needs to receive the event. Pass null as the context.
+- After "config.save" writes the fields, send each "fields.change.<field>" event with the new
+  value.
+
+PERMISSION RULES
+- Every viewer has exactly one permission:
+  - "view" sees the activity and cannot act;
+  - "play" is a learner;
+  - "edit" is an author configuring the placement.
+- Actions are refused in "view" before they reach the sandbox.
+- "config.save" must check that the permission is "edit", and ignore the action otherwise.
+  Only an author may change the configuration.
+- getState includes answer keys, correct answers, solutions and anything else that gives an
+  answer away only when the permission is "edit".
+- Send events that carry answer keys with the permission "edit".
+- Grade a learner's answer inside the sandbox, and send the learner only the result.
+
+UI.JS RULES
+- One ES module file exporting setup(activity). It runs inside a sandboxed iframe with an
+  opaque origin: no cookies, no localStorage, no IndexedDB, no network requests and no
+  imports.
+- activity.element is the DOM element to render into.
+- activity.permission is "view", "play" or "edit".
+- activity.state is the object getState returned for this viewer.
+- await activity.sendAction(name, value) sends an action. The value is a plain JavaScript
+  value, not a JSON string.
+- To receive events, set activity.onEvent = (name, value) => ... . The value arrives already
+  parsed.
+- In "edit", render an author view that edits the configuration and sends "config.save", with a
+  button that switches between the author view and the learner view. In "play" and "view",
+  render the learner view only.
+- In "view", render no buttons, inputs or other controls that send actions.
+- On a "fields.change.<field>" event, store the value in activity.state.<field> and render
+  again.
+- Put the styles in a <style> element that setup writes into activity.element.
+- Escape any author- or learner-supplied text before inserting it as HTML.
+
+The manifest JSON schema follows.

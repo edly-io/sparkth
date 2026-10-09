@@ -19,12 +19,15 @@ async def insert_activity(session: AsyncSession, activity: PxcActivity) -> None:
     await session.commit()
 
 
-async def list_owned_activities(session: AsyncSession, owner_user_id: int) -> list[PxcActivity]:
-    """Every activity this user built, newest first."""
+async def list_owned_activities(
+    session: AsyncSession, owner_user_id: int, limit: int | None = None
+) -> list[PxcActivity]:
+    """The activities this user built, newest first: the `limit` newest, or every one when it is None."""
     result = await session.exec(
         select(PxcActivity)
         .where(PxcActivity.owner_user_id == owner_user_id)
         .order_by(col(PxcActivity.created_at).desc())
+        .limit(limit)
     )
     return list(result.all())
 

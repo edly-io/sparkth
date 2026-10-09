@@ -3,18 +3,28 @@
 Exception mappings are registered at module level, not in ``__init__``: the loader constructs
 the plugin once but its own tests construct it again, and ``register_exception_handler`` builds
 a fresh handler closure on every call, so a second registration is a genuine duplicate rather
-than a repeat of the same one.
+than a repeat of the same one. The chat responsibility and the MCP tools are per plugin instance,
+so they register in ``__init__``.
 """
 
 from fastapi import APIRouter, status
 
+from sparkth.lib.chat.hooks import CHAT_RESPONSIBILITIES, ChatResponsibility
 from sparkth.lib.content.hooks import ContentContributor, register_content_contributor
 from sparkth.lib.exceptions.handlers import register_exception_handler
 from sparkth.lib.frontend.hooks import DISPLAY_INFO, DisplayInfo
 from sparkth.lib.i18n import gettext_noop
+from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.lib.routes import register_router
-from sparkth.plugins.pxc.constants import PXC_CORS_HEADERS
+from sparkth.plugins.pxc import tools as pxc_tools
+from sparkth.plugins.pxc.constants import (
+    PXC_ACTIVITY_BUILDER_SCOPE,
+    PXC_ACTIVITY_BUILDER_SYSTEM_PROMPT,
+    PXC_BUILDER_RESPONSIBILITY_NAME,
+    PXC_CORS_HEADERS,
+    PXC_TOOL_CATEGORY,
+)
 from sparkth.plugins.pxc.contributor import build_pxc_block
 from sparkth.plugins.pxc.exceptions import (
     PxcActionRejected,
@@ -46,9 +56,18 @@ pxc_router = APIRouter()
 pxc_router.include_router(learner_router)
 pxc_router.include_router(activity_router)
 
+# The chat job that builds activities; it alone sees the pxc tools.
+PXC_ACTIVITY_BUILDER = ChatResponsibility(
+    PXC_BUILDER_RESPONSIBILITY_NAME,
+    PXC_ACTIVITY_BUILDER_SCOPE,
+    PXC_ACTIVITY_BUILDER_SYSTEM_PROMPT,
+    frozenset({PXC_TOOL_CATEGORY}),
+)
+
 
 class PxcPlugin(SparkthPlugin):
-    """Hosts PXC activities and serves them to learners inside another LMS's course."""
+    """Hosts PXC activities, builds new ones from chat, and serves them to learners inside
+    another LMS's course."""
 
     def __init__(self) -> None:
         super().__init__("pxc")
@@ -59,6 +78,19 @@ class PxcPlugin(SparkthPlugin):
                 gettext_noop("PXC Activities"),
                 gettext_noop("Portable, sandboxed learning activities hosted by Sparkth"),
             ),
+        )
+        CHAT_RESPONSIBILITIES.add_item(self, PXC_ACTIVITY_BUILDER)
+        MCP_TOOLS.add_items(
+            self,
+            [
+                Tool(handler, PXC_TOOL_CATEGORY)
+                for handler in (
+                    pxc_tools.pxc_about,
+                    pxc_tools.pxc_build_activity,
+                    pxc_tools.pxc_list_activities,
+                    pxc_tools.pxc_get_activity_source,
+                )
+            ],
         )
         register_content_contributor(
             ContentContributor(
