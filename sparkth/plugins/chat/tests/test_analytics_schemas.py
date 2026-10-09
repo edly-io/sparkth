@@ -23,6 +23,7 @@ from sparkth.plugins.chat.analytics import (
     ChatMessageSent,
     ChatToolInvoked,
     ChatTurnAnalytics,
+    StopPoint,
     emit_completion,
     tool_names,
 )
@@ -57,6 +58,7 @@ VALID_PAYLOADS: list[tuple[type[AnalyticsEventSchema], dict[str, Any]]] = [
             "streamed": True,
             "rag_used": False,
             "tool_call_count": 2,
+            "stopped_at": None,
         },
     ),
     (
@@ -105,6 +107,7 @@ def test_completion_served_payload() -> None:
         streamed=True,
         rag_used=False,
         tool_call_count=2,
+        stopped_at=None,
     )
     assert event.streamed is True
     assert event.tool_call_count == 2
@@ -147,6 +150,40 @@ def test_message_length_rejects_a_negative_count() -> None:
     assert [error["type"] for error in exc_info.value.errors()] == ["greater_than_equal"]
 
 
+def _completion_payload(**overrides: Any) -> dict[str, Any]:
+    return {
+        "conversation_id": "abc",
+        "provider": "openai",
+        "model": "gpt-4o",
+        "streamed": True,
+        "rag_used": False,
+        "tool_call_count": 0,
+        "stopped_at": None,
+        **overrides,
+    }
+
+
+def test_completion_served_requires_stopped_at() -> None:
+    """New writes must carry the key, so a missing one is a producer bug."""
+    payload = _completion_payload()
+    del payload["stopped_at"]
+
+    with pytest.raises(ValidationError) as exc_info:
+        ChatCompletionServed(**payload)
+
+    assert [error["type"] for error in exc_info.value.errors()] == ["missing"]
+
+
+def test_completion_served_accepts_each_stop_point() -> None:
+    for stop_point in StopPoint:
+        assert ChatCompletionServed(**_completion_payload(stopped_at=stop_point)).stopped_at == stop_point
+
+
+def test_completion_served_rejects_an_unknown_stop_point() -> None:
+    with pytest.raises(ValidationError):
+        ChatCompletionServed(**_completion_payload(stopped_at="later"))
+
+
 def test_tool_call_count_rejects_a_negative_count() -> None:
     """A producer bug must fail validation rather than silently skew aggregates."""
     with pytest.raises(ValidationError) as exc_info:
@@ -157,6 +194,7 @@ def test_tool_call_count_rejects_a_negative_count() -> None:
             streamed=True,
             rag_used=False,
             tool_call_count=-1,
+            stopped_at=None,
         )
 
     assert [error["type"] for error in exc_info.value.errors()] == ["greater_than_equal"]
@@ -309,6 +347,7 @@ class TestSchedulingATurnEvent:
             "rag_used": True,
             # Derived from the tool list, so it cannot disagree with the events beside it.
             "tool_call_count": 2,
+            "stopped_at": None,
         }
         assert [event.payload["tool_name"] for event in landed[1:]] == [
             "openedx_create_xblock",

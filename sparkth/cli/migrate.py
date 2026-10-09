@@ -2,8 +2,8 @@
 
 Applies both Alembic lineages (app and analytics) and then backfills TimescaleDB
 continuous aggregates, so a single command brings any environment's databases up to
-date. Used natively via `make migrations` and inside the production compose stack
-(see the "Production" section of README.md).
+date. Used natively via `make migrations` and inside the dev compose stack
+(see the "Dev deployment" section of README.md).
 """
 
 import asyncio
