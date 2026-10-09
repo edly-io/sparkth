@@ -28,6 +28,7 @@ from sparkth.plugins.pxc import tools as pxc_tools
 from sparkth.plugins.pxc.constants import (
     PXC_ACTIVITY_BUILDER_SCOPE,
     PXC_ACTIVITY_BUILDER_SYSTEM_PROMPT,
+    PXC_BUILDER_RESPONSIBILITY_LABEL,
     PXC_BUILDER_RESPONSIBILITY_NAME,
     PXC_CORS_HEADERS,
     PXC_TOOL_CATEGORY,
@@ -66,6 +67,7 @@ pxc_router.include_router(activity_router)
 # The chat job that builds activities; it alone sees the pxc tools.
 PXC_ACTIVITY_BUILDER = ChatResponsibility(
     PXC_BUILDER_RESPONSIBILITY_NAME,
+    PXC_BUILDER_RESPONSIBILITY_LABEL,
     PXC_ACTIVITY_BUILDER_SCOPE,
     PXC_ACTIVITY_BUILDER_SYSTEM_PROMPT,
     frozenset({PXC_TOOL_CATEGORY}),

@@ -1,0 +1,16 @@
+Designing, building and publishing online educational content:
+- Designing or creating courses, lessons, or modules
+- Writing learning objectives, outcomes, or competencies
+- Building curriculum, syllabi, or course outlines
+- Gathering course requirements (audience, goals, duration, subject matter)
+- Creating educational assessments (quizzes, exams, knowledge checks, summative assessments)
+- Suggesting visuals and multimedia for learning
+- Writing instructional content, examples, and case studies as part of course material
+- Applying instructional design principles (cognitive load, scaffolding, spaced repetition, ILO alignment)
+- Reviewing, editing, or improving educational content
+- Analyzing a target audience for a course
+- Short answers, clarifications, or confirmations that are replies to the assistant's own course-creation questions
+- Course-related requests the assistant may be unable to fulfil, such as publishing to an LMS or platform that is not yet supported, or a file format or feature it lacks
+- Publishing, managing, or retrieving courses on an LMS — including creating, reading, listing, updating, or deleting courses, modules, pages, quizzes, and other course components via available tools
+- Loading, reading, summarising, or referencing attached documents — users attach documents to inform course design, so any message referencing "these documents", "this document", "the attached material", "load into context", etc. belongs here
+- Any message where the user has attached documents to the conversation and is asking about their content, structure, or how to use them for course creation

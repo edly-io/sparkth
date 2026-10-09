@@ -1,10 +1,17 @@
 """Fixtures shared by the chat plugin's tests."""
 
-from collections.abc import AsyncIterator
+import gc
+from collections.abc import AsyncIterator, Iterator
 
 import pytest
 
+from sparkth.lib.chat.hooks import CHAT_RESPONSIBILITIES, ChatResponsibility
+from sparkth.lib.plugins import SparkthPlugin
 from sparkth.plugins.chat.detached import join_live_tasks
+
+STUB_JOB = ChatResponsibility(
+    "stub-job", "Stub job", "Stub scope text.", "STUB SYSTEM PROMPT", frozenset({"stub-tools"})
+)
 
 
 @pytest.fixture(autouse=True)
@@ -16,3 +23,13 @@ async def drain_detached_emits() -> AsyncIterator[None]:
     """
     yield
     await join_live_tasks()
+
+
+@pytest.fixture
+def stub_job() -> Iterator[ChatResponsibility]:
+    """A second enabled job beside course-design, gone when its plugin is collected."""
+    plugin = SparkthPlugin("stub")
+    CHAT_RESPONSIBILITIES.add_item(plugin, STUB_JOB)
+    yield STUB_JOB
+    del plugin
+    gc.collect()

@@ -7,6 +7,7 @@ from sqlalchemy import DateTime, ForeignKey, Index, Integer, UniqueConstraint
 from sqlmodel import Column, Field, Relationship, SQLModel, Text
 from uuid6 import uuid7
 
+from sparkth.lib.chat.constants import CHAT_RESPONSIBILITY_NAME_MAX_LENGTH
 from sparkth.lib.models import TimestampedModel
 
 MessageType = Literal["text", "attachment"]
@@ -34,6 +35,8 @@ class Conversation(TimestampedModel, SQLModel, table=True):
     provider: str = Field(max_length=50, nullable=False)
     model: str = Field(max_length=100, nullable=False)
     title: str | None = Field(default=None, max_length=255)
+    # The chat responsibility this conversation does; NULL reads as course-design.
+    responsibility: str | None = Field(default=None, max_length=CHAT_RESPONSIBILITY_NAME_MAX_LENGTH)
     total_tokens_used: int = Field(default=0)
     total_cost: float = Field(default=0.0)
 

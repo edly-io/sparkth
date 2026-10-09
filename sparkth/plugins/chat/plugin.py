@@ -1,6 +1,7 @@
 from fastapi import status
 
 from sparkth.lib.analytics import register_event_schemas
+from sparkth.lib.chat.hooks import CHAT_RESPONSIBILITIES
 from sparkth.lib.config.hooks import CONFIG_ADAPTERS, CONFIG_SCHEMAS
 from sparkth.lib.documents import DOCUMENT_DELETED
 from sparkth.lib.exceptions.handlers import register_exception_handler
@@ -19,11 +20,12 @@ from sparkth.lib.plugins import SparkthPlugin
 from sparkth.lib.routes import register_router
 from sparkth.plugins.chat.analytics import events
 from sparkth.plugins.chat.config import ChatUserConfig
-from sparkth.plugins.chat.exceptions import ConversationNotFound, DocumentNotFound
+from sparkth.plugins.chat.exceptions import ConversationNotFound, DocumentNotFound, ResponsibilityNotEnabled
 from sparkth.plugins.chat.models import (  # noqa: F401 — registers tables in SQLModel metadata for Alembic
     Conversation,
     Message,
 )
+from sparkth.plugins.chat.responsibilities import COURSE_DESIGN
 from sparkth.plugins.chat.routes import chat_router
 from sparkth.plugins.chat.service import detach_deleted_document
 
@@ -33,6 +35,7 @@ logger = get_logger(__name__)
 # type raises, and the plugin class is instantiated more than once across a test session.
 register_exception_handler(ConversationNotFound, status.HTTP_404_NOT_FOUND)
 register_exception_handler(DocumentNotFound, status.HTTP_404_NOT_FOUND)
+register_exception_handler(ResponsibilityNotEnabled, status.HTTP_403_FORBIDDEN)
 
 
 class ChatPlugin(SparkthPlugin):
@@ -52,5 +55,6 @@ class ChatPlugin(SparkthPlugin):
         )
         SIDEBAR_ENTRIES.add_item(self, SidebarEntry(gettext_noop("Create Course"), icon="plus", order=1))
         FRONTEND_APPS.add_item(self, FrontendApp())
+        CHAT_RESPONSIBILITIES.add_item(self, COURSE_DESIGN)
 
         register_event_schemas(self, events)
