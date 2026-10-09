@@ -1,4 +1,5 @@
-"""Core analytics event schemas shipped with Sparkth core.
+"""Core analytics event schemas shipped with Sparkth core, and the rows analytics reads
+return (:mod:`sparkth.core.analytics.schemas.reads`).
 
 Import from this package to access the event schema classes directly.
 These core schemas are registered into the ``ANALYTICS_EVENTS`` hook

@@ -118,3 +118,16 @@ def test_v1_login_events_swap_username_for_password_method(tmp_path: Path) -> No
         ("assessment.submitted", "7", {"learner_id": "u1", "competency_id": "c1", "score": 1, "passed": True}),
         ("user.logged_in", "7", {"method": "password"}),
     ]
+
+
+def test_login_activity_by_method_cagg_migration_is_noop_on_sqlite(tmp_path: Path) -> None:
+    """The by-method continuous aggregate is TimescaleDB-only; on SQLite upgrading skips it."""
+    db_file = tmp_path / "analytics_cagg_by_method.db"
+    _alembic(db_file, "upgrade", "head")
+
+    conn = sqlite3.connect(db_file)
+    try:
+        views = conn.execute("SELECT name FROM sqlite_master WHERE name = 'login_activity_daily_by_method'").fetchall()
+    finally:
+        conn.close()
+    assert views == []
