@@ -12,7 +12,8 @@ and stays in Sparkth, and never reaches the Open edX gradebook.
 
 A block copied in Studio, with Duplicate or with Copy then Paste, gets a new placement id, so the
 copy keeps its own activity data instead of sharing the original's. The copy starts from the
-activity's defaults, not from the original's configuration.
+activity's defaults, not from the original's configuration, and the editing view's notice tells
+the author so.
 
 This package is a separate Python distribution, installed into the Open edX instance rather than
 into Sparkth. It is not a Django app — no models, no migrations, no `INSTALLED_APPS` entry — and

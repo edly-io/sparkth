@@ -81,6 +81,14 @@ def test_the_editor_markup_explains_that_studios_buttons_do_not_apply() -> None:
     assert html.startswith(_EDITOR_NOTICE)
 
 
+def test_the_editor_markup_says_a_copied_block_starts_from_the_original_content() -> None:
+    html = build_editor_html(
+        "https://sparkth.example", "mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", SECRET, 300
+    )
+
+    assert "A copied block starts with the activity's original content" in html
+
+
 def test_the_learner_view_asks_for_play(block: SparkthPxcXBlock) -> None:
     assert claims_in(str(block.student_view().content))["prm"] == "play"
 

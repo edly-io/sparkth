@@ -50,7 +50,8 @@ _EDITOR_NOTICE = (
     'background:#f2f8fb;font-size:0.9em;line-height:1.5">'
     "This activity's content is stored in Sparkth, not in Studio. Click <strong>Save</strong> "
     "inside the activity to keep your changes &mdash; Studio's Save and Cancel buttons do not "
-    "apply to them."
+    "apply to them. A copied block starts with the activity's original content, not the content "
+    "of the block it was copied from."
     "</p>"
 )
 
