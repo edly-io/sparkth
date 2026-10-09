@@ -46,7 +46,7 @@ def stored_responsibility(conversation: Conversation, jobs: dict[str, ChatRespon
     return responsibility
 
 
-def turn_reply(judged: str | None, stored: str) -> str | None:
+def refusal_or_redirect(judged: str | None, stored: str) -> str | None:
     """Return the fixed reply that ends a later turn in place of the model, or ``None`` to proceed.
 
     ``judged`` is the classifier's job for the turn: ``None`` for no job at all, which is

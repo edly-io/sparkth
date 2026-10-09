@@ -1,4 +1,4 @@
-"""What a conversation's stored job decides: its turn reply, its prompt source, its tools."""
+"""What a conversation's stored job decides: its refusal or redirect, its prompt source, its tools."""
 
 from unittest.mock import MagicMock
 
@@ -15,7 +15,12 @@ from sparkth.plugins.chat.constants import (
 )
 from sparkth.plugins.chat.exceptions import ResponsibilityNotEnabled
 from sparkth.plugins.chat.models import Conversation
-from sparkth.plugins.chat.responsibilities import COURSE_DESIGN, binds_category, stored_responsibility, turn_reply
+from sparkth.plugins.chat.responsibilities import (
+    COURSE_DESIGN,
+    binds_category,
+    refusal_or_redirect,
+    stored_responsibility,
+)
 from sparkth.plugins.chat.routes.utils import resolve_tools
 from sparkth.plugins.chat.schemas import ChatCompletionRequest, ChatMessage
 
@@ -53,15 +58,15 @@ class TestStoredResponsibility:
         assert "gone-job" in str(raised.value)
 
 
-class TestTurnReply:
+class TestRefusalOrRedirect:
     def test_the_stored_job_proceeds(self) -> None:
-        assert turn_reply(DEFAULT_RESPONSIBILITY, DEFAULT_RESPONSIBILITY) is None
+        assert refusal_or_redirect(DEFAULT_RESPONSIBILITY, DEFAULT_RESPONSIBILITY) is None
 
     def test_another_job_is_redirected(self) -> None:
-        assert turn_reply("stub-job", DEFAULT_RESPONSIBILITY) == REDIRECT_MESSAGE
+        assert refusal_or_redirect("stub-job", DEFAULT_RESPONSIBILITY) == REDIRECT_MESSAGE
 
     def test_no_job_is_refused(self) -> None:
-        assert turn_reply(None, DEFAULT_RESPONSIBILITY) == REFUSAL_MESSAGE
+        assert refusal_or_redirect(None, DEFAULT_RESPONSIBILITY) == REFUSAL_MESSAGE
 
 
 class TestBindsCategory:
