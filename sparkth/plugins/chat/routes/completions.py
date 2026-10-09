@@ -39,7 +39,7 @@ from sparkth.plugins.chat.exceptions import RAGSearchError
 from sparkth.plugins.chat.lms_credentials import build_lms_credentials_message
 from sparkth.plugins.chat.messages import get_last_user_text
 from sparkth.plugins.chat.prompt import render_system_prompt
-from sparkth.plugins.chat.responsibilities import stored_responsibility, turn_reply
+from sparkth.plugins.chat.responsibilities import refusal_or_redirect, stored_responsibility
 from sparkth.plugins.chat.routes.utils import resolve_tools
 from sparkth.plugins.chat.routes.utils.live_turns import request_stop
 from sparkth.plugins.chat.routes.utils.message_assembly import assemble_provider_messages
@@ -297,7 +297,7 @@ async def chat_completion(
                 conversation.uuid,
                 responsibility.name,
             )
-            turn_end = turn_reply(judged, responsibility.name)
+            turn_end = refusal_or_redirect(judged, responsibility.name)
             if turn_end == REDIRECT_MESSAGE:
                 logger.info(
                     "Redirected conversation %s: stored job %s, judged job %s",
