@@ -8,11 +8,14 @@
  */
 
 import type { ComponentType } from "react";
-import { Plus } from "lucide-react";
+import { Blocks, Plus } from "lucide-react";
 
 export type PluginIcon = ComponentType<{ className?: string }>;
 
-const icons = new Map<string, PluginIcon>([["plus", Plus]]);
+const icons = new Map<string, PluginIcon>([
+  ["blocks", Blocks],
+  ["plus", Plus],
+]);
 
 /**
  * Register a custom icon component under an icon name (e.g. a brand icon a

@@ -4,9 +4,10 @@ import { defaultLocale, type Locale } from "./config";
 
 import en from "@/messages/en.json";
 import type chatMessages from "@/plugins/chat/messages/en.json";
+import type pxcMessages from "@/plugins/pxc/messages/en.json";
 
 type CoreMessages = typeof en;
-type PluginMessages = typeof chatMessages;
+type PluginMessages = typeof chatMessages & typeof pxcMessages;
 
 // The full catalog shape next-intl's types are bound to: the core catalog
 // plus one namespace per plugin that ships messages. A plugin that adds

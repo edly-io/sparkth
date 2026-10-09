@@ -12,7 +12,14 @@ from fastapi import APIRouter, status
 from sparkth.lib.chat.hooks import CHAT_RESPONSIBILITIES, ChatResponsibility
 from sparkth.lib.content.hooks import ContentContributor, register_content_contributor
 from sparkth.lib.exceptions.handlers import register_exception_handler
-from sparkth.lib.frontend.hooks import DISPLAY_INFO, DisplayInfo
+from sparkth.lib.frontend.hooks import (
+    DISPLAY_INFO,
+    FRONTEND_APPS,
+    SIDEBAR_ENTRIES,
+    DisplayInfo,
+    FrontendApp,
+    SidebarEntry,
+)
 from sparkth.lib.i18n import gettext_noop
 from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
 from sparkth.lib.plugins import SparkthPlugin
@@ -66,8 +73,8 @@ PXC_ACTIVITY_BUILDER = ChatResponsibility(
 
 
 class PxcPlugin(SparkthPlugin):
-    """Hosts PXC activities, builds new ones from chat, and serves them to learners inside
-    another LMS's course."""
+    """Hosts PXC activities, builds new ones from chat, serves them to learners inside another
+    LMS's course."""
 
     def __init__(self) -> None:
         super().__init__("pxc")
@@ -79,6 +86,8 @@ class PxcPlugin(SparkthPlugin):
                 gettext_noop("Portable, sandboxed learning activities hosted by Sparkth"),
             ),
         )
+        SIDEBAR_ENTRIES.add_item(self, SidebarEntry(gettext_noop("Activities"), icon="blocks", order=2))
+        FRONTEND_APPS.add_item(self, FrontendApp())
         CHAT_RESPONSIBILITIES.add_item(self, PXC_ACTIVITY_BUILDER)
         MCP_TOOLS.add_items(
             self,

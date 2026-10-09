@@ -9,6 +9,7 @@ describe("resolvePluginIcon", () => {
 
   it("resolves built-in lucide icon names", () => {
     expect(resolvePluginIcon("plus")).toBeDefined();
+    expect(resolvePluginIcon("blocks")).toBeDefined();
   });
 
   it("returns undefined for unknown or missing names", () => {

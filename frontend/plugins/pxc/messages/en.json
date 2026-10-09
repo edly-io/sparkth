@@ -1,0 +1,24 @@
+{
+  "pxc": {
+    "title": "Activities",
+    "subtitle": "Interactive activities you built in Compose",
+    "loadFailed": "Could not load your activities.",
+    "emptyTitle": "No activities yet",
+    "emptyBody": "Describe an activity in Compose and the assistant builds it for you.",
+    "openCompose": "Open Compose",
+    "createdOn": "Created {date}",
+    "preview": "Preview",
+    "previewActivity": "Preview {title}",
+    "loading": "Loading activities",
+    "backToList": "Back to activities",
+    "viewAs": "Preview as",
+    "studentView": "Student",
+    "authorView": "Author",
+    "notFound": "Activity not found",
+    "notConfigured": "Previews aren't set up on this server.",
+    "launchFailed": "Could not load the activity.",
+    "frameTitle": "Activity preview",
+    "loadingActivity": "Loading activity",
+    "retry": "Try again"
+  }
+}

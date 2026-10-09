@@ -45,6 +45,12 @@ An author places an activity from a course design conversation:
 An author can place only their own activities and the bundled samples. Sparkth checks this
 again when it places the activity, so an id from anywhere else is refused.
 
+## The Activities page
+
+The plugin adds an "Activities" entry to the sidebar for its dashboard page at `/dashboard/pxc`,
+which lists the signed-in author's own activities. An activity's `preview_url` is
+`/dashboard/pxc?activity=<id>`. The page itself lives in `frontend/plugins/pxc`.
+
 ## Building an activity from chat
 
 The plugin registers the `pxc-activity-builder` chat job with its system prompt, the scope the chat
