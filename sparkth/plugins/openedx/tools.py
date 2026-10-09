@@ -1,4 +1,5 @@
 import urllib
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -846,7 +847,7 @@ async def openedx_get_block_contentstore(payload: BlockContentArgs) -> dict[str,
             return {"error": {"message": str(err)}}
 
 
-async def openedx_list_content_contributors() -> dict[str, Any]:
+async def openedx_list_content_contributors() -> dict[str, dict[str, list[dict[str, object]]]]:
     """
     List the plugin content contributors available to publish into an Open edX course.
 
@@ -855,14 +856,22 @@ async def openedx_list_content_contributors() -> dict[str, Any]:
     another LMS is not offered here. Pass a name from this list as the `contributor` argument of
     `openedx_add_plugin_content`.
 
+    A contributor that offers choices lists them as `options`, for example the activities the
+    author may place. Pick the option the author named and pass its `id` as `option_id`.
+
     Returns:
-        dict[str, Any]: `{"response": {"contributors": [{"name": <str>, "description": <str>}]}}`
+        `{"response": {"contributors": [{"name": <str>, "description": <str>,
+        "options": [{"id": <str>, "label": <str>}]}]}}`. `options` is present only for a
+        contributor that offers choices.
     """
-    contributors = [
-        {"name": contributor.name, "description": contributor.description}
-        for contributor in LMS_CONTENT_CONTRIBUTORS.iter_values()
-        if OPENEDX_PLUGIN_NAME in contributor.builders
-    ]
+    contributors: list[dict[str, object]] = []
+    for contributor in LMS_CONTENT_CONTRIBUTORS.iter_values():
+        if OPENEDX_PLUGIN_NAME not in contributor.builders:
+            continue
+        entry: dict[str, object] = {"name": contributor.name, "description": contributor.description}
+        if contributor.list_options is not None:
+            entry["options"] = [asdict(option) for option in await contributor.list_options()]
+        contributors.append(entry)
     return {"response": {"contributors": contributors}}
 
 
@@ -883,16 +892,22 @@ async def openedx_add_plugin_content(payload: AddPluginContentArgs) -> dict[str,
     providing it must be installed in the Open edX instance. Publishing to an instance without
     it fails.
 
+    `option_id` picks one of the contributor's options, from `openedx_list_content_contributors`.
+    It is handed to the builder. A contributor that
+    offers no options refuses any `option_id`.
+
     Parameters:
         payload (AddPluginContentArgs): Consists of:
             auth (AccessTokenPayload): Authentication credentials (access_token, lms_url, studio_url).
             course_id (str): The course identifier.
             unit_locator (str): The unit the block is created in.
             contributor (str): The contributor's name, from `openedx_list_content_contributors`.
+            option_id (str | None): The chosen option's id, or omitted for the contributor's default.
 
     Returns:
         dict[str, Any]: `{"response": {"locator": <str>, "category": <str>}}`, or
-            `{"error": {...}}` when the contributor is unknown, does not target Open edX, fails
+            `{"error": {...}}` when the contributor is unknown, does not target Open edX, is given an
+            `option_id` it offers no options for, or fails
             to build its block, or Studio rejects the request. An error carries `locator` when
             the block was created and only the attribute patch failed: that block exists, is
             missing its attributes, and is the caller's to patch again or delete.
@@ -905,8 +920,11 @@ async def openedx_add_plugin_content(payload: AddPluginContentArgs) -> dict[str,
     if builder is None:
         return {"error": {"message": f"Content contributor {payload.contributor!r} does not target Open edX"}}
 
+    if payload.option_id is not None and contributor.list_options is None:
+        return {"error": {"message": f"Content contributor {payload.contributor!r} offers no options"}}
+
     try:
-        block = await builder(payload.course_id)
+        block = await builder(payload.course_id, payload.option_id)
     except ContentBuildError as err:
         logger.error("Content contributor %r failed to build its block: %s", payload.contributor, err)
         return {"error": {"message": f"Content contributor {payload.contributor!r} failed to build its block: {err}"}}

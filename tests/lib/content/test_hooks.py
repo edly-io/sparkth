@@ -7,15 +7,16 @@ from sparkth.lib.content.hooks import (
     LMS_CONTENT_CONTRIBUTORS,
     ContentBlock,
     ContentContributor,
+    ContentOption,
     register_content_contributor,
 )
 
 
-async def build_openedx_stub(course_id: str) -> ContentBlock:
+async def build_openedx_stub(course_id: str, option_id: str | None) -> ContentBlock:
     return ContentBlock("A Stub", "stub", {"course": course_id})
 
 
-async def build_canvas_stub(course_id: str) -> ContentBlock:
+async def build_canvas_stub(course_id: str, option_id: str | None) -> ContentBlock:
     return ContentBlock("A Stub", "Page", f"<p>{course_id}</p>")
 
 
@@ -48,8 +49,8 @@ async def test_each_target_builds_the_block_that_target_expects(registered: Cont
     contributor = LMS_CONTENT_CONTRIBUTORS.get("stub")
     assert contributor is not None
 
-    for_openedx = await contributor.builders["open-edx"]("course-v1:X+Y+Z")
-    for_canvas = await contributor.builders["canvas"]("course-v1:X+Y+Z")
+    for_openedx = await contributor.builders["open-edx"]("course-v1:X+Y+Z", None)
+    for_canvas = await contributor.builders["canvas"]("course-v1:X+Y+Z", None)
 
     assert (for_openedx.title, for_openedx.kind) == ("A Stub", "stub")
     assert for_openedx.attributes == {"course": "course-v1:X+Y+Z"}
@@ -76,3 +77,24 @@ async def test_re_registering_an_equal_contributor_keeps_the_first(registered: C
     register_content_contributor(_stub_contributor())
 
     assert LMS_CONTENT_CONTRIBUTORS.get("stub") is registered
+
+
+async def list_stub_options() -> list[ContentOption]:
+    return [ContentOption("one", "One")]
+
+
+async def test_a_contributor_adding_options_under_the_same_name_is_rejected(
+    registered: ContentContributor,
+) -> None:
+    """Options are part of a contributor's identity, like its builders."""
+    with pytest.raises(DuplicateContentContributorError) as caught:
+        register_content_contributor(
+            ContentContributor(
+                "stub",
+                "A stub contributor",
+                {"open-edx": build_openedx_stub, "canvas": build_canvas_stub},
+                list_stub_options,
+            )
+        )
+
+    assert caught.value.name == "stub"

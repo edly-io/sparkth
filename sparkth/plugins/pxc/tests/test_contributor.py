@@ -7,18 +7,26 @@ the activity's own configuration, that constructing the plugin registers it on t
 """
 
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 from pxc.lib.permission import Permission
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.content.exceptions import ContentBuildError
-from sparkth.lib.content.hooks import LMS_CONTENT_CONTRIBUTORS
+from sparkth.lib.content.hooks import LMS_CONTENT_CONTRIBUTORS, ContentOption
+from sparkth.lib.exceptions.auth import NoAuthenticatedUser
+from sparkth.lib.models import User
+from sparkth.plugins.pxc.activities import generated_activity_dir
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import PXC_BLOCK_CATEGORY
-from sparkth.plugins.pxc.contributor import build_pxc_block
+from sparkth.plugins.pxc.contributor import build_pxc_block, list_pxc_options
+from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.plugin import PxcPlugin
 from sparkth.plugins.pxc.runtime import build_runtime, read_state
+from sparkth.plugins.pxc.store import insert_activity
+from sparkth.plugins.pxc.tests.conftest import act_as
 from sparkth.plugins.pxc.tokens import LaunchClaims
 
 
@@ -33,15 +41,15 @@ def unregistered() -> Iterator[None]:
 
 
 async def test_the_block_is_a_pxc_block_naming_the_activity() -> None:
-    block = await build_pxc_block("course-v1:X+Y+Z")
+    block = await build_pxc_block("course-v1:X+Y+Z", None)
 
     assert block.kind == PXC_BLOCK_CATEGORY
     assert block.attributes["activity"] == "mcq"
 
 
 async def test_every_placement_gets_its_own_id() -> None:
-    first = await build_pxc_block("course-v1:X+Y+Z")
-    second = await build_pxc_block("course-v1:X+Y+Z")
+    first = await build_pxc_block("course-v1:X+Y+Z", None)
+    second = await build_pxc_block("course-v1:X+Y+Z", None)
 
     assert first.attributes["placement"] != second.attributes["placement"]
 
@@ -51,7 +59,7 @@ async def test_building_a_block_writes_nothing(tmp_path: Path) -> None:
     # knows nothing else about it. Writing a configuration would mean knowing which fields that
     # activity declares, which is true of exactly one of them. The absent state file is the
     # evidence, since nothing about the returned block would differ either way.
-    await build_pxc_block("course-v1:X+Y+Z")
+    await build_pxc_block("course-v1:X+Y+Z", None)
 
     # `pxc_settings` points PXC_DATA_DIR at this same tmp_path.
     assert list(tmp_path.iterdir()) == []
@@ -62,7 +70,7 @@ async def test_a_minted_placement_launches_with_the_activitys_own_configuration(
     # What the seeding was for: a learner opening a freshly placed activity sees a question
     # rather than a blank. The activity declares it as its fields' defaults, and the runtime
     # serves those for any placement nobody has configured yet.
-    block = await build_pxc_block("course-v1:X+Y+Z")
+    block = await build_pxc_block("course-v1:X+Y+Z", None)
     claims = LaunchClaims("mcq", block.attributes["placement"], "course-v1:X+Y+Z", "learner-7", Permission.play)
 
     state = read_state(build_runtime(claims))
@@ -96,7 +104,7 @@ async def test_an_unbundled_default_activity_raises_content_build_error(
     get_pxc_settings.cache_clear()
 
     with pytest.raises(ContentBuildError, match="not-bundled"):
-        await build_pxc_block("course-v1:X+Y+Z")
+        await build_pxc_block("course-v1:X+Y+Z", None)
 
 
 async def test_the_openedx_tool_publishes_this_contributor() -> None:
@@ -126,3 +134,178 @@ async def test_the_openedx_tool_publishes_this_contributor() -> None:
     assert result["response"]["category"] == "pxc"
     assert update.await_args is not None
     assert update.await_args.args[4]["activity"] == "mcq"
+
+
+def nobody() -> int:
+    raise NoAuthenticatedUser("No authenticated user is bound")
+
+
+async def test_options_are_the_bundled_activities_then_the_authors_own(
+    authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    act_as(authors[0])
+
+    options = await list_pxc_options()
+
+    built_at = f"{authored_activity.created_at:%Y-%m-%d %H:%M} UTC"
+    assert options == [
+        ContentOption("mcq", "mcq"),
+        ContentOption(str(authored_activity.id), f"Capital cities ({built_at})"),
+    ]
+
+
+async def test_activities_sharing_a_title_get_distinct_labels(
+    session: AsyncSession, authors: tuple[User, User]
+) -> None:
+    # An edit builds a new activity under the same title, so the build time tells them apart.
+    owner = authors[0]
+    assert owner.id is not None
+    for hour in (9, 10):
+        created_at = datetime(2026, 10, 8, hour, 30, tzinfo=UTC)
+        await insert_activity(
+            session, PxcActivity(owner_user_id=owner.id, title="Fractions", description="", created_at=created_at)
+        )
+    act_as(owner)
+
+    options = await list_pxc_options()
+
+    assert [option.label for option in options] == [
+        "mcq",
+        "Fractions (2026-10-08 10:30 UTC)",
+        "Fractions (2026-10-08 09:30 UTC)",
+    ]
+
+
+async def test_options_offer_only_the_authors_newest_activities(
+    session: AsyncSession, authors: tuple[User, User], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Every option reaches the model, so a prolific author's list is capped at the newest.
+    monkeypatch.setenv("PXC_LIST_ACTIVITIES_LIMIT", "2")
+    get_pxc_settings.cache_clear()
+    owner = authors[0]
+    assert owner.id is not None
+    for day in (1, 2, 3):
+        created_at = datetime(2026, 10, day, tzinfo=UTC)
+        await insert_activity(
+            session, PxcActivity(owner_user_id=owner.id, title=f"Day {day}", description="", created_at=created_at)
+        )
+    act_as(owner)
+
+    options = await list_pxc_options()
+
+    assert [option.label for option in options] == [
+        "mcq",
+        "Day 3 (2026-10-03 00:00 UTC)",
+        "Day 2 (2026-10-02 00:00 UTC)",
+    ]
+
+
+async def test_options_leave_out_another_authors_activities(
+    authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    act_as(authors[1])
+
+    assert await list_pxc_options() == [ContentOption("mcq", "mcq")]
+
+
+async def test_options_with_nobody_authenticated_are_the_bundled_activities(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sparkth.plugins.pxc.contributor.current_user_id", nobody)
+
+    assert await list_pxc_options() == [ContentOption("mcq", "mcq")]
+
+
+async def test_a_bundled_activity_can_be_placed_by_anyone(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("sparkth.plugins.pxc.contributor.current_user_id", nobody)
+
+    block = await build_pxc_block("course-v1:X+Y+Z", "mcq")
+
+    assert block.attributes["activity"] == "mcq"
+
+
+async def test_the_owner_places_their_own_activity(authored_activity: PxcActivity, authors: tuple[User, User]) -> None:
+    act_as(authors[0])
+
+    block = await build_pxc_block("course-v1:X+Y+Z", str(authored_activity.id))
+
+    assert block.attributes["activity"] == str(authored_activity.id)
+
+
+async def test_a_placed_block_is_titled_after_its_activity(
+    authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    act_as(authors[0])
+
+    generated = await build_pxc_block("course-v1:X+Y+Z", str(authored_activity.id))
+    bundled = await build_pxc_block("course-v1:X+Y+Z", "mcq")
+
+    assert generated.title == "Capital cities"
+    assert bundled.title == "mcq"
+
+
+async def test_another_author_cannot_place_someone_elses_activity(
+    authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    act_as(authors[1])
+
+    with pytest.raises(ContentBuildError):
+        await build_pxc_block("course-v1:X+Y+Z", str(authored_activity.id))
+
+
+async def test_an_owned_activity_whose_files_are_gone_cannot_be_placed(
+    authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    act_as(authors[0])
+    (generated_activity_dir(str(authored_activity.id)) / "manifest.json").unlink()
+
+    with pytest.raises(ContentBuildError):
+        await build_pxc_block("course-v1:X+Y+Z", str(authored_activity.id))
+
+
+async def test_a_generated_activity_cannot_be_placed_with_nobody_authenticated(
+    monkeypatch: pytest.MonkeyPatch, authored_activity: PxcActivity
+) -> None:
+    monkeypatch.setattr("sparkth.plugins.pxc.contributor.current_user_id", nobody)
+
+    with pytest.raises(ContentBuildError):
+        await build_pxc_block("course-v1:X+Y+Z", str(authored_activity.id))
+
+
+async def test_an_option_that_is_neither_bundled_nor_a_uuid_is_refused(authors: tuple[User, User]) -> None:
+    act_as(authors[0])
+
+    with pytest.raises(ContentBuildError):
+        await build_pxc_block("course-v1:X+Y+Z", "../../etc")
+
+
+async def test_the_openedx_tool_places_the_chosen_activity(
+    authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    from unittest.mock import AsyncMock, patch
+
+    from sparkth.plugins.openedx.schemas import AccessTokenPayload, AddPluginContentArgs
+    from sparkth.plugins.openedx.tools import openedx_add_plugin_content
+
+    act_as(authors[0])
+    PxcPlugin()
+    auth = AccessTokenPayload(access_token="t", lms_url="https://lms", studio_url="https://studio")
+    with (
+        patch(
+            "sparkth.plugins.openedx.tools.openedx_create_basic_component",
+            new=AsyncMock(return_value="block-v1:X+Y+Z+type@pxc+block@b1"),
+        ),
+        patch("sparkth.plugins.openedx.tools.openedx_update_xblock_content", new=AsyncMock()) as update,
+    ):
+        await openedx_add_plugin_content(
+            AddPluginContentArgs(
+                auth=auth,
+                course_id="course-v1:X+Y+Z",
+                unit_locator="block-v1:X+Y+Z+type@vertical+block@u1",
+                contributor="pxc",
+                option_id=str(authored_activity.id),
+            )
+        )
+
+    assert update.await_args is not None
+    assert update.await_args.args[4]["activity"] == str(authored_activity.id)

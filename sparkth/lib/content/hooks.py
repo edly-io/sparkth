@@ -4,9 +4,15 @@ A *content contributor* is a named producer of one LMS content block. A plugin t
 content registers one; a plugin that publishes to an LMS resolves it **by name** and awaits the
 builder registered under the publishing plugin's own name.
 
+A contributor may also offer *options*, the choices an author picks between, such as which
+activity to place. The publisher lists them and hands the chosen option's id back to the
+builder.
+
 A plugin registers from its ``SparkthPlugin.__init__``::
 
-    register_content_contributor(ContentContributor("pxc", "...", {"open-edx": build_pxc_block}))
+    register_content_contributor(
+        ContentContributor("pxc", "...", {"open-edx": build_pxc_block}, list_pxc_options)
+    )
 """
 
 from collections.abc import Awaitable, Callable, Mapping
@@ -34,20 +40,41 @@ class ContentBlock:
 
 
 @dataclass(frozen=True)
+class ContentOption:
+    """One choice a contributor offers for the block it builds.
+
+    ``id`` is what a publishing tool hands back to the builder as ``option_id``; ``label`` is
+    what an agent shows the author.
+    """
+
+    id: str
+    label: str
+
+
+@dataclass(frozen=True)
 class ContentContributor:
     """A named producer of one :class:`ContentBlock` per LMS it targets.
 
     ``description`` is human-facing: it is what a publishing tool lists
     back to an agent choosing a contributor.
 
-    ``builders`` is keyed by the publishing plugin's own name, so its keys are the LMSes this
-    contributor targets. Each is awaited with the destination course id and reports a failure
-    to build by raising :class:`~sparkth.lib.content.exceptions.ContentBuildError`.
+    ``builders`` is keyed by the publishing plugin's (LMS's) own name, so its keys are the LMSes this
+    contributor targets. A builder reports a failure by raising
+    :class:`~sparkth.lib.content.exceptions.ContentBuildError`.
+
+    ``list_options``, when set, returns the options the authenticated caller may choose from.
+    Leave it ``None`` for a contributor that builds one kind of block; a publishing
+    tool then refuses any option id.
+
+    ``list_options`` and the builders must be module-level functions. Re-registering an equal
+    contributor is a no-op only if they compare equal across constructions, and a closure or
+    bound method would not.
     """
 
     name: str
     description: str
-    builders: Mapping[str, Callable[[str], Awaitable[ContentBlock]]]
+    builders: Mapping[str, Callable[[str, str | None], Awaitable[ContentBlock]]]
+    list_options: Callable[[], Awaitable[list[ContentOption]]] | None = None
 
 
 # Content contributors, keyed by name. Consumed by LMS-publishing plugins.
@@ -64,9 +91,7 @@ def register_content_contributor(contributor: ContentContributor) -> None:
     its own tests build their own instances — so each construction re-registers the same
     contributor. Re-registering an *equal* one is therefore a no-op, and the first
     registration is the one kept. Only a *different* contributor claiming a registered name
-    raises :class:`~sparkth.lib.content.exceptions.DuplicateContentContributorError`, which
-    is the collision worth failing on: a publishing tool resolves by name, so two unequal
-    contributors sharing one name would silently build whichever registered first.
+    raises :class:`~sparkth.lib.content.exceptions.DuplicateContentContributorError`.
 
     Equality is what separates the two cases, so a contributor must stay a value with
     field-wise equality — that is why ``ContentContributor`` is a frozen dataclass rather

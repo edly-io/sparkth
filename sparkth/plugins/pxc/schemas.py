@@ -3,9 +3,9 @@ from datetime import datetime
 from typing import Annotated, Any
 from uuid import UUID
 
-from pydantic import AfterValidator, BaseModel, Field, StringConstraints
+from pydantic import AfterValidator, BaseModel, StringConstraints
 
-from sparkth.plugins.pxc.constants import PXC_MAX_DESCRIPTION_CHARS, PXC_MAX_SOURCE_CHARS
+from sparkth.plugins.pxc.config import get_pxc_settings
 
 
 def within_source_limit(manifest: dict[str, object]) -> dict[str, object]:
@@ -14,9 +14,34 @@ def within_source_limit(manifest: dict[str, object]) -> dict[str, object]:
     Raises:
         ValueError: if the manifest is over the limit.
     """
-    if len(json.dumps(manifest)) > PXC_MAX_SOURCE_CHARS:
-        raise ValueError(f"manifest is longer than {PXC_MAX_SOURCE_CHARS} characters as JSON")
+    limit = get_pxc_settings().max_source_chars
+    if len(json.dumps(manifest)) > limit:
+        raise ValueError(f"manifest is longer than {limit} characters as JSON")
     return manifest
+
+
+def script_within_source_limit(script: str) -> str:
+    """Refuse a script longer than ``PXC_MAX_SOURCE_CHARS``.
+
+    Raises:
+        ValueError: if the script is over the limit.
+    """
+    limit = get_pxc_settings().max_source_chars
+    if len(script) > limit:
+        raise ValueError(f"script is longer than {limit} characters")
+    return script
+
+
+def description_within_limit(description: str) -> str:
+    """Refuse a description longer than ``PXC_MAX_DESCRIPTION_CHARS``.
+
+    Raises:
+        ValueError: if the description is over the limit.
+    """
+    limit = get_pxc_settings().max_description_chars
+    if len(description) > limit:
+        raise ValueError(f"description is longer than {limit} characters")
+    return description
 
 
 class LaunchContext(BaseModel):
@@ -60,7 +85,7 @@ class ActivitySource(BaseModel):
     """The files an agent writes for one activity, and how the activity is listed."""
 
     title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
-    description: str = Field(max_length=PXC_MAX_DESCRIPTION_CHARS)
+    description: Annotated[str, AfterValidator(description_within_limit)]
     manifest: Annotated[dict[str, object], AfterValidator(within_source_limit)]
-    ui_js: str = Field(max_length=PXC_MAX_SOURCE_CHARS)
-    sandbox_js: str = Field(max_length=PXC_MAX_SOURCE_CHARS)
+    ui_js: Annotated[str, AfterValidator(script_within_source_limit)]
+    sandbox_js: Annotated[str, AfterValidator(script_within_source_limit)]

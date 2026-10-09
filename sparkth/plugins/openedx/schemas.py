@@ -129,3 +129,11 @@ class AddPluginContentArgs(BaseModel):
             "`openedx_list_content_contributors` — e.g. 'pxc'."
         )
     )
+    option_id: str | None = Field(
+        default=None,
+        description=(
+            "Which of the contributor's options to publish: an `id` from that contributor's "
+            "`options` in `openedx_list_content_contributors`. Omit it to publish the "
+            "contributor's default."
+        ),
+    )
