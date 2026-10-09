@@ -1,0 +1,76 @@
+# Redeploys the dev VM after every image published from main. Runs on a
+# self-hosted runner on the VM (label: sparkth-dev); see "Continuous deployment
+# to a dev VM" in README.md for the runner setup.
+
+name: Deploy dev
+
+on:
+  workflow_run:
+    workflows: ["Build and Publish Sparkth Docker Image"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to dev VM
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
+    runs-on: [self-hosted, sparkth-dev]
+    environment: dev
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: read
+    env:
+      SPARKTH_TAG: main
+      COMPOSE: docker compose -f docker-compose.dev.yml
+    defaults:
+      run:
+        # Explicit bash adds pipefail, so a failed pg_dumpall aborts the deploy.
+        shell: bash
+        working-directory: ${{ vars.DEV_DEPLOY_DIR || '/app/sparkth' }}
+
+    steps:
+      - name: Sync checkout to the published commit
+        run: |
+          git fetch origin main
+          git reset --hard ${{ github.event.workflow_run.head_sha || 'origin/main' }}
+
+      - name: Log into GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Pull images
+        run: $COMPOSE pull
+
+      - name: Back up databases
+        run: |
+          mkdir -p backups
+          $COMPOSE exec -T db sh -c 'pg_dumpall -U "${POSTGRES_USER:-sparkth}"' \
+            | gzip > "backups/pre-deploy-$(date +%Y%m%d-%H%M%S).sql.gz"
+          ls -1t backups/pre-deploy-*.sql.gz | tail -n +8 | xargs -r rm
+
+      - name: Run migrations
+        run: $COMPOSE run --rm sparkth python -m sparkth.cli.main migrate
+
+      - name: Restart stack
+        run: $COMPOSE up -d --remove-orphans
+
+      - name: Smoke check
+        run: |
+          for i in $(seq 1 30); do
+            curl -fsS -o /dev/null "http://127.0.0.1:${SPARKTH_HTTP_PORT:-7727}/docs" && exit 0
+            sleep 2
+          done
+          $COMPOSE logs --tail=100 sparkth
+          exit 1
+
+      - name: Prune dangling images
+        if: always()
+        run: docker image prune -f

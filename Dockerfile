@@ -106,7 +106,7 @@ ENV LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libjemalloc.so.2"
 ENV SERVE_FRONTEND="true"
 
 # PXC_DATA_DIR (.env) resolved against WORKDIR. Created and owned by nonroot here, so the
-# pxc_data volume docker-compose.prod.yml mounts over it starts out writable.
+# pxc_data volume docker-compose.dev.yml mounts over it starts out writable.
 RUN mkdir -p /app/data/pxc && chown -R nonroot:nonroot /app/data
 
 USER nonroot
