@@ -81,6 +81,14 @@ def test_the_editor_markup_explains_that_studios_buttons_do_not_apply() -> None:
     assert html.startswith(_EDITOR_NOTICE)
 
 
+def test_the_editor_markup_says_a_copied_block_starts_from_the_original_content() -> None:
+    html = build_editor_html(
+        "https://sparkth.example", "mcq", "instance-1", "course-v1:X+Y+Z", "learner-7", SECRET, 300
+    )
+
+    assert "A copied block starts with the activity's original content" in html
+
+
 def test_the_learner_view_asks_for_play(block: SparkthPxcXBlock) -> None:
     assert claims_in(str(block.student_view().content))["prm"] == "play"
 
@@ -100,6 +108,26 @@ def test_the_editing_view_asks_for_edit(block: SparkthPxcXBlock) -> None:
 def test_only_the_editing_view_carries_the_notice(block: SparkthPxcXBlock) -> None:
     assert "stored in Sparkth" in str(block.studio_view().content)
     assert "stored in Sparkth" not in str(block.student_view().content)
+
+
+VIEWS = [
+    pytest.param(lambda block: block.student_view(), id="learner"),
+    pytest.param(lambda block: block.studio_view(), id="editor"),
+]
+
+
+# A block added from Studio's Advanced menu has no activity and no activity instance: Sparkth never placed one.
+@pytest.mark.parametrize("field", ["activity", "activity_instance"])
+@pytest.mark.parametrize("view", VIEWS)
+def test_a_block_missing_its_activity_says_so_instead_of_launching(
+    block: SparkthPxcXBlock, field: str, view: Callable[[SparkthPxcXBlock], Any]
+) -> None:
+    setattr(block, field, "")
+
+    html = str(view(block).content)
+
+    assert "This block has no activity yet" in html
+    assert "<iframe" not in html
 
 
 # Studio's two ways of copying a block: Duplicate, and Copy then Paste.

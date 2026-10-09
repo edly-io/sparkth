@@ -1,10 +1,11 @@
 """An XBlock that holds a reference to a Sparkth-hosted PXC activity and renders it.
 
-The block itself stores no activity data: only the activity type's name and the activity instance id
-Sparkth minted at publish time. Before rendering it mints a short-lived token carrying the
-Open edX user id, course id and activity instance, signed with the secret shared with Sparkth, and
-renders an iframe at Sparkth carrying that token. The secret stays server-side at both ends
-and only the token travels through the browser.
+The block itself stores no activity data: only the activity type's name and an activity instance
+id, minted by Sparkth at publish time or by the block when it is copied in Studio. Before
+rendering it mints a short-lived token carrying the Open edX user id, course id and activity
+instance, signed with the secret shared with Sparkth, and renders an iframe at Sparkth carrying
+that token. The secret stays server-side at both ends and only the token travels through the
+browser.
 """
 
 from typing import Any
@@ -45,12 +46,20 @@ def build_embed_iframe(
 
 # Inline rather than a stylesheet: this package ships no static assets, so an Open edX image
 # can install it without re-running the asset pipeline.
+_NOTICE_STYLE = (
+    "margin:0 0 1em;padding:0.75em 1em;border-left:3px solid #0075b4;background:#f2f8fb;font-size:0.9em;line-height:1.5"
+)
+
+_NO_ACTIVITY_NOTICE = (
+    f'<p style="{_NOTICE_STYLE}">This block has no activity yet. Add PXC activities to a course from Sparkth.</p>'
+)
+
 _EDITOR_NOTICE = (
-    '<p style="margin:0 0 1em;padding:0.75em 1em;border-left:3px solid #0075b4;'
-    'background:#f2f8fb;font-size:0.9em;line-height:1.5">'
+    f'<p style="{_NOTICE_STYLE}">'
     "This activity's content is stored in Sparkth, not in Studio. Click <strong>Save</strong> "
     "inside the activity to keep your changes &mdash; Studio's Save and Cancel buttons do not "
-    "apply to them."
+    "apply to them. A copied block starts with the activity's original content, not the content "
+    "of the block it was copied from."
     "</p>"
 )
 
@@ -88,11 +97,16 @@ class SparkthPxcXBlock(XBlock):
         display_name="Activity instance",
         default="",
         scope=Scope.settings,
-        help="The activity instance id Sparkth minted for this block, set when the course was published.",
+        help=(
+            "The activity instance id that keeps this block's activity data apart: minted by Sparkth "
+            "on publish, or by the block when copied in Studio."
+        ),
     )
 
     def student_view(self, context: dict[str, Any] | None = None) -> Fragment:
-        """Render the iframe that loads the activity for a learner, in play mode."""
+        """Render the activity for a learner in play mode, or a notice when the block has none."""
+        if not self._has_activity():
+            return Fragment(_NO_ACTIVITY_NOTICE)
         return Fragment(
             build_embed_iframe(
                 str(settings.SPARKTH_PXC_BASE_URL),
@@ -116,6 +130,8 @@ class SparkthPxcXBlock(XBlock):
         author has no way to know it otherwise, and ``README.md`` explains why it cannot be
         fixed without putting activity state in two places.
         """
+        if not self._has_activity():
+            return Fragment(_NO_ACTIVITY_NOTICE)
         return Fragment(
             build_editor_html(
                 str(settings.SPARKTH_PXC_BASE_URL),
@@ -152,6 +168,14 @@ class SparkthPxcXBlock(XBlock):
         self.save()
         # No user id reaches these hooks; edx-platform's own blocks save with None the same way.
         store.update_item(self, None)
+
+    def _has_activity(self) -> bool:
+        """Whether Sparkth placed an activity in this block.
+
+        A block added from Studio's Advanced menu has neither an activity nor an activity instance,
+        and a launch without them can only fail, so the views show a notice instead.
+        """
+        return bool(self.activity and self.activity_instance)
 
     def _course_id(self) -> str:
         """The course this block sits in, from its usage id's course key."""
