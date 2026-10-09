@@ -11,10 +11,10 @@
 #    real domain.
 # 3. Point FRONTEND_BASE_URL and the *_REDIRECT_URI values in .env.local at
 #    https://example.com, then:
-#      docker compose -f docker-compose.prod.yml up -d
+#      docker compose -f docker-compose.dev.yml up -d
 # 4. Renew periodically (e.g. a weekly cron): rerun the certbot image with
 #    "renew" instead of "certonly ...", then
-#      docker compose -f docker-compose.prod.yml exec nginx nginx -s reload
+#      docker compose -f docker-compose.dev.yml exec nginx nginx -s reload
 
 upstream sparkth_app {
     server sparkth:7727;
