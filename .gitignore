@@ -260,7 +260,7 @@ sparkth/plugins/pxc/activities/*/sandbox.wasm.bin
 # is the one tracked. Running that package's suite through uv regenerates this one every time.
 third_party_plugins/openedx/xblock/uv.lock
 
-# Let's Encrypt certificates and ACME challenges for the prod nginx proxy
+# Let's Encrypt certificates and ACME challenges for the dev stack's nginx proxy
 docker/nginx/certbot/
 
 # Pre-deploy database dumps written by the deploy-dev workflow on the dev VM

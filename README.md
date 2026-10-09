@@ -159,10 +159,10 @@ Restart Claude Desktop. Ensure that the "Sparkth" tools appear in the "Search an
 
 Sparkth will generate a prompt that will help Claude generate this course.
 
-## Production
+## Dev deployment
 
-A self-contained single-host deployment lives in
-[`docker-compose.prod.yml`](docker-compose.prod.yml): an nginx reverse proxy, the Sparkth
+A self-contained single-host dev deployment lives in
+[`docker-compose.dev.yml`](docker-compose.dev.yml): an nginx reverse proxy, the Sparkth
 application (with the frontend bundled), TimescaleDB/Postgres (hosting both the app and
 analytics databases), and Redis. Every service loads `.env` and then `.env.local` (later entries win);
 `.env.local` is mandatory, and compose fails to start without it.
@@ -186,7 +186,7 @@ analytics databases), and Redis. Every service loads `.env` and then `.env.local
 3. Start the stack:
 
    ```bash
-   docker compose -f docker-compose.prod.yml up -d
+   docker compose -f docker-compose.dev.yml up -d
    ```
 
 4. Apply database migrations, on first start and after every upgrade. One command
@@ -194,7 +194,7 @@ analytics databases), and Redis. Every service loads `.env` and then `.env.local
    continuous aggregates (idempotent):
 
    ```bash
-   docker compose -f docker-compose.prod.yml run --rm sparkth python -m sparkth.cli.main migrate
+   docker compose -f docker-compose.dev.yml run --rm sparkth python -m sparkth.cli.main migrate
    ```
 
 nginx serves the app on port 80 and forwards everything to the app container, without
@@ -207,8 +207,8 @@ unused until TLS is set up: once a domain points at the server, follow
 Let's Encrypt certificate and switch nginx to HTTPS (certificates live in the git-ignored
 `docker/nginx/certbot/`). If another load balancer sits in front of nginx, raise
 `TRUSTED_PROXY_HOPS` to match. Email is not part of the stack: point `SMTP_*` at a real
-provider such as AWS SES. For orchestrated deployments, the same image is published to
-GHCR by CI and runs under Kubernetes.
+provider such as AWS SES. Production runs the same image, published to GHCR by CI, under
+Kubernetes.
 
 ### Continuous deployment to a dev VM
 
@@ -218,7 +218,7 @@ runner on the VM, resets the checkout to the published commit, dumps the databas
 `backups/` (the last seven are kept), runs `migrate` and restarts the stack with
 `SPARKTH_TAG=main`. It can also be started by hand from the Actions tab.
 
-To set up the VM, starting from a working prod stack as described above:
+To set up the VM, starting from a working stack as described above:
 
 1. Create a runner user with Docker access and give it the checkout:
 

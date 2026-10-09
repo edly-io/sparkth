@@ -30,7 +30,7 @@ jobs:
       packages: read
     env:
       SPARKTH_TAG: main
-      COMPOSE: docker compose -f docker-compose.prod.yml
+      COMPOSE: docker compose -f docker-compose.dev.yml
     defaults:
       run:
         # Explicit bash adds pipefail, so a failed pg_dumpall aborts the deploy.
