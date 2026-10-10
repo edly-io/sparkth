@@ -508,7 +508,8 @@ description, and a map of builders — with `register_content_contributor` from
 `sparkth.lib.content.hooks`. A publishing plugin resolves a contributor **by name** and awaits
 the builder registered under its own plugin name to get back the `ContentBlock` to create.
 A builder is awaited with the destination course id and the chosen option's id. The option id
-is `None` when no option was chosen, and the builder then builds its default block.
+is `None` only for a contributor that offers no options: a publishing plugin refuses to build
+for a contributor that offers options until one is chosen, so nothing is placed by default.
 
 `builders` is keyed by the publishing plugin's registered name, so its keys are the LMSes a
 contributor targets. `open-edx` is the one shipped publisher. Register one builder per LMS you
