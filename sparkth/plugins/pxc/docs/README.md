@@ -11,8 +11,11 @@ integration **installed into the LMS**: it renders the activity inside a course 
 the signed launch token this plugin verifies. Without it, the LMS cannot show a placed activity
 and a learner sees nothing at all.
 
-Each integration lives under `third_party_plugins/` with its own installation guide. This README
-covers only the Sparkth side.
+Each integration has its own guide beside this file:
+
+- [Open edX](openedx-integration.md)
+
+This README covers only the Sparkth side.
 
 ## What a working deployment needs
 
@@ -120,6 +123,103 @@ Concurrency is limited per process, and builds run inside the web container at a
 compile.
 
 TODO: move builds to a worker container.
+
+## Scores and grading
+
+Scores and all other activity state live in Sparkth's own storage. No LMS gradebook receives a
+grade from this plugin.
+
+## Deployment limits
+
+### One worker, for now
+
+An activity's clients exchange events through an in-memory bus inside a single Sparkth
+process. Two learners on one activity therefore have to be served by the same process: run
+Sparkth with **one** uvicorn worker and one replica, or route by activity instance so that both
+parties land together.
+
+With more than one worker the failure is silent. Each learner's actions succeed, each sees
+their own events, and neither sees the other's, and no error appears at either end. Sharing the
+bus across processes (Redis pub/sub) is the way out and is not built.
+
+### The socket URL's scheme follows the request's, trusted or not
+
+`request.url_for` derives `ws` versus `wss` from the scheme of the incoming request, and
+nothing in this application trusts a forwarded-proto header: there is no
+`ProxyHeadersMiddleware` and no `X-Forwarded-Proto` handling anywhere in `sparkth/`, the
+Dockerfile, or the Makefile. Behind a TLS-terminating proxy or ingress whose address is not in
+uvicorn's trusted `forwarded_allow_ips` (default `127.0.0.1`), an HTTPS learner is seen as
+`http`, so the inline configuration's `ws_url` comes back `ws://` and the browser refuses it as
+mixed content.
+
+Configure the proxy-header trust for any TLS deployment (uvicorn's `--forwarded-allow-ips`, or
+an equivalent middleware). This is not unique to the socket: `ui_url`, `asset_base_url` and
+`action_base_url` are all built from `request.url_for` and share the same dependency. It
+matters more here, because a blocked WebSocket kills the activity outright rather than one
+asset.
+
+### A socket that drops after the token expires cannot be restored without a reload
+
+`pxc.js`'s `_getWebsocketUrl` returns the cached socket URL unconditionally once one is set,
+and its reconnect loop reopens that same URL, so every reconnect presents the same launch
+token. Once that token has expired, the server refuses the reconnect's handshake outright and
+the client never reaches an open socket at all.
+
+`sparkth-pxc.js` gives up after 30 consecutive failures, roughly a minute on `pxc.js`'s
+backoff, and shows a notice telling the viewer to reload. A reload mints a fresh token and
+recovers; nothing inside the page can. The ceiling keeps a forgotten tab from costing a refused
+handshake every two seconds for as long as it stays open, and it is generous enough that an
+ordinary network blip reconnects and flushes the queue instead of tripping it.
+
+The trigger is any network interruption that outlasts the launch token's lifetime, which the
+LMS integration sets.
+
+Reloading the configuration inside the page is **not** an available remedy. The configuration
+is written into the embed page when it is served, and it carries that page's own launch token
+rather than a new one. Recovering inside the browser requires a credential the browser does not
+have, so any real fix has to change where the socket's authorization comes from.
+
+## Security
+
+An activity's `ui.js` is third-party code. `pxc.js`'s `_loadScript` loads it with
+`await import(url)` into the embed document, so it runs in the same JavaScript realm as the
+embed shell; a closed shadow root isolates markup, not script. The embed therefore must not run
+on Sparkth's origin, where `frontend/lib/auth-tokens.ts` keeps the signed-in user's bearer token
+in `localStorage`.
+
+Two independent layers force an opaque origin:
+
+- The LMS integration's iframe is sandboxed with `allow-scripts allow-forms` and without
+  `allow-same-origin`.
+- Sparkth serves the embed page and every activity asset with
+  `Content-Security-Policy: sandbox allow-scripts allow-forms`. The document gets an opaque
+  origin however it is opened: an LMS iframe, an embedding page that grants
+  `allow-same-origin`, a direct link, or Sparkth's own preview page.
+
+In an opaque origin the activity code cannot reach Sparkth's `localStorage` or any other storage
+or cookie of Sparkth's origin. IndexedDB and `localStorage` throw there, which is why the client
+keeps its action queue in memory.
+
+The page needs nothing from Sparkth's origin. Every route it uses authenticates by the launch
+token in the query string, never by cookie. The activity configuration is inlined in the embed
+page, and the client scripts, the activity assets and the action POSTs answer with
+`Access-Control-Allow-Origin: *` (the POSTs also answer their preflight).
+
+The plugin's own errors, such as a 401 for an expired token, carry the same header, so the
+client reads the status and shows the same notices as the socket. FastAPI's 422 for a malformed
+request, an unhandled 500 and the 403 for a disabled plugin carry no CORS header, so the browser
+reports them as a network failure. In every failure the action is not sent and stays queued.
+
+A refused action is not reported at the moment it is refused. `sendAction` resolves as soon as
+the action is in the page's in-memory queue, before any network round-trip, so an activity's own
+success message can appear for an action the server has not seen yet. The queue lives only as
+long as the page, so an action still queued when the page reloads is lost.
+
+What the viewer does get is a notice once the action is known to be undeliverable. A lapsed
+token closes the socket with code 4401 (4000 plus the HTTP status), and a missing activity with
+4404. `sparkth-pxc.js` then stops retrying and puts a message at the top of the embed that names
+the cause and asks for a reload. Any other drop gets a generic "disconnected" message after a
+bounded number of retries.
 
 ## Known limits
 
