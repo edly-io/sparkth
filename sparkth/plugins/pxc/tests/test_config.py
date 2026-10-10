@@ -13,7 +13,6 @@ def test_the_pxc_prefix_maps_onto_the_settings_field_names(monkeypatch: pytest.M
     monkeypatch.setenv("PXC_DATA_DIR", "/tmp/pxc-somewhere-else")
     monkeypatch.setenv("PXC_LAUNCH_SECRET", "from-the-environment")
     monkeypatch.setenv("PXC_LAUNCH_TOKEN_TTL_SECONDS", "42")
-    monkeypatch.setenv("PXC_DEFAULT_ACTIVITY", "some-other-activity")
     monkeypatch.setenv("PXC_TOOLCHAIN_DIR", "/opt/somewhere/toolchain")
     monkeypatch.setenv("PXC_BUILD_TIMEOUT_SECONDS", "7")
     monkeypatch.setenv("PXC_BUILD_CONCURRENCY", "3")
@@ -29,7 +28,6 @@ def test_the_pxc_prefix_maps_onto_the_settings_field_names(monkeypatch: pytest.M
     assert str(settings.data_dir) == "/tmp/pxc-somewhere-else"
     assert settings.launch_secret == "from-the-environment"
     assert settings.launch_token_ttl_seconds == 42
-    assert settings.default_activity == "some-other-activity"
     assert str(settings.toolchain_dir) == "/opt/somewhere/toolchain"
     assert settings.build_timeout_seconds == 7
     assert settings.build_concurrency == 3

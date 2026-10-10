@@ -857,7 +857,8 @@ async def openedx_list_content_contributors() -> dict[str, dict[str, list[dict[s
     `openedx_add_plugin_content`.
 
     A contributor that offers choices lists them as `options`, for example the activities the
-    author may place. Pick the option the author named and pass its `id` as `option_id`.
+    author may place. Pass the `id` of the option the author named as `option_id`. When the
+    author named none, ask which one to place, and place nothing if they decline.
 
     Returns:
         `{"response": {"contributors": [{"name": <str>, "description": <str>,
@@ -893,8 +894,9 @@ async def openedx_add_plugin_content(payload: AddPluginContentArgs) -> dict[str,
     it fails.
 
     `option_id` picks one of the contributor's options, from `openedx_list_content_contributors`.
-    It is handed to the builder. A contributor that
-    offers no options refuses any `option_id`.
+    It is handed to the builder. A contributor that offers options requires one, since nothing
+    is placed by default: ask the author which option to place, and do not call this tool if
+    they decline. A contributor that offers no options refuses any `option_id`.
 
     Parameters:
         payload (AddPluginContentArgs): Consists of:
@@ -902,12 +904,12 @@ async def openedx_add_plugin_content(payload: AddPluginContentArgs) -> dict[str,
             course_id (str): The course identifier.
             unit_locator (str): The unit the block is created in.
             contributor (str): The contributor's name, from `openedx_list_content_contributors`.
-            option_id (str | None): The chosen option's id, or omitted for the contributor's default.
+            option_id (str | None): The chosen option's id. Required when the contributor offers options.
 
     Returns:
         dict[str, Any]: `{"response": {"locator": <str>, "category": <str>}}`, or
             `{"error": {...}}` when the contributor is unknown, does not target Open edX, is given an
-            `option_id` it offers no options for, or fails
+            `option_id` it offers no options for, is given none when it offers options, or fails
             to build its block, or Studio rejects the request. An error carries `locator` when
             the block was created and only the attribute patch failed: that block exists, is
             missing its attributes, and is the caller's to patch again or delete.
@@ -922,6 +924,17 @@ async def openedx_add_plugin_content(payload: AddPluginContentArgs) -> dict[str,
 
     if payload.option_id is not None and contributor.list_options is None:
         return {"error": {"message": f"Content contributor {payload.contributor!r} offers no options"}}
+
+    if payload.option_id is None and contributor.list_options is not None:
+        logger.info("Refused content contributor %r with no option chosen", payload.contributor)
+        return {
+            "error": {
+                "message": (
+                    f"Content contributor {payload.contributor!r} needs an option_id: ask the author "
+                    "which of its options to place, and place nothing if they decline"
+                )
+            }
+        }
 
     try:
         block = await builder(payload.course_id, payload.option_id)

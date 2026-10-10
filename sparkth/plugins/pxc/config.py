@@ -36,10 +36,6 @@ class PxcSettings(BaseSettings):
     # How long a launch token stays valid. Short: it is minted per page render.
     launch_token_ttl_seconds: int = 300
 
-    # The activity the "pxc" contributor places when the author chooses none. Any bundled
-    # activity name; authors pick their own activities through the contributor's options.
-    default_activity: str = "mcq"
-
     # The directory holding compile.mjs and the node_modules it compiles an author's activity with.
     toolchain_dir: Path = Path("./sparkth/plugins/pxc/builder/toolchain")
 

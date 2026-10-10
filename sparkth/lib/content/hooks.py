@@ -62,9 +62,9 @@ class ContentContributor:
     contributor targets. A builder reports a failure by raising
     :class:`~sparkth.lib.content.exceptions.ContentBuildError`.
 
-    ``list_options``, when set, returns the options the authenticated caller may choose from.
-    Leave it ``None`` for a contributor that builds one kind of block; a publishing
-    tool then refuses any option id.
+    ``list_options``, when set, returns the options the authenticated caller may choose from,
+    and a publishing tool requires one of them: nothing is built by default. Leave it ``None``
+    for a contributor that builds one kind of block; a publishing tool then refuses any option id.
 
     ``list_options`` and the builders must be module-level functions. Re-registering an equal
     contributor is a no-op only if they compare equal across constructions, and a closure or

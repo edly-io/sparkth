@@ -1,6 +1,6 @@
 """Tests for the ``"pxc"`` content contributor.
 
-Covers what ``build_pxc_block`` produces (a ``ContentBlock`` naming the bundled activity and a
+Covers what ``build_pxc_block`` produces (a ``ContentBlock`` naming the chosen activity and a
 fresh activity instance id per call), that it writes nothing, that an activity instance it mints launches with
 the activity's own configuration, and that constructing the plugin registers it on the
 ``LMS_CONTENT_CONTRIBUTORS`` hook.
@@ -41,15 +41,15 @@ def unregistered() -> Iterator[None]:
 
 
 async def test_the_block_is_a_pxc_block_naming_the_activity() -> None:
-    block = await build_pxc_block("course-1", None)
+    block = await build_pxc_block("course-1", "mcq")
 
     assert block.kind == PXC_BLOCK_CATEGORY
     assert block.attributes["activity"] == "mcq"
 
 
 async def test_every_activity_instance_gets_its_own_id() -> None:
-    first = await build_pxc_block("course-1", None)
-    second = await build_pxc_block("course-1", None)
+    first = await build_pxc_block("course-1", "mcq")
+    second = await build_pxc_block("course-1", "mcq")
 
     assert first.attributes["activity_instance"] != second.attributes["activity_instance"]
 
@@ -59,7 +59,7 @@ async def test_building_a_block_writes_nothing(tmp_path: Path) -> None:
     # knows nothing else about it. Writing a configuration would mean knowing which fields that
     # activity declares, which is true of exactly one of them. The absent state file is the
     # evidence, since nothing about the returned block would differ either way.
-    await build_pxc_block("course-1", None)
+    await build_pxc_block("course-1", "mcq")
 
     # `pxc_settings` points PXC_DATA_DIR at this same tmp_path.
     assert list(tmp_path.iterdir()) == []
@@ -70,7 +70,7 @@ async def test_a_minted_activity_instance_launches_with_the_activitys_own_config
     # What the seeding was for: a learner opening a freshly placed activity sees a question
     # rather than a blank. The activity declares it as its fields' defaults, and the runtime
     # serves those for any activity instance nobody has configured yet.
-    block = await build_pxc_block("course-1", None)
+    block = await build_pxc_block("course-1", "mcq")
     claims = LaunchClaims("mcq", block.attributes["activity_instance"], "course-1", "learner-7", Permission.play)
 
     state = read_state(build_runtime(claims))
@@ -97,13 +97,8 @@ async def test_constructing_the_plugin_again_keeps_one_registration(unregistered
     assert LMS_CONTENT_CONTRIBUTORS.get("pxc") is registered
 
 
-async def test_an_unbundled_default_activity_raises_content_build_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("PXC_DEFAULT_ACTIVITY", "not-bundled")
-    get_pxc_settings.cache_clear()
-
-    with pytest.raises(ContentBuildError, match="not-bundled"):
+async def test_no_chosen_activity_places_nothing() -> None:
+    with pytest.raises(ContentBuildError, match="Choose"):
         await build_pxc_block("course-1", None)
 
 
