@@ -5,7 +5,9 @@ views can be rendered here rather than only their helper functions. That matters
 builds its own markup cannot catch a view wired to the wrong permission.
 """
 
+from collections.abc import Callable
 from typing import Any
+from unittest.mock import MagicMock
 
 import jwt
 import pytest
@@ -79,6 +81,14 @@ def test_the_editor_markup_explains_that_studios_buttons_do_not_apply() -> None:
     assert html.startswith(_EDITOR_NOTICE)
 
 
+def test_the_editor_markup_says_a_copied_block_starts_from_the_original_content() -> None:
+    html = build_editor_html(
+        "https://sparkth.example", "mcq", "placement-1", "course-v1:X+Y+Z", "learner-7", SECRET, 300
+    )
+
+    assert "A copied block starts with the activity's original content" in html
+
+
 def test_the_learner_view_asks_for_play(block: SparkthPxcXBlock) -> None:
     assert claims_in(str(block.student_view().content))["prm"] == "play"
 
@@ -98,3 +108,58 @@ def test_the_editing_view_asks_for_edit(block: SparkthPxcXBlock) -> None:
 def test_only_the_editing_view_carries_the_notice(block: SparkthPxcXBlock) -> None:
     assert "stored in Sparkth" in str(block.studio_view().content)
     assert "stored in Sparkth" not in str(block.student_view().content)
+
+
+VIEWS = [
+    pytest.param(lambda block: block.student_view(), id="learner"),
+    pytest.param(lambda block: block.studio_view(), id="editor"),
+]
+
+
+# A block added from Studio's Advanced menu has no activity and no placement: Sparkth never placed one.
+@pytest.mark.parametrize("field", ["activity", "placement"])
+@pytest.mark.parametrize("view", VIEWS)
+def test_a_block_missing_its_activity_says_so_instead_of_launching(
+    block: SparkthPxcXBlock, field: str, view: Callable[[SparkthPxcXBlock], Any]
+) -> None:
+    setattr(block, field, "")
+
+    html = str(view(block).content)
+
+    assert "This block has no activity yet" in html
+    assert "<iframe" not in html
+
+
+# Studio's two ways of copying a block: Duplicate, and Copy then Paste.
+COPY_HOOKS = [
+    pytest.param(lambda block, store: block.studio_post_duplicate(store, None), id="duplicate"),
+    pytest.param(lambda block, store: block.studio_post_paste(store, None), id="paste"),
+]
+
+
+@pytest.mark.parametrize("copy_hook", COPY_HOOKS)
+def test_a_copied_block_takes_a_placement_of_its_own(
+    block: SparkthPxcXBlock, copy_hook: Callable[[SparkthPxcXBlock, MagicMock], bool]
+) -> None:
+    # Studio copies every settings field, so without this the copy shares the original's state.
+    copy_hook(block, MagicMock())
+
+    assert block.placement not in ("", "placement-1")
+
+
+@pytest.mark.parametrize("copy_hook", COPY_HOOKS)
+def test_a_copied_blocks_new_placement_is_saved(
+    block: SparkthPxcXBlock, copy_hook: Callable[[SparkthPxcXBlock, MagicMock], bool]
+) -> None:
+    store = MagicMock()
+
+    copy_hook(block, store)
+
+    store.update_item.assert_called_once_with(block, None)
+
+
+@pytest.mark.parametrize("copy_hook", COPY_HOOKS)
+def test_a_copied_block_leaves_children_to_studio(
+    block: SparkthPxcXBlock, copy_hook: Callable[[SparkthPxcXBlock, MagicMock], bool]
+) -> None:
+    assert copy_hook(block, MagicMock()) is False
