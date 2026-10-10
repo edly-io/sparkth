@@ -37,7 +37,7 @@ class TestStreamOutOfScopeRefusal:
         """
         with locale_context("en"):
             events = []
-            async for chunk in stream_out_of_scope_refusal():
+            async for chunk in stream_out_of_scope_refusal(REFUSAL_MESSAGE):
                 events.append(chunk)
 
             assert len(events) == 1

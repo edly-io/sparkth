@@ -33,13 +33,13 @@ from sparkth.plugins.chat.analytics import (
 )
 from sparkth.plugins.chat.classifiers import MessageScopeClassifier, RAGSearchClassifier
 from sparkth.plugins.chat.config import ChatSettings, get_chat_settings
-from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, REFUSAL_MESSAGE
+from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, REDIRECT_MESSAGE, REFUSAL_MESSAGE
 from sparkth.plugins.chat.conversation_title import extract_title_from_messages, schedule_title_generation
 from sparkth.plugins.chat.exceptions import RAGSearchError
 from sparkth.plugins.chat.lms_credentials import build_lms_credentials_message
 from sparkth.plugins.chat.messages import get_last_user_text
 from sparkth.plugins.chat.prompt import render_system_prompt
-from sparkth.plugins.chat.responsibilities import stored_responsibility
+from sparkth.plugins.chat.responsibilities import refusal_or_redirect, stored_responsibility
 from sparkth.plugins.chat.routes.utils import resolve_tools
 from sparkth.plugins.chat.routes.utils.live_turns import request_stop
 from sparkth.plugins.chat.routes.utils.message_assembly import assemble_provider_messages
@@ -79,20 +79,22 @@ def _unusable_status(document: Document) -> Literal["queued", "processing", "fai
 
 
 def _refusal_response(
+    message: str,
     stream: bool,
     conversation_uuid: UUID | None,
     model: str,
     provider_name: str,
 ) -> StreamingResponse | ChatCompletionResponse:
-    """The out-of-scope refusal, in whichever shape the client asked for.
+    """A fixed reply (the refusal or the redirect) that ends the turn, in the shape the client asked for.
 
-    ``conversation_uuid`` is None when the turn was refused before any conversation was written,
-    which is the answer the client gets rather than a missing field.
+    ``message`` is the refusal or the redirect source constant, rendered under the request
+    locale. ``conversation_uuid`` is None when the turn was refused before any conversation was
+    written, which is the answer the client gets rather than a missing field.
     """
     if stream:
-        return StreamingResponse(stream_out_of_scope_refusal(), media_type="text/event-stream")
+        return StreamingResponse(stream_out_of_scope_refusal(message), media_type="text/event-stream")
     return ChatCompletionResponse(
-        message=ChatMessage(role="assistant", content=gettext(REFUSAL_MESSAGE)),
+        message=ChatMessage(role="assistant", content=gettext(message)),
         conversation_id=conversation_uuid,
         model=model,
         provider=provider_name,
@@ -181,7 +183,7 @@ async def chat_completion(
         # Nothing is persisted yet, and there is no uuid to log a refusal against.
         first_responsibility = await scope_classifier.responsibility_for(query_text, [], request_attachment_names, None)
         if first_responsibility is None:
-            return _refusal_response(request.stream, None, model, provider_name)
+            return _refusal_response(REFUSAL_MESSAGE, request.stream, None, model, provider_name)
         # Already judged, so the check below would spend a second call on the same message.
         _skip_main_scope_check = True
 
@@ -196,7 +198,7 @@ async def chat_completion(
         responsibility=first_responsibility,
     )
     conversation_id = cast(int, conversation.id)
-    # The job this conversation does decides how a later turn is judged, its system prompt and tools.
+    # The job this conversation does decides the turn's reply, system prompt and tools.
     responsibility = stored_responsibility(conversation, jobs)
     turn_analytics = ChatTurnAnalytics(
         background_tasks=background_tasks,
@@ -279,6 +281,7 @@ async def chat_completion(
                 occurred_at=datetime.now(timezone.utc),
             )
 
+        turn_end: str | None = None
         if not _skip_main_scope_check:
             prior_history: list[HistoryTurn] = [
                 {"role": m.role, "content": m.content}
@@ -294,19 +297,24 @@ async def chat_completion(
                 conversation.uuid,
                 responsibility.name,
             )
-            _in_scope = judged is not None
-        else:
-            _in_scope = True
+            turn_end = refusal_or_redirect(judged, responsibility.name)
+            if turn_end == REDIRECT_MESSAGE:
+                logger.info(
+                    "Redirected conversation %s: stored job %s, judged job %s",
+                    conversation.uuid,
+                    responsibility.name,
+                    judged,
+                )
 
-        if not _in_scope:
+        if turn_end is not None:
             await service.add_message(
                 session=session,
                 conversation_id=conversation_id,
                 role="assistant",
-                content=gettext(REFUSAL_MESSAGE),
+                content=gettext(turn_end),
                 message_type="text",
             )
-            return _refusal_response(request.stream, conversation.uuid, model, provider_name)
+            return _refusal_response(turn_end, request.stream, conversation.uuid, model, provider_name)
 
         provider = get_provider(
             provider_name=provider_name,

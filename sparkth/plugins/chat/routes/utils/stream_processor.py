@@ -32,7 +32,7 @@ from sparkth.plugins.chat.analytics import (
     record_turn_failed,
     tool_names,
 )
-from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, RAG_CONTEXT_PROMPT, REFUSAL_MESSAGE
+from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, RAG_CONTEXT_PROMPT
 from sparkth.plugins.chat.detached import detach
 from sparkth.plugins.chat.messages import get_last_user_text
 from sparkth.plugins.chat.models import Conversation
@@ -59,13 +59,14 @@ class StreamedCompletion:
     stopped_at: StopPoint | None
 
 
-async def stream_out_of_scope_refusal() -> AsyncGenerator[str, None]:
-    """Yield a single SSE done-event carrying the refusal message as content.
+async def stream_out_of_scope_refusal(message: str) -> AsyncGenerator[str, None]:
+    """Yield a single SSE done-event carrying a fixed reply that ends the turn: the refusal or the redirect.
 
-    The refusal sentence is written by the backend, not a model, so it renders under
-    the active request locale (``gettext``) rather than the conversation's language.
+    ``message`` is a ``gettext_noop`` source constant (the refusal, or the redirect to a new
+    conversation). It is written by the backend, not a model, so it renders under the active
+    request locale (``gettext``) rather than the conversation's language.
     """
-    yield f"data: {json.dumps({'done': True, 'content': gettext(REFUSAL_MESSAGE)})}\n\n"
+    yield f"data: {json.dumps({'done': True, 'content': gettext(message)})}\n\n"
 
 
 def streaming_error_message(exc: Exception) -> str:

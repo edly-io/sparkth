@@ -1,4 +1,4 @@
-"""What a conversation's stored job decides: its prompt source and its tools."""
+"""What a conversation's stored job decides: its refusal or redirect, its prompt source, its tools."""
 
 from unittest.mock import MagicMock
 
@@ -7,10 +7,20 @@ import pytest
 from sparkth.core.i18n import locale_context
 from sparkth.lib.chat.hooks import ChatResponsibility
 from sparkth.lib.testing import AddTranslation
-from sparkth.plugins.chat.constants import UNKNOWN_TOOL_CATEGORY
+from sparkth.plugins.chat.constants import (
+    DEFAULT_RESPONSIBILITY,
+    REDIRECT_MESSAGE,
+    REFUSAL_MESSAGE,
+    UNKNOWN_TOOL_CATEGORY,
+)
 from sparkth.plugins.chat.exceptions import ResponsibilityNotEnabled
 from sparkth.plugins.chat.models import Conversation
-from sparkth.plugins.chat.responsibilities import COURSE_DESIGN, binds_category, stored_responsibility
+from sparkth.plugins.chat.responsibilities import (
+    COURSE_DESIGN,
+    binds_category,
+    refusal_or_redirect,
+    stored_responsibility,
+)
 from sparkth.plugins.chat.routes.utils import resolve_tools
 from sparkth.plugins.chat.schemas import ChatCompletionRequest, ChatMessage
 
@@ -46,6 +56,17 @@ class TestStoredResponsibility:
             stored_responsibility(_conversation("gone-job"), _JOBS)
 
         assert "gone-job" in str(raised.value)
+
+
+class TestRefusalOrRedirect:
+    def test_the_stored_job_proceeds(self) -> None:
+        assert refusal_or_redirect(DEFAULT_RESPONSIBILITY, DEFAULT_RESPONSIBILITY) is None
+
+    def test_another_job_is_redirected(self) -> None:
+        assert refusal_or_redirect("stub-job", DEFAULT_RESPONSIBILITY) == REDIRECT_MESSAGE
+
+    def test_no_job_is_refused(self) -> None:
+        assert refusal_or_redirect(None, DEFAULT_RESPONSIBILITY) == REFUSAL_MESSAGE
 
 
 class TestBindsCategory:
