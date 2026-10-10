@@ -13,6 +13,8 @@ Every block is addressed by a locator (usage key)
 "block-v1:ORG+NUMBER+RUN+type@<category>+block@<id>". Create children with the parent's
 locator as parent_locator; the course block itself is
 "block-v1:ORG+NUMBER+RUN+type@course+block@course".
+Always read a parent's locator from the course tree (openedx_get_course_tree_raw) rather than
+composing it, and pass the course ID in course-v1 format.
 
 Publish: in Open edX, "publish" means releasing the draft to learners. Studio keeps a draft
 (what authors edit) and a published version (what learners see); creating or updating
