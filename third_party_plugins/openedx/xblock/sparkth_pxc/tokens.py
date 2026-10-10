@@ -9,7 +9,7 @@ from sparkth_pxc.constants import LAUNCH_TOKEN_ALGORITHM
 
 def mint_launch_token(
     activity: str,
-    placement: str,
+    activity_instance: str,
     course_id: str,
     user_id: str,
     permission: str,
@@ -23,7 +23,7 @@ def mint_launch_token(
     """
     claims = {
         "act": activity,
-        "plc": placement,
+        "ins": activity_instance,
         "cid": course_id,
         "uid": user_id,
         "prm": permission,

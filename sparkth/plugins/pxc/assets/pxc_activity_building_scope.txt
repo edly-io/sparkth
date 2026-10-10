@@ -6,5 +6,5 @@ and listing or reopening activities the author built. Short replies, choices or
 confirmations that answer the assistant's own questions about an activity belong
 here too. A quiz the user asks to make interactive, or to build as an activity,
 belongs here. A written quiz, or a quiz published to an LMS, belongs to the job that
-designs the course. Placing or adding a built activity into a course or an LMS unit is not
+designs the course. Placing or adding a built activity into a course or a lesson is not
 part of this job: that belongs to the conversation that designs the course.

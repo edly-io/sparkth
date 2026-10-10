@@ -6,24 +6,23 @@ course holds only a reference to the activity.
 
 ## This plugin is one half of an integration
 
-Enabling it in Sparkth is not enough to put an activity in a course. The other half is
-[`sparkth-pxc-xblock`](../../../third_party_plugins/openedx/xblock/README.md), a separate Python distribution that **must be
-installed into the Open edX instance**. It is what renders the activity inside a unit and what
-mints the signed launch token this plugin verifies. Without it, Studio cannot resolve the `pxc`
-block a published activity refers to and a learner sees nothing at all.
+Enabling it in Sparkth is not enough to put an activity in a course. The other half is an
+integration **installed into the LMS**: it renders the activity inside a course page and mints
+the signed launch token this plugin verifies. Without it, the LMS cannot show a placed activity
+and a learner sees nothing at all.
 
-That README covers installing it, publishing the unit, and the Django settings the Open edX
-side needs. This one covers only the Sparkth side.
+Each integration lives under `third_party_plugins/` with its own installation guide. This README
+covers only the Sparkth side.
 
 ## What a working deployment needs
 
 1. **The sandbox binaries.** Each bundled activity's `sandbox.wasm` is compiled from its source.
    The binaries are not in git, and an activity whose binary is missing fails at launch. The
    Docker image compiles them. To build them manually, run `make pxc.activities.build`.
-2. **A shared secret.** `PXC_LAUNCH_SECRET` here and `SPARKTH_PXC_LAUNCH_SECRET` on the Open edX
-   side must hold the same value. A mismatch fails every learner's launch with a 401, logged
-   here as a signature mismatch.
-3. **The XBlock**, installed as above.
+2. **A shared secret.** `PXC_LAUNCH_SECRET` here and the LMS integration's launch secret must
+   hold the same value. A mismatch fails every learner's launch with a 401, logged here as a
+   signature mismatch.
+3. **The LMS integration**, installed as above.
 4. **Persistent storage.** `PXC_DATA_DIR` holds all learner state and all generated activities.
 5. **The build toolchain.** Activities compile on the server, with `compile.mjs` and the
    `node_modules` under `PXC_TOOLCHAIN_DIR`, and `node` on `PATH`.
@@ -38,7 +37,7 @@ An author places an activity from a course design conversation:
 1. The agent lists the activities the author can place: the bundled samples, then the author's
    own activities by title.
 2. The author picks one. If they pick none, `PXC_DEFAULT_ACTIVITY` is placed.
-3. Sparkth creates a new placement for it, with its own id and its own learner data.
+3. Sparkth creates a new activity instance for it, with its own id and its own learner data.
 4. The LMS course gets a `pxc` block that holds only that id. The LMS integration shows the
    activity through it.
 
@@ -85,7 +84,7 @@ reads in `assets/pxc_activity_building_scope.txt`.
 One directory per activity under `activities/`, each holding a `manifest.json` that declares the
 activity's name, fields, actions and events. Nothing in this plugin knows what any particular
 activity contains: an activity declares its own starting configuration as the `default` on each
-of its fields, and the runtime serves those for a placement nobody has configured yet.
+of its fields, and the runtime serves those for an activity instance nobody has configured yet.
 `PXC_DEFAULT_ACTIVITY` names the one the content contributor places in a course when the author
 chooses no activity.
 
@@ -96,7 +95,7 @@ A generated activity's row is immutable, keyed by id and owner. Its files live u
 disk, with no database read.
 
 Two session routes let an author list their activities and open a preview; another user's id is
-a 404. Previews use a fixed course and placement, shared by the Student and Author views.
+a 404. Previews use a fixed course and activity instance, shared by the Student and Author views.
 
 ## Building an activity
 

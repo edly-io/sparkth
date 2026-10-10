@@ -5,7 +5,7 @@ from sparkth.lib.i18n import gettext_noop
 # Bundled activity sources, one directory per activity type.
 PXC_ACTIVITY_ROOT = Path(__file__).parent / "activities"
 
-# Must equal the entry point name the XBlock registers, so it is not configurable.
+# The block type an LMS integration renders a PXC activity under, so it is not configurable.
 PXC_BLOCK_CATEGORY = "pxc"
 
 # Any origin is allowed: the embed page's origin is opaque, and learner routes use launch tokens.
@@ -26,15 +26,15 @@ PXC_PREFLIGHT_HEADERS = {
     "Access-Control-Max-Age": "86400",
 }
 
-# The course and placement every author preview launches into. Fixed, so an author's Student
-# and Author views share one placement and what one saves shows in the other.
+# The course and activity instance every author preview launches into. Fixed, so an author's Student
+# and Author views share one activity instance and what one saves shows in the other.
 PXC_PREVIEW_COURSE_ID = "sparkth-preview"
-PXC_PREVIEW_PLACEMENT = "preview"
+PXC_PREVIEW_ACTIVITY_INSTANCE = "preview"
 
-# Prefixed onto a Sparkth user id in a preview token, so it never equals an Open edX learner id.
+# Prefixed onto a Sparkth user id in a preview token, so it never equals an LMS learner id.
 PXC_PREVIEW_USER_PREFIX = "sparkth-"
 
-# The course, placement and learner id the build's smoke test reads state as.
+# The course, activity instance and learner id the build's smoke test reads state as.
 PXC_SMOKE_CONTEXT_ID = "smoke"
 
 # The WIT world every sandbox compiles against. It imports only pxc:sandbox/state, so a sandbox

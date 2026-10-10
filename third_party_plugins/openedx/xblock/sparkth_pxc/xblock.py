@@ -1,10 +1,11 @@
 """An XBlock that holds a reference to a Sparkth-hosted PXC activity and renders it.
 
-The block itself stores no activity data: only the activity type's name and a placement id,
-minted by Sparkth at publish time or by the block when it is copied in Studio. Before rendering
-it mints a short-lived token carrying the Open edX user id, course id and placement, signed with
-the secret shared with Sparkth, and renders an iframe at Sparkth carrying that token. The secret
-stays server-side at both ends and only the token travels through the browser.
+The block itself stores no activity data: only the activity type's name and an activity instance
+id, minted by Sparkth at publish time or by the block when it is copied in Studio. Before
+rendering it mints a short-lived token carrying the Open edX user id, course id and activity
+instance, signed with the secret shared with Sparkth, and renders an iframe at Sparkth carrying
+that token. The secret stays server-side at both ends and only the token travels through the
+browser.
 """
 
 from typing import Any
@@ -21,7 +22,7 @@ from sparkth_pxc.tokens import mint_launch_token
 def build_embed_iframe(
     base_url: str,
     activity: str,
-    placement: str,
+    activity_instance: str,
     course_id: str,
     user_id: str,
     permission: str,
@@ -32,7 +33,7 @@ def build_embed_iframe(
 
     A module-level function rather than a method so it is testable without an XBlock runtime.
     """
-    token = mint_launch_token(activity, placement, course_id, user_id, permission, secret, ttl)
+    token = mint_launch_token(activity, activity_instance, course_id, user_id, permission, secret, ttl)
     base = base_url.rstrip("/")
     # No allow-same-origin: the frame keeps an opaque origin, so activity code in it cannot reach
     # the storage of the origin that serves it.
@@ -66,7 +67,7 @@ _EDITOR_NOTICE = (
 def build_editor_html(
     base_url: str,
     activity: str,
-    placement: str,
+    activity_instance: str,
     course_id: str,
     user_id: str,
     secret: str,
@@ -77,7 +78,9 @@ def build_editor_html(
     Takes no permission argument — editing is what it is for, and the ``edit`` mode is the one
     thing this must not get wrong.
     """
-    return _EDITOR_NOTICE + build_embed_iframe(base_url, activity, placement, course_id, user_id, "edit", secret, ttl)
+    return _EDITOR_NOTICE + build_embed_iframe(
+        base_url, activity, activity_instance, course_id, user_id, "edit", secret, ttl
+    )
 
 
 class SparkthPxcXBlock(XBlock):
@@ -90,13 +93,13 @@ class SparkthPxcXBlock(XBlock):
         scope=Scope.settings,
         help="The Sparkth-hosted activity type's name, set when the course was published.",
     )
-    placement = String(
-        display_name="Placement",
+    activity_instance = String(
+        display_name="Activity instance",
         default="",
         scope=Scope.settings,
         help=(
-            "The placement id that keeps this block's activity data apart: minted by Sparkth on "
-            "publish, or by the block when copied in Studio."
+            "The activity instance id that keeps this block's activity data apart: minted by Sparkth "
+            "on publish, or by the block when copied in Studio."
         ),
     )
 
@@ -108,7 +111,7 @@ class SparkthPxcXBlock(XBlock):
             build_embed_iframe(
                 str(settings.SPARKTH_PXC_BASE_URL),
                 str(self.activity),
-                str(self.placement),
+                str(self.activity_instance),
                 self._course_id(),
                 self._user_id(),
                 "play",
@@ -133,7 +136,7 @@ class SparkthPxcXBlock(XBlock):
             build_editor_html(
                 str(settings.SPARKTH_PXC_BASE_URL),
                 str(self.activity),
-                str(self.placement),
+                str(self.activity_instance),
                 self._course_id(),
                 self._user_id(),
                 settings.SPARKTH_PXC_LAUNCH_SECRET,
@@ -142,26 +145,26 @@ class SparkthPxcXBlock(XBlock):
         )
 
     def studio_post_duplicate(self, store: Any, source_item: Any) -> bool:
-        """Give a block copied with Studio's Duplicate a placement of its own.
+        """Give a block copied with Studio's Duplicate an activity instance of its own.
 
-        Studio copies every settings field, ``placement`` included, so the copy would otherwise
+        Studio copies every settings field, ``activity_instance`` included, so the copy would otherwise
         share the original's activity data. The copy starts from the activity's defaults.
         Returns ``False``: the block has no children for Studio to copy.
         """
-        self._take_new_placement(store)
+        self._take_new_activity_instance(store)
         return False
 
     def studio_post_paste(self, store: Any, source_node: Any) -> bool:
-        """Give a block pasted from Studio's clipboard a placement of its own.
+        """Give a block pasted from Studio's clipboard an activity instance of its own.
 
         The same as ``studio_post_duplicate``, for Copy then Paste.
         """
-        self._take_new_placement(store)
+        self._take_new_activity_instance(store)
         return False
 
-    def _take_new_placement(self, store: Any) -> None:
-        """Mint a fresh placement id and save it, since Studio does not save after these hooks."""
-        self.placement = str(uuid4())
+    def _take_new_activity_instance(self, store: Any) -> None:
+        """Mint a fresh activity instance id and save it, since Studio does not save after these hooks."""
+        self.activity_instance = str(uuid4())
         self.save()
         # No user id reaches these hooks; edx-platform's own blocks save with None the same way.
         store.update_item(self, None)
@@ -169,10 +172,10 @@ class SparkthPxcXBlock(XBlock):
     def _has_activity(self) -> bool:
         """Whether Sparkth placed an activity in this block.
 
-        A block added from Studio's Advanced menu has neither an activity nor a placement, and a
-        launch without them can only fail, so the views show a notice instead.
+        A block added from Studio's Advanced menu has neither an activity nor an activity instance,
+        and a launch without them can only fail, so the views show a notice instead.
         """
-        return bool(self.activity and self.placement)
+        return bool(self.activity and self.activity_instance)
 
     def _course_id(self) -> str:
         """The course this block sits in, from its usage id's course key."""
@@ -183,7 +186,7 @@ class SparkthPxcXBlock(XBlock):
         """The viewer's Open edX id.
 
         TODO: An anonymous learner has none, so this collapses to the string "None" and every
-        anonymous visitor to a placement shares one identity. Latent today because the bundled
+        anonymous visitor to an activity instance shares one identity. Latent today because the bundled
         sample uses activity scope only; closing it needs a product decision on what an
         anonymous visitor should see.
         """

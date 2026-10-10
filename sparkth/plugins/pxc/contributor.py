@@ -1,13 +1,13 @@
 """The ``"pxc"`` content contributor: what an LMS-publishing plugin asks for.
 
-Building a placement names an activity and mints an id for it. That id is the only thing the
-course holds about the placement, and nothing about it is persisted here: no state, no table.
+Building an activity instance names an activity and mints an id for it. That id is the only thing the
+course holds about the activity instance, and nothing about it is persisted here: no state, no table.
 
 The options are the activities the user may place in their course.
 
 Nothing about any particular activity's content appears here. An activity declares its initial
 configuration as the defaults on its manifest's fields, and the runtime serves those for any
-placement nobody has configured yet.
+activity instance nobody has configured yet.
 """
 
 from uuid6 import uuid7
@@ -52,13 +52,13 @@ async def list_pxc_options() -> list[ContentOption]:
 
 
 async def build_pxc_block(course_id: str, activity_id: str | None) -> ContentBlock:
-    """Mint a placement in ``course_id`` for the chosen activity, and describe its block.
+    """Mint an activity instance in ``course_id`` for the chosen activity, and describe its block.
 
     The block is titled after the activity: a generated one's title, or a bundled one's name.
 
     ``activity_id`` is the hook's ``option_id``: a bundled activity's name or one of the
     caller's generated activity ids. ``None`` places ``PXC_DEFAULT_ACTIVITY``. ``course_id`` is
-    unused: a placement id is unique on its own, and the parameter is the contributor hook's
+    unused: an activity instance id is unique on its own, and the parameter is the contributor hook's
     shared signature.
 
     Raises:
@@ -70,13 +70,17 @@ async def build_pxc_block(course_id: str, activity_id: str | None) -> ContentBlo
         activity = ContentOption(name, name)
     else:
         activity = await placeable_activity(activity_id)
-    placement = str(uuid7())
-    logger.info("Placed PXC activity %s as placement %s in course %s", activity.id, placement, course_id)
-    return ContentBlock(activity.label, PXC_BLOCK_CATEGORY, {"activity": activity.id, "placement": placement})
+    activity_instance = str(uuid7())
+    logger.info(
+        "Placed PXC activity %s as activity_instance %s in course %s", activity.id, activity_instance, course_id
+    )
+    return ContentBlock(
+        activity.label, PXC_BLOCK_CATEGORY, {"activity": activity.id, "activity_instance": activity_instance}
+    )
 
 
 def default_activity() -> str:
-    """``PXC_DEFAULT_ACTIVITY``, checked so a misconfigured deployment is refused at placement.
+    """``PXC_DEFAULT_ACTIVITY``, checked so a misconfigured deployment is refused when the activity is placed.
 
     Raises:
         ContentBuildError: if it names no known activity.
@@ -91,7 +95,7 @@ def default_activity() -> str:
 
 
 async def placeable_activity(activity_id: str) -> ContentOption:
-    """The activity a placement carries for ``activity_id``, if the caller may place it.
+    """The activity an activity instance carries for ``activity_id``, if the caller may place it.
 
     Returned as the option the caller chose: its id, and its label, which titles the block.
 

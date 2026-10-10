@@ -28,7 +28,7 @@ class PxcSettings(BaseSettings):
     # activities under activities/<id>/ and build scratch under builds/.
     data_dir: Path = Path("./data/pxc")
 
-    # Shared with the Open edX XBlock. The XBlock signs a launch token with it and this plugin
+    # Shared with the LMS integration. The LMS signs a launch token with it and this plugin
     # verifies that signature, which is what makes the learner's identity trustworthy rather
     # than client-asserted. Sensitive: set it in .env.local, never in .env. Empty fails closed.
     launch_secret: str = ""

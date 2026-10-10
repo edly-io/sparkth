@@ -24,9 +24,8 @@ def build_runtime(claims: LaunchClaims) -> ActivityRuntime:
     """Build the runtime for the launch these claims describe.
 
     Permission comes from the launch token's verified claims, not from the request: the
-    signature is what makes it trustworthy. Open edX decides it — ``student_view`` mints
-    ``play``, ``studio_view`` mints ``edit`` — because only Open edX knows who may author the
-    course.
+    signature is what makes it trustworthy. The LMS decides it, because only the LMS knows who
+    may author the course.
 
     Raises:
         PxcActivityNotFound: if the claimed activity is neither bundled nor a generated
@@ -36,7 +35,7 @@ def build_runtime(claims: LaunchClaims) -> ActivityRuntime:
         activity_dir(claims.activity),
         SqliteFieldStore(state_file(claims.activity)),
         LocalFileStorage(get_pxc_settings().data_dir / "storage" / claims.activity),
-        claims.placement,
+        claims.activity_instance,
         claims.course_id,
         claims.user_id,
         claims.permission,
@@ -54,7 +53,7 @@ def read_state(runtime: ActivityRuntime) -> dict[str, FieldType]:
         state: dict[str, FieldType] = runtime.get_state()
     except SandboxRuntimeError as err:
         logger.error(
-            "PXC sandbox failed reading state for %s (course=%s, placement=%s): %s",
+            "PXC sandbox failed reading state for %s (course=%s, activity_instance=%s): %s",
             runtime.name,
             runtime.course_id,
             runtime.activity_id,
@@ -81,7 +80,7 @@ def run_action(runtime: ActivityRuntime, action_name: str, action_value: FieldTy
         # Unreachable today: on_action catches this internally and only logs it, so the raise
         # below never runs until pxc-lib starts letting it propagate. Kept for when it does.
         logger.error(
-            "PXC sandbox failed running %s on %s (course=%s, placement=%s): %s",
+            "PXC sandbox failed running %s on %s (course=%s, activity_instance=%s): %s",
             action_name,
             runtime.name,
             runtime.course_id,
