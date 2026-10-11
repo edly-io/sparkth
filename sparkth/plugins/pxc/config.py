@@ -36,6 +36,11 @@ class PxcSettings(BaseSettings):
     # How long a launch token stays valid. Short: it is minted per page render.
     launch_token_ttl_seconds: int = 300
 
+    # How long a replaced activity revision is kept for runtimes still using it. Must be at least
+    # the longest launch-token lifetime Sparkth or the LMS issues, or a prune can remove a revision
+    # under a live socket.
+    revision_retention_seconds: int = 3600
+
     # The directory holding compile.mjs and the node_modules it compiles an author's activity with.
     toolchain_dir: Path = Path("./sparkth/plugins/pxc/builder/toolchain")
 
