@@ -3,6 +3,7 @@
 import os
 import time
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 from uuid6 import uuid7
@@ -90,6 +91,11 @@ def test_a_failed_removal_is_logged_and_not_raised(
     assert any(record.levelname == "WARNING" and activity_id in record.getMessage() for record in caplog.records)
 
 
+def jump_past_every_revision(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Move the clock a minute ahead, past the timestamp of every revision minted so far."""
+    monkeypatch.setattr(time, "time", Mock(return_value=time.time() + 60))
+
+
 def test_a_plain_directory_becomes_the_first_revision() -> None:
     activity_id = str(uuid7())
     plain = generated_activity_dir(activity_id)
@@ -113,19 +119,19 @@ def test_pruning_keeps_a_replaced_revision_within_the_retention_window() -> None
     assert sorted(revisions_dir(activity_id).iterdir()) == [first, second]
 
 
-def test_pruning_removes_a_replaced_revision_after_the_retention_window() -> None:
+def test_pruning_removes_a_replaced_revision_after_the_retention_window(monkeypatch: pytest.MonkeyPatch) -> None:
     activity_id = str(uuid7())
     publish_revision(staged_activity("first"), activity_id)
     publish_revision(staged_activity("second"), activity_id)
     third = publish_revision(staged_activity("third"), activity_id)
-    time.sleep(0.05)  # uuid7 timestamps can run a few ms ahead of the clock when minted back to back
+    jump_past_every_revision(monkeypatch)
 
     prune_revisions(activity_id, 0)
 
     assert list(revisions_dir(activity_id).iterdir()) == [third]
 
 
-def test_pruning_never_removes_the_live_revision() -> None:
+def test_pruning_never_removes_the_live_revision(monkeypatch: pytest.MonkeyPatch) -> None:
     # A slower update that started first can finish last and point the link back at an older revision.
     activity_id = str(uuid7())
     first = publish_revision(staged_activity("first"), activity_id)
@@ -134,6 +140,7 @@ def test_pruning_never_removes_the_live_revision() -> None:
     temporary = link.with_name(f".{activity_id}.relink")
     temporary.symlink_to(os.path.relpath(first, link.parent))
     os.replace(temporary, link)
+    jump_past_every_revision(monkeypatch)
 
     prune_revisions(activity_id, 0)
 
