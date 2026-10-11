@@ -300,8 +300,10 @@ async def update_activity(activity_id: UUID, source: ActivitySource, owner_user_
     The files are staged exactly as a build stages them. Only then are the activity's placement
     and live fields read, so a placement made during the compile is seen. A placed activity
     refuses a field change its saved learner state cannot survive. A draft accepts it and its
-    state file is cleared, since only its preview has written there. Nothing is published
-    before every check passes, so a failed update leaves the live activity as it was.
+    state file is cleared, since only its preview writes there unless a hand-edited LMS block
+    points at it. Nothing is published before every check passes, so a failed check or build
+    leaves the live activity as it was. A failure after that, clearing a draft's state file or
+    saving the title and description, is logged and raised with the new revision left live.
 
     Raises:
         PxcActivityNotFound: if the caller does not own the activity, or its files are gone.
@@ -344,7 +346,7 @@ async def _checked_field_changes(activity_id: UUID, owner_user_id: int, manifest
     """The field changes ``manifest`` makes to the live activity, refused if the activity is placed.
 
     Raises:
-        PxcActivityNotFound: if the activity is no longer the caller's, or its files are gone.
+        PxcActivityNotFound: if the activity is not the caller's, or its files are gone.
         PxcFieldsFrozen: if the activity is placed and there is any change.
     """
     async with session_scope() as session:
