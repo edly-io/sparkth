@@ -13,7 +13,7 @@ MANIFEST RULES
 - "ui" must be "ui.js" and "sandbox" must be "sandbox.wasm".
 - Do not declare "assets" or "capabilities". Everything the UI needs, its styles included,
   lives in ui.js.
-- The server replaces "name" with the new activity's id, so any value is accepted.
+- The server replaces "name" with the activity's id, so any value is accepted.
 - Every field declares a "type" and a "scope", and should declare a "default". The defaults are
   the activity's starting content: a learner opening a freshly placed activity sees them, so
   make them a complete, realistic example rather than empty values.

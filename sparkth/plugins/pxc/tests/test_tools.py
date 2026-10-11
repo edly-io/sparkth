@@ -16,12 +16,24 @@ from sparkth.lib.models import utc_now
 from sparkth.plugins.pxc.activities import generated_activity_dir, preview_url
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import PXC_ASSET_DIR
-from sparkth.plugins.pxc.exceptions import PxcActivityNotFound, PxcBuildFailed, PxcCompileFailed, PxcManifestInvalid
+from sparkth.plugins.pxc.exceptions import (
+    PxcActivityNotFound,
+    PxcBuildFailed,
+    PxcCompileFailed,
+    PxcFieldsFrozen,
+    PxcManifestInvalid,
+)
 from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.schemas import ActivitySource
 from sparkth.plugins.pxc.store import insert_activity
 from sparkth.plugins.pxc.tests.conftest import AUTHORED_MANIFEST, AUTHORED_SANDBOX_JS, AUTHORED_UI_JS, act_as
-from sparkth.plugins.pxc.tools import pxc_about, pxc_build_activity, pxc_get_activity_source, pxc_list_activities
+from sparkth.plugins.pxc.tools import (
+    pxc_about,
+    pxc_build_activity,
+    pxc_get_activity_source,
+    pxc_list_activities,
+    pxc_update_activity,
+)
 
 
 async def test_about_carries_the_contract_rules() -> None:
@@ -249,3 +261,57 @@ async def test_source_refuses_an_id_that_is_not_a_uuid(authors: tuple[User, User
 
     with pytest.raises(PxcActivityNotFound):
         await pxc_get_activity_source("../../mcq")
+
+
+async def test_update_hands_the_activity_its_edited_files() -> None:
+    bind_current_user_id(7)
+    activity_id = uuid7()
+    with patch("sparkth.plugins.pxc.tools.update_activity", new=AsyncMock()) as update:
+        result = await pxc_update_activity(str(activity_id), "Poll", "A one-question poll", MANIFEST, "ui", "sandbox")
+
+    update.assert_awaited_once_with(
+        activity_id,
+        ActivitySource(
+            title="Poll", description="A one-question poll", manifest=MANIFEST, ui_js="ui", sandbox_js="sandbox"
+        ),
+        7,
+    )
+    assert result == {"activity_id": str(activity_id), "preview_url": preview_url(activity_id)}
+
+
+async def test_update_reads_a_manifest_sent_as_json_text() -> None:
+    bind_current_user_id(7)
+    with patch("sparkth.plugins.pxc.tools.update_activity", new=AsyncMock()) as update:
+        await pxc_update_activity(str(uuid7()), "Poll", "A one-question poll", json.dumps(MANIFEST), "ui", "sandbox")
+
+    assert update.await_args is not None
+    assert update.await_args.args[1].manifest == MANIFEST
+
+
+@pytest.mark.parametrize("name", ["mcq", "../../mcq", str(uuid7()).upper()])
+async def test_update_refuses_a_name_that_is_not_a_generated_activity(name: str) -> None:
+    bind_current_user_id(7)
+    with (
+        patch("sparkth.plugins.pxc.tools.update_activity", new=AsyncMock()) as update,
+        pytest.raises(PxcActivityNotFound),
+    ):
+        await pxc_update_activity(name, "Poll", "A one-question poll", MANIFEST, "ui", "sandbox")
+
+    update.assert_not_awaited()
+
+
+async def test_an_unauthenticated_update_is_refused_before_its_id_is_read() -> None:
+    with pytest.raises(NoAuthenticatedUser):
+        await pxc_update_activity("../../mcq", "Poll", "A one-question poll", MANIFEST, "ui", "sandbox")
+
+
+async def test_a_refused_update_reaches_the_agent_with_its_message() -> None:
+    bind_current_user_id(7)
+    refusal = PxcFieldsFrozen("Nothing was updated. field 'question' was removed")
+    with (
+        patch("sparkth.plugins.pxc.tools.update_activity", new=AsyncMock(side_effect=refusal)),
+        pytest.raises(PxcBuildFailed) as caught,
+    ):
+        await pxc_update_activity(str(uuid7()), "Poll", "A one-question poll", MANIFEST, "ui", "sandbox")
+
+    assert str(caught.value) == "Nothing was updated. field 'question' was removed"
