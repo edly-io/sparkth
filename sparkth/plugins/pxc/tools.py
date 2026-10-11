@@ -147,7 +147,8 @@ async def pxc_update_activity(
 
     Read the files with `pxc_get_activity_source` first, edit them, and pass back all three with the
     title and description. The update reaches every course the activity is placed in at its next
-    launch, and the previous version cannot be restored.
+    launch, and the previous version cannot be restored, so for a placed activity get the author's
+    confirmation before calling this.
 
     While the activity is not placed in a course, anything may change. Once placed, a field may not
     be removed or change its type, scope or schema; adding a field and changing a default are
