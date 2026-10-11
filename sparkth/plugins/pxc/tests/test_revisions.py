@@ -14,6 +14,10 @@ from sparkth.plugins.pxc.revisions import prune_revisions, publish_revision, rem
 from sparkth.plugins.pxc.tests.conftest import question_in, staged_activity
 
 
+def _rmtree_busy(path: Path) -> None:
+    raise OSError("busy")
+
+
 def test_a_published_activity_resolves_to_its_revision() -> None:
     activity_id = str(uuid7())
 
@@ -80,11 +84,7 @@ def test_a_failed_removal_is_logged_and_not_raised(
 ) -> None:
     activity_id = str(uuid7())
     publish_revision(staged_activity("first"), activity_id)
-
-    def busy(path: Path) -> None:
-        raise OSError("busy")
-
-    monkeypatch.setattr("sparkth.plugins.pxc.revisions.shutil.rmtree", busy)
+    monkeypatch.setattr("sparkth.plugins.pxc.revisions.shutil.rmtree", _rmtree_busy)
 
     remove_activity_files(activity_id)
 
