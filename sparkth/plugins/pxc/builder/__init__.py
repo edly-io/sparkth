@@ -31,6 +31,7 @@ import json
 import os
 import shutil
 import signal
+import sqlite3
 import sys
 import tempfile
 from pathlib import Path
@@ -319,15 +320,24 @@ async def update_activity(activity_id: UUID, source: ActivitySource, owner_user_
             changes = await _checked_field_changes(activity_id, owner_user_id, manifest)
             publish_revision(staged, name)
     if changes:
-        SqliteFieldStore(state_file(name)).clear()
+        _clear_preview_state(name)
     prune_revisions(name, get_pxc_settings().revision_retention_seconds)
     try:
         async with session_scope() as session:
             await update_activity_details(session, activity_id, source.title, source.description)
-    except SQLAlchemyError:
-        logger.error("PXC activity %s was republished but its title and description were not saved", name)
+    except SQLAlchemyError as err:
+        logger.error("PXC activity %s was republished but its title and description were not saved: %s", name, err)
         raise
     logger.info("Updated PXC activity %s for user %s", name, owner_user_id)
+
+
+def _clear_preview_state(name: str) -> None:
+    """Clear a draft's state file, logging and re-raising if it cannot be cleared."""
+    try:
+        SqliteFieldStore(state_file(name)).clear()
+    except sqlite3.Error as err:
+        logger.error("PXC activity %s has its new revision live but its preview state was not cleared: %s", name, err)
+        raise
 
 
 async def _checked_field_changes(activity_id: UUID, owner_user_id: int, manifest: dict[str, object]) -> list[str]:

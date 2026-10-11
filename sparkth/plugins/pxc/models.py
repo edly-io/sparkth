@@ -1,8 +1,8 @@
 """The PXC plugin's table: one row per activity an author generated.
 
-A row is written once, after a successful build. An update changes its title, description and
-``placed_at``, never its id, so activity instances placed in courses keep launching the same
-activity. The files live on disk in the activity's revision directories, behind
+A row is written once, after a successful build. Placement sets ``placed_at`` once, and an update
+changes the title and description. The id never changes, so activity instances placed in courses
+keep launching the same activity. The files live on disk in the activity's revision directories, behind
 ``generated_activity_dir(id)``; the row is what ties them to their owner.
 """
 

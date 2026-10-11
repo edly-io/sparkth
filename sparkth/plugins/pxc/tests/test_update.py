@@ -125,14 +125,21 @@ async def test_an_update_saves_the_title_and_description(
     assert (await get_owned_activity(session, draft.id, owner_id)).title == "Capitals of Europe"
 
 
-async def test_another_author_cannot_update_an_activity(draft: PxcActivity, other_id: int) -> None:
+async def test_another_author_cannot_update_an_activity(
+    draft: PxcActivity, other_id: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("sparkth.plugins.pxc.builder.stage_activity", _failing_stage)
+
     with pytest.raises(PxcActivityNotFound):
         await update_activity(draft.id, _source({"question": QUESTION}, "// stolen\n"), other_id)
 
     assert _live_ui(draft) == UI_JS
 
 
-async def test_an_activity_whose_files_are_gone_cannot_be_updated(draft: PxcActivity, owner_id: int) -> None:
+async def test_an_activity_whose_files_are_gone_cannot_be_updated(
+    draft: PxcActivity, owner_id: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("sparkth.plugins.pxc.builder.stage_activity", _failing_stage)
     remove_activity_files(str(draft.id))
 
     with pytest.raises(PxcActivityNotFound):
