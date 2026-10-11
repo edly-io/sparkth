@@ -11,7 +11,7 @@ from pxc.lib.manifest_types import PxcActivityManifest
 from sparkth.lib.auth import current_user_id
 from sparkth.lib.db import session_scope
 from sparkth.lib.log import get_logger
-from sparkth.plugins.pxc.activities import generated_activity_dir, parse_activity_id, preview_url
+from sparkth.plugins.pxc.activities import activity_dir, parse_activity_id, preview_url
 from sparkth.plugins.pxc.builder import build_activity
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import PXC_ASSET_DIR
@@ -118,7 +118,7 @@ async def pxc_get_activity_source(activity_id: str) -> dict[str, object]:
     owner = current_user_id()
     async with session_scope() as session:
         activity = await get_owned_activity(session, parse_activity_id(activity_id), owner)
-    directory = generated_activity_dir(str(activity.id))
+    directory = activity_dir(str(activity.id))
     try:
         manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
         ui_js = (directory / "ui.js").read_text(encoding="utf-8")

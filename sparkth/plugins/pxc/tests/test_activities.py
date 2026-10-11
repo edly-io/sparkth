@@ -7,6 +7,7 @@ from uuid6 import uuid7
 
 from sparkth.plugins.pxc.activities import (
     activity_dir,
+    activity_manifest,
     activity_names,
     generated_activity_dir,
     index_activities,
@@ -15,6 +16,8 @@ from sparkth.plugins.pxc.activities import (
     state_file,
 )
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound, PxcDuplicateActivityName
+from sparkth.plugins.pxc.revisions import publish_revision
+from sparkth.plugins.pxc.tests.conftest import staged_activity
 
 
 def _write_generated_activity(activity_id: str) -> Path:
@@ -114,3 +117,17 @@ def test_the_preview_url_opens_the_activities_page_on_the_activity() -> None:
     activity_id = UUID("01890a5d-ac96-774b-bcce-b302099a8057")
 
     assert preview_url(activity_id) == "/dashboard/pxc?activity=01890a5d-ac96-774b-bcce-b302099a8057"
+
+
+def test_the_manifest_follows_a_republish_without_a_restart() -> None:
+    activity_id = str(uuid7())
+    publish_revision(staged_activity("first"), activity_id)
+    before = activity_manifest(activity_id).fields
+    assert before is not None
+    assert before["question"].root.default == "first"
+
+    publish_revision(staged_activity("second"), activity_id)
+
+    after = activity_manifest(activity_id).fields
+    assert after is not None
+    assert after["question"].root.default == "second"

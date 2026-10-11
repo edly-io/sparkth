@@ -2,14 +2,14 @@
 
 Two kinds of activity resolve here. A bundled activity ships in ``activities/`` and is named by
 the ``name`` at the root of its ``manifest.json``. A generated activity was built by an author.
-Its name is its id, and its files live under ``generated_activity_dir(id)``. The name is also
+Its name is its id, and its files live in revision directories behind the link
+``generated_activity_dir(id)`` (see ``revisions.py``). The name is also
 the state file's name, so one file holds every course the activity appears in and every learner
 who answered. That file boundary matches the ``<activity_name>`` segment PXC's own key scheme
 starts with.
 """
 
 import json
-from functools import cache
 from pathlib import Path
 from uuid import UUID
 
@@ -52,7 +52,7 @@ def activity_names() -> list[str]:
 
 
 def generated_activity_dir(activity_id: str) -> Path:
-    """Where a generated activity's files live, whether or not it has been built yet."""
+    """The link naming a generated activity's live revision, whether or not one has been published."""
     return get_pxc_settings().data_dir / "activities" / activity_id
 
 
@@ -93,12 +93,8 @@ def state_file(activity_name: str) -> Path:
     return get_pxc_settings().data_dir / f"{activity_name}.sqlite3"
 
 
-@cache
 def activity_manifest(activity_name: str) -> PxcActivityManifest:
-    """The parsed manifest of one activity.
-
-    Cached for the life of the process. Neither kind of activity changes once written: the
-    bundled ones ship with the code, and a generated one is never rebuilt in place.
+    """The parsed manifest of one activity's live revision, read from disk on every call.
 
     Raises:
         PxcActivityNotFound: if no activity goes by this name.
