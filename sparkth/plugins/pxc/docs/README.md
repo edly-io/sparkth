@@ -76,10 +76,10 @@ replies with a preview link that opens the activity on the Sparkth
 A build or update failure is raised, not returned, and the agent reads its message to fix the
 files and try again.
 
-Every tool reads the author from the authenticated request, never from an argument, and the two
-read tools are owner-only: another author's activity is reported as unknown. The tools need an
-authenticated chat session; on the unauthenticated `/ai/mcp` endpoint they fail with
-`NoAuthenticatedUser`.
+Every tool reads the author from the authenticated request, never from an argument. The two
+read tools and `pxc_update_activity` are owner-only: another author's activity is reported as
+unknown. The tools need an authenticated chat session; on the unauthenticated `/ai/mcp` endpoint
+they fail with `NoAuthenticatedUser`.
 
 ## Changing an activity from chat
 
@@ -97,8 +97,9 @@ What an update may change depends on whether the activity is placed:
 A changed `default` reaches every activity instance that has no saved value of its own. A saved
 value keeps its shape whatever the default is.
 
-A draft's preview data is the only data in its state file, so a field removal or change clears
-it. A change to a `default` alone leaves it.
+Only the preview writes to a draft's state file, unless a hand-edited LMS block points at the
+draft (see [Known limits](#known-limits)). A field removal or change clears that file; a change to
+a `default` alone leaves it.
 
 A refused update raises `PxcFieldsFrozen`, which names every offending field and tells the agent
 to stop and explain the situation to the author. The agent builds a new activity, with its own
@@ -132,8 +133,10 @@ no database read. Each runtime stays on the revision it resolved, for its whole 
 
 An update prunes the activity's old revisions once their successor has been live for
 `PXC_REVISION_RETENTION_SECONDS`. That value must be at least the longest launch-token lifetime
-Sparkth or the LMS issues (`PXC_LAUNCH_TOKEN_TTL_SECONDS` here, and the integration's own setting
-in the LMS), because a socket keeps acting on the revision it opened on until its token expires.
+Sparkth or the LMS issues (`PXC_LAUNCH_TOKEN_TTL_SECONDS` here, and the Open edX block's
+`SPARKTH_PXC_LAUNCH_TOKEN_TTL_SECONDS`), because a socket keeps acting on the revision it opened
+on until its token expires. A longer token lets a learner's open page lose its actions after the
+activity is updated.
 
 Two session routes let an author list their activities and open a preview; another user's id is
 a 404. Previews use a fixed course and activity instance, shared by the Student and Author views.
@@ -159,8 +162,10 @@ An update runs the first three steps the same way, then:
 6. Save the title and description.
 
 A failure is written for the authoring agent to act on. Nothing is published before the checks
-pass, so a failed update leaves the live activity as it was. If saving the title and description
-fails, the new revision is already live, and the error is logged and raised.
+pass, so a failure before the link swap leaves the activity unchanged. Anything that fails after
+it leaves the new revision live: a failure clearing a draft's state file or saving the title and
+description is logged and raised, and a revision that cannot be pruned is logged and left for the
+next prune.
 
 A compile sees only its own directory, so a sandbox can import only `pxc:sandbox/*`: builtins,
 packages and relative paths fail to load. Each step has a timeout and is killed together with its
@@ -277,7 +282,9 @@ bounded number of retries.
   can point at a draft, which is never marked placed, so a later update that changes one of its
   fields clears the learner state that block has saved.
 - A placement that lands in the milliseconds between an update's placement check and its link
-  swap is not seen by that update.
+  swap is not seen by that update. Likewise, two updates of one activity in separate processes can
+  swap the link in the opposite order to their revision ids, so a later update's prune can remove
+  the revision that was live until that update, under a socket still using it.
 - A learner page loaded before an update keeps its old `ui.js` until it reloads. Its socket keeps
   the previous revision until its launch token expires, but an action sent over HTTP runs on the
   new revision, and one the new manifest does not declare is refused with a 422.
@@ -286,7 +293,9 @@ bounded number of retries.
   shape, after a draft's preview data was cleared, and a later update that does not change what
   the activity keeps will not clear it again. Reloading the preview avoids it.
 - A launch of an activity built as a plain directory, during its first update, gets a 404 between
-  the directory's move and the link's creation. A reload fixes it.
+  the directory's move and the link's creation. A reload fixes it. A socket opened on the plain
+  directory follows the new link, so it can run the new code against the manifest it already read
+  until it reconnects.
 - Revisions replaced within `PXC_REVISION_RETENTION_SECONDS` before an activity's last update stay
   on disk until its next update.
 - A launch-token lifetime longer than `PXC_REVISION_RETENTION_SECONDS` lets a prune remove a
