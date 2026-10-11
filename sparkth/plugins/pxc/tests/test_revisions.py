@@ -64,6 +64,14 @@ def test_removing_an_activity_leaves_no_link_and_no_revision() -> None:
     assert not revisions_dir(activity_id).exists()
 
 
+def test_removing_an_activity_never_published_logs_nothing(caplog: pytest.LogCaptureFixture) -> None:
+    activity_id = str(uuid7())
+
+    remove_activity_files(activity_id)
+
+    assert not [record for record in caplog.records if record.levelname == "WARNING"]
+
+
 def test_a_failed_removal_is_logged_and_not_raised(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:

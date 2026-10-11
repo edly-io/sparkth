@@ -48,8 +48,10 @@ def remove_activity_files(activity_id: str) -> None:
     A failure is logged as a warning and the files it could not remove are left in place. It is
     not raised, so the caller's own error still propagates.
     """
+    revisions = revisions_dir(activity_id)
     try:
         generated_activity_dir(activity_id).unlink(missing_ok=True)
-        shutil.rmtree(revisions_dir(activity_id))
+        if revisions.exists():
+            shutil.rmtree(revisions)
     except OSError as err:
         logger.warning("Could not remove the files of PXC activity %s: %s", activity_id, err)
