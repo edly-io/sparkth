@@ -31,6 +31,14 @@ async def mark_placed(session: AsyncSession, activity_id: UUID) -> None:
     await session.commit()
 
 
+async def update_activity_details(session: AsyncSession, activity_id: UUID, title: str, description: str) -> None:
+    """Replace one activity's title and description, and commit."""
+    await session.exec(
+        update(PxcActivity).where(col(PxcActivity.id) == activity_id).values(title=title, description=description)
+    )
+    await session.commit()
+
+
 async def list_owned_activities(
     session: AsyncSession, owner_user_id: int, limit: int | None = None
 ) -> list[PxcActivity]:

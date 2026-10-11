@@ -61,3 +61,7 @@ class PxcSmokeTestFailed(PxcBuildFailed):
 
 class PxcBuildTimedOut(PxcBuildFailed):
     """A build step outlived ``PXC_BUILD_TIMEOUT_SECONDS`` and was killed."""
+
+
+class PxcFieldsFrozen(PxcBuildFailed):
+    """An update would remove a field of an activity placed in a course, or change its type, scope or schema."""

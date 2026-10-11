@@ -7,6 +7,10 @@ The steps run in this order:
 3. Smoke-test ``get_state`` in a child process.
 4. Publish the result as the activity's live revision, then record its row.
 
+An update stages its files the same way, then checks the field changes against the live revision
+and the activity's placement, publishes a new revision, clears a draft's state on a field change,
+prunes old revisions and saves the title and description.
+
 Every failure raises a ``PxcBuildFailed`` subclass whose message is written for the agent that
 submitted the code, so it can fix the code and retry.
 
@@ -30,6 +34,8 @@ import signal
 import sys
 import tempfile
 from pathlib import Path
+from typing import cast
+from uuid import UUID
 
 from pxc.lib.manifest_types import PxcActivityManifest
 from pydantic import ValidationError
@@ -37,16 +43,25 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from sparkth.lib.db import session_scope
 from sparkth.lib.log import get_logger
+from sparkth.plugins.pxc.activities import activity_dir, state_file
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import (
     PXC_COMPILE_TOOLCHAIN_MISSING,
     PXC_SANDBOX_WIT,
 )
-from sparkth.plugins.pxc.exceptions import PxcBuildTimedOut, PxcCompileFailed, PxcManifestInvalid, PxcSmokeTestFailed
+from sparkth.plugins.pxc.exceptions import (
+    PxcBuildTimedOut,
+    PxcCompileFailed,
+    PxcFieldsFrozen,
+    PxcManifestInvalid,
+    PxcSmokeTestFailed,
+)
+from sparkth.plugins.pxc.field_changes import incompatible_field_changes
+from sparkth.plugins.pxc.field_store.sqlite import SqliteFieldStore
 from sparkth.plugins.pxc.models import PxcActivity
-from sparkth.plugins.pxc.revisions import publish_revision, remove_activity_files
+from sparkth.plugins.pxc.revisions import prune_revisions, publish_revision, remove_activity_files
 from sparkth.plugins.pxc.schemas import ActivitySource
-from sparkth.plugins.pxc.store import insert_activity
+from sparkth.plugins.pxc.store import get_owned_activity, insert_activity, update_activity_details
 
 logger = get_logger(__name__)
 
@@ -276,3 +291,65 @@ async def build_activity(source: ActivitySource, owner_user_id: int) -> PxcActiv
         raise
     logger.info("Built PXC activity %s for user %s", activity_id, owner_user_id)
     return activity
+
+
+async def update_activity(activity_id: UUID, source: ActivitySource, owner_user_id: int) -> None:
+    """Rebuild one of the owner's activities from an agent's files, in place under its id.
+
+    The files are staged exactly as a build stages them. Only then are the activity's placement
+    and live fields read, so a placement made during the compile is seen. A placed activity
+    refuses a field change its saved learner state cannot survive. A draft accepts it and its
+    state file is cleared, since only its preview has written there. Nothing is published
+    before every check passes, so a failed update leaves the live activity as it was.
+
+    Raises:
+        PxcActivityNotFound: if the caller does not own the activity, or its files are gone.
+        PxcFieldsFrozen: if the activity is placed and the update removes or changes a field.
+        PxcBuildFailed: any other build failure, whose message tells the agent what to fix.
+    """
+    name = str(activity_id)
+    async with session_scope() as session:
+        await get_owned_activity(session, activity_id, owner_user_id)
+    # Refuses an activity whose files are gone, before any build runs.
+    activity_dir(name)
+    manifest = validate_manifest(source.manifest, name)
+    async with _BUILD_SLOTS:
+        with tempfile.TemporaryDirectory(dir=_builds_dir()) as work:
+            staged = await stage_activity(Path(work), manifest, source)
+            changes = await _checked_field_changes(activity_id, owner_user_id, manifest)
+            publish_revision(staged, name)
+    if changes:
+        SqliteFieldStore(state_file(name)).clear()
+    prune_revisions(name, get_pxc_settings().revision_retention_seconds)
+    try:
+        async with session_scope() as session:
+            await update_activity_details(session, activity_id, source.title, source.description)
+    except SQLAlchemyError:
+        logger.error("PXC activity %s was republished but its title and description were not saved", name)
+        raise
+    logger.info("Updated PXC activity %s for user %s", name, owner_user_id)
+
+
+async def _checked_field_changes(activity_id: UUID, owner_user_id: int, manifest: dict[str, object]) -> list[str]:
+    """The field changes ``manifest`` makes to the live activity, refused if the activity is placed.
+
+    Raises:
+        PxcActivityNotFound: if the activity is no longer the caller's, or its files are gone.
+        PxcFieldsFrozen: if the activity is placed and there is any change.
+    """
+    async with session_scope() as session:
+        activity = await get_owned_activity(session, activity_id, owner_user_id)
+    live = json.loads((activity_dir(str(activity_id)) / "manifest.json").read_text(encoding="utf-8"))
+    changes = incompatible_field_changes(
+        cast(dict[str, dict[str, object]], live.get("fields") or {}),
+        cast(dict[str, dict[str, object]], manifest.get("fields") or {}),
+    )
+    if changes and activity.placed_at is not None:
+        logger.info("Refused an update of placed PXC activity %s: %s", activity_id, "; ".join(changes))
+        raise PxcFieldsFrozen(
+            "Nothing was updated. This activity is already placed in a course, so the data it stores "
+            f"cannot change: {'; '.join(changes)}. Do not build a new activity yet. Tell the author "
+            "that this change needs a new activity, that courses using this one keep it until they "
+            "place the new one, and ask whether to build it under a new title."
+        )
+    return changes
