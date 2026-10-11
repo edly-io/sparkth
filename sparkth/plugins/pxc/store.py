@@ -6,9 +6,11 @@ someone else's looks the same as asking for one that does not exist.
 
 from uuid import UUID
 
+from sqlalchemy import update
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.lib.models import utc_now
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound
 from sparkth.plugins.pxc.models import PxcActivity
 
@@ -16,6 +18,16 @@ from sparkth.plugins.pxc.models import PxcActivity
 async def insert_activity(session: AsyncSession, activity: PxcActivity) -> None:
     """Record one freshly built activity and commit it."""
     session.add(activity)
+    await session.commit()
+
+
+async def mark_placed(session: AsyncSession, activity_id: UUID) -> None:
+    """Record that this activity has been placed in a course, unless that is already recorded, and commit."""
+    await session.execute(
+        update(PxcActivity)
+        .where(col(PxcActivity.id) == activity_id, col(PxcActivity.placed_at).is_(None))
+        .values(placed_at=utc_now())
+    )
     await session.commit()
 
 
