@@ -62,3 +62,19 @@ def test_removing_an_activity_leaves_no_link_and_no_revision() -> None:
 
     assert not generated_activity_dir(activity_id).is_symlink()
     assert not revisions_dir(activity_id).exists()
+
+
+def test_a_failed_removal_is_logged_and_not_raised(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    activity_id = str(uuid7())
+    publish_revision(staged_activity("first"), activity_id)
+
+    def busy(path: Path) -> None:
+        raise OSError("busy")
+
+    monkeypatch.setattr("sparkth.plugins.pxc.revisions.shutil.rmtree", busy)
+
+    remove_activity_files(activity_id)
+
+    assert any(record.levelname == "WARNING" and activity_id in record.getMessage() for record in caplog.records)

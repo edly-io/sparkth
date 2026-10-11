@@ -13,8 +13,11 @@ from pathlib import Path
 
 from uuid6 import uuid7
 
+from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.activities import generated_activity_dir
 from sparkth.plugins.pxc.config import get_pxc_settings
+
+logger = get_logger(__name__)
 
 
 def revisions_dir(activity_id: str) -> Path:
@@ -40,6 +43,13 @@ def publish_revision(staged: Path, activity_id: str) -> Path:
 
 
 def remove_activity_files(activity_id: str) -> None:
-    """Remove a generated activity's link and every revision of it."""
-    generated_activity_dir(activity_id).unlink(missing_ok=True)
-    shutil.rmtree(revisions_dir(activity_id), ignore_errors=True)
+    """Remove a generated activity's link and every revision of it.
+
+    A failure is logged as a warning and the files it could not remove are left in place. It is
+    not raised, so the caller's own error still propagates.
+    """
+    try:
+        generated_activity_dir(activity_id).unlink(missing_ok=True)
+        shutil.rmtree(revisions_dir(activity_id))
+    except OSError as err:
+        logger.warning("Could not remove the files of PXC activity %s: %s", activity_id, err)
