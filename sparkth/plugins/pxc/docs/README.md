@@ -106,7 +106,9 @@ to stop and explain the situation to the author. The agent builds a new activity
 id and a distinct title, only after the author agrees. Courses keep the old activity until the
 author places the new one. A failed update is retried as an update, never as a new activity.
 
-There is no rollback: an update overwrites the previous version.
+There is no rollback: an update overwrites the previous version. So before the agent updates a
+placed activity, even with a change it accepts, it tells the author that the change reaches every
+course using it and cannot be undone, and updates only after the author confirms.
 
 The job's prompt lives in `assets/pxc_activity_building_system_prompt.txt` and caps build and
 update attempts at three. A refusal because the activity is placed does not count toward the
