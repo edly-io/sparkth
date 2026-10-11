@@ -23,7 +23,7 @@ async def insert_activity(session: AsyncSession, activity: PxcActivity) -> None:
 
 async def mark_placed(session: AsyncSession, activity_id: UUID) -> None:
     """Record that this activity has been placed in a course, unless that is already recorded, and commit."""
-    await session.execute(
+    await session.exec(
         update(PxcActivity)
         .where(col(PxcActivity.id) == activity_id, col(PxcActivity.placed_at).is_(None))
         .values(placed_at=utc_now())
