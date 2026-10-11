@@ -30,3 +30,9 @@ class PxcActivity(SQLModel, table=True):
         default_factory=utc_now,
         nullable=False,
     )
+    # Null until the activity is first placed in a course.
+    placed_at: datetime | None = Field(
+        default=None,
+        sa_type=DateTime(timezone=True),  # type: ignore
+        nullable=True,
+    )
