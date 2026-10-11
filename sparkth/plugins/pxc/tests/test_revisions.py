@@ -4,6 +4,7 @@ import os
 import time
 from pathlib import Path
 from unittest.mock import Mock
+from uuid import UUID
 
 import pytest
 from uuid6 import uuid7
@@ -12,6 +13,10 @@ from sparkth.plugins.pxc.activities import activity_dir, generated_activity_dir
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.revisions import prune_revisions, publish_revision, remove_activity_files, revisions_dir
 from sparkth.plugins.pxc.tests.conftest import question_in, staged_activity
+
+
+def _rmtree_busy(path: Path) -> None:
+    raise OSError("busy")
 
 
 def test_a_published_activity_resolves_to_its_revision() -> None:
@@ -80,11 +85,7 @@ def test_a_failed_removal_is_logged_and_not_raised(
 ) -> None:
     activity_id = str(uuid7())
     publish_revision(staged_activity("first"), activity_id)
-
-    def busy(path: Path) -> None:
-        raise OSError("busy")
-
-    monkeypatch.setattr("sparkth.plugins.pxc.revisions.shutil.rmtree", busy)
+    monkeypatch.setattr("sparkth.plugins.pxc.revisions.shutil.rmtree", _rmtree_busy)
 
     remove_activity_files(activity_id)
 
@@ -94,6 +95,12 @@ def test_a_failed_removal_is_logged_and_not_raised(
 def jump_past_every_revision(monkeypatch: pytest.MonkeyPatch) -> None:
     """Move the clock a minute ahead, past the timestamp of every revision minted so far."""
     monkeypatch.setattr(time, "time", Mock(return_value=time.time() + 60))
+
+
+def age_revision(revision: Path, seconds: int) -> Path:
+    """Rename a revision so its uuid7 says it went live ``seconds`` ago, and return its new path."""
+    went_live_ms = int((time.time() - seconds) * 1000)
+    return revision.rename(revision.with_name(str(UUID(int=went_live_ms << 80, version=7))))
 
 
 def test_a_plain_directory_becomes_the_first_revision() -> None:
@@ -145,3 +152,28 @@ def test_pruning_never_removes_the_live_revision(monkeypatch: pytest.MonkeyPatch
     prune_revisions(activity_id, 0)
 
     assert sorted(revisions_dir(activity_id).iterdir()) == [first, second]
+
+
+def test_pruning_keeps_a_revision_whose_successor_went_live_within_the_window() -> None:
+    # The first revision is two hours old, but the one that replaced it just went live.
+    activity_id = str(uuid7())
+    first = publish_revision(staged_activity("first"), activity_id)
+    second = publish_revision(staged_activity("second"), activity_id)
+    aged_first = age_revision(first, 7200)
+
+    prune_revisions(activity_id, 3600)
+
+    assert sorted(revisions_dir(activity_id).iterdir()) == [aged_first, second]
+
+
+def test_pruning_removes_only_the_revisions_whose_successor_outlived_the_window() -> None:
+    activity_id = str(uuid7())
+    oldest = publish_revision(staged_activity("oldest"), activity_id)
+    middle = publish_revision(staged_activity("middle"), activity_id)
+    newest = publish_revision(staged_activity("newest"), activity_id)
+    age_revision(oldest, 10800)
+    aged_middle = age_revision(middle, 7200)
+
+    prune_revisions(activity_id, 3600)
+
+    assert sorted(revisions_dir(activity_id).iterdir()) == [aged_middle, newest]

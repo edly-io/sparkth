@@ -151,9 +151,13 @@ async def pxc_update_activity(
 
     While the activity is not placed in a course, anything may change. Once placed, a field may not
     be removed or change its type, scope or schema; adding a field and changing a default are
-    allowed. Such a change needs a new activity: ask the author before building one.
+    allowed. Adding a field must not be used to replace an existing one: the activity must keep
+    reading saved data from the same fields. Any change these rules forbid needs a new activity:
+    ask the author before building one.
 
-    If the update fails, the error explains why, and the live activity is unchanged.
+    If the update fails before the new files go live, the error explains why and the activity is
+    unchanged. If a step after that fails, such as clearing a draft's preview data or saving the
+    title and description, the new files stay live.
     """
     owner = current_user_id()
     parsed_id = parse_activity_id(activity_id)
