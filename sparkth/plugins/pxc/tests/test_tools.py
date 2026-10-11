@@ -112,7 +112,7 @@ async def test_list_returns_the_authors_activities_with_preview_links(
     act_as(authors[0])
 
     result = await pxc_list_activities()
-    stored = datetime.fromisoformat(result["activities"][0]["created_at"])
+    stored = datetime.fromisoformat(str(result["activities"][0]["created_at"]))
     assert stored.replace(tzinfo=None) == authored_activity.created_at.replace(tzinfo=None)
 
     assert result == {
@@ -122,6 +122,7 @@ async def test_list_returns_the_authors_activities_with_preview_links(
                 "title": "Capital cities",
                 "created_at": result["activities"][0]["created_at"],
                 "preview_url": preview_url(authored_activity.id),
+                "placed": False,
             }
         ]
     }
@@ -185,7 +186,23 @@ async def test_source_returns_the_owners_files(authored_activity: PxcActivity, a
         "manifest": AUTHORED_MANIFEST,
         "ui_js": AUTHORED_UI_JS,
         "sandbox_js": AUTHORED_SANDBOX_JS,
+        "placed": False,
     }
+
+
+async def test_list_and_source_report_a_placed_activity_as_placed(
+    session: AsyncSession, authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    authored_activity.placed_at = utc_now()
+    session.add(authored_activity)
+    await session.commit()
+    act_as(authors[0])
+
+    listed = (await pxc_list_activities())["activities"][0]
+    source = await pxc_get_activity_source(str(authored_activity.id))
+
+    assert listed["placed"] is True
+    assert source["placed"] is True
 
 
 async def test_source_refuses_another_authors_activity(
