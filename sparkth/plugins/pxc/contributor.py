@@ -1,7 +1,8 @@
 """The ``"pxc"`` content contributor: what an LMS-publishing plugin asks for.
 
 Building an activity instance names an activity and mints an id for it. That id is the only thing the
-course holds about the activity instance, and nothing about it is persisted here: no state, no table.
+course holds about the activity instance. For a generated activity, Sparkth records the time it was
+first placed in a course.
 
 The options are the activities the user may place in their course.
 
@@ -9,6 +10,8 @@ Nothing about any particular activity's content appears here. An activity declar
 configuration as the defaults on its manifest's fields, and the runtime serves those for any
 activity instance nobody has configured yet.
 """
+
+from uuid import UUID
 
 from uuid6 import uuid7
 
@@ -22,7 +25,7 @@ from sparkth.plugins.pxc.activities import activity_dir, activity_names, parse_a
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import PXC_BLOCK_CATEGORY
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound
-from sparkth.plugins.pxc.store import get_owned_activity, list_owned_activities
+from sparkth.plugins.pxc.store import get_owned_activity, list_owned_activities, mark_placed
 
 logger = get_logger(__name__)
 
@@ -31,8 +34,8 @@ async def list_pxc_options() -> list[ContentOption]:
     """The activities the caller may place: every bundled one, then the caller's newest own.
 
     The caller's own are capped at ``PXC_LIST_ACTIVITIES_LIMIT``, since every option reaches
-    the model. Each is labelled with its title and build time in UTC: an edit builds a new
-    activity, usually under the same title, and the time is what tells them apart.
+    the model. Each is labelled with its title and build time in UTC, which tells apart
+    activities that share a title.
 
     With nobody authenticated only the bundled activities are offered, so listing contributors
     keeps working for a caller that carries no identity.
@@ -55,6 +58,7 @@ async def build_pxc_block(course_id: str, activity_id: str | None) -> ContentBlo
     """Mint an activity instance in ``course_id`` for the chosen activity, and describe its block.
 
     The block is titled after the activity: a generated one's title, or a bundled one's name.
+    The first placement of a generated activity is recorded.
 
     ``activity_id`` is the hook's ``option_id``: a bundled activity's name or one of the
     caller's generated activity ids. There is no default activity, so ``None`` places nothing.
@@ -69,6 +73,9 @@ async def build_pxc_block(course_id: str, activity_id: str | None) -> ContentBlo
         logger.warning("Refused to place a PXC activity in course %s: none was chosen", course_id)
         raise ContentBuildError("Choose an activity to place: pass one of the contributor's options")
     activity = await placeable_activity(activity_id)
+    if activity.id not in activity_names():
+        async with session_scope() as session:
+            await mark_placed(session, UUID(activity.id))
     activity_instance = str(uuid7())
     logger.info(
         "Placed PXC activity %s as activity_instance %s in course %s", activity.id, activity_instance, course_id

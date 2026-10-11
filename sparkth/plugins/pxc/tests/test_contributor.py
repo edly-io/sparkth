@@ -1,7 +1,7 @@
 """Tests for the ``"pxc"`` content contributor.
 
 Covers what ``build_pxc_block`` produces (a ``ContentBlock`` naming the chosen activity and a
-fresh activity instance id per call), that it writes nothing, that an activity instance it mints launches with
+fresh activity instance id per call), that it writes no activity state, that an activity instance it mints launches with
 the activity's own configuration, and that constructing the plugin registers it on the
 ``LMS_CONTENT_CONTRIBUTORS`` hook.
 """
@@ -243,3 +243,39 @@ async def test_an_option_that_is_neither_bundled_nor_a_uuid_is_refused(authors: 
 
     with pytest.raises(ContentBuildError):
         await build_pxc_block("course-1", "../../etc")
+
+
+async def test_placing_an_activity_records_that_it_was_placed(
+    session: AsyncSession, authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    act_as(authors[0])
+
+    await build_pxc_block("course-1", str(authored_activity.id))
+
+    await session.refresh(authored_activity)
+    assert authored_activity.placed_at is not None
+
+
+async def test_placing_an_activity_again_keeps_its_first_placement_time(
+    session: AsyncSession, authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    act_as(authors[0])
+    await build_pxc_block("course-1", str(authored_activity.id))
+    await session.refresh(authored_activity)
+    first = authored_activity.placed_at
+
+    await build_pxc_block("course-2", str(authored_activity.id))
+
+    await session.refresh(authored_activity)
+    assert authored_activity.placed_at == first
+
+
+async def test_placing_a_bundled_activity_marks_no_generated_activity(
+    session: AsyncSession, authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    act_as(authors[0])
+
+    await build_pxc_block("course-1", "mcq")
+
+    await session.refresh(authored_activity)
+    assert authored_activity.placed_at is None
