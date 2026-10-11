@@ -60,7 +60,9 @@ def activity_dir(activity_name: str) -> Path:
     """The source directory of one activity: a bundled one by name, else a generated one by id.
 
     Bundled activities are looked up first. A generated activity resolves from its directory
-    alone, so a learner's launch needs no database read.
+    alone, so a learner's launch needs no database read. A generated activity's path is the live
+    revision's directory, resolved once, so a caller keeps reading one revision even after a newer
+    one goes live.
 
     Raises:
         PxcActivityNotFound: if no bundled activity goes by this name and no generated activity
@@ -71,7 +73,7 @@ def activity_dir(activity_name: str) -> Path:
         return directory
     generated = generated_activity_dir(str(parse_activity_id(activity_name)))
     if (generated / "manifest.json").is_file():
-        return generated
+        return generated.resolve()
     raise PxcActivityNotFound(f"Unknown activity type: {activity_name}")
 
 
