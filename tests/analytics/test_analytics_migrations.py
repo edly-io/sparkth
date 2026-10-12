@@ -131,3 +131,16 @@ def test_login_activity_by_method_cagg_migration_is_noop_on_sqlite(tmp_path: Pat
     finally:
         conn.close()
     assert views == []
+
+
+def test_drop_login_activity_cagg_migration_is_noop_on_sqlite(tmp_path: Path) -> None:
+    """Dropping the daily aggregate is TimescaleDB-only; on SQLite upgrading to head still succeeds."""
+    db_file = tmp_path / "analytics_drop_cagg.db"
+    _alembic(db_file, "upgrade", "head")
+
+    conn = sqlite3.connect(db_file)
+    try:
+        views = conn.execute("SELECT name FROM sqlite_master WHERE name = 'login_activity_daily'").fetchall()
+    finally:
+        conn.close()
+    assert views == []

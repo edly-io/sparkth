@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field, model_validator
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.lib.analytics import Bucket, LoginActivityPoint, LoginsPoint, get_login_activity, get_logins
+from sparkth.lib.analytics import Bucket, LoginsPoint, get_logins
 from sparkth.lib.db import get_analytics_session
 from sparkth.lib.permissions import ANALYTICS_READ
 
@@ -38,23 +38,6 @@ class LoginsQuery(BaseModel):
         if (self.to - self.from_).days + 1 > MAX_RANGE_DAYS:
             raise ValueError(f"range must not exceed {MAX_RANGE_DAYS} days")
         return self
-
-
-@router.get(
-    "/login-activity",
-    response_model=list[LoginActivityPoint],
-    dependencies=[Depends(ANALYTICS_READ.require_in_global_scope())],
-)
-async def login_activity(
-    days: int = Query(default=30, ge=1, le=365),
-    session: AsyncSession = Depends(get_analytics_session),
-) -> list[LoginActivityPoint]:
-    """Return daily login counts (newest first) for the last ``days`` calendar days.
-
-    Days with no logins are omitted from the series (no zero-fill); consumers must
-    tolerate gaps.
-    """
-    return await get_login_activity(session, days)
 
 
 @router.get(
