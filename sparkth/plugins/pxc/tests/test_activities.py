@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from unittest.mock import Mock
 from uuid import UUID
 
 import pytest
@@ -7,8 +8,8 @@ from uuid6 import uuid7
 
 from sparkth.plugins.pxc.activities import (
     activity_dir,
-    activity_manifest,
     activity_names,
+    asset_path,
     generated_activity_dir,
     index_activities,
     parse_activity_id,
@@ -16,7 +17,6 @@ from sparkth.plugins.pxc.activities import (
     state_file,
 )
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound, PxcDuplicateActivityName
-from sparkth.plugins.pxc.revisions import publish_revision
 from sparkth.plugins.pxc.tests.conftest import staged_activity
 
 
@@ -119,15 +119,12 @@ def test_the_preview_url_opens_the_activities_page_on_the_activity() -> None:
     assert preview_url(activity_id) == "/dashboard/pxc?activity=01890a5d-ac96-774b-bcce-b302099a8057"
 
 
-def test_the_manifest_follows_a_republish_without_a_restart() -> None:
-    activity_id = str(uuid7())
-    publish_revision(staged_activity("first"), activity_id)
-    before = activity_manifest(activity_id).fields
-    assert before is not None
-    assert before["question"].root.default == "first"
+def test_an_asset_comes_from_the_revision_whose_manifest_declared_it(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Each call resolves the link anew, so the second one sees a revision that went live in between.
+    first = staged_activity("first")
+    (first / "ui.js").write_text("first")
+    second = staged_activity("second")
+    (second / "ui.js").write_text("second")
+    monkeypatch.setattr("sparkth.plugins.pxc.activities.activity_dir", Mock(side_effect=[first, second]))
 
-    publish_revision(staged_activity("second"), activity_id)
-
-    after = activity_manifest(activity_id).fields
-    assert after is not None
-    assert after["question"].root.default == "second"
+    assert asset_path(str(uuid7()), "ui.js") == first / "ui.js"
