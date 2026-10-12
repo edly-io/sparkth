@@ -9,12 +9,14 @@ the activity's own configuration, and that constructing the plugin registers it 
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import pytest
 from pxc.lib.permission import Permission
+from sqlalchemy.exc import OperationalError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.lib.content.exceptions import ContentBuildError
+from sparkth.lib.content.exceptions import ContentBuildError, ContentPlacementError
 from sparkth.lib.content.hooks import LMS_CONTENT_CONTRIBUTORS, ContentOption
 from sparkth.lib.exceptions.auth import NoAuthenticatedUser
 from sparkth.lib.models import User
@@ -245,37 +247,62 @@ async def test_an_option_that_is_neither_bundled_nor_a_uuid_is_refused(authors: 
         await build_pxc_block("course-1", "../../etc")
 
 
-async def test_placing_an_activity_records_that_it_was_placed(
+async def record_registered_placement(option_id: str) -> None:
+    """Record a placement through the contributor the plugin registered, as a publishing tool does."""
+    contributor = LMS_CONTENT_CONTRIBUTORS.get("pxc")
+    assert contributor is not None
+    assert contributor.on_placed is not None
+    await contributor.on_placed(option_id)
+
+
+async def test_building_a_block_records_no_placement(
     session: AsyncSession, authored_activity: PxcActivity, authors: tuple[User, User]
 ) -> None:
+    # The LMS may still refuse to create the block, so the activity is not in any course yet.
     act_as(authors[0])
 
     await build_pxc_block("course-1", str(authored_activity.id))
+
+    await session.refresh(authored_activity)
+    assert authored_activity.placed_at is None
+
+
+async def test_a_created_block_records_that_its_activity_was_placed(
+    session: AsyncSession, authored_activity: PxcActivity
+) -> None:
+    await record_registered_placement(str(authored_activity.id))
 
     await session.refresh(authored_activity)
     assert authored_activity.placed_at is not None
 
 
 async def test_placing_an_activity_again_keeps_its_first_placement_time(
-    session: AsyncSession, authored_activity: PxcActivity, authors: tuple[User, User]
+    session: AsyncSession, authored_activity: PxcActivity
 ) -> None:
-    act_as(authors[0])
-    await build_pxc_block("course-1", str(authored_activity.id))
+    await record_registered_placement(str(authored_activity.id))
     await session.refresh(authored_activity)
     first = authored_activity.placed_at
 
-    await build_pxc_block("course-2", str(authored_activity.id))
+    await record_registered_placement(str(authored_activity.id))
 
     await session.refresh(authored_activity)
     assert authored_activity.placed_at == first
 
 
 async def test_placing_a_bundled_activity_marks_no_generated_activity(
-    session: AsyncSession, authored_activity: PxcActivity, authors: tuple[User, User]
+    session: AsyncSession, authored_activity: PxcActivity
 ) -> None:
-    act_as(authors[0])
-
-    await build_pxc_block("course-1", "mcq")
+    await record_registered_placement("mcq")
 
     await session.refresh(authored_activity)
     assert authored_activity.placed_at is None
+
+
+async def test_a_placement_the_database_cannot_record_is_reported(
+    monkeypatch: pytest.MonkeyPatch, authored_activity: PxcActivity
+) -> None:
+    failure = OperationalError("UPDATE pxc_activities", {}, Exception("database unavailable"))
+    monkeypatch.setattr("sparkth.plugins.pxc.contributor.mark_placed", AsyncMock(side_effect=failure))
+
+    with pytest.raises(ContentPlacementError):
+        await record_registered_placement(str(authored_activity.id))

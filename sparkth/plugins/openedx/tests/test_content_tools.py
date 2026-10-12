@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from sparkth.lib.content.exceptions import ContentBuildError
+from sparkth.lib.content.exceptions import ContentBuildError, ContentPlacementError
 from sparkth.lib.content.hooks import (
     LMS_CONTENT_CONTRIBUTORS,
     ContentBlock,
@@ -20,7 +20,7 @@ from sparkth.plugins.openedx.tools import openedx_add_plugin_content, openedx_li
 AUTH = AccessTokenPayload(access_token="t", lms_url="https://lms", studio_url="https://studio")
 
 # Every contributor name this module registers, so the cleanup fixture cannot desync from them.
-CONTRIBUTOR_NAMES = ("fake", "broken", "bare", "canvas-only", "no-targets", "optioned")
+CONTRIBUTOR_NAMES = ("fake", "broken", "bare", "canvas-only", "no-targets", "optioned", "placing")
 
 
 async def build_fake(course_id: str, option_id: str | None) -> ContentBlock:
@@ -275,3 +275,64 @@ async def test_a_contributor_with_options_and_none_chosen_is_refused_and_creates
     create.assert_not_awaited()
     cast(AsyncMock, optioned_contributor.builders["open-edx"]).assert_not_awaited()
     assert "option_id" in result["error"]["message"]
+
+
+LOCATOR = "block-v1:X+Y+Z+type@fake+block@b1"
+
+
+@pytest.fixture
+def placing_contributor() -> ContentContributor:
+    contributor = ContentContributor(
+        "placing",
+        "A contributor that records its placements",
+        {"open-edx": AsyncMock(wraps=build_fake)},
+        list_fake_options,
+        AsyncMock(),
+    )
+    register_content_contributor(contributor)
+    return contributor
+
+
+async def test_the_placement_is_recorded_once_the_block_exists(placing_contributor: ContentContributor) -> None:
+    with (
+        patch("sparkth.plugins.openedx.tools.openedx_create_basic_component", new=AsyncMock(return_value=LOCATOR)),
+        patch("sparkth.plugins.openedx.tools.openedx_update_xblock_content", new=AsyncMock()),
+    ):
+        await openedx_add_plugin_content(add_args("placing", "first"))
+
+    cast(AsyncMock, placing_contributor.on_placed).assert_awaited_once_with("first")
+
+
+async def test_a_failed_create_records_no_placement(placing_contributor: ContentContributor) -> None:
+    failure = LMSRequestError(Method.POST, "api/contentstore/v0/xblock/course-v1:X+Y+Z", 403, "Forbidden")
+    with patch("sparkth.plugins.openedx.tools.openedx_create_basic_component", new=AsyncMock(side_effect=failure)):
+        await openedx_add_plugin_content(add_args("placing", "first"))
+
+    cast(AsyncMock, placing_contributor.on_placed).assert_not_awaited()
+
+
+async def test_a_failed_attribute_patch_still_records_the_placement(placing_contributor: ContentContributor) -> None:
+    # The block exists, and the caller may patch its attributes again with another tool.
+    failure = LMSRequestError(Method.PATCH, "api/contentstore/v0/xblock/course-v1:X+Y+Z", 500, "Boom")
+    with (
+        patch("sparkth.plugins.openedx.tools.openedx_create_basic_component", new=AsyncMock(return_value=LOCATOR)),
+        patch("sparkth.plugins.openedx.tools.openedx_update_xblock_content", new=AsyncMock(side_effect=failure)),
+    ):
+        await openedx_add_plugin_content(add_args("placing", "first"))
+
+    cast(AsyncMock, placing_contributor.on_placed).assert_awaited_once_with("first")
+
+
+async def test_an_unrecorded_placement_leaves_the_block_without_attributes_and_reports_it(
+    placing_contributor: ContentContributor,
+) -> None:
+    cast(AsyncMock, placing_contributor.on_placed).side_effect = ContentPlacementError("database unavailable")
+    with (
+        patch("sparkth.plugins.openedx.tools.openedx_create_basic_component", new=AsyncMock(return_value=LOCATOR)),
+        patch("sparkth.plugins.openedx.tools.openedx_update_xblock_content", new=AsyncMock()) as update,
+    ):
+        result = await openedx_add_plugin_content(add_args("placing", "first"))
+
+    update.assert_not_awaited()
+    assert result["error"]["locator"] == LOCATOR
+    assert "database unavailable" in result["error"]["message"]
