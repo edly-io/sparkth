@@ -82,8 +82,9 @@ All are explained in the guide; none is a judgement call.
   the class is constructed more than once, and a second declaration raises
   `ValueError: Duplicate hook item`.
 - **Gate a route with the permission's dependency, never a hand-rolled check.** Use
-  `dependencies=[Depends(X.require_in_global_scope())]` or `X.require(scope, scope_param)`. A
-  route that calls `can()` and raises 403 itself skips the `permission.denied` audit record.
+  `dependencies=[Depends(X.require_in_global_scope())]`, `X.require(SCOPE)` for an objectless
+  scope, or `X.require(SCOPE, "<path param>")` for one that names an object. A route that calls
+  `can()` and raises 403 itself skips the `permission.denied` audit record.
 - **Grant in a new migration, with literal strings.** Never import permission or role symbols
   into a migration, and never edit an existing one. Generate it with the `database-migrations`
   skill.
