@@ -10,11 +10,12 @@ these counts are lower bounds and failed turns are under-counted.
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Literal
+from typing import Any, Literal, NamedTuple
 
 from fastapi import BackgroundTasks
 
 from sparkth.lib.analytics import AnalyticsEventSchema, PendingEvent, emit_event, emit_events
+from sparkth.lib.audit import ToolFailureKind
 from sparkth.lib.log import get_logger
 from sparkth.plugins.chat.analytics.events import (
     ChatAttachmentUnusable,
@@ -30,6 +31,7 @@ from sparkth.plugins.chat.analytics.events import (
     ChatTurnFailed,
     ScopeVerdict,
     StopPoint,
+    ToolOutcome,
     TurnFailureCause,
 )
 from sparkth.plugins.chat.detached import detach
@@ -53,9 +55,9 @@ class AnalyticsAttribution:
 
 
 # The two completion paths report executions under different keys: the streaming
-# path's tool_end events yield {"name": …}, while the non-streaming provider records
-# {"tool": …, "tool_input": …, "output": …}. Both are read here so the mapping exists
-# in exactly one place.
+# path records {"name": …, "failure": …} from its tool_end events, while the non-streaming
+# provider records {"tool": …, "tool_input": …, "output": …, "failure": …}. Both are read
+# here so the mapping exists in exactly one place.
 _TOOL_NAME_KEYS = ("name", "tool")
 
 
@@ -68,16 +70,24 @@ def _record_name(record: dict[str, Any]) -> str | None:
     return None
 
 
-def tool_names(records: list[dict[str, Any]]) -> list[str]:
-    """Extract tool names from either completion path's execution records.
+class ExecutedTool(NamedTuple):
+    """One tool execution: its name and how it failed, or ``None`` if it succeeded."""
+
+    name: str
+    failure: ToolFailureKind | None
+
+
+def executed_tools_from(records: list[dict[str, Any]]) -> list[ExecutedTool]:
+    """Read the executed tools from either completion path's execution records.
 
     Order and duplicates are preserved — two executions are two authoring actions. An
     unusable record is dropped and logged rather than raising.
 
-    Only the name is read, and only the *keys* of a bad record are logged: ``tool_input``
-    and ``output`` can hold course content and must never reach a payload or a log line.
+    Only the name and failure are read, and only the *keys* of a bad record are logged:
+    ``tool_input`` and ``output`` can hold course content and must never reach a payload or
+    a log line.
     """
-    names: list[str] = []
+    executed: list[ExecutedTool] = []
     for record in records:
         name = _record_name(record)
         if name is None:
@@ -86,8 +96,8 @@ def tool_names(records: list[dict[str, Any]]) -> list[str]:
                 sorted(record),
             )
             continue
-        names.append(name)
-    return names
+        executed.append(ExecutedTool(name, record.get("failure")))
+    return executed
 
 
 async def _emit(build: AnalyticsEventBuilder, actor_id: str, occurred_at: datetime) -> None:
@@ -146,7 +156,7 @@ async def emit_completion(
     model: str,
     rag_used: bool,
     streamed: bool,
-    executed_tools: list[str],
+    executed_tools: list[ExecutedTool],
     occurred_at: datetime,
     stopped_at: StopPoint | None = None,
 ) -> None:
@@ -168,10 +178,12 @@ async def emit_completion(
         *(
             ChatToolInvoked(
                 conversation_id=conversation_id,
-                tool_name=tool_name,
-                tool_category=get_tool_registry().category_for(tool_name),
+                tool_name=tool.name,
+                tool_category=get_tool_registry().category_for(tool.name),
+                outcome=ToolOutcome.SUCCEEDED if tool.failure is None else ToolOutcome.FAILED,
+                failure_kind=tool.failure,
             )
-            for tool_name in executed_tools
+            for tool in executed_tools
         ),
     ]
     await emit_events(
@@ -234,7 +246,7 @@ class ChatTurnAnalytics:
         )
 
     def schedule_completion(
-        self, *, rag_used: bool, streamed: bool, executed_tools: list[str], occurred_at: datetime
+        self, *, rag_used: bool, streamed: bool, executed_tools: list[ExecutedTool], occurred_at: datetime
     ) -> None:
         """Queue the completion and its tool events as one task, through one session."""
         self.background_tasks.add_task(

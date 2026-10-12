@@ -27,6 +27,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/analytics/logins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Logins
+         * @description Return login counts per bucket and sign-in method, oldest first.
+         *
+         *     Sparse: buckets or methods with no logins are omitted; consumers zero-fill.
+         *     The range filters on the UTC day, so for week/month buckets the first bucket's
+         *     label is its start date and can fall before `from`; clients zero-filling should
+         *     floor `from` to the bucket start.
+         */
+        get: operations["logins_api_v1_analytics_logins_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/google/authorize": {
         parameters: {
             query?: never;
@@ -63,6 +88,9 @@ export interface paths {
          *     2. Fetches user info from Google
          *     3. Creates or links the user account
          *     4. Redirects to frontend with JWT token
+         *
+         *     A first sign-in that creates the account also emits ``user.registered`` before the login
+         *     event; linking an existing account does not.
          *
          *     A completed login emits ``user.logged_in``; a callback that redirects back to the
          *     login page with an error logged nobody in, so it emits nothing.
@@ -1474,6 +1502,12 @@ export interface components {
              */
             type: "message";
         };
+        /**
+         * Bucket
+         * @description Bucket width for analytics reads: day, week or month.
+         * @enum {string}
+         */
+        Bucket: "day" | "week" | "month";
         /** ChatCompletionRequest */
         ChatCompletionRequest: {
             /** Conversation Id */
@@ -1969,6 +2003,18 @@ export interface components {
             /** Login Count */
             login_count: number;
         };
+        /**
+         * LoginsPoint
+         * @description Logins for one bucket and sign-in method. ``bucket`` is the UTC start, ``YYYY-MM-DD``.
+         */
+        LoginsPoint: {
+            /** Bucket */
+            bucket: string;
+            /** Login Count */
+            login_count: number;
+            /** Method */
+            method: string;
+        };
         /** LogsResponse */
         LogsResponse: {
             /**
@@ -2437,6 +2483,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LoginActivityPoint"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    logins_api_v1_analytics_logins_get: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                bucket?: components["schemas"]["Bucket"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginsPoint"][];
                 };
             };
             /** @description Validation Error */
