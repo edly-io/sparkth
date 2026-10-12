@@ -1,7 +1,7 @@
 """The PXC plugin's table: one row per activity an author generated.
 
-A row is written once, after a successful build, and never updated. An edit builds a new
-activity under a new id, so activity instances of the old one keep what they had. The files live on
+A row is written once, after a successful build. Placement sets ``placed_at`` once. An edit
+builds a new activity under a new id, so activity instances of the old one keep what they had. The files live on
 disk in the activity's revision directories, behind ``generated_activity_dir(id)``; the row is
 what ties them to their owner.
 """
