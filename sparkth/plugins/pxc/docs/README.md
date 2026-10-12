@@ -140,11 +140,10 @@ expiry. Every later request of the page, for its UI script, assets, socket and a
 revision. An open page keeps the revision it rendered until it reloads.
 
 An update prunes the activity's old revisions once their successor has been live for
-`PXC_REVISION_RETENTION_SECONDS`. That value must be at least the longest launch-token lifetime
-Sparkth or the LMS issues (`PXC_LAUNCH_TOKEN_TTL_SECONDS` here, and the Open edX block's
-`SPARKTH_PXC_LAUNCH_TOKEN_TTL_SECONDS`), because a launch keeps reading the revision it is pinned
-to until its token expires. A longer token lets a learner's open page lose its actions after the
-activity is updated.
+`PXC_REVISION_RETENTION_SECONDS`. The embed cuts a pinned launch token's lifetime to that value,
+so a token from Sparkth or the LMS (`PXC_LAUNCH_TOKEN_TTL_SECONDS` here, and the Open edX block's
+`SPARKTH_PXC_LAUNCH_TOKEN_TTL_SECONDS`) never outlives the revision it names. A page whose token
+expires is told its session ended and asked to reload.
 
 Two session routes let an author list their activities and open a preview; another user's id is
 a 404. Previews use a fixed course and activity instance, shared by the Student and Author views.
@@ -304,6 +303,3 @@ bounded number of retries.
   reconnects.
 - Revisions replaced within `PXC_REVISION_RETENTION_SECONDS` before an activity's last update stay
   on disk until its next update.
-- A launch-token lifetime longer than `PXC_REVISION_RETENTION_SECONDS` lets a prune remove a
-  revision under a live socket. The sandbox error is swallowed, and the learner's actions are
-  dropped silently until a reload.

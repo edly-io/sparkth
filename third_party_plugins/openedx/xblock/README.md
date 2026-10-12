@@ -108,7 +108,7 @@ The block reads three settings from the Open edX instance's Django settings:
 |---|---|
 | `SPARKTH_PXC_BASE_URL` | The base URL of the Sparkth instance to embed activities from. |
 | `SPARKTH_PXC_LAUNCH_SECRET` | The HMAC secret used to sign launch tokens. **Must be set to the exact same value as Sparkth's `PXC_LAUNCH_SECRET`** — the two sides sign and verify with the same shared secret, and a mismatch fails every learner's launch. |
-| `SPARKTH_PXC_LAUNCH_TOKEN_TTL_SECONDS` | How many seconds a minted launch token stays valid. Kept short, since a token is minted fresh on every page render. **Must stay at or below Sparkth's `PXC_REVISION_RETENTION_SECONDS`** (default 3600): Sparkth keeps a replaced activity revision only that long for pages still using it, so a longer token lets a learner's open page lose its actions after the activity is updated. |
+| `SPARKTH_PXC_LAUNCH_TOKEN_TTL_SECONDS` | How many seconds a minted launch token stays valid. Kept short, since a token is minted fresh on every page render. For a generated activity, Sparkth cuts the page's token to its own `PXC_REVISION_RETENTION_SECONDS` (default 3600), so a longer value has no effect there. |
 
 `SPARKTH_PXC_BASE_URL` is fetched by the **learner's browser**, not by Open edX itself — it
 goes into the iframe's `src`. It therefore has to be a URL that reaches Sparkth from the
@@ -175,10 +175,8 @@ that an ordinary network blip reconnects and flushes the queue instead of trippi
 
 The trigger is any network interruption more than `SPARKTH_PXC_LAUNCH_TOKEN_TTL_SECONDS`
 (default 300 seconds) after the page rendered. Raising that TTL is the operator's only lever on
-how long a session can survive one, and it must stay at or below Sparkth's
-`PXC_REVISION_RETENTION_SECONDS` (default 3600). Sparkth keeps a replaced activity revision only
-that long for pages still using it, so a longer token lets a learner's open page lose its actions
-after the activity is updated.
+how long a session can survive one. For a generated activity it reaches only as far as Sparkth's
+`PXC_REVISION_RETENTION_SECONDS` (default 3600), since Sparkth cuts the page's token to that.
 
 Reloading the configuration inside the page is **not** an available remedy, which is worth
 stating because it is the obvious one to reach for. The configuration is written into the embed
