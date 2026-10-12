@@ -24,6 +24,7 @@ from sparkth.plugins.pxc.builder import (
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.exceptions import PxcBuildTimedOut, PxcCompileFailed, PxcManifestInvalid, PxcSmokeTestFailed
 from sparkth.plugins.pxc.models import PxcActivity
+from sparkth.plugins.pxc.revisions import revisions_dir
 from sparkth.plugins.pxc.runtime import build_runtime, read_state
 from sparkth.plugins.pxc.schemas import ActivitySource
 from sparkth.plugins.pxc.store import get_owned_activity, list_owned_activities
@@ -339,7 +340,7 @@ async def test_a_built_activity_is_stored_and_launches(session: AsyncSession) ->
     activity = await build_activity(_mcq_source(), OWNER)
 
     activity_id = str(activity.id)
-    assert activity_dir(activity_id) == generated_activity_dir(activity_id)
+    assert activity_dir(activity_id) == generated_activity_dir(activity_id).resolve()
     assert json.loads((generated_activity_dir(activity_id) / "manifest.json").read_text())["name"] == activity_id
     assert (await get_owned_activity(session, activity.id, OWNER)).title == "Two plus two"
     runtime = build_runtime(LaunchClaims(activity_id, "instance-1", "course-1", "learner-7", Permission.play))
@@ -441,11 +442,21 @@ async def _failing_insert(session: AsyncSession, activity: PxcActivity) -> None:
     raise OperationalError("insert", {}, Exception("db down"))
 
 
-@pytest.mark.wasm
-async def test_a_failed_insert_removes_the_moved_activity(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+async def test_a_build_publishes_its_files_as_the_live_revision(uncompiled_builds: None) -> None:
+    activity = await build_activity(_mcq_source(), OWNER)
+
+    activity_id = str(activity.id)
+    assert activity_dir(activity_id).parent == revisions_dir(activity_id)
+    assert json.loads((activity_dir(activity_id) / "manifest.json").read_text())["name"] == activity_id
+
+
+async def test_a_failed_insert_leaves_no_link_and_no_revision(
+    uncompiled_builds: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     monkeypatch.setattr("sparkth.plugins.pxc.builder.insert_activity", _failing_insert)
 
     with pytest.raises(OperationalError):
         await build_activity(_mcq_source(), OWNER)
 
     assert list((tmp_path / "activities").iterdir()) == []
+    assert list((tmp_path / "revisions").iterdir()) == []

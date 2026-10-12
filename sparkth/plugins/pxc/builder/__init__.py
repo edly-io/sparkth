@@ -5,7 +5,7 @@ The steps run in this order:
 1. Validate the manifest.
 2. Compile ``sandbox.js`` with componentize-js.
 3. Smoke-test ``get_state`` in a child process.
-4. Move the result to ``PXC_DATA_DIR/activities/<id>/`` and record its row.
+4. Publish the result as the activity's live revision, then record its row.
 
 Every failure raises a ``PxcBuildFailed`` subclass whose message is written for the agent that
 submitted the code, so it can fix the code and retry.
@@ -37,7 +37,6 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from sparkth.lib.db import session_scope
 from sparkth.lib.log import get_logger
-from sparkth.plugins.pxc.activities import generated_activity_dir
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import (
     PXC_COMPILE_TOOLCHAIN_MISSING,
@@ -45,6 +44,7 @@ from sparkth.plugins.pxc.constants import (
 )
 from sparkth.plugins.pxc.exceptions import PxcBuildTimedOut, PxcCompileFailed, PxcManifestInvalid, PxcSmokeTestFailed
 from sparkth.plugins.pxc.models import PxcActivity
+from sparkth.plugins.pxc.revisions import publish_revision, remove_activity_files
 from sparkth.plugins.pxc.schemas import ActivitySource
 from sparkth.plugins.pxc.store import insert_activity
 
@@ -241,12 +241,19 @@ async def stage_activity(work: Path, manifest: dict[str, object], source: Activi
     return staged
 
 
+def _builds_dir() -> Path:
+    """The build scratch directory, created on first use, on the activities' filesystem."""
+    builds = get_pxc_settings().data_dir.resolve() / "builds"
+    builds.mkdir(parents=True, exist_ok=True)
+    return builds
+
+
 async def build_activity(source: ActivitySource, owner_user_id: int) -> PxcActivity:
     """Build one activity from an agent's files, store it, and return its row.
 
     The work directory sits under ``PXC_DATA_DIR/builds``, on the same filesystem as the
-    activities, so moving a finished build into place is an atomic rename. Any failure removes
-    the work directory (and the moved files, if recording the row fails) and writes no row.
+    activities, so publishing a finished build is a rename. Any failure removes the work
+    directory, plus the activity's link and revision if recording the row fails, and writes no row.
 
     Raises:
         PxcBuildFailed: a ``PxcManifestInvalid``, ``PxcCompileFailed``, ``PxcSmokeTestFailed``
@@ -255,20 +262,17 @@ async def build_activity(source: ActivitySource, owner_user_id: int) -> PxcActiv
     activity = PxcActivity(owner_user_id=owner_user_id, title=source.title, description=source.description)
     activity_id = str(activity.id)
     manifest = validate_manifest(source.manifest, activity_id)
-    builds = get_pxc_settings().data_dir.resolve() / "builds"
-    builds.mkdir(parents=True, exist_ok=True)
+    builds = _builds_dir()
     async with _BUILD_SLOTS:
         with tempfile.TemporaryDirectory(dir=builds) as work:
             staged = await stage_activity(Path(work), manifest, source)
-            target = generated_activity_dir(activity_id)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            staged.rename(target)
+            publish_revision(staged, activity_id)
     try:
         async with session_scope() as session:
             await insert_activity(session, activity)
     except SQLAlchemyError, asyncio.CancelledError:
         logger.warning("Recording PXC activity %s failed; removing its built files", activity_id)
-        shutil.rmtree(generated_activity_dir(activity_id), ignore_errors=True)
+        remove_activity_files(activity_id)
         raise
     logger.info("Built PXC activity %s for user %s", activity_id, owner_user_id)
     return activity

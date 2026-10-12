@@ -9,6 +9,7 @@ loop for every other request in the process.
 """
 
 import asyncio
+from dataclasses import replace
 from pathlib import Path
 
 import pxc.lib
@@ -32,9 +33,10 @@ from sparkth.plugins.pxc.exceptions import (
     PxcAssetNotFound,
     PxcInvalidLaunchToken,
 )
-from sparkth.plugins.pxc.runtime import build_runtime, read_state, run_action
+from sparkth.plugins.pxc.revisions import live_revision
+from sparkth.plugins.pxc.runtime import build_runtime, launch_dir, read_state, run_action
 from sparkth.plugins.pxc.schemas import ActivityConfig, LaunchContext
-from sparkth.plugins.pxc.tokens import LaunchClaims, read_launch_token
+from sparkth.plugins.pxc.tokens import LaunchClaims, pin_launch_token, read_launch_token
 from sparkth.plugins.pxc.websocket import run_action_frames
 
 logger = get_logger(__name__)
@@ -61,6 +63,11 @@ async def embed_activity(
     Served under a sandbox CSP, so the document has an opaque origin however it is opened, and
     activity code in it cannot reach Sparkth's own storage.
     """
+    # Every request this page makes reads the revision live now, so an update cannot mix two revisions.
+    revision = live_revision(claims.activity)
+    if revision is not None:
+        token = pin_launch_token(token, revision)
+        claims = replace(claims, revision=revision)
     config_json = (await _activity_config(claims, token, request)).model_dump_json().replace("<", "\\u003c")
     client_url = request.url_for("client_script", file_name="sparkth-pxc.js")
     return HTMLResponse(
@@ -121,7 +128,7 @@ async def activity_asset(file_path: str, claims: LaunchClaims = Depends(read_lau
     Raises:
         PxcAssetNotFound: if the manifest does not declare the file, or it is missing.
     """
-    return FileResponse(asset_path(claims.activity, file_path), headers=PXC_CORS_HEADERS | PXC_SANDBOX_HEADERS)
+    return FileResponse(asset_path(launch_dir(claims), file_path), headers=PXC_CORS_HEADERS | PXC_SANDBOX_HEADERS)
 
 
 @router.post("/actions/{action_name}", status_code=status.HTTP_204_NO_CONTENT)

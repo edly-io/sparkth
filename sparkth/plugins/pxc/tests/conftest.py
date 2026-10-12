@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 from sqlmodel.ext.asyncio.session import AsyncSession
+from uuid6 import uuid7
 
 from sparkth.core.models.user import User
 from sparkth.lib.auth import bind_current_user_id
@@ -23,7 +24,7 @@ from sparkth.plugins.pxc.activities import activity_dir, generated_activity_dir
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.event_bus import EVENT_BUS
 from sparkth.plugins.pxc.models import PxcActivity
-from sparkth.plugins.pxc.schemas import ActivityConfig
+from sparkth.plugins.pxc.schemas import ActivityConfig, ActivitySource
 from sparkth.plugins.pxc.store import insert_activity
 
 SANDBOX_WASM = activity_dir("mcq") / "sandbox.wasm"
@@ -135,3 +136,44 @@ async def authored_activity(session: AsyncSession, authors: tuple[User, User]) -
     (directory / "ui.js").write_text(AUTHORED_UI_JS, encoding="utf-8")
     (directory / "sandbox.js").write_text(AUTHORED_SANDBOX_JS, encoding="utf-8")
     return activity
+
+
+def staged_activity(question: str) -> Path:
+    """A finished activity directory under the data dir's ``builds/``, as a build leaves it.
+
+    Its one field's default is ``question``, which tells revisions apart.
+    """
+    staged = get_pxc_settings().data_dir / "builds" / str(uuid7())
+    staged.mkdir(parents=True)
+    manifest = {
+        "name": "staged",
+        "ui": "ui.js",
+        "sandbox": "sandbox.wasm",
+        "fields": {"question": {"type": "string", "scope": "activity", "default": question}},
+    }
+    (staged / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    return staged
+
+
+def question_in(directory: Path) -> str:
+    """The question default of the activity files in ``directory``."""
+    question: str = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))["fields"]["question"][
+        "default"
+    ]
+    return question
+
+
+async def stage_without_compiling(work: Path, manifest: dict[str, object], source: ActivitySource) -> Path:
+    """Lay an activity's files down the way ``stage_activity`` does, with no compile or smoke test."""
+    staged = work / "activity"
+    staged.mkdir()
+    (staged / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (staged / "ui.js").write_text(source.ui_js, encoding="utf-8")
+    (staged / "sandbox.js").write_text(source.sandbox_js, encoding="utf-8")
+    return staged
+
+
+@pytest.fixture
+def uncompiled_builds(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Build and update without the toolchain: staging writes the files and skips the compile."""
+    monkeypatch.setattr("sparkth.plugins.pxc.builder.stage_activity", stage_without_compiling)
