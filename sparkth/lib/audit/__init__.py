@@ -3,7 +3,9 @@
 The write path lives here (:func:`record_event`, :func:`record_event_now`),
 together with the AI tool-execution seam (:func:`audited_tool`, which
 records the fail-closed ``tool.invoked`` / ``tool.completed`` / ``tool.failed``
-pair around every tool handler), :func:`scrub_error_detail` (the secret-safe
+pair around every tool handler), :func:`tool_failure` (which names the
+:class:`ToolFailureKind` a handler reported by returning ``{"error": ...}``),
+:func:`scrub_error_detail` (the secret-safe
 formatter for the free-text ``error_detail`` an event carries), and the two
 maintenance operations allowed past the append-only guard:
 :func:`purge_expired_events` (per-category retention) and :func:`erase_actor`
@@ -25,16 +27,18 @@ meaning an event that cannot be written fails the mutating or AI action it
 records.
 """
 
-from sparkth.core.audit.execution import audited_tool
+from sparkth.core.audit.execution import ToolFailureKind, audited_tool, tool_failure
 from sparkth.core.audit.maintenance import erase_actor, purge_expired_events
 from sparkth.core.audit.recorder import record_event, record_event_now
 from sparkth.core.audit.redaction import scrub_error_detail
 
 __all__ = [
+    "ToolFailureKind",
     "audited_tool",
     "erase_actor",
     "purge_expired_events",
     "record_event",
     "record_event_now",
     "scrub_error_detail",
+    "tool_failure",
 ]
