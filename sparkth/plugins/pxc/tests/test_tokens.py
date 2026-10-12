@@ -1,5 +1,6 @@
 import logging
 import time
+from dataclasses import replace
 
 import jwt
 import pytest
@@ -9,7 +10,13 @@ from uuid6 import uuid7
 from sparkth.plugins.pxc.constants import PXC_PREVIEW_ACTIVITY_INSTANCE, PXC_PREVIEW_COURSE_ID
 from sparkth.plugins.pxc.enums import PreviewPermission
 from sparkth.plugins.pxc.exceptions import PxcInvalidLaunchToken, PxcLaunchNotConfigured
-from sparkth.plugins.pxc.tokens import LaunchClaims, mint_launch_token, mint_preview_token, read_launch_token
+from sparkth.plugins.pxc.tokens import (
+    LaunchClaims,
+    mint_launch_token,
+    mint_preview_token,
+    pin_launch_token,
+    read_launch_token,
+)
 
 CLAIMS = ("mcq", "instance-1", "course-1", "learner-7")
 OTHER_SECRET = "a-different-secret-of-32-plus-bytes"
@@ -229,3 +236,19 @@ def test_a_preview_learner_never_shares_an_lms_learners_id(configured_secret: st
 def test_a_preview_token_needs_a_configured_secret() -> None:
     with pytest.raises(PxcLaunchNotConfigured):
         mint_preview_token(uuid7(), 7, PreviewPermission.PLAY)
+
+
+def test_a_pinned_token_keeps_every_claim_and_its_expiry_and_adds_the_revision(configured_secret: str) -> None:
+    token = mint_launch_token(*CLAIMS, "edit", configured_secret, 60)
+    revision = str(uuid7())
+
+    pinned = pin_launch_token(token, revision)
+
+    assert read_launch_token(pinned) == replace(read_launch_token(token), revision=revision)
+    expiry = jwt.decode(token, configured_secret, algorithms=["HS256"])["exp"]
+    assert jwt.decode(pinned, configured_secret, algorithms=["HS256"])["exp"] == expiry
+
+
+def test_a_token_that_does_not_verify_is_not_pinned(configured_secret: str) -> None:
+    with pytest.raises(PxcInvalidLaunchToken):
+        pin_launch_token(mint_launch_token(*CLAIMS, "play", OTHER_SECRET, 300), str(uuid7()))
