@@ -28,10 +28,11 @@ is declared in application code, not kept in a catalogue table.
 
 - **Permissions** are declared with `Permission.create("assignment.grade")`, which registers
   the permission on the **`PERMISSIONS`** hook. Core permissions are declared this way in
-  `sparkth.core.permissions`; plugins declare their own from their `__init__`.
+  `sparkth.core.permissions`; plugins declare their own at module level in their `plugin.py`.
 - **Scope kinds** are declared with `PermissionScope.create("course", parent=...)`, which
   registers the scope on the **`PERMISSION_SCOPES`** hook. The root `global` scope is declared
-  this way in `sparkth.core.permissions.scopes`; plugins declare their own from `__init__`.
+  this way in `sparkth.core.permissions.scopes`; plugins declare their own at module level in
+  their `plugin.py`.
 
 Each hook is a `SingleNamedItemHook` keyed by name: declaring two permissions or two scope
 kinds with the same name **raises `ValueError`**, so a collision fails fast at import time.
@@ -78,8 +79,8 @@ descendants. Object-bearing multi-level cascade (e.g. a grant at one `org` apply
 | Kind | Names | Notes |
 |---|---|---|
 | **Scopes** | `global`, `whitelist`, `role` | `global` is the objectless root (applies platform-wide). `whitelist` is an objectless singleton nested under `global` for the registration whitelist. `role` is object-bearing (nested under `global`) so role management can be delegated per-role by that role's id. A `global` grant cascades down to both. |
-| **Permissions** | `email.whitelist.{read,create,delete}`; `role.{create,read,update,delete}`; `group.{create,read,update,delete}`; `permission.read` | Gate the registration email-whitelist endpoints, the role-management API, the group-management API, and listing the assignable permission vocabulary respectively. |
-| **Roles** | `admin` | Grants the three `email.whitelist.*`, the four `role.*`, the four `group.*`, and `permission.read`. A seed migration also assigned it at `global` to every account that was a superuser when the migration ran — a one-time backfill. |
+| **Permissions** | `email.whitelist.{read,create,delete}`; `role.{create,read,update,delete}`; `group.{create,read,update,delete}`; `permission.read`; `analytics.read` | Gate the registration email-whitelist endpoints, the role-management API, the group-management API, listing the assignable permission vocabulary, and the analytics dashboards and their read API respectively. |
+| **Roles** | `admin` | Grants the three `email.whitelist.*`, the four `role.*`, the four `group.*`, `permission.read`, and `analytics.read`. A seed migration also assigned it at `global` to every account that was a superuser when the migration ran — a one-time backfill. |
 
 Roles and their permission grants are managed at runtime through the role-management REST API
 under `/api/v1/permissions` (gated by `role.*` / `permission.read`). See the REST API docs
@@ -152,25 +153,52 @@ remove counterparts: a call that changes nothing (the grant already exists, or t
 nothing active to revoke) records nothing. Likewise an update that leaves a role's or group's
 name and description as they were records nothing.
 
+## Before adding one
+
+A permission name is stored as a literal string in every `role_permission` row that grants
+it, and `can()` matches it literally. Once a permission has been granted, renaming it revokes
+it from every holder at once, and a rename or a removal leaves the old rows behind until a data
+migration rewrites or deletes them. A scope kind is stored the same way, in the `scope` column of every assignment made at
+it. Settle these before declaring one:
+
+- **Is the action already covered?** If a declared permission already means exactly this
+  action, gate on it. Reuse only on an exact match: gating a new action on an existing
+  permission hands that action to everyone who already holds it.
+- **What does it gate?** Name the routes or features that check it, and declare the
+  permission in the same change as the code that checks it.
+- **One permission or several?** A permission is the smallest thing an operator can grant.
+  Actions behind one permission cannot later be granted apart without a data migration that
+  rewrites every role holding it. Permissions that are always granted together add vocabulary
+  with nothing to show for it.
+- **Where is it checked?** At `global`, at an existing scope kind, or at a new one. A new
+  scope kind needs a parent and is either objectless or object-bearing, and a grant at an
+  objectless ancestor satisfies the check at every descendant (see
+  [Scopes](#scopes-where-not-what)).
+- **Who holds it after deploy?** Nobody, unless a data migration grants it to a seeded role
+  (see *Add a role and its permissions* below). Granting it to `admin` that way gives it to
+  every current admin as soon as the release is migrated. Left ungranted, an operator grants
+  it at runtime through the role-management API.
+- **Does the UI check it?** The frontend checks a permission with `checkPermission`, which
+  accepts only names in the `PermissionName` union in `frontend/lib/permissions/types.ts`. That
+  union mirrors the whole vocabulary by hand, so every new permission is added to it.
+
 ## Extending the permission system
 
-**Declare a permission or scope kind** — a plugin declares its own from its `__init__`,
-exactly as it registers tools or config. Core declarations live in `sparkth.core.permissions`
-(permissions) and `sparkth.core.permissions.scopes` (scope kinds). Import everything from
+**Declare a permission or scope kind** — a plugin declares its own at module level in its
+`plugin.py`, bound to a constant, never in the plugin class's `__init__`: the loader and the
+plugin's own tests each construct the class, and a second declaration of a name raises
+`ValueError`. Core declarations live in `sparkth.core.permissions` (permissions) and
+`sparkth.core.permissions.scopes` (scope kinds). Import everything from
 `sparkth.lib.permissions` — never from `sparkth.core` or the hook modules directly.
 
 ```python
+# sparkth/plugins/grader/plugin.py
 from sparkth.lib.permissions import Permission
 from sparkth.lib.permissions.scopes import GLOBAL, PermissionScope
-from sparkth.lib.plugins import SparkthPlugin
 
-
-class GraderPlugin(SparkthPlugin):
-    def __init__(self, name: str) -> None:
-        super().__init__(name)
-        Permission.create("assignment.grade")
-        # a scope kind's parent must already be registered (the global root always is)
-        PermissionScope.create("course", parent=GLOBAL)
+ASSIGNMENT_GRADE = Permission.create("assignment.grade")
+# a scope kind's parent must already be registered (the global root always is)
+COURSE = PermissionScope.create("course", parent=GLOBAL)
 ```
 
 **Add a role and its permissions** — seed them in a migration:

@@ -13,10 +13,10 @@ class PermissionScope:
     is :class:`ObjectlessPermissionScope`, a subclass that overrides the object-id rules, the
     ``require()`` wiring, and how the scope cascades.
 
-    Declared from a plugin's ``__init__`` (or ``sparkth.core.permissions.scopes`` for core scopes) via
-    ``create()``. Each scope may have a single ``parent``, forming a chain from a specific kind up
-    to a broader one; a scope with no parent is a root. The hierarchy lets a grant at an ancestor
-    scope cascade to its descendants — see :meth:`scope_chain`.
+    Declared at module level in a plugin's ``plugin.py`` (or ``sparkth.core.permissions.scopes``
+    for core scopes) via ``create()``. Each scope may have a single ``parent``, forming a chain
+    from a specific kind up to a broader one; a scope with no parent is a root. The hierarchy
+    lets a grant at an ancestor scope cascade to its descendants — see :meth:`scope_chain`.
     """
 
     def __init__(self, name: str, parent: "PermissionScope | None" = None) -> None:
