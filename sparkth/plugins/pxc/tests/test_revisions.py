@@ -19,6 +19,10 @@ def _rmtree_busy(path: Path) -> None:
     raise OSError("busy")
 
 
+def _replace_refused(source: Path, target: Path) -> None:
+    raise OSError("link refused")
+
+
 def test_a_published_activity_resolves_to_its_revision() -> None:
     activity_id = str(uuid7())
 
@@ -177,3 +181,16 @@ def test_pruning_removes_only_the_revisions_whose_successor_outlived_the_window(
     prune_revisions(activity_id, 3600)
 
     assert sorted(revisions_dir(activity_id).iterdir()) == [aged_middle, newest]
+
+
+def test_a_failed_link_leaves_no_new_revision_and_keeps_the_live_one(monkeypatch: pytest.MonkeyPatch) -> None:
+    activity_id = str(uuid7())
+    first = publish_revision(staged_activity("first"), activity_id)
+    monkeypatch.setattr("sparkth.plugins.pxc.revisions.os.replace", _replace_refused)
+
+    with pytest.raises(OSError):
+        publish_revision(staged_activity("second"), activity_id)
+
+    assert list(revisions_dir(activity_id).iterdir()) == [first]
+    assert activity_dir(activity_id) == first
+    assert [entry.name for entry in generated_activity_dir(activity_id).parent.iterdir()] == [activity_id]
