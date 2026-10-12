@@ -92,7 +92,7 @@ What an update may change depends on whether the activity is placed:
 |---|---|---|
 | `ui.js`, `sandbox.js`, actions, events, title, description | allowed | allowed |
 | A new field, or a field's `default` | allowed | allowed |
-| Removing a field, or changing a field's type, scope or nested schema | allowed | refused |
+| A change that is not backward compatible, such as removing a field or changing a field's type, scope or nested schema | allowed | refused |
 
 A changed `default` reaches every activity instance that has no saved value of its own. A saved
 value keeps its shape whatever the default is.
