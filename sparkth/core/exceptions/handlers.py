@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from starlette.requests import Request
 from starlette.types import ExceptionHandler
 
+from sparkth.core.exceptions.constants import FRAMEWORK_HANDLED_EXCEPTIONS
 from sparkth.lib.hooks import KeyedItemHook
 from sparkth.lib.log import get_logger
 
@@ -41,6 +42,12 @@ def register_exception_handler(
     ``ValueError``, as does a ``status_code`` outside the 4xx/5xx error range — this
     registry is for error statuses only.
 
+    ``HTTPException``, ``RequestValidationError``, ``WebSocketRequestValidationError`` and
+    their subclasses also raise ``ValueError``: FastAPI ships its own handlers for them, and
+    a mapping here would replace those handlers, dropping ``HTTPException``'s own status and
+    headers and the structured 422 validation body. Map an HTTP-agnostic domain exception
+    instead.
+
     Starlette does not log exceptions that a handler renders, so the handler logs every
     occurrence itself at ``warning`` — otherwise a mapped type leaves no trace and a spike
     of a given status is undiagnosable.
@@ -49,6 +56,8 @@ def register_exception_handler(
     carry a client-safe message: no internal identifiers, filesystem paths, SQL, stack
     detail, or secrets. Keep sensitive context in the logged exception, not its message.
     """
+    if issubclass(exc_type, FRAMEWORK_HANDLED_EXCEPTIONS):
+        raise ValueError(f"{exc_type.__name__} is handled by FastAPI's built-in exception handlers")
     if not 400 <= status_code <= 599:
         raise ValueError(f"status_code must be a 4xx/5xx error status, got {status_code}")
 
