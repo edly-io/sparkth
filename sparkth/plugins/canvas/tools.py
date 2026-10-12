@@ -47,7 +47,7 @@ async def canvas_authenticate(auth: AuthenticationPayload) -> dict[str, Any]:
             res = await client.authenticate()
         return {"status": res}
     except AuthenticationError as e:
-        return {"status": e.status_code, "message": e.message}
+        return _lms_error(e)
 
 
 async def canvas_get_courses(auth: AuthenticationPayload, page: int) -> dict[str, Any]:

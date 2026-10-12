@@ -105,6 +105,14 @@ async def register_user(
         name=db_user.name,
         raw_token=raw_token,
     )
+    background_tasks.add_task(
+        emit_event,
+        "user.registered",
+        1,
+        {"method": LoginMethod.PASSWORD},
+        actor_id=str(db_user.id),
+        occurred_at=db_user.created_at,
+    )
     return db_user
 
 
@@ -256,9 +264,13 @@ async def google_callback(
     3. Creates or links the user account
     4. Redirects to frontend with JWT token
 
+    A first sign-in that creates the account also emits ``user.registered`` before the login
+    event; linking an existing account does not.
+
     A completed login emits ``user.logged_in``; a callback that redirects back to the
     login page with an error logged nobody in, so it emits nothing.
     """
+    created = False
     try:
         # Exchange code for tokens
         token_data = await exchange_auth_code(code)
@@ -327,6 +339,7 @@ async def google_callback(
                 await record_event(session, _registered_event(user, method="google"))
                 await session.commit()
                 await session.refresh(user)
+                created = True
 
         await record_event_now(
             LoginAuditEvent(outcome=AuditOutcome.SUCCESS, actor=UserActor(id=str(user.id), label=user.username))
@@ -338,6 +351,15 @@ async def google_callback(
 
         jwt_token = security.create_access_token(data={"sub": user.username}, expires_delta=access_token_expires)
 
+        if created:
+            background_tasks.add_task(
+                emit_event,
+                "user.registered",
+                1,
+                {"method": LoginMethod.GOOGLE},
+                actor_id=str(user.id),
+                occurred_at=user.created_at,
+            )
         background_tasks.add_task(
             _emit_login_event,
             method=LoginMethod.GOOGLE,
@@ -357,15 +379,16 @@ async def google_callback(
 @router.post("/verify-email", status_code=status.HTTP_204_NO_CONTENT)
 async def verify_email(
     body: VerifyEmailRequest,
+    background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_async_session),
 ) -> None:
     # Unauthenticated endpoint: deliberately returns no body so we don't leak
     # account state (verified flag, id, name) to anyone holding a token.
-    # The success event is recorded by the service in this transaction; a
+    # The audit success event is recorded by the service in this transaction; a
     # rejection is committed on its own (the request ends in a 400) and names
     # the reason, never the token.
     try:
-        await EmailVerificationService.verify_token(session, raw_token=body.token)
+        user = await EmailVerificationService.verify_token(session, raw_token=body.token)
     except (TokenExpiredError, TokenInvalidError) as exc:
         await record_event_now(
             EmailVerifiedAuditEvent(outcome=AuditOutcome.FAILURE, actor=AnonymousActor(), error_detail=str(exc))
@@ -373,6 +396,14 @@ async def verify_email(
         code = "expired_token" if isinstance(exc, TokenExpiredError) else "invalid_token"
         raise HTTPException(status_code=400, detail=code)  # i18n-exempt: machine-read code
     await session.commit()
+    background_tasks.add_task(
+        emit_event,
+        "user.email_verified",
+        1,
+        {},
+        actor_id=str(user.id),
+        occurred_at=user.email_verified_at,
+    )
 
 
 @asynccontextmanager

@@ -2,8 +2,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from sparkth.lib.audit import ToolFailureKind, tool_failure
 from sparkth.lib.exceptions import AuthenticationError
 from sparkth.plugins.canvas.client import CanvasClient
+from sparkth.plugins.canvas.schemas import AuthenticationPayload
+from sparkth.plugins.canvas.tools import canvas_authenticate
 
 
 class TestCanvasClientAuthenticate:
@@ -59,3 +62,21 @@ class TestCanvasClientAuthenticate:
                     await client.authenticate()
 
         assert exc_info.value.args[0] == "Invalid access token (status_code=401)"
+
+
+class TestCanvasAuthenticateTool:
+    AUTH = AuthenticationPayload(api_url="https://canvas.example.com", api_token="token")
+
+    @pytest.mark.asyncio
+    async def test_success_returns_the_status(self) -> None:
+        with patch.object(CanvasClient, "authenticate", AsyncMock(return_value=200)):
+            assert await canvas_authenticate(self.AUTH) == {"status": 200}
+
+    @pytest.mark.asyncio
+    async def test_failure_returns_the_standard_error_shape(self) -> None:
+        error = AuthenticationError(401, "Invalid access token")
+        with patch.object(CanvasClient, "authenticate", AsyncMock(side_effect=error)):
+            result = await canvas_authenticate(self.AUTH)
+
+        assert result == {"error": {"status_code": 401, "message": "Invalid access token"}}
+        assert tool_failure(result) == ToolFailureKind.AUTH
