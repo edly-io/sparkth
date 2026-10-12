@@ -11,9 +11,9 @@ from sparkth.lib.frontend.hooks import (
     SidebarEntry,
 )
 from sparkth.lib.i18n import gettext_noop
+from sparkth.lib.llm import LLMConfigAdapter
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.lib.routes import register_router
-from sparkth.plugins.slack.adapter import SlackConfigAdapter
 from sparkth.plugins.slack.config import SlackConfig
 from sparkth.plugins.slack.routes import router
 
@@ -24,7 +24,7 @@ class Slack(SparkthPlugin):
     def __init__(self) -> None:
         super().__init__("slack")
         CONFIG_SCHEMAS.add_item(self, SlackConfig)
-        CONFIG_ADAPTERS.add_item(self, SlackConfigAdapter())
+        CONFIG_ADAPTERS.add_item(self, LLMConfigAdapter())
         register_router(self, router)
         DISPLAY_INFO.add_item(
             self,
