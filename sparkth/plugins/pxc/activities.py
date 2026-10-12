@@ -60,9 +60,10 @@ def activity_dir(activity_name: str) -> Path:
     """The source directory of one activity: a bundled one by name, else a generated one by id.
 
     Bundled activities are looked up first. A generated activity resolves from its directory
-    alone, so a learner's launch needs no database read. A generated activity's path is the live
-    revision's directory, resolved once, so a caller keeps reading one revision even after a newer
-    one goes live.
+    alone, so a learner's launch needs no database read. A generated activity's path is the
+    directory of the revision live at the call, so a caller holding it keeps reading that revision
+    after a newer one goes live. A launch spans many calls, so it reads the revision its token pins
+    instead (see ``runtime.launch_dir``).
 
     Raises:
         PxcActivityNotFound: if no bundled activity goes by this name and no generated activity
@@ -93,33 +94,30 @@ def state_file(activity_name: str) -> Path:
     return get_pxc_settings().data_dir / f"{activity_name}.sqlite3"
 
 
-def asset_path(activity_name: str, file_path: str) -> Path:
-    """The file behind one asset URL: the activity's UI script, or one asset it declares.
+def asset_path(directory: Path, file_path: str) -> Path:
+    """The file behind one asset URL: the UI script of the activity in ``directory``, or one asset it declares.
 
     An exact match against the manifest is what keeps a request inside the activity directory.
     The manifest schema constrains ``ui`` and every asset to a relative path free of ``..``, so
     a path that matches one of them cannot escape, and one that matches none is refused before
-    it is ever joined. The manifest and the file are read from one resolved directory, so both
-    come from the same revision.
+    it is ever joined.
 
     Raises:
-        PxcActivityNotFound: if no activity goes by this name.
         PxcAssetNotFound: if the manifest does not declare the file, or it is missing on disk.
     """
-    directory = activity_dir(activity_name)
     manifest = PxcActivityManifest.model_validate_json((directory / "manifest.json").read_text(encoding="utf-8"))
     if file_path not in {manifest.ui, *(asset.root for asset in manifest.assets or [])}:
-        logger.warning("Refused undeclared asset %s of activity %s", file_path, activity_name)
+        logger.warning("Refused undeclared asset %s of the activity in %s", file_path, directory)
         raise PxcAssetNotFound(f"No such asset: {file_path}")
     path = directory / file_path
     if not path.is_file():
-        logger.warning("Declared asset %s of activity %s is missing on disk", file_path, activity_name)
+        logger.warning("Declared asset %s of the activity in %s is missing on disk", file_path, directory)
         raise PxcAssetNotFound(f"No such asset: {file_path}")
     return path
 
 
 def parse_activity_id(activity_id: str) -> UUID:
-    """Parse the id of a generated activity, accepted only in its canonical spelling.
+    """Parse the id of a generated activity, or of one of its revisions, accepted only in its canonical spelling.
 
     One spelling per activity keeps its state in one place. No path-escaping text parses, so a
     parsed id never leaves the activities directory.

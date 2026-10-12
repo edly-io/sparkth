@@ -7,7 +7,14 @@ from uuid6 import uuid7
 
 from sparkth.plugins.pxc.activities import activity_dir, generated_activity_dir
 from sparkth.plugins.pxc.config import get_pxc_settings
-from sparkth.plugins.pxc.revisions import publish_revision, remove_activity_files, revisions_dir
+from sparkth.plugins.pxc.exceptions import PxcActivityNotFound
+from sparkth.plugins.pxc.revisions import (
+    live_revision,
+    publish_revision,
+    remove_activity_files,
+    revision_dir,
+    revisions_dir,
+)
 from sparkth.plugins.pxc.tests.conftest import question_in, staged_activity
 
 
@@ -103,3 +110,39 @@ def test_a_failed_link_leaves_no_new_revision_and_keeps_the_live_one(monkeypatch
     assert list(revisions_dir(activity_id).iterdir()) == [first]
     assert activity_dir(activity_id) == first
     assert [entry.name for entry in generated_activity_dir(activity_id).parent.iterdir()] == [activity_id]
+
+
+def test_the_live_revision_is_the_one_published_last() -> None:
+    activity_id = str(uuid7())
+    publish_revision(staged_activity("first"), activity_id)
+    second = publish_revision(staged_activity("second"), activity_id)
+
+    assert live_revision(activity_id) == second.name
+
+
+def test_a_bundled_activity_has_no_revision() -> None:
+    assert live_revision("mcq") is None
+
+
+def test_a_replaced_revision_still_resolves_by_its_id() -> None:
+    activity_id = str(uuid7())
+    first = publish_revision(staged_activity("first"), activity_id)
+    publish_revision(staged_activity("second"), activity_id)
+
+    assert revision_dir(activity_id, first.name) == first
+
+
+def test_a_revision_no_longer_on_disk_is_not_found() -> None:
+    activity_id = str(uuid7())
+    publish_revision(staged_activity("first"), activity_id)
+
+    with pytest.raises(PxcActivityNotFound):
+        revision_dir(activity_id, str(uuid7()))
+
+
+def test_a_path_shaped_revision_is_not_found_even_where_it_lands_on_an_activity() -> None:
+    activity_id = str(uuid7())
+    publish_revision(staged_activity("first"), activity_id)
+
+    with pytest.raises(PxcActivityNotFound):
+        revision_dir(activity_id, f"../../activities/{activity_id}")
