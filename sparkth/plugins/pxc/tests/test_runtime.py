@@ -7,7 +7,9 @@ from uuid6 import uuid7
 
 from sparkth.plugins.pxc.activities import activity_dir, generated_activity_dir
 from sparkth.plugins.pxc.exceptions import PxcActionRejected, PxcActivityNotFound
+from sparkth.plugins.pxc.revisions import publish_revision
 from sparkth.plugins.pxc.runtime import build_runtime, read_state, run_action
+from sparkth.plugins.pxc.tests.conftest import staged_activity
 from sparkth.plugins.pxc.tokens import LaunchClaims
 
 CLAIMS = LaunchClaims("mcq", "instance-1", "course-1", "learner-7", Permission.play)
@@ -109,3 +111,12 @@ def test_a_generated_activity_launches_from_its_own_directory() -> None:
     runtime = build_runtime(LaunchClaims(activity_id, "instance-1", "course-1", "learner-7", Permission.play))
 
     assert runtime.name == activity_id
+
+
+def test_a_pinned_launch_reads_its_revision_after_a_newer_one_goes_live() -> None:
+    activity_id = str(uuid7())
+    first = publish_revision(staged_activity("first"), activity_id)
+    publish_revision(staged_activity("second"), activity_id)
+    claims = LaunchClaims(activity_id, "instance-1", "course-1", "learner-7", Permission.play, first.name)
+
+    assert build_runtime(claims).manifest.fields["question"].root.default == "first"

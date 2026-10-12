@@ -4,6 +4,8 @@ Every entry point here is synchronous and CPU-bound: the sandbox runs WebAssembl
 calling thread. Routes must call these from a worker thread, never on the event loop.
 """
 
+from pathlib import Path
+
 from pxc.lib.actions import ActionValidationError
 from pxc.lib.fields import FieldType
 from pxc.lib.file_storage import LocalFileStorage
@@ -15,9 +17,21 @@ from sparkth.plugins.pxc.activities import activity_dir, state_file
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.exceptions import PxcActionRejected, PxcSandboxFailure
 from sparkth.plugins.pxc.field_store.sqlite import SqliteFieldStore
+from sparkth.plugins.pxc.revisions import revision_dir
 from sparkth.plugins.pxc.tokens import LaunchClaims
 
 logger = get_logger(__name__)
+
+
+def launch_dir(claims: LaunchClaims) -> Path:
+    """The activity files a launch reads: the revision its token pins, else the live ones.
+
+    Raises:
+        PxcActivityNotFound: if the activity, or the revision the token pins, is not on disk.
+    """
+    if claims.revision is None:
+        return activity_dir(claims.activity)
+    return revision_dir(claims.activity, claims.revision)
 
 
 def build_runtime(claims: LaunchClaims) -> ActivityRuntime:
@@ -29,10 +43,10 @@ def build_runtime(claims: LaunchClaims) -> ActivityRuntime:
 
     Raises:
         PxcActivityNotFound: if the claimed activity is neither bundled nor a generated
-            activity on disk.
+            activity on disk, or the revision the token pins is gone.
     """
     return ActivityRuntime(
-        activity_dir(claims.activity),
+        launch_dir(claims),
         SqliteFieldStore(state_file(claims.activity)),
         LocalFileStorage(get_pxc_settings().data_dir / "storage" / claims.activity),
         claims.activity_instance,

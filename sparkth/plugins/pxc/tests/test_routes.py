@@ -1,9 +1,14 @@
+import shutil
 import sys
 from pathlib import Path
 
 import pytest
 from httpx import AsyncClient
+from uuid6 import uuid7
 
+from sparkth.plugins.pxc.activities import activity_dir
+from sparkth.plugins.pxc.config import get_pxc_settings
+from sparkth.plugins.pxc.revisions import publish_revision
 from sparkth.plugins.pxc.tests.conftest import inline_config
 from sparkth.plugins.pxc.tokens import mint_launch_token
 
@@ -317,3 +322,26 @@ async def test_the_embed_shell_opens_in_a_sandbox(client: AsyncClient, token: st
     response = await client.get("/api/v1/pxc/embed", params={"token": token})
 
     assert response.headers["content-security-policy"] == "sandbox allow-scripts allow-forms"
+
+
+def _publish_mcq_copy(activity_id: str, ui_js: str) -> Path:
+    """Publish a revision of ``activity_id`` that copies the bundled mcq activity, with ``ui_js`` as its UI script."""
+    staged = get_pxc_settings().data_dir / "builds" / str(uuid7())
+    shutil.copytree(activity_dir("mcq"), staged)
+    (staged / "ui.js").write_text(ui_js)
+    return publish_revision(staged, activity_id)
+
+
+@pytest.mark.wasm
+async def test_an_open_page_keeps_its_revisions_ui_script_after_an_update(
+    client: AsyncClient, configured_secret: str
+) -> None:
+    activity_id = str(uuid7())
+    _publish_mcq_copy(activity_id, "first")
+    token = mint_launch_token(activity_id, "instance-1", "course-1", "learner-7", "play", configured_secret, 300)
+    config = inline_config((await client.get("/api/v1/pxc/embed", params={"token": token})).text)
+    _publish_mcq_copy(activity_id, "second")
+
+    response = await client.get(config.ui_url)
+
+    assert response.text == "first"
