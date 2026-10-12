@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { daysAgoUtc, stubLoginActivity, stubPermission, todayUtc } from "./utils/analytics";
+import { daysAgoUtc, stubLogins, stubPermission, todayUtc } from "./utils/analytics";
 
 /**
  * Analytics dashboard. Runs as the seeded e2e user (auth.setup.ts), which has no roles, so
@@ -22,19 +22,40 @@ test.describe("analytics", () => {
   });
 
   test("shows the empty state for a period with no logins", async ({ page }) => {
-    await stubLoginActivity(page, []);
+    await stubLogins(page, []);
     await page.goto("/dashboard/analytics/logins");
     await expect(page.getByText(/no logins in this period/i)).toBeVisible();
   });
 
   test("shows login totals when there is data", async ({ page }) => {
-    await stubLoginActivity(page, [{ day: todayUtc(), login_count: 4 }]);
+    await stubLogins(page, [{ bucket: todayUtc(), method: "password", login_count: 4 }]);
     await page.goto("/dashboard/analytics/logins");
     await expect(page.getByText("Total logins")).toBeVisible();
   });
 
+  test("shows logins by sign-in method", async ({ page }) => {
+    await stubLogins(page, [
+      { bucket: todayUtc(), method: "google", login_count: 3 },
+      { bucket: todayUtc(), method: "password", login_count: 1 },
+    ]);
+    await page.goto("/dashboard/analytics/logins");
+    await expect(page.getByRole("heading", { name: "Sign-in method" })).toBeVisible();
+    // The bar label; the screen-reader table repeats it.
+    await expect(page.getByText("Google", { exact: true }).first()).toBeVisible();
+  });
+
+  test("compares the total with the previous period", async ({ page }) => {
+    await stubLogins(
+      page,
+      [{ bucket: todayUtc(), method: "password", login_count: 4 }],
+      [{ bucket: daysAgoUtc(40), method: "password", login_count: 2 }],
+    );
+    await page.goto("/dashboard/analytics/logins");
+    await expect(page.getByText("+100% vs previous period", { exact: true })).toBeVisible();
+  });
+
   test("opens the Logins view from the sidebar, with its rail entry current", async ({ page }) => {
-    await stubLoginActivity(page, []);
+    await stubLogins(page, []);
     await page.goto("/dashboard");
     await page.getByRole("link", { name: "Analytics" }).first().click();
     await expect(page).toHaveURL(/\/dashboard\/analytics\/logins\/?$/);
@@ -48,7 +69,7 @@ test.describe("analytics", () => {
   });
 
   test("collapses the rail to tabs on a phone with no horizontal scroll", async ({ page }) => {
-    await stubLoginActivity(page, []);
+    await stubLogins(page, []);
     await page.setViewportSize({ width: 375, height: 800 });
     await page.goto("/dashboard/analytics/logins");
     await expect(page.getByRole("navigation", { name: "Analytics views" })).toBeVisible();
@@ -61,7 +82,7 @@ test.describe("analytics", () => {
 
 test.describe("analytics period", () => {
   test.beforeEach(async ({ page }) => {
-    await stubLoginActivity(page, [{ day: todayUtc(), login_count: 4 }]);
+    await stubLogins(page, [{ bucket: todayUtc(), method: "password", login_count: 4 }]);
   });
 
   test("a preset and bucket survive a reload", async ({ page }) => {
