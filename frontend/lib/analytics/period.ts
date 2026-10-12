@@ -5,7 +5,7 @@ export const PRESETS = { "7d": 7, "30d": 30, "90d": 90, "12m": 365 } as const;
 export type Preset = keyof typeof PRESETS;
 export const DEFAULT_PRESET: Preset = "30d";
 export const BUCKETS: readonly Bucket[] = ["day", "week", "month"];
-export const MAX_RANGE_DAYS = 365;
+export const MAX_RANGE_DAYS = 366;
 
 export interface Period {
   from: IsoDate;
@@ -14,7 +14,7 @@ export interface Period {
   preset: Preset | null; // null for a custom range
 }
 
-export type RangeError = "invalidDate" | "startAfterEnd" | "inFuture" | "tooFarBack";
+export type RangeError = "invalidDate" | "startAfterEnd" | "inFuture" | "tooLong";
 
 const isPreset = (v: string | null): v is Preset => v !== null && Object.hasOwn(PRESETS, v);
 const isBucket = (v: string | null): v is Bucket =>
@@ -28,7 +28,7 @@ export function validateRange(from: string, to: string, today: IsoDate): RangeEr
   if (!parseIsoDate(from) || !parseIsoDate(to)) return "invalidDate";
   if (from > to) return "startAfterEnd";
   if (to > today) return "inFuture";
-  if (daysInclusive(from, today) > MAX_RANGE_DAYS) return "tooFarBack";
+  if (daysInclusive(from, to) > MAX_RANGE_DAYS) return "tooLong";
   return null;
 }
 

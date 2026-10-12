@@ -73,9 +73,9 @@ describe("PeriodSelector", () => {
   });
 
   it("explains why an invalid link fell back to the default", () => {
-    nav.search = "from=2024-01-01&to=2024-01-10";
+    nav.search = "from=2024-01-01&to=2025-06-01";
     renderWithIntl(<PeriodSelector />);
-    expect(screen.getByRole("alert")).toHaveTextContent(/within the last 365 days/i);
+    expect(screen.getByRole("alert")).toHaveTextContent(/can't be longer than 366 days/i);
   });
 
   it("keeps both of two quick changes made before the URL updates", async () => {
@@ -100,10 +100,10 @@ describe("PeriodSelector", () => {
     expect(screen.getByLabelText("Start date")).toHaveValue("2026-07-01");
   });
 
-  it("only offers start dates inside the API's 365-day window", async () => {
+  it("lets the start date go back more than a year", async () => {
     renderWithIntl(<PeriodSelector />);
     await userEvent.selectOptions(screen.getByLabelText("Period"), "custom");
-    expect(screen.getByLabelText("Start date")).toHaveAttribute("min", "2025-07-25");
+    expect(screen.getByLabelText("Start date")).not.toHaveAttribute("min");
     expect(screen.getByLabelText("Start date")).toHaveAttribute("max", "2026-07-24");
   });
 });
