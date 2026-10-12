@@ -2,7 +2,7 @@
 
 Building an activity instance names an activity and mints an id for it. That id is the only thing the
 course holds about the activity instance. For a generated activity, Sparkth records the time it was
-first placed in a course.
+first placed in a course, once the LMS has created its block.
 
 The options are the activities the user may place in their course.
 
@@ -13,10 +13,11 @@ activity instance nobody has configured yet.
 
 from uuid import UUID
 
+from sqlalchemy.exc import SQLAlchemyError
 from uuid6 import uuid7
 
 from sparkth.lib.auth import current_user_id
-from sparkth.lib.content.exceptions import ContentBuildError
+from sparkth.lib.content.exceptions import ContentBuildError, ContentPlacementError
 from sparkth.lib.content.hooks import ContentBlock, ContentOption
 from sparkth.lib.db import session_scope
 from sparkth.lib.exceptions.auth import NoAuthenticatedUser
@@ -58,7 +59,7 @@ async def build_pxc_block(course_id: str, activity_id: str | None) -> ContentBlo
     """Mint an activity instance in ``course_id`` for the chosen activity, and describe its block.
 
     The block is titled after the activity: a generated one's title, or a bundled one's name.
-    The first placement of a generated activity is recorded.
+    Nothing is recorded here: the LMS may still refuse the block (see ``record_pxc_placement``).
 
     ``activity_id`` is the hook's ``option_id``: a bundled activity's name or one of the
     caller's generated activity ids. There is no default activity, so ``None`` places nothing.
@@ -73,16 +74,35 @@ async def build_pxc_block(course_id: str, activity_id: str | None) -> ContentBlo
         logger.warning("Refused to place a PXC activity in course %s: none was chosen", course_id)
         raise ContentBuildError("Choose an activity to place: pass one of the contributor's options")
     activity = await placeable_activity(activity_id)
-    if activity.id not in activity_names():
-        async with session_scope() as session:
-            await mark_placed(session, UUID(activity.id))
     activity_instance = str(uuid7())
     logger.info(
-        "Placed PXC activity %s as activity_instance %s in course %s", activity.id, activity_instance, course_id
+        "Built a block for PXC activity %s as activity_instance %s in course %s",
+        activity.id,
+        activity_instance,
+        course_id,
     )
     return ContentBlock(
         activity.label, PXC_BLOCK_CATEGORY, {"activity": activity.id, "activity_instance": activity_instance}
     )
+
+
+async def record_pxc_placement(activity_id: str | None) -> None:
+    """Record that a generated activity sits in a course, unless an earlier placement already did.
+
+    The publishing plugin awaits this once the LMS has created the block. ``activity_id`` is the
+    option id ``build_pxc_block`` accepted. A bundled activity has nothing to record.
+
+    Raises:
+        ContentPlacementError: if the database cannot record the placement.
+    """
+    if activity_id is None or activity_id in activity_names():
+        return
+    try:
+        async with session_scope() as session:
+            await mark_placed(session, UUID(activity_id))
+    except SQLAlchemyError as err:
+        logger.error("Could not record that PXC activity %s was placed: %s", activity_id, err)
+        raise ContentPlacementError(f"Could not record that activity {activity_id} was placed") from err
 
 
 async def placeable_activity(activity_id: str) -> ContentOption:

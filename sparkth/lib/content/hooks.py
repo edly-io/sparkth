@@ -66,15 +66,22 @@ class ContentContributor:
     and a publishing tool requires one of them: nothing is built by default. Leave it ``None``
     for a contributor that builds one kind of block; a publishing tool then refuses any option id.
 
-    ``list_options`` and the builders must be module-level functions. Re-registering an equal
-    contributor is a no-op only if they compare equal across constructions, and a closure or
-    bound method would not.
+    ``on_placed``, when set, is awaited with the option id the builder was given, once the
+    publishing tool has created the block in the course and before it writes the block's
+    attributes. A block whose attribute write then fails still counts as placed, since the caller
+    may write its attributes again with another tool. ``on_placed`` reports a failure by raising
+    :class:`~sparkth.lib.content.exceptions.ContentPlacementError`.
+
+    ``list_options``, ``on_placed`` and the builders must be module-level functions.
+    Re-registering an equal contributor is a no-op only if they compare equal across
+    constructions, and a closure or bound method would not.
     """
 
     name: str
     description: str
     builders: Mapping[str, Callable[[str, str | None], Awaitable[ContentBlock]]]
     list_options: Callable[[], Awaitable[list[ContentOption]]] | None = None
+    on_placed: Callable[[str | None], Awaitable[None]] | None = None
 
 
 # Content contributors, keyed by name. Consumed by LMS-publishing plugins.
