@@ -1,115 +1,30 @@
-"""Tests for SlackPluginConfigAdapter."""
+"""The Slack plugin's LLM-config adapter is registered and reached.
+
+The adapter is what validates that a Slack config's llm_config_id belongs to the user asking,
+so losing its registration would quietly let one user point their Slack config at another user's
+LLM key. What the adapter itself does is covered centrally in tests/llm/test_plugin_adapter.py;
+what is asserted here is that the config pipeline reaches it for this plugin.
+"""
 
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from sparkth.lib.config import get_plugin_adapter
-from sparkth.lib.llm import LLMConfigAdapter
-from sparkth.lib.models import LLMConfig
-from sparkth.plugins.slack.adapter import SlackConfigAdapter
+from sparkth.lib.plugins import PluginService
 
 
-@pytest.fixture
-def adapter() -> SlackConfigAdapter:
-    return SlackConfigAdapter()
-
-
-def _session_with(config: LLMConfig | None) -> AsyncMock:
+def _session_finding_nothing() -> AsyncMock:
+    """A session whose LLMConfig lookup comes back empty — the not-yours case."""
     session = AsyncMock()
     result = MagicMock()
-    result.first.return_value = config
+    result.first.return_value = None
     session.exec.return_value = result
     return session
 
 
-def test_slack_adapter_extends_llm_config_plugin_adapter() -> None:
-    assert issubclass(SlackConfigAdapter, LLMConfigAdapter)
-
-
 @pytest.mark.asyncio
-async def test_preprocess_valid_config_id_and_override_passes() -> None:
-    adapter = SlackConfigAdapter()
-    config = LLMConfig(
-        id=7,
-        user_id=2,
-        name="Anthropic",
-        provider="anthropic",
-        model="claude-sonnet-4-5",
-        encrypted_key="enc",
-        masked_key="sk-ant-...abcd",
-    )
-    session = _session_with(config)
-
-    result = await adapter.preprocess_config(
-        session=session,
-        user_id=2,
-        incoming_config={"llm_config_id": 7, "llm_model_override": "claude-haiku-4-5"},
-    )
-
-    assert result["llm_config_id"] == 7
-    assert result["llm_model_override"] == "claude-haiku-4-5"
-
-
-@pytest.mark.asyncio
-async def test_preprocess_model_override_wrong_provider_raises() -> None:
-    adapter = SlackConfigAdapter()
-    config = LLMConfig(
-        id=7,
-        user_id=2,
-        name="Anthropic",
-        provider="anthropic",
-        model="claude-sonnet-4-5",
-        encrypted_key="enc",
-        masked_key="sk-ant-...abcd",
-    )
-    session = _session_with(config)
-
-    with pytest.raises(ValueError, match="not available for provider"):
-        await adapter.preprocess_config(
-            session=session,
-            user_id=2,
-            incoming_config={"llm_config_id": 7, "llm_model_override": "gpt-4o"},
-        )
-
-
-@pytest.mark.asyncio
-async def test_preprocess_override_set_without_config_id_raises() -> None:
-    adapter = SlackConfigAdapter()
-    session = AsyncMock()
-
-    with pytest.raises(ValueError, match="llm_model_override requires llm_config_id"):
-        await adapter.preprocess_config(
-            session=session,
-            user_id=2,
-            incoming_config={"llm_config_id": None, "llm_model_override": "gpt-4o"},
-        )
-
-
-@pytest.mark.asyncio
-async def test_preprocess_no_override_passes_through() -> None:
-    adapter = SlackConfigAdapter()
-    config = LLMConfig(
-        id=7,
-        user_id=2,
-        name="Anthropic",
-        provider="anthropic",
-        model="claude-sonnet-4-5",
-        encrypted_key="enc",
-        masked_key="sk-ant-...abcd",
-    )
-    session = _session_with(config)
-
-    result = await adapter.preprocess_config(
-        session=session,
-        user_id=2,
-        incoming_config={"llm_config_id": 7, "bot_name": "TA Bot"},
-    )
-
-    assert result["llm_config_id"] == 7
-    assert result.get("llm_model_override") is None
-
-
-def test_slack_adapter_registered_in_config_adapters() -> None:
-    adapter = get_plugin_adapter("slack")
-    assert isinstance(adapter, SlackConfigAdapter)
+async def test_the_config_pipeline_rejects_a_config_the_user_does_not_own() -> None:
+    """Proves the registration is reached, not merely present: PluginService looks the adapter
+    up by plugin name, and an unowned llm_config_id must not survive the round trip."""
+    with pytest.raises(ValueError):
+        await PluginService.apply_preprocess("slack", _session_finding_nothing(), 1, {"llm_config_id": 999})
