@@ -11,11 +11,23 @@
       "totalLogins": "Inicios de sesión totales",
       "busiestBucket": "{bucket, select, day {Día} week {Semana} other {Mes}} con más actividad",
       "weekOf": "Semana del {date}",
-      "chartCaption": "Inicios de sesión, {range}"
+      "chartCaption": "Inicios de sesión, {range}",
+      "vsPrevious": "{change} respecto al período anterior",
+      "noPrevious": "Sin inicios de sesión en el período anterior",
+      "comparisonLegend": "Línea discontinua: período anterior",
+      "byMethod": "Método de inicio de sesión",
+      "methodChartCaption": "Inicios de sesión por método, {range}",
+      "methodValue": "{count} ({share})",
+      "methods": {
+        "password": "Correo y contraseña",
+        "google": "Google"
+      }
     },
     "table": {
       "date": "Fecha",
-      "logins": "Inicios de sesión"
+      "logins": "Inicios de sesión",
+      "method": "Método",
+      "previousPeriod": "Período anterior"
     },
     "nav": {
       "label": "Vistas de analíticas",
@@ -43,7 +55,7 @@
         "invalidDate": "Introduce fechas de inicio y fin válidas.",
         "startAfterEnd": "La fecha de inicio debe ser anterior o igual a la fecha de fin.",
         "inFuture": "La fecha de fin no puede estar en el futuro.",
-        "tooFarBack": "La fecha de inicio debe estar dentro de los últimos {days} días."
+        "tooLong": "El período no puede superar los {days} días."
       }
     }
   },
