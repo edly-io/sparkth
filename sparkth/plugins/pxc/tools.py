@@ -85,7 +85,7 @@ async def pxc_build_activity(
 
 async def pxc_list_activities(limit: int | None = None) -> dict[str, list[dict[str, str | bool]]]:
     """List the author's most recent activities, newest first. Each activity comes with its preview link
-    and whether it has been placed in a course.
+    and whether it has ever been placed in a course (this is never cleared).
 
     Use this to find an activity's id or preview link from an earlier turn: results of earlier
     tool calls are not kept in the conversation. Leave `limit` unset to get the newest few; set
@@ -115,7 +115,7 @@ async def pxc_get_activity_source(activity_id: str) -> dict[str, object]:
 
     Use this before changing an activity: edit the files it returns and build them again with
     `pxc_build_activity`, which creates a new activity. Only the activity's own author can read
-    it. The result says whether the activity has been placed in a course.
+    it. The result says whether the activity has ever been placed in a course (this is never cleared).
     """
     owner = current_user_id()
     async with session_scope() as session:
