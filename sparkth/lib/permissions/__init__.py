@@ -2,14 +2,15 @@
 
 Application code and plugins import the permissions surface from here, never from
 ``sparkth.core.permissions`` or the hook modules directly. A plugin declares its
-permissions and scope kinds from its ``__init__`` with ``Permission.create()`` and
-``PermissionScope.create()`` (or ``ObjectlessPermissionScope.create()`` for a singleton scope)::
+permissions and scope kinds at module level in its ``plugin.py`` with ``Permission.create()``
+and ``PermissionScope.create()`` (or ``ObjectlessPermissionScope.create()`` for a singleton
+scope), never in the plugin class's ``__init__``, which runs more than once::
 
     from sparkth.lib.permissions import Permission
     from sparkth.lib.permissions.scopes import GLOBAL, PermissionScope
 
-    PermissionScope.create("course", parent=GLOBAL)
-    Permission.create("course.grade")
+    COURSE = PermissionScope.create("course", parent=GLOBAL)
+    COURSE_GRADE = Permission.create("course.grade")
 """
 
 from sparkth.core.permissions import (

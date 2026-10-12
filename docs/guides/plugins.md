@@ -220,7 +220,7 @@ The loader (`sparkth/core/plugins/loader.py`) constructs every plugin as `plugin
 ## Basic Plugin Structure
 
 A plugin contributes its capabilities from its `__init__`:
-routes via `register_router`, MCP tools to `MCP_TOOLS`, a config schema to `CONFIG_SCHEMAS`, frontend metadata to `DISPLAY_INFO` / `SIDEBAR_ENTRIES` / `FRONTEND_APPS`, permissions via `Permission.create`, scope kinds via `PermissionScope.create` / `ObjectlessPermissionScope.create`, analytics event schemas via `register_event_schema` / `register_event_schemas` and exception→HTTP mappings via `register_status` / `register_exception_handler`.
+routes via `register_router`, MCP tools to `MCP_TOOLS`, a config schema to `CONFIG_SCHEMAS`, frontend metadata to `DISPLAY_INFO` / `SIDEBAR_ENTRIES` / `FRONTEND_APPS` and analytics event schemas via `register_event_schema` / `register_event_schemas`. It declares permissions (`Permission.create`), scope kinds (`PermissionScope.create` / `ObjectlessPermissionScope.create`) and exception→HTTP mappings (`register_exception_handler`) at module level in `plugin.py` instead: a second registration of the same name or exception type raises `ValueError`, and the plugin class is constructed more than once (by the loader and by the plugin's own tests). Bind each permission and scope kind to a constant.
 
 ```python
 # sparkth/plugins/myappplugin/plugin.py
@@ -236,6 +236,8 @@ from sparkth.lib.plugins import SparkthPlugin
 
 # Create router outside the class
 router = APIRouter()
+
+MYAPP_PROCESS = Permission.create("myapp.process")
 
 
 @router.get("/")
@@ -259,7 +261,6 @@ class MyAppPlugin(SparkthPlugin):
         CONFIG_SCHEMAS.add_item(self, MyAppPluginConfig)
         register_router(self, router)
         MCP_TOOLS.add_item(self, Tool(process_data, category="utilities"))
-        Permission.create("myapp.process")
         register_event_schema(self, MyAppDataProcessed)
 
 
@@ -352,8 +353,8 @@ After adding or removing a `FRONTEND_APPS` declaration, regenerate the frontend'
 ### Rendering plugin exceptions as HTTP responses
 
 A plugin's domain exceptions stay HTTP-agnostic (plain `Exception` subclasses). To control
-how one renders as an HTTP response, map it to a status from `__init__` — the mapping is wired
-onto the app at startup:
+how one renders as an HTTP response, map it to a status at module level in `plugin.py` — the
+mapping is wired onto the app at startup:
 
 ```python
 from sparkth.lib.exceptions.handlers import register_exception_handler
@@ -363,7 +364,7 @@ class MyAppError(Exception):
     """Raised when the plugin cannot process a request."""
 
 
-# inside MyAppPlugin.__init__:
+# at module level in plugin.py:
 register_exception_handler(MyAppError, 409)
 ```
 
