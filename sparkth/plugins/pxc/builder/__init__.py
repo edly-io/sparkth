@@ -297,13 +297,11 @@ async def build_activity(source: ActivitySource, owner_user_id: int) -> PxcActiv
 async def update_activity(activity_id: UUID, source: ActivitySource, owner_user_id: int) -> None:
     """Rebuild one of the owner's activities from an agent's files, in place under its id.
 
-    The files are staged exactly as a build stages them. Only then are the activity's placement
-    and live fields read, so a placement made during the compile is seen. A placed activity
-    refuses a field change its saved learner state cannot survive. A draft accepts it and its
-    state file is cleared, since only its preview writes there unless a hand-edited LMS block
-    points at it. Nothing is published before every check passes, so a failed check or build
-    leaves the live activity as it was. A failure after that, clearing a draft's state file or
-    saving the title and description, is logged and raised with the new revision left live.
+    Placement and the live fields are read after staging, so a placement made during the compile
+    counts. A placed activity refuses an incompatible field change; a draft accepts it and has its
+    state file cleared. Nothing is published until every check passes. A later failure (clearing
+    the state file, saving the title and description) is logged and raised, leaving the new
+    revision live.
 
     Raises:
         PxcActivityNotFound: if the caller does not own the activity, or its files are gone.
