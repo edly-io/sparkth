@@ -568,6 +568,15 @@ If a builder cannot produce its block, it reports that by raising
 letting some other exception escape. A publishing tool catches it and reports the failure
 through its own error contract instead of letting it propagate unguarded.
 
+`on_placed` is an optional async function a contributor passes after `list_options`, for content
+that must know when it lands in a course. A publishing tool awaits it with the chosen option's id
+once the LMS has created the block and before it writes the block's attributes, so a block the LMS
+refuses is never reported. A block whose attribute write then fails still counts as placed. If
+`on_placed` cannot record the placement, it raises
+`sparkth.lib.content.exceptions.ContentPlacementError`. The publishing tool then leaves the
+block's attributes unwritten and reports the block's locator, so the block points at nothing and
+the caller can delete it. Like the builders, `on_placed` must be a module-level function.
+
 ## Chat responsibilities
 
 A *responsibility* is one job a chat conversation can be for, such as designing a course. Every

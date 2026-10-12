@@ -47,9 +47,12 @@ An author places an activity from a course design conversation:
 An author can place only their own activities and the bundled samples. Sparkth checks this
 again when it places the activity, so an id from anywhere else is refused.
 
-Sparkth records the first time a generated activity is placed. Until then the activity is a
-draft; from then on it is placed, for good, even if every block that held it is later removed.
-Bundled activities have no record and are never changed by placement.
+Sparkth records the first time a generated activity is placed, once the LMS has created its block,
+so a placement the LMS refuses leaves the activity a draft. Until then the activity is a draft;
+from then on it is placed, for good, even if every block that held it is later removed. Bundled
+activities have no record and are never changed by placement. If Sparkth cannot record a
+placement, the block is left without the activity's reference and the agent is told to delete it
+and place the activity again.
 
 ## The Activities page
 
