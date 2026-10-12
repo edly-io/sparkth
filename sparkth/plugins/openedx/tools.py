@@ -6,8 +6,8 @@ from urllib.parse import quote
 
 import aiohttp
 
-from sparkth.lib.content.exceptions import ContentBuildError
-from sparkth.lib.content.hooks import LMS_CONTENT_CONTRIBUTORS
+from sparkth.lib.content.exceptions import ContentBuildError, ContentPlacementError
+from sparkth.lib.content.hooks import LMS_CONTENT_CONTRIBUTORS, ContentBlock, ContentContributor
 from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
 from sparkth.lib.log import get_logger
@@ -912,7 +912,9 @@ async def openedx_add_plugin_content(payload: AddPluginContentArgs) -> dict[str,
             `option_id` it offers no options for, is given none when it offers options, or fails
             to build its block, or Studio rejects the request. An error carries `locator` when
             the block was created and only the attribute patch failed: that block exists, is
-            missing its attributes, and is the caller's to patch again or delete.
+            missing its attributes, and is the caller's to patch again or delete. It also carries
+            `locator` when the contributor could not record the placement: that block has no
+            attributes and is the caller's to delete before placing the content again.
     """
     contributor = LMS_CONTENT_CONTRIBUTORS.get(payload.contributor)
     if contributor is None:
@@ -942,13 +944,32 @@ async def openedx_add_plugin_content(payload: AddPluginContentArgs) -> dict[str,
         logger.error("Content contributor %r failed to build its block: %s", payload.contributor, err)
         return {"error": {"message": f"Content contributor {payload.contributor!r} failed to build its block: {err}"}}
 
+    return await _create_contributed_block(payload, contributor, block)
+
+
+async def _create_contributed_block(
+    payload: AddPluginContentArgs, contributor: ContentContributor, block: ContentBlock
+) -> dict[str, Any]:
+    """Create ``block`` in the payload's unit, record its placement, then write its attributes.
+
+    Returns the tool's response, or its error. An error carries ``locator`` once the block exists.
+    """
     locator = ""
     try:
         locator = await openedx_create_basic_component(
             payload.auth, payload.course_id, payload.unit_locator, block.kind, block.title
         )
+        if contributor.on_placed is not None:
+            await contributor.on_placed(payload.option_id)
         if block.attributes:
             await openedx_update_xblock_content(payload.auth, payload.course_id, locator, None, block.attributes)
+    except ContentPlacementError as err:
+        logger.error("Content contributor %r could not record placing block %s: %s", contributor.name, locator, err)
+        message = (
+            f"Created block {locator}, but content contributor {contributor.name!r} could not record its "
+            f"placement, so its attributes were not written. Delete the block and place it again: {err}"
+        )
+        return {"error": {"message": message, "locator": locator}}
     except LMSRequestError as err:
         return _lms_error(err, method=err.method, endpoint=err.url, locator=locator)
     except ValueError as err:

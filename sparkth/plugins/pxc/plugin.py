@@ -33,7 +33,7 @@ from sparkth.plugins.pxc.constants import (
     PXC_CORS_HEADERS,
     PXC_TOOL_CATEGORY,
 )
-from sparkth.plugins.pxc.contributor import build_pxc_block, list_pxc_options
+from sparkth.plugins.pxc.contributor import build_pxc_block, list_pxc_options, record_pxc_placement
 from sparkth.plugins.pxc.exceptions import (
     PxcActionRejected,
     PxcActivityNotFound,
@@ -113,5 +113,6 @@ class PxcPlugin(SparkthPlugin):
                 # this plugin imports no LMS plugin. These keys are the only place it names an LMS.
                 {"open-edx": build_pxc_block},
                 list_pxc_options,
+                record_pxc_placement,
             )
         )
