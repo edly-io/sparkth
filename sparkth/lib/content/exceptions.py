@@ -10,6 +10,15 @@ class ContentBuildError(Exception):
     """
 
 
+class ContentPlacementError(Exception):
+    """Raised by a :class:`ContentContributor`'s ``on_placed`` when it cannot record a placement.
+
+    The block already exists in the course by then. A publishing tool reports the failure with
+    the block's locator through its own error contract, and leaves the block's attributes
+    unwritten, so the block does not reference content whose placement went unrecorded.
+    """
+
+
 class DuplicateContentContributorError(Exception):
     """Raised when a contributor claims a name an unequal contributor already holds.
 
