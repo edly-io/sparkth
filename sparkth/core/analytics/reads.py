@@ -17,19 +17,20 @@ UTC, while SQLite's ``date(occurred_at)`` buckets on the stored string's offset 
 they agree only because the ingest path stores/interprets events as UTC. If the PG
 side is ever parameterized with a bucketing timezone, the SQLite side must move in
 lockstep or the two will silently diverge.
+
+``get_logins`` follows the same rules over ``login_activity_daily_by_method`` on
+PostgreSQL and ``raw_events`` on SQLite: same filter, UTC day bucketing, the range
+filtered on the day (inclusive both ends) before rolling days up into weeks (starting
+Monday) or months (starting on the 1st), and one row per bucket and sign-in method.
 """
 
-from pydantic import BaseModel
+from datetime import date
+
 from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-
-class LoginActivityPoint(BaseModel):
-    """One day's login count. ``day`` is an ISO ``YYYY-MM-DD`` string."""
-
-    day: str
-    login_count: int
-
+from sparkth.core.analytics.enums import Bucket
+from sparkth.core.analytics.schemas.reads import LoginActivityPoint, LoginsPoint
 
 # Both queries are raw SQL rather than SQLAlchemy Core selects, for two reasons:
 #   1. The PostgreSQL query reads ``login_activity_daily`` — the TimescaleDB continuous
@@ -79,3 +80,57 @@ async def get_login_activity(session: AsyncSession, days: int = 30) -> list[Logi
     sql = _PG_SQL if dialect == "postgresql" else _SQLITE_SQL
     rows = (await session.execute(sql, {"days": days})).mappings().all()
     return [LoginActivityPoint(day=str(row["day"]), login_count=row["login_count"]) for row in rows]
+
+
+# Bucket start expressions, keyed by the enum so no request input ever reaches the SQL.
+# PG: date_trunc('week') starts on Monday. SQLite: 'weekday 0' moves to the next Sunday
+# (or stays on one), and '-6 days' steps back to that week's Monday.
+_PG_BUCKET = {
+    Bucket.day: "day AT TIME ZONE 'UTC'",
+    Bucket.week: "date_trunc('week', day AT TIME ZONE 'UTC')",
+    Bucket.month: "date_trunc('month', day AT TIME ZONE 'UTC')",
+}
+_SQLITE_BUCKET = {
+    Bucket.day: "date(occurred_at)",
+    Bucket.week: "date(occurred_at, 'weekday 0', '-6 days')",
+    Bucket.month: "strftime('%Y-%m-01', occurred_at)",
+}
+
+_PG_LOGINS_SQL = {
+    bucket: text(
+        f"SELECT to_char({expr}, 'YYYY-MM-DD') AS bucket, method, "
+        "CAST(sum(login_count) AS bigint) AS login_count "
+        "FROM login_activity_daily_by_method "
+        "WHERE (day AT TIME ZONE 'UTC')::date BETWEEN :from_ AND :to "
+        "GROUP BY 1, method "
+        "ORDER BY bucket, method"
+    )
+    for bucket, expr in _PG_BUCKET.items()
+}
+_SQLITE_LOGINS_SQL = {
+    bucket: text(
+        f"SELECT {expr} AS bucket, json_extract(payload, '$.method') AS method, count(*) AS login_count "
+        "FROM raw_events "
+        "WHERE event_type = 'user.logged_in' "
+        "AND date(occurred_at) BETWEEN :from_ AND :to "
+        "GROUP BY 1, 2 "
+        "ORDER BY bucket, method"
+    )
+    for bucket, expr in _SQLITE_BUCKET.items()
+}
+
+
+async def get_logins(session: AsyncSession, from_: date, to: date, bucket: Bucket) -> list[LoginsPoint]:
+    """Return login counts per ``bucket`` and sign-in method for days ``from_``..``to`` (inclusive).
+
+    Oldest bucket first, methods alphabetical within a bucket. Sparse: buckets or
+    methods with no logins are omitted, so callers zero-fill.
+    """
+    params: dict[str, date | str]
+    if session.bind.dialect.name == "postgresql":
+        sql, params = _PG_LOGINS_SQL[bucket], {"from_": from_, "to": to}
+    else:
+        # SQLite compares the ISO strings date() produces.
+        sql, params = _SQLITE_LOGINS_SQL[bucket], {"from_": from_.isoformat(), "to": to.isoformat()}
+    rows = (await session.execute(sql, params)).mappings().all()
+    return [LoginsPoint(bucket=row["bucket"], method=row["method"], login_count=row["login_count"]) for row in rows]
