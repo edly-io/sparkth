@@ -2,13 +2,15 @@
 
 The LMS mints a short-lived HS256 JWT carrying its user id, course id and activity instance,
 signed with a secret shared between the two servers. This plugin verifies the signature and
-takes the learner's identity from the token, so it never looks up a learner itself. The one
-token Sparkth mints is an author's preview of their own activity (``mint_preview_token``). The
+takes the learner's identity from the token, so it never looks up a learner itself. Sparkth
+mints only an author's preview of their own activity (``mint_preview_token``), and re-signs a
+verified token to pin its launch to one revision of a generated activity (``pin_launch_token``). The
 secret stays server-side at both ends and only the token travels through the browser, which is
 what makes the identity trustworthy rather than client-asserted.
 
-The claim names are the plugin's own — ``act``, ``ins``, ``cid``, ``uid`` — since none of the
-registered JWT claims describe an activity instance or an activity type. Only ``exp`` is
+The claim names are the plugin's own — ``act``, ``ins``, ``cid``, ``uid``, and ``rev`` on a
+pinned token — since none of the registered JWT claims describe an activity instance or an
+activity type. Only ``exp`` is
 standard, and it is PyJWT that enforces it.
 
 Permission travels as the ``prm`` claim, inside the signed payload, so a caller cannot ask for
@@ -43,13 +45,18 @@ LAUNCH_TOKEN_ALGORITHM = "HS256"
 
 @dataclass(frozen=True)
 class LaunchClaims:
-    """Who is asking, for which activity instance of which activity, and at what permission."""
+    """Who is asking, for which activity instance of which activity, and at what permission.
+
+    ``revision`` is the revision of a generated activity the launch is pinned to, or None to read
+    the live one.
+    """
 
     activity: str
     activity_instance: str
     course_id: str
     user_id: str
     permission: Permission
+    revision: str | None = None
 
 
 def _unverified_claims_hint(token: str) -> str:
@@ -149,6 +156,18 @@ def mint_preview_token(activity_id: UUID, user_id: int, permission: PreviewPermi
     )
 
 
+def pin_launch_token(token: str, revision: str) -> str:
+    """``token`` re-signed with the activity revision its launch reads, expiring when ``token`` does.
+
+    Every claim of ``token`` is kept, so the pinned token grants exactly what ``token`` did.
+
+    Raises:
+        PxcInvalidLaunchToken: if ``token`` does not verify, as ``read_launch_token`` describes.
+    """
+    claims = _verified_claims(token) | {"rev": revision}
+    return jwt.encode(claims, get_pxc_settings().launch_secret, algorithm=LAUNCH_TOKEN_ALGORITHM)
+
+
 def read_launch_token(token: str) -> LaunchClaims:
     """Verify ``token`` against the configured secret and return its claims.
 
@@ -168,13 +187,36 @@ def read_launch_token(token: str) -> LaunchClaims:
         PxcInvalidLaunchToken: if no secret is configured, or the token is malformed, wrongly
             signed, or expired.
     """
+    claims = _verified_claims(token)
+    try:
+        activity, activity_instance = str(claims["act"]), str(claims["ins"])
+        revision = claims.get("rev")
+        return LaunchClaims(
+            activity,
+            activity_instance,
+            str(claims["cid"]),
+            str(claims["uid"]),
+            _read_permission(claims.get("prm"), activity, activity_instance),
+            None if revision is None else str(revision),
+        )
+    except KeyError as err:
+        raise PxcInvalidLaunchToken("Malformed launch token") from err
+
+
+def _verified_claims(token: str) -> dict[str, object]:
+    """The claims of ``token`` once it verifies, as ``read_launch_token`` describes.
+
+    Raises:
+        PxcInvalidLaunchToken: if no secret is configured, or the token is malformed, wrongly
+            signed, or expired.
+    """
     secret = get_pxc_settings().launch_secret
     if not secret:
         logger.error("PXC_LAUNCH_SECRET is not configured; refusing every launch token")
         raise PxcInvalidLaunchToken("Launch tokens are not configured")
 
     try:
-        claims = jwt.decode(
+        claims: dict[str, object] = jwt.decode(
             token,
             secret,
             algorithms=[LAUNCH_TOKEN_ALGORITHM],
@@ -187,15 +229,4 @@ def read_launch_token(token: str) -> LaunchClaims:
         raise PxcInvalidLaunchToken("Bad launch token signature") from err
     except (jwt.InvalidTokenError, OverflowError) as err:
         raise PxcInvalidLaunchToken("Malformed launch token") from err
-
-    try:
-        activity, activity_instance = str(claims["act"]), str(claims["ins"])
-        return LaunchClaims(
-            activity,
-            activity_instance,
-            str(claims["cid"]),
-            str(claims["uid"]),
-            _read_permission(claims.get("prm"), activity, activity_instance),
-        )
-    except KeyError as err:
-        raise PxcInvalidLaunchToken("Malformed launch token") from err
+    return claims
