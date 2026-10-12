@@ -93,8 +93,9 @@ def prune_revisions(activity_id: str, retention_seconds: int) -> None:
     """Remove the revisions of one activity that no launch can still be using.
 
     A launch is pinned to the revision that was live when its page rendered, by a token minted
-    before then. So once the next newer revision has been live for ``retention_seconds``, which is
-    at least the longest launch-token lifetime, every token pinned to the older one has expired.
+    before then and expiring within ``PXC_REVISION_RETENTION_SECONDS``. So once the next newer
+    revision has been live for ``retention_seconds`` (that setting), every token pinned to the
+    older one has expired.
     The live revision is never removed. A removal that fails is logged and left for the next prune.
     """
     live = generated_activity_dir(activity_id).resolve().name
