@@ -90,13 +90,12 @@ def publish_revision(staged: Path, activity_id: str) -> Path:
 
 
 def prune_revisions(activity_id: str, retention_seconds: int) -> None:
-    """Remove the revisions of one activity that no runtime can still be using.
+    """Remove the revisions of one activity that no launch can still be using.
 
-    A runtime is pinned to the revision that was live when it was built, from a launch token
-    minted before then. So once the next newer revision has been live for ``retention_seconds``,
-    which is at least the longest launch-token lifetime, every token that could reach the older
-    one has expired. The live revision is never removed. A removal that fails is logged and left
-    for the next prune.
+    A launch is pinned to the revision that was live when its page rendered, by a token minted
+    before then. So once the next newer revision has been live for ``retention_seconds``, which is
+    at least the longest launch-token lifetime, every token pinned to the older one has expired.
+    The live revision is never removed. A removal that fails is logged and left for the next prune.
     """
     live = generated_activity_dir(activity_id).resolve().name
     cutoff_ms = (time.time() - retention_seconds) * 1000
