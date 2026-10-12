@@ -11,11 +11,23 @@
       "totalLogins": "Total logins",
       "busiestBucket": "Busiest {bucket, select, day {day} week {week} other {month}}",
       "weekOf": "Week of {date}",
-      "chartCaption": "Logins, {range}"
+      "chartCaption": "Logins, {range}",
+      "vsPrevious": "{change} vs previous period",
+      "noPrevious": "No logins in the previous period",
+      "comparisonLegend": "Dashed line: previous period",
+      "byMethod": "Sign-in method",
+      "methodChartCaption": "Logins by sign-in method, {range}",
+      "methodValue": "{count} ({share})",
+      "methods": {
+        "password": "Email and password",
+        "google": "Google"
+      }
     },
     "table": {
       "date": "Date",
-      "logins": "Logins"
+      "logins": "Logins",
+      "method": "Method",
+      "previousPeriod": "Previous period"
     },
     "nav": {
       "label": "Analytics views",
@@ -43,7 +55,7 @@
         "invalidDate": "Enter valid start and end dates.",
         "startAfterEnd": "The start date must be on or before the end date.",
         "inFuture": "The end date can't be in the future.",
-        "tooFarBack": "The start date must be within the last {days} days."
+        "tooLong": "The period can't be longer than {days} days."
       }
     }
   },

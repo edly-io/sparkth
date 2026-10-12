@@ -1,13 +1,15 @@
 import { api, bearer, call } from "@/lib/api";
-import type { LoginActivityPoint } from "@/lib/analytics/types";
+import type { IsoDate } from "@/lib/analytics/dates";
+import type { LoginsPoint } from "@/lib/analytics/types";
 
-export async function fetchLoginActivity(
+// Day buckets: the page rolls them up itself, so changing the bucket doesn't refetch.
+export async function fetchLogins(
   token: string,
-  { days }: { days: number },
-): Promise<LoginActivityPoint[]> {
-  return call<LoginActivityPoint[]>(() =>
-    api.GET("/api/v1/analytics/login-activity", {
-      params: { query: { days } },
+  { from, to }: { from: IsoDate; to: IsoDate },
+): Promise<LoginsPoint[]> {
+  return call<LoginsPoint[]>(() =>
+    api.GET("/api/v1/analytics/logins", {
+      params: { query: { from, to, bucket: "day" } },
       headers: bearer(token),
     }),
   );

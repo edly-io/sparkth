@@ -3,7 +3,6 @@
 import { useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import {
-  addDays,
   BUCKETS,
   MAX_RANGE_DAYS,
   PRESETS,
@@ -32,8 +31,6 @@ function PeriodControls() {
   const t = useTranslations("analytics.period");
   const { period, error: urlError, setPeriod } = usePeriod();
   const today = toIsoDate(new Date());
-  // The read API counts back from today, so a start older than this can't be served.
-  const earliestStart = addDays(today, -(MAX_RANGE_DAYS - 1));
   const [custom, setCustom] = useState(period.preset === null);
   const [draft, setDraft] = useState({ from: period.from, to: period.to });
   const [draftError, setDraftError] = useState<RangeError | null>(null);
@@ -83,7 +80,6 @@ function PeriodControls() {
               id="period-from"
               label={t("from")}
               value={draft.from}
-              min={earliestStart}
               max={today}
               aria-invalid={error !== null}
               aria-describedby={describedBy}
@@ -96,7 +92,6 @@ function PeriodControls() {
               id="period-to"
               label={t("to")}
               value={draft.to}
-              min={earliestStart}
               max={today}
               aria-invalid={error !== null}
               aria-describedby={describedBy}

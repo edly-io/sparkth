@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-import { fetchLoginActivity } from "@/lib/analytics";
+import { fetchLogins } from "@/lib/analytics";
 import { ApiRequestError } from "@/lib/api";
 
 import { mockFetch, sentRequest } from "../test-utils";
@@ -15,25 +15,28 @@ beforeEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("fetchLoginActivity", () => {
-  it("GETs /api/v1/analytics/login-activity with days and the bearer token", async () => {
-    const points = [{ day: "2026-07-20", login_count: 3 }];
+describe("fetchLogins", () => {
+  it("GETs /api/v1/analytics/logins for a day range with the bearer token", async () => {
+    const points = [{ bucket: "2026-07-20", method: "google", login_count: 3 }];
     const spy = mockFetch(points);
 
-    const result = await fetchLoginActivity("test-token", { days: 30 });
+    const result = await fetchLogins("test-token", { from: "2026-07-01", to: "2026-07-20" });
 
-    const request = sentRequest(spy);
-    const url = new URL(request.url);
-    expect(url.pathname).toBe("/api/v1/analytics/login-activity");
-    expect(url.searchParams.get("days")).toBe("30");
-    expect(request.headers.get("authorization")).toBe("Bearer test-token");
+    const url = new URL(sentRequest(spy).url);
+    expect(url.pathname).toBe("/api/v1/analytics/logins");
+    expect(url.searchParams.get("from")).toBe("2026-07-01");
+    expect(url.searchParams.get("to")).toBe("2026-07-20");
+    expect(url.searchParams.get("bucket")).toBe("day");
+    expect(sentRequest(spy).headers.get("authorization")).toBe("Bearer test-token");
     expect(result).toEqual(points);
   });
 
   it("wraps a transport failure as an ApiRequestError", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("network down"));
 
-    const error = await fetchLoginActivity("test-token", { days: 30 }).catch((e: unknown) => e);
+    const error = await fetchLogins("test-token", { from: "2026-07-01", to: "2026-07-20" }).catch(
+      (e: unknown) => e,
+    );
 
     expect(error).toBeInstanceOf(ApiRequestError);
     expect((error as ApiRequestError).message).toMatch(/unable to connect/i);
@@ -42,7 +45,9 @@ describe("fetchLoginActivity", () => {
   it("propagates an ApiRequestError with its status intact", async () => {
     mockFetch({ detail: "Permission denied" }, 403);
 
-    const error = await fetchLoginActivity("test-token", { days: 30 }).catch((e: unknown) => e);
+    const error = await fetchLogins("test-token", { from: "2026-07-01", to: "2026-07-20" }).catch(
+      (e: unknown) => e,
+    );
 
     expect(error).toBeInstanceOf(ApiRequestError);
     expect((error as ApiRequestError).status).toBe(403);

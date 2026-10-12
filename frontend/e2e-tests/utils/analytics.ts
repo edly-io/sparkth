@@ -1,13 +1,22 @@
 import type { Page } from "@playwright/test";
 
+export const todayUtc = (): string => new Date().toISOString().slice(0, 10);
+
 /**
- * Stubs the analytics read API in the browser, so specs don't depend on seeded events.
- * `**` after the path matches any query string (`?days=30`, later `?from=…`).
+ * Stubs the logins read API. The page asks for the period and the period before it; a
+ * request ending before today is the previous one.
  */
-export async function stubLoginActivity(page: Page, body: unknown, status = 200): Promise<void> {
-  await page.route("**/api/v1/analytics/login-activity**", (route) =>
-    route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) }),
-  );
+export async function stubLogins(
+  page: Page,
+  current: unknown,
+  previous: unknown = [],
+  status = 200,
+): Promise<void> {
+  await page.route("**/api/v1/analytics/logins**", (route) => {
+    const to = new URL(route.request().url()).searchParams.get("to") ?? "";
+    const body = to < todayUtc() ? previous : current;
+    return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+  });
 }
 
 /**
@@ -29,8 +38,6 @@ export async function stubPermission(
     });
   });
 }
-
-export const todayUtc = (): string => new Date().toISOString().slice(0, 10);
 
 export const daysAgoUtc = (days: number): string =>
   new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
