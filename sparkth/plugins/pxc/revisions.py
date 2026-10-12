@@ -93,18 +93,31 @@ def prune_revisions(activity_id: str, retention_seconds: int) -> None:
     """Remove the revisions of one activity that no launch can still be using.
 
     A launch is pinned to the revision that was live when its page rendered, by a token minted
-    before then. So once the next newer revision has been live for ``retention_seconds``, which is
-    at least the longest launch-token lifetime, every token pinned to the older one has expired.
+    before then and expiring within ``PXC_REVISION_RETENTION_SECONDS``. So once the next newer
+    revision has been live for ``retention_seconds`` (that setting), every token pinned to the
+    older one has expired.
     The live revision is never removed. A removal that fails is logged and left for the next prune.
+    An entry not named like a revision, such as a copy someone left there, is logged and left alone.
     """
     live = generated_activity_dir(activity_id).resolve().name
     cutoff_ms = (time.time() - retention_seconds) * 1000
-    for older, newer in itertools.pairwise(sorted(revisions_dir(activity_id).iterdir())):
+    revisions = sorted(entry for entry in revisions_dir(activity_id).iterdir() if _is_revision(entry))
+    for older, newer in itertools.pairwise(revisions):
         if older.name != live and UUID(newer.name).time <= cutoff_ms:
             try:
                 shutil.rmtree(older)
             except OSError as err:
                 logger.warning("Could not remove revision %s of PXC activity %s: %s", older.name, activity_id, err)
+
+
+def _is_revision(entry: Path) -> bool:
+    """Whether ``entry`` is named like a revision, by a uuid. Anything else is logged as a warning."""
+    try:
+        UUID(entry.name)
+    except ValueError:
+        logger.warning("Skipping %s among the revisions of a PXC activity: its name is not a revision id", entry)
+        return False
+    return True
 
 
 def remove_activity_files(activity_id: str) -> None:

@@ -1,6 +1,7 @@
 """Revision directories and the atomic swap of a generated activity's live revision."""
 
 import os
+import shutil
 import time
 from pathlib import Path
 from unittest.mock import Mock
@@ -238,3 +239,18 @@ def test_a_path_shaped_revision_is_not_found_even_where_it_lands_on_an_activity(
 
     with pytest.raises(PxcActivityNotFound):
         revision_dir(activity_id, f"../../activities/{activity_id}")
+
+
+def test_pruning_skips_an_entry_that_is_not_a_revision(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A copy named after the revision it backs up sorts right after it.
+    activity_id = str(uuid7())
+    first = publish_revision(staged_activity("first"), activity_id)
+    publish_revision(staged_activity("second"), activity_id)
+    third = publish_revision(staged_activity("third"), activity_id)
+    backup = first.with_name(f"{first.name}.bak")
+    shutil.copytree(first, backup)
+    jump_past_every_revision(monkeypatch)
+
+    prune_revisions(activity_id, 0)
+
+    assert sorted(revisions_dir(activity_id).iterdir()) == [backup, third]
