@@ -30,9 +30,9 @@ from sparkth.core.analytics.exceptions import (
 )
 from sparkth.core.analytics.gateway import ingest_event
 from sparkth.core.analytics.maintenance import backfill_continuous_aggregates
-from sparkth.core.analytics.reads import get_login_activity, get_logins
+from sparkth.core.analytics.reads import get_logins
 from sparkth.core.analytics.schemas.base import AnalyticsEventSchema
-from sparkth.core.analytics.schemas.reads import LoginActivityPoint, LoginsPoint
+from sparkth.core.analytics.schemas.reads import LoginsPoint
 from sparkth.lib.db import analytics_session_scope
 from sparkth.lib.log import get_logger
 from sparkth.lib.plugins import SparkthPlugin
@@ -51,8 +51,6 @@ __all__ = [
     "emit_events",
     "PendingEvent",
     "get_event_schema",
-    "LoginActivityPoint",
-    "get_login_activity",
     "LoginsPoint",
     "get_logins",
     "ingest_event",
