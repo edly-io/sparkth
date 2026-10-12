@@ -36,7 +36,8 @@ def publish_revision(staged: Path, activity_id: str) -> Path:
 
     ``staged`` must sit on the data directory's filesystem, so moving it is a rename. The link's
     target is relative, so the data directory can be mounted anywhere. A plain directory where the
-    link belongs becomes the activity's first revision.
+    link belongs becomes the activity's first revision. If the link cannot be made live, the new
+    revision and the temporary link are removed and the error is raised.
     """
     revisions = revisions_dir(activity_id)
     revisions.mkdir(parents=True, exist_ok=True)
@@ -48,8 +49,16 @@ def publish_revision(staged: Path, activity_id: str) -> Path:
     revision = revisions / str(uuid7())
     staged.rename(revision)
     temporary = link.with_name(f".{activity_id}.{revision.name}")
-    temporary.symlink_to(Path("..") / "revisions" / activity_id / revision.name)
-    os.replace(temporary, link)
+    try:
+        temporary.symlink_to(Path("..") / "revisions" / activity_id / revision.name)
+        os.replace(temporary, link)
+    except OSError as err:
+        logger.error(
+            "Could not make revision %s of PXC activity %s live; removing it: %s", revision.name, activity_id, err
+        )
+        temporary.unlink(missing_ok=True)
+        shutil.rmtree(revision)
+        raise
     return revision
 
 

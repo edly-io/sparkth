@@ -24,8 +24,9 @@ class PxcSettings(BaseSettings):
         extra="ignore",
     )
 
-    # Holds each activity's SQLite state file, its file storage under storage/, generated
-    # activities under activities/<id>/ and build scratch under builds/.
+    # Holds each activity's SQLite state file, its file storage under storage/, each generated
+    # activity's revisions under revisions/<id>/<rev>/ with the live one linked from activities/<id>,
+    # and build scratch under builds/.
     data_dir: Path = Path("./data/pxc")
 
     # Shared with the LMS integration. The LMS signs a launch token with it and this plugin
