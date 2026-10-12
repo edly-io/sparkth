@@ -13,10 +13,12 @@ from collections.abc import Mapping
 def incompatible_field_changes(
     old_fields: Mapping[str, Mapping[str, object]], new_fields: Mapping[str, Mapping[str, object]]
 ) -> list[str]:
-    """Describe, one entry per field, every change from ``old_fields`` that saved state cannot survive.
+    """Describe, one entry per field, every change from ``old_fields`` that is not backward compatible.
 
-    A field missing from ``new_fields``, or one whose definition differs once ``default`` is set
-    aside, is reported. A field only in ``new_fields`` is an addition and is not.
+    Only backward-compatible changes pass: adding a field, or changing a field's ``default``. A
+    field missing from ``new_fields``, or one whose definition differs once ``default`` is set
+    aside, is reported. The check covers each field's declared shape, not how the sandbox reads or
+    writes values of that shape.
     """
     changes = []
     for name, definition in old_fields.items():
