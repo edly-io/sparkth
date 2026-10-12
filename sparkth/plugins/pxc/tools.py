@@ -145,20 +145,15 @@ async def pxc_update_activity(
 ) -> dict[str, str]:
     """Update one of the author's activities in place from its edited files, keeping its id.
 
-    Read the files with `pxc_get_activity_source` first, edit them, and pass back all three with the
-    title and description. The update reaches every course the activity is placed in at its next
-    launch, and the previous version cannot be restored, so for a placed activity get the author's
-    confirmation before calling this.
+    Pass back all three files from `pxc_get_activity_source`, edited, with the title and
+    description. The update reaches every course using the activity and cannot be undone, so get
+    the author's confirmation first when it is placed.
 
-    While the activity is not placed in a course, anything may change. Once placed, a field may not
-    be removed or change its type, scope or schema; adding a field and changing a default are
-    allowed. Adding a field must not be used to replace an existing one: the activity must keep
-    reading saved data from the same fields. Any change these rules forbid needs a new activity:
-    ask the author before building one.
+    A draft accepts any change. A placed activity accepts only backward-compatible field changes:
+    adding a field (never as a replacement for an existing one) or changing a default. Anything
+    else needs a new activity; ask the author before building one.
 
-    If the update fails before the new files go live, the error explains why and the activity is
-    unchanged. If a step after that fails, such as clearing a draft's preview data or saving the
-    title and description, the new files stay live.
+    A failed update leaves the activity unchanged, unless it fails after the new files go live.
     """
     owner = current_user_id()
     parsed_id = parse_activity_id(activity_id)
