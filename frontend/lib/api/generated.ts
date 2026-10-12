@@ -89,6 +89,9 @@ export interface paths {
          *     3. Creates or links the user account
          *     4. Redirects to frontend with JWT token
          *
+         *     A first sign-in that creates the account also emits ``user.registered`` before the login
+         *     event; linking an existing account does not.
+         *
          *     A completed login emits ``user.logged_in``; a callback that redirects back to the
          *     login page with an error logged nobody in, so it emits nothing.
          */
