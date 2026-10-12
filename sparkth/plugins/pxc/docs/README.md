@@ -131,13 +131,16 @@ is published. The relative link `PXC_DATA_DIR/activities/<id>` points at the liv
 Replacing the link is atomic, so a reader sees the whole old revision or the whole new one.
 
 A launch resolves bundled names first, then a generated id from disk by following the link, with
-no database read. Each runtime stays on the revision it resolved, for its whole life.
+no database read. The embed pins the launch to the revision live when its page renders: it
+re-signs the launch token with that revision's id (`rev`), keeping the token's other claims and its
+expiry. Every later request of the page, for its UI script, assets, socket and actions, reads that
+revision. An open page keeps the revision it rendered until it reloads.
 
 An update prunes the activity's old revisions once their successor has been live for
 `PXC_REVISION_RETENTION_SECONDS`. That value must be at least the longest launch-token lifetime
 Sparkth or the LMS issues (`PXC_LAUNCH_TOKEN_TTL_SECONDS` here, and the Open edX block's
-`SPARKTH_PXC_LAUNCH_TOKEN_TTL_SECONDS`), because a socket keeps acting on the revision it opened
-on until its token expires. A longer token lets a learner's open page lose its actions after the
+`SPARKTH_PXC_LAUNCH_TOKEN_TTL_SECONDS`), because a launch keeps reading the revision it is pinned
+to until its token expires. A longer token lets a learner's open page lose its actions after the
 activity is updated.
 
 Two session routes let an author list their activities and open a preview; another user's id is
@@ -286,18 +289,16 @@ bounded number of retries.
 - A placement that lands in the milliseconds between an update's placement check and its link
   swap is not seen by that update. Likewise, two updates of one activity in separate processes can
   swap the link in the opposite order to their revision ids, so a later update's prune can remove
-  the revision that was live until that update, under a socket still using it.
-- A learner page loaded before an update keeps its old `ui.js` until it reloads. Its socket keeps
-  the previous revision until its launch token expires, but an action sent over HTTP runs on the
-  new revision, and one the new manifest does not declare is refused with a 422.
-- A preview page an author opened before an update keeps its connection to the previous revision
-  until its launch token expires. Anything it saves in that time is written in the previous
-  shape, after a draft's preview data was cleared, and a later update that does not change what
-  the activity keeps will not clear it again. Reloading the preview avoids it.
-- A launch of an activity built as a plain directory, during its first update, gets a 404 between
-  the directory's move and the link's creation. A reload fixes it. A socket opened on the plain
-  directory follows the new link, so it can run the new code against the manifest it already read
-  until it reconnects.
+  the revision that was live until that update, under a launch still pinned to it.
+- A preview page an author opened before an update keeps the previous revision until it reloads or
+  its launch token expires. Anything it saves in that time is written in the previous shape, after
+  a draft's preview data was cleared, and a later update that does not change what the activity
+  keeps will not clear it again. Reloading the preview avoids it.
+- A launch of an activity built as a plain directory is not pinned, since the directory is not a
+  revision yet. During the activity's first update, a launch gets a 404 between the directory's
+  move and the link's creation. A reload fixes it. A socket opened on the plain directory follows
+  the new link, so it can run the new code against the manifest it already read until it
+  reconnects.
 - Revisions replaced within `PXC_REVISION_RETENTION_SECONDS` before an activity's last update stay
   on disk until its next update.
 - A launch-token lifetime longer than `PXC_REVISION_RETENTION_SECONDS` lets a prune remove a
