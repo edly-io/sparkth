@@ -460,3 +460,71 @@ async def test_a_failed_insert_leaves_no_link_and_no_revision(
 
     assert list((tmp_path / "activities").iterdir()) == []
     assert list((tmp_path / "revisions").iterdir()) == []
+
+
+PARSED = "  const value = JSON.parse(data);\n"
+STATE_RETURN = "return JSON.stringify(state);"
+
+
+def _patched(source: str, marker: str, replacement: str) -> str:
+    """``source`` with ``marker`` replaced; a missing marker fails, so no test runs on an unchanged sample."""
+    assert marker in source, f"the sample's sandbox.js no longer contains {marker!r}"
+    return source.replace(marker, replacement)
+
+
+def _mcq_with(before_dispatch: str) -> ActivitySource:
+    """The sample, with ``before_dispatch`` run at the top of its onAction, after its value is parsed."""
+    return _mcq_source(_patched(MCQ_SANDBOX_JS, PARSED, PARSED + before_dispatch))
+
+
+@pytest.mark.wasm
+async def test_an_action_that_throws_fails_the_build_with_what_it_threw() -> None:
+    source = _mcq_with('  if (name === "answer.submit") throw new Error("submit broke");\n')
+
+    with pytest.raises(PxcSmokeTestFailed) as failed:
+        await build_activity(source, OWNER)
+
+    assert "submit broke" in str(failed.value)
+    assert "answer.submit as play" in str(failed.value)
+
+
+@pytest.mark.wasm
+async def test_an_action_writing_a_value_its_field_refuses_fails_the_build() -> None:
+    source = _mcq_with('  if (name === "answer.submit") setField("question", JSON.stringify(42));\n')
+
+    with pytest.raises(PxcSmokeTestFailed) as failed:
+        await build_activity(source, OWNER)
+
+    assert "Field 'question' failed validation" in str(failed.value)
+
+
+@pytest.mark.wasm
+async def test_every_failing_step_is_named_in_one_message() -> None:
+    source = _mcq_with('  throw new Error(name + " broke");\n')
+
+    with pytest.raises(PxcSmokeTestFailed) as failed:
+        await build_activity(source, OWNER)
+
+    assert "config.save broke" in str(failed.value)
+    assert "answer.submit broke" in str(failed.value)
+
+
+@pytest.mark.wasm
+async def test_config_save_is_sent_the_field_defaults(session: AsyncSession) -> None:
+    check = '  if (name === "config.save" && value.question !== "What is 2 + 2?") throw new Error("got " + data);\n'
+
+    await build_activity(_mcq_with(check), OWNER)
+
+
+@pytest.mark.wasm
+async def test_get_state_that_is_not_json_is_reported_with_the_failing_actions() -> None:
+    not_json = _patched(MCQ_SANDBOX_JS, STATE_RETURN, 'return "not json";')
+    sandbox_js = _patched(
+        not_json, PARSED, PARSED + '  if (name === "answer.submit") throw new Error("submit broke");\n'
+    )
+
+    with pytest.raises(PxcSmokeTestFailed) as failed:
+        await build_activity(_mcq_source(sandbox_js), OWNER)
+
+    assert "getState must return JSON text" in str(failed.value)
+    assert "submit broke" in str(failed.value)

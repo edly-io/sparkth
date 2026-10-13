@@ -51,8 +51,8 @@ class PxcSettings(BaseSettings):
     # TODO: move activity builds to a dedicated worker container to make this scale.
     build_concurrency: int = 2
 
-    # The longest build error handed back to the agent, in characters. Compiler and smoke output
-    # keep their end, where the cause is; a manifest schema message keeps its start.
+    # The longest build error handed back to the agent, in characters. Compiler output keeps its end,
+    # where the cause is; the smoke test's list of failures and a manifest schema message keep their start.
     build_error_limit: int = 4000
 
     # The most of a build step's stderr kept in memory, in bytes: the end of it, where the cause

@@ -1,11 +1,16 @@
 """Smoke-test a freshly built activity, run as ``python -m sparkth.plugins.pxc.smoke <dir>``.
 
 The builder runs this in a child process. A sandbox stuck in a loop cannot be stopped from a
-thread, but a process can be killed. It reads ``get_state`` under ``play`` and under ``edit``,
-the two permissions a launch hands out, against throwaway in-memory storage.
+thread, but a process can be killed. On a throwaway store, it does the following:
 
-Exit status 0 means it passed. On 1, stderr carries one line, ``get_state failed:`` followed by
-the failure's error text: what the sandbox threw or wrote. The builder hands that text to the agent.
+1. Reads ``getState`` under ``play`` and ``edit``.
+2. Runs ``config.save`` as ``edit`` with the field defaults.
+3. Runs every other declared action as ``play`` and as ``edit``, with the simplest value its
+   schema accepts.
+4. Reads ``getState`` under both permissions again.
+
+Exit status 0 means every step passed. On 1, stderr carries one line per failed step: the step,
+its value and the sandbox's own error text, which the builder hands to the agent.
 
 A passing run leaves ``sandbox.wasm.bin`` beside the wasm: pxc-lib's compiled-component cache.
 It moves with the activity, so the first learner launch skips compiling the component.
@@ -16,53 +21,107 @@ import logging
 import sys
 from pathlib import Path
 
+from pxc.lib.actions import ActionChecker, ActionValidationError
 from pxc.lib.field_store import MemoryKVStore
-from pxc.lib.file_storage import MemoryFileStorage
-from pxc.lib.permission import Permission
-from pxc.lib.runtime import ActivityRuntime
+from pxc.lib.fields import FieldChecker, FieldType
+from pxc.lib.manifest_types import ArrayType, ObjectType, PxcActivityManifest
 
-from sparkth.plugins.pxc.constants import PXC_SCRATCH_CONTEXT_ID
-from sparkth.plugins.pxc.exceptions import PxcSandboxFailure
-from sparkth.plugins.pxc.runtime import read_state
+from sparkth.lib.log import get_logger
+from sparkth.plugins.pxc.constants import PXC_CONFIG_SAVE_ACTION, PXC_SAMPLE_VALUES, PXC_SCRATCH_PERMISSIONS
+from sparkth.plugins.pxc.scratch import (
+    ScratchStep,
+    StateOutcome,
+    StepOutcome,
+    read_scratch_state,
+    run_scratch,
+)
+
+logger = get_logger(__name__)
 
 
-def smoke_test(directory: Path) -> None:
-    """Read the activity's state under each permission a launch can carry.
+def sample_value(schema: object) -> FieldType:
+    """The simplest value ``schema`` accepts: 0, "", false, [], or an object of its properties' samples."""
+    if isinstance(schema, ArrayType):
+        return []
+    if isinstance(schema, ObjectType):
+        return {key: sample_value(prop.root) for key, prop in schema.properties.items()}
+    return PXC_SAMPLE_VALUES[schema.type]  # type: ignore[attr-defined]
 
-    Raises:
-        PxcSandboxFailure: if the sandbox fails, or returns something other than a JSON object.
-        json.JSONDecodeError: if ``get_state`` returns text that is not JSON.
+
+def config_save_value(manifest: PxcActivityManifest) -> FieldType:
+    """``config.save``'s sample, with each property named after a field set to that field's default.
+
+    The plain sample is used instead when those defaults do not fit the action's own schema, so a
+    valid activity is never refused over a default.
     """
-    for permission in (Permission.play, Permission.edit):
-        runtime = ActivityRuntime(
-            directory,
-            MemoryKVStore(),
-            MemoryFileStorage(),
-            PXC_SCRATCH_CONTEXT_ID,
-            PXC_SCRATCH_CONTEXT_ID,
-            PXC_SCRATCH_CONTEXT_ID,
-            permission,
-        )
-        state: object = read_state(runtime)
-        if not isinstance(state, dict):
-            message = f"get_state under {permission.value} must return a JSON object, not {type(state).__name__}"
-            raise PxcSandboxFailure(message, message)
+    sample = sample_value(manifest.actions[PXC_CONFIG_SAVE_ACTION].root)
+    if not isinstance(sample, dict):
+        return sample
+    fields = FieldChecker(manifest.fields)
+    merged = {key: fields.get_default(key) if key in fields.field_names else value for key, value in sample.items()}
+    try:
+        ActionChecker(manifest.actions).validate(PXC_CONFIG_SAVE_ACTION, merged)
+    except ActionValidationError as err:
+        logger.info("The field defaults do not fit config.save's schema, so it gets a plain sample: %s", err)
+        return sample
+    return merged
+
+
+def smoke_steps(manifest: PxcActivityManifest) -> list[ScratchStep]:
+    """``config.save`` as ``edit`` when declared, then every other action as ``play`` and as ``edit``."""
+    actions = manifest.actions or {}
+    steps: list[ScratchStep] = []
+    if PXC_CONFIG_SAVE_ACTION in actions:
+        steps.append(ScratchStep(action=PXC_CONFIG_SAVE_ACTION, value=config_save_value(manifest), permission="edit"))
+    for name, schema in actions.items():
+        if name != PXC_CONFIG_SAVE_ACTION:
+            steps.extend(
+                ScratchStep(action=name, value=sample_value(schema.root), permission=permission.value)
+                for permission in PXC_SCRATCH_PERMISSIONS
+            )
+    return steps
+
+
+def step_failures(outcomes: list[StepOutcome]) -> list[str]:
+    """One line per failed step: the step, its value and its error."""
+    return [
+        f"{outcome['action']} as {outcome['permission']} with {json.dumps(outcome['value'])}: {outcome['error']}"
+        for outcome in outcomes
+        if outcome["error"] is not None
+    ]
+
+
+def state_failures(outcomes: list[StateOutcome], when: str) -> list[str]:
+    """One line per failed ``getState``, saying when in the run it was read."""
+    return [
+        f"getState as {outcome['permission']} {when}: {outcome['error']}"
+        for outcome in outcomes
+        if outcome["error"] is not None
+    ]
+
+
+def smoke_failures(directory: Path) -> list[str]:
+    """Every failing step of the smoke run on the activity in ``directory``, in the order it ran."""
+    manifest = PxcActivityManifest.model_validate_json((directory / "manifest.json").read_text(encoding="utf-8"))
+    fresh = MemoryKVStore()
+    before = [read_scratch_state(directory, fresh, permission) for permission in PXC_SCRATCH_PERMISSIONS]
+    report = run_scratch(directory, smoke_steps(manifest))
+    return [
+        *state_failures(before, "before any action"),
+        *step_failures(report["steps"]),
+        *state_failures(report["state"], "after the actions"),
+    ]
 
 
 def main(argv: list[str]) -> int:
     """Smoke-test the activity directory named by ``argv[0]``, returning the exit status."""
-    try:
-        smoke_test(Path(argv[0]))
-    except PxcSandboxFailure as err:
-        print(f"get_state failed: {err.error_text}", file=sys.stderr)
-        return 1
-    except json.JSONDecodeError as err:
-        print(f"get_state failed: it must return JSON text ({err})", file=sys.stderr)
-        return 1
-    return 0
+    failures = smoke_failures(Path(argv[0]))
+    for failure in failures:
+        print(failure, file=sys.stderr)
+    return 1 if failures else 0
 
 
 if __name__ == "__main__":
-    # pxc-lib logs a traceback on failure; stderr should carry only the sandbox's own error.
+    # pxc-lib logs a traceback on failure; stderr should carry only the failure lines.
     logging.disable(logging.CRITICAL)
     sys.exit(main(sys.argv[1:]))

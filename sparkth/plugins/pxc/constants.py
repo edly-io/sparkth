@@ -46,6 +46,12 @@ PXC_SCRATCH_CONTEXT_ID = "smoke"
 # The permissions a throwaway run reads getState under, and runs each learner action as.
 PXC_SCRATCH_PERMISSIONS = (Permission.play, Permission.edit)
 
+# The action the contract names for saving an activity's configuration.
+PXC_CONFIG_SAVE_ACTION = "config.save"
+
+# The simplest value of each scalar schema type, which the smoke test sends an action.
+PXC_SAMPLE_VALUES: dict[str, int | str | bool] = {"integer": 0, "number": 0, "string": "", "boolean": False}
+
 # The WIT world every sandbox compiles against. It imports only pxc:sandbox/state, so a sandbox
 # can call nothing else on the host.
 PXC_SANDBOX_WIT = Path(__file__).parent / "builder" / "toolchain" / "pxc.wit"

@@ -4,7 +4,7 @@ The steps run in this order:
 
 1. Validate the manifest.
 2. Compile ``sandbox.js`` with componentize-js.
-3. Smoke-test ``get_state`` in a child process.
+3. Smoke-test the activity in a child process: getState, then every action, under play and edit.
 4. Publish the result as the activity's live revision, then record its row.
 
 An update stages its files the same way, then checks the field changes against the live revision
@@ -218,20 +218,21 @@ async def compile_sandbox(sandbox_js: str, compile_dir: Path, output: Path) -> N
 
 
 async def smoke_test_activity(directory: Path) -> None:
-    """Run ``get_state`` under ``play`` and ``edit`` in a child process.
+    """Run the smoke test (``smoke.py``) on ``directory`` in a child process.
 
     The child runs inside ``directory`` and is handed it as ``.``, so no server path can appear
-    in what it reports.
+    in what it reports. Its report lists every failing step, so it keeps its start.
 
     Raises:
-        PxcSmokeTestFailed: with the sandbox's own error output, trimmed.
-        PxcBuildTimedOut: if ``get_state`` does not return within the timeout.
+        PxcSmokeTestFailed: naming every failing step with the sandbox's own error text.
+        PxcBuildTimedOut: if the smoke test does not finish within the timeout.
     """
     argv = [sys.executable, "-m", "sparkth.plugins.pxc.smoke", "."]
-    returncode, stderr = await run_bounded(argv, directory, "The get_state smoke test")
+    returncode, stderr = await run_bounded(argv, directory, "The smoke test")
     if returncode != 0:
         raise PxcSmokeTestFailed(
-            f"sandbox.js compiled, but get_state failed:\n{stderr.strip()[-get_pxc_settings().build_error_limit :]}"
+            "sandbox.js compiled, but running the activity failed:\n"
+            f"{stderr.strip()[: get_pxc_settings().build_error_limit]}"
         )
 
 

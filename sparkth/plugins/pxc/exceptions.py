@@ -65,7 +65,7 @@ class PxcCompileFailed(PxcBuildFailed):
 
 
 class PxcSmokeTestFailed(PxcBuildFailed):
-    """The sandbox compiled but ``get_state`` failed under ``play`` or ``edit``."""
+    """The sandbox compiled, but getState or an action failed when the smoke test ran it."""
 
 
 class PxcBuildTimedOut(PxcBuildFailed):
