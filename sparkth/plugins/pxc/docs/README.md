@@ -197,7 +197,8 @@ TODO: move builds to a worker container.
 
 An action fails when its sandbox throws or writes a value its field or event refuses, or is
 refused when the manifest does not accept its name or value. The learner's page then shows a
-notice, and the activity does not receive the action:
+notice, and the activity gets no events from it. A sandbox failure keeps any field the action
+saved before it failed, since each write is stored on its own:
 
 - Over the socket, the server sends `{"error": "action_failed" | "action_rejected", "action": <name>}`
   to the socket that sent the action, and nothing to the others. The socket stays open.
@@ -207,7 +208,7 @@ notice, and the activity does not receive the action:
 Only an author's preview records a failure. It is stored in `pxc_action_failures`, with its kind
 (`failed` or `rejected`), the action, the permission, the value and the error, and the newest
 `PXC_ACTION_FAILURE_LIMIT` failures per activity are kept. `pxc_get_activity_failures` reads those
-of the live version. A learner's failure in a course is logged, never stored.
+of the live version. A learner's failure in a course is never stored. Sandbox failures and socket refusals are logged.
 
 ## Scores and grading
 
@@ -314,8 +315,8 @@ bounded number of retries.
   only the live version's failures.
 - The smoke test's sample values do not reach every code path, so a build that passes can still
   fail on a value the activity's UI sends.
-- Only an author's preview records failures. A learner's failure in a course reaches the logs and
-  not `pxc_get_activity_failures`.
+- Only an author's preview records failures. A learner's failure in a course is never stored, so
+  `pxc_get_activity_failures` cannot show it.
 - Course staff who edit an LMS block's activity reference directly can point it at any activity
   id, and the LMS signs it. Ownership is checked only when the agent places content. Such a block
   can point at a draft, which is never marked placed, so a later update that changes one of its
