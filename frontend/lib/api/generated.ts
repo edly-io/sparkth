@@ -149,6 +149,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/chat/analytics/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Chat Activity
+         * @description Return chat authoring event counts per bucket, event type, dimension and outcome.
+         *
+         *     Sparse: combinations with no events are omitted; consumers zero-fill. Counts are lower
+         *     bounds: events queued on background tasks are lost when a route raises. Like every chat
+         *     route, answers 403 when the caller has the chat plugin disabled.
+         */
+        get: operations["chat_activity_api_v1_chat_analytics_activity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/chat/completions": {
         parameters: {
             query?: never;
@@ -1485,6 +1509,22 @@ export interface components {
          * @enum {string}
          */
         Bucket: "day" | "week" | "month";
+        /**
+         * ChatActivityPoint
+         * @description Count of one chat event type in one bucket. ``bucket`` is the UTC start, ``YYYY-MM-DD``.
+         */
+        ChatActivityPoint: {
+            /** Bucket */
+            bucket: string;
+            /** Dimension */
+            dimension?: string | null;
+            /** Event Count */
+            event_count: number;
+            /** Event Type */
+            event_type: string;
+            /** Outcome */
+            outcome?: string | null;
+        };
         /** ChatCompletionRequest */
         ChatCompletionRequest: {
             /** Conversation Id */
@@ -2636,6 +2676,39 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    chat_activity_api_v1_chat_analytics_activity_get: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                bucket?: components["schemas"]["Bucket"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatActivityPoint"][];
                 };
             };
             /** @description Validation Error */
