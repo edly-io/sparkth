@@ -18,6 +18,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from starlette.websockets import WebSocketDisconnect
 
 from sparkth.lib.log import get_logger
+from sparkth.plugins.pxc.actions import perform_action
 from sparkth.plugins.pxc.activities import asset_path
 from sparkth.plugins.pxc.constants import (
     PXC_CLOSE_ACTIVITY_NOT_FOUND,
@@ -26,7 +27,7 @@ from sparkth.plugins.pxc.constants import (
     PXC_PREFLIGHT_HEADERS,
     PXC_SANDBOX_HEADERS,
 )
-from sparkth.plugins.pxc.event_bus import EVENT_BUS, publish_events, subscribe_socket
+from sparkth.plugins.pxc.event_bus import EVENT_BUS, subscribe_socket
 from sparkth.plugins.pxc.exceptions import (
     PxcActionRejected,
     PxcActivityNotFound,
@@ -34,7 +35,7 @@ from sparkth.plugins.pxc.exceptions import (
     PxcInvalidLaunchToken,
 )
 from sparkth.plugins.pxc.revisions import live_revision
-from sparkth.plugins.pxc.runtime import build_runtime, launch_dir, read_state, run_action
+from sparkth.plugins.pxc.runtime import build_runtime, launch_dir, read_state
 from sparkth.plugins.pxc.schemas import ActivityConfig, LaunchContext
 from sparkth.plugins.pxc.tokens import LaunchClaims, pin_launch_token, read_launch_token
 from sparkth.plugins.pxc.websocket import run_action_frames
@@ -138,6 +139,7 @@ async def submit_action(
     """Run one action through the activity's sandbox, for a payload too large for the socket.
 
     The events it produces are published to the bus, not returned; the client reads only the status.
+    A failure in an author's preview is recorded for the author's agent.
 
     Raises:
         PxcActionRejected: if the body is not JSON the parser will read.
@@ -155,8 +157,7 @@ async def submit_action(
         )
         raise PxcActionRejected("Request body is not JSON this server can read") from err
     runtime = await asyncio.to_thread(build_runtime, claims)
-    events = await asyncio.to_thread(run_action, runtime, action_name, action_value)
-    await publish_events(claims.activity, claims.activity_instance, events)
+    await perform_action(runtime, claims, action_name, action_value)
     return Response(status_code=status.HTTP_204_NO_CONTENT, headers=PXC_CORS_HEADERS)
 
 
