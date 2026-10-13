@@ -1,4 +1,4 @@
-"""The pxc MCP tools: the PXC contract, and building, listing and reading back activities.
+"""The pxc MCP tools: the PXC contract, and building, listing, reading back and updating activities.
 
 The tools need an authenticated chat session. Over the unauthenticated MCP endpoint they raise
 ``NoAuthenticatedUser``.
@@ -12,7 +12,7 @@ from sparkth.lib.auth import current_user_id
 from sparkth.lib.db import session_scope
 from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.activities import activity_dir, parse_activity_id, preview_url
-from sparkth.plugins.pxc.builder import build_activity
+from sparkth.plugins.pxc.builder import build_activity, update_activity
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import PXC_ASSET_DIR
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound, PxcManifestInvalid
@@ -50,10 +50,10 @@ def _manifest_object(manifest: dict[str, object] | str) -> dict[str, object]:
     try:
         parsed = json.loads(manifest)
     except json.JSONDecodeError as err:
-        logger.info("pxc_build_activity refused manifest text that is not JSON: %s", err)
+        logger.info("Refused manifest text that is not JSON: %s", err)
         raise PxcManifestInvalid(f"manifest is not valid JSON: {err}") from err
     if not isinstance(parsed, dict):
-        logger.info("pxc_build_activity refused a JSON manifest of type %s", type(parsed).__name__)
+        logger.info("Refused a JSON manifest of type %s", type(parsed).__name__)
         raise PxcManifestInvalid(f"manifest must be a JSON object, got {type(parsed).__name__}")
     return parsed
 
@@ -66,7 +66,7 @@ async def pxc_build_activity(
     `title` and `description` are short and in the author's language. `manifest` is the
     manifest.json object (JSON text of that object is also accepted), `ui_js` the ui.js source,
     `sandbox_js` the sandbox.js source; follow `pxc_about` for all three. Every call creates a
-    new activity: an existing one never changes.
+    new activity; to change an existing one, use `pxc_update_activity`.
 
     If the build fails, the error explains why (an invalid manifest, a rejected import, compiler
     output, or the sandbox failing to start). Fix the files and call this again.
@@ -113,9 +113,10 @@ async def pxc_list_activities(limit: int | None = None) -> dict[str, list[dict[s
 async def pxc_get_activity_source(activity_id: str) -> dict[str, object]:
     """Return one of the author's activities as the files it was built from.
 
-    Use this before changing an activity: edit the files it returns and build them again with
-    `pxc_build_activity`, which creates a new activity. Only the activity's own author can read
-    it. The result says whether the activity has ever been placed in a course (this is never cleared).
+    Use this before changing an activity: edit the files it returns and pass them to
+    `pxc_update_activity`. Only the activity's own author can read it. `placed` says whether the
+    activity has ever been placed in a course (this is never cleared); once it has, its fields may
+    not be removed or change their type, scope or schema.
     """
     owner = current_user_id()
     async with session_scope() as session:
@@ -137,3 +138,31 @@ async def pxc_get_activity_source(activity_id: str) -> dict[str, object]:
         "sandbox_js": sandbox_js,
         "placed": activity.placed_at is not None,
     }
+
+
+async def pxc_update_activity(
+    activity_id: str, title: str, description: str, manifest: dict[str, object] | str, ui_js: str, sandbox_js: str
+) -> dict[str, str]:
+    """Update one of the author's activities in place from its edited files, keeping its id.
+
+    Pass back all three files from `pxc_get_activity_source`, edited, with the title and
+    description. The update reaches every course using the activity and cannot be undone, so get
+    the author's confirmation first when it is placed.
+
+    A draft accepts any change. A placed activity accepts only backward-compatible field changes:
+    adding a field (never as a replacement for an existing one) or changing a default. Anything
+    else needs a new activity; ask the author before building one.
+
+    A failed update leaves the activity unchanged, unless it fails after the new files go live.
+    """
+    owner = current_user_id()
+    parsed_id = parse_activity_id(activity_id)
+    source = ActivitySource(
+        title=title,
+        description=description,
+        manifest=_manifest_object(manifest),
+        ui_js=ui_js,
+        sandbox_js=sandbox_js,
+    )
+    await update_activity(parsed_id, source, owner)
+    return {"activity_id": activity_id, "preview_url": preview_url(parsed_id)}

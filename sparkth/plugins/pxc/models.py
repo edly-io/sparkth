@@ -1,9 +1,9 @@
 """The PXC plugin's table: one row per activity an author generated.
 
-A row is written once, after a successful build. Placement sets ``placed_at`` once. An edit
-builds a new activity under a new id, so activity instances of the old one keep what they had. The files live on
-disk in the activity's revision directories, behind ``generated_activity_dir(id)``; the row is
-what ties them to their owner.
+A row is written once, after a successful build. Placement sets ``placed_at`` once, and an update
+changes the title and description. The id never changes, so activity instances placed in courses
+keep launching the same activity. The files live on disk in the activity's revision directories, behind
+``generated_activity_dir(id)``; the row is what ties them to their owner.
 """
 
 from datetime import datetime
@@ -30,7 +30,7 @@ class PxcActivity(SQLModel, table=True):
         default_factory=utc_now,
         nullable=False,
     )
-    # Null until the activity is first placed in a course.
+    # Null until the activity is first placed in a course. Once set, an update may not remove or change a field.
     placed_at: datetime | None = Field(
         default=None,
         sa_type=DateTime(timezone=True),  # type: ignore
