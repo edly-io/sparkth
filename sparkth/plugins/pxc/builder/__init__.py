@@ -124,29 +124,46 @@ def _kill_group(pid: int, step: str) -> None:
         logger.info("PXC build step %r exited just as it was being killed", step)
 
 
-async def _read_tail(stream: asyncio.StreamReader) -> bytes:
-    """Read ``stream`` to its end, keeping only its last ``PXC_BUILD_STDERR_LIMIT_BYTES``."""
+async def _read_tail(stream: asyncio.StreamReader, tail: bytearray) -> None:
+    """Read ``stream`` to its end into ``tail``, keeping only its last ``PXC_BUILD_STDERR_LIMIT_BYTES``.
+
+    ``tail`` holds what was read so far even when the read is cancelled.
+    """
     limit = get_pxc_settings().build_stderr_limit_bytes
-    tail = b""
     while chunk := await stream.read(limit):
-        tail = (tail + chunk)[-limit:]
-    return tail
+        tail += chunk
+        del tail[:-limit]
+
+
+def _timed_out_message(step: str, timeout: int, stdout: bytearray, stderr: bytearray) -> str:
+    """Name the step that timed out, the last line it wrote to stdout and what it wrote to stderr."""
+    lines = stdout.decode("utf-8", "replace").strip().splitlines()
+    running = f" while running {lines[-1]}" if lines else ""
+    message = f"{step} did not finish within {timeout} seconds{running}. Look for a loop that never ends."
+    reported = stderr.decode("utf-8", "replace").strip()
+    if reported:
+        message += f"\nBefore that, it reported:\n{reported}"
+    return message[: get_pxc_settings().build_error_limit]
 
 
 async def run_bounded(argv: list[str], cwd: Path, step: str) -> tuple[int, str]:
     """Run one build step to completion and return its exit code and the end of its stderr.
 
     The step runs the agent's code, so it gets only ``_bare_env()`` as its environment. Its
-    stderr is drained as it is written, keeping the last ``PXC_BUILD_STDERR_LIMIT_BYTES``, so
-    a step flooding it never blocks on a full pipe or grows this process's memory.
+    stdout and stderr are drained as they are written, keeping the last
+    ``PXC_BUILD_STDERR_LIMIT_BYTES`` of each, so a step flooding them never blocks on a full
+    pipe or grows this process's memory.
 
     The step gets ``PXC_BUILD_TIMEOUT_SECONDS``. Whenever this exits with the step still
     running (timeout, cancellation), the step's whole group is killed and reaped. It starts
     in a session of its own, so its pid is also its process group and the kill reaches
     grandchildren. node runs wizer as one, and wizer is where a compile-time loop would spin.
 
+    A step names what it is running on its own line of stdout, so a timeout can say where it hung.
+
     Raises:
-        PxcBuildTimedOut: if the step outlives the timeout.
+        PxcBuildTimedOut: if the step outlives the timeout, with the last line of its stdout
+            and the stderr it wrote until then.
         asyncio.CancelledError: propagated after the step is killed, if the caller is cancelled.
     """
     timeout = get_pxc_settings().build_timeout_seconds
@@ -155,17 +172,19 @@ async def run_bounded(argv: list[str], cwd: Path, step: str) -> tuple[int, str]:
         cwd=cwd,
         env=_bare_env(),
         stdin=asyncio.subprocess.DEVNULL,
-        stdout=asyncio.subprocess.DEVNULL,
+        stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         start_new_session=True,
     )
-    assert process.stderr is not None  # piped above
+    assert process.stdout is not None and process.stderr is not None  # piped above
+    stdout, stderr = bytearray(), bytearray()
     try:
-        stderr, returncode = await asyncio.wait_for(asyncio.gather(_read_tail(process.stderr), process.wait()), timeout)
+        _, _, returncode = await asyncio.wait_for(
+            asyncio.gather(_read_tail(process.stdout, stdout), _read_tail(process.stderr, stderr), process.wait()),
+            timeout,
+        )
     except TimeoutError as err:
-        raise PxcBuildTimedOut(
-            f"{step} did not finish within {timeout} seconds. Look for a loop that never ends."
-        ) from err
+        raise PxcBuildTimedOut(_timed_out_message(step, timeout, stdout, stderr)) from err
     finally:
         if process.returncode is None:
             _kill_group(process.pid, step)
@@ -225,7 +244,8 @@ async def smoke_test_activity(directory: Path) -> None:
 
     Raises:
         PxcSmokeTestFailed: naming every failing step with the sandbox's own error text.
-        PxcBuildTimedOut: if the smoke test does not finish within the timeout.
+        PxcBuildTimedOut: if the smoke test does not finish within the timeout, naming the step
+            it hung in and the failing steps before it.
     """
     argv = [sys.executable, "-m", "sparkth.plugins.pxc.smoke", "."]
     returncode, stderr = await run_bounded(argv, directory, "The smoke test")

@@ -1,5 +1,6 @@
 """The smoke test the builder runs in a child process: which steps it runs, and what it reports."""
 
+import io
 import json
 from pathlib import Path
 
@@ -9,7 +10,7 @@ from pxc.lib.manifest_types import PxcActivityManifest, TypeSchema
 from sparkth.plugins.pxc.activities import activity_dir
 from sparkth.plugins.pxc.constants import PXC_SMOKE_VALUE_LIMIT
 from sparkth.plugins.pxc.scratch import StepOutcome
-from sparkth.plugins.pxc.smoke import config_save_value, main, sample_value, smoke_steps, step_failures
+from sparkth.plugins.pxc.smoke import config_save_value, main, sample_value, smoke_steps, step_failure
 
 MCQ_MANIFEST: dict[str, object] = json.loads((activity_dir("mcq") / "manifest.json").read_text())
 
@@ -79,8 +80,9 @@ def test_a_failure_line_gives_the_error_in_full_before_a_capped_value() -> None:
         "error": error,
     }
 
-    (line,) = step_failures([outcome])
+    line = step_failure(outcome)
 
+    assert line is not None
     assert line.startswith("config.save as edit")
     assert error in line
     assert line.index(error) < line.index("qqq")
@@ -94,16 +96,36 @@ def test_an_activity_with_no_actions_runs_no_action_steps() -> None:
     assert smoke_steps(manifest) == []
 
 
-@pytest.mark.wasm
-def test_the_bundled_sample_passes_the_smoke_test() -> None:
-    assert main([str(activity_dir("mcq"))]) == 0
-
-
-def test_a_sandbox_that_cannot_run_fails_the_smoke_test(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def _unrunnable_activity(tmp_path: Path) -> Path:
+    """The sample's manifest beside a sandbox.wasm that is not a component, so every check fails."""
     directory = tmp_path / "activity"
     directory.mkdir()
     (directory / "manifest.json").write_text((activity_dir("mcq") / "manifest.json").read_text())
     (directory / "sandbox.wasm").write_bytes(b"not a component")
+    return directory
 
-    assert main([str(directory)]) == 1
+
+@pytest.mark.wasm
+def test_the_bundled_sample_passes_the_smoke_test() -> None:
+    assert main([str(activity_dir("mcq"))], io.StringIO()) == 0
+
+
+def test_a_sandbox_that_cannot_run_fails_the_smoke_test(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert main([str(_unrunnable_activity(tmp_path))], io.StringIO()) == 1
     assert "getState as play before any action" in capsys.readouterr().err
+
+
+def test_every_check_is_named_on_the_progress_stream_in_the_order_it_runs(tmp_path: Path) -> None:
+    progress = io.StringIO()
+
+    main([str(_unrunnable_activity(tmp_path))], progress)
+
+    assert progress.getvalue().splitlines() == [
+        "getState as play before any action",
+        "getState as edit before any action",
+        "config.save as edit",
+        "answer.submit as play",
+        "answer.submit as edit",
+        "getState as play after the actions",
+        "getState as edit after the actions",
+    ]

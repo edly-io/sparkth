@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 
 import pytest
+from pxc.lib.field_store import MemoryKVStore
 from pxc.lib.permission import Permission
 from pydantic import ValidationError
 from sqlalchemy.exc import OperationalError
@@ -19,6 +20,7 @@ from sparkth.plugins.pxc.builder import (
     build_activity,
     compile_sandbox,
     run_bounded,
+    smoke_test_activity,
     validate_manifest,
 )
 from sparkth.plugins.pxc.config import get_pxc_settings
@@ -27,6 +29,7 @@ from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.revisions import revisions_dir
 from sparkth.plugins.pxc.runtime import build_runtime, read_state
 from sparkth.plugins.pxc.schemas import ActivitySource
+from sparkth.plugins.pxc.scratch import read_scratch_state
 from sparkth.plugins.pxc.store import get_owned_activity, list_owned_activities
 from sparkth.plugins.pxc.tests.conftest import TOOLCHAIN_DIR
 from sparkth.plugins.pxc.tokens import LaunchClaims
@@ -183,6 +186,25 @@ async def test_a_step_that_outlives_the_timeout_is_stopped(tmp_path: Path, short
 
     assert time.monotonic() - started < 10
     assert "A step did not finish within 2 seconds" in str(timed_out.value)
+
+
+async def test_a_timed_out_step_names_what_it_was_running_and_what_it_reported(
+    tmp_path: Path, short_timeout: None
+) -> None:
+    script = (
+        "import sys, time\n"
+        "print('step one', flush=True)\n"
+        "sys.stderr.write('step one failed')\n"
+        "sys.stderr.flush()\n"
+        "print('step two', flush=True)\n"
+        "time.sleep(60)\n"
+    )
+
+    with pytest.raises(PxcBuildTimedOut) as timed_out:
+        await run_bounded([sys.executable, "-c", script], tmp_path, "A step")
+
+    assert "A step did not finish within 2 seconds while running step two." in str(timed_out.value)
+    assert "step one failed" in str(timed_out.value)
 
 
 async def test_a_timeout_kills_the_steps_grandchildren_too(tmp_path: Path, short_timeout: None) -> None:
@@ -528,3 +550,30 @@ async def test_get_state_that_is_not_json_is_reported_with_the_failing_actions()
 
     assert "getState must return JSON text" in str(failed.value)
     assert "submit broke" in str(failed.value)
+
+
+@pytest.mark.wasm
+async def test_a_hung_action_is_named_with_the_failures_found_before_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hangs = (
+        '  if (name === "config.save") throw new Error("save broke");\n'
+        '  if (name === "answer.submit") while (true) console.log("spinning");\n'
+    )
+    directory = tmp_path / "activity"
+    directory.mkdir()
+    (directory / "manifest.json").write_text(json.dumps(MCQ_MANIFEST))
+    await compile_sandbox(
+        _patched(MCQ_SANDBOX_JS, PARSED, PARSED + hangs), _compile_dir(tmp_path), directory / "sandbox.wasm"
+    )
+    # Loading the sandbox once writes pxc-lib's compiled cache beside it, so the timed child starts quickly.
+    read_scratch_state(directory, MemoryKVStore(), Permission.play)
+    monkeypatch.setenv("PXC_BUILD_TIMEOUT_SECONDS", "5")
+    get_pxc_settings.cache_clear()
+
+    with pytest.raises(PxcBuildTimedOut) as timed_out:
+        await smoke_test_activity(directory)
+
+    assert "while running answer.submit as play." in str(timed_out.value)
+    assert "save broke" in str(timed_out.value)
+    assert "spinning" not in str(timed_out.value)

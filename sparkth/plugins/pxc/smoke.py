@@ -9,6 +9,10 @@ thread, but a process can be killed. On a throwaway store, it does the following
    schema accepts.
 4. Reads ``getState`` under both permissions again.
 
+Each check is named on its own line of stdout before it runs, and each failure goes to stderr as
+soon as it is found, so a check that never ends is named and the failures before it are kept. The
+sandbox's own stdout is discarded, so it cannot mix into those lines.
+
 Exit status 0 means every step passed. On 1, stderr carries one entry per failed step: the step,
 the sandbox's own error text (the message, then ``Stack:`` and its frames, so it can span several
 lines) and the value, cut short when long. The builder hands this to the agent.
@@ -19,8 +23,11 @@ It moves with the activity, so the first learner launch skips compiling the comp
 
 import json
 import logging
+import os
 import sys
+from collections.abc import Iterator
 from pathlib import Path
+from typing import TextIO
 
 from pxc.lib.actions import ActionChecker, ActionValidationError
 from pxc.lib.field_store import MemoryKVStore
@@ -35,6 +42,7 @@ from pxc.lib.manifest_types import (
     PxcActivityManifest,
     StringType,
 )
+from pxc.lib.permission import Permission
 
 from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.constants import (
@@ -45,10 +53,9 @@ from sparkth.plugins.pxc.constants import (
 )
 from sparkth.plugins.pxc.scratch import (
     ScratchStep,
-    StateOutcome,
     StepOutcome,
     read_scratch_state,
-    run_scratch,
+    run_step,
 )
 
 logger = get_logger(__name__)
@@ -111,47 +118,73 @@ def _cut(text: str) -> str:
     return text if len(text) <= PXC_SMOKE_VALUE_LIMIT else text[:PXC_SMOKE_VALUE_LIMIT] + "..."
 
 
-def step_failures(outcomes: list[StepOutcome]) -> list[str]:
-    """One entry per failed step: the step, its full error, then its value cut to the value limit."""
-    return [
+def step_failure(outcome: StepOutcome) -> str | None:
+    """The failure line of a step: the step, its full error, then its value cut to the value limit."""
+    if outcome["error"] is None:
+        return None
+    return (
         f"{outcome['action']} as {outcome['permission']} failed: {outcome['error']}\n"
         f"  with value {_cut(json.dumps(outcome['value']))}"
-        for outcome in outcomes
-        if outcome["error"] is not None
-    ]
+    )
 
 
-def state_failures(outcomes: list[StateOutcome], when: str) -> list[str]:
-    """One entry per failed ``getState``, saying when in the run it was read."""
-    return [
-        f"getState as {outcome['permission']} {when}: {outcome['error']}"
-        for outcome in outcomes
-        if outcome["error"] is not None
-    ]
+def check_state(
+    permission: Permission, when: str, directory: Path, store: MemoryKVStore, progress: TextIO
+) -> str | None:
+    """Read ``getState`` under ``permission``, naming it on ``progress`` first: its failure line, or None."""
+    label = f"getState as {permission.value} {when}"
+    print(label, file=progress, flush=True)
+    error = read_scratch_state(directory, store, permission)["error"]
+    return None if error is None else f"{label}: {error}"
 
 
-def smoke_failures(directory: Path) -> list[str]:
-    """Every failing step of the smoke run on the activity in ``directory``, in the order it ran."""
+def check_step(step: ScratchStep, directory: Path, store: MemoryKVStore, progress: TextIO) -> str | None:
+    """Run ``step``, naming it on ``progress`` first: its failure line, or None."""
+    print(f"{step['action']} as {step['permission']}", file=progress, flush=True)
+    return step_failure(run_step(directory, store, step))
+
+
+def smoke_checks(directory: Path, progress: TextIO) -> Iterator[str | None]:
+    """Run the smoke test on the activity in ``directory``, yielding each check's failure line, or None, as it ends.
+
+    The checks share one fresh store: getState under both permissions, every step, then getState again.
+    """
     manifest = PxcActivityManifest.model_validate_json((directory / "manifest.json").read_text(encoding="utf-8"))
-    fresh = MemoryKVStore()
-    before = [read_scratch_state(directory, fresh, permission) for permission in PXC_SCRATCH_PERMISSIONS]
-    report = run_scratch(directory, smoke_steps(manifest))
-    return [
-        *state_failures(before, "before any action"),
-        *step_failures(report["steps"]),
-        *state_failures(report["state"], "after the actions"),
-    ]
+    store = MemoryKVStore()
+    for permission in PXC_SCRATCH_PERMISSIONS:
+        yield check_state(permission, "before any action", directory, store, progress)
+    for step in smoke_steps(manifest):
+        yield check_step(step, directory, store, progress)
+    for permission in PXC_SCRATCH_PERMISSIONS:
+        yield check_state(permission, "after the actions", directory, store, progress)
 
 
-def main(argv: list[str]) -> int:
-    """Smoke-test the activity directory named by ``argv[0]``, returning the exit status."""
-    failures = smoke_failures(Path(argv[0]))
-    for failure in failures:
-        print(failure, file=sys.stderr)
-    return 1 if failures else 0
+def main(argv: list[str], progress: TextIO) -> int:
+    """Smoke-test the activity directory named by ``argv[0]``, returning the exit status.
+
+    Each check is named on ``progress`` before it runs, and each failure goes to stderr as it is found.
+    """
+    failed = False
+    for failure in smoke_checks(Path(argv[0]), progress):
+        if failure is not None:
+            print(failure, file=sys.stderr, flush=True)
+            failed = True
+    return 1 if failed else 0
+
+
+def _progress_stream() -> TextIO:
+    """This process's stdout for naming the checks, with file descriptor 1 pointed at /dev/null.
+
+    The sandbox writes its console output to file descriptor 1, so it cannot mix into the check names.
+    """
+    progress = os.fdopen(os.dup(1), "w")
+    null = os.open(os.devnull, os.O_WRONLY)
+    os.dup2(null, 1)
+    os.close(null)
+    return progress
 
 
 if __name__ == "__main__":
     # pxc-lib logs a traceback on failure; stderr should carry only the failure lines.
     logging.disable(logging.CRITICAL)
-    sys.exit(main(sys.argv[1:]))
+    sys.exit(main(sys.argv[1:], _progress_stream()))
