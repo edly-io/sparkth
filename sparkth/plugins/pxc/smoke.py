@@ -21,7 +21,7 @@ from pxc.lib.file_storage import MemoryFileStorage
 from pxc.lib.permission import Permission
 from pxc.lib.runtime import ActivityRuntime
 
-from sparkth.plugins.pxc.constants import PXC_SMOKE_CONTEXT_ID
+from sparkth.plugins.pxc.constants import PXC_SCRATCH_CONTEXT_ID
 from sparkth.plugins.pxc.exceptions import PxcSandboxFailure
 from sparkth.plugins.pxc.runtime import read_state
 
@@ -38,9 +38,9 @@ def smoke_test(directory: Path) -> None:
             directory,
             MemoryKVStore(),
             MemoryFileStorage(),
-            PXC_SMOKE_CONTEXT_ID,
-            PXC_SMOKE_CONTEXT_ID,
-            PXC_SMOKE_CONTEXT_ID,
+            PXC_SCRATCH_CONTEXT_ID,
+            PXC_SCRATCH_CONTEXT_ID,
+            PXC_SCRATCH_CONTEXT_ID,
             permission,
         )
         state: object = read_state(runtime)

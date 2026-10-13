@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from pxc.lib.permission import Permission
+
 from sparkth.lib.i18n import gettext_noop
 
 # Bundled activity sources, one directory per activity type.
@@ -38,8 +40,11 @@ PXC_PREVIEW_ACTIVITY_INSTANCE = "preview"
 # Prefixed onto a Sparkth user id in a preview token, so it never equals an LMS learner id.
 PXC_PREVIEW_USER_PREFIX = "sparkth-"
 
-# The course, activity instance and learner id the build's smoke test reads state as.
-PXC_SMOKE_CONTEXT_ID = "smoke"
+# The course, activity instance and learner a throwaway run of an activity acts as.
+PXC_SCRATCH_CONTEXT_ID = "smoke"
+
+# The permissions a throwaway run reads getState under, and runs each learner action as.
+PXC_SCRATCH_PERMISSIONS = (Permission.play, Permission.edit)
 
 # The WIT world every sandbox compiles against. It imports only pxc:sandbox/state, so a sandbox
 # can call nothing else on the host.
