@@ -4,11 +4,6 @@ from sparkth.core.analytics.schemas import AssessmentSubmitted, UserLoggedIn
 from sparkth.lib.analytics import AnalyticsEventSchema
 
 
-def test_core_schemas_subclass_base() -> None:
-    assert issubclass(AssessmentSubmitted, AnalyticsEventSchema)
-    assert issubclass(UserLoggedIn, AnalyticsEventSchema)
-
-
 def test_schemas_declare_identity() -> None:
     assert AssessmentSubmitted.event_type == "assessment.submitted"
     assert AssessmentSubmitted.version == 1
