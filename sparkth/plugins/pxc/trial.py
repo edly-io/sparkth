@@ -1,9 +1,9 @@
 """Run an author's steps against one of their activities in a child process, for the author's agent.
 
-The child is ``scratch.py``'s entry point, started through the builder's ``run_bounded``. It gets a
-bare environment and the build timeout, and its whole process group is killed if it outlives
-that. Its working directory is a fresh temporary directory holding ``steps.json``, and it writes
-``result.json`` there, never into the activity's own files.
+The child is ``python -m sparkth.plugins.pxc.scratch``, started through the builder's
+``run_bounded``. It gets a bare environment and the build timeout, and its whole process group is
+killed if it outlives that. Its working directory is a fresh temporary directory holding
+``steps.json``, and it writes ``result.json`` there, never into the activity's own files.
 """
 
 import json
@@ -18,7 +18,7 @@ from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.builder import run_bounded
 from sparkth.plugins.pxc.exceptions import PxcTrialFailed
 from sparkth.plugins.pxc.schemas import TrialStep
-from sparkth.plugins.pxc.scratch import ScratchReport, ScratchStep
+from sparkth.plugins.pxc.scratch.schemas import ScratchReport, ScratchStep
 
 logger = get_logger(__name__)
 
@@ -29,7 +29,7 @@ async def run_trial(directory: Path, steps: list[TrialStep]) -> ScratchReport:
     Raises:
         PxcTrialFailed: if the child exits with an error or writes no report. Its stderr is logged
             here only, since a traceback names server paths.
-        PxcBuildTimedOut: if the child outlives ``PXC_BUILD_TIMEOUT_SECONDS``.
+        PxcBuildTimedOut: if the child outlives ``PXC_BUILD_TIMEOUT_SECONDS``, naming the step it hung in.
     """
     # The child checks each value against the manifest, so a value of the wrong shape is that step's error.
     scratch_steps = [

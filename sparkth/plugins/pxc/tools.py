@@ -20,7 +20,7 @@ from sparkth.plugins.pxc.constants import PXC_ASSET_DIR
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound, PxcManifestInvalid
 from sparkth.plugins.pxc.revisions import live_revision
 from sparkth.plugins.pxc.schemas import ActivitySource, TrialStep
-from sparkth.plugins.pxc.scratch import ScratchReport
+from sparkth.plugins.pxc.scratch.schemas import ScratchReport
 from sparkth.plugins.pxc.store import get_owned_activity, list_action_failures, list_owned_activities
 from sparkth.plugins.pxc.trial import run_trial
 
