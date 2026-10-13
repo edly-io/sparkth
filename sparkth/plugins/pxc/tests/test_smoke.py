@@ -7,7 +7,9 @@ import pytest
 from pxc.lib.manifest_types import PxcActivityManifest, TypeSchema
 
 from sparkth.plugins.pxc.activities import activity_dir
-from sparkth.plugins.pxc.smoke import config_save_value, main, sample_value, smoke_steps
+from sparkth.plugins.pxc.constants import PXC_SMOKE_VALUE_LIMIT
+from sparkth.plugins.pxc.scratch import StepOutcome
+from sparkth.plugins.pxc.smoke import config_save_value, main, sample_value, smoke_steps, step_failures
 
 MCQ_MANIFEST: dict[str, object] = json.loads((activity_dir("mcq") / "manifest.json").read_text())
 
@@ -55,6 +57,35 @@ def test_a_config_save_that_is_not_an_object_gets_its_plain_sample() -> None:
     manifest = PxcActivityManifest.model_validate({**MCQ_MANIFEST, "actions": {"config.save": {"type": "string"}}})
 
     assert config_save_value(manifest) == ""
+
+
+def test_a_log_field_without_a_default_does_not_break_config_save() -> None:
+    fields = {"trace": {"type": "log", "items": {"type": "string"}, "scope": "activity"}}
+    actions = {
+        "config.save": {"type": "object", "properties": {"trace": {"type": "array", "items": {"type": "string"}}}}
+    }
+    manifest = PxcActivityManifest.model_validate({**MCQ_MANIFEST, "fields": fields, "actions": actions})
+
+    assert config_save_value(manifest) == {"trace": []}
+
+
+def test_a_failure_line_gives_the_error_in_full_before_a_capped_value() -> None:
+    error = "Error: boom\nStack:\n  at action (index.js:1)"
+    outcome: StepOutcome = {
+        "action": "config.save",
+        "permission": "edit",
+        "value": {"question": "q" * 5000},
+        "events": [],
+        "error": error,
+    }
+
+    (line,) = step_failures([outcome])
+
+    assert line.startswith("config.save as edit")
+    assert error in line
+    assert line.index(error) < line.index("qqq")
+    assert len(line) < len(error) + PXC_SMOKE_VALUE_LIMIT + 100
+    assert "..." in line
 
 
 def test_an_activity_with_no_actions_runs_no_action_steps() -> None:
