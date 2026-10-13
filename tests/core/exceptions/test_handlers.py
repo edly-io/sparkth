@@ -1,5 +1,6 @@
 from collections.abc import Iterator
 
+import fastapi
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -42,6 +43,16 @@ def test_register_exception_handler_rejects_duplicate_type() -> None:
 
     with pytest.raises(ValueError, match="Duplicate hook item for key"):
         register_exception_handler(ValueError, 400)
+
+
+@pytest.mark.parametrize("exc_type", [*FastAPI().exception_handlers, fastapi.HTTPException])
+def test_register_exception_handler_rejects_framework_handled_type(exc_type: type[Exception]) -> None:
+    before = dict(EXCEPTION_HANDLERS.iter_values())
+
+    with pytest.raises(ValueError):
+        register_exception_handler(exc_type, 500)
+
+    assert dict(EXCEPTION_HANDLERS.iter_values()) == before
 
 
 class _DomainError(Exception):
