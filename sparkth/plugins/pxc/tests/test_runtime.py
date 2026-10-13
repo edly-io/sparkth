@@ -88,7 +88,7 @@ def test_submitting_an_answer_returns_the_activitys_events() -> None:
 
 @pytest.mark.wasm
 def test_configuration_saves_with_edit_and_is_ignored_with_play() -> None:
-    # The sandbox is the enforcement point: pxc-lib's on_action refuses actions only in view
+    # The sandbox is the enforcement point: pxc-lib's on_action_or_raise refuses actions only in view
     # mode and passes the permission through, and activity/sandbox.js returns early from
     # handleConfigSave unless it is "edit". A play-mode config.save is therefore silently
     # ignored rather than raising, which is what this asserts.
@@ -183,14 +183,14 @@ def test_error_text_never_names_a_server_path(err: SandboxRuntimeError) -> None:
 
 
 def queue_an_event_then_fail(runtime: ActivityRuntime, action_name: str, action_value: object) -> None:
-    """Stand in for ``on_action``: ``"fail"`` queues an event as sandbox.js would, then throws."""
+    """Stand in for ``on_action_or_raise``: ``"fail"`` queues an event as sandbox.js would, then throws."""
     if action_name == "fail":
         runtime.send_event("answer.result", json.dumps({"correct": True}), None, "view")
         throw_in_sandbox(runtime, action_name, action_value)
 
 
 def test_a_failed_action_leaves_no_events_for_the_next_one(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(ActivityRuntime, "on_action", queue_an_event_then_fail)
+    monkeypatch.setattr(ActivityRuntime, "on_action_or_raise", queue_an_event_then_fail)
     runtime = build_runtime(CLAIMS)
 
     with pytest.raises(PxcSandboxFailure):
