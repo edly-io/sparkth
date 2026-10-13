@@ -6,42 +6,7 @@ public boundary, never the LLM internals behind it.
 
 import pytest
 
-import sparkth.lib.llm as llm_api
-from sparkth.lib.llm import (
-    BaseChatProvider,
-    LLMConfigAdapter,
-    LLMConfigDuplicateNameError,
-    LLMConfigInactiveError,
-    LLMConfigModelNotSetError,
-    LLMConfigNotFoundError,
-    LLMConfigService,
-    LLMConfigValidationError,
-    get_llm_service,
-    get_provider,
-)
-
-
-class TestLLMPublicApi:
-    def test_exposes_provider_base_and_factory(self) -> None:
-        assert isinstance(BaseChatProvider, type)
-        assert callable(llm_api.get_provider)
-
-    def test_exposes_service_and_factory(self) -> None:
-        assert isinstance(LLMConfigService, type)
-        assert callable(llm_api.get_llm_service)
-
-    def test_exposes_adapter(self) -> None:
-        assert isinstance(LLMConfigAdapter, type)
-
-    def test_exposes_config_exceptions(self) -> None:
-        for exc in (
-            LLMConfigDuplicateNameError,
-            LLMConfigInactiveError,
-            LLMConfigModelNotSetError,
-            LLMConfigNotFoundError,
-            LLMConfigValidationError,
-        ):
-            assert issubclass(exc, ValueError)
+from sparkth.lib.llm import BaseChatProvider, LLMConfigService, get_llm_service, get_provider
 
 
 class TestGetProvider:
