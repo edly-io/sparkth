@@ -156,6 +156,29 @@ describe("SparkthPXC", () => {
     },
   );
 
+  it("takes the action notice down when the learner acts again", async () => {
+    const activity = mountActivity();
+    const socket = FakeSocket.instances[0];
+    socket.open();
+    serverFrame(socket, { error: "action_failed", action: "answer.submit" });
+    expect(notice()).toBe(ACTION_NOTICE);
+
+    await activity.sendAction("answer.submit", [1]);
+
+    await vi.waitFor(() => expect(sentActions(socket)).toEqual(["answer.submit"]));
+    expect(notice()).toBeUndefined();
+  });
+
+  it("keeps a refusal notice up when the learner acts", async () => {
+    const activity = mountActivity();
+    const socket = FakeSocket.instances[0];
+    socket.closeFromServer(4401);
+
+    await activity.sendAction("answer.submit", [1]);
+
+    expect(notice()).toBe("Your session has expired. Reload this page to continue.");
+  });
+
   it("hands an ordinary event to the activity", () => {
     const activity = mountActivity();
     activity.onEvent = vi.fn();
@@ -177,10 +200,10 @@ describe("SparkthPXC", () => {
       socket.open();
 
       await activity.sendAction("config.save", OVERSIZED);
+      await vi.waitFor(() => expect(notice()).toBe(ACTION_NOTICE));
       await activity.sendAction("answer.submit", [0]);
 
       await vi.waitFor(() => expect(sentActions(socket)).toEqual(["answer.submit"]));
-      expect(notice()).toBe(ACTION_NOTICE);
     },
   );
 

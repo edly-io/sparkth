@@ -5,6 +5,7 @@ import pytest
 import wasmtime
 from pxc.lib.fields import FieldValidationError
 from pxc.lib.permission import Permission
+from pxc.lib.runtime import ActivityRuntime
 from pxc.lib.sandbox import SandboxRuntimeError
 from uuid6 import uuid7
 
@@ -20,6 +21,7 @@ from sparkth.plugins.pxc.tests.conftest import (
     THROWN_TEXT,
     compiled_activity,
     staged_activity,
+    throw_in_sandbox,
 )
 from sparkth.plugins.pxc.tokens import LaunchClaims
 
@@ -180,6 +182,23 @@ def test_error_text_never_names_a_server_path(err: SandboxRuntimeError) -> None:
     assert "initializer.js" not in sandbox_error_text(err)
 
 
+def queue_an_event_then_fail(runtime: ActivityRuntime, action_name: str, action_value: object) -> None:
+    """Stand in for ``on_action``: ``"fail"`` queues an event as sandbox.js would, then throws."""
+    if action_name == "fail":
+        runtime.send_event("answer.result", json.dumps({"correct": True}), None, "view")
+        throw_in_sandbox(runtime, action_name, action_value)
+
+
+def test_a_failed_action_leaves_no_events_for_the_next_one(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(ActivityRuntime, "on_action", queue_an_event_then_fail)
+    runtime = build_runtime(CLAIMS)
+
+    with pytest.raises(PxcSandboxFailure):
+        run_action(runtime, "fail", "")
+
+    assert run_action(runtime, "ok", "") == []
+
+
 def test_a_failing_action_carries_its_error_text(throwing_sandbox: None) -> None:
     with pytest.raises(PxcSandboxFailure) as failed:
         run_action(build_runtime(CLAIMS), "answer.submit", [0])
@@ -199,6 +218,7 @@ async def test_a_throwing_action_fails_with_what_sandbox_js_threw(tmp_path: Path
     assert failed.value.error_text.startswith("boom from onAction")
     assert "onAction@sandbox.js" in failed.value.error_text
     assert str(tmp_path) not in failed.value.error_text
+    assert "initializer.js" not in failed.value.error_text
 
 
 @pytest.mark.wasm
