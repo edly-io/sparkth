@@ -10,7 +10,9 @@ Plugins:
   - register it from their ``__init__`` via ``register_event_schema(self, MyEvent)``,
   - emit it through ``emit_event``, or ``emit_events`` for a group of related
     events that should share one session (reach for the lower-level
-    ``ingest_event`` only when the caller already holds an analytics session).
+    ``ingest_event`` only when the caller already holds an analytics session),
+  - read a continuous aggregate by range and bucket with ``read_rollup`` (payload-key
+    dims, no SQL), taking the range as ``RangeQuery``.
 """
 
 import inspect
@@ -30,9 +32,9 @@ from sparkth.core.analytics.exceptions import (
 )
 from sparkth.core.analytics.gateway import ingest_event
 from sparkth.core.analytics.maintenance import backfill_continuous_aggregates
-from sparkth.core.analytics.reads import get_logins
+from sparkth.core.analytics.reads import get_logins, read_rollup
 from sparkth.core.analytics.schemas.base import AnalyticsEventSchema
-from sparkth.core.analytics.schemas.reads import LoginsPoint
+from sparkth.core.analytics.schemas.reads import LoginsPoint, RangeQuery
 from sparkth.lib.db import analytics_session_scope
 from sparkth.lib.log import get_logger
 from sparkth.lib.plugins import SparkthPlugin
@@ -42,6 +44,8 @@ logger = get_logger(__name__)
 __all__ = [
     "AnalyticsEventSchema",
     "Bucket",
+    "RangeQuery",
+    "read_rollup",
     "ContinuousAggregateNotFound",
     "DuplicateEventTypeError",
     "EventNamespaceError",
