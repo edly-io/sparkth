@@ -345,3 +345,12 @@ async def test_an_open_page_keeps_its_revisions_ui_script_after_an_update(
     response = await client.get(config.ui_url)
 
     assert response.text == "first"
+
+
+async def test_an_action_whose_sandbox_fails_is_a_bad_gateway_that_hides_the_error(
+    client: AsyncClient, token: str, throwing_sandbox: None
+) -> None:
+    response = await client.post("/api/v1/pxc/actions/answer.submit", params={"token": token}, json=[0])
+
+    assert response.status_code == 502
+    assert response.json() == {"detail": "Activity mcq failed to run answer.submit"}

@@ -6,6 +6,7 @@ calling thread. Routes must call these from a worker thread, never on the event 
 
 from pathlib import Path
 
+import wasmtime
 from pxc.lib.actions import ActionValidationError
 from pxc.lib.fields import FieldType
 from pxc.lib.file_storage import LocalFileStorage
@@ -15,6 +16,7 @@ from pxc.lib.sandbox import SandboxRuntimeError
 from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.activities import activity_dir, state_file
 from sparkth.plugins.pxc.config import get_pxc_settings
+from sparkth.plugins.pxc.constants import PXC_SANDBOX_ABORT_NOTICE, PXC_SANDBOX_SILENT_FAILURE
 from sparkth.plugins.pxc.exceptions import PxcActionRejected, PxcSandboxFailure
 from sparkth.plugins.pxc.field_store.sqlite import SqliteFieldStore
 from sparkth.plugins.pxc.revisions import revision_dir
@@ -56,6 +58,33 @@ def build_runtime(claims: LaunchClaims) -> ActivityRuntime:
     )
 
 
+def _sandbox_output(stderr: str) -> str:
+    """What ``sandbox.js`` wrote to stderr, without blank lines, the abort notice or stack frames outside sandbox.js."""
+    return "\n".join(
+        line
+        for line in stderr.splitlines()
+        if line.strip()
+        and not line.startswith(PXC_SANDBOX_ABORT_NOTICE)
+        # A JS stack frame is indented "fn@file:line:col"; only sandbox.js's own frames are the author's.
+        and not (line.startswith(" ") and "@" in line and "sandbox.js:" not in line)
+    )
+
+
+def sandbox_error_text(err: SandboxRuntimeError) -> str:
+    """What went wrong in the sandbox, for logs and the author's agent. Never ``str(err)``, which names server paths.
+
+    A host function's own error, such as a field refusing a value, is described by the cause's
+    message, followed by anything ``sandbox.js`` wrote before it. A trap, such as a throw or
+    running out of memory, is described by what ``sandbox.js`` wrote, since the trap itself is a
+    wasm backtrace. With neither, the text says the sandbox stopped without a message.
+    """
+    output = _sandbox_output(err.stderr)
+    cause = err.__cause__
+    if cause is not None and not isinstance(cause, wasmtime.WasmtimeError):
+        return f"{cause}\nsandbox.js output before it:\n{output}" if output else str(cause)
+    return output or PXC_SANDBOX_SILENT_FAILURE
+
+
 def read_state(runtime: ActivityRuntime) -> dict[str, FieldType]:
     """The activity state to hand the client.
 
@@ -66,14 +95,15 @@ def read_state(runtime: ActivityRuntime) -> dict[str, FieldType]:
         # pxc-lib ships no py.typed marker, so mypy sees get_state() as returning Any.
         state: dict[str, FieldType] = runtime.get_state()
     except SandboxRuntimeError as err:
+        error_text = sandbox_error_text(err)
         logger.error(
             "PXC sandbox failed reading state for %s (course=%s, activity_instance=%s): %s",
             runtime.name,
             runtime.course_id,
             runtime.activity_id,
-            err,
+            error_text,
         )
-        raise PxcSandboxFailure(f"Activity {runtime.name} failed to produce its state") from err
+        raise PxcSandboxFailure(f"Activity {runtime.name} failed to produce its state", error_text) from err
     return state
 
 
@@ -84,24 +114,23 @@ def run_action(runtime: ActivityRuntime, action_name: str, action_value: FieldTy
 
     Raises:
         PxcActionRejected: if the manifest does not accept this action or value.
-        PxcSandboxFailure: if the sandbox itself failed — currently unreachable.
+        PxcSandboxFailure: if the sandbox failed; its error_text says how.
     """
     try:
         runtime.on_action(action_name, action_value)
     except ActionValidationError as err:
         raise PxcActionRejected(str(err)) from err
     except SandboxRuntimeError as err:
-        # Unreachable today: on_action catches this internally and only logs it, so the raise
-        # below never runs until pxc-lib starts letting it propagate. Kept for when it does.
+        error_text = sandbox_error_text(err)
         logger.error(
             "PXC sandbox failed running %s on %s (course=%s, activity_instance=%s): %s",
             action_name,
             runtime.name,
             runtime.course_id,
             runtime.activity_id,
-            err,
+            error_text,
         )
-        raise PxcSandboxFailure(f"Activity {runtime.name} failed to run {action_name}") from err
+        raise PxcSandboxFailure(f"Activity {runtime.name} failed to run {action_name}", error_text) from err
     # pxc-lib ships no py.typed marker, so mypy sees clear_pending_events() as returning Any.
     events: list[PendingEvent] = runtime.clear_pending_events()
     return events

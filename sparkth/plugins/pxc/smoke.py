@@ -4,9 +4,8 @@ The builder runs this in a child process. A sandbox stuck in a loop cannot be st
 thread, but a process can be killed. It reads ``get_state`` under ``play`` and under ``edit``,
 the two permissions a launch hands out, against throwaway in-memory storage.
 
-Exit status 0 means it passed. On 1, stderr carries the sandbox's own error output (pxc-lib
-passes the wasm's stderr through) followed by one summary line. The builder hands that text to
-the agent.
+Exit status 0 means it passed. On 1, stderr carries one line, ``get_state failed:`` followed by
+the failure's error text: what the sandbox threw or wrote. The builder hands that text to the agent.
 
 A passing run leaves ``sandbox.wasm.bin`` beside the wasm: pxc-lib's compiled-component cache.
 It moves with the activity, so the first learner launch skips compiling the component.
@@ -46,9 +45,8 @@ def smoke_test(directory: Path) -> None:
         )
         state: object = read_state(runtime)
         if not isinstance(state, dict):
-            raise PxcSandboxFailure(
-                f"get_state under {permission.value} must return a JSON object, not {type(state).__name__}"
-            )
+            message = f"get_state under {permission.value} must return a JSON object, not {type(state).__name__}"
+            raise PxcSandboxFailure(message, message)
 
 
 def main(argv: list[str]) -> int:
@@ -56,7 +54,7 @@ def main(argv: list[str]) -> int:
     try:
         smoke_test(Path(argv[0]))
     except PxcSandboxFailure as err:
-        print(f"get_state failed: {err}", file=sys.stderr)
+        print(f"get_state failed: {err.error_text}", file=sys.stderr)
         return 1
     except json.JSONDecodeError as err:
         print(f"get_state failed: it must return JSON text ({err})", file=sys.stderr)

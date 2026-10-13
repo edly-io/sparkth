@@ -44,6 +44,12 @@ PXC_SANDBOX_WIT = Path(__file__).parent / "builder" / "toolchain" / "pxc.wit"
 # The exit status of the toolchain's compile.mjs when its packages are not installed.
 PXC_COMPILE_TOOLCHAIN_MISSING = 2
 
+# The error text of a sandbox failure that left no message of its own.
+PXC_SANDBOX_SILENT_FAILURE = "The sandbox stopped without an error message."
+
+# The runtime's own line in a sandbox's stderr when a call aborts; it says nothing about the cause.
+PXC_SANDBOX_ABORT_NOTICE = "Redirecting call to abort()"
+
 # The pxc plugin's prompt and contract texts.
 PXC_ASSET_DIR = Path(__file__).parent / "assets"
 
