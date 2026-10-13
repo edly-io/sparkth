@@ -154,8 +154,6 @@ async def pxc_get_activity_failures(activity_id: str, limit: int | None = None) 
       schema.
     - "failed": sandbox.js threw, or wrote a value its field or event refuses. `error` is the
       sandbox's own message. Fix sandbox.js, or the field or event schema.
-
-    Reproduce a failure with `pxc_run_activity` before changing any code.
     """
     owner = current_user_id()
     parsed_id = parse_activity_id(activity_id)
