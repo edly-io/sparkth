@@ -1,15 +1,23 @@
 """Tests for the logins read: ``get_logins`` and ``GET /api/v1/analytics/logins``."""
 
 from datetime import date, datetime, timezone
+from typing import Any, cast
 
 import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.user import User
-from sparkth.core.permissions.models import Role, RoleAssignment, RolePermission
-from sparkth.lib.analytics import Bucket, LoginsPoint, get_logins, ingest_event
+from sparkth.lib.analytics import (
+    Bucket,
+    LoginsPoint,
+    RangeQuery,
+    get_logins,
+    ingest_event,
+    read_rollup,
+)
 from sparkth.lib.auth import get_current_user
+from sparkth.lib.testing import grant_global_permission
 
 URL = "/api/v1/analytics/login-activity"
 LOGINS_URL = "/api/v1/analytics/logins"
@@ -24,16 +32,6 @@ async def _seed_login(session: AsyncSession, username: str, occurred_at: datetim
         actor_id=username,
         occurred_at=occurred_at,
     )
-
-
-async def _grant_analytics_read(session: AsyncSession, user_id: int) -> None:
-    role = Role(name="analytics-reader")
-    session.add(role)
-    await session.flush()
-    assert role.id is not None
-    session.add(RolePermission(role_id=role.id, permission="analytics.read"))
-    session.add(RoleAssignment(user_id=user_id, role_id=role.id, scope="global", scope_object_id=None))
-    await session.flush()
 
 
 def _login_as(client: AsyncClient, user: User) -> None:
@@ -126,7 +124,7 @@ async def _permitted_reader(client: AsyncClient, session: AsyncSession) -> None:
     user = User(id=1, name="Reader", username="reader", email="r@example.com", hashed_password="x")
     session.add(user)
     await session.flush()
-    await _grant_analytics_read(session, 1)
+    await grant_global_permission(session, 1, "analytics.read")
     await session.commit()
     _login_as(client, user)
 
@@ -208,9 +206,101 @@ async def test_login_activity_endpoint_is_gone(
     user = User(id=3, name="Reader", username="reader3", email="r3@example.com", hashed_password="x")
     session.add(user)
     await session.flush()
-    await _grant_analytics_read(session, 3)
+    await grant_global_permission(session, 3, "analytics.read")
     await session.commit()
     _login_as(client, user)
 
     response = await client.get(URL, params={"days": 30})
     assert response.status_code == 404
+
+
+async def _seed_assessment(session: AsyncSession, occurred_at: datetime) -> None:
+    await ingest_event(
+        session,
+        "assessment.submitted",
+        1,
+        {"learner_id": "x", "competency_id": "y", "score": 1.0, "passed": True},
+        actor_id="x",
+        occurred_at=occurred_at,
+    )
+
+
+async def _rollup(session: AsyncSession, **kwargs: Any) -> list[dict[str, Any]]:
+    args: dict[str, Any] = {
+        "aggregate": "agg",
+        "event_types": ("user.logged_in", "assessment.submitted"),
+        "dims": {},
+        "count_column": "n",
+        "from_": date(2026, 3, 1),
+        "to": date(2026, 3, 31),
+        "bucket": Bucket.day,
+    }
+    rows = await read_rollup(session, **(args | kwargs))
+    return [dict(r) for r in rows]
+
+
+async def test_read_rollup_groups_by_a_payload_key_with_nulls_first(analytics_session: AsyncSession) -> None:
+    await _seed_login(analytics_session, "a", _at("2026-03-02"), method="password")
+    await _seed_login(analytics_session, "b", _at("2026-03-02"), method="google")
+    await _seed_login(analytics_session, "c", _at("2026-03-02"), method="google")
+    await _seed_assessment(analytics_session, _at("2026-03-02"))
+
+    rows = await _rollup(analytics_session, dims={"method": "method"})
+
+    assert rows == [
+        {"bucket": "2026-03-02", "method": None, "n": 1},
+        {"bucket": "2026-03-02", "method": "google", "n": 2},
+        {"bucket": "2026-03-02", "method": "password", "n": 1},
+    ]
+
+
+async def test_read_rollup_per_event_dim_is_null_for_other_types(analytics_session: AsyncSession) -> None:
+    await _seed_login(analytics_session, "a", _at("2026-03-02"), method="google")
+    await _seed_assessment(analytics_session, _at("2026-03-02"))
+
+    rows = await _rollup(analytics_session, by_event_type=True, dims={"detail": {"user.logged_in": "method"}})
+
+    assert rows == [
+        {"bucket": "2026-03-02", "event_type": "assessment.submitted", "detail": None, "n": 1},
+        {"bucket": "2026-03-02", "event_type": "user.logged_in", "detail": "google", "n": 1},
+    ]
+
+
+async def test_read_rollup_filters_event_types_and_binds_the_range(analytics_session: AsyncSession) -> None:
+    await _seed_login(analytics_session, "before", _at("2026-02-28", 23))
+    await _seed_login(analytics_session, "first", _at("2026-03-01", 0))
+    await _seed_login(analytics_session, "last", _at("2026-03-31", 23))
+    await _seed_login(analytics_session, "after", _at("2026-04-01", 0))
+    await _seed_assessment(analytics_session, _at("2026-03-01"))
+
+    rows = await _rollup(analytics_session, event_types=("user.logged_in",), bucket=Bucket.month)
+
+    assert rows == [{"bucket": "2026-03-01", "n": 2}]
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"aggregate": "agg; DROP TABLE raw_events"},
+        {"count_column": "n)"},
+        {"dims": {"bad key": "method"}},
+        {"dims": {"method": "$.method"}},
+        {"dims": {"method": {"user.logged_in'": "method"}}},
+    ],
+    ids=["aggregate", "count-column", "dims-key", "payload-key", "per-event-type"],
+)
+async def test_read_rollup_rejects_unsafe_identifiers_before_any_query(kwargs: dict[str, Any]) -> None:
+    # No session: validation must not depend on the dialect.
+    with pytest.raises(ValueError):
+        await _rollup(cast(AsyncSession, None), **kwargs)
+
+
+def test_range_query_rejects_inverted_and_overlong_ranges() -> None:
+    def parse(start: str, end: str) -> RangeQuery:
+        return RangeQuery.model_validate({"from": start, "to": end})
+
+    with pytest.raises(ValueError):
+        parse("2026-03-02", "2026-03-01")
+    with pytest.raises(ValueError):
+        parse("2026-01-01", "2027-01-02")  # 367 days
+    assert parse("2026-01-01", "2027-01-01").bucket == Bucket.day  # 366 days

@@ -42,6 +42,7 @@ from sparkth.core.audit.models import AuditEvent
 from sparkth.core.cache import get_cache_service
 from sparkth.core.db import dispose_engine, get_engine
 from sparkth.core.models.user import User
+from sparkth.core.permissions.models import Role, RoleAssignment, RolePermission
 from sparkth.lib.auth import bind_current_user_id, get_current_user
 from sparkth.lib.i18n import LOCALE_DIRS
 from sparkth.main import app
@@ -115,6 +116,17 @@ async def session() -> AsyncGenerator[AsyncSession, None]:
     """
     async with db.session_scope() as s:
         yield s
+
+
+async def grant_global_permission(session: AsyncSession, user_id: int, permission: str) -> None:
+    """Grant ``permission`` to the user globally, through a role named after it."""
+    role = Role(name=permission)
+    session.add(role)
+    await session.flush()
+    assert role.id is not None
+    session.add(RolePermission(role_id=role.id, permission=permission))
+    session.add(RoleAssignment(user_id=user_id, role_id=role.id, scope="global", scope_object_id=None))
+    await session.flush()
 
 
 # What the audit_events fixture yields: awaited to fetch the rows on demand.
