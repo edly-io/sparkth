@@ -41,14 +41,14 @@ describe("Pill", () => {
       expect(mockOnPreview).toHaveBeenCalledWith(attachment);
     });
 
-    it("calls onRemove with undefined when remove button clicked", async () => {
+    it("calls onRemove with the attachment when remove button clicked", async () => {
       const attachments: TextAttachment[] = [{ name: "file.pdf", size: 1024, text: "content" }];
 
       render(<Pill attachments={attachments} onPreview={mockOnPreview} onRemove={mockOnRemove} />);
 
       await userEvent.click(screen.getByTitle("Remove attachment"));
 
-      expect(mockOnRemove).toHaveBeenCalledWith(undefined);
+      expect(mockOnRemove).toHaveBeenCalledWith(attachments[0]);
     });
   });
 
@@ -89,7 +89,7 @@ describe("Pill", () => {
       expect(screen.getByText("first.pdf")).toBeInTheDocument();
     });
 
-    it("calls onRemove with driveFileDbId for per-file removal", async () => {
+    it("calls onRemove with the attachment for per-file removal", async () => {
       const attachments: TextAttachment[] = [
         {
           name: "first.pdf",
@@ -119,7 +119,7 @@ describe("Pill", () => {
       const firstRemoveButton = (await screen.findAllByTitle("Remove attachment"))[0];
       await userEvent.click(firstRemoveButton);
 
-      expect(mockOnRemove).toHaveBeenCalledWith(223);
+      expect(mockOnRemove).toHaveBeenCalledWith(attachments[1]);
     });
   });
 

@@ -7,7 +7,8 @@ import { truncate, RAG_DISPLAY_NAME_MAX_CHARS } from "@/lib/utils";
 interface PillProps {
   attachments: TextAttachment[];
   onPreview: (attachment: TextAttachment) => void;
-  onRemove?: (documentId?: number) => void;
+  // Called with the attachment to remove one, or with nothing to remove them all.
+  onRemove?: (attachment?: TextAttachment) => void;
 }
 
 export function Pill({ attachments, onPreview, onRemove }: PillProps) {
@@ -37,7 +38,7 @@ export function Pill({ attachments, onPreview, onRemove }: PillProps) {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => onRemove(firstAttachment.documentId)}
+              onClick={() => onRemove(firstAttachment)}
               className="text-muted-foreground hover:text-foreground p-0 h-auto ml-auto flex-shrink-0"
               title="Remove attachment"
             >
@@ -77,7 +78,7 @@ export function Pill({ attachments, onPreview, onRemove }: PillProps) {
                       <span>{truncate(attachment.name, RAG_DISPLAY_NAME_MAX_CHARS)}</span>
                       {onRemove && (
                         <button
-                          onClick={() => onRemove(attachment.documentId)}
+                          onClick={() => onRemove(attachment)}
                           className="ml-2 text-muted-foreground hover:text-foreground"
                           title="Remove attachment"
                         >

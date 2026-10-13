@@ -171,6 +171,10 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
         attachments={inputAttachments}
         setAttachments={setInputAttachments}
         onSend={handleGuardedSend}
+        onPreview={(attachment) => {
+          setPreviewAttachment(attachment);
+          setPreviewOpen(true);
+        }}
         conversationId={conversationId}
         isStreaming={isStreaming}
         isStopping={isStopping}

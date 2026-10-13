@@ -31,6 +31,7 @@ vi.mock("@/plugins/chat/hooks/useChatInput", () => ({
     handleUploadAsText: vi.fn(),
     handleDriveFileSelected: vi.fn(),
     handleRemoveAttachment: vi.fn(),
+    handleRemoveUpload: vi.fn(),
     handleSend,
   }),
 }));
@@ -46,6 +47,7 @@ describe("ChatInput", () => {
         attachments={[]}
         setAttachments={vi.fn()}
         onSend={vi.fn()}
+        onPreview={vi.fn()}
         conversationId={null}
         isStreaming={false}
         isStopping={false}
@@ -66,6 +68,7 @@ describe("ChatInput", () => {
         attachments={[]}
         setAttachments={vi.fn()}
         onSend={vi.fn()}
+        onPreview={vi.fn()}
         conversationId={null}
         isStreaming={false}
         isStopping={false}
@@ -87,6 +90,7 @@ describe("ChatInput", () => {
         attachments={[]}
         setAttachments={vi.fn()}
         onSend={vi.fn()}
+        onPreview={vi.fn()}
         conversationId={null}
         isStreaming
         isStopping={false}
@@ -107,6 +111,7 @@ describe("ChatInput", () => {
         attachments={[]}
         setAttachments={vi.fn()}
         onSend={vi.fn()}
+        onPreview={vi.fn()}
         conversationId={null}
         isStreaming
         isStopping
@@ -128,6 +133,7 @@ describe("ChatInput", () => {
         attachments={[]}
         setAttachments={vi.fn()}
         onSend={vi.fn()}
+        onPreview={vi.fn()}
         conversationId={null}
         isStreaming={false}
         isStopping={false}
@@ -146,6 +152,7 @@ describe("ChatInput", () => {
         attachments={[]}
         setAttachments={vi.fn()}
         onSend={vi.fn()}
+        onPreview={vi.fn()}
         conversationId={null}
         isStreaming
         isStopping={false}
@@ -165,6 +172,7 @@ describe("ChatInput", () => {
         attachments={[]}
         setAttachments={vi.fn()}
         onSend={vi.fn()}
+        onPreview={vi.fn()}
         conversationId={null}
         isStreaming={false}
         isStopping={false}
@@ -185,6 +193,7 @@ describe("ChatInput", () => {
         attachments={[]}
         setAttachments={vi.fn()}
         onSend={vi.fn()}
+        onPreview={vi.fn()}
         conversationId={null}
         isStreaming={false}
         isStopping={false}
@@ -196,5 +205,45 @@ describe("ChatInput", () => {
       target: { value: "Beginners" },
     });
     expect(setMessage).toHaveBeenCalledWith("Beginners");
+  });
+});
+
+describe("ChatInput — files uploaded from the computer", () => {
+  const upload = { name: "notes.txt", size: 9, text: "FILE TEXT" };
+  const drive = { name: "drive.pdf", size: 9, text: "[File: drive.pdf]", documentId: 7 };
+
+  function renderWith(onPreview = vi.fn()) {
+    renderWithIntl(
+      <ChatInput
+        message=""
+        setMessage={vi.fn()}
+        attachments={[drive, upload]}
+        setAttachments={vi.fn()}
+        onSend={vi.fn()}
+        onPreview={onPreview}
+        conversationId={null}
+        isStreaming={false}
+        isStopping={false}
+        onStop={vi.fn()}
+      />,
+      chatEn,
+    );
+  }
+
+  it("shows a pill for the file before the message is sent", () => {
+    renderWith();
+    expect(screen.getByText("notes.txt")).toBeInTheDocument();
+  });
+
+  it("leaves Drive files out of the pill", () => {
+    renderWith();
+    expect(screen.queryByText("drive.pdf")).not.toBeInTheDocument();
+  });
+
+  it("previews the file when its pill is clicked", async () => {
+    const onPreview = vi.fn();
+    renderWith(onPreview);
+    await userEvent.click(screen.getByText("notes.txt"));
+    expect(onPreview).toHaveBeenCalledWith(upload);
   });
 });

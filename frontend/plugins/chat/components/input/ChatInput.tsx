@@ -6,6 +6,7 @@ import { Paperclip, ArrowUp, Square, X } from "lucide-react";
 import { UploadMenu } from "./UploadMenu";
 import { TextAttachment } from "../../types";
 import { PersistedFilesInfo } from "../attachment/PersistedFilesInfo";
+import { Pill } from "../attachment/Pill";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/lib/auth-context";
 import { useIsPluginEnabled } from "@/lib/plugins/usePlugins";
@@ -22,6 +23,7 @@ interface ChatInputProps {
     attachments: TextAttachment[];
     documentIds?: number[];
   }) => Promise<boolean>;
+  onPreview: (attachment: TextAttachment) => void;
   conversationId: string | null;
   isStreaming: boolean;
   isStopping: boolean;
@@ -34,6 +36,7 @@ export function ChatInput({
   attachments,
   setAttachments,
   onSend,
+  onPreview,
   conversationId,
   isStreaming,
   isStopping,
@@ -53,6 +56,7 @@ export function ChatInput({
     handleUploadAsText,
     handleDriveFileSelected,
     handleRemoveAttachment,
+    handleRemoveUpload,
     handleSend,
   } = useChatInput({
     message,
@@ -63,6 +67,8 @@ export function ChatInput({
     setAttachments,
     onSend,
   });
+
+  const uploads = attachments.filter((a) => a.documentId === undefined);
 
   const { isEnabled: isDriveEnabled } = useIsPluginEnabled(token, "google-drive");
 
@@ -90,6 +96,13 @@ export function ChatInput({
 
         {/* Persisted Drive-file info line */}
         <PersistedFilesInfo attachments={attachments} onDetachFile={handleRemoveAttachment} />
+
+        {/* Files uploaded from the computer, sent with the next message */}
+        {uploads.length > 0 && (
+          <div className="w-fit max-w-full">
+            <Pill attachments={uploads} onPreview={onPreview} onRemove={handleRemoveUpload} />
+          </div>
+        )}
 
         {/* Input box */}
         <div className="relative bg-input border border-border rounded-2xl p-3">

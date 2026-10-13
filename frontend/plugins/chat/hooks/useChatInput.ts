@@ -134,6 +134,13 @@ export function useChatInput({
     }
   };
 
+  // Computer files live only in this draft, so removing one never touches the Drive attachments.
+  const handleRemoveUpload = (upload?: TextAttachment) => {
+    setAttachments((prev) =>
+      prev.filter((a) => a.documentId !== undefined || (upload !== undefined && a !== upload)),
+    );
+  };
+
   const handleSend = async () => {
     const sendableAttachments = attachments.filter((a) => a.documentId === undefined);
     if (!message.trim() && sendableAttachments.length === 0) return;
@@ -166,6 +173,7 @@ export function useChatInput({
     handleUploadAsText,
     handleDriveFileSelected,
     handleRemoveAttachment,
+    handleRemoveUpload,
     handleSend,
   };
 }
