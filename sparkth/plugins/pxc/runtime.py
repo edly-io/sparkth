@@ -118,7 +118,7 @@ def run_action(runtime: ActivityRuntime, action_name: str, action_value: FieldTy
         PxcSandboxFailure: if the sandbox failed; its error_text says how.
     """
     try:
-        runtime.on_action(action_name, action_value)
+        runtime.on_action_or_raise(action_name, action_value)
     except ActionValidationError as err:
         raise PxcActionRejected(str(err)) from err
     except SandboxRuntimeError as err:
