@@ -1,164 +1,48 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useFormatter, useTranslations } from "next-intl";
-import { ChartColumn, RefreshCw } from "lucide-react";
-import { useAuth } from "@/lib/auth-context";
+import { ChartColumn } from "lucide-react";
 import {
-  addDays,
   buildSeries,
-  daysInclusive,
   fetchLogins,
+  previousPeriod,
   summarize,
-  type Bucket,
   type IsoDate,
   type LoginsPoint,
 } from "@/lib/analytics";
-import { ApiRequestError } from "@/lib/api";
 import { LineChart } from "@/components/ui/LineChart";
 import { RankedBar } from "@/components/ui/RankedBar";
 import { StatCard } from "@/components/ui/StatCard";
-import { Alert } from "@/components/ui/Alert";
-import { Button } from "@/components/ui/Button";
-import { Forbidden } from "@/components/Forbidden";
-import { Spinner } from "@/components/Spinner";
 import type { Messages } from "@/lib/i18n/messages";
-import { usePeriod } from "../usePeriod";
+import { PeriodView, useComparison, type PeriodData } from "../PeriodView";
 
 type LabelledMethod = keyof Messages["analytics"]["logins"]["methods"];
 
-type State =
-  | { status: "loading" }
-  | {
-      status: "ready";
-      current: LoginsPoint[];
-      previous: LoginsPoint[];
-      from: IsoDate;
-      to: IsoDate;
-    }
-  | { status: "forbidden" }
-  | { status: "error" };
-
-// API days are UTC calendar days; format them in UTC or a user west of UTC sees the day before.
-const utc = (day: string) => new Date(`${day}T00:00:00Z`);
-
-// The equally long period that ends the day before `from`.
-function previousPeriod(from: IsoDate, to: IsoDate): { from: IsoDate; to: IsoDate } {
-  const n = daysInclusive(from, to);
-  return { from: addDays(from, -n), to: addDays(from, -1) };
-}
-
 export default function LoginsPage() {
-  const { token } = useAuth();
-  const t = useTranslations("analytics");
-  const format = useFormatter();
-  const { period } = usePeriod();
-  const [state, setState] = useState<State>({ status: "loading" });
-
-  const [reloadKey, setReloadKey] = useState(0);
-  useEffect(() => {
-    if (!token) return;
-    let active = true;
-    const { from, to } = period;
-    setState({ status: "loading" });
-    Promise.all([fetchLogins(token, { from, to }), fetchLogins(token, previousPeriod(from, to))])
-      .then(([current, previous]) => {
-        if (active) setState({ status: "ready", current, previous, from, to });
-      })
-      .catch((err) => {
-        if (!active) return;
-        if (err instanceof ApiRequestError && err.status === 403) {
-          setState({ status: "forbidden" });
-        } else {
-          setState({ status: "error" });
-        }
-      });
-    return () => {
-      active = false;
-    };
-    // Only the bucket reshapes the loaded rows, so changing it doesn't refetch.
-  }, [token, period.from, period.to, reloadKey]);
-
-  const retry = useCallback(() => setReloadKey((key) => key + 1), []);
-
-  // Access revoked after the layout's check: the read API answered 403.
-  if (state.status === "forbidden") {
-    return <Forbidden />;
-  }
-
+  const t = useTranslations("analytics.logins");
   return (
-    <div>
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold text-foreground">{t("logins.title")}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {t("logins.subtitle", {
-            range: format.dateTimeRange(utc(period.from), utc(period.to), {
-              dateStyle: "medium",
-              timeZone: "UTC",
-            }),
-          })}
-        </p>
-      </div>
-
-      {state.status === "loading" && (
-        <div className="flex items-center justify-center py-24">
-          <div className="text-center">
-            <Spinner className="mx-auto mb-4" />
-            <p className="text-muted-foreground">{t("loading")}</p>
-          </div>
-        </div>
-      )}
-
-      {state.status === "error" && (
-        <Alert severity="error">
-          <div className="flex items-center justify-between gap-3">
-            <span>{t("loadError")}</span>
-            <Button variant="ghost" size="sm" onClick={retry}>
-              <RefreshCw className="w-4 h-4 mr-1" aria-hidden="true" />
-              {t("retry")}
-            </Button>
-          </div>
-        </Alert>
-      )}
-
-      {state.status === "ready" && (
-        <AnalyticsContent
-          current={state.current}
-          previous={state.previous}
-          from={state.from}
-          to={state.to}
-          bucket={period.bucket}
-        />
-      )}
-    </div>
+    <PeriodView
+      title={t("title")}
+      subtitle={(range) => t("subtitle", { range })}
+      fetcher={fetchLogins}
+    >
+      {(data) => <AnalyticsContent {...data} />}
+    </PeriodView>
   );
 }
 
-function AnalyticsContent({
-  current,
-  previous,
-  from,
-  to,
-  bucket,
-}: {
-  current: LoginsPoint[];
-  previous: LoginsPoint[];
-  from: IsoDate;
-  to: IsoDate;
-  bucket: Bucket;
-}) {
+function AnalyticsContent({ current, previous, from, to, bucket }: PeriodData<LoginsPoint>) {
   const t = useTranslations("analytics.logins");
   const tTable = useTranslations("analytics.table");
   const format = useFormatter();
-  // A bucket label is its first day: a week reads "Week of <Monday>", a month its month name.
-  const formatBucket = (day: string) => {
-    if (bucket === "month") {
-      return format.dateTime(utc(day), { month: "short", year: "numeric", timeZone: "UTC" });
-    }
-    const date = format.dateTime(utc(day), { dateStyle: "medium", timeZone: "UTC" });
-    return bucket === "week" ? t("weekOf", { date }) : date;
-  };
-  const range = format.dateTimeRange(utc(from), utc(to), { dateStyle: "medium", timeZone: "UTC" });
+  const tCompare = useTranslations("analytics.compare");
+  const { range, formatBucket, change } = useComparison({
+    bucket,
+    from,
+    to,
+    noPrevious: t("noPrevious"),
+  });
   const { series, total, busiest, prevSeries, prevTotal, prevBusiest, methods } = useMemo(() => {
     // Rows are per method; buildSeries adds rows sharing a bucket, so methods sum per bucket.
     const toSeries = (rows: LoginsPoint[], range: { from: IsoDate; to: IsoDate }) =>
@@ -181,17 +65,6 @@ function AnalyticsContent({
     };
   }, [current, previous, from, to, bucket]);
 
-  // Zero before has no meaningful percentage, so say so rather than show Infinity%.
-  const change = (cur: number, prev: number) =>
-    prev === 0
-      ? t("noPrevious")
-      : t("vsPrevious", {
-          change: format.number(cur / prev - 1, {
-            style: "percent",
-            signDisplay: "exceptZero",
-            maximumFractionDigits: 0,
-          }),
-        });
   // A method added server-side before the frontend has a label shows by its raw name. The
   // cast only types the key for `t`; `t.has` is what checks it exists.
   const methodLabel = (m: string) => {
@@ -235,7 +108,7 @@ function AnalyticsContent({
           headers={[tTable("date"), tTable("logins"), tTable("previousPeriod")]}
           formatValue={(n) => format.number(n)}
         />
-        <p className="mt-2 text-xs text-muted-foreground">{t("comparisonLegend")}</p>
+        <p className="mt-2 text-xs text-muted-foreground">{tCompare("comparisonLegend")}</p>
       </div>
       <div className="bg-card rounded-xl border border-border p-6">
         <h3 className="mb-4 text-base font-semibold text-foreground">{t("byMethod")}</h3>
