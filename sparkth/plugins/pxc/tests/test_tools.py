@@ -30,7 +30,7 @@ from sparkth.plugins.pxc.exceptions import (
 from sparkth.plugins.pxc.models import PxcActionFailure, PxcActivity
 from sparkth.plugins.pxc.revisions import publish_revision
 from sparkth.plugins.pxc.schemas import ActivitySource, TrialStep
-from sparkth.plugins.pxc.scratch import ScratchReport
+from sparkth.plugins.pxc.scratch.schemas import ScratchReport
 from sparkth.plugins.pxc.store import insert_action_failure, insert_activity
 from sparkth.plugins.pxc.tests.conftest import (
     AUTHORED_MANIFEST,
