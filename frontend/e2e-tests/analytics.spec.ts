@@ -1,5 +1,11 @@
 import { test, expect } from "@playwright/test";
-import { daysAgoUtc, stubLogins, stubPermission, todayUtc } from "./utils/analytics";
+import {
+  daysAgoUtc,
+  stubChatActivity,
+  stubLogins,
+  stubPermission,
+  todayUtc,
+} from "./utils/analytics";
 
 /**
  * Analytics dashboard. Runs as the seeded e2e user (auth.setup.ts), which has no roles, so
@@ -124,5 +130,52 @@ test.describe("analytics period", () => {
       "href",
       /range=90d&bucket=month/,
     );
+  });
+});
+
+test.describe("analytics course authoring", () => {
+  test("opens from its rail entry, with the entry current", async ({ page }) => {
+    await stubLogins(page, []);
+    await stubChatActivity(page, []);
+    await page.goto("/dashboard/analytics/logins");
+    await page.getByRole("link", { name: "Course authoring" }).click();
+    await expect(page).toHaveURL(/\/dashboard\/analytics\/authoring\/?$/);
+    await expect(page.getByRole("link", { name: "Course authoring" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
+  test("shows activity and the tools used", async ({ page }) => {
+    await stubChatActivity(page, [
+      { bucket: todayUtc(), event_type: "chat.message_sent", event_count: 4 },
+      {
+        bucket: todayUtc(),
+        event_type: "chat.tool_invoked",
+        dimension: "create_course",
+        outcome: "succeeded",
+        event_count: 2,
+      },
+    ]);
+    await page.goto("/dashboard/analytics/authoring");
+    await expect(page.getByText("Messages sent", { exact: true })).toBeVisible();
+    // The bar label; the screen-reader table repeats it.
+    await expect(page.getByText("create_course", { exact: true }).first()).toBeVisible();
+  });
+
+  test("keeps the period when switching between Logins and Course authoring", async ({ page }) => {
+    await stubLogins(page, []);
+    await stubChatActivity(page, []);
+    await page.goto("/dashboard/analytics/logins?range=90d&bucket=month");
+    await page.getByRole("link", { name: "Course authoring" }).click();
+    await expect(page).toHaveURL(/\/authoring\/?\?range=90d&bucket=month/);
+    await page.getByRole("link", { name: "Logins" }).click();
+    await expect(page).toHaveURL(/\/logins\/?\?range=90d&bucket=month/);
+  });
+
+  test("shows the empty state for a period with no activity", async ({ page }) => {
+    await stubChatActivity(page, []);
+    await page.goto("/dashboard/analytics/authoring");
+    await expect(page.getByText(/no course-authoring activity in this period/i)).toBeVisible();
   });
 });

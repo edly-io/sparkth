@@ -20,6 +20,26 @@
         "google": "Google"
       }
     },
+    "authoring": {
+      "title": "Course authoring",
+      "subtitle": "Instructor course-authoring activity, {range} (UTC).",
+      "empty": "No course-authoring activity in this period.",
+      "conversations": "Conversations started",
+      "messages": "Messages sent",
+      "failedTurns": "Failed turns",
+      "failedHint": "{rate} of messages · {change}",
+      "documentsAttached": "Documents attached",
+      "detachedHint": "{count} detached · {change}",
+      "messagesCaption": "Messages sent, {range}",
+      "conversationsCaption": "Conversations started, {range}",
+      "failedTurnsCaption": "Failed turns, {range}",
+      "failureRateCaption": "Failure rate, {range}",
+      "tools": "Tools used",
+      "toolsCaption": "Tool calls by tool, {range}",
+      "toolValue": "{total} ({failed} failed)",
+      "lowerBound": "Counts are lower bounds: activity is occasionally not recorded.",
+      "noPrevious": "No activity in the previous period"
+    },
     "compare": {
       "weekOf": "Week of {date}",
       "vsPrevious": "{change} vs previous period",
@@ -29,11 +49,18 @@
       "date": "Date",
       "logins": "Logins",
       "method": "Method",
-      "previousPeriod": "Previous period"
+      "previousPeriod": "Previous period",
+      "tool": "Tool",
+      "calls": "Calls",
+      "messages": "Messages",
+      "conversations": "Conversations",
+      "failedTurns": "Failed turns",
+      "failureRate": "Failure rate"
     },
     "nav": {
       "label": "Analytics views",
-      "logins": "Logins"
+      "logins": "Logins",
+      "authoring": "Course authoring"
     },
     "period": {
       "range": "Period",
