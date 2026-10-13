@@ -38,7 +38,7 @@ from pathlib import Path
 from typing import cast
 from uuid import UUID
 
-from pxc.lib.manifest_types import PxcActivityManifest
+from pxc.lib.manifest_types import ArrayField, ArrayType, LogField, ObjectField, ObjectType, PxcActivityManifest
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -70,12 +70,27 @@ logger = get_logger(__name__)
 _BUILD_SLOTS = asyncio.Semaphore(get_pxc_settings().build_concurrency)
 
 
+def _empty_object_paths(definition: object, path: str) -> list[str]:
+    """The paths under ``definition`` of an ``object`` type with no ``properties``, which can only ever hold {}."""
+    if isinstance(definition, (ObjectType, ObjectField)):
+        if not definition.properties:
+            return [path]
+        return [
+            found
+            for key, prop in definition.properties.items()
+            for found in _empty_object_paths(prop.root, f"{path}.properties.{key}")
+        ]
+    if isinstance(definition, (ArrayType, ArrayField, LogField)):
+        return _empty_object_paths(definition.items.root, f"{path}.items")
+    return []
+
+
 def _manifest_rule_violations(manifest: PxcActivityManifest) -> list[str]:
     """What a schema-valid manifest still gets wrong for a generated activity.
 
     An activity is exactly its two scripts, so ``assets`` is refused. The sandbox world imports
     only ``pxc:sandbox/state``, so a declared capability could never be used. The file names
-    are the ones the build writes.
+    are the ones the build writes. A field's object type with no properties can only store {}.
     """
     violations = []
     if manifest.assets:
@@ -86,6 +101,12 @@ def _manifest_rule_violations(manifest: PxcActivityManifest) -> list[str]:
         violations.append('"ui" must be "ui.js"')
     if manifest.sandbox != "sandbox.wasm":
         violations.append('"sandbox" must be "sandbox.wasm"')
+    for name, definition in (manifest.fields or {}).items():
+        violations.extend(
+            f'{path}: an "object" with no "properties" can only hold {{}}. List its keys in "properties", '
+            'or store a map whose keys are chosen at runtime as an "array" of objects with fixed keys'
+            for path in _empty_object_paths(definition.root, f"fields.{name}")
+        )
     return violations
 
 

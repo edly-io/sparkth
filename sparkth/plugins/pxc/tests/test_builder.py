@@ -7,6 +7,7 @@ import shutil
 import sys
 import time
 from pathlib import Path
+from typing import cast
 
 import pytest
 from pxc.lib.permission import Permission
@@ -528,3 +529,33 @@ async def test_get_state_that_is_not_json_is_reported_with_the_failing_actions()
 
     assert "getState must return JSON text" in str(failed.value)
     assert "submit broke" in str(failed.value)
+
+
+MCQ_ACTIONS = cast(dict[str, object], MCQ_MANIFEST["actions"])
+
+
+@pytest.mark.parametrize(
+    ("field", "path"),
+    [
+        ({"type": "object", "properties": {}, "scope": "user,activity", "default": {}}, "fields.placements"),
+        (
+            {"type": "array", "items": {"type": "object", "properties": {}}, "scope": "activity", "default": []},
+            "fields.placements.items",
+        ),
+        (
+            {"type": "object", "properties": {"inner": {"type": "object", "properties": {}}}, "scope": "activity"},
+            "fields.placements.properties.inner",
+        ),
+    ],
+)
+def test_an_object_field_that_can_hold_no_keys_is_refused(field: dict[str, object], path: str) -> None:
+    with pytest.raises(PxcManifestInvalid) as refused:
+        validate_manifest({**MCQ_MANIFEST, "fields": {"placements": field}}, "activity-1")
+
+    assert path in str(refused.value)
+
+
+def test_an_action_whose_value_is_an_empty_object_is_accepted() -> None:
+    reset = {"reset": {"type": "object", "properties": {}}}
+
+    validate_manifest({**MCQ_MANIFEST, "actions": {**MCQ_ACTIONS, **reset}}, "activity-1")

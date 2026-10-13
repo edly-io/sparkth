@@ -37,6 +37,10 @@ MANIFEST RULES
   match its schema is rejected before the sandbox sees it.
 - ui.js, sandbox.js and the manifest (as JSON) are each capped at {max_source_chars}
   characters; longer ones are rejected, so keep them compact.
+- An "object" field or type stores only the keys listed in its "properties", and an "object" with
+  no "properties" can only hold {{}}, so a field of that type is rejected.
+- Keys chosen at runtime (a learner's answer per item, for example) go in an "array" of objects
+  with fixed keys, such as [{{"animal": ..., "category": ...}}].
 - Name the configuration action "config.save". Its value is an object holding every field the
   author can change.
 - Declare one event "fields.change.<field>" per configurable field, with that field's type, so
@@ -49,9 +53,16 @@ SANDBOX.JS RULES
 - Export onAction(name, value, context, permission) and getState(context, permission).
 - Values cross the boundary as JSON strings:
   - parse an action's value with JSON.parse;
-  - getField returns a JSON string, so parse it;
+  - getField returns the JSON encoding of the stored value, so one JSON.parse gives the value
+    back: a "string" field gives back a plain string. Never store JSON text in a "string" field;
   - pass JSON.stringify'd values to setField and sendEvent;
   - return getState's object with JSON.stringify.
+- A setField or sendEvent whose value the manifest refuses stops the whole action, and try/catch
+  cannot catch it. Fields written earlier in the same action keep their new values.
+- The build runs every declared action once as "play" and once as "edit", after "config.save"
+  has run as "edit" with the field defaults. Each action gets the simplest value its schema
+  accepts: "", 0, false, [] or an object of those. Any error fails the build, so onAction must
+  handle every value its schema allows.
 - onAction returns a string. Return "" when there is nothing to say.
 - sendEvent(name, value, context, permission): permission is the lowest permission a viewer
   needs to receive the event. Pass null as the context.
