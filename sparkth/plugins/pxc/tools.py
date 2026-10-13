@@ -1,4 +1,5 @@
-"""The pxc MCP tools: the PXC contract, and building, listing, reading back and updating activities.
+"""The pxc MCP tools: the PXC contract, building, listing, reading back and updating activities, and
+reading a preview's failed actions.
 
 The tools need an authenticated chat session. Over the unauthenticated MCP endpoint they raise
 ``NoAuthenticatedUser``.
@@ -16,8 +17,9 @@ from sparkth.plugins.pxc.builder import build_activity, update_activity
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import PXC_ASSET_DIR
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound, PxcManifestInvalid
+from sparkth.plugins.pxc.revisions import live_revision
 from sparkth.plugins.pxc.schemas import ActivitySource
-from sparkth.plugins.pxc.store import get_owned_activity, list_owned_activities
+from sparkth.plugins.pxc.store import get_owned_activity, list_action_failures, list_owned_activities
 
 logger = get_logger(__name__)
 
@@ -137,6 +139,43 @@ async def pxc_get_activity_source(activity_id: str) -> dict[str, object]:
         "ui_js": ui_js,
         "sandbox_js": sandbox_js,
         "placed": activity.placed_at is not None,
+    }
+
+
+async def pxc_get_activity_failures(activity_id: str, limit: int | None = None) -> dict[str, list[dict[str, str]]]:
+    """Return the actions that failed in the author's own preview of one activity, newest first.
+
+    Call this when the author says an action does nothing, glitches, loses answers or scores
+    wrong. Only the author's preview is recorded, never learners in a course, and only failures of
+    the activity's current version. After an update the list starts empty.
+
+    Each failure has its `kind`:
+    - "rejected": ui.js sent a value the action's schema in the manifest refuses. Fix ui.js or the
+      schema.
+    - "failed": sandbox.js threw, or wrote a value its field or event refuses. `error` is the
+      sandbox's own message. Fix sandbox.js, or the field or event schema.
+
+    Reproduce a failure with `pxc_run_activity` before changing any code.
+    """
+    owner = current_user_id()
+    parsed_id = parse_activity_id(activity_id)
+    if limit is None:
+        limit = get_pxc_settings().action_failure_limit
+    async with session_scope() as session:
+        await get_owned_activity(session, parsed_id, owner)
+        failures = await list_action_failures(session, parsed_id, live_revision(activity_id), limit)
+    return {
+        "failures": [
+            {
+                "kind": failure.kind,
+                "action": failure.action,
+                "permission": failure.permission,
+                "value": failure.value,
+                "error": failure.error,
+                "created_at": failure.created_at.isoformat(),
+            }
+            for failure in failures
+        ]
     }
 
 
