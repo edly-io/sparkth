@@ -47,6 +47,13 @@ An author places an activity from a course design conversation:
 An author can place only their own activities and the bundled samples. Sparkth checks this
 again when it places the activity, so an id from anywhere else is refused.
 
+Sparkth records the first time a generated activity is placed, once the LMS has created its block,
+so a placement the LMS refuses leaves the activity a draft. Until then the activity is a draft;
+from then on it is placed, for good, even if every block that held it is later removed. Bundled
+activities have no record and are never changed by placement. If Sparkth cannot record a
+placement, the block is left without the activity's reference and the agent is told to delete it
+and place the activity again.
+
 ## The Activities page
 
 The plugin adds an "Activities" entry to the sidebar for its dashboard page at `/dashboard/pxc`,
@@ -65,21 +72,50 @@ replies with a preview link that opens the activity on the Sparkth
 |---|---|
 | `pxc_about` | The contract: file rules and the manifest JSON schema |
 | `pxc_build_activity` | The id and preview link of a newly built activity |
-| `pxc_list_activities` | The author's most recent activities (20 by default, set by `PXC_LIST_ACTIVITIES_LIMIT`), newest first, each with id, title, creation time and preview link |
-| `pxc_get_activity_source` | One of the author's activities as its title, description, manifest, `ui.js` and `sandbox.js` |
+| `pxc_update_activity` | The id and preview link of an existing activity, changed in place |
+| `pxc_list_activities` | The author's most recent activities (20 by default, set by `PXC_LIST_ACTIVITIES_LIMIT`), newest first, each with id, title, creation time, preview link and whether it is placed |
+| `pxc_get_activity_source` | One of the author's activities as its title, description, manifest, `ui.js` and `sandbox.js`, and whether it is placed |
 
-A build failure is raised, not returned, and the agent reads its message to fix the files and
-try again.
+A build or update failure is raised, not returned, and the agent reads its message to fix the
+files and try again.
 
-Every tool reads the author from the authenticated request, never from an argument, and the two
-read tools are owner-only: another author's activity is reported as unknown. The tools need an
-authenticated chat session; on the unauthenticated `/ai/mcp` endpoint they fail with
-`NoAuthenticatedUser`.
+Every tool reads the author from the authenticated request, never from an argument. The two
+read tools and `pxc_update_activity` are owner-only: another author's activity is reported as
+unknown. The tools need an authenticated chat session; on the unauthenticated `/ai/mcp` endpoint
+they fail with `NoAuthenticatedUser`.
 
-A built activity never changes: an edit builds a new one.
+## Changing an activity from chat
 
-The job's prompt lives in `assets/pxc_activity_building_system_prompt.txt` and caps build
-attempts at three. The contract text lives in `assets/about.txt`, and the scope the classifier
+`pxc_update_activity` changes one of the author's activities in place, under the same id and
+preview link. The change reaches every placement of the activity at its next launch.
+
+What an update may change depends on whether the activity is placed:
+
+| Change | Draft | Placed |
+|---|---|---|
+| `ui.js`, `sandbox.js`, actions, events, title, description | allowed | allowed |
+| A new field, or a field's `default` | allowed | allowed |
+| A change that is not backward compatible, such as removing a field or changing a field's type, scope or nested schema | allowed | refused |
+
+A changed `default` reaches every activity instance that has no saved value of its own. A saved
+value keeps its shape whatever the default is.
+
+Only the preview writes to a draft's state file, unless a hand-edited LMS block points at the
+draft (see [Known limits](#known-limits)). A field removal or change clears that file; a change to
+a `default` alone leaves it.
+
+A refused update raises `PxcFieldsFrozen`, which names every offending field and tells the agent
+to stop and explain the situation to the author. The agent builds a new activity, with its own
+id and a distinct title, only after the author agrees. Courses keep the old activity until the
+author places the new one. A failed update is retried as an update, never as a new activity.
+
+There is no rollback: an update overwrites the previous version. So before the agent updates a
+placed activity, even with a change it accepts, it tells the author that the change reaches every
+course using it and cannot be undone, and updates only after the author confirms.
+
+The job's prompt lives in `assets/pxc_activity_building_system_prompt.txt` and caps build and
+update attempts at three. A refusal because the activity is placed does not count toward the
+cap. The contract text lives in `assets/about.txt`, and the scope the classifier
 reads in `assets/pxc_activity_building_scope.txt`.
 
 ## Adding an activity
@@ -91,9 +127,23 @@ of its fields, and the runtime serves those for an activity instance nobody has 
 
 ## Generated activities
 
-A generated activity's row is immutable, keyed by id and owner. Its files live under
-`PXC_DATA_DIR/activities/<id>/`. A launch resolves bundled names first, then a generated id from
-disk, with no database read.
+A generated activity's row is keyed by id and owner. Its title, description and `placed_at` can
+change; its id never does. Its files live in revision directories,
+`PXC_DATA_DIR/revisions/<id>/<rev>/`, where `<rev>` is a time-ordered id minted when the revision
+is published. The relative link `PXC_DATA_DIR/activities/<id>` points at the live revision.
+Replacing the link is atomic, so a reader sees the whole old revision or the whole new one.
+
+A launch resolves bundled names first, then a generated id from disk by following the link, with
+no database read. The embed pins the launch to the revision live when its page renders: it
+re-signs the launch token with that revision's id (`rev`), keeping the token's other claims and its
+expiry. Every later request of the page, for its UI script, assets, socket and actions, reads that
+revision. An open page keeps the revision it rendered until it reloads.
+
+An update prunes the activity's old revisions once their successor has been live for
+`PXC_REVISION_RETENTION_SECONDS`. The embed cuts a pinned launch token's lifetime to that value,
+so a token from Sparkth or the LMS (`PXC_LAUNCH_TOKEN_TTL_SECONDS` here, and the Open edX block's
+`SPARKTH_PXC_LAUNCH_TOKEN_TTL_SECONDS`) never outlives the revision it names. A page whose token
+expires is told its session ended and asked to reload.
 
 Two session routes let an author list their activities and open a preview; another user's id is
 a 404. Previews use a fixed course and activity instance, shared by the Student and Author views.
@@ -106,11 +156,23 @@ A build runs these steps in order:
    server.
 2. Compile `sandbox.js` against the bundled `pxc.wit`.
 3. Smoke-test the result in a child process, calling `get_state` for both play and edit.
-4. Move the directory into place.
+4. Publish the directory as the activity's first revision and point the link at it.
 5. Insert the row.
 
-A failure is written for the authoring agent to act on. An edit builds a new activity under a new
-id; the old one is untouched.
+An update runs the first three steps the same way, then:
+
+1. Read the activity's placement and compare the new fields with the live revision's.
+2. Refuse the update if the activity is placed and a field was removed or changed.
+3. Publish the files as a new revision and swap the link.
+4. Clear the state file if the activity is a draft and a field changed.
+5. Prune old revisions.
+6. Save the title and description.
+
+A failure is written for the authoring agent to act on. Nothing is published before the checks
+pass, so a failure before the link swap leaves the activity unchanged. Anything that fails after
+it leaves the new revision live: a failure clearing a draft's state file or saving the title and
+description is logged and raised, and a revision that cannot be pruned is logged and left for the
+next prune.
 
 A compile sees only its own directory, so a sandbox can import only `pxc:sandbox/*`: builtins,
 packages and relative paths fail to load. Each step has a timeout and is killed together with its
@@ -223,4 +285,21 @@ bounded number of retries.
 
 - Learner actions have no execution limit. That is pxc-lib's to fix.
 - Course staff who edit an LMS block's activity reference directly can point it at any activity
-  id, and the LMS signs it. Ownership is checked only when the agent places content.
+  id, and the LMS signs it. Ownership is checked only when the agent places content. Such a block
+  can point at a draft, which is never marked placed, so a later update that changes one of its
+  fields clears the learner state that block has saved.
+- A placement that lands in the milliseconds between an update's placement check and its link
+  swap is not seen by that update. Likewise, two updates of one activity in separate processes can
+  swap the link in the opposite order to their revision ids, so a later update's prune can remove
+  the revision that was live until that update, under a launch still pinned to it.
+- A preview page an author opened before an update keeps the previous revision until it reloads or
+  its launch token expires. Anything it saves in that time is written in the previous shape, after
+  a draft's preview data was cleared, and a later update that does not change what the activity
+  keeps will not clear it again. Reloading the preview avoids it.
+- A launch of an activity built as a plain directory is not pinned, since the directory is not a
+  revision yet. During the activity's first update, a launch gets a 404 between the directory's
+  move and the link's creation. A reload fixes it. A socket opened on the plain directory follows
+  the new link, so it can run the new code against the manifest it already read until it
+  reconnects.
+- Revisions replaced within `PXC_REVISION_RETENTION_SECONDS` before an activity's last update stay
+  on disk until its next update.
