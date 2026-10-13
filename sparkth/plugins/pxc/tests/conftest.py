@@ -195,7 +195,7 @@ THROWN_TEXT = "boom from onAction\nStack:\n  onAction@sandbox.js:4:30"
 
 
 def throw_in_sandbox(runtime: ActivityRuntime, action_name: str, action_value: object) -> None:
-    """Stand in for ``ActivityRuntime.on_action`` with a sandbox whose ``onAction`` throws."""
+    """Stand in for ``ActivityRuntime.on_action_or_raise`` with a sandbox whose ``onAction`` throws."""
     raise SandboxRuntimeError(
         f"Component /srv/pxc/activities/{runtime.name}/sandbox.wasm: error running 'on-action'", SANDBOX_STDERR
     )
@@ -204,7 +204,7 @@ def throw_in_sandbox(runtime: ActivityRuntime, action_name: str, action_value: o
 @pytest.fixture
 def throwing_sandbox(monkeypatch: pytest.MonkeyPatch) -> None:
     """Every action's sandbox throws as ``SANDBOX_STDERR`` shows, with no wasm needed."""
-    monkeypatch.setattr(ActivityRuntime, "on_action", throw_in_sandbox)
+    monkeypatch.setattr(ActivityRuntime, "on_action_or_raise", throw_in_sandbox)
 
 
 # The issue's case study: a map with runtime keys in an object field that lists no keys.
