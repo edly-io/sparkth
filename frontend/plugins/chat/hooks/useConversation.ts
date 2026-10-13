@@ -110,11 +110,12 @@ export function useConversation(
           data.messages.map((m) => ({
             id: String(m.id),
             role: m.role,
+            // The stored content of a file turn carries the file text the model needs; the bubble
+            // shows only what was typed. Older turns have no attachment_message and show the content,
+            // except the stand-in the backend stores for a document sent without words.
             content:
               m.message_type === "attachment"
-                ? m.content !== "[File attachment]"
-                  ? m.content
-                  : ""
+                ? (m.attachment_message ?? (m.content !== "[Document attachment]" ? m.content : ""))
                 : m.content,
             attachments:
               m.message_type === "attachment" && m.attachment_name

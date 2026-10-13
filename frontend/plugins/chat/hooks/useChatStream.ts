@@ -21,12 +21,20 @@ function buildUserMessages(message: string, attachments: TextAttachment[]) {
   const out: Array<{
     role: string;
     content: string | Record<string, unknown>[];
-    attachment?: { name: string; size: number };
+    attachment?: { name: string; size: number; message: string };
   }> = [];
 
-  for (let i = 0; i < attachments.length; i++) {
-    const attachment = attachments[i];
-    const isLast = i === attachments.length - 1;
+  // A file with no content sends nothing, so it must not be the one the typed message rides on.
+  const files = attachments.filter((a) => a.base64Data || a.text);
+  for (let i = 0; i < files.length; i++) {
+    const attachment = files[i];
+    const isLast = i === files.length - 1;
+    // The typed message rides with the last file, so a reload can show it without the file text.
+    const meta = {
+      name: attachment.name,
+      size: attachment.size,
+      message: isLast ? message.trim() : "",
+    };
     if (attachment.base64Data) {
       const contentBlocks: Record<string, unknown>[] = [
         {
@@ -42,18 +50,16 @@ function buildUserMessages(message: string, attachments: TextAttachment[]) {
       out.push({
         role: "user",
         content: contentBlocks,
-        attachment: { name: attachment.name, size: attachment.size },
+        attachment: meta,
       });
     } else {
-      if (attachment.text) {
-        const content =
-          isLast && message.trim() ? `${message}\n\n---\n\n${attachment.text}` : attachment.text;
-        out.push({
-          role: "user",
-          content,
-          attachment: { name: attachment.name, size: attachment.size },
-        });
-      }
+      const content =
+        isLast && message.trim() ? `${message}\n\n---\n\n${attachment.text}` : attachment.text;
+      out.push({
+        role: "user",
+        content,
+        attachment: meta,
+      });
     }
   }
 

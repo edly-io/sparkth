@@ -11,6 +11,7 @@ export interface ApiMessage {
   message_type: "text" | "attachment";
   attachment_name: string | null;
   attachment_size: number | null;
+  attachment_message?: string | null;
   created_at: string;
   rag_sections: { type: string; name: string; source?: string }[] | null;
   tool_calls: { name: string }[] | null;

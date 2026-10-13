@@ -54,7 +54,12 @@ function runStream(payloads: Record<string, unknown>[]) {
     }),
   );
   return {
-    send: () => result.current.handleSend({ message: "hello", attachments: [] }),
+    send: (
+      payload: Parameters<typeof result.current.handleSend>[0] = {
+        message: "hello",
+        attachments: [],
+      },
+    ) => result.current.handleSend(payload),
     stopGeneration: () => result.current.stopGeneration(),
     isStopping: () => result.current.isStopping,
     phases: () => snapshots.map((s) => s.statusPhase),
@@ -170,5 +175,65 @@ describe("useChatStream — stopping", () => {
       await stream.stopGeneration();
     });
     expect(stream.isStopping()).toBe(false);
+  });
+});
+
+describe("useChatStream — files uploaded from the computer", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const upload = (name: string, text: string) => ({ name, size: text.length, text });
+
+  it("sends the typed message alongside the last file, apart from its text", async () => {
+    const stream = runStream([DONE]);
+    await act(async () => {
+      await stream.send({
+        message: "Create a course",
+        attachments: [upload("a.txt", "AAA"), upload("b.txt", "BBB")],
+      });
+    });
+    const { messages } = requestChatCompletionStream.mock.calls[0][1];
+    expect(messages.map((m: { attachment: unknown }) => m.attachment)).toEqual([
+      { name: "a.txt", size: 3, message: "" },
+      { name: "b.txt", size: 3, message: "Create a course" },
+    ]);
+  });
+
+  it("keeps the typed message when the last file has no text", async () => {
+    const stream = runStream([DONE]);
+    await act(async () => {
+      await stream.send({
+        message: "Create a course",
+        attachments: [upload("a.txt", "AAA"), upload("empty.txt", "")],
+      });
+    });
+    const { messages } = requestChatCompletionStream.mock.calls[0][1];
+    expect(messages).toEqual([
+      {
+        role: "user",
+        content: "Create a course\n\n---\n\nAAA",
+        attachment: { name: "a.txt", size: 3, message: "Create a course" },
+      },
+    ]);
+  });
+
+  it("sends the typed message alongside a PDF", async () => {
+    const stream = runStream([DONE]);
+    await act(async () => {
+      await stream.send({
+        message: "Create a course",
+        attachments: [{ name: "a.pdf", size: 3, text: "", base64Data: "QUFB" }],
+      });
+    });
+    const { messages } = requestChatCompletionStream.mock.calls[0][1];
+    expect(messages[0].attachment).toEqual({ name: "a.pdf", size: 3, message: "Create a course" });
+  });
+
+  it("marks a file sent without a message as having none", async () => {
+    const stream = runStream([DONE]);
+    await act(async () => {
+      await stream.send({ message: "", attachments: [upload("a.txt", "AAA")] });
+    });
+    const { messages } = requestChatCompletionStream.mock.calls[0][1];
+    expect(messages[0].attachment).toEqual({ name: "a.txt", size: 3, message: "" });
   });
 });
