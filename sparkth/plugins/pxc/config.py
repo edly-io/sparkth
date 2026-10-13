@@ -55,9 +55,9 @@ class PxcSettings(BaseSettings):
     # where the cause is; the smoke test's list of failures and a manifest schema message keep their start.
     build_error_limit: int = 4000
 
-    # The most of a build step's stderr kept in memory, in bytes: the end of it, where the cause
-    # is. The rest is read and dropped, so a step flooding stderr can neither block nor exhaust
-    # memory.
+    # The most of a build step's stderr, and of its stdout, kept in memory, in bytes: the end of
+    # each, where the cause is. The rest is read and dropped, so a step flooding either can neither
+    # block nor exhaust memory.
     build_stderr_limit_bytes: int = 65536
 
     # The longest ui.js, sandbox.js or manifest (as JSON) an agent may submit, in characters,
