@@ -179,6 +179,15 @@ async def stage_without_compiling(work: Path, manifest: dict[str, object], sourc
     return staged
 
 
+def unrunnable_activity(tmp_path: Path) -> Path:
+    """The sample's manifest beside a sandbox.wasm that is not a component, so every sandbox call fails."""
+    directory = tmp_path / "activity"
+    directory.mkdir()
+    (directory / "manifest.json").write_text((activity_dir("mcq") / "manifest.json").read_text())
+    (directory / "sandbox.wasm").write_bytes(b"not a component")
+    return directory
+
+
 @pytest.fixture
 def uncompiled_builds(monkeypatch: pytest.MonkeyPatch) -> None:
     """Build and update without the toolchain: staging writes the files and skips the compile."""
