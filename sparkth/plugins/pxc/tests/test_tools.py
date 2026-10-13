@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from httpx import AsyncClient
 from pxc.lib.manifest_types import PxcActivityManifest
 from sqlmodel.ext.asyncio.session import AsyncSession
 from uuid6 import uuid7
@@ -15,7 +16,8 @@ from sparkth.lib.exceptions.auth import NoAuthenticatedUser
 from sparkth.lib.models import utc_now
 from sparkth.plugins.pxc.activities import generated_activity_dir, preview_url
 from sparkth.plugins.pxc.config import get_pxc_settings
-from sparkth.plugins.pxc.constants import PXC_ASSET_DIR
+from sparkth.plugins.pxc.constants import PXC_ASSET_DIR, PXC_PREVIEW_ACTIVITY_INSTANCE, PXC_PREVIEW_COURSE_ID
+from sparkth.plugins.pxc.enums import PxcFailureKind
 from sparkth.plugins.pxc.exceptions import (
     PxcActivityNotFound,
     PxcBuildFailed,
@@ -23,13 +25,23 @@ from sparkth.plugins.pxc.exceptions import (
     PxcFieldsFrozen,
     PxcManifestInvalid,
 )
-from sparkth.plugins.pxc.models import PxcActivity
+from sparkth.plugins.pxc.models import PxcActionFailure, PxcActivity
+from sparkth.plugins.pxc.revisions import publish_revision
 from sparkth.plugins.pxc.schemas import ActivitySource
-from sparkth.plugins.pxc.store import insert_activity
-from sparkth.plugins.pxc.tests.conftest import AUTHORED_MANIFEST, AUTHORED_SANDBOX_JS, AUTHORED_UI_JS, act_as
+from sparkth.plugins.pxc.store import insert_action_failure, insert_activity
+from sparkth.plugins.pxc.tests.conftest import (
+    AUTHORED_MANIFEST,
+    AUTHORED_SANDBOX_JS,
+    AUTHORED_UI_JS,
+    THROWN_TEXT,
+    act_as,
+    staged_activity,
+)
+from sparkth.plugins.pxc.tokens import mint_launch_token, pin_launch_token
 from sparkth.plugins.pxc.tools import (
     pxc_about,
     pxc_build_activity,
+    pxc_get_activity_failures,
     pxc_get_activity_source,
     pxc_list_activities,
     pxc_update_activity,
@@ -315,3 +327,76 @@ async def test_a_refused_update_reaches_the_agent_with_its_message() -> None:
         await pxc_update_activity(str(uuid7()), "Poll", "A one-question poll", MANIFEST, "ui", "sandbox")
 
     assert str(caught.value) == "Nothing was updated. field 'question' was removed"
+
+
+def _recorded(activity: PxcActivity, revision: str | None, action: str, kind: PxcFailureKind) -> PxcActionFailure:
+    return PxcActionFailure(
+        activity_id=activity.id,
+        revision=revision,
+        kind=kind,
+        action=action,
+        permission="play",
+        value="[0]",
+        error="boom",
+    )
+
+
+async def test_failures_come_back_newest_first_with_their_kind(
+    session: AsyncSession, authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    await insert_action_failure(session, _recorded(authored_activity, None, "place", PxcFailureKind.REJECTED), 20)
+    await insert_action_failure(session, _recorded(authored_activity, None, "check", PxcFailureKind.FAILED), 20)
+    act_as(authors[0])
+
+    failures = (await pxc_get_activity_failures(str(authored_activity.id)))["failures"]
+
+    assert [(failure["action"], failure["kind"]) for failure in failures] == [
+        ("check", "failed"),
+        ("place", "rejected"),
+    ]
+    assert failures[0]["error"] == "boom"
+
+
+async def test_only_the_live_revisions_failures_come_back(
+    session: AsyncSession, authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    activity_id = str(authored_activity.id)
+    older = publish_revision(staged_activity("first"), activity_id).name
+    live = publish_revision(staged_activity("second"), activity_id).name
+    await insert_action_failure(session, _recorded(authored_activity, older, "before", PxcFailureKind.FAILED), 20)
+    await insert_action_failure(session, _recorded(authored_activity, live, "after", PxcFailureKind.FAILED), 20)
+    act_as(authors[0])
+
+    assert [failure["action"] for failure in (await pxc_get_activity_failures(activity_id))["failures"]] == ["after"]
+
+
+async def test_a_failure_in_the_authors_pinned_preview_reaches_the_tool(
+    client: AsyncClient,
+    authored_activity: PxcActivity,
+    authors: tuple[User, User],
+    configured_secret: str,
+    throwing_sandbox: None,
+) -> None:
+    activity_id = str(authored_activity.id)
+    revision = publish_revision(staged_activity("q"), activity_id).name
+    token = mint_launch_token(
+        activity_id, PXC_PREVIEW_ACTIVITY_INSTANCE, PXC_PREVIEW_COURSE_ID, "sparkth-1", "play", configured_secret, 300
+    )
+
+    response = await client.post(
+        "/api/v1/pxc/actions/answer.submit", params={"token": pin_launch_token(token, revision)}, json=[0]
+    )
+    act_as(authors[0])
+    failures = (await pxc_get_activity_failures(activity_id))["failures"]
+
+    assert response.status_code == 502
+    assert [(failure["action"], failure["error"]) for failure in failures] == [("answer.submit", THROWN_TEXT)]
+
+
+async def test_failures_of_another_authors_activity_are_refused(
+    authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    act_as(authors[1])
+
+    with pytest.raises(PxcActivityNotFound):
+        await pxc_get_activity_failures(str(authored_activity.id))
