@@ -18,6 +18,10 @@ PXC_SANDBOX_HEADERS = {"Content-Security-Policy": "sandbox allow-scripts allow-f
 PXC_CLOSE_INVALID_TOKEN = 4401
 PXC_CLOSE_ACTIVITY_NOT_FOUND = 4404
 
+# The error a socket frame carries for an action the sandbox failed or the manifest refused.
+PXC_ACTION_FAILED = "action_failed"
+PXC_ACTION_REJECTED = "action_rejected"
+
 # Preflight response for the cross-origin action POST, cached by the browser for a day.
 PXC_PREFLIGHT_HEADERS = {
     **PXC_CORS_HEADERS,

@@ -141,6 +141,7 @@ async def submit_action(
 
     Raises:
         PxcActionRejected: if the body is not JSON the parser will read.
+        PxcSandboxFailure: if the sandbox failed (502).
     """
     try:
         action_value = await request.json()

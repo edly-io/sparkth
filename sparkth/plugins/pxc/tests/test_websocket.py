@@ -12,7 +12,12 @@ from fastapi import status
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from sparkth.plugins.pxc.constants import PXC_CLOSE_ACTIVITY_NOT_FOUND, PXC_CLOSE_INVALID_TOKEN
+from sparkth.plugins.pxc.constants import (
+    PXC_ACTION_FAILED,
+    PXC_ACTION_REJECTED,
+    PXC_CLOSE_ACTIVITY_NOT_FOUND,
+    PXC_CLOSE_INVALID_TOKEN,
+)
 from sparkth.plugins.pxc.event_bus import EVENT_BUS
 from sparkth.plugins.pxc.tests.conftest import inline_config
 from sparkth.plugins.pxc.tokens import mint_launch_token
@@ -207,7 +212,50 @@ def test_an_action_the_manifest_rejects_leaves_the_socket_open(ws_client: TestCl
         socket.send_json({"action": "no.such.action", "value": [], "permission": "play"})
         socket.send_json({"action": "answer.submit", "value": [0], "permission": "play"})
 
+        assert socket.receive_json() == {"error": PXC_ACTION_REJECTED, "action": "no.such.action"}
         assert socket.receive_json()["name"] == "answer.result"
+
+
+# A frame with no action: the server closes the socket on it, so a test never waits on a frame that is not coming.
+CLOSE: dict[str, list[int]] = {"value": []}
+
+
+def test_an_action_whose_sandbox_fails_gets_an_error_frame_and_the_socket_stays_open(
+    ws_client: TestClient, configured_secret: str, throwing_sandbox: None
+) -> None:
+    token = mint_launch_token("mcq", "instance-1", "course-1", "learner-7", "play", configured_secret, 300)
+
+    with ws_client.websocket_connect(f"/api/v1/pxc/ws?token={token}") as socket:
+        socket.send_json({"action": "answer.submit", "value": [0], "permission": "play"})
+        socket.send_json({"action": "answer.submit", "value": [1], "permission": "play"})
+        socket.send_json(CLOSE)
+        first = socket.receive_json()
+        second = socket.receive_json()
+
+    assert first == {"error": PXC_ACTION_FAILED, "action": "answer.submit"}
+    assert second == first
+
+
+def test_an_action_the_manifest_refuses_gets_an_error_frame(ws_client: TestClient, configured_secret: str) -> None:
+    token = mint_launch_token("mcq", "instance-1", "course-1", "learner-7", "play", configured_secret, 300)
+
+    with ws_client.websocket_connect(f"/api/v1/pxc/ws?token={token}") as socket:
+        socket.send_json({"action": "no.such.action", "value": [], "permission": "play"})
+        socket.send_json(CLOSE)
+
+        assert socket.receive_json() == {"error": PXC_ACTION_REJECTED, "action": "no.such.action"}
+
+
+def test_an_action_named_by_a_number_is_refused_by_its_name_as_text(
+    ws_client: TestClient, configured_secret: str
+) -> None:
+    token = mint_launch_token("mcq", "instance-1", "course-1", "learner-7", "play", configured_secret, 300)
+
+    with ws_client.websocket_connect(f"/api/v1/pxc/ws?token={token}") as socket:
+        socket.send_json({"action": 7, "value": [], "permission": "play"})
+        socket.send_json(CLOSE)
+
+        assert socket.receive_json() == {"error": PXC_ACTION_REJECTED, "action": "7"}
 
 
 @pytest.mark.wasm
