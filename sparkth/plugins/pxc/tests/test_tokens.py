@@ -7,6 +7,7 @@ import pytest
 from pxc.lib.permission import Permission
 from uuid6 import uuid7
 
+from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import PXC_PREVIEW_ACTIVITY_INSTANCE, PXC_PREVIEW_COURSE_ID
 from sparkth.plugins.pxc.enums import PreviewPermission
 from sparkth.plugins.pxc.exceptions import PxcInvalidLaunchToken, PxcLaunchNotConfigured
@@ -252,3 +253,16 @@ def test_a_pinned_token_keeps_every_claim_and_its_expiry_and_adds_the_revision(c
 def test_a_token_that_does_not_verify_is_not_pinned(configured_secret: str) -> None:
     with pytest.raises(PxcInvalidLaunchToken):
         pin_launch_token(mint_launch_token(*CLAIMS, "play", OTHER_SECRET, 300), str(uuid7()))
+
+
+def test_a_pinned_token_expires_before_its_revision_can_be_pruned(
+    configured_secret: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A launch token from an issuer with a longer lifetime than the retention is cut to it.
+    monkeypatch.setenv("PXC_REVISION_RETENTION_SECONDS", "60")
+    get_pxc_settings.cache_clear()
+    token = mint_launch_token(*CLAIMS, "play", configured_secret, 3600)
+
+    pinned = pin_launch_token(token, str(uuid7()))
+
+    assert jwt.decode(pinned, configured_secret, algorithms=["HS256"])["exp"] <= time.time() + 60

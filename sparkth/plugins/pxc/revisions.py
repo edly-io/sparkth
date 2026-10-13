@@ -9,11 +9,17 @@ the time they went live.
 A launch is pinned to the revision live when its page rendered: the embed re-signs the launch
 token with it, and every later request of that launch reads that revision through
 ``revision_dir``. So a page never runs one revision's script against another's sandbox.
+
+A plain directory at the link's place becomes the activity's first revision when the activity is next
+published. ``prune_revisions`` removes the revisions no launch can still be using.
 """
 
+import itertools
 import os
 import shutil
+import time
 from pathlib import Path
+from uuid import UUID
 
 from uuid6 import uuid7
 
@@ -56,15 +62,19 @@ def publish_revision(staged: Path, activity_id: str) -> Path:
     """Move a staged activity into a new revision, make that revision live, and return it.
 
     ``staged`` must sit on the data directory's filesystem, so moving it is a rename. The link's
-    target is relative, so the data directory can be mounted anywhere. If the link cannot be made
-    live, the new revision and the temporary link are removed, the live revision is untouched, and
-    the error is raised.
+    target is relative, so the data directory can be mounted anywhere. A plain directory where the
+    link belongs becomes the activity's first revision. If the link cannot be made live, the new
+    revision and the temporary link are removed and the error is raised.
     """
-    revision = revisions_dir(activity_id) / str(uuid7())
-    revision.parent.mkdir(parents=True, exist_ok=True)
-    staged.rename(revision)
+    revisions = revisions_dir(activity_id)
+    revisions.mkdir(parents=True, exist_ok=True)
     link = generated_activity_dir(activity_id)
     link.parent.mkdir(parents=True, exist_ok=True)
+    if link.is_dir() and not link.is_symlink():
+        # A launch between this rename and the link replace below gets a 404.
+        link.rename(revisions / str(uuid7()))
+    revision = revisions / str(uuid7())
+    staged.rename(revision)
     temporary = link.with_name(f".{activity_id}.{revision.name}")
     try:
         temporary.symlink_to(Path("..") / "revisions" / activity_id / revision.name)
@@ -77,6 +87,37 @@ def publish_revision(staged: Path, activity_id: str) -> Path:
         shutil.rmtree(revision)
         raise
     return revision
+
+
+def prune_revisions(activity_id: str, retention_seconds: int) -> None:
+    """Remove the revisions of one activity that no launch can still be using.
+
+    A launch is pinned to the revision that was live when its page rendered, by a token minted
+    before then and expiring within ``PXC_REVISION_RETENTION_SECONDS``. So once the next newer
+    revision has been live for ``retention_seconds`` (that setting), every token pinned to the
+    older one has expired.
+    The live revision is never removed. A removal that fails is logged and left for the next prune.
+    An entry not named like a revision, such as a copy someone left there, is logged and left alone.
+    """
+    live = generated_activity_dir(activity_id).resolve().name
+    cutoff_ms = (time.time() - retention_seconds) * 1000
+    revisions = sorted(entry for entry in revisions_dir(activity_id).iterdir() if _is_revision(entry))
+    for older, newer in itertools.pairwise(revisions):
+        if older.name != live and UUID(newer.name).time <= cutoff_ms:
+            try:
+                shutil.rmtree(older)
+            except OSError as err:
+                logger.warning("Could not remove revision %s of PXC activity %s: %s", older.name, activity_id, err)
+
+
+def _is_revision(entry: Path) -> bool:
+    """Whether ``entry`` is named like a revision, by a uuid. Anything else is logged as a warning."""
+    try:
+        UUID(entry.name)
+    except ValueError:
+        logger.warning("Skipping %s among the revisions of a PXC activity: its name is not a revision id", entry)
+        return False
+    return True
 
 
 def remove_activity_files(activity_id: str) -> None:

@@ -278,3 +278,8 @@ class SqliteFieldStore(FieldStore):
                 _log_scope(course_id, activity_name, activity_id, user_id, key),
             )
             return cursor.rowcount
+
+    def clear(self) -> None:
+        """Delete every stored value and log entry, for every course, activity instance and learner."""
+        with self._connect() as connection:
+            connection.executescript("BEGIN; DELETE FROM fields; DELETE FROM field_log; COMMIT;")

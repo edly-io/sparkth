@@ -157,15 +157,23 @@ def mint_preview_token(activity_id: UUID, user_id: int, permission: PreviewPermi
 
 
 def pin_launch_token(token: str, revision: str) -> str:
-    """``token`` re-signed with the activity revision its launch reads, expiring when ``token`` does.
+    """``token`` re-signed with the activity revision its launch reads.
 
-    Every claim of ``token`` is kept, so the pinned token grants exactly what ``token`` did.
+    Every claim of ``token`` is kept, so the pinned token grants exactly what ``token`` did. It
+    expires when ``token`` does, or after ``PXC_REVISION_RETENTION_SECONDS`` if that is sooner. A
+    replaced revision is kept that long, so a pinned token never outlives its revision, whatever
+    lifetime the issuer gave ``token``.
 
     Raises:
         PxcInvalidLaunchToken: if ``token`` does not verify, as ``read_launch_token`` describes.
     """
+    settings = get_pxc_settings()
     claims = _verified_claims(token) | {"rev": revision}
-    return jwt.encode(claims, get_pxc_settings().launch_secret, algorithm=LAUNCH_TOKEN_ALGORITHM)
+    longest = int(time()) + settings.revision_retention_seconds
+    expiry = claims["exp"]
+    if not isinstance(expiry, int | float) or expiry > longest:
+        claims["exp"] = longest
+    return jwt.encode(claims, settings.launch_secret, algorithm=LAUNCH_TOKEN_ALGORITHM)
 
 
 def read_launch_token(token: str) -> LaunchClaims:

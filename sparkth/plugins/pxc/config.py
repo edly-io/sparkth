@@ -24,8 +24,9 @@ class PxcSettings(BaseSettings):
         extra="ignore",
     )
 
-    # Holds each activity's SQLite state file, its file storage under storage/, generated
-    # activities under activities/<id>/ and build scratch under builds/.
+    # Holds each activity's SQLite state file, its file storage under storage/, each generated
+    # activity's revisions under revisions/<id>/<rev>/ with the live one linked from activities/<id>,
+    # and build scratch under builds/.
     data_dir: Path = Path("./data/pxc")
 
     # Shared with the LMS integration. The LMS signs a launch token with it and this plugin
@@ -35,6 +36,10 @@ class PxcSettings(BaseSettings):
 
     # How long a launch token stays valid. Short: it is minted per page render.
     launch_token_ttl_seconds: int = 300
+
+    # How long a replaced activity revision is kept for launches pinned to it. A pinned launch token
+    # expires within this, so a longer lifetime from Sparkth or the LMS is cut to it.
+    revision_retention_seconds: int = 3600
 
     # The directory holding compile.mjs and the node_modules it compiles an author's activity with.
     toolchain_dir: Path = Path("./sparkth/plugins/pxc/builder/toolchain")

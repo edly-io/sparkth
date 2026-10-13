@@ -150,3 +150,14 @@ def test_log_clear_empties_only_this_learners_log(store: SqliteFieldStore) -> No
 
     assert store.log_clear(*SCOPE, "events") == 1
     assert len(store.log_get_after("course-1", "mcq", "instance-1", "learner-8", "events", None, 10)) == 1
+
+
+def test_clearing_removes_every_value_and_log_entry(store: SqliteFieldStore) -> None:
+    store.set(*SCOPE, "question", "What is 2 + 2?")
+    store.set("", "mcq", "", "", "tally", 3)
+    entry_id = store.log_append(*SCOPE, "attempts", 1)
+
+    store.clear()
+
+    assert store.keys() == []
+    assert store.log_get(*SCOPE, "attempts", entry_id) is None
