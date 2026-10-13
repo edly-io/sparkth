@@ -21,6 +21,8 @@
 // an opaque origin, where IndexedDB throws, so an action still queued when the page reloads is
 // lost.
 //
+// A fifth: a frame carrying "error" (an action the sandbox failed or the manifest refused) shows a notice instead of reaching the activity, and so does a 422 or 502 on the POST path.
+//
 // The configuration is a <script type="application/json"> child of the element, written by the
 // embed route; nothing is fetched for it.
 //
@@ -51,6 +53,12 @@ const CLOSE_CODE_BASE = 4000;
 
 const DISCONNECTED_NOTICE =
   "Disconnected from Sparkth. Anything changed since may not have been saved. Reload this page to continue.";
+
+const ACTION_NOTICE =
+  "Your last action did not go through. Try again, and tell your instructor if it keeps happening.";
+
+// A POST refused with one of these failed for good, so retrying it would only block the queue.
+const ACTION_FAILURE_STATUSES = new Set([422, 502]);
 
 export class SparkthPXC extends PXC {
   constructor() {
@@ -114,7 +122,7 @@ export class SparkthPXC extends PXC {
   // Overrides PXC's own _postAction(), which posts to /api/activity/{id}/actions/{name} with
   // cookie credentials — a route this deployment does not serve and a credential it does not
   // use. _flushQueue() calls this only for payloads above its 512 KiB socket ceiling, and reads
-  // the returned boolean to decide whether to keep draining the queue: throwing instead would
+  // the returned boolean as whether the action has left the queue: throwing instead would
   // abort the flush and strand every record behind this one.
   async _postAction(name, value) {
     const url = `${this._actionUrl}/${encodeURIComponent(name)}?token=${encodeURIComponent(this._pxcToken)}`;
@@ -131,6 +139,10 @@ export class SparkthPXC extends PXC {
     }
     if (!response.ok) {
       console.error("POST action failed:", name, response.status);
+      if (ACTION_FAILURE_STATUSES.has(response.status)) {
+        this._showNotice(ACTION_NOTICE);
+        return true;
+      }
       const notice = REFUSAL_NOTICES[response.status];
       if (notice) this._showNotice(notice);
       return false;
@@ -147,10 +159,16 @@ export class SparkthPXC extends PXC {
 
   // Listens on the socket rather than on pxc.js's own `pxc:connection` window event, which
   // every activity on a page would share, and rather than reassigning the onopen handler the
-  // base class sets in _connectWebSocket(). The onclose handler is wrapped so a refusal ends
-  // the retries: the same token would only be refused again.
+  // base class sets in _connectWebSocket(). Two handlers are wrapped: onmessage keeps error
+  // frames from the activity, and onclose ends retries on a refusal (the same token would only
+  // be refused again).
   _connectWebSocket() {
     super._connectWebSocket();
+    const deliver = this._ws.onmessage;
+    this._ws.onmessage = (event) => {
+      if (JSON.parse(event.data).error) this._showNotice(ACTION_NOTICE);
+      else deliver(event);
+    };
     this._ws.addEventListener("open", this._onSocketOpen);
     const reconnect = this._ws.onclose;
     this._ws.onclose = (event) => {

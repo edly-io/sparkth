@@ -56,6 +56,14 @@ interface ActivityElement extends HTMLElement {
   permission: string;
   state: Record<string, unknown>;
   sendAction(name: string, value: unknown): Promise<void>;
+  onEvent: (name: string, value: unknown) => void;
+}
+
+const ACTION_NOTICE =
+  "Your last action did not go through. Try again, and tell your instructor if it keeps happening.";
+
+function serverFrame(socket: FakeSocket, frame: object): void {
+  socket.onmessage?.(new MessageEvent("message", { data: JSON.stringify(frame) }));
 }
 
 function mountActivity(): ActivityElement {
@@ -133,8 +141,51 @@ describe("SparkthPXC", () => {
     );
   });
 
+  it.each(["action_failed", "action_rejected"])(
+    "tells the learner when the server answers an action with %s, and keeps the frame from the activity",
+    (error) => {
+      const activity = mountActivity();
+      activity.onEvent = vi.fn();
+      const socket = FakeSocket.instances[0];
+      socket.open();
+
+      serverFrame(socket, { error, action: "answer.submit" });
+
+      expect(notice()).toBe(ACTION_NOTICE);
+      expect(activity.onEvent).not.toHaveBeenCalled();
+    },
+  );
+
+  it("hands an ordinary event to the activity", () => {
+    const activity = mountActivity();
+    activity.onEvent = vi.fn();
+    const socket = FakeSocket.instances[0];
+    socket.open();
+
+    serverFrame(socket, { name: "answer.result", value: JSON.stringify({ correct: true }) });
+
+    expect(activity.onEvent).toHaveBeenCalledWith("answer.result", { correct: true });
+    expect(notice()).toBeUndefined();
+  });
+
+  it.each([422, 502])(
+    "tells the learner a post refused with %i failed, and lets later actions go",
+    async (status) => {
+      vi.mocked(fetch).mockResolvedValue(new Response(null, { status }));
+      const activity = mountActivity();
+      const socket = FakeSocket.instances[0];
+      socket.open();
+
+      await activity.sendAction("config.save", OVERSIZED);
+      await activity.sendAction("answer.submit", [0]);
+
+      await vi.waitFor(() => expect(sentActions(socket)).toEqual(["answer.submit"]));
+      expect(notice()).toBe(ACTION_NOTICE);
+    },
+  );
+
   it("keeps a failed post queued and stops later actions overtaking it", async () => {
-    vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 502 }));
+    vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 503 }));
     const activity = mountActivity();
     const socket = FakeSocket.instances[0];
     socket.open();
