@@ -71,12 +71,9 @@ def _sandbox_output(stderr: str) -> str:
 
 
 def sandbox_error_text(err: SandboxRuntimeError) -> str:
-    """What went wrong in the sandbox, for logs and the author's agent. Never ``str(err)``, which names server paths.
+    """Why the sandbox failed, with no server paths: safe for logs and the author's agent.
 
-    A host function's own error, such as a field refusing a value, is described by the cause's
-    message, followed by anything ``sandbox.js`` wrote before it. A trap, such as a throw or
-    running out of memory, is described by what ``sandbox.js`` wrote, since the trap itself is a
-    wasm backtrace. With neither, the text says the sandbox stopped without a message.
+    A refused host call gives its own message, a throw gives what ``sandbox.js`` printed.
     """
     output = _sandbox_output(err.stderr)
     cause = err.__cause__
