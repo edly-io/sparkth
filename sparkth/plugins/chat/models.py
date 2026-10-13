@@ -74,6 +74,8 @@ class Message(TimestampedModel, SQLModel, table=True):
     message_type: str = Field(default="text", max_length=20)
     attachment_name: str | None = Field(default=None, max_length=255)
     attachment_size: int | None = Field(default=None)
+    # Typed message of a file turn, for display only; content keeps the file text the model reads.
+    attachment_message: str | None = Field(default=None, sa_column=Column(Text))
     conversation: Conversation = Relationship(back_populates="messages")
 
     @field_validator("message_type")

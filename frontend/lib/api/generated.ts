@@ -1433,6 +1433,11 @@ export interface components {
         };
         /** AttachmentMeta */
         AttachmentMeta: {
+            /**
+             * Message
+             * @description Typed message sent with the file, for display only; the model reads `content`. "" when nothing was typed; omitted by clients that predate it.
+             */
+            message?: string | null;
             /** Name */
             name: string;
             /** Size */
@@ -1998,6 +2003,8 @@ export interface components {
         };
         /** MessageResponse */
         MessageResponse: {
+            /** Attachment Message */
+            attachment_message?: string | null;
             /** Attachment Name */
             attachment_name: string | null;
             /** Attachment Size */

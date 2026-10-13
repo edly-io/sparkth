@@ -67,6 +67,31 @@ class TestGetLastMessage:
         assert body["content"] == "world"
         assert body["id"] == msg2_id
 
+    async def test_returns_the_typed_message_of_a_file_turn(
+        self, client: httpx.AsyncClient, current_user: MagicMock, session: AsyncSession
+    ) -> None:
+        conv = Conversation(user_id=current_user.id, provider="openai", model="gpt-4o")
+        session.add(conv)
+        await session.commit()
+        await session.refresh(conv)
+        assert conv.id is not None
+        conv_uuid = conv.uuid
+        session.add(
+            Message(
+                conversation_id=conv.id,
+                role="user",
+                content="Create a course\n\n---\n\nFILE TEXT",
+                message_type="attachment",
+                attachment_name="notes.txt",
+                attachment_message="Create a course",
+            )
+        )
+        await session.commit()
+
+        response = await client.get(f"/api/v1/chat/conversations/{conv_uuid}/last-message")
+
+        assert response.json()["attachment_message"] == "Create a course"
+
     async def test_returns_last_message_by_created_at_order(
         self, client: httpx.AsyncClient, current_user: MagicMock, session: AsyncSession
     ) -> None:

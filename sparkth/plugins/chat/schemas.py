@@ -15,6 +15,18 @@ MAX_FILE_SIZE = 30 * 1024 * 1024  # 30MB
 class AttachmentMeta(BaseModel):
     name: str
     size: int
+    message: str | None = Field(
+        default=None,
+        description=(
+            "Typed message sent with the file, for display only; the model reads `content`. "
+            '"" when nothing was typed; omitted by clients that predate it.'
+        ),
+    )
+
+    @field_validator("message")
+    @classmethod
+    def strip_message(cls, v: str | None) -> str | None:
+        return v.strip() if v is not None else None
 
 
 class ChatMessage(BaseModel):
@@ -132,6 +144,7 @@ class MessageResponse(BaseModel):
     message_type: str
     attachment_name: str | None
     attachment_size: int | None
+    attachment_message: str | None = None
     rag_sections: list[dict[str, Any]] | None = None
     tool_calls: list[dict[str, Any]] | None = None
     is_error: bool = False

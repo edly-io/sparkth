@@ -150,6 +150,7 @@ class ChatService:
         message_type: MessageType = "text",
         attachment_name: str | None = None,
         attachment_size: int | None = None,
+        attachment_message: str | None = None,
     ) -> Message:
         metadata_json = json.dumps(metadata) if metadata else None
 
@@ -164,6 +165,7 @@ class ChatService:
             message_type=message_type,
             attachment_name=attachment_name,
             attachment_size=attachment_size,
+            attachment_message=attachment_message,
         )
 
         session.add(message)
@@ -427,6 +429,7 @@ class ChatService:
                     message_type="attachment" if message.attachment else "text",
                     attachment_name=message.attachment.name if message.attachment else None,
                     attachment_size=message.attachment.size if message.attachment else None,
+                    attachment_message=message.attachment.message if message.attachment else None,
                 )
             )
         return stored

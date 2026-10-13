@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
+from httpx import AsyncClient
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -221,6 +222,45 @@ class TestStoringTheIncomingTurns:
         assert stored[0].content == "[Document attachment]"
         assert stored[0].attachment_name == "syllabus.pdf"
         assert stored[0].attachment_size == 2048
+
+    @pytest.mark.asyncio
+    async def test_the_typed_message_is_kept_apart_from_the_file_text(
+        self, session: AsyncSession, current_user: User
+    ) -> None:
+        """The content keeps the file text the model needs; the typed message is stored on its own."""
+        conversation = await _seed_conversation(session, current_user.id or 1)
+        messages = [
+            ChatMessage(
+                role="user",
+                content="Create a course\n\n---\n\nFILE TEXT",
+                attachment=AttachmentMeta(name="notes.txt", size=9, message="Create a course"),
+            )
+        ]
+
+        await ChatService().add_incoming_messages(session, conversation.id or 0, messages)
+
+        stored = await _stored_messages(session, conversation.id or 0)
+        assert stored[0].content == "Create a course\n\n---\n\nFILE TEXT"
+        assert stored[0].attachment_message == "Create a course"
+
+    @pytest.mark.asyncio
+    async def test_a_reopened_conversation_returns_the_typed_message(
+        self, client: AsyncClient, session: AsyncSession, current_user: User
+    ) -> None:
+        conversation = await _seed_conversation(session, current_user.id or 1)
+        messages = [
+            ChatMessage(
+                role="user",
+                content="Create a course\n\n---\n\nFILE TEXT",
+                attachment=AttachmentMeta(name="notes.txt", size=9, message="Create a course"),
+            )
+        ]
+        await ChatService().add_incoming_messages(session, conversation.id or 0, messages)
+        await session.commit()
+
+        response = await client.get(f"/api/v1/chat/conversations/{conversation.uuid}")
+
+        assert response.json()["messages"][0]["attachment_message"] == "Create a course"
 
 
 class TestRecordingAPreStreamError:

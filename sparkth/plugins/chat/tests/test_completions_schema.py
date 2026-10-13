@@ -65,3 +65,15 @@ class TestTheRequestMustCarryAUserTurn:
         )
 
         assert request.messages[0].attachment is not None
+
+
+class TestTheTypedMessageOfAFile:
+    """The typed message is shown as-is on reload, so stray whitespace is not kept."""
+
+    def test_surrounding_whitespace_is_dropped(self) -> None:
+        assert AttachmentMeta(name="notes.txt", size=9, message="\n Create a course \n").message == "Create a course"
+
+    @pytest.mark.parametrize("blank", ["   ", "\n"])
+    def test_a_blank_message_means_nothing_was_typed(self, blank: str) -> None:
+        """Kept as "" rather than None: None marks a turn stored before the message was recorded."""
+        assert AttachmentMeta(name="notes.txt", size=9, message=blank).message == ""
