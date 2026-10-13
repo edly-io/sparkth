@@ -20,6 +20,26 @@
         "google": "Google"
       }
     },
+    "authoring": {
+      "title": "Création de cours",
+      "subtitle": "Activité de création de cours des formateurs, {range} (UTC).",
+      "empty": "Aucune activité de création de cours sur cette période.",
+      "conversations": "Conversations démarrées",
+      "messages": "Messages envoyés",
+      "failedTurns": "Tours en échec",
+      "failedHint": "{rate} des messages · {change}",
+      "documentsAttached": "Documents joints",
+      "detachedHint": "{count} retirés · {change}",
+      "messagesCaption": "Messages envoyés, {range}",
+      "conversationsCaption": "Conversations démarrées, {range}",
+      "failedTurnsCaption": "Tours en échec, {range}",
+      "failureRateCaption": "Taux d'échec, {range}",
+      "tools": "Outils utilisés",
+      "toolsCaption": "Appels par outil, {range}",
+      "toolValue": "{total} ({failed} en échec)",
+      "lowerBound": "Les comptes sont des minimums : l'activité n'est parfois pas enregistrée.",
+      "noPrevious": "Aucune activité sur la période précédente"
+    },
     "compare": {
       "weekOf": "Semaine du {date}",
       "vsPrevious": "{change} par rapport à la période précédente",
@@ -29,11 +49,18 @@
       "date": "Date",
       "logins": "Connexions",
       "method": "Méthode",
-      "previousPeriod": "Période précédente"
+      "previousPeriod": "Période précédente",
+      "tool": "Outil",
+      "calls": "Appels",
+      "messages": "Messages",
+      "conversations": "Conversations",
+      "failedTurns": "Tours en échec",
+      "failureRate": "Taux d'échec"
     },
     "nav": {
       "label": "Vues des analyses",
-      "logins": "Connexions"
+      "logins": "Connexions",
+      "authoring": "Création de cours"
     },
     "period": {
       "range": "Période",
