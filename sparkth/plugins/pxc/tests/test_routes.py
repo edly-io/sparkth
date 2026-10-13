@@ -146,7 +146,7 @@ async def test_serving_an_asset_does_not_open_the_activitys_state_file(
     assert not (tmp_path / "mcq.sqlite3").exists()
 
 
-# Unmarked deliberately: ActivityRuntime.on_action validates the action name against the
+# Unmarked deliberately: ActivityRuntime.on_action_or_raise validates the action name against the
 # manifest and raises ActionValidationError before it ever checks whether a sandbox exists, so
 # this never reaches the wasm.
 async def test_an_undeclared_action_is_unprocessable(client: AsyncClient, token: str) -> None:
