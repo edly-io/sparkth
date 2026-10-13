@@ -10,11 +10,8 @@
       "empty": "Aucune connexion sur cette période.",
       "totalLogins": "Connexions totales",
       "busiestBucket": "{bucket, select, day {Jour le plus actif} week {Semaine la plus active} other {Mois le plus actif}}",
-      "weekOf": "Semaine du {date}",
       "chartCaption": "Connexions, {range}",
-      "vsPrevious": "{change} par rapport à la période précédente",
       "noPrevious": "Aucune connexion sur la période précédente",
-      "comparisonLegend": "Ligne pointillée : période précédente",
       "byMethod": "Méthode de connexion",
       "methodChartCaption": "Connexions par méthode, {range}",
       "methodValue": "{count} ({share})",
@@ -22,6 +19,11 @@
         "password": "E-mail et mot de passe",
         "google": "Google"
       }
+    },
+    "compare": {
+      "weekOf": "Semaine du {date}",
+      "vsPrevious": "{change} par rapport à la période précédente",
+      "comparisonLegend": "Ligne pointillée : période précédente"
     },
     "table": {
       "date": "Date",
