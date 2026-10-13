@@ -71,6 +71,9 @@ class PxcSettings(BaseSettings):
     # and the cap on the author's activities offered for placing in a course.
     list_activities_limit: int = 20
 
+    # How many of an activity's newest failed preview actions are kept for the author's agent.
+    action_failure_limit: int = 20
+
 
 @lru_cache
 def get_pxc_settings() -> PxcSettings:
