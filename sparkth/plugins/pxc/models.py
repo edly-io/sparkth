@@ -1,9 +1,12 @@
-"""The PXC plugin's table: one row per activity an author generated.
+"""The PXC plugin's tables: one row per activity an author generated, and its preview's recent failed actions.
 
 A row is written once, after a successful build. Placement sets ``placed_at`` once, and an update
 changes the title and description. The id never changes, so activity instances placed in courses
 keep launching the same activity. The files live on disk in the activity's revision directories, behind
 ``generated_activity_dir(id)``; the row is what ties them to their owner.
+
+A failure row is written only for an author's preview, and an activity keeps only its newest
+``PXC_ACTION_FAILURE_LIMIT`` rows.
 """
 
 from datetime import datetime
@@ -35,4 +38,25 @@ class PxcActivity(SQLModel, table=True):
         default=None,
         sa_type=DateTime(timezone=True),  # type: ignore
         nullable=True,
+    )
+
+
+class PxcActionFailure(SQLModel, table=True):
+    """One action that failed or was refused in its author's preview, kept for the author's agent."""
+
+    __tablename__ = "pxc_action_failures"
+
+    id: UUID = Field(default_factory=uuid7, primary_key=True)
+    activity_id: UUID = Field(foreign_key="pxc_activities.id", index=True, nullable=False)
+    # The revision the preview was pinned to, or None for an activity not yet kept in revisions.
+    revision: str | None = Field(default=None, max_length=36, nullable=True)
+    kind: str = Field(max_length=16, nullable=False)
+    action: str = Field(sa_column=Column(Text, nullable=False))
+    permission: str = Field(max_length=16, nullable=False)
+    value: str = Field(sa_column=Column(Text, nullable=False))
+    error: str = Field(sa_column=Column(Text, nullable=False))
+    created_at: datetime = Field(
+        sa_type=DateTime(timezone=True),  # type: ignore
+        default_factory=utc_now,
+        nullable=False,
     )

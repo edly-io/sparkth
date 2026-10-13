@@ -1,15 +1,23 @@
 """Owner-scoped reads and writes of generated activities."""
 
 from datetime import timedelta
+from uuid import UUID
 
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 from uuid6 import uuid7
 
 from sparkth.lib.models import utc_now
+from sparkth.plugins.pxc.enums import PxcFailureKind
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound
-from sparkth.plugins.pxc.models import PxcActivity
-from sparkth.plugins.pxc.store import get_owned_activity, insert_activity, list_owned_activities
+from sparkth.plugins.pxc.models import PxcActionFailure, PxcActivity
+from sparkth.plugins.pxc.store import (
+    get_owned_activity,
+    insert_action_failure,
+    insert_activity,
+    list_action_failures,
+    list_owned_activities,
+)
 
 OWNER = 1
 OTHER_USER = 2
@@ -72,3 +80,39 @@ async def test_two_activities_with_the_same_title_are_both_kept(session: AsyncSe
         await insert_activity(session, _activity(OWNER, "Quiz"))
 
     assert [activity.title for activity in await list_owned_activities(session, OWNER)] == ["Quiz", "Quiz"]
+
+
+def _failure(activity_id: UUID, revision: str | None, action: str) -> PxcActionFailure:
+    return PxcActionFailure(
+        activity_id=activity_id,
+        revision=revision,
+        kind=PxcFailureKind.FAILED,
+        action=action,
+        permission="play",
+        value="[0]",
+        error="boom",
+    )
+
+
+async def test_failures_are_listed_newest_first_for_one_revision(session: AsyncSession) -> None:
+    activity = _activity(OWNER)
+    await insert_activity(session, activity)
+    for action in ("first", "second"):
+        await insert_action_failure(session, _failure(activity.id, "rev-a", action), 20)
+    await insert_action_failure(session, _failure(activity.id, "rev-b", "other revision"), 20)
+
+    listed = await list_action_failures(session, activity.id, "rev-a", 20)
+
+    assert [failure.action for failure in listed] == ["second", "first"]
+
+
+async def test_only_an_activitys_newest_failures_are_kept(session: AsyncSession) -> None:
+    activity, other = _activity(OWNER), _activity(OWNER, "Other")
+    await insert_activity(session, activity)
+    await insert_activity(session, other)
+    await insert_action_failure(session, _failure(other.id, None, "other activity"), 2)
+    for action in ("1", "2", "3"):
+        await insert_action_failure(session, _failure(activity.id, None, action), 2)
+
+    assert [failure.action for failure in await list_action_failures(session, activity.id, None, 20)] == ["3", "2"]
+    assert len(await list_action_failures(session, other.id, None, 20)) == 1

@@ -77,6 +77,7 @@ def pxc_settings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[No
     monkeypatch.setenv("PXC_MAX_SOURCE_CHARS", "20000")
     monkeypatch.setenv("PXC_MAX_DESCRIPTION_CHARS", "2000")
     monkeypatch.setenv("PXC_LIST_ACTIVITIES_LIMIT", "20")
+    monkeypatch.setenv("PXC_ACTION_FAILURE_LIMIT", "20")
     get_pxc_settings.cache_clear()
     yield
     get_pxc_settings.cache_clear()
