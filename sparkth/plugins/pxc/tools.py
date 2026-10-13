@@ -83,8 +83,9 @@ async def pxc_build_activity(
     return {"activity_id": str(activity.id), "preview_url": preview_url(activity.id)}
 
 
-async def pxc_list_activities(limit: int | None = None) -> dict[str, list[dict[str, str]]]:
-    """List the author's most recent activities, newest first, each with its preview link.
+async def pxc_list_activities(limit: int | None = None) -> dict[str, list[dict[str, str | bool]]]:
+    """List the author's most recent activities, newest first. Each activity comes with its preview link
+    and whether it has ever been placed in a course (this is never cleared).
 
     Use this to find an activity's id or preview link from an earlier turn: results of earlier
     tool calls are not kept in the conversation. Leave `limit` unset to get the newest few; set
@@ -102,6 +103,7 @@ async def pxc_list_activities(limit: int | None = None) -> dict[str, list[dict[s
                 "title": activity.title,
                 "created_at": activity.created_at.isoformat(),
                 "preview_url": preview_url(activity.id),
+                "placed": activity.placed_at is not None,
             }
             for activity in activities
         ]
@@ -113,7 +115,7 @@ async def pxc_get_activity_source(activity_id: str) -> dict[str, object]:
 
     Use this before changing an activity: edit the files it returns and build them again with
     `pxc_build_activity`, which creates a new activity. Only the activity's own author can read
-    it.
+    it. The result says whether the activity has ever been placed in a course (this is never cleared).
     """
     owner = current_user_id()
     async with session_scope() as session:
@@ -133,4 +135,5 @@ async def pxc_get_activity_source(activity_id: str) -> dict[str, object]:
         "manifest": manifest,
         "ui_js": ui_js,
         "sandbox_js": sandbox_js,
+        "placed": activity.placed_at is not None,
     }

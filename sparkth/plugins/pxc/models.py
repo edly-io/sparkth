@@ -1,7 +1,7 @@
 """The PXC plugin's table: one row per activity an author generated.
 
-A row is written once, after a successful build, and never updated. An edit builds a new
-activity under a new id, so activity instances of the old one keep what they had. The files live on
+A row is written once, after a successful build. Placement sets ``placed_at`` once. An edit
+builds a new activity under a new id, so activity instances of the old one keep what they had. The files live on
 disk in the activity's revision directories, behind ``generated_activity_dir(id)``; the row is
 what ties them to their owner.
 """
@@ -29,4 +29,10 @@ class PxcActivity(SQLModel, table=True):
         sa_type=DateTime(timezone=True),  # type: ignore
         default_factory=utc_now,
         nullable=False,
+    )
+    # Null until the activity is first placed in a course.
+    placed_at: datetime | None = Field(
+        default=None,
+        sa_type=DateTime(timezone=True),  # type: ignore
+        nullable=True,
     )
