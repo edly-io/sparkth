@@ -52,6 +52,9 @@ PXC_CONFIG_SAVE_ACTION = "config.save"
 # The simplest value of each scalar schema type, which the smoke test sends an action.
 PXC_SAMPLE_VALUES: dict[str, int | str | bool] = {"integer": 0, "number": 0, "string": "", "boolean": False}
 
+# The most characters of an action's value a smoke failure line shows, so a large value cannot crowd out its error.
+PXC_SMOKE_VALUE_LIMIT = 200
+
 # The WIT world every sandbox compiles against. It imports only pxc:sandbox/state, so a sandbox
 # can call nothing else on the host.
 PXC_SANDBOX_WIT = Path(__file__).parent / "builder" / "toolchain" / "pxc.wit"

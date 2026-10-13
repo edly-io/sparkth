@@ -21,7 +21,9 @@
 // an opaque origin, where IndexedDB throws, so an action still queued when the page reloads is
 // lost.
 //
-// A fifth: a frame carrying "error" (an action the sandbox failed or the manifest refused) shows a notice instead of reaching the activity, and so does a 422 or 502 on the POST path.
+// A fifth: a frame carrying "error" (an action the sandbox failed or the manifest refused) shows a
+// notice instead of reaching the activity, and so does a 422 or 502 on the POST path. That notice
+// comes down when the learner sends the next action, and shows again if that one fails too.
 //
 // The configuration is a <script type="application/json"> child of the element, written by the
 // embed route; nothing is fetched for it.
@@ -91,6 +93,8 @@ export class SparkthPXC extends PXC {
 
   // Overrides PXC's own _pushAction(), which writes to IndexedDB.
   _pushAction(action) {
+    // A new action makes "your last action failed" stale; a refusal or disconnect notice stays.
+    if (this._notice?.textContent === ACTION_NOTICE) this._removeNotice();
     this._queue.push(action);
     if (this._ws.readyState === WebSocket.OPEN) this._flushQueue();
   }

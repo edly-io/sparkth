@@ -111,6 +111,7 @@ def run_action(runtime: ActivityRuntime, action_name: str, action_value: FieldTy
     """Run one action through the sandbox and return the events it produced.
 
     Callers hand the returned list to ``publish_events``; this function does no fan-out of its own.
+    A failed action's pending events are discarded, so none reach a subscriber.
 
     Raises:
         PxcActionRejected: if the manifest does not accept this action or value.
@@ -121,6 +122,8 @@ def run_action(runtime: ActivityRuntime, action_name: str, action_value: FieldTy
     except ActionValidationError as err:
         raise PxcActionRejected(str(err)) from err
     except SandboxRuntimeError as err:
+        # Events sent before the throw must not ride along with this connection's next action.
+        runtime.clear_pending_events()
         error_text = sandbox_error_text(err)
         logger.error(
             "PXC sandbox failed running %s on %s (course=%s, activity_instance=%s): %s",
