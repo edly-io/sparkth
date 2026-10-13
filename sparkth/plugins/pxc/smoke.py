@@ -9,8 +9,9 @@ thread, but a process can be killed. On a throwaway store, it does the following
    schema accepts.
 4. Reads ``getState`` under both permissions again.
 
-Exit status 0 means every step passed. On 1, stderr carries one line per failed step: the step,
-its value and the sandbox's own error text, which the builder hands to the agent.
+Exit status 0 means every step passed. On 1, stderr carries one entry per failed step: the step,
+the sandbox's own error text (the message, then ``Stack:`` and its frames, so it can span several
+lines) and the value, cut short when long. The builder hands this to the agent.
 
 A passing run leaves ``sandbox.wasm.bin`` beside the wasm: pxc-lib's compiled-component cache.
 It moves with the activity, so the first learner launch skips compiling the component.
@@ -24,10 +25,15 @@ from pathlib import Path
 from pxc.lib.actions import ActionChecker, ActionValidationError
 from pxc.lib.field_store import MemoryKVStore
 from pxc.lib.fields import FieldChecker, FieldType
-from pxc.lib.manifest_types import ArrayType, ObjectType, PxcActivityManifest
+from pxc.lib.manifest_types import ArrayType, LogField, ObjectType, PxcActivityManifest
 
 from sparkth.lib.log import get_logger
-from sparkth.plugins.pxc.constants import PXC_CONFIG_SAVE_ACTION, PXC_SAMPLE_VALUES, PXC_SCRATCH_PERMISSIONS
+from sparkth.plugins.pxc.constants import (
+    PXC_CONFIG_SAVE_ACTION,
+    PXC_SAMPLE_VALUES,
+    PXC_SCRATCH_PERMISSIONS,
+    PXC_SMOKE_VALUE_LIMIT,
+)
 from sparkth.plugins.pxc.scratch import (
     ScratchStep,
     StateOutcome,
@@ -48,8 +54,17 @@ def sample_value(schema: object) -> FieldType:
     return PXC_SAMPLE_VALUES[schema.type]  # type: ignore[attr-defined]
 
 
+def _default_or(fields: FieldChecker, key: str, sample: FieldType) -> FieldType:
+    """The default of the field named ``key``, or ``sample`` when there is no such field or it is a log."""
+    if key not in fields.field_names or isinstance(fields.get_definition(key), LogField):
+        return sample
+    return fields.get_default(key)
+
+
 def config_save_value(manifest: PxcActivityManifest) -> FieldType:
     """``config.save``'s sample, with each property named after a field set to that field's default.
+
+    A log field has no default to merge, so its property keeps the plain sample.
 
     The plain sample is used instead when those defaults do not fit the action's own schema, so a
     valid activity is never refused over a default.
@@ -58,7 +73,7 @@ def config_save_value(manifest: PxcActivityManifest) -> FieldType:
     if not isinstance(sample, dict):
         return sample
     fields = FieldChecker(manifest.fields)
-    merged = {key: fields.get_default(key) if key in fields.field_names else value for key, value in sample.items()}
+    merged = {key: _default_or(fields, key, value) for key, value in sample.items()}
     try:
         ActionChecker(manifest.actions).validate(PXC_CONFIG_SAVE_ACTION, merged)
     except ActionValidationError as err:
@@ -82,17 +97,23 @@ def smoke_steps(manifest: PxcActivityManifest) -> list[ScratchStep]:
     return steps
 
 
+def _cut(text: str) -> str:
+    """``text``, ended with an ellipsis when it is over the value limit."""
+    return text if len(text) <= PXC_SMOKE_VALUE_LIMIT else text[:PXC_SMOKE_VALUE_LIMIT] + "..."
+
+
 def step_failures(outcomes: list[StepOutcome]) -> list[str]:
-    """One line per failed step: the step, its value and its error."""
+    """One entry per failed step: the step, its full error, then its value cut to the value limit."""
     return [
-        f"{outcome['action']} as {outcome['permission']} with {json.dumps(outcome['value'])}: {outcome['error']}"
+        f"{outcome['action']} as {outcome['permission']} failed: {outcome['error']}\n"
+        f"  with value {_cut(json.dumps(outcome['value']))}"
         for outcome in outcomes
         if outcome["error"] is not None
     ]
 
 
 def state_failures(outcomes: list[StateOutcome], when: str) -> list[str]:
-    """One line per failed ``getState``, saying when in the run it was read."""
+    """One entry per failed ``getState``, saying when in the run it was read."""
     return [
         f"getState as {outcome['permission']} {when}: {outcome['error']}"
         for outcome in outcomes
