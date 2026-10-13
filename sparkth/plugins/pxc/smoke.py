@@ -25,7 +25,16 @@ from pathlib import Path
 from pxc.lib.actions import ActionChecker, ActionValidationError
 from pxc.lib.field_store import MemoryKVStore
 from pxc.lib.fields import FieldChecker, FieldType
-from pxc.lib.manifest_types import ArrayType, LogField, ObjectType, PxcActivityManifest
+from pxc.lib.manifest_types import (
+    ArrayType,
+    BooleanType,
+    IntegerType,
+    LogField,
+    NumberType,
+    ObjectType,
+    PxcActivityManifest,
+    StringType,
+)
 
 from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.constants import (
@@ -45,13 +54,13 @@ from sparkth.plugins.pxc.scratch import (
 logger = get_logger(__name__)
 
 
-def sample_value(schema: object) -> FieldType:
+def sample_value(schema: IntegerType | NumberType | StringType | BooleanType | ArrayType | ObjectType) -> FieldType:
     """The simplest value ``schema`` accepts: 0, "", false, [], or an object of its properties' samples."""
     if isinstance(schema, ArrayType):
         return []
     if isinstance(schema, ObjectType):
         return {key: sample_value(prop.root) for key, prop in schema.properties.items()}
-    return PXC_SAMPLE_VALUES[schema.type]  # type: ignore[attr-defined]
+    return PXC_SAMPLE_VALUES[schema.type]
 
 
 def _default_or(fields: FieldChecker, key: str, sample: FieldType) -> FieldType:
