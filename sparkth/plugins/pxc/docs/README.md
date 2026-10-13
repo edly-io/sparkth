@@ -208,7 +208,8 @@ saved before it failed, since each write is stored on its own:
 Only an author's preview records a failure. It is stored in `pxc_action_failures`, with its kind
 (`failed` or `rejected`), the action, the permission, the value and the error, and the newest
 `PXC_ACTION_FAILURE_LIMIT` failures per activity are kept. `pxc_get_activity_failures` reads those
-of the live version. A learner's failure in a course is never stored. Sandbox failures and socket refusals are logged.
+of the live version. A learner's failure in a course is never stored. Every failure and refusal is logged,
+over the socket and on the POST alike.
 
 ## Scores and grading
 
