@@ -1,5 +1,5 @@
 """The pxc MCP tools: the PXC contract, building, listing, reading back and updating activities, and
-reading a preview's failed actions.
+reading a preview's failed actions, and running an activity's actions.
 
 The tools need an authenticated chat session. Over the unauthenticated MCP endpoint they raise
 ``NoAuthenticatedUser``.
@@ -8,6 +8,7 @@ The tools need an authenticated chat session. Over the unauthenticated MCP endpo
 import json
 
 from pxc.lib.manifest_types import PxcActivityManifest
+from pydantic import TypeAdapter
 
 from sparkth.lib.auth import current_user_id
 from sparkth.lib.db import session_scope
@@ -18,8 +19,10 @@ from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import PXC_ASSET_DIR
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound, PxcManifestInvalid
 from sparkth.plugins.pxc.revisions import live_revision
-from sparkth.plugins.pxc.schemas import ActivitySource
+from sparkth.plugins.pxc.schemas import ActivitySource, TrialStep
+from sparkth.plugins.pxc.scratch import ScratchReport
 from sparkth.plugins.pxc.store import get_owned_activity, list_action_failures, list_owned_activities
+from sparkth.plugins.pxc.trial import run_trial
 
 logger = get_logger(__name__)
 
@@ -154,6 +157,8 @@ async def pxc_get_activity_failures(activity_id: str, limit: int | None = None) 
       schema.
     - "failed": sandbox.js threw, or wrote a value its field or event refuses. `error` is the
       sandbox's own message. Fix sandbox.js, or the field or event schema.
+
+    Reproduce a failure with `pxc_run_activity` before changing any code.
     """
     owner = current_user_id()
     parsed_id = parse_activity_id(activity_id)
@@ -203,3 +208,27 @@ async def pxc_update_activity(
     )
     await update_activity(parsed_id, source, owner)
     return {"activity_id": activity_id, "preview_url": preview_url(parsed_id)}
+
+
+async def pxc_run_activity(activity_id: str, steps: list[TrialStep]) -> ScratchReport:
+    """Run actions against one of the author's activities on a throwaway copy of its data, and report what happened.
+
+    Each step is {"action": name, "value": the value ui.js would send, "permission": "play" or
+    "edit"}. The steps run in order against the activity's current version. They start from the
+    manifest's field defaults, as one learner on one activity instance, so a later step sees what
+    an earlier one saved. Nothing is saved anywhere real.
+
+    The report gives each step's events, or its error. A rejected action means ui.js would have
+    sent a value the manifest refuses. It then gives getState as "play" and as "edit", and the
+    fields the learner ended up with.
+
+    Use it to reproduce a failure from `pxc_get_activity_failures`, or the steps the author
+    described when nothing failed but the result is wrong. After `pxc_update_activity`, run the
+    same steps again to check the fix before asking the author to try it.
+    """
+    owner = current_user_id()
+    parsed_id = parse_activity_id(activity_id)
+    validated = TypeAdapter(list[TrialStep]).validate_python(steps)
+    async with session_scope() as session:
+        await get_owned_activity(session, parsed_id, owner)
+    return await run_trial(activity_dir(activity_id), validated)

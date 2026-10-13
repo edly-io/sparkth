@@ -2,11 +2,13 @@
 
 import json
 from datetime import datetime, timedelta
+from typing import cast
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
 from pxc.lib.manifest_types import PxcActivityManifest
+from pydantic import ValidationError
 from sqlmodel.ext.asyncio.session import AsyncSession
 from uuid6 import uuid7
 
@@ -27,7 +29,8 @@ from sparkth.plugins.pxc.exceptions import (
 )
 from sparkth.plugins.pxc.models import PxcActionFailure, PxcActivity
 from sparkth.plugins.pxc.revisions import publish_revision
-from sparkth.plugins.pxc.schemas import ActivitySource
+from sparkth.plugins.pxc.schemas import ActivitySource, TrialStep
+from sparkth.plugins.pxc.scratch import ScratchReport
 from sparkth.plugins.pxc.store import insert_action_failure, insert_activity
 from sparkth.plugins.pxc.tests.conftest import (
     AUTHORED_MANIFEST,
@@ -44,6 +47,7 @@ from sparkth.plugins.pxc.tools import (
     pxc_get_activity_failures,
     pxc_get_activity_source,
     pxc_list_activities,
+    pxc_run_activity,
     pxc_update_activity,
 )
 
@@ -400,3 +404,42 @@ async def test_failures_of_another_authors_activity_are_refused(
 
     with pytest.raises(PxcActivityNotFound):
         await pxc_get_activity_failures(str(authored_activity.id))
+
+
+async def test_run_hands_the_live_files_and_validated_steps_to_the_trial(
+    authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    act_as(authors[0])
+    report: ScratchReport = {"steps": [], "state": [], "fields": {}}
+    steps = cast(list[TrialStep], [{"action": "check", "permission": "play"}])
+
+    with patch("sparkth.plugins.pxc.tools.run_trial", AsyncMock(return_value=report)) as trial:
+        assert await pxc_run_activity(str(authored_activity.id), steps) == report
+
+    assert trial.await_args is not None
+    directory, validated = trial.await_args.args
+    assert directory == generated_activity_dir(str(authored_activity.id)).resolve()
+    assert [(step.action, step.permission.value, step.value) for step in validated] == [("check", "play", "")]
+
+
+async def test_a_view_step_is_refused_before_anything_runs(
+    authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    act_as(authors[0])
+    steps = cast(list[TrialStep], [{"action": "check", "permission": "view"}])
+
+    with patch("sparkth.plugins.pxc.tools.run_trial", AsyncMock()) as trial:
+        with pytest.raises(ValidationError):
+            await pxc_run_activity(str(authored_activity.id), steps)
+
+    trial.assert_not_awaited()
+
+
+async def test_running_another_authors_activity_is_refused(
+    authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    act_as(authors[1])
+    steps = cast(list[TrialStep], [{"action": "check", "permission": "play"}])
+
+    with pytest.raises(PxcActivityNotFound):
+        await pxc_run_activity(str(authored_activity.id), steps)
