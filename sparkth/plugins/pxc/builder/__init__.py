@@ -237,7 +237,7 @@ async def compile_sandbox(sandbox_js: str, compile_dir: Path, output: Path) -> N
 
 
 async def smoke_test_activity(directory: Path) -> None:
-    """Run the smoke test (``smoke.py``) on ``directory`` in a child process.
+    """Run the smoke test (``scratch/smoke.py``) on ``directory`` in a child process.
 
     The child runs inside ``directory`` and is handed it as ``.``, so no server path can appear
     in what it reports. Its report lists every failing step, so it keeps its start.
@@ -247,7 +247,7 @@ async def smoke_test_activity(directory: Path) -> None:
         PxcBuildTimedOut: if the smoke test does not finish within the timeout, naming the step
             it hung in and the failing steps before it.
     """
-    argv = [sys.executable, "-m", "sparkth.plugins.pxc.smoke", "."]
+    argv = [sys.executable, "-m", "sparkth.plugins.pxc.scratch.smoke", "."]
     returncode, stderr = await run_bounded(argv, directory, "The smoke test")
     if returncode != 0:
         raise PxcSmokeTestFailed(

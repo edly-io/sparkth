@@ -1,7 +1,6 @@
-"""Smoke-test a freshly built activity, run as ``python -m sparkth.plugins.pxc.smoke <dir>``.
+"""Smoke-test a freshly built activity, run as ``python -m sparkth.plugins.pxc.scratch.smoke <dir>``.
 
-The builder runs this in a child process. A sandbox stuck in a loop cannot be stopped from a
-thread, but a process can be killed. On a throwaway store, it does the following:
+The builder runs this on every build. On a throwaway store, it does the following:
 
 1. Reads ``getState`` under ``play`` and ``edit``.
 2. Runs ``config.save`` as ``edit`` with the field defaults.
@@ -9,13 +8,10 @@ thread, but a process can be killed. On a throwaway store, it does the following
    schema accepts.
 4. Reads ``getState`` under both permissions again.
 
-Each check is named on its own line of stdout before it runs, and each failure goes to stderr as
-soon as it is found, so a check that never ends is named and the failures before it are kept. The
-sandbox's own stdout is discarded, so it cannot mix into those lines.
-
 Exit status 0 means every step passed. On 1, stderr carries one entry per failed step: the step,
 the sandbox's own error text (the message, then ``Stack:`` and its frames, so it can span several
-lines) and the value, cut short when long. The builder hands this to the agent.
+lines) and the value, cut short when long. Each entry is written as soon as its step fails, so a
+run that never ends keeps the ones before it. The builder hands them to the agent.
 
 A passing run leaves ``sandbox.wasm.bin`` beside the wasm: pxc-lib's compiled-component cache.
 It moves with the activity, so the first learner launch skips compiling the component.
@@ -23,7 +19,6 @@ It moves with the activity, so the first learner launch skips compiling the comp
 
 import json
 import logging
-import os
 import sys
 from collections.abc import Iterator
 from pathlib import Path
@@ -42,7 +37,6 @@ from pxc.lib.manifest_types import (
     PxcActivityManifest,
     StringType,
 )
-from pxc.lib.permission import Permission
 
 from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.constants import (
@@ -51,12 +45,9 @@ from sparkth.plugins.pxc.constants import (
     PXC_SCRATCH_PERMISSIONS,
     PXC_SMOKE_VALUE_LIMIT,
 )
-from sparkth.plugins.pxc.scratch import (
-    ScratchStep,
-    StepOutcome,
-    read_scratch_state,
-    run_step,
-)
+from sparkth.plugins.pxc.scratch.progress import progress_stream
+from sparkth.plugins.pxc.scratch.schemas import ScratchStep, StateOutcome, StepOutcome
+from sparkth.plugins.pxc.scratch.steps import read_scratch_state, run_step
 
 logger = get_logger(__name__)
 
@@ -128,20 +119,11 @@ def step_failure(outcome: StepOutcome) -> str | None:
     )
 
 
-def check_state(
-    permission: Permission, when: str, directory: Path, store: MemoryKVStore, progress: TextIO
-) -> str | None:
-    """Read ``getState`` under ``permission``, naming it on ``progress`` first: its failure line, or None."""
-    label = f"getState as {permission.value} {when}"
-    print(label, file=progress, flush=True)
-    error = read_scratch_state(directory, store, permission)["error"]
-    return None if error is None else f"{label}: {error}"
-
-
-def check_step(step: ScratchStep, directory: Path, store: MemoryKVStore, progress: TextIO) -> str | None:
-    """Run ``step``, naming it on ``progress`` first: its failure line, or None."""
-    print(f"{step['action']} as {step['permission']}", file=progress, flush=True)
-    return step_failure(run_step(directory, store, step))
+def state_failure(outcome: StateOutcome, when: str) -> str | None:
+    """The failure line of a ``getState`` read, saying when in the run it was read."""
+    if outcome["error"] is None:
+        return None
+    return f"getState as {outcome['permission']} {when}: {outcome['error']}"
 
 
 def smoke_checks(directory: Path, progress: TextIO) -> Iterator[str | None]:
@@ -152,11 +134,11 @@ def smoke_checks(directory: Path, progress: TextIO) -> Iterator[str | None]:
     manifest = PxcActivityManifest.model_validate_json((directory / "manifest.json").read_text(encoding="utf-8"))
     store = MemoryKVStore()
     for permission in PXC_SCRATCH_PERMISSIONS:
-        yield check_state(permission, "before any action", directory, store, progress)
+        yield state_failure(read_scratch_state(directory, store, permission, progress), "before any action")
     for step in smoke_steps(manifest):
-        yield check_step(step, directory, store, progress)
+        yield step_failure(run_step(directory, store, step, progress))
     for permission in PXC_SCRATCH_PERMISSIONS:
-        yield check_state(permission, "after the actions", directory, store, progress)
+        yield state_failure(read_scratch_state(directory, store, permission, progress), "after the actions")
 
 
 def main(argv: list[str], progress: TextIO) -> int:
@@ -172,19 +154,7 @@ def main(argv: list[str], progress: TextIO) -> int:
     return 1 if failed else 0
 
 
-def _progress_stream() -> TextIO:
-    """This process's stdout for naming the checks, with file descriptor 1 pointed at /dev/null.
-
-    The sandbox writes its console output to file descriptor 1, so it cannot mix into the check names.
-    """
-    progress = os.fdopen(os.dup(1), "w")
-    null = os.open(os.devnull, os.O_WRONLY)
-    os.dup2(null, 1)
-    os.close(null)
-    return progress
-
-
 if __name__ == "__main__":
     # pxc-lib logs a traceback on failure; stderr should carry only the failure lines.
     logging.disable(logging.CRITICAL)
-    sys.exit(main(sys.argv[1:], _progress_stream()))
+    sys.exit(main(sys.argv[1:], progress_stream()))

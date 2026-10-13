@@ -1,6 +1,7 @@
 """The activity build: manifest rules, bounded child processes, compile, smoke test, storage."""
 
 import asyncio
+import io
 import json
 import os
 import shutil
@@ -29,7 +30,7 @@ from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.revisions import revisions_dir
 from sparkth.plugins.pxc.runtime import build_runtime, read_state
 from sparkth.plugins.pxc.schemas import ActivitySource
-from sparkth.plugins.pxc.scratch import read_scratch_state
+from sparkth.plugins.pxc.scratch.steps import read_scratch_state
 from sparkth.plugins.pxc.store import get_owned_activity, list_owned_activities
 from sparkth.plugins.pxc.tests.conftest import TOOLCHAIN_DIR
 from sparkth.plugins.pxc.tokens import LaunchClaims
@@ -567,7 +568,7 @@ async def test_a_hung_action_is_named_with_the_failures_found_before_it(
         _patched(MCQ_SANDBOX_JS, PARSED, PARSED + hangs), _compile_dir(tmp_path), directory / "sandbox.wasm"
     )
     # Loading the sandbox once writes pxc-lib's compiled cache beside it, so the timed child starts quickly.
-    read_scratch_state(directory, MemoryKVStore(), Permission.play)
+    read_scratch_state(directory, MemoryKVStore(), Permission.play, io.StringIO())
     monkeypatch.setenv("PXC_BUILD_TIMEOUT_SECONDS", "5")
     get_pxc_settings.cache_clear()
 
