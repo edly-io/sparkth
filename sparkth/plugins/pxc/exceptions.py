@@ -74,3 +74,7 @@ class PxcBuildTimedOut(PxcBuildFailed):
 
 class PxcFieldsFrozen(PxcBuildFailed):
     """An update would remove a field of an activity placed in a course, or change its type, scope or schema."""
+
+
+class PxcTrialFailed(Exception):
+    """A run of an activity's actions for the agent stopped before it could report, for a server-side reason."""

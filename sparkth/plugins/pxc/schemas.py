@@ -3,9 +3,10 @@ from datetime import datetime
 from typing import Annotated, Any
 from uuid import UUID
 
-from pydantic import AfterValidator, BaseModel, StringConstraints
+from pydantic import AfterValidator, BaseModel, JsonValue, StringConstraints
 
 from sparkth.plugins.pxc.config import get_pxc_settings
+from sparkth.plugins.pxc.enums import PreviewPermission
 
 
 def within_source_limit(manifest: dict[str, object]) -> dict[str, object]:
@@ -89,3 +90,11 @@ class ActivitySource(BaseModel):
     manifest: Annotated[dict[str, object], AfterValidator(within_source_limit)]
     ui_js: Annotated[str, AfterValidator(script_within_source_limit)]
     sandbox_js: Annotated[str, AfterValidator(script_within_source_limit)]
+
+
+class TrialStep(BaseModel):
+    """One action for ``pxc_run_activity`` to run: its name, its value and the permission it runs as."""
+
+    action: str
+    value: JsonValue = ""
+    permission: PreviewPermission
