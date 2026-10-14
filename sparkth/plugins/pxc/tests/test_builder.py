@@ -26,6 +26,7 @@ from sparkth.plugins.pxc.builder import (
     validate_manifest,
 )
 from sparkth.plugins.pxc.config import get_pxc_settings
+from sparkth.plugins.pxc.constants import PXC_STEP_PREFIX
 from sparkth.plugins.pxc.exceptions import PxcBuildTimedOut, PxcCompileFailed, PxcManifestInvalid, PxcSmokeTestFailed
 from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.revisions import revisions_dir
@@ -195,10 +196,11 @@ async def test_a_timed_out_step_names_what_it_was_running_and_what_it_reported(
 ) -> None:
     script = (
         "import sys, time\n"
-        "print('step one', flush=True)\n"
+        f"print({PXC_STEP_PREFIX + 'step one'!r}, flush=True)\n"
         "sys.stderr.write('step one failed')\n"
         "sys.stderr.flush()\n"
-        "print('step two', flush=True)\n"
+        f"print({PXC_STEP_PREFIX + 'step two'!r}, flush=True)\n"
+        "print('tick', flush=True)\n"
         "time.sleep(60)\n"
     )
 
@@ -207,6 +209,17 @@ async def test_a_timed_out_step_names_what_it_was_running_and_what_it_reported(
 
     assert "A step did not finish within 2 seconds while running step two." in str(timed_out.value)
     assert "step one failed" in str(timed_out.value)
+
+
+async def test_a_timed_out_steps_own_output_is_never_taken_for_a_step_name(tmp_path: Path, short_timeout: None) -> None:
+    # A compile prints whatever the agent's top-level code logs, and names no step.
+    script = "import time\nprint('tick', flush=True)\ntime.sleep(60)\n"
+
+    with pytest.raises(PxcBuildTimedOut) as timed_out:
+        await run_bounded([sys.executable, "-c", script], tmp_path, "Compiling sandbox.js")
+
+    assert "Compiling sandbox.js did not finish within 2 seconds. Look for" in str(timed_out.value)
+    assert "tick" not in str(timed_out.value)
 
 
 async def test_a_timeout_kills_the_steps_grandchildren_too(tmp_path: Path, short_timeout: None) -> None:

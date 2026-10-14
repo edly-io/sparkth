@@ -12,7 +12,7 @@ from pxc.lib.sandbox import SandboxRuntimeError
 from uuid6 import uuid7
 
 from sparkth.plugins.pxc.activities import activity_dir, generated_activity_dir
-from sparkth.plugins.pxc.constants import PXC_SANDBOX_SILENT_FAILURE
+from sparkth.plugins.pxc.constants import PXC_SANDBOX_OUTPUT_LIMIT, PXC_SANDBOX_SILENT_FAILURE
 from sparkth.plugins.pxc.exceptions import PxcActionRejected, PxcActivityNotFound, PxcSandboxFailure
 from sparkth.plugins.pxc.revisions import publish_revision
 from sparkth.plugins.pxc.runtime import build_runtime, read_state, run_action, sandbox_error_text
@@ -172,6 +172,27 @@ def test_a_refusal_keeps_its_message_when_sandbox_js_wrote_first() -> None:
 
     assert text.startswith(REFUSED)
     assert "debug: placing Owl" in text
+
+
+# sandbox.js logging in a loop before it fails: far more than an error text keeps.
+FLOODED_STDERR = "".join(f"log {n}\n" for n in range(5000))
+
+
+def test_a_throw_after_a_flood_of_output_keeps_the_thrown_error() -> None:
+    err = _sandbox_error(wasmtime.WasmtimeError("trap"), FLOODED_STDERR + SANDBOX_STDERR)
+
+    text = sandbox_error_text(err)
+
+    assert text.endswith(THROWN_TEXT)
+    assert len(text) <= PXC_SANDBOX_OUTPUT_LIMIT + len("...")
+
+
+def test_a_refusal_after_a_flood_of_output_keeps_its_message_and_the_latest_output() -> None:
+    text = sandbox_error_text(_sandbox_error(FieldValidationError(REFUSED), FLOODED_STDERR))
+
+    assert text.startswith(REFUSED)
+    assert text.endswith("log 4999")
+    assert "log 0\n" not in text
 
 
 def test_a_failure_with_nothing_to_say_gets_the_fallback() -> None:
