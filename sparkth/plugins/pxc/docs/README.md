@@ -202,8 +202,9 @@ saved before it failed, since each write is stored on its own:
 
 - Over the socket, the server sends `{"error": "action_failed" | "action_rejected", "action": <name>}`
   to the socket that sent the action, and nothing to the others. The socket stays open.
-- On the action POST, a sandbox failure answers 502 and a refusal answers 422. The client drops
-  the action from its queue, so the actions behind it still go.
+- On the action POST, a sandbox failure and a refusal both answer 422, a status no proxy sends.
+  The client drops the action from its queue, so the actions behind it still go. A 502 or other
+  5xx, which a proxy sends while the app redeploys, leaves the action queued.
 
 Only an author's preview records a failure. It is stored in `pxc_action_failures`, with its kind
 (`failed` or `rejected`), the action, the permission, the value and the error, and the newest
@@ -295,8 +296,9 @@ page, and the client scripts, the activity assets and the action POSTs answer wi
 The plugin's own errors, such as a 401 for an expired token, carry the same header, so the
 client reads the status and shows the same notices as the socket. FastAPI's 422 for a malformed
 request, an unhandled 500 and the 403 for a disabled plugin carry no CORS header, so the browser
-reports them as a network failure. Each of those leaves the action queued, as does any network failure. A 422 or 502 from an action that
-cannot run drops it instead (see [When an action fails](#when-an-action-fails)).
+reports them as a network failure. Each of those leaves the action queued, as does any network
+failure. The plugin's 422 for an action that cannot run drops it instead (see
+[When an action fails](#when-an-action-fails)).
 
 A refused action is not reported at the moment it is refused. `sendAction` resolves as soon as
 the action is in the page's in-memory queue, before any network round-trip, so an activity's own
