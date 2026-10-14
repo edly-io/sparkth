@@ -33,13 +33,12 @@ from sparkth.plugins.chat.analytics import (
 )
 from sparkth.plugins.chat.classifiers import MessageScopeClassifier, RAGSearchClassifier
 from sparkth.plugins.chat.config import ChatSettings, get_chat_settings
-from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, REDIRECT_MESSAGE, REFUSAL_MESSAGE
+from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, REFUSAL_MESSAGE
 from sparkth.plugins.chat.conversation_title import extract_title_from_messages, schedule_title_generation
 from sparkth.plugins.chat.exceptions import RAGSearchError
 from sparkth.plugins.chat.lms_credentials import build_lms_credentials_message
 from sparkth.plugins.chat.messages import get_last_user_text
 from sparkth.plugins.chat.prompt import render_system_prompt
-from sparkth.plugins.chat.responsibilities import refusal_or_redirect, stored_responsibility
 from sparkth.plugins.chat.routes.utils import resolve_tools
 from sparkth.plugins.chat.routes.utils.live_turns import request_stop
 from sparkth.plugins.chat.routes.utils.message_assembly import assemble_provider_messages
@@ -85,10 +84,10 @@ def _refusal_response(
     model: str,
     provider_name: str,
 ) -> StreamingResponse | ChatCompletionResponse:
-    """A fixed reply (the refusal or the redirect) that ends the turn, in the shape the client asked for.
+    """The refusal that ends the turn, in the shape the client asked for.
 
-    ``message`` is the refusal or the redirect source constant, rendered under the request
-    locale. ``conversation_uuid`` is None when the turn was refused before any conversation was
+    ``message`` is the refusal source constant, rendered under the request locale.
+    ``conversation_uuid`` is None when the turn was refused before any conversation was
     written, which is the answer the client gets rather than a missing field.
     """
     if stream:
@@ -168,7 +167,7 @@ async def chat_completion(
         provider=provider_name,
         actor_id=str(user_id),
     )
-    # The jobs offered on this request; a switched-off plugin's job is left out.
+    # Every enabled job's section answers each turn; a switched-off plugin's is left out.
     jobs = await enabled_responsibilities(session)
     scope_classifier = MessageScopeClassifier(jobs, provider_name, api_key, user_id, classifier_analytics)
 
@@ -178,11 +177,9 @@ async def chat_completion(
 
     # Judged above get_or_create_conversation so an out-of-scope first message writes no row.
     _skip_main_scope_check = False
-    first_responsibility: str | None = None
     if not conversation_uuid:
         # Nothing is persisted yet, and there is no uuid to log a refusal against.
-        first_responsibility = await scope_classifier.responsibility_for(query_text, [], request_attachment_names, None)
-        if first_responsibility is None:
+        if await scope_classifier.responsibility_for(query_text, [], request_attachment_names, None) is None:
             return _refusal_response(REFUSAL_MESSAGE, request.stream, None, model, provider_name)
         # Already judged, so the check below would spend a second call on the same message.
         _skip_main_scope_check = True
@@ -195,11 +192,8 @@ async def chat_completion(
         provider=provider_name,
         model=model,
         title=extract_title_from_messages(request.messages, max_length=config.title_max_length),
-        responsibility=first_responsibility,
     )
     conversation_id = cast(int, conversation.id)
-    # The job this conversation does decides the turn's reply, system prompt and tools.
-    responsibility = stored_responsibility(conversation, jobs)
     turn_analytics = ChatTurnAnalytics(
         background_tasks=background_tasks,
         conversation_id=str(conversation.uuid),
@@ -281,7 +275,6 @@ async def chat_completion(
                 occurred_at=datetime.now(timezone.utc),
             )
 
-        turn_end: str | None = None
         if not _skip_main_scope_check:
             prior_history: list[HistoryTurn] = [
                 {"role": m.role, "content": m.content}
@@ -291,36 +284,23 @@ async def chat_completion(
             # Ingested documents plus anything uploaded with this message, which has no row.
             turn_attachment_names = list(dict.fromkeys(attached_document_names + request_attachment_names))
             judged = await scope_classifier.responsibility_for(
-                query_text,
-                prior_history,
-                turn_attachment_names or None,
-                conversation.uuid,
-                responsibility.name,
+                query_text, prior_history, turn_attachment_names or None, conversation.uuid
             )
-            turn_end = refusal_or_redirect(judged, responsibility.name)
-            if turn_end == REDIRECT_MESSAGE:
-                logger.info(
-                    "Redirected conversation %s: stored job %s, judged job %s",
-                    conversation.uuid,
-                    responsibility.name,
-                    judged,
+            if judged is None:
+                await service.add_message(
+                    session=session,
+                    conversation_id=conversation_id,
+                    role="assistant",
+                    content=gettext(REFUSAL_MESSAGE),
+                    message_type="text",
                 )
-
-        if turn_end is not None:
-            await service.add_message(
-                session=session,
-                conversation_id=conversation_id,
-                role="assistant",
-                content=gettext(turn_end),
-                message_type="text",
-            )
-            return _refusal_response(turn_end, request.stream, conversation.uuid, model, provider_name)
+                return _refusal_response(REFUSAL_MESSAGE, request.stream, conversation.uuid, model, provider_name)
 
         provider = get_provider(
             provider_name=provider_name,
             api_key=api_key,
             model=model,
-            system_prompt=render_system_prompt([responsibility]),
+            system_prompt=render_system_prompt(list(jobs.values())),
             temperature=request.temperature,
             max_tool_executions=config.max_tool_executions,
         )

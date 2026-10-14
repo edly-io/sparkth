@@ -32,14 +32,6 @@ msgstr ""
 "Je suis un assistant de création de cours et je peux uniquement vous "
 "aider à concevoir et à créer des cours."
 
-# Machine-generated translation (LLM), not yet reviewed by a native speaker.
-#: sparkth/plugins/chat/constants.py:43
-msgid ""
-"That request belongs to a different kind of conversation. Start a new "
-"conversation to work on it."
-msgstr ""
-"Cette demande relève d'un autre type de conversation. Démarrez une nouvelle conversation pour la traiter."
-
 #: sparkth/plugins/chat/plugin.py:50
 msgid "Compose (Create Course)"
 msgstr "Composer (Créer un cours)"
@@ -51,16 +43,6 @@ msgstr "Transformez vos ressources en cours grâce à l'IA"
 #: sparkth/plugins/chat/plugin.py:55
 msgid "Create Course"
 msgstr "Créer un cours"
-
-# Machine-generated translation (LLM), not yet reviewed by a native speaker.
-#: sparkth/plugins/chat/responsibilities.py:41
-#, python-brace-format
-msgid ""
-"This conversation is for {job}, and the plugin that provides it is turned"
-" off, so nothing more can be done here."
-msgstr ""
-"Cette conversation concerne {job}, et le plugin qui le fournit est désactivé, "
-"donc plus rien ne peut être fait ici."
 
 #: sparkth/plugins/chat/service.py:115
 msgid "Conversation not found"

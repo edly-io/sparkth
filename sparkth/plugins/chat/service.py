@@ -30,7 +30,6 @@ class ChatService:
         provider: str,
         model: str,
         title: str | None = None,
-        responsibility: str | None = None,
     ) -> Conversation:
         conversation = Conversation(
             user_id=user_id,
@@ -38,14 +37,13 @@ class ChatService:
             provider=provider,
             model=model,
             title=title,
-            responsibility=responsibility,
         )
 
         session.add(conversation)
         await session.commit()
         await session.refresh(conversation)
 
-        logger.info("Created conversation %s for user %s doing %s", conversation.id, user_id, responsibility)
+        logger.info("Created conversation %s for user %s", conversation.id, user_id)
         return conversation
 
     async def get_or_create_conversation(
@@ -58,11 +56,10 @@ class ChatService:
         provider: str,
         model: str,
         title: str | None = None,
-        responsibility: str | None = None,
     ) -> tuple[Conversation, bool]:
         """Resolve the conversation a request names, or start one when it names none.
 
-        ``title`` and ``responsibility`` are used only when starting one. Ownership is part of
+        ``title`` is used only when starting one. Ownership is part of
         resolving: a uuid that belongs to another user is as absent as one that does not exist.
 
         Returns:
@@ -83,7 +80,6 @@ class ChatService:
                 provider=provider,
                 model=model,
                 title=title,
-                responsibility=responsibility,
             )
             return conversation, True
 
