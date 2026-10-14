@@ -160,7 +160,8 @@ A build runs these steps in order:
 3. Smoke-test the result in a child process, on a throwaway store. It reads `getState` as play and
    as edit, runs `config.save` as edit with the fields' defaults when the manifest declares it,
    runs every other action as play and as edit with the simplest value its schema accepts, then
-   reads `getState` again. Any error fails the build, and the failure lists every step that failed.
+   reads `getState` again. Any error fails the build. The failure lists the failed steps in order,
+   up to `PXC_BUILD_ERROR_LIMIT` characters, and says so when more were cut.
 4. Publish the directory as the activity's first revision and point the link at it.
 5. Insert the row.
 
