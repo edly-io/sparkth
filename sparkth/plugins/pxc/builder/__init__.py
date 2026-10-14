@@ -19,10 +19,11 @@ wizer sees one directory as its filesystem root: the process's cwd, whenever the
 under it. So each compile runs with its cwd set to a directory holding only ``sandbox.js``, and
 an import can reach nothing but that file. A relative or absolute import of any server file fails
 to resolve. That is also what limits a sandbox to ``pxc:sandbox/*`` imports: builtins, packages
-and unknown interfaces fail to load the same way. node and the smoke test get only ``PATH`` and
-``NO_COLOR`` as their environment, and only the end of their stderr is kept.
+and unknown interfaces fail to load the same way. node, the smoke test and an agent's trial run
+(``trial.py``) get only ``PATH`` and ``NO_COLOR`` as their environment, and only the end of their
+stderr is kept.
 
-Both child processes run in a session of their own and are killed as a group on timeout or
+Every child process runs in a session of its own and is killed as a group on timeout or
 cancellation. node runs wizer as a grandchild, and killing node alone leaves wizer running.
 """
 
