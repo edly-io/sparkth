@@ -22,8 +22,9 @@
 // lost.
 //
 // A fifth: a frame carrying "error" (an action the sandbox failed or the manifest refused) shows a
-// notice instead of reaching the activity, and so does a 422 or 502 on the POST path. That notice
-// comes down when the learner sends the next action, and shows again if that one fails too.
+// notice instead of reaching the activity, and so does a 422 or 502 on the POST path. A refusal or
+// disconnect notice already up stays instead, since it is the one asking for a reload. The action
+// notice comes down when the learner sends the next action, and shows again if that one fails too.
 //
 // The configuration is a <script type="application/json"> child of the element, written by the
 // embed route; nothing is fetched for it.
@@ -144,7 +145,7 @@ export class SparkthPXC extends PXC {
     if (!response.ok) {
       console.error("POST action failed:", name, response.status);
       if (ACTION_FAILURE_STATUSES.has(response.status)) {
-        this._showNotice(ACTION_NOTICE);
+        if (!this._notice) this._showNotice(ACTION_NOTICE);
         return true;
       }
       const notice = REFUSAL_NOTICES[response.status];
@@ -170,8 +171,8 @@ export class SparkthPXC extends PXC {
     super._connectWebSocket();
     const deliver = this._ws.onmessage;
     this._ws.onmessage = (event) => {
-      if (JSON.parse(event.data).error) this._showNotice(ACTION_NOTICE);
-      else deliver(event);
+      if (!JSON.parse(event.data).error) deliver(event);
+      else if (!this._notice) this._showNotice(ACTION_NOTICE);
     };
     this._ws.addEventListener("open", this._onSocketOpen);
     const reconnect = this._ws.onclose;
