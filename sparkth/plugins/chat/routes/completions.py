@@ -339,7 +339,7 @@ async def chat_completion(
             request, db_messages, attached_documents, query_text, rag_search_required, provider
         )
 
-        tools = await resolve_tools(request, responsibility, get_tool_registry())
+        tools = await resolve_tools(request, get_tool_registry())
         if tools and request.include_system_tools_message:
             tool_descriptions = [f"- {tool.name}: {tool.description}" for tool in tools]
             tool_list_message = "You have access to the following tools:\n" + "\n".join(tool_descriptions)

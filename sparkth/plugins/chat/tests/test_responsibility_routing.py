@@ -272,32 +272,11 @@ class TestLaterTurnsFollowTheStoredJob:
         provider.send_message.assert_not_awaited()
         assert (await session.exec(select(Message))).all() == []
 
-    async def test_the_stored_job_decides_which_tools_are_bound(
-        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_job: ChatResponsibility
-    ) -> None:
-        config_id = await _seed_llm_config(session, current_user.id or 1)
-        conversation_uuid = await _seed_conversation(session, current_user.id or 1, "stub-job")
-        provider = _provider()
-
-        with (
-            patch(
-                "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
-                return_value=_classifier_answering("stub-job"),
-            ),
-            patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=provider),
-            patch("sparkth.plugins.chat.routes.completions.get_tool_registry", return_value=_registry()),
-        ):
-            await _turn(client, config_id, conversation_uuid, "*")
-
-        assert _bound_tool_names(provider) == ["stub_build"]
-
-    async def test_a_switched_off_jobs_tools_are_not_bound_by_course_design(
+    async def test_every_requested_tool_is_bound_whatever_the_job(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_job: ChatResponsibility
     ) -> None:
         config_id = await _seed_llm_config(session, current_user.id or 1)
         conversation_uuid = await _seed_conversation(session, current_user.id or 1, None)
-        session.add(Plugin(name="stub", enabled=False))
-        await session.commit()
         provider = _provider()
 
         with (
@@ -310,4 +289,4 @@ class TestLaterTurnsFollowTheStoredJob:
         ):
             await _turn(client, config_id, conversation_uuid, "*")
 
-        assert _bound_tool_names(provider) == ["openedx_create_xblock"]
+        assert _bound_tool_names(provider) == ["openedx_create_xblock", "stub_build"]

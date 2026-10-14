@@ -1,11 +1,11 @@
 """Which job a chat conversation does, and what that job decides about each turn.
 
 A conversation does exactly one :class:`~sparkth.lib.chat.hooks.ChatResponsibility`, stored by
-name on its row. This module turns that name into the job, decides whether a turn's classified
-job lets it proceed, and decides which MCP tool categories the job binds.
+name on its row. This module turns that name into the job and decides whether a turn's classified
+job lets it proceed.
 """
 
-from sparkth.lib.chat.hooks import CHAT_RESPONSIBILITIES, ChatResponsibility, registered_responsibility
+from sparkth.lib.chat.hooks import ChatResponsibility, registered_responsibility
 from sparkth.lib.i18n import _, gettext
 from sparkth.plugins.chat.constants import (
     COURSE_DESIGN_LABEL,
@@ -64,15 +64,3 @@ def refusal_or_redirect(judged: str | None, stored: str) -> str | None:
     if judged != stored:
         return REDIRECT_MESSAGE
     return None
-
-
-def binds_category(responsibility: ChatResponsibility, category: str) -> bool:
-    """Whether a conversation doing ``responsibility`` is given tools of MCP ``category``.
-
-    A job with categories binds exactly those. A job with none, such as course design, binds
-    every category no registered job claims, including uncategorised tools. Claims of disabled
-    plugins' jobs count too, so a switched-off job's tools never fall through to course design.
-    """
-    if responsibility.tool_categories:
-        return category in responsibility.tool_categories
-    return all(category not in other.tool_categories for _plugin, other in CHAT_RESPONSIBILITIES.iter_items())
