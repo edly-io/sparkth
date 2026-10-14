@@ -121,7 +121,7 @@ How the suite is wired:
 - A file named `tests.py` inside a package is **not** collected — pytest only collects `test_*.py`.
 
 **TimescaleDB test lane.** The suite runs on in-memory SQLite by default. Tests that need a
-real PostgreSQL/TimescaleDB — those exercising continuous aggregates, whose SQL (`_PG_LOGINS_SQL`)
+real PostgreSQL/TimescaleDB — those exercising continuous aggregates, whose SQL (built by `read_rollup`)
 and DDL (the analytics migrations) SQLite cannot represent — carry the `pg` marker (applied
 module-wide via `pytestmark = pytest.mark.pg`) and live under
 [`tests/analytics/pg/`](tests/analytics/pg/). They **skip** unless

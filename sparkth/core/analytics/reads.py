@@ -1,18 +1,16 @@
 """Read-side queries over analytics data.
 
 The read path never touches the application database — only analytics tables and
-rollups. Exposed to the API layer via ``sparkth.lib.analytics``.
+rollups. Exposed to the API layer and plugins via ``sparkth.lib.analytics``.
 
-Plugins build their own per-bucket SQL from ``PG_BUCKET`` / ``SQLITE_BUCKET`` and
-run it with ``read_bucketed``; the PG/SQLite identity rule below applies to them too.
-
-``get_logins`` is dialect-aware because the login rollup only exists as a TimescaleDB
-continuous aggregate (``login_activity_daily_by_method``) on PostgreSQL. On SQLite (the test /
-e2e database) the aggregate is not created, so the same buckets are computed directly from
-``raw_events``. The two query variants below must stay semantically identical: same filter
-(``user.logged_in``), UTC day bucketing, the range filtered on the day (inclusive both ends)
-before rolling days up into weeks (starting Monday) or months (starting on the 1st), and one
-row per bucket and sign-in method.
+``read_rollup`` is dialect-aware because rollups only exist as TimescaleDB continuous
+aggregates on PostgreSQL. On SQLite (the test / e2e database) the aggregates are not created,
+so the same buckets are computed directly from ``raw_events``. PostgreSQL reads the aggregate's
+columns named like the ``dims`` keys; the aggregate's own definition fixes which event types and
+payload keys they come from. SQLite filters ``raw_events`` to ``event_types`` and extracts each
+dim from its payload key. Both bucket by UTC day and filter the range on the day (inclusive both
+ends) before rolling days up into weeks (starting Monday) or months (starting on the 1st). The
+two agree only when ``event_types`` and ``dims`` match the aggregate's definition.
 
 Day boundaries are UTC on both paths, and this is the premise that makes them
 identical: PG's ``time_bucket('1 day', occurred_at)`` buckets the timestamptz in
@@ -22,84 +20,139 @@ side is ever parameterized with a bucketing timezone, the SQLite side must move 
 lockstep or the two will silently diverge.
 """
 
+import re
 from collections.abc import Mapping, Sequence
 from datetime import date
 
-from sqlalchemy import RowMapping, TextClause, text
+from sqlalchemy import RowMapping, bindparam, text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.analytics.enums import Bucket
 from sparkth.core.analytics.schemas.reads import LoginsPoint
 
-# The queries are raw SQL rather than SQLAlchemy Core selects: the PostgreSQL ones read a
+# The queries are raw SQL rather than SQLAlchemy Core selects: the PostgreSQL one reads a
 # TimescaleDB continuous aggregate, created by raw migration DDL and deliberately NOT registered
 # as a ``sa.Table`` on ``analytics_metadata`` (Alembic autogenerate would try to create/drop it,
 # and it doesn't exist on SQLite), and the two dialects need genuinely different queries anyway.
-# Writing them as side-by-side SQL strings makes the "must stay semantically identical"
-# invariant easy to eyeball.
 
 # Per-bucket SQL that reduces a timestamp to its bucket's first day (the day, its Monday, or the
 # 1st), keyed by the enum so no request input ever reaches the SQL.
 # PG: date_trunc('week') starts on Monday. SQLite: 'weekday 0' moves to the next Sunday
 # (or stays on one), and '-6 days' steps back to that week's Monday.
-PG_BUCKET = {
+_PG_BUCKET = {
     Bucket.day: "day AT TIME ZONE 'UTC'",
     Bucket.week: "date_trunc('week', day AT TIME ZONE 'UTC')",
     Bucket.month: "date_trunc('month', day AT TIME ZONE 'UTC')",
 }
-SQLITE_BUCKET = {
+_SQLITE_BUCKET = {
     Bucket.day: "date(occurred_at)",
     Bucket.week: "date(occurred_at, 'weekday 0', '-6 days')",
     Bucket.month: "strftime('%Y-%m-01', occurred_at)",
 }
 
-_PG_LOGINS_SQL = {
-    bucket: text(
-        f"SELECT to_char({expr}, 'YYYY-MM-DD') AS bucket, method, "
-        "CAST(sum(login_count) AS bigint) AS login_count "
-        "FROM login_activity_daily_by_method "
-        "WHERE (day AT TIME ZONE 'UTC')::date BETWEEN :from_ AND :to "
-        "GROUP BY 1, method "
-        "ORDER BY bucket, method"
-    )
-    for bucket, expr in PG_BUCKET.items()
-}
-_SQLITE_LOGINS_SQL = {
-    bucket: text(
-        f"SELECT {expr} AS bucket, json_extract(payload, '$.method') AS method, count(*) AS login_count "
-        "FROM raw_events "
-        "WHERE event_type = 'user.logged_in' "
-        "AND date(occurred_at) BETWEEN :from_ AND :to "
-        "GROUP BY 1, 2 "
-        "ORDER BY bucket, method"
-    )
-    for bucket, expr in SQLITE_BUCKET.items()
-}
+# Everything interpolated into SQL must match these; event types may contain dots.
+_NAME = re.compile(r"[a-z_][a-z0-9_]*")
+_EVENT_TYPE = re.compile(r"[a-z_][a-z0-9_.]*")
 
 
-async def read_bucketed(
+def _safe(value: str, pattern: re.Pattern[str] = _NAME) -> str:
+    if not pattern.fullmatch(value):
+        raise ValueError(f"Unsafe SQL identifier: {value!r}")
+    return value
+
+
+def _sqlite_dim(key: str | Mapping[str, str]) -> str:
+    if isinstance(key, str):
+        return f"json_extract(payload, '$.{_safe(key)}')"
+    whens = " ".join(
+        f"WHEN '{_safe(event_type, _EVENT_TYPE)}' THEN json_extract(payload, '$.{_safe(k)}')"
+        for event_type, k in key.items()
+    )
+    return f"CASE event_type {whens} END"
+
+
+async def read_rollup(
     session: AsyncSession,
-    pg_sql: Mapping[Bucket, TextClause],
-    sqlite_sql: Mapping[Bucket, TextClause],
+    *,
+    aggregate: str,
+    event_types: Sequence[str],
+    dims: Mapping[str, str | Mapping[str, str]],
+    by_event_type: bool = False,
+    count_column: str,
     from_: date,
     to: date,
     bucket: Bucket,
-) -> Sequence[RowMapping]:
-    """Run the ``bucket`` query for the session's dialect, binding ``:from_`` and ``:to``."""
-    params: dict[str, date | str]
+) -> list[RowMapping]:
+    """Count events per ``bucket`` (and ``dims``) for days ``from_``..``to`` (inclusive).
+
+    PostgreSQL sums ``count_column`` of the continuous aggregate ``aggregate``, grouped by
+    the aggregate's columns named like the ``dims`` keys; SQLite counts ``raw_events`` of
+    ``event_types``, extracting each dim from the payload. The two agree only if ``dims``
+    matches the aggregate's definition and ``count_column`` is the aggregate's count. The
+    aggregate must have a ``day`` bucket column, and each dim must be a string-valued payload key.
+
+    Args:
+        aggregate: The continuous aggregate PostgreSQL reads.
+        event_types: The event types SQLite counts.
+        dims: Output column -> payload key, either one key for every event type or a
+            per-event-type mapping (NULL for event types it omits). Payload keys are never SQL.
+        by_event_type: Also group by ``event_type``.
+        count_column: The aggregate's count column, also the output count's name.
+
+    Returns:
+        Rows of ``bucket`` (UTC start, ``YYYY-MM-DD``), ``event_type`` if requested, the dims
+        and ``count_column``, sorted by everything but the count with NULLs first. Sparse.
+
+    Raises:
+        ValueError: A name, payload key or event type interpolated into SQL is unsafe.
+    """
+    _safe(aggregate)
+    _safe(count_column)
+    exprs = {_safe(name): _sqlite_dim(key) for name, key in dims.items()}
+    group = ["event_type"] if by_event_type else []
+    params: dict[str, object]
     if session.bind.dialect.name == "postgresql":
-        sql, params = pg_sql[bucket], {"from_": from_, "to": to}
+        cols = [*group, *dims]
+        sql = text(
+            f"SELECT to_char({_PG_BUCKET[bucket]}, 'YYYY-MM-DD') AS bucket, "
+            + "".join(f"{c}, " for c in cols)
+            + f"CAST(sum({count_column}) AS bigint) AS {count_column} FROM {aggregate} "
+            "WHERE (day AT TIME ZONE 'UTC')::date BETWEEN :from_ AND :to "
+            f"GROUP BY {', '.join(str(i) for i in range(1, len(cols) + 2))}"
+        )
+        params = {"from_": from_, "to": to}
     else:
+        cols = [*group, *(f"{expr} AS {name}" for name, expr in exprs.items())]
+        sql = text(
+            f"SELECT {_SQLITE_BUCKET[bucket]} AS bucket, "
+            + "".join(f"{c}, " for c in cols)
+            + f"count(*) AS {count_column} FROM raw_events "
+            "WHERE event_type IN :event_types AND date(occurred_at) BETWEEN :from_ AND :to "
+            f"GROUP BY {', '.join(str(i) for i in range(1, len(cols) + 2))}"
+        ).bindparams(bindparam("event_types", expanding=True))
         # SQLite compares the ISO strings date() produces.
-        sql, params = sqlite_sql[bucket], {"from_": from_.isoformat(), "to": to.isoformat()}
-    return (await session.execute(sql, params)).mappings().all()
+        params = {"event_types": list(event_types), "from_": from_.isoformat(), "to": to.isoformat()}
+    rows = (await session.execute(sql, params)).mappings().all()
+    # Sorted here, NULLs first and bytewise: PG sorts NULLs last and its collation ignores
+    # ``_``, SQLite compares bytes, so an ORDER BY would differ between the two.
+    keys = ["bucket", *group, *dims]
+    return sorted(rows, key=lambda r: [(r[k] is not None, r[k] or "") for k in keys])
 
 
 async def get_logins(session: AsyncSession, from_: date, to: date, bucket: Bucket) -> list[LoginsPoint]:
     """Return login counts per ``bucket`` and sign-in method for days ``from_``..``to`` (inclusive).
 
-    Oldest bucket first, methods alphabetical within a bucket. Sparse: buckets or
+    Oldest bucket first, methods ordered bytewise (NULLs first) within a bucket. Sparse: buckets or
     methods with no logins are omitted, so callers zero-fill.
     """
-    rows = await read_bucketed(session, _PG_LOGINS_SQL, _SQLITE_LOGINS_SQL, from_, to, bucket)
-    return [LoginsPoint(bucket=row["bucket"], method=row["method"], login_count=row["login_count"]) for row in rows]
+    rows = await read_rollup(
+        session,
+        aggregate="login_activity_daily_by_method",
+        event_types=("user.logged_in",),
+        dims={"method": "method"},
+        count_column="login_count",
+        from_=from_,
+        to=to,
+        bucket=bucket,
+    )
+    return [LoginsPoint.model_validate(dict(r)) for r in rows]
