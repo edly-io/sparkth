@@ -222,8 +222,8 @@ async def pxc_run_activity(activity_id: str, steps: list[TrialStep]) -> ScratchR
     an earlier one saved. Nothing is saved anywhere real.
 
     The report gives each step's events, or its error. A rejected action means ui.js would have
-    sent a value the manifest refuses. It then gives getState as "play" and as "edit", and the
-    fields the learner ended up with.
+    sent an action the manifest does not declare, or a value its schema refuses. It then gives
+    getState as "play" and as "edit", and the fields the learner ended up with.
 
     Use it to reproduce a failure from `pxc_get_activity_failures`, or the steps the author
     described when nothing failed but the result is wrong. After `pxc_update_activity`, run the
