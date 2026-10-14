@@ -12,6 +12,7 @@ from pxc.lib.permission import Permission
 from pxc.lib.runtime import ActivityRuntime
 
 from sparkth.plugins.pxc.activities import activity_dir
+from sparkth.plugins.pxc.constants import PXC_STEP_PREFIX
 from sparkth.plugins.pxc.scratch.__main__ import main
 from sparkth.plugins.pxc.scratch.schemas import ScratchStep
 from sparkth.plugins.pxc.scratch.steps import read_scratch_state, run_scratch, run_step
@@ -108,10 +109,8 @@ def test_each_step_and_state_read_is_named_on_the_progress_stream_in_the_order_i
     run_scratch(unrunnable_activity(tmp_path), [SAVE, SUBMIT], progress)
 
     assert progress.getvalue().splitlines() == [
-        "config.save as edit",
-        "answer.submit as play",
-        "getState as play",
-        "getState as edit",
+        PXC_STEP_PREFIX + step
+        for step in ["config.save as edit", "answer.submit as play", "getState as play", "getState as edit"]
     ]
 
 
@@ -130,4 +129,6 @@ async def test_the_child_entry_names_each_step_on_stdout_and_drops_the_sandboxs_
         check=True,
     )
 
-    assert child.stdout.splitlines() == ["poke as play", "getState as play", "getState as edit"]
+    assert child.stdout.splitlines() == [
+        PXC_STEP_PREFIX + step for step in ["poke as play", "getState as play", "getState as edit"]
+    ]
