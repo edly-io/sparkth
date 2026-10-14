@@ -49,14 +49,16 @@ from sparkth.plugins.pxc.routes.activities import router as activity_router
 # A bad launch token is 401: the token is the learner's only credential here, and the caller
 # can get a fresh one by reloading the page. A duplicate activity name is 500 — it is a broken
 # deployment, not a bad request. An unconfigured launch secret is 503: the author's request is
-# fine and the deployment is not. Errors the embed page can hit carry CORS headers so it can
-# read them.
+# fine and the deployment is not. A sandbox failure is 422, like a refused action: the request
+# was fine but the activity could not process it, and unlike a 5xx a proxy never sends it, so
+# the embed page can drop that action without dropping one a redeploy refused. Errors the embed
+# page can hit carry CORS headers so it can read them.
 register_exception_handler(PxcActivityNotFound, status.HTTP_404_NOT_FOUND, PXC_CORS_HEADERS)
 register_exception_handler(PxcAssetNotFound, status.HTTP_404_NOT_FOUND, PXC_CORS_HEADERS)
 register_exception_handler(PxcInvalidLaunchToken, status.HTTP_401_UNAUTHORIZED, PXC_CORS_HEADERS)
 register_exception_handler(PxcActionRejected, status.HTTP_422_UNPROCESSABLE_CONTENT, PXC_CORS_HEADERS)
 register_exception_handler(PxcLaunchNotConfigured, status.HTTP_503_SERVICE_UNAVAILABLE)
-register_exception_handler(PxcSandboxFailure, status.HTTP_502_BAD_GATEWAY, PXC_CORS_HEADERS)
+register_exception_handler(PxcSandboxFailure, status.HTTP_422_UNPROCESSABLE_CONTENT, PXC_CORS_HEADERS)
 register_exception_handler(PxcDuplicateActivityName, status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # PLUGIN_ROUTERS keeps one router per plugin, so both surfaces go in under one parent.
