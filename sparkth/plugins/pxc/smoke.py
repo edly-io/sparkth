@@ -4,8 +4,8 @@ The builder runs this in a child process. A sandbox stuck in a loop cannot be st
 thread, but a process can be killed. It reads ``get_state`` under ``play`` and under ``edit``,
 the two permissions a launch hands out, against throwaway in-memory storage.
 
-Exit status 0 means it passed. On 1, stderr carries one line, ``get_state failed:`` followed by
-the failure's error text: what the sandbox threw or wrote. The builder hands that text to the agent.
+Exit status 0 means it passed. On 1, stderr carries ``get_state failed:`` followed by the
+failure's error text: what the sandbox threw or wrote. The builder hands that text to the agent.
 
 A passing run leaves ``sandbox.wasm.bin`` beside the wasm: pxc-lib's compiled-component cache.
 It moves with the activity, so the first learner launch skips compiling the component.
