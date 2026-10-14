@@ -35,7 +35,7 @@ does not repeat the list.
 
 ## Placing one in a course
 
-An author places an activity from a course design conversation:
+An author places an activity by asking for it by its title in a chat:
 
 1. The agent lists the activities the author can place: the bundled samples, then the author's
    own activities by title.
@@ -62,9 +62,8 @@ which lists the signed-in author's own activities. An activity's `preview_url` i
 
 ## Building an activity from chat
 
-The plugin registers the `pxc-activity-builder` chat job with its system prompt, its scope and
-the `pxc` tool category. A conversation routed to the job binds only the tools in that category.
-Its contract: the author describes an activity in plain words, and the agent builds it and
+The plugin contributes its chat capability: a title, its scope and its prompt section. Its
+contract: the author describes an activity in plain words, and the agent builds it and
 replies with a preview link that opens the activity on the Sparkth
 `/dashboard/pxc` page.
 
@@ -113,9 +112,9 @@ There is no rollback: an update overwrites the previous version. So before the a
 placed activity, even with a change it accepts, it tells the author that the change reaches every
 course using it and cannot be undone, and updates only after the author confirms.
 
-The job's prompt lives in `assets/pxc_activity_building_system_prompt.txt` and caps build and
-update attempts at three. A refusal because the activity is placed does not count toward the
-cap. The contract text lives in `assets/about.txt`, and the scope the classifier
+The capability's prompt lives in `assets/pxc_activity_building_system_prompt.txt` and caps build
+and update attempts at three. A refusal because the activity is placed does not count toward the
+cap. The contract text lives in `assets/about.txt`, and the scope the scope gate
 reads in `assets/pxc_activity_building_scope.txt`.
 
 ## Adding an activity
