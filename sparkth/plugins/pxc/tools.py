@@ -149,8 +149,8 @@ async def pxc_get_activity_failures(activity_id: str, limit: int | None = None) 
     etc.). Failures of only the activity's current version are returned.
 
     Each failure has its `kind`:
-    - "rejected": ui.js sent a value the action's schema in the manifest refuses. Fix ui.js or the
-      schema.
+    - "rejected": ui.js sent an action the manifest does not declare, or a value the action's
+      schema refuses. `error` says which. Fix ui.js or the manifest.
     - "failed": sandbox.js threw, or wrote a value its field or event refuses. `error` is the
       sandbox's own message. Fix sandbox.js, or the field or event schema.
 
