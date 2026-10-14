@@ -37,8 +37,8 @@ async def _seed_llm_config(session: AsyncSession, user_id: int) -> int:
     return config_id
 
 
-async def _seed_conversation(session: AsyncSession, user_id: int, responsibility: str | None) -> str:
-    conversation = Conversation(user_id=user_id, provider="openai", model="gpt-4o", responsibility=responsibility)
+async def _seed_conversation(session: AsyncSession, user_id: int) -> str:
+    conversation = Conversation(user_id=user_id, provider="openai", model="gpt-4o")
     session.add(conversation)
     await session.flush()
     conversation_uuid = str(conversation.uuid)
@@ -64,7 +64,7 @@ def _tool(name: str) -> MagicMock:
 
 
 def _registry() -> MagicMock:
-    """Two tools: one in a category only course design binds, one in the stub capability's category."""
+    """Two tools from two plugins; every turn may bind both."""
     registry = MagicMock()
     registry.get_all_tools.return_value = [_tool("openedx_create_xblock"), _tool("stub_build")]
     registry.category_for.side_effect = {"openedx_create_xblock": "openedx-course", "stub_build": "stub-tools"}.get
@@ -101,7 +101,7 @@ class TestOneAssistantPerTurn:
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
     ) -> None:
         config_id = await _seed_llm_config(session, current_user.id or 1)
-        conversation_uuid = await _seed_conversation(session, current_user.id or 1, "stub-job")
+        conversation_uuid = await _seed_conversation(session, current_user.id or 1)
 
         with patch(
             "sparkth.plugins.chat.routes.completions.MessageScopeClassifier", return_value=_classifier_answering(False)
@@ -115,7 +115,7 @@ class TestOneAssistantPerTurn:
     ) -> None:
         """A course design conversation asked for the stub capability's work is answered, not redirected."""
         config_id = await _seed_llm_config(session, current_user.id or 1)
-        conversation_uuid = await _seed_conversation(session, current_user.id or 1, "course-design")
+        conversation_uuid = await _seed_conversation(session, current_user.id or 1)
         provider = _provider()
 
         with (
@@ -149,12 +149,12 @@ class TestOneAssistantPerTurn:
         assert response.status_code == 200
         assert _section(stub_capability) in _system_prompt(get_provider)
 
-    async def test_a_conversation_whose_stored_job_is_switched_off_continues(
+    async def test_a_conversation_continues_after_a_plugin_is_switched_off(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
     ) -> None:
-        """A row from before the switch-off still stores a job name; the turn ignores it."""
+        """Switching a plugin off removes its section; the conversation goes on."""
         config_id = await _seed_llm_config(session, current_user.id or 1)
-        conversation_uuid = await _seed_conversation(session, current_user.id or 1, "stub-job")
+        conversation_uuid = await _seed_conversation(session, current_user.id or 1)
         session.add(Plugin(name="stub", enabled=False))
         await session.commit()
         provider = _provider()
@@ -176,7 +176,7 @@ class TestOneAssistantPerTurn:
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
     ) -> None:
         config_id = await _seed_llm_config(session, current_user.id or 1)
-        conversation_uuid = await _seed_conversation(session, current_user.id or 1, "stub-job")
+        conversation_uuid = await _seed_conversation(session, current_user.id or 1)
 
         with (
             patch("sparkth.plugins.chat.classifiers.base.get_provider"),
@@ -197,7 +197,7 @@ class TestOneAssistantPerTurn:
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
     ) -> None:
         config_id = await _seed_llm_config(session, current_user.id or 1)
-        conversation_uuid = await _seed_conversation(session, current_user.id or 1, None)
+        conversation_uuid = await _seed_conversation(session, current_user.id or 1)
         provider = _provider()
 
         with (
