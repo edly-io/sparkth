@@ -71,7 +71,11 @@ _BUILD_SLOTS = asyncio.Semaphore(get_pxc_settings().build_concurrency)
 
 
 def _empty_object_paths(definition: object, path: str) -> list[str]:
-    """The paths under ``definition`` of an ``object`` type with no ``properties``, which can only ever hold {}."""
+    """Every path, starting at ``path``, to an ``object`` in ``definition`` that lists no ``properties``.
+
+    pxc-lib stores only an object's listed keys, so such an object can only ever hold {}. Objects
+    nested in properties and in array or log items are checked too.
+    """
     if isinstance(definition, (ObjectType, ObjectField)):
         if not definition.properties:
             return [path]
@@ -101,11 +105,16 @@ def _manifest_rule_violations(manifest: PxcActivityManifest) -> list[str]:
         violations.append('"ui" must be "ui.js"')
     if manifest.sandbox != "sandbox.wasm":
         violations.append('"sandbox" must be "sandbox.wasm"')
-    for name, definition in (manifest.fields or {}).items():
-        violations.extend(
-            f'{path}: an "object" with no "properties" can only hold {{}}. List its keys in "properties", '
-            'or store a map whose keys are chosen at runtime as an "array" of objects with fixed keys'
-            for path in _empty_object_paths(definition.root, f"fields.{name}")
+    empty_objects = [
+        path
+        for name, definition in (manifest.fields or {}).items()
+        for path in _empty_object_paths(definition.root, f"fields.{name}")
+    ]
+    if empty_objects:
+        violations.append(
+            'an "object" with no "properties" can only hold {}, so list its keys in "properties", or store a '
+            'map whose keys are chosen at runtime as an "array" of objects with fixed keys. Found at: '
+            + ", ".join(empty_objects)
         )
     return violations
 
@@ -116,7 +125,8 @@ def validate_manifest(manifest: dict[str, object], activity_id: str) -> dict[str
     The server owns the name: it is the id the activity is stored and launched under.
 
     Raises:
-        PxcManifestInvalid: naming every problem found, for the agent to fix.
+        PxcManifestInvalid: naming every problem found, for the agent to fix, cut to
+            ``PXC_BUILD_ERROR_LIMIT`` characters.
     """
     named = {**manifest, "name": activity_id}
     try:
@@ -132,7 +142,9 @@ def validate_manifest(manifest: dict[str, object], activity_id: str) -> dict[str
         ) from err
     violations = _manifest_rule_violations(parsed)
     if violations:
-        raise PxcManifestInvalid("manifest.json breaks the build's rules: " + "; ".join(violations))
+        raise PxcManifestInvalid(
+            ("manifest.json breaks the build's rules: " + "; ".join(violations))[: get_pxc_settings().build_error_limit]
+        )
     return named
 
 
