@@ -148,6 +148,9 @@ async def pxc_get_activity_failures(activity_id: str, limit: int | None = None) 
     Call this when the author reports an issue with the activity (e.g. glitches, wrong scores,
     etc.). Failures of only the activity's current version are returned.
 
+    A failure's `value` is the JSON text of what ui.js sent, not the value itself. A long one is
+    cut, so it no longer parses.
+
     Each failure has its `kind`:
     - "rejected": ui.js sent an action the manifest does not declare, or a value the action's
       schema refuses. `error` says which. Fix ui.js or the manifest.
