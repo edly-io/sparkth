@@ -8,6 +8,7 @@ import shutil
 import sys
 import time
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import pytest
 from pxc.lib.field_store import MemoryKVStore
@@ -25,7 +26,7 @@ from sparkth.plugins.pxc.builder import (
     validate_manifest,
 )
 from sparkth.plugins.pxc.config import get_pxc_settings
-from sparkth.plugins.pxc.constants import PXC_STEP_PREFIX
+from sparkth.plugins.pxc.constants import PXC_SMOKE_CUT_NOTICE, PXC_STEP_PREFIX
 from sparkth.plugins.pxc.exceptions import PxcBuildTimedOut, PxcCompileFailed, PxcManifestInvalid, PxcSmokeTestFailed
 from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.revisions import revisions_dir
@@ -591,3 +592,31 @@ async def test_a_hung_action_is_named_with_the_failures_found_before_it(
     assert "while running answer.submit as play." in str(timed_out.value)
     assert "save broke" in str(timed_out.value)
     assert "spinning" not in str(timed_out.value)
+
+
+# One failure line per step: far more than the error limit keeps.
+LONG_SMOKE_REPORT = "\n".join(f"action{n} as play failed: boom" for n in range(1000))
+
+
+async def test_a_smoke_report_cut_at_the_error_limit_says_more_failures_were_cut(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr("sparkth.plugins.pxc.builder.run_bounded", AsyncMock(return_value=(1, LONG_SMOKE_REPORT)))
+
+    with pytest.raises(PxcSmokeTestFailed) as failed:
+        await smoke_test_activity(tmp_path)
+
+    assert "action0 as play failed: boom" in str(failed.value)
+    assert "action999" not in str(failed.value)
+    assert str(failed.value).endswith(PXC_SMOKE_CUT_NOTICE)
+
+
+async def test_a_smoke_report_within_the_error_limit_is_whole(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(
+        "sparkth.plugins.pxc.builder.run_bounded", AsyncMock(return_value=(1, "answer.submit as play failed: boom"))
+    )
+
+    with pytest.raises(PxcSmokeTestFailed) as failed:
+        await smoke_test_activity(tmp_path)
+
+    assert str(failed.value).endswith("answer.submit as play failed: boom")

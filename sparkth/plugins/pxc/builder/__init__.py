@@ -49,6 +49,7 @@ from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import (
     PXC_COMPILE_TOOLCHAIN_MISSING,
     PXC_SANDBOX_WIT,
+    PXC_SMOKE_CUT_NOTICE,
     PXC_STEP_PREFIX,
 )
 from sparkth.plugins.pxc.exceptions import (
@@ -246,20 +247,21 @@ async def smoke_test_activity(directory: Path) -> None:
     """Run the smoke test (``scratch/smoke.py``) on ``directory`` in a child process.
 
     The child runs inside ``directory`` and is handed it as ``.``, so no server path can appear
-    in what it reports. Its report lists every failing step, so it keeps its start.
+    in what it reports. Its report lists the failing steps in order, so it keeps its start, up to
+    ``PXC_BUILD_ERROR_LIMIT`` characters, and ends with ``PXC_SMOKE_CUT_NOTICE`` when more were cut.
 
     Raises:
-        PxcSmokeTestFailed: naming every failing step with the sandbox's own error text.
+        PxcSmokeTestFailed: naming the failing steps with the sandbox's own error text.
         PxcBuildTimedOut: if the smoke test does not finish within the timeout, naming the step
             it hung in and the failing steps before it.
     """
     argv = [sys.executable, "-m", "sparkth.plugins.pxc.scratch.smoke", "."]
     returncode, stderr = await run_bounded(argv, directory, "The smoke test")
     if returncode != 0:
-        raise PxcSmokeTestFailed(
-            "sandbox.js compiled, but running the activity failed:\n"
-            f"{stderr.strip()[: get_pxc_settings().build_error_limit]}"
-        )
+        failures, limit = stderr.strip(), get_pxc_settings().build_error_limit
+        if len(failures) > limit:
+            failures = failures[:limit] + PXC_SMOKE_CUT_NOTICE
+        raise PxcSmokeTestFailed(f"sandbox.js compiled, but running the activity failed:\n{failures}")
 
 
 async def stage_activity(work: Path, manifest: dict[str, object], source: ActivitySource) -> Path:
