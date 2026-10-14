@@ -72,6 +72,10 @@ PXC_SANDBOX_SILENT_FAILURE = "The sandbox stopped without an error message."
 # The runtime's own line in a sandbox's stderr when a call aborts; it says nothing about the cause.
 PXC_SANDBOX_ABORT_NOTICE = "Redirecting call to abort()"
 
+# The most of what sandbox.js printed that an error text keeps, in characters: the end, where a
+# throw's message is. Not a setting: the build's child process never sees the deployment's settings.
+PXC_SANDBOX_OUTPUT_LIMIT = 2000
+
 # The pxc plugin's prompt and contract texts.
 PXC_ASSET_DIR = Path(__file__).parent / "assets"
 
