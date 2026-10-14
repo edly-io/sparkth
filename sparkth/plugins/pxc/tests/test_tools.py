@@ -389,7 +389,7 @@ async def test_a_failure_in_the_authors_pinned_preview_reaches_the_tool(
     act_as(authors[0])
     failures = (await pxc_get_activity_failures(activity_id))["failures"]
 
-    assert response.status_code == 502
+    assert response.status_code == 422
     assert [(failure["action"], failure["error"]) for failure in failures] == [("answer.submit", THROWN_TEXT)]
 
 
