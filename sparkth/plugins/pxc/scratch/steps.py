@@ -13,7 +13,7 @@ from pxc.lib.field_store import MemoryKVStore
 from pxc.lib.fields import FieldType
 from pxc.lib.permission import Permission
 
-from sparkth.plugins.pxc.constants import PXC_SCRATCH_PERMISSIONS
+from sparkth.plugins.pxc.constants import PXC_SCRATCH_PERMISSIONS, PXC_STEP_PREFIX
 from sparkth.plugins.pxc.exceptions import PxcActionRejected, PxcSandboxFailure
 from sparkth.plugins.pxc.runtime import read_state, run_action
 from sparkth.plugins.pxc.scratch.runtime import scratch_runtime
@@ -22,7 +22,7 @@ from sparkth.plugins.pxc.scratch.schemas import ScratchEvent, ScratchReport, Scr
 
 def run_step(directory: Path, store: MemoryKVStore, step: ScratchStep, progress: TextIO) -> StepOutcome:
     """Run one step on ``store``: its events, or its error when the manifest refuses it or the sandbox fails."""
-    print(f"{step['action']} as {step['permission']}", file=progress, flush=True)
+    print(f"{PXC_STEP_PREFIX}{step['action']} as {step['permission']}", file=progress, flush=True)
     outcome = StepOutcome(
         action=step["action"], permission=step["permission"], value=step["value"], events=[], error=None
     )
@@ -43,7 +43,7 @@ def run_step(directory: Path, store: MemoryKVStore, step: ScratchStep, progress:
 
 def read_scratch_state(directory: Path, store: MemoryKVStore, permission: Permission, progress: TextIO) -> StateOutcome:
     """``getState`` under ``permission`` on ``store``, or why it failed."""
-    print(f"getState as {permission.value}", file=progress, flush=True)
+    print(f"{PXC_STEP_PREFIX}getState as {permission.value}", file=progress, flush=True)
     outcome = StateOutcome(permission=permission.value, state=None, error=None)
     try:
         state: object = read_state(scratch_runtime(directory, store, permission))
