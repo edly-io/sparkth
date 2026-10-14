@@ -931,6 +931,7 @@ export interface paths {
          * @description Run one action through the activity's sandbox, for a payload too large for the socket.
          *
          *     The events it produces are published to the bus, not returned; the client reads only the status.
+         *     A failure in an author's preview is recorded for the author's agent.
          *
          *     Raises:
          *         PxcActionRejected: if the body is not JSON the parser will read.
