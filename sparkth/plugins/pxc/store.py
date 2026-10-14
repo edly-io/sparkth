@@ -88,7 +88,10 @@ async def insert_action_failure(session: AsyncSession, failure: PxcActionFailure
 async def list_action_failures(
     session: AsyncSession, activity_id: UUID, revision: str | None, limit: int
 ) -> list[PxcActionFailure]:
-    """The activity's recorded failures from one revision, newest first: the ``limit`` newest."""
+    """The activity's recorded failures from one revision, newest first: the ``limit`` newest.
+
+    Not scoped to an owner: check ownership with ``get_owned_activity`` first.
+    """
     result = await session.exec(
         select(PxcActionFailure)
         .where(PxcActionFailure.activity_id == activity_id, PxcActionFailure.revision == revision)

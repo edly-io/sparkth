@@ -55,8 +55,4 @@ class PxcActionFailure(SQLModel, table=True):
     permission: str = Field(max_length=16, nullable=False)
     value: str = Field(sa_column=Column(Text, nullable=False))
     error: str = Field(sa_column=Column(Text, nullable=False))
-    created_at: datetime = Field(
-        sa_type=DateTime(timezone=True),  # type: ignore
-        default_factory=utc_now,
-        nullable=False,
-    )
+    created_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False))
