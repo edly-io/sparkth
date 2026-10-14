@@ -1,14 +1,17 @@
 """The activity build: manifest rules, bounded child processes, compile, smoke test, storage."""
 
 import asyncio
+import io
 import json
 import os
 import shutil
 import sys
 import time
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import pytest
+from pxc.lib.field_store import MemoryKVStore
 from pxc.lib.permission import Permission
 from pydantic import ValidationError
 from sqlalchemy.exc import OperationalError
@@ -19,14 +22,17 @@ from sparkth.plugins.pxc.builder import (
     build_activity,
     compile_sandbox,
     run_bounded,
+    smoke_test_activity,
     validate_manifest,
 )
 from sparkth.plugins.pxc.config import get_pxc_settings
+from sparkth.plugins.pxc.constants import PXC_SMOKE_CUT_NOTICE, PXC_STEP_PREFIX
 from sparkth.plugins.pxc.exceptions import PxcBuildTimedOut, PxcCompileFailed, PxcManifestInvalid, PxcSmokeTestFailed
 from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.revisions import revisions_dir
 from sparkth.plugins.pxc.runtime import build_runtime, read_state
 from sparkth.plugins.pxc.schemas import ActivitySource
+from sparkth.plugins.pxc.scratch.steps import read_scratch_state
 from sparkth.plugins.pxc.store import get_owned_activity, list_owned_activities
 from sparkth.plugins.pxc.tests.conftest import TOOLCHAIN_DIR
 from sparkth.plugins.pxc.tokens import LaunchClaims
@@ -183,6 +189,37 @@ async def test_a_step_that_outlives_the_timeout_is_stopped(tmp_path: Path, short
 
     assert time.monotonic() - started < 10
     assert "A step did not finish within 2 seconds" in str(timed_out.value)
+
+
+async def test_a_timed_out_step_names_what_it_was_running_and_what_it_reported(
+    tmp_path: Path, short_timeout: None
+) -> None:
+    script = (
+        "import sys, time\n"
+        f"print({PXC_STEP_PREFIX + 'step one'!r}, flush=True)\n"
+        "sys.stderr.write('step one failed')\n"
+        "sys.stderr.flush()\n"
+        f"print({PXC_STEP_PREFIX + 'step two'!r}, flush=True)\n"
+        "print('tick', flush=True)\n"
+        "time.sleep(60)\n"
+    )
+
+    with pytest.raises(PxcBuildTimedOut) as timed_out:
+        await run_bounded([sys.executable, "-c", script], tmp_path, "A step")
+
+    assert "A step did not finish within 2 seconds while running step two." in str(timed_out.value)
+    assert "step one failed" in str(timed_out.value)
+
+
+async def test_a_timed_out_steps_own_output_is_never_taken_for_a_step_name(tmp_path: Path, short_timeout: None) -> None:
+    # A compile prints whatever the agent's top-level code logs, and names no step.
+    script = "import time\nprint('tick', flush=True)\ntime.sleep(60)\n"
+
+    with pytest.raises(PxcBuildTimedOut) as timed_out:
+        await run_bounded([sys.executable, "-c", script], tmp_path, "Compiling sandbox.js")
+
+    assert "Compiling sandbox.js did not finish within 2 seconds. Look for" in str(timed_out.value)
+    assert "tick" not in str(timed_out.value)
 
 
 async def test_a_timeout_kills_the_steps_grandchildren_too(tmp_path: Path, short_timeout: None) -> None:
@@ -460,3 +497,126 @@ async def test_a_failed_insert_leaves_no_link_and_no_revision(
 
     assert list((tmp_path / "activities").iterdir()) == []
     assert list((tmp_path / "revisions").iterdir()) == []
+
+
+PARSED = "  const value = JSON.parse(data);\n"
+STATE_RETURN = "return JSON.stringify(state);"
+
+
+def _patched(source: str, marker: str, replacement: str) -> str:
+    """``source`` with ``marker`` replaced; a missing marker fails, so no test runs on an unchanged sample."""
+    assert marker in source, f"the sample's sandbox.js no longer contains {marker!r}"
+    return source.replace(marker, replacement)
+
+
+def _mcq_with(before_dispatch: str) -> ActivitySource:
+    """The sample, with ``before_dispatch`` run at the top of its onAction, after its value is parsed."""
+    return _mcq_source(_patched(MCQ_SANDBOX_JS, PARSED, PARSED + before_dispatch))
+
+
+@pytest.mark.wasm
+async def test_an_action_that_throws_fails_the_build_with_what_it_threw() -> None:
+    source = _mcq_with('  if (name === "answer.submit") throw new Error("submit broke");\n')
+
+    with pytest.raises(PxcSmokeTestFailed) as failed:
+        await build_activity(source, OWNER)
+
+    assert "submit broke" in str(failed.value)
+    assert "answer.submit as play" in str(failed.value)
+
+
+@pytest.mark.wasm
+async def test_an_action_writing_a_value_its_field_refuses_fails_the_build() -> None:
+    source = _mcq_with('  if (name === "answer.submit") setField("question", JSON.stringify(42));\n')
+
+    with pytest.raises(PxcSmokeTestFailed) as failed:
+        await build_activity(source, OWNER)
+
+    assert "Field 'question' failed validation" in str(failed.value)
+
+
+@pytest.mark.wasm
+async def test_every_failing_step_is_named_in_one_message() -> None:
+    source = _mcq_with('  throw new Error(name + " broke");\n')
+
+    with pytest.raises(PxcSmokeTestFailed) as failed:
+        await build_activity(source, OWNER)
+
+    assert "config.save broke" in str(failed.value)
+    assert "answer.submit broke" in str(failed.value)
+
+
+@pytest.mark.wasm
+async def test_config_save_is_sent_the_field_defaults(session: AsyncSession) -> None:
+    check = '  if (name === "config.save" && value.question !== "What is 2 + 2?") throw new Error("got " + data);\n'
+
+    await build_activity(_mcq_with(check), OWNER)
+
+
+@pytest.mark.wasm
+async def test_get_state_that_is_not_json_is_reported_with_the_failing_actions() -> None:
+    not_json = _patched(MCQ_SANDBOX_JS, STATE_RETURN, 'return "not json";')
+    sandbox_js = _patched(
+        not_json, PARSED, PARSED + '  if (name === "answer.submit") throw new Error("submit broke");\n'
+    )
+
+    with pytest.raises(PxcSmokeTestFailed) as failed:
+        await build_activity(_mcq_source(sandbox_js), OWNER)
+
+    assert "getState must return JSON text" in str(failed.value)
+    assert "submit broke" in str(failed.value)
+
+
+@pytest.mark.wasm
+async def test_a_hung_action_is_named_with_the_failures_found_before_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hangs = (
+        '  if (name === "config.save") throw new Error("save broke");\n'
+        '  if (name === "answer.submit") while (true) console.log("spinning");\n'
+    )
+    directory = tmp_path / "activity"
+    directory.mkdir()
+    (directory / "manifest.json").write_text(json.dumps(MCQ_MANIFEST))
+    await compile_sandbox(
+        _patched(MCQ_SANDBOX_JS, PARSED, PARSED + hangs), _compile_dir(tmp_path), directory / "sandbox.wasm"
+    )
+    # Loading the sandbox once writes pxc-lib's compiled cache beside it, so the timed child starts quickly.
+    read_scratch_state(directory, MemoryKVStore(), Permission.play, io.StringIO())
+    monkeypatch.setenv("PXC_BUILD_TIMEOUT_SECONDS", "5")
+    get_pxc_settings.cache_clear()
+
+    with pytest.raises(PxcBuildTimedOut) as timed_out:
+        await smoke_test_activity(directory)
+
+    assert "while running answer.submit as play." in str(timed_out.value)
+    assert "save broke" in str(timed_out.value)
+    assert "spinning" not in str(timed_out.value)
+
+
+# One failure line per step: far more than the error limit keeps.
+LONG_SMOKE_REPORT = "\n".join(f"action{n} as play failed: boom" for n in range(1000))
+
+
+async def test_a_smoke_report_cut_at_the_error_limit_says_more_failures_were_cut(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr("sparkth.plugins.pxc.builder.run_bounded", AsyncMock(return_value=(1, LONG_SMOKE_REPORT)))
+
+    with pytest.raises(PxcSmokeTestFailed) as failed:
+        await smoke_test_activity(tmp_path)
+
+    assert "action0 as play failed: boom" in str(failed.value)
+    assert "action999" not in str(failed.value)
+    assert str(failed.value).endswith(PXC_SMOKE_CUT_NOTICE)
+
+
+async def test_a_smoke_report_within_the_error_limit_is_whole(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(
+        "sparkth.plugins.pxc.builder.run_bounded", AsyncMock(return_value=(1, "answer.submit as play failed: boom"))
+    )
+
+    with pytest.raises(PxcSmokeTestFailed) as failed:
+        await smoke_test_activity(tmp_path)
+
+    assert str(failed.value).endswith("answer.submit as play failed: boom")

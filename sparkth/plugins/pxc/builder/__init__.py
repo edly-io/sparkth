@@ -4,7 +4,7 @@ The steps run in this order:
 
 1. Validate the manifest.
 2. Compile ``sandbox.js`` with componentize-js.
-3. Smoke-test ``get_state`` in a child process.
+3. Smoke-test the activity in a child process: getState, then every action, under play and edit.
 4. Publish the result as the activity's live revision, then record its row.
 
 An update stages its files the same way, then checks the field changes against the live revision
@@ -49,6 +49,8 @@ from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import (
     PXC_COMPILE_TOOLCHAIN_MISSING,
     PXC_SANDBOX_WIT,
+    PXC_SMOKE_CUT_NOTICE,
+    PXC_STEP_PREFIX,
 )
 from sparkth.plugins.pxc.exceptions import (
     PxcBuildTimedOut,
@@ -124,29 +126,51 @@ def _kill_group(pid: int, step: str) -> None:
         logger.info("PXC build step %r exited just as it was being killed", step)
 
 
-async def _read_tail(stream: asyncio.StreamReader) -> bytes:
-    """Read ``stream`` to its end, keeping only its last ``PXC_BUILD_STDERR_LIMIT_BYTES``."""
+async def _read_tail(stream: asyncio.StreamReader, tail: bytearray) -> None:
+    """Read ``stream`` to its end into ``tail``, keeping only its last ``PXC_BUILD_STDERR_LIMIT_BYTES``.
+
+    ``tail`` holds what was read so far even when the read is cancelled.
+    """
     limit = get_pxc_settings().build_stderr_limit_bytes
-    tail = b""
     while chunk := await stream.read(limit):
-        tail = (tail + chunk)[-limit:]
-    return tail
+        tail += chunk
+        del tail[:-limit]
+
+
+def _timed_out_message(step: str, timeout: int, stdout: bytearray, stderr: bytearray) -> str:
+    """Name the step that timed out, the last step it named on stdout and what it wrote to stderr."""
+    named = [
+        line.removeprefix(PXC_STEP_PREFIX)
+        for line in stdout.decode("utf-8", "replace").splitlines()
+        if line.startswith(PXC_STEP_PREFIX)
+    ]
+    running = f" while running {named[-1]}" if named else ""
+    message = f"{step} did not finish within {timeout} seconds{running}. Look for a loop that never ends."
+    reported = stderr.decode("utf-8", "replace").strip()
+    if reported:
+        message += f"\nBefore that, it reported:\n{reported}"
+    return message[: get_pxc_settings().build_error_limit]
 
 
 async def run_bounded(argv: list[str], cwd: Path, step: str) -> tuple[int, str]:
     """Run one build step to completion and return its exit code and the end of its stderr.
 
     The step runs the agent's code, so it gets only ``_bare_env()`` as its environment. Its
-    stderr is drained as it is written, keeping the last ``PXC_BUILD_STDERR_LIMIT_BYTES``, so
-    a step flooding it never blocks on a full pipe or grows this process's memory.
+    stdout and stderr are drained as they are written, keeping the last
+    ``PXC_BUILD_STDERR_LIMIT_BYTES`` of each, so a step flooding them never blocks on a full
+    pipe or grows this process's memory.
 
     The step gets ``PXC_BUILD_TIMEOUT_SECONDS``. Whenever this exits with the step still
     running (timeout, cancellation), the step's whole group is killed and reaped. It starts
     in a session of its own, so its pid is also its process group and the kill reaches
     grandchildren. node runs wizer as one, and wizer is where a compile-time loop would spin.
 
+    A step may name what it is running on a stdout line starting with ``PXC_STEP_PREFIX``, so a
+    timeout can say where it hung. Any other stdout, such as a compile's console output, is ignored.
+
     Raises:
-        PxcBuildTimedOut: if the step outlives the timeout.
+        PxcBuildTimedOut: if the step outlives the timeout, with the last step it named on stdout
+            and the stderr it wrote until then.
         asyncio.CancelledError: propagated after the step is killed, if the caller is cancelled.
     """
     timeout = get_pxc_settings().build_timeout_seconds
@@ -155,17 +179,19 @@ async def run_bounded(argv: list[str], cwd: Path, step: str) -> tuple[int, str]:
         cwd=cwd,
         env=_bare_env(),
         stdin=asyncio.subprocess.DEVNULL,
-        stdout=asyncio.subprocess.DEVNULL,
+        stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         start_new_session=True,
     )
-    assert process.stderr is not None  # piped above
+    assert process.stdout is not None and process.stderr is not None  # piped above
+    stdout, stderr = bytearray(), bytearray()
     try:
-        stderr, returncode = await asyncio.wait_for(asyncio.gather(_read_tail(process.stderr), process.wait()), timeout)
+        _, _, returncode = await asyncio.wait_for(
+            asyncio.gather(_read_tail(process.stdout, stdout), _read_tail(process.stderr, stderr), process.wait()),
+            timeout,
+        )
     except TimeoutError as err:
-        raise PxcBuildTimedOut(
-            f"{step} did not finish within {timeout} seconds. Look for a loop that never ends."
-        ) from err
+        raise PxcBuildTimedOut(_timed_out_message(step, timeout, stdout, stderr)) from err
     finally:
         if process.returncode is None:
             _kill_group(process.pid, step)
@@ -218,21 +244,24 @@ async def compile_sandbox(sandbox_js: str, compile_dir: Path, output: Path) -> N
 
 
 async def smoke_test_activity(directory: Path) -> None:
-    """Run ``get_state`` under ``play`` and ``edit`` in a child process.
+    """Run the smoke test (``scratch/smoke.py``) on ``directory`` in a child process.
 
     The child runs inside ``directory`` and is handed it as ``.``, so no server path can appear
-    in what it reports.
+    in what it reports. Its report lists the failing steps in order, so it keeps its start, up to
+    ``PXC_BUILD_ERROR_LIMIT`` characters, and ends with ``PXC_SMOKE_CUT_NOTICE`` when more were cut.
 
     Raises:
-        PxcSmokeTestFailed: with the sandbox's own error output, trimmed.
-        PxcBuildTimedOut: if ``get_state`` does not return within the timeout.
+        PxcSmokeTestFailed: naming the failing steps with the sandbox's own error text.
+        PxcBuildTimedOut: if the smoke test does not finish within the timeout, naming the step
+            it hung in and the failing steps before it.
     """
-    argv = [sys.executable, "-m", "sparkth.plugins.pxc.smoke", "."]
-    returncode, stderr = await run_bounded(argv, directory, "The get_state smoke test")
+    argv = [sys.executable, "-m", "sparkth.plugins.pxc.scratch.smoke", "."]
+    returncode, stderr = await run_bounded(argv, directory, "The smoke test")
     if returncode != 0:
-        raise PxcSmokeTestFailed(
-            f"sandbox.js compiled, but get_state failed:\n{stderr.strip()[-get_pxc_settings().build_error_limit :]}"
-        )
+        failures, limit = stderr.strip(), get_pxc_settings().build_error_limit
+        if len(failures) > limit:
+            failures = failures[:limit] + PXC_SMOKE_CUT_NOTICE
+        raise PxcSmokeTestFailed(f"sandbox.js compiled, but running the activity failed:\n{failures}")
 
 
 async def stage_activity(work: Path, manifest: dict[str, object], source: ActivitySource) -> Path:
