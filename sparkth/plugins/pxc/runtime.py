@@ -6,11 +6,12 @@ calling thread. Routes must call these from a worker thread, never on the event 
 
 from pathlib import Path
 
-import wasmtime
 from pxc.lib.actions import ActionValidationError
-from pxc.lib.fields import FieldType
+from pxc.lib.capabilities import CapabilityError
+from pxc.lib.events import EventValidationError
+from pxc.lib.fields import FieldType, FieldValidationError
 from pxc.lib.file_storage import LocalFileStorage
-from pxc.lib.runtime import ActivityRuntime, PendingEvent
+from pxc.lib.runtime import ActivityRuntime, AssetAccessError, PendingEvent
 from pxc.lib.sandbox import SandboxRuntimeError
 
 from sparkth.lib.log import get_logger
@@ -73,11 +74,12 @@ def _sandbox_output(stderr: str) -> str:
 def sandbox_error_text(err: SandboxRuntimeError) -> str:
     """Why the sandbox failed, with no server paths: safe for logs and the author's agent.
 
-    A refused host call gives its own message, a throw gives what ``sandbox.js`` printed.
+    A host call pxc-lib refused gives its own message, anything else gives what ``sandbox.js``
+    printed: another cause, such as an ``OSError`` from file storage, can name a server path.
     """
     output = _sandbox_output(err.stderr)
     cause = err.__cause__
-    if cause is not None and not isinstance(cause, wasmtime.WasmtimeError):
+    if isinstance(cause, (FieldValidationError, AssetAccessError, CapabilityError, EventValidationError)):
         return f"{cause}\nsandbox.js output before it:\n{output}" if output else str(cause)
     return output or PXC_SANDBOX_SILENT_FAILURE
 
