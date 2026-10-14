@@ -74,6 +74,13 @@ class PxcSettings(BaseSettings):
     # How many of an activity's newest failed preview actions are kept for the author's agent.
     action_failure_limit: int = 20
 
+    # The most steps one pxc_run_activity call may run.
+    trial_step_limit: int = 20
+
+    # The longest report pxc_run_activity hands the agent, in characters. A longer one is refused,
+    # not cut, since cut JSON says nothing.
+    trial_report_limit: int = 20000
+
 
 @lru_cache
 def get_pxc_settings() -> PxcSettings:

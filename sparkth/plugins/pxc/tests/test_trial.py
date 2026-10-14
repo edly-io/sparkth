@@ -5,7 +5,7 @@ import pytest
 from sparkth.plugins.pxc.activities import activity_dir
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.enums import PreviewPermission
-from sparkth.plugins.pxc.exceptions import PxcBuildTimedOut, PxcTrialFailed
+from sparkth.plugins.pxc.exceptions import PxcBuildTimedOut, PxcTrialFailed, PxcTrialReportTooLarge
 from sparkth.plugins.pxc.schemas import TrialStep
 from sparkth.plugins.pxc.tests.conftest import CASE_STUDY_MANIFEST, CASE_STUDY_SANDBOX_JS, compiled_activity
 from sparkth.plugins.pxc.trial import run_trial
@@ -54,6 +54,17 @@ async def test_a_step_that_never_ends_is_stopped(monkeypatch: pytest.MonkeyPatch
 
     with pytest.raises(PxcBuildTimedOut):
         await run_trial(activity_dir(activity_id), [TrialStep(action="boom", permission=PreviewPermission.PLAY)])
+
+
+@pytest.mark.wasm
+async def test_a_report_over_the_limit_is_refused_with_its_size(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PXC_TRIAL_REPORT_LIMIT", "100")
+    get_pxc_settings.cache_clear()
+
+    with pytest.raises(PxcTrialReportTooLarge) as refused:
+        await run_trial(activity_dir("mcq"), [SUBMIT])
+
+    assert "over the 100 limit" in str(refused.value)
 
 
 async def test_a_child_that_crashes_gives_a_message_with_no_server_path(caplog: pytest.LogCaptureFixture) -> None:

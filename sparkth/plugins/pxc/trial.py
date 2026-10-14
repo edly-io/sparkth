@@ -16,7 +16,8 @@ from pxc.lib.fields import FieldType
 
 from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.builder import run_bounded
-from sparkth.plugins.pxc.exceptions import PxcTrialFailed
+from sparkth.plugins.pxc.config import get_pxc_settings
+from sparkth.plugins.pxc.exceptions import PxcTrialFailed, PxcTrialReportTooLarge
 from sparkth.plugins.pxc.schemas import TrialStep
 from sparkth.plugins.pxc.scratch.schemas import ScratchReport, ScratchStep
 
@@ -30,6 +31,8 @@ async def run_trial(directory: Path, steps: list[TrialStep]) -> ScratchReport:
         PxcTrialFailed: if the child exits with an error or writes no report. Its stderr is logged
             here only, since a traceback names server paths.
         PxcBuildTimedOut: if the child outlives ``PXC_BUILD_TIMEOUT_SECONDS``, naming the step it hung in.
+        PxcTrialReportTooLarge: if the report is over ``PXC_TRIAL_REPORT_LIMIT`` characters; it is
+            never read in.
     """
     # The child checks each value against the manifest, so a value of the wrong shape is that step's error.
     scratch_steps = [
@@ -45,6 +48,13 @@ async def run_trial(directory: Path, steps: list[TrialStep]) -> ScratchReport:
             logger.error("PXC trial run of %s exited %s without a report: %s", directory.name, returncode, stderr)
             raise PxcTrialFailed(
                 "Running the activity stopped before it could report. This is not a problem with the steps."
+            )
+        # json.dumps escapes every non-ASCII character, so the file's size in bytes is its length in characters.
+        size, limit = result.stat().st_size, get_pxc_settings().trial_report_limit
+        if size > limit:
+            raise PxcTrialReportTooLarge(
+                f"The run's report is {size} characters, over the {limit} limit. "
+                "Run fewer steps, or steps that send or save less."
             )
         report: ScratchReport = json.loads(result.read_text(encoding="utf-8"))
     return report
