@@ -18,6 +18,10 @@ PXC_SANDBOX_HEADERS = {"Content-Security-Policy": "sandbox allow-scripts allow-f
 PXC_CLOSE_INVALID_TOKEN = 4401
 PXC_CLOSE_ACTIVITY_NOT_FOUND = 4404
 
+# The error a socket frame carries for an action the sandbox failed or the manifest refused.
+PXC_ACTION_FAILED = "action_failed"
+PXC_ACTION_REJECTED = "action_rejected"
+
 # Preflight response for the cross-origin action POST, cached by the browser for a day.
 PXC_PREFLIGHT_HEADERS = {
     **PXC_CORS_HEADERS,
@@ -43,6 +47,16 @@ PXC_SANDBOX_WIT = Path(__file__).parent / "builder" / "toolchain" / "pxc.wit"
 
 # The exit status of the toolchain's compile.mjs when its packages are not installed.
 PXC_COMPILE_TOOLCHAIN_MISSING = 2
+
+# The error text of a sandbox failure that left no message of its own.
+PXC_SANDBOX_SILENT_FAILURE = "The sandbox stopped without an error message."
+
+# The runtime's own line in a sandbox's stderr when a call aborts; it says nothing about the cause.
+PXC_SANDBOX_ABORT_NOTICE = "Redirecting call to abort()"
+
+# The most of what sandbox.js printed that an error text keeps, in characters: the end, where a
+# throw's message is. Not a setting: the build's child process never sees the deployment's settings.
+PXC_SANDBOX_OUTPUT_LIMIT = 2000
 
 # The pxc plugin's prompt and contract texts.
 PXC_ASSET_DIR = Path(__file__).parent / "assets"
