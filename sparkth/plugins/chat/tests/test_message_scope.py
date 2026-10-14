@@ -15,10 +15,10 @@ import pytest
 from langchain_core.exceptions import LangChainException
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
-from sparkth.lib.chat.hooks import ChatResponsibility
+from sparkth.lib.chat.hooks import ChatCapability
+from sparkth.plugins.chat.capabilities import COURSE_DESIGN
 from sparkth.plugins.chat.classifiers import MessageScopeClassifier
 from sparkth.plugins.chat.prompt import render_scope_classifier_prompt
-from sparkth.plugins.chat.responsibilities import COURSE_DESIGN
 from sparkth.plugins.chat.schemas import HistoryTurn
 
 _LOGGER = "sparkth.plugins.chat.classifiers.message_scope"
@@ -27,10 +27,10 @@ _LOGGER = "sparkth.plugins.chat.classifiers.message_scope"
 _USER_ID = 42
 
 
-_CAPABILITIES: list[ChatResponsibility] = [COURSE_DESIGN]
+_CAPABILITIES: list[ChatCapability] = [COURSE_DESIGN]
 
 
-def _classifier_with(chain: MagicMock, capabilities: list[ChatResponsibility] | None = None) -> MessageScopeClassifier:
+def _classifier_with(chain: MagicMock, capabilities: list[ChatCapability] | None = None) -> MessageScopeClassifier:
     """A classifier offering ``capabilities`` (course design alone by default), its LLM yielding ``chain``."""
     llm = MagicMock()
     llm.with_structured_output.return_value = chain
@@ -170,13 +170,13 @@ class TestTheAnswerCallersActOn:
 
 class TestThePromptListsTheCapabilities:
     @pytest.mark.asyncio
-    async def test_every_capability_reaches_the_model_by_title_and_scope(self, stub_job: ChatResponsibility) -> None:
+    async def test_every_capability_reaches_the_model_by_title_and_scope(self, stub_capability: ChatCapability) -> None:
         chain = _chain_answering(True)
 
-        await _classifier_with(chain, [COURSE_DESIGN, stub_job]).is_in_scope("design a quiz")
+        await _classifier_with(chain, [COURSE_DESIGN, stub_capability]).is_in_scope("design a quiz")
 
         system = _sent_messages(chain)[0].content
-        for capability in (COURSE_DESIGN, stub_job):
+        for capability in (COURSE_DESIGN, stub_capability):
             assert capability.title in system
             assert capability.scope in system
 

@@ -1,7 +1,5 @@
 from pathlib import Path
 
-from sparkth.lib.i18n import gettext_noop
-
 # Bundled activity sources, one directory per activity type.
 PXC_ACTIVITY_ROOT = Path(__file__).parent / "activities"
 
@@ -47,13 +45,9 @@ PXC_COMPILE_TOOLCHAIN_MISSING = 2
 # The pxc plugin's prompt and contract texts.
 PXC_ASSET_DIR = Path(__file__).parent / "assets"
 
-# The MCP category every pxc tool registers under, which the pxc-activity-builder chat job claims.
+# The MCP category every pxc tool registers under.
 PXC_TOOL_CATEGORY = "pxc"
 
-# The chat job that builds activities.
-PXC_BUILDER_RESPONSIBILITY_NAME = "pxc-activity-builder"
-# That job's name as authors see it.
-PXC_BUILDER_RESPONSIBILITY_LABEL = gettext_noop("PXC activity builder")
 # The heading its section is rendered under in chat's system prompt.
 PXC_ACTIVITY_BUILDER_TITLE = "Interactive PXC activities"
 

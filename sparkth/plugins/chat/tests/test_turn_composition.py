@@ -7,14 +7,14 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.plugin import Plugin
-from sparkth.lib.chat.hooks import ChatResponsibility
+from sparkth.lib.chat.hooks import ChatCapability
 from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
+from sparkth.plugins.chat.capabilities import COURSE_DESIGN
 from sparkth.plugins.chat.constants import REFUSAL_MESSAGE
 from sparkth.plugins.chat.exceptions import ClassifierError
 from sparkth.plugins.chat.models import Conversation
-from sparkth.plugins.chat.responsibilities import COURSE_DESIGN
 
 COMPLETIONS_URL = "/api/v1/chat/completions"
 
@@ -64,7 +64,7 @@ def _tool(name: str) -> MagicMock:
 
 
 def _registry() -> MagicMock:
-    """Two tools: one in a category only course design binds, one in the stub job's category."""
+    """Two tools: one in a category only course design binds, one in the stub capability's category."""
     registry = MagicMock()
     registry.get_all_tools.return_value = [_tool("openedx_create_xblock"), _tool("stub_build")]
     registry.category_for.side_effect = {"openedx_create_xblock": "openedx-course", "stub_build": "stub-tools"}.get
@@ -80,8 +80,8 @@ def _system_prompt(get_provider: MagicMock) -> str:
     return prompt
 
 
-def _section(job: ChatResponsibility) -> str:
-    return f"## {job.title}\n{job.prompt}"
+def _section(capability: ChatCapability) -> str:
+    return f"## {capability.title}\n{capability.prompt}"
 
 
 async def _turn(client: AsyncClient, config_id: int, conversation_uuid: str | None = None, tools: str = "none") -> Any:
@@ -97,8 +97,8 @@ async def _turn(client: AsyncClient, config_id: int, conversation_uuid: str | No
 
 
 class TestOneAssistantPerTurn:
-    async def test_no_job_is_refused(
-        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_job: ChatResponsibility
+    async def test_an_out_of_scope_message_is_refused(
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
     ) -> None:
         config_id = await _seed_llm_config(session, current_user.id or 1)
         conversation_uuid = await _seed_conversation(session, current_user.id or 1, "stub-job")
@@ -110,10 +110,10 @@ class TestOneAssistantPerTurn:
 
         assert response.json()["message"]["content"] == REFUSAL_MESSAGE
 
-    async def test_a_message_for_another_job_is_answered_with_every_enabled_section(
-        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_job: ChatResponsibility
+    async def test_a_message_for_another_capability_is_answered_with_every_enabled_section(
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
     ) -> None:
-        """A course design conversation asked for the stub job's work is answered, not redirected."""
+        """A course design conversation asked for the stub capability's work is answered, not redirected."""
         config_id = await _seed_llm_config(session, current_user.id or 1)
         conversation_uuid = await _seed_conversation(session, current_user.id or 1, "course-design")
         provider = _provider()
@@ -129,10 +129,10 @@ class TestOneAssistantPerTurn:
 
         assert response.json()["message"]["content"] == "On it."
         assert _section(COURSE_DESIGN) in _system_prompt(get_provider)
-        assert _section(stub_job) in _system_prompt(get_provider)
+        assert _section(stub_capability) in _system_prompt(get_provider)
 
     async def test_a_first_message_is_answered_with_every_enabled_section(
-        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_job: ChatResponsibility
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
     ) -> None:
         config_id = await _seed_llm_config(session, current_user.id or 1)
 
@@ -147,12 +147,12 @@ class TestOneAssistantPerTurn:
             response = await _turn(client, config_id)
 
         assert response.status_code == 200
-        assert _section(stub_job) in _system_prompt(get_provider)
+        assert _section(stub_capability) in _system_prompt(get_provider)
 
     async def test_a_conversation_whose_stored_job_is_switched_off_continues(
-        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_job: ChatResponsibility
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
     ) -> None:
-        """A row from before the switch-off still stores the job; the turn ignores it."""
+        """A row from before the switch-off still stores a job name; the turn ignores it."""
         config_id = await _seed_llm_config(session, current_user.id or 1)
         conversation_uuid = await _seed_conversation(session, current_user.id or 1, "stub-job")
         session.add(Plugin(name="stub", enabled=False))
@@ -170,10 +170,10 @@ class TestOneAssistantPerTurn:
 
         assert response.status_code == 200
         provider.send_message.assert_awaited_once()
-        assert _section(stub_job) not in _system_prompt(get_provider)
+        assert _section(stub_capability) not in _system_prompt(get_provider)
 
     async def test_a_failed_classification_is_answered_with_every_enabled_section(
-        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_job: ChatResponsibility
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
     ) -> None:
         config_id = await _seed_llm_config(session, current_user.id or 1)
         conversation_uuid = await _seed_conversation(session, current_user.id or 1, "stub-job")
@@ -191,10 +191,10 @@ class TestOneAssistantPerTurn:
 
         assert response.status_code == 200
         assert _section(COURSE_DESIGN) in _system_prompt(get_provider)
-        assert _section(stub_job) in _system_prompt(get_provider)
+        assert _section(stub_capability) in _system_prompt(get_provider)
 
-    async def test_every_requested_tool_is_bound_whatever_the_job(
-        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_job: ChatResponsibility
+    async def test_every_requested_tool_is_bound_whatever_the_capability(
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
     ) -> None:
         config_id = await _seed_llm_config(session, current_user.id or 1)
         conversation_uuid = await _seed_conversation(session, current_user.id or 1, None)

@@ -9,7 +9,7 @@ from pydantic import ValidationError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.auth import get_current_user
-from sparkth.lib.chat.hooks import enabled_responsibilities
+from sparkth.lib.chat.hooks import enabled_capabilities
 from sparkth.lib.db import get_async_session
 from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.lib.i18n import _, gettext
@@ -167,11 +167,9 @@ async def chat_completion(
         provider=provider_name,
         actor_id=str(user_id),
     )
-    # Every enabled job's section answers each turn; a switched-off plugin's is left out.
-    jobs = await enabled_responsibilities(session)
-    scope_classifier = MessageScopeClassifier(
-        list(jobs.values()), provider_name, api_key, user_id, classifier_analytics
-    )
+    # Every enabled capability answers each turn; a switched-off plugin's is left out.
+    capabilities = await enabled_capabilities(session)
+    scope_classifier = MessageScopeClassifier(capabilities, provider_name, api_key, user_id, classifier_analytics)
 
     # A file uploaded with the message is base64 content, not a Document row, so its name exists
     # only here — both scope checks below need it.
@@ -302,7 +300,7 @@ async def chat_completion(
             provider_name=provider_name,
             api_key=api_key,
             model=model,
-            system_prompt=render_system_prompt(list(jobs.values())),
+            system_prompt=render_system_prompt(capabilities),
             temperature=request.temperature,
             max_tool_executions=config.max_tool_executions,
         )

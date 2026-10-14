@@ -10,7 +10,7 @@ from uuid import UUID
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
-from sparkth.lib.chat.hooks import ChatResponsibility
+from sparkth.lib.chat.hooks import ChatCapability
 from sparkth.lib.log import get_logger
 from sparkth.plugins.chat.analytics import ChatClassifierAnalytics, ScopeVerdict
 from sparkth.plugins.chat.classifiers.base import BaseClassifier
@@ -27,7 +27,7 @@ class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdi
 
     def __init__(
         self,
-        capabilities: list[ChatResponsibility],
+        capabilities: list[ChatCapability],
         provider_name: str,
         api_key: str,
         user_id: int,
@@ -50,8 +50,8 @@ class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdi
     def _build_messages(self, payload: MessageScopeInput) -> list[BaseMessage]:
         """Replay the recent conversation as real turns, then the current message.
 
-        The prompt judges the job from the conversation rather than the latest message alone —
-        "yes, for nurses" belongs to a job only as a reply to a question the assistant asked — so
+        The prompt judges scope from the conversation rather than the latest message alone —
+        "yes, for nurses" is in scope only as a reply to a question the assistant asked — so
         history is replayed as alternating turns instead of being summarised. Roles the model
         has no turn type for (``tool``, ``system``) are dropped: they are not what the user
         asked. Attachment names ride on the current turn, because a message about "these

@@ -29,10 +29,10 @@ from sparkth.lib.i18n import gettext
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
 from sparkth.lib.testing import AddTranslation
+from sparkth.plugins.chat.capabilities import COURSE_DESIGN
 from sparkth.plugins.chat.constants import REFUSAL_MESSAGE
 from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.prompt import render_system_prompt
-from sparkth.plugins.chat.responsibilities import COURSE_DESIGN
 from sparkth.plugins.chat.routes.utils.stream_processor import stream_out_of_scope_refusal
 from sparkth.plugins.chat.types import ConversationDocuments
 

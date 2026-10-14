@@ -25,10 +25,6 @@ RAG_SEARCH_CLASSIFIER_SYSTEM_PROMPT = get_asset("rag_search_classifier_system_pr
 LMS_RULES = get_asset("lms_rules_system_prompt.txt")
 COURSE_DESIGN_SCOPE = get_asset("course_design_scope.txt")
 
-# The job a conversation does when its row stores none.
-DEFAULT_RESPONSIBILITY = "course-design"
-# That job's name as authors see it.
-COURSE_DESIGN_LABEL = gettext_noop("Course design")
 # The heading course design's section is rendered under in the system prompt.
 COURSE_DESIGN_TITLE = "Course design"
 

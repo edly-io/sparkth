@@ -18,9 +18,9 @@ from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.language import SUPPORTED_LANGUAGES
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
+from sparkth.plugins.chat.capabilities import COURSE_DESIGN
 from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.prompt import render_system_prompt
-from sparkth.plugins.chat.responsibilities import COURSE_DESIGN
 from sparkth.plugins.chat.types import ConversationDocuments
 
 

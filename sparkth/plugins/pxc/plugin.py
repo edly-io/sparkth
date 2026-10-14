@@ -3,13 +3,13 @@
 Exception mappings are registered at module level, not in ``__init__``: the loader constructs
 the plugin once but its own tests construct it again, and ``register_exception_handler`` builds
 a fresh handler closure on every call, so a second registration is a genuine duplicate rather
-than a repeat of the same one. The chat responsibility and the MCP tools are per plugin instance,
+than a repeat of the same one. The chat capability and the MCP tools are per plugin instance,
 so they register in ``__init__``.
 """
 
 from fastapi import APIRouter, status
 
-from sparkth.lib.chat.hooks import CHAT_RESPONSIBILITIES, ChatResponsibility
+from sparkth.lib.chat.hooks import CHAT_CAPABILITIES, ChatCapability
 from sparkth.lib.content.hooks import ContentContributor, register_content_contributor
 from sparkth.lib.exceptions.handlers import register_exception_handler
 from sparkth.lib.frontend.hooks import (
@@ -29,8 +29,6 @@ from sparkth.plugins.pxc.constants import (
     PXC_ACTIVITY_BUILDER_SCOPE,
     PXC_ACTIVITY_BUILDER_SYSTEM_PROMPT,
     PXC_ACTIVITY_BUILDER_TITLE,
-    PXC_BUILDER_RESPONSIBILITY_LABEL,
-    PXC_BUILDER_RESPONSIBILITY_NAME,
     PXC_CORS_HEADERS,
     PXC_TOOL_CATEGORY,
 )
@@ -65,14 +63,9 @@ pxc_router = APIRouter()
 pxc_router.include_router(learner_router)
 pxc_router.include_router(activity_router)
 
-# The chat job that builds activities; it alone sees the pxc tools.
-PXC_ACTIVITY_BUILDER = ChatResponsibility(
-    PXC_BUILDER_RESPONSIBILITY_NAME,
-    PXC_BUILDER_RESPONSIBILITY_LABEL,
-    PXC_ACTIVITY_BUILDER_TITLE,
-    PXC_ACTIVITY_BUILDER_SCOPE,
-    PXC_ACTIVITY_BUILDER_SYSTEM_PROMPT,
-    frozenset({PXC_TOOL_CATEGORY}),
+# The chat capability that builds activities.
+PXC_ACTIVITY_BUILDER = ChatCapability(
+    PXC_ACTIVITY_BUILDER_TITLE, PXC_ACTIVITY_BUILDER_SCOPE, PXC_ACTIVITY_BUILDER_SYSTEM_PROMPT
 )
 
 
@@ -92,7 +85,7 @@ class PxcPlugin(SparkthPlugin):
         )
         SIDEBAR_ENTRIES.add_item(self, SidebarEntry(gettext_noop("Activities"), icon="blocks", order=2))
         FRONTEND_APPS.add_item(self, FrontendApp())
-        CHAT_RESPONSIBILITIES.add_item(self, PXC_ACTIVITY_BUILDER)
+        CHAT_CAPABILITIES.add_item(self, PXC_ACTIVITY_BUILDER)
         MCP_TOOLS.add_items(
             self,
             [

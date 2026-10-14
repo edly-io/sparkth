@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sparkth.lib.chat.hooks import ChatResponsibility
+from sparkth.lib.chat.hooks import ChatCapability
 from sparkth.plugins.chat.constants import (
     MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT,
     REFUSAL_MESSAGE,
@@ -8,7 +8,7 @@ from sparkth.plugins.chat.constants import (
 )
 
 
-def render_system_prompt(sections: list[ChatResponsibility]) -> str:
+def render_system_prompt(sections: list[ChatCapability]) -> str:
     """Render the chat system prompt: chat's skeleton with each of ``sections`` under its title.
 
     The skeleton holds every rule the sections share: the date, the assistant's identity, the
@@ -28,7 +28,7 @@ def render_system_prompt(sections: list[ChatResponsibility]) -> str:
     )
 
 
-def render_scope_classifier_prompt(capabilities: list[ChatResponsibility]) -> str:
+def render_scope_classifier_prompt(capabilities: list[ChatCapability]) -> str:
     """Render the scope classifier's system prompt, listing each of ``capabilities`` by its title
     and its scope, which is what the classifier judges a message against.
 
