@@ -121,7 +121,7 @@ def test_a_frame_cannot_escalate_its_own_permission(ws_client: TestClient, confi
     embed_response = ws_client.get("/api/v1/pxc/embed", params={"token": token})
 
     # Status before parsing. read_state re-raises a sandbox failure as PxcSandboxFailure, which
-    # plugin.py registers to 502, so the body would hold no inline configuration and parsing it
+    # plugin.py registers to 422, so the body would hold no inline configuration and parsing it
     # would raise an opaque IndexError instead of naming the real cause.
     assert embed_response.status_code == status.HTTP_200_OK
     assert inline_config(embed_response.text).state.get("question") != "Owned?"

@@ -90,7 +90,7 @@ async def test_an_oversized_preview_value_is_recorded_trimmed(
     assert len(failure.value) == 4000
 
 
-async def test_a_preview_post_that_fails_is_recorded_and_still_a_bad_gateway(
+async def test_a_preview_post_that_fails_is_recorded_and_still_unprocessable(
     client: AsyncClient,
     session: AsyncSession,
     authored_activity: PxcActivity,
@@ -108,5 +108,5 @@ async def test_a_preview_post_that_fails_is_recorded_and_still_a_bad_gateway(
 
     response = await client.post("/api/v1/pxc/actions/answer.submit", params={"token": token}, json=[0])
 
-    assert response.status_code == 502
+    assert response.status_code == 422
     assert len(await list_action_failures(session, authored_activity.id, None, 20)) == 1
