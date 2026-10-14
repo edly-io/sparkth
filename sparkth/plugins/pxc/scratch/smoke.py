@@ -3,7 +3,7 @@
 The builder runs this on every build. On a throwaway store, it does the following:
 
 1. Reads ``getState`` under ``play`` and ``edit``.
-2. Runs ``config.save`` as ``edit`` with the field defaults.
+2. Runs ``config.save`` as ``edit`` with the field defaults, when the manifest declares it.
 3. Runs every other declared action as ``play`` and as ``edit``, with the simplest value its
    schema accepts.
 4. Reads ``getState`` under both permissions again.
