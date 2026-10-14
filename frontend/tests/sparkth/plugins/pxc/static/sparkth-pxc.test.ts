@@ -191,21 +191,18 @@ describe("SparkthPXC", () => {
     expect(notice()).toBeUndefined();
   });
 
-  it.each([422, 502])(
-    "tells the learner a post refused with %i failed, and lets later actions go",
-    async (status) => {
-      vi.mocked(fetch).mockResolvedValue(new Response(null, { status }));
-      const activity = mountActivity();
-      const socket = FakeSocket.instances[0];
-      socket.open();
+  it("tells the learner a post refused with 422 failed, and lets later actions go", async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 422 }));
+    const activity = mountActivity();
+    const socket = FakeSocket.instances[0];
+    socket.open();
 
-      await activity.sendAction("config.save", OVERSIZED);
-      await vi.waitFor(() => expect(notice()).toBe(ACTION_NOTICE));
-      await activity.sendAction("answer.submit", [0]);
+    await activity.sendAction("config.save", OVERSIZED);
+    await vi.waitFor(() => expect(notice()).toBe(ACTION_NOTICE));
+    await activity.sendAction("answer.submit", [0]);
 
-      await vi.waitFor(() => expect(sentActions(socket)).toEqual(["answer.submit"]));
-    },
-  );
+    await vi.waitFor(() => expect(sentActions(socket)).toEqual(["answer.submit"]));
+  });
 
   it("keeps a refusal notice up when a post fails after it", async () => {
     let answer: (response: Response) => void = () => {};
@@ -217,7 +214,7 @@ describe("SparkthPXC", () => {
     await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
 
     socket.closeFromServer(4401);
-    answer(new Response(null, { status: 502 }));
+    answer(new Response(null, { status: 422 }));
     // Every microtask of the failed drain has run once a macrotask comes round.
     await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -239,24 +236,28 @@ describe("SparkthPXC", () => {
     expect(notice()).toBe("Your session has expired. Reload this page to continue.");
   });
 
-  it("keeps a failed post queued and stops later actions overtaking it", async () => {
-    vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 503 }));
-    const activity = mountActivity();
-    const socket = FakeSocket.instances[0];
-    socket.open();
+  it.each([502, 503])(
+    "keeps a post a proxy answered with %i queued and stops later actions overtaking it",
+    async (status) => {
+      vi.mocked(fetch).mockResolvedValue(new Response(null, { status }));
+      const activity = mountActivity();
+      const socket = FakeSocket.instances[0];
+      socket.open();
 
-    await activity.sendAction("config.save", OVERSIZED);
-    await activity.sendAction("answer.submit", [0]);
-    // Every microtask of the failed drain has run once a macrotask comes round.
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(fetch).toHaveBeenCalled();
-    expect(socket.sent).toEqual([]);
+      await activity.sendAction("config.save", OVERSIZED);
+      await activity.sendAction("answer.submit", [0]);
+      // Every microtask of the failed drain has run once a macrotask comes round.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(fetch).toHaveBeenCalled();
+      expect(socket.sent).toEqual([]);
+      expect(notice()).toBeUndefined();
 
-    vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 204 }));
-    socket.open();
+      vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 204 }));
+      socket.open();
 
-    await vi.waitFor(() => expect(sentActions(socket)).toEqual(["answer.submit"]));
-  });
+      await vi.waitFor(() => expect(sentActions(socket)).toEqual(["answer.submit"]));
+    },
+  );
 
   it("says the session expired and stops reconnecting when the socket's token is refused", () => {
     vi.useFakeTimers();

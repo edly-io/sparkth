@@ -22,7 +22,7 @@
 // lost.
 //
 // A fifth: a frame carrying "error" (an action the sandbox failed or the manifest refused) shows a
-// notice instead of reaching the activity, and so does a 422 or 502 on the POST path. A refusal or
+// notice instead of reaching the activity, and so does a 422 on the POST path. A refusal or
 // disconnect notice already up stays instead, since it is the one asking for a reload. The action
 // notice comes down when the learner sends the next action, and shows again if that one fails too.
 //
@@ -60,8 +60,9 @@ const DISCONNECTED_NOTICE =
 const ACTION_NOTICE =
   "Your last action did not go through. Try again, and tell your instructor if it keeps happening.";
 
-// A POST refused with one of these failed for good, so retrying it would only block the queue.
-const ACTION_FAILURE_STATUSES = new Set([422, 502]);
+// A POST refused with this failed for good (the action was refused, or the sandbox failed running
+// it), so retrying it would only block the queue. A proxy never sends it, unlike a 5xx.
+const ACTION_FAILURE_STATUS = 422;
 
 export class SparkthPXC extends PXC {
   constructor() {
@@ -144,7 +145,7 @@ export class SparkthPXC extends PXC {
     }
     if (!response.ok) {
       console.error("POST action failed:", name, response.status);
-      if (ACTION_FAILURE_STATUSES.has(response.status)) {
+      if (response.status === ACTION_FAILURE_STATUS) {
         if (!this._notice) this._showNotice(ACTION_NOTICE);
         return true;
       }
