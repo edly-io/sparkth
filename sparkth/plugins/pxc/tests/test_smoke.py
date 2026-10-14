@@ -8,7 +8,7 @@ import pytest
 from pxc.lib.manifest_types import PxcActivityManifest, TypeSchema
 
 from sparkth.plugins.pxc.activities import activity_dir
-from sparkth.plugins.pxc.constants import PXC_SMOKE_VALUE_LIMIT
+from sparkth.plugins.pxc.constants import PXC_SMOKE_VALUE_LIMIT, PXC_STEP_PREFIX
 from sparkth.plugins.pxc.scratch.schemas import StepOutcome
 from sparkth.plugins.pxc.scratch.smoke import config_save_value, main, sample_value, smoke_steps, step_failure
 from sparkth.plugins.pxc.tests.conftest import unrunnable_activity
@@ -113,11 +113,14 @@ def test_every_check_is_named_on_the_progress_stream_in_the_order_it_runs(tmp_pa
     main([str(unrunnable_activity(tmp_path))], progress)
 
     assert progress.getvalue().splitlines() == [
-        "getState as play",
-        "getState as edit",
-        "config.save as edit",
-        "answer.submit as play",
-        "answer.submit as edit",
-        "getState as play",
-        "getState as edit",
+        PXC_STEP_PREFIX + step
+        for step in [
+            "getState as play",
+            "getState as edit",
+            "config.save as edit",
+            "answer.submit as play",
+            "answer.submit as edit",
+            "getState as play",
+            "getState as edit",
+        ]
     ]

@@ -46,6 +46,10 @@ PXC_SCRATCH_CONTEXT_ID = "smoke"
 # The permissions a throwaway run reads getState under, and runs each learner action as.
 PXC_SCRATCH_PERMISSIONS = (Permission.play, Permission.edit)
 
+# The start of the stdout line a throwaway run writes to name the step it is about to run. A build
+# timeout quotes only such a line, never other output.
+PXC_STEP_PREFIX = "pxc-step: "
+
 # The action the contract names for saving an activity's configuration.
 PXC_CONFIG_SAVE_ACTION = "config.save"
 

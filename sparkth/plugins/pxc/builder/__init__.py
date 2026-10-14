@@ -49,6 +49,7 @@ from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import (
     PXC_COMPILE_TOOLCHAIN_MISSING,
     PXC_SANDBOX_WIT,
+    PXC_STEP_PREFIX,
 )
 from sparkth.plugins.pxc.exceptions import (
     PxcBuildTimedOut,
@@ -136,9 +137,13 @@ async def _read_tail(stream: asyncio.StreamReader, tail: bytearray) -> None:
 
 
 def _timed_out_message(step: str, timeout: int, stdout: bytearray, stderr: bytearray) -> str:
-    """Name the step that timed out, the last line it wrote to stdout and what it wrote to stderr."""
-    lines = stdout.decode("utf-8", "replace").strip().splitlines()
-    running = f" while running {lines[-1]}" if lines else ""
+    """Name the step that timed out, the last step it named on stdout and what it wrote to stderr."""
+    named = [
+        line.removeprefix(PXC_STEP_PREFIX)
+        for line in stdout.decode("utf-8", "replace").splitlines()
+        if line.startswith(PXC_STEP_PREFIX)
+    ]
+    running = f" while running {named[-1]}" if named else ""
     message = f"{step} did not finish within {timeout} seconds{running}. Look for a loop that never ends."
     reported = stderr.decode("utf-8", "replace").strip()
     if reported:
@@ -159,10 +164,11 @@ async def run_bounded(argv: list[str], cwd: Path, step: str) -> tuple[int, str]:
     in a session of its own, so its pid is also its process group and the kill reaches
     grandchildren. node runs wizer as one, and wizer is where a compile-time loop would spin.
 
-    A step names what it is running on its own line of stdout, so a timeout can say where it hung.
+    A step may name what it is running on a stdout line starting with ``PXC_STEP_PREFIX``, so a
+    timeout can say where it hung. Any other stdout, such as a compile's console output, is ignored.
 
     Raises:
-        PxcBuildTimedOut: if the step outlives the timeout, with the last line of its stdout
+        PxcBuildTimedOut: if the step outlives the timeout, with the last step it named on stdout
             and the stderr it wrote until then.
         asyncio.CancelledError: propagated after the step is killed, if the caller is cancelled.
     """
