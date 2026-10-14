@@ -91,7 +91,7 @@ def _provider() -> MagicMock:
 
 def _scope_verdict(in_scope: bool) -> MagicMock:
     verdict = MagicMock()
-    verdict.responsibility = "course-design" if in_scope else None
+    verdict.in_scope = in_scope
     verdict.refusal_reason = "the instructor asked about the Schrems II ruling"
     return verdict
 

@@ -53,8 +53,8 @@ def _provider() -> MagicMock:
     return provider
 
 
-def _classifier_answering(responsibility: str | None) -> MagicMock:
-    return MagicMock(responsibility_for=AsyncMock(return_value=responsibility))
+def _classifier_answering(in_scope: bool) -> MagicMock:
+    return MagicMock(is_in_scope=AsyncMock(return_value=in_scope))
 
 
 def _tool(name: str) -> MagicMock:
@@ -104,7 +104,7 @@ class TestOneAssistantPerTurn:
         conversation_uuid = await _seed_conversation(session, current_user.id or 1, "stub-job")
 
         with patch(
-            "sparkth.plugins.chat.routes.completions.MessageScopeClassifier", return_value=_classifier_answering(None)
+            "sparkth.plugins.chat.routes.completions.MessageScopeClassifier", return_value=_classifier_answering(False)
         ):
             response = await _turn(client, config_id, conversation_uuid)
 
@@ -121,7 +121,7 @@ class TestOneAssistantPerTurn:
         with (
             patch(
                 "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
-                return_value=_classifier_answering("stub-job"),
+                return_value=_classifier_answering(True),
             ),
             patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=provider) as get_provider,
         ):
@@ -139,7 +139,7 @@ class TestOneAssistantPerTurn:
         with (
             patch(
                 "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
-                return_value=_classifier_answering("course-design"),
+                return_value=_classifier_answering(True),
             ),
             patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=_provider()) as get_provider,
             patch("sparkth.plugins.chat.conversation_title.generate_conversation_title"),
@@ -162,7 +162,7 @@ class TestOneAssistantPerTurn:
         with (
             patch(
                 "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
-                return_value=_classifier_answering("course-design"),
+                return_value=_classifier_answering(True),
             ),
             patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=provider) as get_provider,
         ):
@@ -203,7 +203,7 @@ class TestOneAssistantPerTurn:
         with (
             patch(
                 "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
-                return_value=_classifier_answering("course-design"),
+                return_value=_classifier_answering(True),
             ),
             patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=provider),
             patch("sparkth.plugins.chat.routes.completions.get_tool_registry", return_value=_registry()),

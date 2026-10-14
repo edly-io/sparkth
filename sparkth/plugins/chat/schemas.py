@@ -1,13 +1,10 @@
 import base64
 import binascii
-from collections.abc import Iterable
 from datetime import datetime
-from typing import Any, Literal, TypedDict
+from typing import Any, TypedDict
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, create_model, field_validator
-
-from sparkth.plugins.chat.constants import NO_RESPONSIBILITY
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 MAX_FILE_SIZE = 30 * 1024 * 1024  # 30MB
 
@@ -176,7 +173,6 @@ class MessageScopeInput(BaseModel):
     query: str
     history: list[HistoryTurn] = Field(default_factory=list)
     attached_document_names: list[str] = Field(default_factory=list)
-    current_job: str | None = None
 
 
 class ClassifierVerdict(BaseModel):
@@ -199,34 +195,16 @@ class ClassifierVerdict(BaseModel):
 
 
 class MessageScopeVerdict(ClassifierVerdict):
-    """Which registered chat job a turn belongs to, if any."""
+    """Whether a turn belongs to any of the assistant's capabilities."""
 
     # A rejected answer can echo the message, and validation errors are logged.
     model_config = ConfigDict(hide_input_in_errors=True)
 
-    responsibility: str = Field(
+    in_scope: bool = Field(
         description=(
-            "The name of the job the message belongs to, exactly as listed in the instructions, "
-            f'or "{NO_RESPONSIBILITY}" when it belongs to none of them.'
+            "True when the message belongs to at least one of the capabilities listed in the "
+            "instructions, false when it belongs to none of them."
         ),
-    )
-
-
-def scope_verdict_model(job_names: Iterable[str]) -> type[MessageScopeVerdict]:
-    """Return the verdict model for one request, whose ``responsibility`` is one of ``job_names``
-    or ``NO_RESPONSIBILITY``.
-
-    The names reach the provider as an enum, so the model can only answer with an offered job,
-    and any other answer fails validation. The class docstring is the tool description the
-    provider sees, so it is carried over.
-    """
-    names = (*job_names, NO_RESPONSIBILITY)
-    description = MessageScopeVerdict.model_fields["responsibility"].description
-    return create_model(
-        "MessageScopeVerdict",
-        __base__=MessageScopeVerdict,
-        __doc__=MessageScopeVerdict.__doc__,
-        responsibility=(Literal[names], Field(description=description)),
     )
 
 

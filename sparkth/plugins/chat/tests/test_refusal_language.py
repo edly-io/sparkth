@@ -205,7 +205,7 @@ class TestRefusalAtTheNonStreamingRenderSites:
             locale_context("es"),
             patch(
                 "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
-                return_value=MagicMock(responsibility_for=AsyncMock(return_value=None)),
+                return_value=MagicMock(is_in_scope=AsyncMock(return_value=False)),
             ),
         ):
             response = await client.post(
@@ -255,7 +255,7 @@ class TestRefusalAtTheNonStreamingRenderSites:
             patch("sparkth.plugins.chat.routes.completions.get_provider"),
             patch(
                 "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
-                return_value=MagicMock(responsibility_for=AsyncMock(return_value=None)),
+                return_value=MagicMock(is_in_scope=AsyncMock(return_value=False)),
             ),
             patch(
                 "sparkth.plugins.chat.service.ChatService.get_conversation_messages",

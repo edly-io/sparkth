@@ -169,7 +169,9 @@ async def chat_completion(
     )
     # Every enabled job's section answers each turn; a switched-off plugin's is left out.
     jobs = await enabled_responsibilities(session)
-    scope_classifier = MessageScopeClassifier(jobs, provider_name, api_key, user_id, classifier_analytics)
+    scope_classifier = MessageScopeClassifier(
+        list(jobs.values()), provider_name, api_key, user_id, classifier_analytics
+    )
 
     # A file uploaded with the message is base64 content, not a Document row, so its name exists
     # only here — both scope checks below need it.
@@ -179,7 +181,7 @@ async def chat_completion(
     _skip_main_scope_check = False
     if not conversation_uuid:
         # Nothing is persisted yet, and there is no uuid to log a refusal against.
-        if await scope_classifier.responsibility_for(query_text, [], request_attachment_names, None) is None:
+        if not await scope_classifier.is_in_scope(query_text, [], request_attachment_names, None):
             return _refusal_response(REFUSAL_MESSAGE, request.stream, None, model, provider_name)
         # Already judged, so the check below would spend a second call on the same message.
         _skip_main_scope_check = True
@@ -283,10 +285,10 @@ async def chat_completion(
             ]
             # Ingested documents plus anything uploaded with this message, which has no row.
             turn_attachment_names = list(dict.fromkeys(attached_document_names + request_attachment_names))
-            judged = await scope_classifier.responsibility_for(
+            in_scope = await scope_classifier.is_in_scope(
                 query_text, prior_history, turn_attachment_names or None, conversation.uuid
             )
-            if judged is None:
+            if not in_scope:
                 await service.add_message(
                     session=session,
                     conversation_id=conversation_id,
