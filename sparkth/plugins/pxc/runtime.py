@@ -17,7 +17,11 @@ from pxc.lib.sandbox import SandboxRuntimeError
 from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.activities import activity_dir, state_file
 from sparkth.plugins.pxc.config import get_pxc_settings
-from sparkth.plugins.pxc.constants import PXC_SANDBOX_ABORT_NOTICE, PXC_SANDBOX_SILENT_FAILURE
+from sparkth.plugins.pxc.constants import (
+    PXC_SANDBOX_ABORT_NOTICE,
+    PXC_SANDBOX_OUTPUT_LIMIT,
+    PXC_SANDBOX_SILENT_FAILURE,
+)
 from sparkth.plugins.pxc.exceptions import PxcActionRejected, PxcSandboxFailure
 from sparkth.plugins.pxc.field_store.sqlite import SqliteFieldStore
 from sparkth.plugins.pxc.revisions import revision_dir
@@ -60,8 +64,12 @@ def build_runtime(claims: LaunchClaims) -> ActivityRuntime:
 
 
 def _sandbox_output(stderr: str) -> str:
-    """What ``sandbox.js`` wrote to stderr, without blank lines, the abort notice or stack frames outside sandbox.js."""
-    return "\n".join(
+    """What ``sandbox.js`` wrote to stderr, without blank lines, the abort notice or stack frames outside sandbox.js.
+
+    Only its last ``PXC_SANDBOX_OUTPUT_LIMIT`` characters are kept, where a throw's message is, so
+    a sandbox that logs in a loop cannot bury it.
+    """
+    output = "\n".join(
         line
         for line in stderr.splitlines()
         if line.strip()
@@ -69,6 +77,7 @@ def _sandbox_output(stderr: str) -> str:
         # A JS stack frame is indented "fn@file:line:col"; only sandbox.js's own frames are the author's.
         and not (line.startswith(" ") and "@" in line and "sandbox.js:" not in line)
     )
+    return output if len(output) <= PXC_SANDBOX_OUTPUT_LIMIT else "..." + output[-PXC_SANDBOX_OUTPUT_LIMIT:]
 
 
 def sandbox_error_text(err: SandboxRuntimeError) -> str:

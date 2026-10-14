@@ -46,6 +46,10 @@ PXC_SCRATCH_CONTEXT_ID = "smoke"
 # The permissions a throwaway run reads getState under, and runs each learner action as.
 PXC_SCRATCH_PERMISSIONS = (Permission.play, Permission.edit)
 
+# The start of the stdout line a throwaway run writes to name the step it is about to run. A build
+# timeout quotes only such a line, never other output.
+PXC_STEP_PREFIX = "pxc-step: "
+
 # The action the contract names for saving an activity's configuration.
 PXC_CONFIG_SAVE_ACTION = "config.save"
 
@@ -67,6 +71,10 @@ PXC_SANDBOX_SILENT_FAILURE = "The sandbox stopped without an error message."
 
 # The runtime's own line in a sandbox's stderr when a call aborts; it says nothing about the cause.
 PXC_SANDBOX_ABORT_NOTICE = "Redirecting call to abort()"
+
+# The most of what sandbox.js printed that an error text keeps, in characters: the end, where a
+# throw's message is. Not a setting: the build's child process never sees the deployment's settings.
+PXC_SANDBOX_OUTPUT_LIMIT = 2000
 
 # The pxc plugin's prompt and contract texts.
 PXC_ASSET_DIR = Path(__file__).parent / "assets"
