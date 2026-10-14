@@ -3,9 +3,11 @@ from pathlib import Path
 
 import pytest
 import wasmtime
+from pxc.lib.capabilities import CapabilityError
+from pxc.lib.events import EventValidationError
 from pxc.lib.fields import FieldValidationError
 from pxc.lib.permission import Permission
-from pxc.lib.runtime import ActivityRuntime
+from pxc.lib.runtime import ActivityRuntime, AssetAccessError
 from pxc.lib.sandbox import SandboxRuntimeError
 from uuid6 import uuid7
 
@@ -152,8 +154,17 @@ def test_a_throw_is_described_by_what_sandbox_js_wrote() -> None:
     assert sandbox_error_text(err) == THROWN_TEXT
 
 
-def test_a_value_a_field_refuses_is_described_by_the_refusal() -> None:
-    assert sandbox_error_text(_sandbox_error(FieldValidationError(REFUSED), "")) == REFUSED
+@pytest.mark.parametrize(
+    "cause",
+    [
+        FieldValidationError(REFUSED),
+        AssetAccessError("Asset does not exist"),
+        CapabilityError("Storage 'drafts' not declared. Declared: []"),
+        EventValidationError("Event 'answer.shown' is not declared"),
+    ],
+)
+def test_a_host_call_pxc_lib_refuses_is_described_by_its_refusal(cause: Exception) -> None:
+    assert sandbox_error_text(_sandbox_error(cause, "")) == str(cause)
 
 
 def test_a_refusal_keeps_its_message_when_sandbox_js_wrote_first() -> None:
@@ -175,6 +186,7 @@ def test_a_failure_with_nothing_to_say_gets_the_fallback() -> None:
         _sandbox_error(wasmtime.WasmtimeError("trap"), SANDBOX_STDERR),
         _sandbox_error(FieldValidationError(REFUSED), "x\n"),
         _sandbox_error(None, ""),
+        _sandbox_error(PermissionError(13, "Permission denied", SERVER_PATH), ""),
     ],
 )
 def test_error_text_never_names_a_server_path(err: SandboxRuntimeError) -> None:
