@@ -38,7 +38,7 @@ from pathlib import Path
 from typing import cast
 from uuid import UUID
 
-from pxc.lib.manifest_types import PxcActivityManifest
+from pxc.lib.manifest_types import ArrayField, ArrayType, LogField, ObjectField, ObjectType, PxcActivityManifest
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -72,12 +72,31 @@ logger = get_logger(__name__)
 _BUILD_SLOTS = asyncio.Semaphore(get_pxc_settings().build_concurrency)
 
 
+def _empty_object_paths(definition: object, path: str) -> list[str]:
+    """Every path, starting at ``path``, to an ``object`` in ``definition`` that lists no ``properties``.
+
+    pxc-lib stores only an object's listed keys, so such an object can only ever hold {}. Objects
+    nested in properties and in array or log items are checked too.
+    """
+    if isinstance(definition, (ObjectType, ObjectField)):
+        if not definition.properties:
+            return [path]
+        return [
+            found
+            for key, prop in definition.properties.items()
+            for found in _empty_object_paths(prop.root, f"{path}.properties.{key}")
+        ]
+    if isinstance(definition, (ArrayType, ArrayField, LogField)):
+        return _empty_object_paths(definition.items.root, f"{path}.items")
+    return []
+
+
 def _manifest_rule_violations(manifest: PxcActivityManifest) -> list[str]:
     """What a schema-valid manifest still gets wrong for a generated activity.
 
     An activity is exactly its two scripts, so ``assets`` is refused. The sandbox world imports
     only ``pxc:sandbox/state``, so a declared capability could never be used. The file names
-    are the ones the build writes.
+    are the ones the build writes. A field's object type with no properties can only store {}.
     """
     violations = []
     if manifest.assets:
@@ -88,6 +107,17 @@ def _manifest_rule_violations(manifest: PxcActivityManifest) -> list[str]:
         violations.append('"ui" must be "ui.js"')
     if manifest.sandbox != "sandbox.wasm":
         violations.append('"sandbox" must be "sandbox.wasm"')
+    empty_objects = [
+        path
+        for name, definition in (manifest.fields or {}).items()
+        for path in _empty_object_paths(definition.root, f"fields.{name}")
+    ]
+    if empty_objects:
+        violations.append(
+            'an "object" with no "properties" can only hold {}, so list its keys in "properties", or store a '
+            'map whose keys are chosen at runtime as an "array" of objects with fixed keys. Found at: '
+            + ", ".join(empty_objects)
+        )
     return violations
 
 
@@ -97,7 +127,8 @@ def validate_manifest(manifest: dict[str, object], activity_id: str) -> dict[str
     The server owns the name: it is the id the activity is stored and launched under.
 
     Raises:
-        PxcManifestInvalid: naming every problem found, for the agent to fix.
+        PxcManifestInvalid: naming every problem found, for the agent to fix, cut to
+            ``PXC_BUILD_ERROR_LIMIT`` characters.
     """
     named = {**manifest, "name": activity_id}
     try:
@@ -113,7 +144,9 @@ def validate_manifest(manifest: dict[str, object], activity_id: str) -> dict[str
         ) from err
     violations = _manifest_rule_violations(parsed)
     if violations:
-        raise PxcManifestInvalid("manifest.json breaks the build's rules: " + "; ".join(violations))
+        raise PxcManifestInvalid(
+            ("manifest.json breaks the build's rules: " + "; ".join(violations))[: get_pxc_settings().build_error_limit]
+        )
     return named
 
 

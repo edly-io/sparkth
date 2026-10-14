@@ -8,6 +8,7 @@ import shutil
 import sys
 import time
 from pathlib import Path
+from typing import cast
 from unittest.mock import AsyncMock
 
 import pytest
@@ -620,3 +621,56 @@ async def test_a_smoke_report_within_the_error_limit_is_whole(monkeypatch: pytes
         await smoke_test_activity(tmp_path)
 
     assert str(failed.value).endswith("answer.submit as play failed: boom")
+
+
+MCQ_ACTIONS = cast(dict[str, object], MCQ_MANIFEST["actions"])
+
+
+@pytest.mark.parametrize(
+    ("field", "path"),
+    [
+        ({"type": "object", "properties": {}, "scope": "user,activity", "default": {}}, "fields.placements"),
+        (
+            {"type": "array", "items": {"type": "object", "properties": {}}, "scope": "activity", "default": []},
+            "fields.placements.items",
+        ),
+        (
+            {"type": "object", "properties": {"inner": {"type": "object", "properties": {}}}, "scope": "activity"},
+            "fields.placements.properties.inner",
+        ),
+    ],
+)
+def test_an_object_field_that_can_hold_no_keys_is_refused(field: dict[str, object], path: str) -> None:
+    with pytest.raises(PxcManifestInvalid) as refused:
+        validate_manifest({**MCQ_MANIFEST, "fields": {"placements": field}}, "activity-1")
+
+    assert path in str(refused.value)
+
+
+def test_an_action_whose_value_is_an_empty_object_is_accepted() -> None:
+    reset = {"reset": {"type": "object", "properties": {}}}
+
+    validate_manifest({**MCQ_MANIFEST, "actions": {**MCQ_ACTIONS, **reset}}, "activity-1")
+
+
+EMPTY_OBJECT_FIELD = {"type": "object", "properties": {}, "scope": "activity"}
+
+
+def test_empty_object_fields_are_named_together_under_one_hint() -> None:
+    fields = {"first": EMPTY_OBJECT_FIELD, "second": EMPTY_OBJECT_FIELD}
+
+    with pytest.raises(PxcManifestInvalid) as refused:
+        validate_manifest({**MCQ_MANIFEST, "fields": fields}, "activity-1")
+
+    assert "fields.first, fields.second" in str(refused.value)
+    assert str(refused.value).count('"array" of objects with fixed keys') == 1
+
+
+def test_a_rule_violation_message_is_cut_at_the_error_limit() -> None:
+    fields = {f"field_{index}": EMPTY_OBJECT_FIELD for index in range(1000)}
+
+    with pytest.raises(PxcManifestInvalid) as refused:
+        validate_manifest({**MCQ_MANIFEST, "fields": fields}, "activity-1")
+
+    assert len(str(refused.value)) == get_pxc_settings().build_error_limit
+    assert '"array" of objects with fixed keys' in str(refused.value)
