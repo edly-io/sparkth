@@ -220,12 +220,14 @@ async def pxc_update_activity(
 
 
 async def pxc_run_activity(activity_id: str, steps: list[TrialStep]) -> ScratchReport:
-    """Run actions against one of the author's activities on a throwaway copy of its data, and report what happened.
+    """Run actions against one of the author's activities on a throwaway store, and report what happened.
 
     Each step is {"action": name, "value": the value ui.js would send, "permission": "play" or
     "edit"}. The steps run in order against the activity's current version. They start from the
     manifest's field defaults, as one learner on one activity instance, so a later step sees what
-    an earlier one saved. Nothing is saved anywhere real.
+    an earlier one saved. Nothing is saved anywhere real, and the author's saved preview state is
+    not used: to reproduce a failure that depends on saved content, first run the steps that save
+    it, such as "config.save".
 
     The report gives each step's events, or its error. A rejected action means ui.js would have
     sent an action the manifest does not declare, or a value its schema refuses. It then gives
