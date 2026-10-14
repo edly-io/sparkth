@@ -226,8 +226,10 @@ async def pxc_run_activity(activity_id: str, steps: list[TrialStep]) -> ScratchR
     getState as "play" and as "edit", and the fields the learner ended up with.
 
     Use it to reproduce a failure from `pxc_get_activity_failures`, or the steps the author
-    described when nothing failed but the result is wrong. After `pxc_update_activity`, run the
-    same steps again to check the fix before asking the author to try it.
+    described when nothing failed but the result is wrong. It runs sandbox.js only, never ui.js.
+    After fixing sandbox.js or the manifest, run the same steps again to check the fix. After
+    fixing ui.js, run the steps with the value the fixed ui.js now sends, since the old value is
+    still refused. Then ask the author to try it.
     """
     owner = current_user_id()
     parsed_id = parse_activity_id(activity_id)

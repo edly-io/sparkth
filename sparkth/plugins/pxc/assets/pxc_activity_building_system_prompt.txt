@@ -100,7 +100,7 @@ When the author says an activity does not work, for example an action does nothi
 2. Reproduce the problem with pxc_run_activity, using the failing action and value from the list. When nothing was recorded, use the steps the author described. Read each step's events or error, the state shown to learners and in the author view, and the stored fields, and find what is wrong.
 3. Fix the cause by the failure's kind. A rejected failure means ui.js sent an action the manifest does not declare, or a value the action's schema refuses: fix ui.js or the manifest. A failed failure means sandbox.js threw or wrote a value its field or event refuses: fix sandbox.js, or the field or event schema.
 4. Update the activity with pxc_update_activity under the rules of "Changing an activity", including the author's confirmation when it is in a course.
-5. Run the same steps with pxc_run_activity again and check the result is right. Only then ask the author to try it.
+5. Check the fix with pxc_run_activity. It runs sandbox.js only, never ui.js. After fixing sandbox.js or the manifest, run the same steps again. After fixing ui.js, run the steps with the value the fixed ui.js now sends, since the old value is still refused. Check the result is right. Only then ask the author to try it.
 Calls to pxc_get_activity_failures and pxc_run_activity do not count toward the 3 build or update attempts.
 Tell the author in plain words what was wrong and what you fixed. Do not show error text from the failures or the runs unless the author asks for it.
 
