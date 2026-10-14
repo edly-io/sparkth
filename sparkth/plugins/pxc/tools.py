@@ -148,17 +148,20 @@ async def pxc_get_activity_source(activity_id: str) -> dict[str, object]:
 async def pxc_get_activity_failures(activity_id: str, limit: int | None = None) -> dict[str, list[dict[str, str]]]:
     """Return the actions that failed in the author's own preview of one activity, newest first.
 
-    Call this when the author says an action does nothing, glitches, loses answers or scores
-    wrong. Only the author's preview is recorded, never learners in a course, and only failures of
-    the activity's current version. After an update the list starts empty.
+    Call this when the author reports an issue with the activity (e.g. glitches, wrong scores,
+    etc.). Failures of only the activity's current version are returned.
 
     Each failure has its `kind`:
-    - "rejected": ui.js sent a value the action's schema in the manifest refuses. Fix ui.js or the
-      schema.
+    - "rejected": ui.js sent an action the manifest does not declare, or a value the action's
+      schema refuses. `error` says which. Fix ui.js or the manifest.
     - "failed": sandbox.js threw, or wrote a value its field or event refuses. `error` is the
       sandbox's own message. Fix sandbox.js, or the field or event schema.
 
     Reproduce a failure with `pxc_run_activity` before changing any code.
+
+    Args:
+        activity_id: The activity's id, as `pxc_build_activity` or `pxc_list_activities` returns it.
+        limit: How many of the newest failures to return; leave it out for the default.
     """
     owner = current_user_id()
     parsed_id = parse_activity_id(activity_id)
@@ -219,8 +222,8 @@ async def pxc_run_activity(activity_id: str, steps: list[TrialStep]) -> ScratchR
     an earlier one saved. Nothing is saved anywhere real.
 
     The report gives each step's events, or its error. A rejected action means ui.js would have
-    sent a value the manifest refuses. It then gives getState as "play" and as "edit", and the
-    fields the learner ended up with.
+    sent an action the manifest does not declare, or a value its schema refuses. It then gives
+    getState as "play" and as "edit", and the fields the learner ended up with.
 
     Use it to reproduce a failure from `pxc_get_activity_failures`, or the steps the author
     described when nothing failed but the result is wrong. After `pxc_update_activity`, run the
