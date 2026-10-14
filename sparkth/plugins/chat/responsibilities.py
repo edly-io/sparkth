@@ -11,6 +11,7 @@ from sparkth.plugins.chat.constants import (
     COURSE_DESIGN_LABEL,
     COURSE_DESIGN_SCOPE,
     COURSE_DESIGN_SYSTEM_PROMPT,
+    COURSE_DESIGN_TITLE,
     DEFAULT_RESPONSIBILITY,
     REDIRECT_MESSAGE,
     REFUSAL_MESSAGE,
@@ -20,7 +21,12 @@ from sparkth.plugins.chat.models import Conversation
 
 # Chat's own job. It claims no tool categories, so it binds every category no other job claims.
 COURSE_DESIGN = ChatResponsibility(
-    DEFAULT_RESPONSIBILITY, COURSE_DESIGN_LABEL, COURSE_DESIGN_SCOPE, COURSE_DESIGN_SYSTEM_PROMPT, frozenset()
+    DEFAULT_RESPONSIBILITY,
+    COURSE_DESIGN_LABEL,
+    COURSE_DESIGN_TITLE,
+    COURSE_DESIGN_SCOPE,
+    COURSE_DESIGN_SYSTEM_PROMPT,
+    frozenset(),
 )
 
 

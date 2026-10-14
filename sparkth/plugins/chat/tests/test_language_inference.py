@@ -1,9 +1,8 @@
 """The chat assistant infers its output language from the conversation.
 
-Three things need pinning: the wording of the OUTPUT LANGUAGE directive, which is the
-only place the rule is expressed; the absence of any injected language on the live
-route; and the absence of any language kwarg forwarded to the scheduled title-generation
-task. Template rendering in isolation is covered by test_prompt.py.
+Two things need pinning: the absence of any injected language on the live route, and the
+absence of any language kwarg forwarded to the scheduled title-generation task. Prompt
+rendering in isolation is covered by test_prompt.py.
 
 The mock stack mirrors test_rag_search_integration.py, which drives the same route.
 """
@@ -193,17 +192,6 @@ async def _scheduled_title_task_kwargs(client: AsyncClient, llm_config_id: int) 
 class TestOutputLanguageDirective:
     """The directive is the whole mechanism — there is no resolved tag behind it."""
 
-    def test_instructs_following_the_latest_user_message(self) -> None:
-        assert "same language as the user's most recent message" in render_system_prompt(COURSE_DESIGN)
-
-    def test_instructs_switching_when_the_user_switches(self) -> None:
-        assert "change with them from that message onward" in render_system_prompt(COURSE_DESIGN)
-
-    def test_honours_an_explicit_request_for_another_course_language(self) -> None:
-        """A user writing in one language may ask for the course in another. This
-        sentence is the only expression of that rule — no data field carries it."""
-        assert "honour that request for the course content" in render_system_prompt(COURSE_DESIGN)
-
     def test_pins_no_specific_language(self) -> None:
         """No language name may be injected, and no placeholder may survive.
 
@@ -212,7 +200,7 @@ class TestOutputLanguageDirective:
         appears unconditionally. The remaining names are the discriminating ones — if
         any of them is present, something is still resolving and injecting a tag.
         """
-        prompt = render_system_prompt(COURSE_DESIGN)
+        prompt = render_system_prompt([COURSE_DESIGN])
         assert "{language_name}" not in prompt
         injectable = {info.name for info in SUPPORTED_LANGUAGES.values() if info.name != "English"}
         assert not any(name in prompt for name in injectable)

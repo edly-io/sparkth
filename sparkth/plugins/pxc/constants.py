@@ -54,11 +54,13 @@ PXC_TOOL_CATEGORY = "pxc"
 PXC_BUILDER_RESPONSIBILITY_NAME = "pxc-activity-builder"
 # That job's name as authors see it.
 PXC_BUILDER_RESPONSIBILITY_LABEL = gettext_noop("PXC activity builder")
+# The heading its section is rendered under in chat's system prompt.
+PXC_ACTIVITY_BUILDER_TITLE = "Interactive PXC activities"
 
 # What the chat classifier reads to route a conversation to the activity builder.
 PXC_ACTIVITY_BUILDER_SCOPE = (PXC_ASSET_DIR / "pxc_activity_building_scope.txt").read_text(encoding="utf-8").strip()
 
-# Formatted by chat with current_datetime and refusal_message.
+# Its section of chat's system prompt, inserted as written.
 PXC_ACTIVITY_BUILDER_SYSTEM_PROMPT = (
     (PXC_ASSET_DIR / "pxc_activity_building_system_prompt.txt").read_text(encoding="utf-8").strip()
 )

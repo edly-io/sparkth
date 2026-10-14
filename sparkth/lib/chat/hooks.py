@@ -3,15 +3,18 @@
 A *responsibility* is one job a chat conversation can be for, such as designing a course. Every
 conversation does exactly one. The chat plugin asks a classifier which enabled job a new
 conversation's first message belongs to, stores the answer on the conversation, and from then on
-builds each turn from that job: its system prompt and the MCP tool categories it binds. Chat reads
-the enabled jobs on every request. A later message for a different job is redirected to a new
-conversation, and a job with no tool categories binds every category no job claims.
+builds each turn from that job: chat's system prompt skeleton with the job's prompt section, and
+the MCP tool categories it binds. Chat reads the enabled jobs on every request. A later message
+for a different job is redirected to a new conversation, and a job with no tool categories binds
+every category no job claims.
 
 The hook lives in ``sparkth.lib`` so a plugin can register a job without importing chat. It is
 keyed by plugin, so a job is offered only while its plugin is switched on. A plugin registers
 one job from its ``__init__``::
 
-    CHAT_RESPONSIBILITIES.add_item(self, ChatResponsibility("my-job", LABEL, SCOPE, PROMPT, frozenset({"my-tools"})))
+    CHAT_RESPONSIBILITIES.add_item(
+        self, ChatResponsibility("my-job", LABEL, TITLE, SCOPE, PROMPT, frozenset({"my-tools"}))
+    )
 """
 
 from dataclasses import dataclass
@@ -33,10 +36,12 @@ class ChatResponsibility:
     ``name`` is a slug, stored on every conversation doing this job, so it must never change
     once shipped. It is at most ``CHAT_RESPONSIBILITY_NAME_MAX_LENGTH`` characters, the size of
     that stored column, and a longer one raises ``ValueError``. ``label`` is the job's name as
-    authors see it, marked with ``gettext_noop`` and translated where it is shown. ``scope`` is
-    the text the classifier reads to decide whether a message belongs to this job. ``system_prompt`` is a
-    ``str.format`` template that receives ``current_datetime`` and ``refusal_message``, so any
-    other literal brace is doubled.
+    authors see it, marked with ``gettext_noop`` and translated where it is shown. ``title`` is
+    the heading the job's ``prompt`` is rendered under in the chat system prompt. ``scope`` is
+    the text the classifier reads to decide whether a message belongs to this job. ``prompt`` is
+    the job's section of the system prompt: plain text inserted as written, never formatted, so
+    a brace needs no escaping. It holds only what is specific to the job, because chat's skeleton
+    carries the date, identity, output language, refusal and offering-choices rules.
     ``tool_categories`` names the ``MCP_TOOLS`` categories this job claims.
 
     A frozen dataclass, so the copies registered by repeated plugin constructions compare equal.
@@ -44,8 +49,9 @@ class ChatResponsibility:
 
     name: str
     label: str
+    title: str
     scope: str
-    system_prompt: str
+    prompt: str
     tool_categories: frozenset[str]
 
     def __post_init__(self) -> None:

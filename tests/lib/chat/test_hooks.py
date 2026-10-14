@@ -15,19 +15,21 @@ from sparkth.lib.chat.hooks import (
 )
 from sparkth.lib.plugins import SparkthPlugin
 
-STUB = ChatResponsibility("stub-job", "Stub job", "Stub scope.", "Stub prompt {current_datetime}", frozenset({"stub"}))
+STUB = ChatResponsibility("stub-job", "Stub job", "Stub", "Stub scope.", "Stub prompt", frozenset({"stub"}))
 
 
 def test_a_name_at_the_length_limit_is_accepted() -> None:
     name = "x" * CHAT_RESPONSIBILITY_NAME_MAX_LENGTH
 
-    assert ChatResponsibility(name, "Label", "Scope.", "Prompt", frozenset()).name == name
+    assert ChatResponsibility(name, "Label", "Title", "Scope.", "Prompt", frozenset()).name == name
 
 
 def test_a_name_longer_than_a_conversation_can_store_is_refused() -> None:
     """Every conversation stores the name, so a longer one would fail its first message."""
     with pytest.raises(ValueError):
-        ChatResponsibility("x" * (CHAT_RESPONSIBILITY_NAME_MAX_LENGTH + 1), "Label", "Scope.", "Prompt", frozenset())
+        ChatResponsibility(
+            "x" * (CHAT_RESPONSIBILITY_NAME_MAX_LENGTH + 1), "Label", "Title", "Scope.", "Prompt", frozenset()
+        )
 
 
 @pytest.fixture
@@ -72,7 +74,9 @@ async def test_a_second_plugin_claiming_the_name_is_ignored_and_logged(
 ) -> None:
     """Conversations store the name, so two jobs under one name would route each other's."""
     rival = SparkthPlugin("zz-rival")
-    CHAT_RESPONSIBILITIES.add_item(rival, ChatResponsibility("stub-job", "Other", "Other.", "Other", frozenset()))
+    CHAT_RESPONSIBILITIES.add_item(
+        rival, ChatResponsibility("stub-job", "Other", "Other", "Other.", "Other", frozenset())
+    )
 
     with caplog.at_level(logging.ERROR, logger="sparkth.lib.chat.hooks"):
         jobs = await enabled_responsibilities(session)
