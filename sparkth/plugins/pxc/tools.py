@@ -145,15 +145,18 @@ async def pxc_get_activity_source(activity_id: str) -> dict[str, object]:
 async def pxc_get_activity_failures(activity_id: str, limit: int | None = None) -> dict[str, list[dict[str, str]]]:
     """Return the actions that failed in the author's own preview of one activity, newest first.
 
-    Call this when the author says an action does nothing, glitches, loses answers or scores
-    wrong. Only the author's preview is recorded, never learners in a course, and only failures of
-    the activity's current version. After an update the list starts empty.
+    Call this when the author reports an issue with the activity (e.g. glitches, wrong scores,
+    etc.). Failures of only the activity's current version are returned.
 
     Each failure has its `kind`:
     - "rejected": ui.js sent a value the action's schema in the manifest refuses. Fix ui.js or the
       schema.
     - "failed": sandbox.js threw, or wrote a value its field or event refuses. `error` is the
       sandbox's own message. Fix sandbox.js, or the field or event schema.
+
+    Args:
+        activity_id: The activity's id, as `pxc_build_activity` or `pxc_list_activities` returns it.
+        limit: How many of the newest failures to return; leave it out for the default.
     """
     owner = current_user_id()
     parsed_id = parse_activity_id(activity_id)
