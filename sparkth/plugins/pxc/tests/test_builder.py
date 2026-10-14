@@ -609,3 +609,26 @@ def test_an_action_whose_value_is_an_empty_object_is_accepted() -> None:
     reset = {"reset": {"type": "object", "properties": {}}}
 
     validate_manifest({**MCQ_MANIFEST, "actions": {**MCQ_ACTIONS, **reset}}, "activity-1")
+
+
+EMPTY_OBJECT_FIELD = {"type": "object", "properties": {}, "scope": "activity"}
+
+
+def test_empty_object_fields_are_named_together_under_one_hint() -> None:
+    fields = {"first": EMPTY_OBJECT_FIELD, "second": EMPTY_OBJECT_FIELD}
+
+    with pytest.raises(PxcManifestInvalid) as refused:
+        validate_manifest({**MCQ_MANIFEST, "fields": fields}, "activity-1")
+
+    assert "fields.first, fields.second" in str(refused.value)
+    assert str(refused.value).count('"array" of objects with fixed keys') == 1
+
+
+def test_a_rule_violation_message_is_cut_at_the_error_limit() -> None:
+    fields = {f"field_{index}": EMPTY_OBJECT_FIELD for index in range(1000)}
+
+    with pytest.raises(PxcManifestInvalid) as refused:
+        validate_manifest({**MCQ_MANIFEST, "fields": fields}, "activity-1")
+
+    assert len(str(refused.value)) == get_pxc_settings().build_error_limit
+    assert '"array" of objects with fixed keys' in str(refused.value)
