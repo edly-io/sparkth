@@ -6,9 +6,10 @@ The tools need an authenticated chat session. Over the unauthenticated MCP endpo
 """
 
 import json
+from typing import Annotated
 
 from pxc.lib.manifest_types import PxcActivityManifest
-from pydantic import TypeAdapter
+from pydantic import Field, TypeAdapter
 
 from sparkth.lib.auth import current_user_id
 from sparkth.lib.db import session_scope
@@ -223,7 +224,9 @@ async def pxc_run_activity(activity_id: str, steps: list[TrialStep]) -> ScratchR
 
     The report gives each step's events, or its error. A rejected action means ui.js would have
     sent an action the manifest does not declare, or a value its schema refuses. It then gives
-    getState as "play" and as "edit", and the fields the learner ended up with.
+    getState as "play" and as "edit", and the fields the learner ended up with. A call takes a
+    limited number of steps, and a report too long to hand back is refused: run fewer steps, or
+    steps that send or save less.
 
     Use it to reproduce a failure from `pxc_get_activity_failures`, or the steps the author
     described when nothing failed but the result is wrong. It runs sandbox.js only, never ui.js.
@@ -233,7 +236,8 @@ async def pxc_run_activity(activity_id: str, steps: list[TrialStep]) -> ScratchR
     """
     owner = current_user_id()
     parsed_id = parse_activity_id(activity_id)
-    validated = TypeAdapter(list[TrialStep]).validate_python(steps)
+    step_list = Annotated[list[TrialStep], Field(max_length=get_pxc_settings().trial_step_limit)]
+    validated = TypeAdapter(step_list).validate_python(steps)
     async with session_scope() as session:
         await get_owned_activity(session, parsed_id, owner)
     return await run_trial(activity_dir(activity_id), validated)

@@ -435,6 +435,21 @@ async def test_a_view_step_is_refused_before_anything_runs(
     trial.assert_not_awaited()
 
 
+async def test_more_steps_than_the_limit_are_refused_before_anything_runs(
+    authored_activity: PxcActivity, authors: tuple[User, User], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PXC_TRIAL_STEP_LIMIT", "2")
+    get_pxc_settings.cache_clear()
+    act_as(authors[0])
+    steps = cast(list[TrialStep], [{"action": "check", "permission": "play"}] * 3)
+
+    with patch("sparkth.plugins.pxc.tools.run_trial", AsyncMock()) as trial:
+        with pytest.raises(ValidationError):
+            await pxc_run_activity(str(authored_activity.id), steps)
+
+    trial.assert_not_awaited()
+
+
 async def test_running_another_authors_activity_is_refused(
     authored_activity: PxcActivity, authors: tuple[User, User]
 ) -> None:
