@@ -76,7 +76,7 @@ replies with a preview link that opens the activity on the Sparkth
 | `pxc_list_activities` | The author's most recent activities (20 by default, set by `PXC_LIST_ACTIVITIES_LIMIT`), newest first, each with id, title, creation time, preview link and whether it is placed |
 | `pxc_get_activity_source` | One of the author's activities as its title, description, manifest, `ui.js` and `sandbox.js`, and whether it is placed |
 | `pxc_get_activity_failures` | The actions that failed in the author's preview of one activity's live version (20 by default, set by `PXC_ACTION_FAILURE_LIMIT`), newest first, each with kind, action, permission, value, error and time |
-| `pxc_run_activity` | The result of the steps the agent gives, run in order on a throwaway copy of the activity's data: each step's events or error, then the state for each permission and the stored fields. At most `PXC_TRIAL_STEP_LIMIT` steps (20 by default), and a report over `PXC_TRIAL_REPORT_LIMIT` characters (20000 by default) is refused, not cut |
+| `pxc_run_activity` | The result of the steps the agent gives, run in order on a throwaway store that starts from the manifest's field defaults: each step's events or error, then the state for each permission and the stored fields. At most `PXC_TRIAL_STEP_LIMIT` steps (20 by default), and a report over `PXC_TRIAL_REPORT_LIMIT` characters (20000 by default) is refused, not cut |
 
 A build or update failure is raised, not returned, and the agent reads its message to fix the
 files and try again.
@@ -317,6 +317,8 @@ bounded number of retries.
 - Learner actions have no execution limit. That is pxc-lib's to fix.
 - `pxc_run_activity` runs the activity's live version only, and `pxc_get_activity_failures` reads
   only the live version's failures.
+- `pxc_run_activity` starts from the field defaults, never from the author's saved preview state,
+  so a failure that depends on saved content reproduces only once earlier steps save it.
 - The smoke test's sample values do not reach every code path, so a build that passes can still
   fail on a value the activity's UI sends.
 - Only an author's preview records failures. A learner's failure in a course is never stored, so
