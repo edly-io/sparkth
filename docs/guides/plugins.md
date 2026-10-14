@@ -585,20 +585,22 @@ the caller can delete it. Like the builders, `on_placed` must be a module-level 
 A *capability* is one kind of work the chat assistant does, such as designing a course. A plugin
 contributes one without importing chat, by registering a `ChatCapability` from
 `sparkth.lib.chat.hooks` on `CHAT_CAPABILITIES`. A plugin registers one capability, from its
-`__init__`.
+`__init__`, keyed by the plugin instance.
 
 A `ChatCapability` has three fields:
 
-- `title` is the heading the capability is shown under to the model.
+- `title` is the heading the capability appears under, both in the system prompt and in the scope
+  gate's list.
 - `scope` is the text the scope gate judges a message against.
 - `prompt` is plain text inserted into the system prompt as written, so a brace in it needs no
   escaping.
 
-A plugin registers its capability keyed by the plugin instance:
+For example:
 
 ```python
 # sparkth/plugins/myappplugin/plugin.py
 from sparkth.lib.chat.hooks import CHAT_CAPABILITIES, ChatCapability
+from sparkth.lib.plugins import SparkthPlugin
 
 TITLE = "My App builder"
 SCOPE = "Requests to build or change things in My App."
@@ -623,8 +625,9 @@ order. Chat contributes its own, course design. A plugin that is switched off co
 section and no scope.
 
 - **Scope gate.** Each message is judged against every enabled scope. A message that fits none
-  is refused with a fixed sentence before the model runs. A refused first message writes no
-  conversation. If the classification fails, the message is admitted.
+  is refused with a fixed sentence before the model runs. A refused first message writes nothing; a refused later message is stored in the
+  conversation, with the refusal as the assistant's reply. If the classification fails, the
+  message is admitted.
 - **System prompt.** The prompt is chat's skeleton with each enabled capability's section under
   its title. The skeleton owns the date, the assistant's identity, the output language, the
   refusal, injection and offering-choices rules, so a section must not repeat them. A section
@@ -633,7 +636,6 @@ section and no scope.
 
 Plugin-specific knowledge belongs in a `<prefix>about` tool, not in a capability's `prompt`;
 see the LMS `about` tool [above](#lms-plugins-automatic-credential-injection) for the convention.
-
 
 ## Reacting to a deleted document
 
