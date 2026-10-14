@@ -161,7 +161,9 @@ async def pxc_get_activity_failures(activity_id: str, limit: int | None = None) 
     - "failed": sandbox.js threw, or wrote a value its field or event refuses. `error` is the
       sandbox's own message. Fix sandbox.js, or the field or event schema.
 
-    Reproduce a failure with `pxc_run_activity` before changing any code.
+    Reproduce a failure with `pxc_run_activity` before changing any code. Give the step its
+    `value` parsed from the JSON text, not the text itself; when a cut one does not parse, rebuild
+    it from the action's schema.
 
     Args:
         activity_id: The activity's id, as `pxc_build_activity` or `pxc_list_activities` returns it.
