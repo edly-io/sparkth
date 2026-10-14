@@ -11,8 +11,8 @@ Plugins:
   - emit it through ``emit_event``, or ``emit_events`` for a group of related
     events that should share one session (reach for the lower-level
     ``ingest_event`` only when the caller already holds an analytics session),
-  - read a continuous aggregate by range and bucket with ``read_rollup`` (payload-key
-    dims, no SQL), taking the range as ``RangeQuery``.
+  - read bucketed data with ``PG_BUCKET`` / ``SQLITE_BUCKET``,
+    ``read_bucketed`` and ``RangeQuery``.
 """
 
 import inspect
@@ -32,7 +32,7 @@ from sparkth.core.analytics.exceptions import (
 )
 from sparkth.core.analytics.gateway import ingest_event
 from sparkth.core.analytics.maintenance import backfill_continuous_aggregates
-from sparkth.core.analytics.reads import get_logins, read_rollup
+from sparkth.core.analytics.reads import PG_BUCKET, SQLITE_BUCKET, get_logins, read_bucketed
 from sparkth.core.analytics.schemas.base import AnalyticsEventSchema
 from sparkth.core.analytics.schemas.reads import LoginsPoint, RangeQuery
 from sparkth.lib.db import analytics_session_scope
@@ -44,8 +44,10 @@ logger = get_logger(__name__)
 __all__ = [
     "AnalyticsEventSchema",
     "Bucket",
+    "PG_BUCKET",
     "RangeQuery",
-    "read_rollup",
+    "SQLITE_BUCKET",
+    "read_bucketed",
     "ContinuousAggregateNotFound",
     "DuplicateEventTypeError",
     "EventNamespaceError",
