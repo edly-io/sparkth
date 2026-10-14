@@ -67,7 +67,6 @@ def _registry() -> MagicMock:
     """Two tools from two plugins; every turn may bind both."""
     registry = MagicMock()
     registry.get_all_tools.return_value = [_tool("openedx_create_xblock"), _tool("stub_build")]
-    registry.category_for.side_effect = {"openedx_create_xblock": "openedx-course", "stub_build": "stub-tools"}.get
     return registry
 
 
@@ -113,7 +112,7 @@ class TestOneAssistantPerTurn:
     async def test_a_message_for_another_capability_is_answered_with_every_enabled_section(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
     ) -> None:
-        """A course design conversation asked for the stub capability's work is answered, not redirected."""
+        """A message for the stub capability is answered with every enabled section."""
         config_id = await _seed_llm_config(session, current_user.id or 1)
         conversation_uuid = await _seed_conversation(session, current_user.id or 1)
         provider = _provider()

@@ -177,7 +177,7 @@ class TestRefusalAtTheStreamingRenderSite:
         wire even when the render site is translating correctly."""
         translation_catalog(REFUSAL_MESSAGE, SPANISH)
         with locale_context("es"):
-            chunks = [chunk async for chunk in stream_out_of_scope_refusal(REFUSAL_MESSAGE)]
+            chunks = [chunk async for chunk in stream_out_of_scope_refusal()]
         payload = json.loads(chunks[0].removeprefix("data: ").strip())
         assert payload["content"] == SPANISH
 

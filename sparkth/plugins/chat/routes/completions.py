@@ -78,7 +78,6 @@ def _unusable_status(document: Document) -> Literal["queued", "processing", "fai
 
 
 def _refusal_response(
-    message: str,
     stream: bool,
     conversation_uuid: UUID | None,
     model: str,
@@ -86,14 +85,14 @@ def _refusal_response(
 ) -> StreamingResponse | ChatCompletionResponse:
     """The refusal that ends the turn, in the shape the client asked for.
 
-    ``message`` is the refusal source constant, rendered under the request locale.
+    The refusal sentence is ``REFUSAL_MESSAGE`` rendered under the request locale.
     ``conversation_uuid`` is None when the turn was refused before any conversation was
     written, which is the answer the client gets rather than a missing field.
     """
     if stream:
-        return StreamingResponse(stream_out_of_scope_refusal(message), media_type="text/event-stream")
+        return StreamingResponse(stream_out_of_scope_refusal(), media_type="text/event-stream")
     return ChatCompletionResponse(
-        message=ChatMessage(role="assistant", content=gettext(message)),
+        message=ChatMessage(role="assistant", content=gettext(REFUSAL_MESSAGE)),
         conversation_id=conversation_uuid,
         model=model,
         provider=provider_name,
@@ -180,7 +179,7 @@ async def chat_completion(
     if not conversation_uuid:
         # Nothing is persisted yet, and there is no uuid to log a refusal against.
         if not await scope_classifier.is_in_scope(query_text, [], request_attachment_names, None):
-            return _refusal_response(REFUSAL_MESSAGE, request.stream, None, model, provider_name)
+            return _refusal_response(request.stream, None, model, provider_name)
         # Already judged, so the check below would spend a second call on the same message.
         _skip_main_scope_check = True
 
@@ -294,7 +293,7 @@ async def chat_completion(
                     content=gettext(REFUSAL_MESSAGE),
                     message_type="text",
                 )
-                return _refusal_response(REFUSAL_MESSAGE, request.stream, conversation.uuid, model, provider_name)
+                return _refusal_response(request.stream, conversation.uuid, model, provider_name)
 
         provider = get_provider(
             provider_name=provider_name,

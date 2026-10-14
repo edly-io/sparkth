@@ -26,8 +26,8 @@ from sparkth.lib.plugins import SparkthPlugin
 from sparkth.lib.routes import register_router
 from sparkth.plugins.pxc import tools as pxc_tools
 from sparkth.plugins.pxc.constants import (
+    PXC_ACTIVITY_BUILDER_PROMPT,
     PXC_ACTIVITY_BUILDER_SCOPE,
-    PXC_ACTIVITY_BUILDER_SYSTEM_PROMPT,
     PXC_ACTIVITY_BUILDER_TITLE,
     PXC_CORS_HEADERS,
     PXC_TOOL_CATEGORY,
@@ -65,7 +65,7 @@ pxc_router.include_router(activity_router)
 
 # The chat capability that builds activities.
 PXC_ACTIVITY_BUILDER = ChatCapability(
-    PXC_ACTIVITY_BUILDER_TITLE, PXC_ACTIVITY_BUILDER_SCOPE, PXC_ACTIVITY_BUILDER_SYSTEM_PROMPT
+    PXC_ACTIVITY_BUILDER_TITLE, PXC_ACTIVITY_BUILDER_SCOPE, PXC_ACTIVITY_BUILDER_PROMPT
 )
 
 

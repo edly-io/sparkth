@@ -16,6 +16,7 @@ from langchain_core.exceptions import LangChainException
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
 from sparkth.lib.chat.hooks import ChatCapability
+from sparkth.plugins.chat.analytics import ScopeVerdict
 from sparkth.plugins.chat.capabilities import COURSE_DESIGN
 from sparkth.plugins.chat.classifiers import MessageScopeClassifier
 from sparkth.plugins.chat.prompt import render_scope_classifier_prompt
@@ -30,14 +31,16 @@ _USER_ID = 42
 _CAPABILITIES: list[ChatCapability] = [COURSE_DESIGN]
 
 
-def _classifier_with(chain: MagicMock, capabilities: list[ChatCapability] | None = None) -> MessageScopeClassifier:
+def _classifier_with(
+    chain: MagicMock, capabilities: list[ChatCapability] | None = None, analytics: MagicMock | None = None
+) -> MessageScopeClassifier:
     """A classifier offering ``capabilities`` (course design alone by default), its LLM yielding ``chain``."""
     llm = MagicMock()
     llm.with_structured_output.return_value = chain
     provider = MagicMock()
     provider.create_llm.return_value = llm
     with patch("sparkth.plugins.chat.classifiers.base.get_provider", return_value=provider):
-        return MessageScopeClassifier(capabilities or _CAPABILITIES, "anthropic", "test-key", _USER_ID)
+        return MessageScopeClassifier(capabilities or _CAPABILITIES, "anthropic", "test-key", _USER_ID, analytics)
 
 
 def _chain_answering(in_scope: bool, refusal_reason: str = "") -> MagicMock:
@@ -165,7 +168,10 @@ class TestTheAnswerCallersActOn:
         chain = MagicMock()
         chain.ainvoke = AsyncMock(return_value=answer)
 
-        assert await _classifier_with(chain).is_in_scope("q") is True
+        analytics = MagicMock()
+
+        assert await _classifier_with(chain, None, analytics).is_in_scope("q") is True
+        assert analytics.schedule_scope_classified.call_args.kwargs["verdict"] == ScopeVerdict.NOT_JUDGED
 
 
 class TestThePromptListsTheCapabilities:

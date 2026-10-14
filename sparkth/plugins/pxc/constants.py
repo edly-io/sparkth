@@ -51,10 +51,10 @@ PXC_TOOL_CATEGORY = "pxc"
 # The heading its section is rendered under in chat's system prompt.
 PXC_ACTIVITY_BUILDER_TITLE = "Interactive PXC activities"
 
-# What the chat classifier reads to route a conversation to the activity builder.
+# What the chat scope classifier judges an activity-building message against.
 PXC_ACTIVITY_BUILDER_SCOPE = (PXC_ASSET_DIR / "pxc_activity_building_scope.txt").read_text(encoding="utf-8").strip()
 
-# Its section of chat's system prompt, inserted as written.
-PXC_ACTIVITY_BUILDER_SYSTEM_PROMPT = (
+# The activity builder's section of chat's system prompt, inserted as written.
+PXC_ACTIVITY_BUILDER_PROMPT = (
     (PXC_ASSET_DIR / "pxc_activity_building_system_prompt.txt").read_text(encoding="utf-8").strip()
 )
