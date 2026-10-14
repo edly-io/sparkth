@@ -71,7 +71,11 @@ _BUILD_SLOTS = asyncio.Semaphore(get_pxc_settings().build_concurrency)
 
 
 def _empty_object_paths(definition: object, path: str) -> list[str]:
-    """The paths under ``definition`` of an ``object`` type with no ``properties``, which can only ever hold {}."""
+    """Every path, starting at ``path``, to an ``object`` in ``definition`` that lists no ``properties``.
+
+    pxc-lib stores only an object's listed keys, so such an object can only ever hold {}. Objects
+    nested in properties and in array or log items are checked too.
+    """
     if isinstance(definition, (ObjectType, ObjectField)):
         if not definition.properties:
             return [path]
