@@ -158,9 +158,9 @@ A build runs these steps in order:
    server.
 2. Compile `sandbox.js` against the bundled `pxc.wit`.
 3. Smoke-test the result in a child process, on a throwaway store. It reads `getState` as play and
-   as edit, runs `config.save` as edit with the fields' defaults, runs every other action as play
-   and as edit with the simplest value its schema accepts, then reads `getState` again. Any error
-   fails the build, and the failure lists every step that failed.
+   as edit, runs `config.save` as edit with the fields' defaults when the manifest declares it,
+   runs every other action as play and as edit with the simplest value its schema accepts, then
+   reads `getState` again. Any error fails the build, and the failure lists every step that failed.
 4. Publish the directory as the activity's first revision and point the link at it.
 5. Insert the row.
 
