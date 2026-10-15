@@ -1,23 +1,19 @@
 """Tests for the sparkth.lib.plugins public API surface.
 
 Everything here is imported from sparkth.lib.plugins only — this suite exercises the
-public plugin-authoring boundary, never the plugin framework internals behind it.
+public plugin-authoring boundary, never the plugin framework internals behind it. The one
+core import is the object a lazy export must resolve to.
 """
 
 import pytest
 from pydantic import ValidationError
 
 import sparkth.lib.plugins as plugins_api
+from sparkth.core.plugins.middleware import PluginAccessMiddleware
 from sparkth.lib.plugins import PluginConfig, SparkthPlugin
 
 
 class TestPluginsPublicApi:
-    def test_exposes_base_plugin_class(self) -> None:
-        assert isinstance(SparkthPlugin, type)
-
-    def test_exposes_config_base_class(self) -> None:
-        assert isinstance(PluginConfig, type)
-
     def test_all_lists_only_public_symbols(self) -> None:
         assert set(plugins_api.__all__) == {
             "SparkthPlugin",
@@ -44,15 +40,11 @@ class TestPluginsImportSafety:
         # import cycles back through sparkth.lib.hooks.
         importlib.import_module("sparkth.lib.plugins")
 
-    def test_exposes_plugin_loader(self) -> None:
-        assert callable(plugins_api.get_plugin_loader)
-
     def test_resolves_access_middleware_lazily(self) -> None:
-        assert isinstance(plugins_api.PluginAccessMiddleware, type)
+        assert plugins_api.PluginAccessMiddleware is PluginAccessMiddleware
 
     def test_resolves_plugin_service_lazily(self) -> None:
-        assert isinstance(plugins_api.PluginService, type)
-        assert callable(plugins_api.get_plugin_service)
+        assert isinstance(plugins_api.get_plugin_service(), plugins_api.PluginService)
 
     def test_unknown_attribute_raises_attribute_error(self) -> None:
         with pytest.raises(AttributeError):

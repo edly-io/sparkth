@@ -1,6 +1,6 @@
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import { screen } from "@testing-library/react";
-import { renderWithIntl } from "../../../intl-test-utils";
+import { renderWithIntl } from "@/tests/intl-test-utils";
 
 const nav = vi.hoisted(() => ({ pathname: "/dashboard/analytics/logins", search: "" }));
 vi.mock("next/navigation", () => ({
@@ -8,9 +8,21 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(nav.search),
 }));
 
+// The viewer's enabled plugins, as the dashboard's PluginProvider reports them.
+const plugins = vi.hoisted(() => ({ enabled: new Set(["chat"]) }));
+vi.mock("@/lib/plugins/context", () => ({
+  usePluginContext: () => ({ isPluginEnabled: (name: string) => plugins.enabled.has(name) }),
+}));
+
 import { AnalyticsNav } from "@/app/dashboard/analytics/AnalyticsNav";
 
 describe("AnalyticsNav", () => {
+  beforeEach(() => {
+    nav.pathname = "/dashboard/analytics/logins";
+    nav.search = "";
+    plugins.enabled = new Set(["chat"]);
+  });
+
   it("is a labelled navigation landmark with a link per view", () => {
     renderWithIntl(<AnalyticsNav />);
     const rail = screen.getByRole("navigation", { name: "Analytics views" });
@@ -40,5 +52,20 @@ describe("AnalyticsNav", () => {
       "href",
       "/dashboard/analytics/logins?range=7d&bucket=week",
     );
+  });
+
+  it("shows Course authoring when the chat plugin is enabled", () => {
+    renderWithIntl(<AnalyticsNav />);
+    expect(screen.getByRole("link", { name: "Course authoring" })).toHaveAttribute(
+      "href",
+      "/dashboard/analytics/authoring",
+    );
+  });
+
+  it("hides Course authoring when the viewer has the chat plugin disabled", () => {
+    plugins.enabled = new Set();
+    renderWithIntl(<AnalyticsNav />);
+    expect(screen.queryByRole("link", { name: "Course authoring" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Logins" })).toBeInTheDocument();
   });
 });

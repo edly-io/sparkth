@@ -30,10 +30,6 @@ async def _seed_user(session: AsyncSession, username: str) -> User:
     return user
 
 
-def test_get_current_user_lives_in_lib_auth() -> None:
-    assert callable(lib_auth.get_current_user)
-
-
 def test_get_current_user_not_reexported_from_api_auth() -> None:
     # get_current_user has a single canonical home in sparkth.lib.auth; every caller (routes, the
     # permission dependency, and the test harness's dependency_overrides) imports it from there

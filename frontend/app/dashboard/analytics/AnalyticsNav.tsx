@@ -3,24 +3,29 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { LogIn } from "lucide-react";
+import { LogIn, PenLine } from "lucide-react";
+import { usePluginContext } from "@/lib/plugins/context";
 import { cn } from "@/lib/utils";
 
-// The Insights-style rail: one entry per view. A view's entry lands with the view.
+// The Insights-style rail: one entry per view. A view's entry lands with the view. A view read
+// from a plugin's route names that plugin, and its entry shows only when the viewer has it enabled.
 export const ANALYTICS_VIEWS = [
   { key: "logins", href: "/dashboard/analytics/logins", icon: LogIn },
+  { key: "authoring", href: "/dashboard/analytics/authoring", icon: PenLine, plugin: "chat" },
 ] as const;
 
 export function AnalyticsNav() {
   const t = useTranslations("analytics.nav");
   const pathname = usePathname();
   const query = useSearchParams().toString();
+  const { isPluginEnabled } = usePluginContext();
+  const views = ANALYTICS_VIEWS.filter((v) => !("plugin" in v) || isPluginEnabled(v.plugin));
 
   return (
     <nav aria-label={t("label")} className="lg:w-48 lg:shrink-0">
       {/* Wraps into tabs on narrow screens; a vertical rail from lg up. */}
       <ul className="flex flex-wrap gap-1 border-b border-border pb-2 lg:flex-col lg:border-b-0 lg:pb-0">
-        {ANALYTICS_VIEWS.map(({ key, href, icon: Icon }) => {
+        {views.map(({ key, href, icon: Icon }) => {
           const active = pathname === href || pathname?.startsWith(`${href}/`);
           return (
             <li key={key}>

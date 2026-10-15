@@ -10,13 +10,20 @@ A failure row is written only for an author's preview, and an activity keeps onl
 """
 
 from datetime import datetime
+from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import DateTime
+from sqlalchemy import DateTime, Enum
 from sqlmodel import Column, Field, SQLModel, Text
 from uuid6 import uuid7
 
 from sparkth.lib.models import utc_now
+from sparkth.plugins.pxc.enums import PreviewPermission, PxcFailureKind
+
+
+def _enum_values(enum_cls: type[StrEnum]) -> list[str]:
+    """The labels of an enum's DB type: its members' values, the strings stored in its column."""
+    return [member.value for member in enum_cls]
 
 
 class PxcActivity(SQLModel, table=True):
@@ -50,9 +57,15 @@ class PxcActionFailure(SQLModel, table=True):
     activity_id: UUID = Field(foreign_key="pxc_activities.id", index=True, nullable=False)
     # The revision the preview was pinned to, or None for an activity not yet kept in revisions.
     revision: str | None = Field(default=None, max_length=36, nullable=True)
-    kind: str = Field(max_length=16, nullable=False)
+    kind: PxcFailureKind = Field(
+        sa_column=Column(Enum(PxcFailureKind, name="pxcfailurekind", values_callable=_enum_values), nullable=False)
+    )
     action: str = Field(sa_column=Column(Text, nullable=False))
-    permission: str = Field(max_length=16, nullable=False)
+    permission: PreviewPermission = Field(
+        sa_column=Column(
+            Enum(PreviewPermission, name="previewpermission", values_callable=_enum_values), nullable=False
+        )
+    )
     value: str = Field(sa_column=Column(Text, nullable=False))
     error: str = Field(sa_column=Column(Text, nullable=False))
     created_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False))

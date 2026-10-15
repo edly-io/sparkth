@@ -61,6 +61,12 @@ test by the [Test Layout](#test-layout) rules below.
 
 For bug fixes: write a test that reproduces the bug first, verify it fails, then fix.
 
+Test behaviour, not types. Never assert `issubclass(...)`, `isinstance(X, type)` or `callable(X)`
+on a symbol: `mypy --strict` already checks it, and the test breaks when a class moves. Keep
+`isinstance` on a value the code produced when its runtime type is the behaviour under test. When
+a hierarchy drives runtime behaviour (a base-class `register_exception_handler` mapping, an
+`except` on a parent class), test the outcome: raise the subclass and assert the status or the catch.
+
 ## Documentation Hygiene
 
 **Always update documentation alongside every code change — no exceptions.**

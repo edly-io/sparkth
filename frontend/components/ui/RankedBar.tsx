@@ -2,26 +2,26 @@ import { ChartTable } from "@/components/ui/ChartTable";
 import type { BarChartDatum } from "@/components/ui/BarChart";
 import { cn } from "@/lib/utils";
 
-interface RankedBarProps {
-  data: BarChartDatum[];
+interface RankedBarProps<D extends BarChartDatum> {
+  data: D[];
   limit?: number;
   caption: string;
   headers: [string, string];
-  formatValue?: (n: number) => string;
+  formatValue?: (n: number, d: D) => string; // the datum, for detail beyond the number
   className?: string;
 }
 
 // Top-N horizontal bars, largest first. HTML rather than SVG so long labels truncate
 // and the layout reflows on narrow screens. The visual is hidden from assistive tech;
 // the data is read from the ChartTable.
-export function RankedBar({
+export function RankedBar<D extends BarChartDatum>({
   data,
   limit = 10,
   caption,
   headers,
   formatValue = String,
   className,
-}: RankedBarProps) {
+}: RankedBarProps<D>) {
   const ranked = [...data].sort((a, b) => b.value - a.value).slice(0, limit);
   const max = Math.max(1, ...ranked.map((d) => d.value));
 
@@ -43,14 +43,14 @@ export function RankedBar({
                 style={{ width: `${(d.value / max) * 100}%` }}
               />
             </span>
-            <span className="tabular-nums text-muted-foreground">{formatValue(d.value)}</span>
+            <span className="tabular-nums text-muted-foreground">{formatValue(d.value, d)}</span>
           </li>
         ))}
       </ol>
       <ChartTable
         caption={caption}
         headers={headers}
-        rows={ranked.map((d) => [d.label, formatValue(d.value)])}
+        rows={ranked.map((d) => [d.label, formatValue(d.value, d)])}
       />
     </figure>
   );
