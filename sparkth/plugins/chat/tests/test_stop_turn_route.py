@@ -102,7 +102,7 @@ class TestTurnNotLeakedWhenStreamNeverStarts:
             ),
         ):
             mock_scope = AsyncMock()
-            mock_scope.is_in_scope = AsyncMock(return_value=True)
+            mock_scope.in_scope = AsyncMock(return_value=True)
             mock_cls_cls.return_value = mock_scope
             mock_list_attachments.return_value = ConversationDocuments(ready=[], unusable=[])
 
