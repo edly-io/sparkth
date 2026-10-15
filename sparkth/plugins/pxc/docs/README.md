@@ -321,8 +321,6 @@ bounded number of retries.
   so a failure that depends on saved content reproduces only once earlier steps save it.
 - The smoke test's sample values do not reach every code path, so a build that passes can still
   fail on a value the activity's UI sends.
-- Only an author's preview records failures. A learner's failure in a course is never stored, so
-  `pxc_get_activity_failures` cannot show it.
 - Course staff who edit an LMS block's activity reference directly can point it at any activity
   id, and the LMS signs it. Ownership is checked only when the agent places content. Such a block
   can point at a draft, which is never marked placed, so a later update that changes one of its
