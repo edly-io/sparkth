@@ -18,7 +18,7 @@ from sparkth.lib.db import session_scope
 from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import PXC_PREVIEW_COURSE_ID, PXC_TRUNCATED_MARKER
-from sparkth.plugins.pxc.enums import PxcFailureKind
+from sparkth.plugins.pxc.enums import PreviewPermission, PxcFailureKind
 from sparkth.plugins.pxc.event_bus import publish_events
 from sparkth.plugins.pxc.exceptions import PxcActionRejected, PxcSandboxFailure
 from sparkth.plugins.pxc.models import PxcActionFailure
@@ -61,7 +61,8 @@ async def _record_preview_failure(
         revision=claims.revision,
         kind=kind,
         action=action_name,
-        permission=claims.permission.value,
+        # A preview launches only as play or edit, so its permission is always a PreviewPermission.
+        permission=PreviewPermission(claims.permission.value),
         value=_cut(json.dumps(action_value), settings.error_limit),
         error=_cut(error, settings.error_limit),
     )
