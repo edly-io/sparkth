@@ -19,6 +19,17 @@ class LoginsPoint(BaseModel):
     login_count: int
 
 
+class SummaryCount(BaseModel):
+    """A figure's count for a period and for the equal-length period before it."""
+
+    key: str
+    label: str
+    view: str | None
+    plugin: str | None
+    current: int
+    previous: int
+
+
 class RangeQuery(BaseModel):
     """Query for a bucketed read: an inclusive UTC day range and a bucket width."""
 

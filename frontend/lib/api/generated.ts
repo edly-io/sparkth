@@ -29,6 +29,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/analytics/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Summary
+         * @description Return every headline figure for the range and for the equal-length range before it.
+         *
+         *     Labels are in the request language, so never cache the response across users. `bucket` is
+         *     ignored.
+         */
+        get: operations["summary_api_v1_analytics_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/google/authorize": {
         parameters: {
             query?: never;
@@ -2245,6 +2268,24 @@ export interface components {
             team_name?: string | null;
         };
         /**
+         * SummaryCount
+         * @description A figure's count for a period and for the equal-length period before it.
+         */
+        SummaryCount: {
+            /** Current */
+            current: number;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Plugin */
+            plugin: string | null;
+            /** Previous */
+            previous: number;
+            /** View */
+            view: string | null;
+        };
+        /**
          * SupportedLanguage
          * @description One language the platform can generate content in.
          */
@@ -2494,6 +2535,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LoginsPoint"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    summary_api_v1_analytics_summary_get: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                bucket?: components["schemas"]["Bucket"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SummaryCount"][];
                 };
             };
             /** @description Validation Error */
