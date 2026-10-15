@@ -1,5 +1,6 @@
 """Running one action through either transport: events published, a preview's failures recorded."""
 
+import json
 from dataclasses import replace
 
 import pytest
@@ -9,7 +10,7 @@ from sqlalchemy.exc import OperationalError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.plugins.pxc.actions import perform_action
-from sparkth.plugins.pxc.constants import PXC_PREVIEW_ACTIVITY_INSTANCE, PXC_PREVIEW_COURSE_ID
+from sparkth.plugins.pxc.constants import PXC_PREVIEW_ACTIVITY_INSTANCE, PXC_PREVIEW_COURSE_ID, PXC_TRUNCATED_MARKER
 from sparkth.plugins.pxc.enums import PxcFailureKind
 from sparkth.plugins.pxc.exceptions import PxcActionRejected, PxcSandboxFailure
 from sparkth.plugins.pxc.models import PxcActivity
@@ -78,7 +79,7 @@ async def _database_down(*args: object) -> None:
     raise OperationalError("INSERT", {}, Exception("database is locked"))
 
 
-async def test_an_oversized_preview_value_is_recorded_trimmed(
+async def test_an_oversized_preview_value_is_recorded_cut_and_marked(
     session: AsyncSession, authored_activity: PxcActivity, throwing_sandbox: None
 ) -> None:
     claims = _preview(authored_activity)
@@ -87,7 +88,23 @@ async def test_an_oversized_preview_value_is_recorded_trimmed(
         await perform_action(build_runtime(claims), claims, "config.save", "x" * 10_000)
 
     [failure] = await list_action_failures(session, authored_activity.id, None, 20)
-    assert len(failure.value) == 4000
+    assert failure.value == json.dumps("x" * 10_000)[:4000] + PXC_TRUNCATED_MARKER
+
+
+async def test_an_oversized_error_is_recorded_cut_and_marked(
+    session: AsyncSession, authored_activity: PxcActivity
+) -> None:
+    claims = _preview(authored_activity)
+    # The refusal quotes the action's name, so a long name makes a long error.
+    long_name = "a" * 5000
+
+    with pytest.raises(PxcActionRejected):
+        await perform_action(build_runtime(claims), claims, long_name, {})
+
+    [failure] = await list_action_failures(session, authored_activity.id, None, 20)
+    assert failure.error.startswith(f"Action '{'a' * 100}")
+    assert failure.error.endswith(PXC_TRUNCATED_MARKER)
+    assert len(failure.error) == 4000 + len(PXC_TRUNCATED_MARKER)
 
 
 async def test_a_preview_post_that_fails_is_recorded_and_still_unprocessable(

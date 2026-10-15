@@ -17,7 +17,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sparkth.lib.db import session_scope
 from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.config import get_pxc_settings
-from sparkth.plugins.pxc.constants import PXC_PREVIEW_COURSE_ID
+from sparkth.plugins.pxc.constants import PXC_PREVIEW_COURSE_ID, PXC_TRUNCATED_MARKER
 from sparkth.plugins.pxc.enums import PxcFailureKind
 from sparkth.plugins.pxc.event_bus import publish_events
 from sparkth.plugins.pxc.exceptions import PxcActionRejected, PxcSandboxFailure
@@ -62,8 +62,8 @@ async def _record_preview_failure(
         kind=kind,
         action=action_name,
         permission=claims.permission.value,
-        value=json.dumps(action_value)[: settings.build_error_limit],
-        error=error[: settings.build_error_limit],
+        value=_cut(json.dumps(action_value), settings.build_error_limit),
+        error=_cut(error, settings.build_error_limit),
     )
     try:
         async with session_scope() as session:
@@ -72,3 +72,8 @@ async def _record_preview_failure(
         logger.warning(
             "Could not record failed preview action %s of PXC activity %s: %s", action_name, claims.activity, err
         )
+
+
+def _cut(text: str, limit: int) -> str:
+    """``text``, or its first ``limit`` characters ended with ``PXC_TRUNCATED_MARKER`` when it is longer."""
+    return text if len(text) <= limit else text[:limit] + PXC_TRUNCATED_MARKER
