@@ -9,11 +9,14 @@ need along with the binary.
 """
 
 import json
+import tempfile
 from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from pxc.lib.runtime import ActivityRuntime
+from pxc.lib.sandbox import SandboxRuntimeError
 from sqlmodel.ext.asyncio.session import AsyncSession
 from uuid6 import uuid7
 
@@ -21,9 +24,11 @@ from sparkth.core.models.user import User
 from sparkth.lib.auth import bind_current_user_id
 from sparkth.main import assemble_app
 from sparkth.plugins.pxc.activities import activity_dir, generated_activity_dir
+from sparkth.plugins.pxc.builder import compile_sandbox
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.event_bus import EVENT_BUS
 from sparkth.plugins.pxc.models import PxcActivity
+from sparkth.plugins.pxc.revisions import publish_revision
 from sparkth.plugins.pxc.schemas import ActivityConfig, ActivitySource
 from sparkth.plugins.pxc.store import insert_activity
 
@@ -174,7 +179,85 @@ async def stage_without_compiling(work: Path, manifest: dict[str, object], sourc
     return staged
 
 
+def unrunnable_activity(tmp_path: Path) -> Path:
+    """The sample's manifest beside a sandbox.wasm that is not a component, so every sandbox call fails."""
+    directory = tmp_path / "activity"
+    directory.mkdir()
+    (directory / "manifest.json").write_text((activity_dir("mcq") / "manifest.json").read_text())
+    (directory / "sandbox.wasm").write_bytes(b"not a component")
+    return directory
+
+
 @pytest.fixture
 def uncompiled_builds(monkeypatch: pytest.MonkeyPatch) -> None:
     """Build and update without the toolchain: staging writes the files and skips the compile."""
     monkeypatch.setattr("sparkth.plugins.pxc.builder.stage_activity", stage_without_compiling)
+
+
+# What a throwing onAction writes to stderr, and the part of it an agent is shown.
+SANDBOX_STDERR = (
+    "boom from onAction\nStack:\n  onAction@sandbox.js:4:30\n"
+    "  export_onAction@/tmp/compile/initializer.js:387:21\n\nRedirecting call to abort() to mozalloc_abort\n"
+)
+THROWN_TEXT = "boom from onAction\nStack:\n  onAction@sandbox.js:4:30"
+
+
+def throw_in_sandbox(runtime: ActivityRuntime, action_name: str, action_value: object) -> None:
+    """Stand in for ``ActivityRuntime.on_action_or_raise`` with a sandbox whose ``onAction`` throws."""
+    raise SandboxRuntimeError(
+        f"Component /srv/pxc/activities/{runtime.name}/sandbox.wasm: error running 'on-action'", SANDBOX_STDERR
+    )
+
+
+@pytest.fixture
+def throwing_sandbox(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every action's sandbox throws as ``SANDBOX_STDERR`` shows, with no wasm needed."""
+    monkeypatch.setattr(ActivityRuntime, "on_action_or_raise", throw_in_sandbox)
+
+
+# The issue's case study: a map with runtime keys in an object field that lists no keys.
+CASE_STUDY_MANIFEST: dict[str, object] = {
+    "name": "placeholder",
+    "ui": "ui.js",
+    "sandbox": "sandbox.wasm",
+    "fields": {"placements": {"type": "object", "properties": {}, "scope": "user,activity", "default": {}}},
+    "actions": {
+        "boom": {"type": "string"},
+        "place": {"type": "object", "properties": {"animal": {"type": "string"}, "category": {"type": "string"}}},
+        "logged.place": {
+            "type": "object",
+            "properties": {"animal": {"type": "string"}, "category": {"type": "string"}},
+        },
+    },
+}
+CASE_STUDY_SANDBOX_JS = """\
+import { getField, setField } from "pxc:sandbox/state";
+export function onAction(name, data, context, permission) {
+  if (name === "boom") throw new Error("boom from onAction");
+  const value = JSON.parse(data);
+  if (name === "logged.place") console.error("placing " + value.animal);
+  const placements = JSON.parse(getField("placements"));
+  placements[value.animal] = value.category;
+  setField("placements", JSON.stringify(placements));
+  return "";
+}
+export function getState(context, permission) {
+  return JSON.stringify({ placements: JSON.parse(getField("placements")) });
+}
+"""
+
+
+async def compiled_activity(sandbox_js: str, manifest: dict[str, object]) -> str:
+    """Compile ``sandbox_js`` and publish it with ``manifest`` as a generated activity, skipping every build check.
+
+    Returns the new activity's id. For tests that need an activity the build would refuse.
+    """
+    activity_id = str(uuid7())
+    staged = get_pxc_settings().data_dir / "builds" / activity_id
+    staged.mkdir(parents=True)
+    with tempfile.TemporaryDirectory(dir=staged.parent) as compile_dir:
+        await compile_sandbox(sandbox_js, Path(compile_dir), staged / "sandbox.wasm")
+    (staged / "manifest.json").write_text(json.dumps({**manifest, "name": activity_id}), encoding="utf-8")
+    (staged / "ui.js").write_text(AUTHORED_UI_JS, encoding="utf-8")
+    publish_revision(staged, activity_id)
+    return activity_id

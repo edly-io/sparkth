@@ -32,7 +32,16 @@ class PxcActionRejected(Exception):
 
 
 class PxcSandboxFailure(Exception):
-    """The activity's WebAssembly sandbox failed to run."""
+    """The activity's WebAssembly sandbox failed to run.
+
+    ``str()`` is generic: it becomes an HTTP body a learner's browser can read, and the cause can
+    hold stored values such as answer keys. ``error_text`` says what went wrong, for logs and
+    for the author's agent.
+    """
+
+    def __init__(self, message: str, error_text: str) -> None:
+        super().__init__(message)
+        self.error_text = error_text
 
 
 class PxcLaunchNotConfigured(Exception):
@@ -56,7 +65,7 @@ class PxcCompileFailed(PxcBuildFailed):
 
 
 class PxcSmokeTestFailed(PxcBuildFailed):
-    """The sandbox compiled but ``get_state`` failed under ``play`` or ``edit``."""
+    """The sandbox compiled, but getState or an action failed when the smoke test ran it."""
 
 
 class PxcBuildTimedOut(PxcBuildFailed):
