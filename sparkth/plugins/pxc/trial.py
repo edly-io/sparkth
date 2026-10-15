@@ -17,7 +17,7 @@ from pxc.lib.fields import FieldType
 from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.builder import run_bounded
 from sparkth.plugins.pxc.config import get_pxc_settings
-from sparkth.plugins.pxc.exceptions import PxcTrialFailed, PxcTrialReportTooLarge
+from sparkth.plugins.pxc.exceptions import PxcBuildTimedOut, PxcTrialFailed, PxcTrialReportTooLarge, PxcTrialTimedOut
 from sparkth.plugins.pxc.schemas import TrialStep
 from sparkth.plugins.pxc.scratch.schemas import ScratchReport, ScratchStep
 
@@ -30,7 +30,7 @@ async def run_trial(directory: Path, steps: list[TrialStep]) -> ScratchReport:
     Raises:
         PxcTrialFailed: if the child exits with an error or writes no report. Its stderr is logged
             here only, since a traceback names server paths.
-        PxcBuildTimedOut: if the child outlives ``PXC_BUILD_TIMEOUT_SECONDS``, naming the step it hung in.
+        PxcTrialTimedOut: if the child outlives ``PXC_BUILD_TIMEOUT_SECONDS``, naming the step it hung in.
         PxcTrialReportTooLarge: if the report is over ``PXC_TRIAL_REPORT_LIMIT`` characters; it is
             never read in.
     """
@@ -42,7 +42,11 @@ async def run_trial(directory: Path, steps: list[TrialStep]) -> ScratchReport:
     with tempfile.TemporaryDirectory() as work:
         (Path(work) / "steps.json").write_text(json.dumps(scratch_steps), encoding="utf-8")
         argv = [sys.executable, "-m", "sparkth.plugins.pxc.scratch", str(directory)]
-        returncode, stderr = await run_bounded(argv, Path(work), "Running the activity")
+        try:
+            returncode, stderr = await run_bounded(argv, Path(work), "Running the activity")
+        except PxcBuildTimedOut as err:
+            logger.warning("PXC trial run of %s timed out: %s", directory.name, err)
+            raise PxcTrialTimedOut(str(err)) from err
         result = Path(work) / "result.json"
         if returncode != 0 or not result.is_file():
             logger.error("PXC trial run of %s exited %s without a report: %s", directory.name, returncode, stderr)
