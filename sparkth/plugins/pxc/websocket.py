@@ -9,7 +9,7 @@ from pxc.lib.runtime import ActivityRuntime
 from starlette.websockets import WebSocket
 
 from sparkth.lib.log import get_logger
-from sparkth.plugins.pxc.constants import PXC_CLOSE_INVALID_TOKEN
+from sparkth.plugins.pxc.constants import PXC_ACTION_FAILED, PXC_ACTION_REJECTED, PXC_CLOSE_INVALID_TOKEN
 from sparkth.plugins.pxc.event_bus import publish_events
 from sparkth.plugins.pxc.exceptions import PxcActionRejected, PxcInvalidLaunchToken, PxcSandboxFailure
 from sparkth.plugins.pxc.runtime import run_action
@@ -20,6 +20,9 @@ logger = get_logger(__name__)
 
 async def run_action_frames(websocket: WebSocket, runtime: ActivityRuntime, token: str) -> None:
     """Read and run action frames until the client goes away or sends one that cannot be run.
+
+    An action the manifest refuses, or whose sandbox fails, is answered on this socket with an error
+    frame naming it; the socket stays open.
 
     Raises:
         WebSocketDisconnect: when the client goes away, which is this loop's normal exit.
@@ -49,6 +52,7 @@ async def run_action_frames(websocket: WebSocket, runtime: ActivityRuntime, toke
                 runtime.activity_id,
                 err,
             )
+            await websocket.send_json({"error": PXC_ACTION_REJECTED, "action": str(frame["action"])})
         except PxcSandboxFailure as err:
             # The activity's fault, not the connection's: the socket stays open.
             logger.error(
@@ -56,8 +60,9 @@ async def run_action_frames(websocket: WebSocket, runtime: ActivityRuntime, toke
                 frame["action"],
                 runtime.name,
                 runtime.activity_id,
-                err,
+                err.error_text,
             )
+            await websocket.send_json({"error": PXC_ACTION_FAILED, "action": str(frame["action"])})
 
 
 async def _read_action_frame(websocket: WebSocket, runtime: ActivityRuntime) -> dict[str, Any] | None:

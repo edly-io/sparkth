@@ -2,14 +2,29 @@ import json
 from pathlib import Path
 
 import pytest
+import wasmtime
+from pxc.lib.capabilities import CapabilityError
+from pxc.lib.events import EventValidationError
+from pxc.lib.fields import FieldValidationError
 from pxc.lib.permission import Permission
+from pxc.lib.runtime import ActivityRuntime, AssetAccessError
+from pxc.lib.sandbox import SandboxRuntimeError
 from uuid6 import uuid7
 
 from sparkth.plugins.pxc.activities import activity_dir, generated_activity_dir
-from sparkth.plugins.pxc.exceptions import PxcActionRejected, PxcActivityNotFound
+from sparkth.plugins.pxc.constants import PXC_SANDBOX_OUTPUT_LIMIT, PXC_SANDBOX_SILENT_FAILURE
+from sparkth.plugins.pxc.exceptions import PxcActionRejected, PxcActivityNotFound, PxcSandboxFailure
 from sparkth.plugins.pxc.revisions import publish_revision
-from sparkth.plugins.pxc.runtime import build_runtime, read_state, run_action
-from sparkth.plugins.pxc.tests.conftest import staged_activity
+from sparkth.plugins.pxc.runtime import build_runtime, read_state, run_action, sandbox_error_text
+from sparkth.plugins.pxc.tests.conftest import (
+    CASE_STUDY_MANIFEST,
+    CASE_STUDY_SANDBOX_JS,
+    SANDBOX_STDERR,
+    THROWN_TEXT,
+    compiled_activity,
+    staged_activity,
+    throw_in_sandbox,
+)
 from sparkth.plugins.pxc.tokens import LaunchClaims
 
 CLAIMS = LaunchClaims("mcq", "instance-1", "course-1", "learner-7", Permission.play)
@@ -75,7 +90,7 @@ def test_submitting_an_answer_returns_the_activitys_events() -> None:
 
 @pytest.mark.wasm
 def test_configuration_saves_with_edit_and_is_ignored_with_play() -> None:
-    # The sandbox is the enforcement point: pxc-lib's on_action refuses actions only in view
+    # The sandbox is the enforcement point: pxc-lib's on_action_or_raise refuses actions only in view
     # mode and passes the permission through, and activity/sandbox.js returns early from
     # handleConfigSave unless it is "edit". A play-mode config.save is therefore silently
     # ignored rather than raising, which is what this asserts.
@@ -120,3 +135,143 @@ def test_a_pinned_launch_reads_its_revision_after_a_newer_one_goes_live() -> Non
     claims = LaunchClaims(activity_id, "instance-1", "course-1", "learner-7", Permission.play, first.name)
 
     assert build_runtime(claims).manifest.fields["question"].root.default == "first"
+
+
+SERVER_PATH = "/srv/pxc/activities/a1/sandbox.wasm"
+REFUSED = "Field 'placements' failed validation: Additional properties are not allowed ('Owl' was unexpected)"
+
+
+def _sandbox_error(cause: Exception | None, stderr: str) -> SandboxRuntimeError:
+    """A sandbox error raised from ``cause``, as pxc-lib raises it."""
+    err = SandboxRuntimeError(f"Component {SERVER_PATH}: error running 'on-action' with arguments: ('place',)", stderr)
+    err.__cause__ = cause
+    return err
+
+
+def test_a_throw_is_described_by_what_sandbox_js_wrote() -> None:
+    err = _sandbox_error(wasmtime.WasmtimeError("wasm trap: wasm `unreachable` instruction executed"), SANDBOX_STDERR)
+
+    assert sandbox_error_text(err) == THROWN_TEXT
+
+
+@pytest.mark.parametrize(
+    "cause",
+    [
+        FieldValidationError(REFUSED),
+        AssetAccessError("Asset does not exist"),
+        CapabilityError("Storage 'drafts' not declared. Declared: []"),
+        EventValidationError("Event 'answer.shown' is not declared"),
+    ],
+)
+def test_a_host_call_pxc_lib_refuses_is_described_by_its_refusal(cause: Exception) -> None:
+    assert sandbox_error_text(_sandbox_error(cause, "")) == str(cause)
+
+
+def test_a_refusal_keeps_its_message_when_sandbox_js_wrote_first() -> None:
+    text = sandbox_error_text(_sandbox_error(FieldValidationError(REFUSED), "debug: placing Owl\n"))
+
+    assert text.startswith(REFUSED)
+    assert "debug: placing Owl" in text
+
+
+# sandbox.js logging in a loop before it fails: far more than an error text keeps.
+FLOODED_STDERR = "".join(f"log {n}\n" for n in range(5000))
+
+
+def test_a_throw_after_a_flood_of_output_keeps_the_thrown_error() -> None:
+    err = _sandbox_error(wasmtime.WasmtimeError("trap"), FLOODED_STDERR + SANDBOX_STDERR)
+
+    text = sandbox_error_text(err)
+
+    assert text.endswith(THROWN_TEXT)
+    assert len(text) <= PXC_SANDBOX_OUTPUT_LIMIT + len("...")
+
+
+def test_a_refusal_after_a_flood_of_output_keeps_its_message_and_the_latest_output() -> None:
+    text = sandbox_error_text(_sandbox_error(FieldValidationError(REFUSED), FLOODED_STDERR))
+
+    assert text.startswith(REFUSED)
+    assert text.endswith("log 4999")
+    assert "log 0\n" not in text
+
+
+def test_a_failure_with_nothing_to_say_gets_the_fallback() -> None:
+    err = _sandbox_error(wasmtime.WasmtimeError("wasm trap: out of bounds memory access"), "")
+
+    assert sandbox_error_text(err) == PXC_SANDBOX_SILENT_FAILURE
+
+
+@pytest.mark.parametrize(
+    "err",
+    [
+        _sandbox_error(wasmtime.WasmtimeError("trap"), SANDBOX_STDERR),
+        _sandbox_error(FieldValidationError(REFUSED), "x\n"),
+        _sandbox_error(None, ""),
+        _sandbox_error(PermissionError(13, "Permission denied", SERVER_PATH), ""),
+    ],
+)
+def test_error_text_never_names_a_server_path(err: SandboxRuntimeError) -> None:
+    assert SERVER_PATH not in sandbox_error_text(err)
+    assert "initializer.js" not in sandbox_error_text(err)
+
+
+def queue_an_event_then_fail(runtime: ActivityRuntime, action_name: str, action_value: object) -> None:
+    """Stand in for ``on_action_or_raise``: ``"fail"`` queues an event as sandbox.js would, then throws."""
+    if action_name == "fail":
+        runtime.send_event("answer.result", json.dumps({"correct": True}), None, "view")
+        throw_in_sandbox(runtime, action_name, action_value)
+
+
+def test_a_failed_action_leaves_no_events_for_the_next_one(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(ActivityRuntime, "on_action_or_raise", queue_an_event_then_fail)
+    runtime = build_runtime(CLAIMS)
+
+    with pytest.raises(PxcSandboxFailure):
+        run_action(runtime, "fail", "")
+
+    assert run_action(runtime, "ok", "") == []
+
+
+def test_a_failing_action_carries_its_error_text(throwing_sandbox: None) -> None:
+    with pytest.raises(PxcSandboxFailure) as failed:
+        run_action(build_runtime(CLAIMS), "answer.submit", [0])
+
+    assert failed.value.error_text == THROWN_TEXT
+    assert "boom" not in str(failed.value)
+
+
+@pytest.mark.wasm
+async def test_a_throwing_action_fails_with_what_sandbox_js_threw(tmp_path: Path) -> None:
+    activity_id = await compiled_activity(CASE_STUDY_SANDBOX_JS, CASE_STUDY_MANIFEST)
+    runtime = build_runtime(LaunchClaims(activity_id, "instance-1", "course-1", "learner-7", Permission.play))
+
+    with pytest.raises(PxcSandboxFailure) as failed:
+        run_action(runtime, "boom", "")
+
+    assert failed.value.error_text.startswith("boom from onAction")
+    assert "onAction@sandbox.js" in failed.value.error_text
+    assert str(tmp_path) not in failed.value.error_text
+    assert "initializer.js" not in failed.value.error_text
+
+
+@pytest.mark.wasm
+async def test_a_value_its_field_refuses_fails_with_the_refusal() -> None:
+    activity_id = await compiled_activity(CASE_STUDY_SANDBOX_JS, CASE_STUDY_MANIFEST)
+    runtime = build_runtime(LaunchClaims(activity_id, "instance-1", "course-1", "learner-7", Permission.play))
+
+    with pytest.raises(PxcSandboxFailure) as failed:
+        run_action(runtime, "place", {"animal": "Owl", "category": "Birds"})
+
+    assert failed.value.error_text == REFUSED
+
+
+@pytest.mark.wasm
+async def test_a_refusal_after_console_output_keeps_both() -> None:
+    activity_id = await compiled_activity(CASE_STUDY_SANDBOX_JS, CASE_STUDY_MANIFEST)
+    runtime = build_runtime(LaunchClaims(activity_id, "instance-1", "course-1", "learner-7", Permission.play))
+
+    with pytest.raises(PxcSandboxFailure) as failed:
+        run_action(runtime, "logged.place", {"animal": "Owl", "category": "Birds"})
+
+    assert failed.value.error_text.startswith(REFUSED)
+    assert "placing Owl" in failed.value.error_text
