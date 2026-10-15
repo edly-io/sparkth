@@ -52,7 +52,7 @@ dependencies = [
     "beautifulsoup4>=4.0",
     "python-docx>=1.2.0",
     "psutil>=6.0.0",
-    "pxc-lib @ git+https://github.com/abdulrafey1/pxc@2abe79223b55eb81697faa68133fbd3f450b6ed8#subdirectory=src/pxc/lib",
+    "pxc-lib @ git+https://github.com/edly-io/pxc@18186492513ffda470dfa7c96dc4c84662ef67d5#subdirectory=src/pxc/lib",
 ]
 
 [dependency-groups]
