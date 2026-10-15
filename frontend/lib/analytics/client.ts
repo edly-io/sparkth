@@ -1,8 +1,8 @@
 import { api, bearer, call } from "@/lib/api";
 import type { IsoDate } from "@/lib/analytics/dates";
-import type { ChatActivityPoint, LoginsPoint } from "@/lib/analytics/types";
+import type { ChatActivityPoint, LoginsPoint, SummaryCount } from "@/lib/analytics/types";
 
-// Day buckets: the page rolls them up itself, so changing the bucket doesn't refetch.
+/** Logins per day for the range; the page rolls days up itself, so a bucket change doesn't refetch. */
 export async function fetchLogins(
   token: string,
   { from, to }: { from: IsoDate; to: IsoDate },
@@ -22,6 +22,19 @@ export async function fetchChatActivity(
   return call<ChatActivityPoint[]>(() =>
     api.GET("/api/v1/chat/analytics/activity", {
       params: { query: { from, to, bucket: "day" } },
+      headers: bearer(token),
+    }),
+  );
+}
+
+/** Every Overview figure, counted for the period and the one before it, in one request. */
+export async function fetchSummary(
+  token: string,
+  { from, to }: { from: IsoDate; to: IsoDate },
+): Promise<SummaryCount[]> {
+  return call<SummaryCount[]>(() =>
+    api.GET("/api/v1/analytics/summary", {
+      params: { query: { from, to } },
       headers: bearer(token),
     }),
   );
