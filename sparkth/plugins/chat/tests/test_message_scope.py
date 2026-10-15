@@ -62,7 +62,7 @@ class TestTurnRendering:
     async def test_the_shipped_scope_prompt_leads_the_call(self) -> None:
         chain = _chain_answering(True)
 
-        await _classifier_with(chain).is_in_scope("design a quiz")
+        await _classifier_with(chain).in_scope("design a quiz")
 
         assert _sent_messages(chain)[0].content == render_scope_classifier_prompt(_CAPABILITIES)
 
@@ -70,7 +70,7 @@ class TestTurnRendering:
     async def test_the_turn_is_the_bare_query(self) -> None:
         chain = _chain_answering(True)
 
-        await _classifier_with(chain).is_in_scope("design a quiz")
+        await _classifier_with(chain).in_scope("design a quiz")
 
         assert _sent_messages(chain)[-1].content == "design a quiz"
 
@@ -84,7 +84,7 @@ class TestTurnRendering:
             {"role": "user", "content": "nurses"},
         ]
 
-        await _classifier_with(chain).is_in_scope("yes", history)
+        await _classifier_with(chain).in_scope("yes", history)
 
         replayed = _sent_messages(chain)[1:3]
         assert isinstance(replayed[0], AIMessage)
@@ -102,7 +102,7 @@ class TestTurnRendering:
             {"role": "tool", "content": "{'result': 42}"},
         ]
 
-        await _classifier_with(chain).is_in_scope("the query", history)
+        await _classifier_with(chain).in_scope("the query", history)
 
         messages = _sent_messages(chain)
         assert len(messages) == 2
@@ -113,7 +113,7 @@ class TestTurnRendering:
         chain = _chain_answering(True)
         history: list[HistoryTurn] = [{"role": "user", "content": f"turn {i}"} for i in range(8)]
 
-        await _classifier_with(chain).is_in_scope("final query", history)
+        await _classifier_with(chain).in_scope("final query", history)
 
         messages = _sent_messages(chain)
         assert len(messages) == 8  # system + 6 replayed + current
@@ -125,7 +125,7 @@ class TestTurnRendering:
         chain = _chain_answering(True)
         history: list[HistoryTurn] = [{"role": "assistant", "content": "What topic?"}]
 
-        await _classifier_with(chain).is_in_scope("machine learning", history)
+        await _classifier_with(chain).in_scope("machine learning", history)
 
         contents = [m.content for m in _sent_messages(chain)]
         assert contents.count("machine learning") == 1
@@ -135,7 +135,7 @@ class TestTurnRendering:
         """ "Summarise these documents" is only judgeable if the model knows documents exist."""
         chain = _chain_answering(True)
 
-        await _classifier_with(chain).is_in_scope("summarise chapter 1", None, ["lecture.pdf", "notes.pdf"])
+        await _classifier_with(chain).in_scope("summarise chapter 1", None, ["lecture.pdf", "notes.pdf"])
 
         current_turn = _sent_messages(chain)[-1].content
         assert '"lecture.pdf", "notes.pdf"' in current_turn
@@ -145,21 +145,21 @@ class TestTurnRendering:
     async def test_without_attachments_the_turn_is_the_bare_query(self) -> None:
         chain = _chain_answering(True)
 
-        await _classifier_with(chain).is_in_scope("design a quiz")
+        await _classifier_with(chain).in_scope("design a quiz")
 
         assert _sent_messages(chain)[-1].content == "design a quiz"
 
 
 class TestTheAnswerCallersActOn:
-    """`is_in_scope` unwraps the verdict so no caller has to know the output schema."""
+    """`in_scope` unwraps the verdict so no caller has to know the output schema."""
 
     @pytest.mark.asyncio
     async def test_a_message_in_scope_is_admitted(self) -> None:
-        assert await _classifier_with(_chain_answering(True)).is_in_scope("design a quiz") is True
+        assert await _classifier_with(_chain_answering(True)).in_scope("design a quiz") is True
 
     @pytest.mark.asyncio
     async def test_a_message_out_of_scope_is_refused(self) -> None:
-        assert await _classifier_with(_chain_answering(False)).is_in_scope("What is the capital of France?") is False
+        assert await _classifier_with(_chain_answering(False)).in_scope("What is the capital of France?") is False
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("answer", [{"in_scope": "maybe"}, {}])
@@ -170,7 +170,7 @@ class TestTheAnswerCallersActOn:
 
         analytics = MagicMock()
 
-        assert await _classifier_with(chain, None, analytics).is_in_scope("q") is True
+        assert await _classifier_with(chain, None, analytics).in_scope("q") is True
         assert analytics.schedule_scope_classified.call_args.kwargs["verdict"] == ScopeVerdict.NOT_JUDGED
 
 
@@ -179,7 +179,7 @@ class TestThePromptListsTheCapabilities:
     async def test_every_capability_reaches_the_model_by_title_and_scope(self, stub_capability: ChatCapability) -> None:
         chain = _chain_answering(True)
 
-        await _classifier_with(chain, [COURSE_DESIGN, stub_capability]).is_in_scope("design a quiz")
+        await _classifier_with(chain, [COURSE_DESIGN, stub_capability]).in_scope("design a quiz")
 
         system = _sent_messages(chain)[0].content
         for capability in (COURSE_DESIGN, stub_capability):
@@ -200,7 +200,7 @@ class TestATurnWithNoWords:
     async def test_an_attachment_with_no_words_is_judged_on_its_attachments(self) -> None:
         chain = _chain_answering(True)
 
-        assert await _classifier_with(chain).is_in_scope("", None, ["syllabus.pdf"]) is True
+        assert await _classifier_with(chain).in_scope("", None, ["syllabus.pdf"]) is True
 
         assert '"syllabus.pdf"' in _sent_messages(chain)[-1].content
 
@@ -213,7 +213,7 @@ class TestFailingOpen:
         chain = MagicMock()
         chain.ainvoke = AsyncMock(side_effect=LangChainException("provider timeout"))
 
-        assert await _classifier_with(chain).is_in_scope("some query") is True
+        assert await _classifier_with(chain).in_scope("some query") is True
 
     @pytest.mark.asyncio
     async def test_the_fallback_is_logged(self, caplog: pytest.LogCaptureFixture) -> None:
@@ -221,7 +221,7 @@ class TestFailingOpen:
         chain.ainvoke = AsyncMock(side_effect=LangChainException("provider timeout"))
 
         with caplog.at_level(logging.WARNING, logger=_LOGGER):
-            await _classifier_with(chain).is_in_scope("some query")
+            await _classifier_with(chain).in_scope("some query")
 
         assert "Message scope classifier failed" in caplog.text
 
@@ -234,7 +234,7 @@ class TestFailingOpen:
         chain.ainvoke = AsyncMock(side_effect=LangChainException("provider timeout"))
 
         with caplog.at_level(logging.WARNING, logger=_LOGGER):
-            await _classifier_with(chain).is_in_scope("some query", None, None, conversation_uuid)
+            await _classifier_with(chain).in_scope("some query", None, None, conversation_uuid)
 
         assert f"user_id={_USER_ID}" in caplog.text
         assert str(conversation_uuid) in caplog.text
@@ -245,7 +245,7 @@ class TestFailingOpen:
         chain = MagicMock(ainvoke=AsyncMock(return_value={"in_scope": "Week 3 confidential syllabus"}))
 
         with caplog.at_level(logging.WARNING, logger=_LOGGER):
-            await _classifier_with(chain).is_in_scope("q")
+            await _classifier_with(chain).in_scope("q")
 
         assert "confidential syllabus" not in caplog.text
 
@@ -256,7 +256,7 @@ class TestRefusalLogging:
     @pytest.mark.asyncio
     async def test_the_deciding_model_is_named(self, caplog: pytest.LogCaptureFixture) -> None:
         with caplog.at_level(logging.WARNING, logger=_LOGGER):
-            await _classifier_with(_chain_answering(False)).is_in_scope("What is the capital of France?")
+            await _classifier_with(_chain_answering(False)).in_scope("What is the capital of France?")
 
         assert "claude-haiku-4-5" in caplog.text
 
@@ -266,7 +266,7 @@ class TestRefusalLogging:
         history: list[HistoryTurn] = [{"role": "user", "content": f"turn {i}"} for i in range(9)]
 
         with caplog.at_level(logging.WARNING, logger=_LOGGER):
-            await _classifier_with(_chain_answering(False)).is_in_scope("no", history)
+            await _classifier_with(_chain_answering(False)).in_scope("no", history)
 
         assert "history_turns=9" in caplog.text
 
@@ -275,7 +275,7 @@ class TestRefusalLogging:
         """The first message of a chat is refused before a conversation exists, so the user is the
         only thing that can tie that refusal to the person who reported it."""
         with caplog.at_level(logging.WARNING, logger=_LOGGER):
-            await _classifier_with(_chain_answering(False)).is_in_scope("What is the capital of France?")
+            await _classifier_with(_chain_answering(False)).in_scope("What is the capital of France?")
 
         assert f"user_id={_USER_ID}" in caplog.text
 
@@ -284,7 +284,7 @@ class TestRefusalLogging:
         conversation_uuid = uuid4()
 
         with caplog.at_level(logging.WARNING, logger=_LOGGER):
-            await _classifier_with(_chain_answering(False)).is_in_scope("no", None, None, conversation_uuid)
+            await _classifier_with(_chain_answering(False)).in_scope("no", None, None, conversation_uuid)
 
         assert str(conversation_uuid) in caplog.text
 
@@ -292,7 +292,7 @@ class TestRefusalLogging:
     async def test_the_message_text_is_never_logged(self, caplog: pytest.LogCaptureFixture) -> None:
         """A refused message can still hold course content; only its length may be recorded."""
         with caplog.at_level(logging.WARNING, logger=_LOGGER):
-            await _classifier_with(_chain_answering(False)).is_in_scope("Acme Corp onboarding secrets")
+            await _classifier_with(_chain_answering(False)).in_scope("Acme Corp onboarding secrets")
 
         assert "Acme Corp" not in caplog.text
         assert "query_len=28" in caplog.text
@@ -304,7 +304,7 @@ class TestRefusalLogging:
         chain = _chain_answering(False, "general knowledge question")
 
         with caplog.at_level(logging.WARNING, logger=_LOGGER):
-            await _classifier_with(chain).is_in_scope("What is the capital of France?")
+            await _classifier_with(chain).in_scope("What is the capital of France?")
 
         assert "general knowledge question" in caplog.text
 
@@ -312,7 +312,7 @@ class TestRefusalLogging:
     async def test_a_refusal_with_no_reason_still_logs(self, caplog: pytest.LogCaptureFixture) -> None:
         """The field is optional, so a model that omits it must not cost the refusal its log."""
         with caplog.at_level(logging.WARNING, logger=_LOGGER):
-            await _classifier_with(_chain_answering(False)).is_in_scope("no")
+            await _classifier_with(_chain_answering(False)).in_scope("no")
 
         assert "Scope classifier refused a message" in caplog.text
 
@@ -320,6 +320,6 @@ class TestRefusalLogging:
     async def test_an_in_scope_turn_logs_nothing(self, caplog: pytest.LogCaptureFixture) -> None:
         """A warning per passing message would drown the refusals it exists to surface."""
         with caplog.at_level(logging.WARNING, logger=_LOGGER):
-            await _classifier_with(_chain_answering(True)).is_in_scope("Create a course on data privacy")
+            await _classifier_with(_chain_answering(True)).in_scope("Create a course on data privacy")
 
         assert caplog.text == ""

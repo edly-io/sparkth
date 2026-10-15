@@ -54,7 +54,7 @@ def _provider() -> MagicMock:
 
 
 def _classifier_answering(in_scope: bool) -> MagicMock:
-    return MagicMock(is_in_scope=AsyncMock(return_value=in_scope))
+    return MagicMock(in_scope=AsyncMock(return_value=in_scope))
 
 
 def _tool(name: str) -> MagicMock:
