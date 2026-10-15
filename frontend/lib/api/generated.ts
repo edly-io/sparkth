@@ -934,6 +934,7 @@ export interface paths {
          *
          *     Raises:
          *         PxcActionRejected: if the body is not JSON the parser will read.
+         *         PxcSandboxFailure: if the sandbox failed (422).
          */
         post: operations["submit_action_api_v1_pxc_actions__action_name__post"];
         delete?: never;

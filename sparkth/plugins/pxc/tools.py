@@ -69,7 +69,7 @@ async def pxc_build_activity(
     new activity; to change an existing one, use `pxc_update_activity`.
 
     If the build fails, the error explains why (an invalid manifest, a rejected import, compiler
-    output, or the sandbox failing to start). Fix the files and call this again.
+    output, or getState or an action failing when the build ran it). Fix the files and call this again.
     """
     owner = current_user_id()
     source = ActivitySource(

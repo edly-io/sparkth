@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from pxc.lib.permission import Permission
+
 from sparkth.lib.i18n import gettext_noop
 
 # Bundled activity sources, one directory per activity type.
@@ -18,6 +20,10 @@ PXC_SANDBOX_HEADERS = {"Content-Security-Policy": "sandbox allow-scripts allow-f
 PXC_CLOSE_INVALID_TOKEN = 4401
 PXC_CLOSE_ACTIVITY_NOT_FOUND = 4404
 
+# The error a socket frame carries for an action the sandbox failed or the manifest refused.
+PXC_ACTION_FAILED = "action_failed"
+PXC_ACTION_REJECTED = "action_rejected"
+
 # Preflight response for the cross-origin action POST, cached by the browser for a day.
 PXC_PREFLIGHT_HEADERS = {
     **PXC_CORS_HEADERS,
@@ -34,8 +40,27 @@ PXC_PREVIEW_ACTIVITY_INSTANCE = "preview"
 # Prefixed onto a Sparkth user id in a preview token, so it never equals an LMS learner id.
 PXC_PREVIEW_USER_PREFIX = "sparkth-"
 
-# The course, activity instance and learner id the build's smoke test reads state as.
-PXC_SMOKE_CONTEXT_ID = "smoke"
+# The course, activity instance and learner a throwaway run of an activity acts as.
+PXC_SCRATCH_CONTEXT_ID = "smoke"
+
+# The permissions a throwaway run reads getState under, and runs each learner action as.
+PXC_SCRATCH_PERMISSIONS = (Permission.play, Permission.edit)
+
+# The start of the stdout line a throwaway run writes to name the step it is about to run. A build
+# timeout quotes only such a line, never other output.
+PXC_STEP_PREFIX = "pxc-step: "
+
+# The action the contract names for saving an activity's configuration.
+PXC_CONFIG_SAVE_ACTION = "config.save"
+
+# The simplest value of each scalar schema type, which the smoke test sends an action.
+PXC_SAMPLE_VALUES: dict[str, int | str | bool] = {"integer": 0, "number": 0, "string": "", "boolean": False}
+
+# The most characters of an action's value a smoke failure line shows, so a large value cannot crowd out its error.
+PXC_SMOKE_VALUE_LIMIT = 200
+
+# Ends a smoke failure report cut at the build error limit, so the agent knows there are more failures.
+PXC_SMOKE_CUT_NOTICE = "\n... more failures were cut. Fix these and build again to see the rest."
 
 # The WIT world every sandbox compiles against. It imports only pxc:sandbox/state, so a sandbox
 # can call nothing else on the host.
@@ -43,6 +68,16 @@ PXC_SANDBOX_WIT = Path(__file__).parent / "builder" / "toolchain" / "pxc.wit"
 
 # The exit status of the toolchain's compile.mjs when its packages are not installed.
 PXC_COMPILE_TOOLCHAIN_MISSING = 2
+
+# The error text of a sandbox failure that left no message of its own.
+PXC_SANDBOX_SILENT_FAILURE = "The sandbox stopped without an error message."
+
+# The runtime's own line in a sandbox's stderr when a call aborts; it says nothing about the cause.
+PXC_SANDBOX_ABORT_NOTICE = "Redirecting call to abort()"
+
+# The most of what sandbox.js printed that an error text keeps, in characters: the end, where a
+# throw's message is. Not a setting: the build's child process never sees the deployment's settings.
+PXC_SANDBOX_OUTPUT_LIMIT = 2000
 
 # The pxc plugin's prompt and contract texts.
 PXC_ASSET_DIR = Path(__file__).parent / "assets"
