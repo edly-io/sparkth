@@ -2,7 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
 import { renderWithIntl } from "@/tests/intl-test-utils";
 
-vi.mock("@/lib/auth-context", () => ({ useAuth: () => ({ token: "test-token" }) }));
+vi.mock("@/lib/auth-context", () => ({
+  useAuth: () => ({ token: "test-token" }),
+}));
 
 const nav = vi.hoisted(() => ({ search: "" }));
 vi.mock("next/navigation", () => ({
@@ -11,20 +13,31 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/dashboard/analytics",
 }));
 
-const plugins = vi.hoisted(() => ({ enabled: new Set(["chat"]) }));
+const plugins = vi.hoisted(() => ({
+  enabled: new Set(["chat"]),
+  loading: false,
+}));
 vi.mock("@/lib/plugins/context", () => ({
-  usePluginContext: () => ({ isPluginEnabled: (name: string) => plugins.enabled.has(name) }),
+  usePluginContext: () => ({
+    isPluginEnabled: (name: string) => plugins.enabled.has(name),
+    loading: plugins.loading,
+  }),
 }));
 
 vi.mock("@/lib/analytics", async (orig) => ({
   ...(await orig<typeof import("@/lib/analytics")>()),
   fetchSummary: vi.fn(),
+  fetchLogins: vi.fn(),
+  fetchChatActivity: vi.fn(),
 }));
 
-import { fetchSummary, type SummaryCount } from "@/lib/analytics";
+import { fetchChatActivity, fetchLogins, fetchSummary, type SummaryCount } from "@/lib/analytics";
 import OverviewPage from "@/app/dashboard/analytics/page";
 
 const summary = vi.mocked(fetchSummary);
+const logins = vi.mocked(fetchLogins);
+const activity = vi.mocked(fetchChatActivity);
+const today = new Date().toISOString().slice(0, 10);
 
 const fig = (over: Partial<SummaryCount>): SummaryCount => ({
   key: "logins",
@@ -40,13 +53,22 @@ beforeEach(() => {
   vi.clearAllMocks();
   nav.search = "";
   plugins.enabled = new Set(["chat"]);
+  plugins.loading = false;
+  logins.mockResolvedValue([]);
+  activity.mockResolvedValue([]);
 });
 
 describe("OverviewPage", () => {
   it("renders one card per figure, in the order the server sent", async () => {
     summary.mockResolvedValue([
       fig({ current: 12, previous: 10 }),
-      fig({ key: "active_users", label: "Active users", view: null, current: 3, previous: 3 }),
+      fig({
+        key: "active_users",
+        label: "Active users",
+        view: null,
+        current: 3,
+        previous: 3,
+      }),
     ]);
     renderWithIntl(<OverviewPage />);
     const titles = await screen.findAllByText(/^(Logins|Active users)$/);
@@ -88,7 +110,13 @@ describe("OverviewPage", () => {
   it("says new when the previous period was zero, and nothing when both were", async () => {
     summary.mockResolvedValue([
       fig({ current: 4, previous: 0 }),
-      fig({ key: "signups", label: "Signups", view: null, current: 0, previous: 0 }),
+      fig({
+        key: "signups",
+        label: "Signups",
+        view: null,
+        current: 0,
+        previous: 0,
+      }),
     ]);
     renderWithIntl(<OverviewPage />);
     expect(await screen.findByText("New this period")).toBeInTheDocument();
@@ -111,5 +139,47 @@ describe("OverviewPage", () => {
     summary.mockRejectedValue(new Error());
     renderWithIntl(<OverviewPage />);
     expect(await screen.findByText("Try again")).toBeInTheDocument();
+  });
+
+  describe("activity trend", () => {
+    const busyFigures = () => summary.mockResolvedValue([fig({ current: 1 })]);
+    const loginRow = { bucket: today, method: "password", login_count: 2 };
+    const msgRow = {
+      bucket: today,
+      event_type: "chat.message_sent",
+      event_count: 3,
+    } as never;
+
+    it("adds messages sent to logins when chat is enabled", async () => {
+      busyFigures();
+      logins.mockResolvedValue([loginRow]);
+      activity.mockResolvedValue([msgRow]);
+      renderWithIntl(<OverviewPage />);
+      expect(await screen.findByRole("heading", { name: "Activity" })).toBeInTheDocument();
+      expect(screen.getByRole("cell", { name: "5" })).toBeInTheDocument();
+    });
+
+    it("counts logins only, and never reads chat, when chat is disabled", async () => {
+      plugins.enabled = new Set();
+      busyFigures();
+      logins.mockResolvedValue([loginRow]);
+      renderWithIntl(<OverviewPage />);
+      await screen.findByRole("heading", { name: "Activity" });
+      expect(screen.getByRole("cell", { name: "2" })).toBeInTheDocument();
+      expect(activity).not.toHaveBeenCalled();
+    });
+
+    it("shows the error state when the logins read fails", async () => {
+      busyFigures();
+      logins.mockRejectedValue(new Error());
+      renderWithIntl(<OverviewPage />);
+      expect(await screen.findByText("Try again")).toBeInTheDocument();
+    });
+
+    it("makes no request while the plugin context is loading", () => {
+      plugins.loading = true;
+      renderWithIntl(<OverviewPage />);
+      expect(summary).not.toHaveBeenCalled();
+    });
   });
 });
