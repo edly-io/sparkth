@@ -209,9 +209,8 @@ saved before it failed, since each write is stored on its own:
 
 Only an author's preview records a failure. It is stored in `pxc_action_failures`, with its kind
 (`failed` or `rejected`), the action, the permission, the value and the error, and the newest
-`PXC_ACTION_FAILURE_LIMIT` failures per activity are kept. `pxc_get_activity_failures` reads those
-of the live version. A learner's failure in a course is never stored. Every failure and refusal is logged,
-over the socket and on the POST alike.
+`PXC_ACTION_FAILURE_LIMIT` failures per activity are kept. A learner's failure in a course is never
+stored. Every failure and refusal is logged, over the socket and on the POST alike.
 
 ## Scores and grading
 
@@ -315,8 +314,7 @@ bounded number of retries.
 ## Known limits
 
 - Learner actions have no execution limit. That is pxc-lib's to fix.
-- `pxc_run_activity` runs the activity's live version only, and `pxc_get_activity_failures` reads
-  only the live version's failures.
+- `pxc_run_activity` runs the activity's live version only.
 - `pxc_run_activity` starts from the field defaults, never from the author's saved preview state,
   so a failure that depends on saved content reproduces only once earlier steps save it.
 - The smoke test's sample values do not reach every code path, so a build that passes can still
