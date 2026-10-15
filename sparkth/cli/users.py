@@ -4,6 +4,7 @@ import typer
 from sqlmodel import select
 
 from sparkth.cli.audit_context import cli_audit_context
+from sparkth.cli.user_lookup import resolve_user
 from sparkth.core.models.base import utc_now
 from sparkth.core.models.user import User
 from sparkth.core.security import get_password_hash
@@ -132,13 +133,7 @@ async def _reset_password(identifier: str, new_password: str) -> None:
 
 async def _reset_password_in_session(identifier: str, new_password: str) -> None:
     async with session_scope() as session:
-        user = (
-            await session.exec(select(User).where((User.username == identifier) | (User.email == identifier)))
-        ).first()
-
-        if not user:
-            typer.secho(f"User '{identifier}' not found!", fg=typer.colors.RED)
-            raise typer.Exit(code=1)
+        user = await resolve_user(identifier, session)
 
         if user.is_deleted:
             typer.secho(

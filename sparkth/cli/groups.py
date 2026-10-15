@@ -3,13 +3,13 @@ CLI-managed, mirroring how user-role assignment is CLI-only.
 Authored with LLM (Claude) assistance."""
 
 import asyncio
+from typing import cast
 
 import typer
-from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.cli.audit_context import cli_audit_context
-from sparkth.core.models.user import User
+from sparkth.cli.user_lookup import resolve_user
 from sparkth.lib.db import session_scope
 from sparkth.lib.permissions import (
     add_group_member,
@@ -28,15 +28,6 @@ from sparkth.lib.permissions.exceptions import (
 from sparkth.lib.plugins import get_plugin_loader
 
 app = typer.Typer(help="User-group management commands")
-
-
-async def _resolve_user(identifier: str, session: AsyncSession) -> tuple[int, str]:
-    """Return (id, username) of the user with the given username or email, or exit non-zero."""
-    user = (await session.exec(select(User).where((User.username == identifier) | (User.email == identifier)))).first()
-    if user is None or user.id is None:
-        typer.secho(f"User '{identifier}' not found!", fg=typer.colors.RED)
-        raise typer.Exit(code=1)
-    return user.id, user.username
 
 
 async def _resolve_group_id(group_name: str, session: AsyncSession) -> int:
@@ -69,11 +60,11 @@ async def _add_member(identifier: str, group_name: str) -> None:
     """
     with cli_audit_context():
         async with session_scope() as session:
-            user_id, username = await _resolve_user(identifier, session)
+            user = await resolve_user(identifier, session)
             group_id = await _resolve_group_id(group_name, session)
-            await add_group_member(user_id, group_id, session)
+            await add_group_member(cast(int, user.id), group_id, session)
             await session.commit()
-            typer.secho(f"Added {username} to group '{group_name}'.", fg=typer.colors.GREEN)
+            typer.secho(f"Added {user.username} to group '{group_name}'.", fg=typer.colors.GREEN)
 
 
 @app.command("remove-member")
@@ -94,11 +85,11 @@ async def _remove_member(identifier: str, group_name: str) -> None:
     """
     with cli_audit_context():
         async with session_scope() as session:
-            user_id, username = await _resolve_user(identifier, session)
+            user = await resolve_user(identifier, session)
             group_id = await _resolve_group_id(group_name, session)
-            await remove_group_member(user_id, group_id, session)
+            await remove_group_member(cast(int, user.id), group_id, session)
             await session.commit()
-            typer.secho(f"Removed {username} from group '{group_name}'.", fg=typer.colors.GREEN)
+            typer.secho(f"Removed {user.username} from group '{group_name}'.", fg=typer.colors.GREEN)
 
 
 @app.command("assign-role-to-group")
