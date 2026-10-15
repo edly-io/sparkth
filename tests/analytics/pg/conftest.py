@@ -2,7 +2,7 @@
 
 Most of the suite runs on in-memory SQLite. A small set of tests genuinely needs a
 real PostgreSQL/TimescaleDB — the ones exercising continuous aggregates, whose SQL
-(``_PG_LOGINS_SQL`` in :mod:`sparkth.core.analytics.reads`) and DDL (the analytics migrations)
+(built by ``read_rollup`` in :mod:`sparkth.core.analytics.reads`) and DDL (the analytics migrations)
 SQLite cannot represent. Those tests carry the ``pg`` marker (applied module-wide via
 ``pytestmark = pytest.mark.pg``, not a per-function decorator) and live under this
 directory; they run only when ``ANALYTICS_TEST_PG_URL`` points at a real instance and are

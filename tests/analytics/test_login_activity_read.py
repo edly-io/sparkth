@@ -1,22 +1,21 @@
 """Tests for the logins read: ``get_logins`` and ``GET /api/v1/analytics/logins``."""
 
 from datetime import date, datetime, timezone
+from typing import Any, cast
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession as SQLAlchemyAsyncSession
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.user import User
 from sparkth.lib.analytics import (
-    SQLITE_BUCKET,
     Bucket,
     LoginsPoint,
     RangeQuery,
     get_logins,
     ingest_event,
-    read_bucketed,
+    read_rollup,
 )
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.testing import grant_global_permission
@@ -218,21 +217,85 @@ async def test_login_activity_endpoint_is_gone(
     assert response.status_code == 404
 
 
-async def test_read_bucketed_binds_the_range_and_returns_rows(analytics_session: SQLAlchemyAsyncSession) -> None:
-    await _seed_login(analytics_session, "a", _at("2026-03-02"))
-    await _seed_login(analytics_session, "b", _at("2026-03-02"))
-    await _seed_login(analytics_session, "c", _at("2026-04-02"))
-    sqlite_sql = {
-        b: text(
-            f"SELECT {SQLITE_BUCKET[b]} AS bucket, count(*) AS n FROM raw_events "
-            "WHERE date(occurred_at) BETWEEN :from_ AND :to GROUP BY 1"
-        )
-        for b in Bucket
+async def _seed_assessment(session: SQLAlchemyAsyncSession, occurred_at: datetime) -> None:
+    await ingest_event(
+        session,
+        "assessment.submitted",
+        1,
+        {"learner_id": "x", "competency_id": "y", "score": 1.0, "passed": True},
+        actor_id="x",
+        occurred_at=occurred_at,
+    )
+
+
+async def _rollup(session: SQLAlchemyAsyncSession, **kwargs: Any) -> list[dict[str, Any]]:
+    args: dict[str, Any] = {
+        "aggregate": "agg",
+        "event_types": ("user.logged_in", "assessment.submitted"),
+        "dims": {},
+        "count_column": "n",
+        "from_": date(2026, 3, 1),
+        "to": date(2026, 3, 31),
+        "bucket": Bucket.day,
     }
+    rows = await read_rollup(session, **(args | kwargs))
+    return [dict(r) for r in rows]
 
-    rows = await read_bucketed(analytics_session, {}, sqlite_sql, date(2026, 3, 1), date(2026, 3, 31), Bucket.day)
 
-    assert [dict(r) for r in rows] == [{"bucket": "2026-03-02", "n": 2}]
+async def test_read_rollup_groups_by_a_payload_key_with_nulls_first(analytics_session: SQLAlchemyAsyncSession) -> None:
+    await _seed_login(analytics_session, "a", _at("2026-03-02"), method="password")
+    await _seed_login(analytics_session, "b", _at("2026-03-02"), method="google")
+    await _seed_login(analytics_session, "c", _at("2026-03-02"), method="google")
+    await _seed_assessment(analytics_session, _at("2026-03-02"))
+
+    rows = await _rollup(analytics_session, dims={"method": "method"})
+
+    assert rows == [
+        {"bucket": "2026-03-02", "method": None, "n": 1},
+        {"bucket": "2026-03-02", "method": "google", "n": 2},
+        {"bucket": "2026-03-02", "method": "password", "n": 1},
+    ]
+
+
+async def test_read_rollup_per_event_dim_is_null_for_other_types(analytics_session: SQLAlchemyAsyncSession) -> None:
+    await _seed_login(analytics_session, "a", _at("2026-03-02"), method="google")
+    await _seed_assessment(analytics_session, _at("2026-03-02"))
+
+    rows = await _rollup(analytics_session, by_event_type=True, dims={"detail": {"user.logged_in": "method"}})
+
+    assert rows == [
+        {"bucket": "2026-03-02", "event_type": "assessment.submitted", "detail": None, "n": 1},
+        {"bucket": "2026-03-02", "event_type": "user.logged_in", "detail": "google", "n": 1},
+    ]
+
+
+async def test_read_rollup_filters_event_types_and_binds_the_range(analytics_session: SQLAlchemyAsyncSession) -> None:
+    await _seed_login(analytics_session, "before", _at("2026-02-28", 23))
+    await _seed_login(analytics_session, "first", _at("2026-03-01", 0))
+    await _seed_login(analytics_session, "last", _at("2026-03-31", 23))
+    await _seed_login(analytics_session, "after", _at("2026-04-01", 0))
+    await _seed_assessment(analytics_session, _at("2026-03-01"))
+
+    rows = await _rollup(analytics_session, event_types=("user.logged_in",), bucket=Bucket.month)
+
+    assert rows == [{"bucket": "2026-03-01", "n": 2}]
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"aggregate": "agg; DROP TABLE raw_events"},
+        {"count_column": "n)"},
+        {"dims": {"bad key": "method"}},
+        {"dims": {"method": "$.method"}},
+        {"dims": {"method": {"user.logged_in'": "method"}}},
+    ],
+    ids=["aggregate", "count-column", "dims-key", "payload-key", "per-event-type"],
+)
+async def test_read_rollup_rejects_unsafe_identifiers_before_any_query(kwargs: dict[str, Any]) -> None:
+    # No session: validation must not depend on the dialect.
+    with pytest.raises(ValueError):
+        await _rollup(cast(SQLAlchemyAsyncSession, None), **kwargs)
 
 
 def test_range_query_rejects_inverted_and_overlong_ranges() -> None:
