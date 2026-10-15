@@ -8,7 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from uuid6 import uuid7
 
 from sparkth.lib.models import utc_now
-from sparkth.plugins.pxc.enums import PxcFailureKind
+from sparkth.plugins.pxc.enums import PreviewPermission, PxcFailureKind
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound
 from sparkth.plugins.pxc.models import PxcActionFailure, PxcActivity
 from sparkth.plugins.pxc.store import (
@@ -88,7 +88,7 @@ def _failure(activity_id: UUID, revision: str | None, action: str) -> PxcActionF
         revision=revision,
         kind=PxcFailureKind.FAILED,
         action=action,
-        permission="play",
+        permission=PreviewPermission.PLAY,
         value="[0]",
         error="boom",
     )
