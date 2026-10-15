@@ -231,6 +231,22 @@ msgstr ""
 msgid "Failed to search the attached document. Please try again."
 msgstr "La recherche dans le document joint a échoué. Veuillez réessayer."
 
+#: sparkth/plugins/chat/analytics/reads.py
+msgid "Conversations started"
+msgstr "Conversations démarrées"
+
+#: sparkth/plugins/chat/analytics/reads.py
+msgid "Messages sent"
+msgstr "Messages envoyés"
+
+#: sparkth/plugins/chat/analytics/reads.py
+msgid "Tool calls"
+msgstr "Appels d'outils"
+
+#: sparkth/plugins/chat/analytics/reads.py
+msgid "Messages failed"
+msgstr "Messages en échec"
+
 #~ msgid "Conversation {conversation_uuid} not found"
 #~ msgstr "Conversation {conversation_uuid} introuvable"
 
