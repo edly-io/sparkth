@@ -10,11 +10,8 @@
       "empty": "No hay inicios de sesión en este periodo.",
       "totalLogins": "Inicios de sesión totales",
       "busiestBucket": "{bucket, select, day {Día} week {Semana} other {Mes}} con más actividad",
-      "weekOf": "Semana del {date}",
       "chartCaption": "Inicios de sesión, {range}",
-      "vsPrevious": "{change} respecto al período anterior",
       "noPrevious": "Sin inicios de sesión en el período anterior",
-      "comparisonLegend": "Línea discontinua: período anterior",
       "byMethod": "Método de inicio de sesión",
       "methodChartCaption": "Inicios de sesión por método, {range}",
       "methodValue": "{count} ({share})",
@@ -23,15 +20,47 @@
         "google": "Google"
       }
     },
+    "authoring": {
+      "title": "Creación de cursos",
+      "subtitle": "Actividad de creación de cursos de los instructores, {range} (UTC).",
+      "empty": "No hay actividad de creación de cursos en este periodo.",
+      "conversations": "Conversaciones iniciadas",
+      "messages": "Mensajes enviados",
+      "failedTurns": "Turnos fallidos",
+      "failedHint": "{rate} de los mensajes · {change}",
+      "documentsAttached": "Documentos adjuntados",
+      "detachedHint": "{count} retirados · {change}",
+      "messagesCaption": "Mensajes enviados, {range}",
+      "conversationsCaption": "Conversaciones iniciadas, {range}",
+      "failedTurnsCaption": "Turnos fallidos, {range}",
+      "failureRateCaption": "Tasa de fallos, {range}",
+      "tools": "Herramientas usadas",
+      "toolsCaption": "Llamadas por herramienta, {range}",
+      "toolValue": "{total} ({failed} fallidas)",
+      "lowerBound": "Los recuentos son mínimos: a veces la actividad no se registra.",
+      "noPrevious": "Sin actividad en el periodo anterior"
+    },
+    "compare": {
+      "weekOf": "Semana del {date}",
+      "vsPrevious": "{change} respecto al período anterior",
+      "comparisonLegend": "Línea discontinua: período anterior"
+    },
     "table": {
       "date": "Fecha",
       "logins": "Inicios de sesión",
       "method": "Método",
-      "previousPeriod": "Período anterior"
+      "previousPeriod": "Período anterior",
+      "tool": "Herramienta",
+      "calls": "Llamadas",
+      "messages": "Mensajes",
+      "conversations": "Conversaciones",
+      "failedTurns": "Turnos fallidos",
+      "failureRate": "Tasa de fallos"
     },
     "nav": {
       "label": "Vistas de analíticas",
-      "logins": "Inicios de sesión"
+      "logins": "Inicios de sesión",
+      "authoring": "Creación de cursos"
     },
     "period": {
       "range": "Periodo",

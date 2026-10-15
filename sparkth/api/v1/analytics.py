@@ -7,37 +7,16 @@ is emitted server-side via ``ingest_event`` — validated against the schema on 
 the analytics HTTP surface.)
 """
 
-from datetime import date
-from typing import Annotated, Self
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel, Field, model_validator
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.lib.analytics import Bucket, LoginsPoint, get_logins
+from sparkth.lib.analytics import LoginsPoint, RangeQuery, get_logins
 from sparkth.lib.db import get_analytics_session
 from sparkth.lib.permissions import ANALYTICS_READ
 
 router = APIRouter()
-
-# Inclusive day count; a leap year fits.
-MAX_RANGE_DAYS = 366
-
-
-class LoginsQuery(BaseModel):
-    """Query for ``GET /logins``: an inclusive UTC day range and a bucket width."""
-
-    from_: date = Field(alias="from")
-    to: date
-    bucket: Bucket = Bucket.day
-
-    @model_validator(mode="after")
-    def _check_range(self) -> Self:
-        if self.from_ > self.to:
-            raise ValueError("'from' must not be after 'to'")
-        if (self.to - self.from_).days + 1 > MAX_RANGE_DAYS:
-            raise ValueError(f"range must not exceed {MAX_RANGE_DAYS} days")
-        return self
 
 
 @router.get(
@@ -46,7 +25,7 @@ class LoginsQuery(BaseModel):
     dependencies=[Depends(ANALYTICS_READ.require_in_global_scope())],
 )
 async def logins(
-    query: Annotated[LoginsQuery, Query()],
+    query: Annotated[RangeQuery, Query()],
     session: AsyncSession = Depends(get_analytics_session),
 ) -> list[LoginsPoint]:
     """Return login counts per bucket and sign-in method, oldest first.

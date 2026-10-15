@@ -4,12 +4,21 @@ from datetime import date, datetime, timezone
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.user import User
-from sparkth.core.permissions.models import Role, RoleAssignment, RolePermission
-from sparkth.lib.analytics import Bucket, LoginsPoint, get_logins, ingest_event
+from sparkth.lib.analytics import (
+    SQLITE_BUCKET,
+    Bucket,
+    LoginsPoint,
+    RangeQuery,
+    get_logins,
+    ingest_event,
+    read_bucketed,
+)
 from sparkth.lib.auth import get_current_user
+from sparkth.lib.testing import grant_global_permission
 
 URL = "/api/v1/analytics/login-activity"
 LOGINS_URL = "/api/v1/analytics/logins"
@@ -24,16 +33,6 @@ async def _seed_login(session: AsyncSession, username: str, occurred_at: datetim
         actor_id=username,
         occurred_at=occurred_at,
     )
-
-
-async def _grant_analytics_read(session: AsyncSession, user_id: int) -> None:
-    role = Role(name="analytics-reader")
-    session.add(role)
-    await session.flush()
-    assert role.id is not None
-    session.add(RolePermission(role_id=role.id, permission="analytics.read"))
-    session.add(RoleAssignment(user_id=user_id, role_id=role.id, scope="global", scope_object_id=None))
-    await session.flush()
 
 
 def _login_as(client: AsyncClient, user: User) -> None:
@@ -126,7 +125,7 @@ async def _permitted_reader(client: AsyncClient, session: AsyncSession) -> None:
     user = User(id=1, name="Reader", username="reader", email="r@example.com", hashed_password="x")
     session.add(user)
     await session.flush()
-    await _grant_analytics_read(session, 1)
+    await grant_global_permission(session, 1, "analytics.read")
     await session.commit()
     _login_as(client, user)
 
@@ -208,9 +207,37 @@ async def test_login_activity_endpoint_is_gone(
     user = User(id=3, name="Reader", username="reader3", email="r3@example.com", hashed_password="x")
     session.add(user)
     await session.flush()
-    await _grant_analytics_read(session, 3)
+    await grant_global_permission(session, 3, "analytics.read")
     await session.commit()
     _login_as(client, user)
 
     response = await client.get(URL, params={"days": 30})
     assert response.status_code == 404
+
+
+async def test_read_bucketed_binds_the_range_and_returns_rows(analytics_session: AsyncSession) -> None:
+    await _seed_login(analytics_session, "a", _at("2026-03-02"))
+    await _seed_login(analytics_session, "b", _at("2026-03-02"))
+    await _seed_login(analytics_session, "c", _at("2026-04-02"))
+    sqlite_sql = {
+        b: text(
+            f"SELECT {SQLITE_BUCKET[b]} AS bucket, count(*) AS n FROM raw_events "
+            "WHERE date(occurred_at) BETWEEN :from_ AND :to GROUP BY 1"
+        )
+        for b in Bucket
+    }
+
+    rows = await read_bucketed(analytics_session, {}, sqlite_sql, date(2026, 3, 1), date(2026, 3, 31), Bucket.day)
+
+    assert [dict(r) for r in rows] == [{"bucket": "2026-03-02", "n": 2}]
+
+
+def test_range_query_rejects_inverted_and_overlong_ranges() -> None:
+    def parse(start: str, end: str) -> RangeQuery:
+        return RangeQuery.model_validate({"from": start, "to": end})
+
+    with pytest.raises(ValueError):
+        parse("2026-03-02", "2026-03-01")
+    with pytest.raises(ValueError):
+        parse("2026-01-01", "2027-01-02")  # 367 days
+    assert parse("2026-01-01", "2027-01-01").bucket == Bucket.day  # 366 days

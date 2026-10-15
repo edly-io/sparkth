@@ -12,7 +12,27 @@ export async function stubLogins(
   previous: unknown = [],
   status = 200,
 ): Promise<void> {
-  await page.route("**/api/v1/analytics/logins**", (route) => {
+  await stubPeriods(page, "**/api/v1/analytics/logins**", current, previous, status);
+}
+
+/** Stubs the chat authoring-activity read API, with the same period rule as `stubLogins`. */
+export async function stubChatActivity(
+  page: Page,
+  current: unknown,
+  previous: unknown = [],
+  status = 200,
+): Promise<void> {
+  await stubPeriods(page, "**/api/v1/chat/analytics/activity**", current, previous, status);
+}
+
+async function stubPeriods(
+  page: Page,
+  url: string,
+  current: unknown,
+  previous: unknown,
+  status: number,
+): Promise<void> {
+  await page.route(url, (route) => {
     const to = new URL(route.request().url()).searchParams.get("to") ?? "";
     const body = to < todayUtc() ? previous : current;
     return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });

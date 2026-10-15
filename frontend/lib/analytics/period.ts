@@ -63,3 +63,9 @@ export function periodQuery(period: Period): string {
   params.set("bucket", period.bucket);
   return params.toString();
 }
+
+/** The equally long period that ends the day before `from`. */
+export function previousPeriod(from: IsoDate, to: IsoDate): { from: IsoDate; to: IsoDate } {
+  const n = daysInclusive(from, to);
+  return { from: addDays(from, -n), to: addDays(from, -1) };
+}

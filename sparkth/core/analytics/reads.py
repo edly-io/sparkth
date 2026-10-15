@@ -3,6 +3,9 @@
 The read path never touches the application database — only analytics tables and
 rollups. Exposed to the API layer via ``sparkth.lib.analytics``.
 
+Plugins build their own per-bucket SQL from ``PG_BUCKET`` / ``SQLITE_BUCKET`` and
+run it with ``read_bucketed``; the PG/SQLite identity rule below applies to them too.
+
 ``get_logins`` is dialect-aware because the login rollup only exists as a TimescaleDB
 continuous aggregate (``login_activity_daily_by_method``) on PostgreSQL. On SQLite (the test /
 e2e database) the aggregate is not created, so the same buckets are computed directly from
@@ -19,9 +22,10 @@ side is ever parameterized with a bucketing timezone, the SQLite side must move 
 lockstep or the two will silently diverge.
 """
 
+from collections.abc import Mapping, Sequence
 from datetime import date
 
-from sqlalchemy import text
+from sqlalchemy import RowMapping, TextClause, text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.analytics.enums import Bucket
@@ -34,15 +38,16 @@ from sparkth.core.analytics.schemas.reads import LoginsPoint
 # Writing them as side-by-side SQL strings makes the "must stay semantically identical"
 # invariant easy to eyeball.
 
-# Bucket start expressions, keyed by the enum so no request input ever reaches the SQL.
+# Per-bucket SQL that reduces a timestamp to its bucket's first day (the day, its Monday, or the
+# 1st), keyed by the enum so no request input ever reaches the SQL.
 # PG: date_trunc('week') starts on Monday. SQLite: 'weekday 0' moves to the next Sunday
 # (or stays on one), and '-6 days' steps back to that week's Monday.
-_PG_BUCKET = {
+PG_BUCKET = {
     Bucket.day: "day AT TIME ZONE 'UTC'",
     Bucket.week: "date_trunc('week', day AT TIME ZONE 'UTC')",
     Bucket.month: "date_trunc('month', day AT TIME ZONE 'UTC')",
 }
-_SQLITE_BUCKET = {
+SQLITE_BUCKET = {
     Bucket.day: "date(occurred_at)",
     Bucket.week: "date(occurred_at, 'weekday 0', '-6 days')",
     Bucket.month: "strftime('%Y-%m-01', occurred_at)",
@@ -57,7 +62,7 @@ _PG_LOGINS_SQL = {
         "GROUP BY 1, method "
         "ORDER BY bucket, method"
     )
-    for bucket, expr in _PG_BUCKET.items()
+    for bucket, expr in PG_BUCKET.items()
 }
 _SQLITE_LOGINS_SQL = {
     bucket: text(
@@ -68,8 +73,26 @@ _SQLITE_LOGINS_SQL = {
         "GROUP BY 1, 2 "
         "ORDER BY bucket, method"
     )
-    for bucket, expr in _SQLITE_BUCKET.items()
+    for bucket, expr in SQLITE_BUCKET.items()
 }
+
+
+async def read_bucketed(
+    session: AsyncSession,
+    pg_sql: Mapping[Bucket, TextClause],
+    sqlite_sql: Mapping[Bucket, TextClause],
+    from_: date,
+    to: date,
+    bucket: Bucket,
+) -> Sequence[RowMapping]:
+    """Run the ``bucket`` query for the session's dialect, binding ``:from_`` and ``:to``."""
+    params: dict[str, date | str]
+    if session.bind.dialect.name == "postgresql":
+        sql, params = pg_sql[bucket], {"from_": from_, "to": to}
+    else:
+        # SQLite compares the ISO strings date() produces.
+        sql, params = sqlite_sql[bucket], {"from_": from_.isoformat(), "to": to.isoformat()}
+    return (await session.execute(sql, params)).mappings().all()
 
 
 async def get_logins(session: AsyncSession, from_: date, to: date, bucket: Bucket) -> list[LoginsPoint]:
@@ -78,11 +101,5 @@ async def get_logins(session: AsyncSession, from_: date, to: date, bucket: Bucke
     Oldest bucket first, methods alphabetical within a bucket. Sparse: buckets or
     methods with no logins are omitted, so callers zero-fill.
     """
-    params: dict[str, date | str]
-    if session.bind.dialect.name == "postgresql":
-        sql, params = _PG_LOGINS_SQL[bucket], {"from_": from_, "to": to}
-    else:
-        # SQLite compares the ISO strings date() produces.
-        sql, params = _SQLITE_LOGINS_SQL[bucket], {"from_": from_.isoformat(), "to": to.isoformat()}
-    rows = (await session.execute(sql, params)).mappings().all()
+    rows = await read_bucketed(session, _PG_LOGINS_SQL, _SQLITE_LOGINS_SQL, from_, to, bucket)
     return [LoginsPoint(bucket=row["bucket"], method=row["method"], login_count=row["login_count"]) for row in rows]

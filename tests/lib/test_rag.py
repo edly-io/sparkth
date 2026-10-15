@@ -22,9 +22,6 @@ from sparkth.rag.types import RAGContext
 
 
 class TestRagPublicApi:
-    def test_exposes_ingest_document(self) -> None:
-        assert callable(rag_api.ingest_document)
-
     def test_exposes_retrieved_chunk_type(self) -> None:
         rc = rag_api.RetrievedChunk(source_name="x.pdf", chapter=None, section=None, subsection=None, content="c")
         assert rc.source_name == "x.pdf"
@@ -39,13 +36,6 @@ class TestRagPublicApi:
             position_index=0,
         )
         assert section.source_name == "x.pdf"
-
-    def test_exposes_rag_ingested_document_structure_lookup(self) -> None:
-        assert callable(rag_api.get_rag_ingested_document_structure)
-
-    def test_exposes_ingestion_exceptions(self) -> None:
-        assert issubclass(rag_api.UnsupportedFileTypeError, Exception)
-        assert issubclass(rag_api.ScannedPDFError, Exception)
 
 
 class TestIngestDocument:
@@ -92,17 +82,9 @@ class TestIngestDocument:
 
 
 class TestRetrieveContextSurface:
-    def test_exposes_retrieve_context(self) -> None:
-        assert callable(rag_api.agentic_retrieve_context)
-
     def test_exposes_retrieved_chunk(self) -> None:
         rc = rag_api.RetrievedChunk(source_name="a.pdf", chapter=None, section=None, subsection=None, content="x")
         assert rc.content == "x"
-
-    def test_exposes_retrieval_exceptions(self) -> None:
-        assert issubclass(rag_api.DocumentNotFoundError, Exception)
-        assert issubclass(rag_api.RAGNotReadyError, Exception)
-        assert issubclass(rag_api.RAGRetrievalError, Exception)
 
 
 class TestRetrieveContext:

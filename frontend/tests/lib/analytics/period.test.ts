@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { parsePeriod, periodQuery, presetPeriod, validateRange } from "@/lib/analytics";
+import {
+  parsePeriod,
+  periodQuery,
+  presetPeriod,
+  previousPeriod,
+  validateRange,
+} from "@/lib/analytics";
 
 const TODAY = "2026-07-24";
 const q = (s: string) => new URLSearchParams(s);
@@ -71,5 +77,20 @@ describe("periodQuery", () => {
       const { period } = parsePeriod(q(s), TODAY);
       expect(periodQuery(period)).toBe(s);
     }
+  });
+});
+
+describe("previousPeriod", () => {
+  it("is the equally long period ending the day before", () => {
+    expect(previousPeriod("2026-07-01", "2026-07-10")).toEqual({
+      from: "2026-06-21",
+      to: "2026-06-30",
+    });
+  });
+  it("crosses a month boundary", () => {
+    expect(previousPeriod("2026-03-01", "2026-03-31")).toEqual({
+      from: "2026-01-29",
+      to: "2026-02-28",
+    });
   });
 });

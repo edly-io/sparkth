@@ -13,6 +13,9 @@ vi.mock("next/navigation", () => ({
 }));
 const checkPermission = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/permissions", () => ({ checkPermission }));
+vi.mock("@/lib/plugins/context", () => ({
+  usePluginContext: () => ({ isPluginEnabled: () => true }),
+}));
 
 import AnalyticsLayout from "@/app/dashboard/analytics/layout";
 
