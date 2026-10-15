@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { LogIn, PenLine } from "lucide-react";
+import { LayoutDashboard, LogIn, PenLine } from "lucide-react";
 import { usePluginContext } from "@/lib/plugins/context";
 import { cn } from "@/lib/utils";
 
 // The Insights-style rail: one entry per view. A view's entry lands with the view. A view read
 // from a plugin's route names that plugin, and its entry shows only when the viewer has it enabled.
 export const ANALYTICS_VIEWS = [
+  { key: "overview", href: "/dashboard/analytics", icon: LayoutDashboard },
   { key: "logins", href: "/dashboard/analytics/logins", icon: LogIn },
   { key: "authoring", href: "/dashboard/analytics/authoring", icon: PenLine, plugin: "chat" },
 ] as const;
@@ -26,7 +27,8 @@ export function AnalyticsNav() {
       {/* Wraps into tabs on narrow screens; a vertical rail from lg up. */}
       <ul className="flex flex-wrap gap-1 border-b border-border pb-2 lg:flex-col lg:border-b-0 lg:pb-0">
         {views.map(({ key, href, icon: Icon }) => {
-          const active = pathname === href || pathname?.startsWith(`${href}/`);
+          // A view is current only on its own path.
+          const active = pathname?.replace(/\/$/, "") === href;
           return (
             <li key={key}>
               <Link
