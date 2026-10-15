@@ -75,7 +75,7 @@ describe("AuthoringPage cards", () => {
   it("shows failed turns as a share of messages", async () => {
     answer([row(CHAT_EVENTS.messages, 10), row(CHAT_EVENTS.failed, 2)]);
     renderWithIntl(<AuthoringPage />);
-    const failed = await card("Failed turns");
+    const failed = await card("Messages failed");
     expect(within(failed).getByText("2")).toBeInTheDocument();
     expect(
       within(failed).getByText("20% of messages · No activity in the previous period"),
@@ -85,7 +85,7 @@ describe("AuthoringPage cards", () => {
   it("shows a dash for the failure rate when no messages were sent", async () => {
     answer([row(CHAT_EVENTS.failed, 1)]);
     renderWithIntl(<AuthoringPage />);
-    expect(within(await card("Failed turns")).getByText(/^— of messages ·/)).toBeInTheDocument();
+    expect(within(await card("Messages failed")).getByText(/^— of messages ·/)).toBeInTheDocument();
   });
 
   it("shows documents attached with the detached count", async () => {
@@ -121,7 +121,7 @@ describe("AuthoringPage charts", () => {
   it("draws failed turns with the previous period as the comparison", async () => {
     answer([row(CHAT_EVENTS.failed, 2)], [row(CHAT_EVENTS.failed, 5, "2026-06-23")]);
     renderWithIntl(<AuthoringPage />);
-    const table = await screen.findByRole("table", { name: /^Failed turns,/ });
+    const table = await screen.findByRole("table", { name: /^Messages failed,/ });
     expect(
       within(table).getByRole("columnheader", { name: "Previous period" }),
     ).toBeInTheDocument();
@@ -159,7 +159,7 @@ describe("AuthoringPage failure rate", () => {
   it("leaves turns with no usable AI key out of the rate but in the count", async () => {
     answer([row(CHAT_EVENTS.messages, 2), providerError(1), noKey(1)]);
     renderWithIntl(<AuthoringPage />);
-    const failed = await card("Failed turns");
+    const failed = await card("Messages failed");
     expect(within(failed).getByText("2")).toBeInTheDocument();
     expect(within(failed).getByText(/^50% of messages ·/)).toBeInTheDocument();
     const table = await screen.findByRole("table", { name: /^Failure rate,/ });
@@ -169,7 +169,7 @@ describe("AuthoringPage failure rate", () => {
   it("shows no rate from failures that never reached the model", async () => {
     answer([row(CHAT_EVENTS.messages, 2), noKey(3)]);
     renderWithIntl(<AuthoringPage />);
-    const failed = await card("Failed turns");
+    const failed = await card("Messages failed");
     expect(within(failed).getByText("3")).toBeInTheDocument();
     expect(within(failed).getByText(/^0% of messages ·/)).toBeInTheDocument();
     const table = await screen.findByRole("table", { name: /^Failure rate,/ });

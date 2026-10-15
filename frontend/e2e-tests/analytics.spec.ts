@@ -14,8 +14,22 @@ import {
  * specs here.
  */
 const summary = [
-  { key: "logins", label: "Logins", view: "logins", plugin: null, current: 4, previous: 2 },
-  { key: "active_users", label: "Active users", view: null, plugin: null, current: 3, previous: 0 },
+  {
+    key: "logins",
+    label: "Logins",
+    view: "logins",
+    plugin: null,
+    current: 4,
+    previous: 2,
+  },
+  {
+    key: "active_users",
+    label: "Active users",
+    view: null,
+    plugin: null,
+    current: 3,
+    previous: 0,
+  },
 ];
 
 test.beforeEach(async ({ page }) => {
@@ -68,6 +82,8 @@ test.describe("analytics", () => {
 
   test("opens the Overview from the sidebar, with its rail entry current", async ({ page }) => {
     await stubSummary(page, []);
+    await stubLogins(page, []);
+    await stubChatActivity(page, []);
     await page.goto("/dashboard");
     await page.getByRole("link", { name: "Analytics" }).first().click();
     await expect(page).toHaveURL(/\/dashboard\/analytics\/?$/);
@@ -79,7 +95,10 @@ test.describe("analytics", () => {
 
   test("opens on the Overview with a card per figure", async ({ page }) => {
     await stubSummary(page, summary);
+    await stubLogins(page, [{ bucket: todayUtc(), method: "password", login_count: 4 }]);
+    await stubChatActivity(page, []);
     await page.goto("/dashboard/analytics");
+    await expect(page.getByRole("heading", { name: "Activity" })).toBeVisible();
     await expect(page.getByText("Logins", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("+100% vs previous period", { exact: true })).toBeVisible();
     await expect(page.getByText("New this period", { exact: true })).toBeVisible();
@@ -88,6 +107,7 @@ test.describe("analytics", () => {
   test("a card opens the view behind it", async ({ page }) => {
     await stubSummary(page, summary);
     await stubLogins(page, []);
+    await stubChatActivity(page, []);
     await page.goto("/dashboard/analytics");
     await page
       .getByRole("link", { name: /Logins/ })
