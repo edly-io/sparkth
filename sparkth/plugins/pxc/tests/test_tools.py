@@ -458,3 +458,15 @@ async def test_running_another_authors_activity_is_refused(
 
     with pytest.raises(PxcActivityNotFound):
         await pxc_run_activity(str(authored_activity.id), steps)
+
+
+async def test_another_authors_activity_is_not_found_before_its_steps_are_checked(
+    authored_activity: PxcActivity, authors: tuple[User, User], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PXC_TRIAL_STEP_LIMIT", "1")
+    get_pxc_settings.cache_clear()
+    act_as(authors[1])
+    steps = cast(list[TrialStep], [{"action": "check", "permission": "view"}] * 2)
+
+    with pytest.raises(PxcActivityNotFound):
+        await pxc_run_activity(str(authored_activity.id), steps)

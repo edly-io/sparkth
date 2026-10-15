@@ -243,8 +243,8 @@ async def pxc_run_activity(activity_id: str, steps: list[TrialStep]) -> ScratchR
     """
     owner = current_user_id()
     parsed_id = parse_activity_id(activity_id)
-    step_list = Annotated[list[TrialStep], Field(max_length=get_pxc_settings().trial_step_limit)]
-    validated = TypeAdapter(step_list).validate_python(steps)
     async with session_scope() as session:
         await get_owned_activity(session, parsed_id, owner)
+    step_list = Annotated[list[TrialStep], Field(max_length=get_pxc_settings().trial_step_limit)]
+    validated = TypeAdapter(step_list).validate_python(steps)
     return await run_trial(activity_dir(activity_id), validated)
