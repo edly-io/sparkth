@@ -18,17 +18,26 @@ UTC, while SQLite's ``date(occurred_at)`` buckets on the stored string's offset 
 they agree only because the ingest path stores/interprets events as UTC. If the PG
 side is ever parameterized with a bucketing timezone, the SQLite side must move in
 lockstep or the two will silently diverge.
+
+It also holds the Overview's core figures (logins, active users, signups), seeded on the
+``SUMMARY_FIGURES`` hook at import, and ``summarize``, which counts every registered figure for a
+range and for the equal-length range before it.
 """
 
 import re
 from collections.abc import Mapping, Sequence
-from datetime import date
+from datetime import date, datetime, time, timedelta, timezone
+from typing import Any
 
-from sqlalchemy import RowMapping, bindparam, text
+from sqlalchemy import RowMapping, bindparam, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from sparkth.core.analytics.enums import Bucket
-from sparkth.core.analytics.schemas.reads import LoginsPoint
+from sparkth.core.analytics.hooks import SUMMARY_FIGURES
+from sparkth.core.analytics.models import raw_events
+from sparkth.core.analytics.schemas.reads import LoginsPoint, SummaryCount
+from sparkth.core.analytics.types import SummaryFigure
+from sparkth.core.i18n import gettext, gettext_noop
 
 # The queries are raw SQL rather than SQLAlchemy Core selects: the PostgreSQL one reads a
 # TimescaleDB continuous aggregate, created by raw migration DDL and deliberately NOT registered
@@ -156,3 +165,54 @@ async def get_logins(session: AsyncSession, from_: date, to: date, bucket: Bucke
         bucket=bucket,
     )
     return [LoginsPoint.model_validate(dict(r)) for r in rows]
+
+
+def _in_days(from_: date, to: date) -> tuple[Any, Any]:
+    # A datetime range, not date(occurred_at), so one query serves both dialects.
+    start = datetime.combine(from_, time(), timezone.utc)
+    end = datetime.combine(to + timedelta(days=1), time(), timezone.utc)
+    return raw_events.c.occurred_at >= start, raw_events.c.occurred_at < end
+
+
+async def _logins(session: AsyncSession, from_: date, to: date) -> int:
+    return sum(p.login_count for p in await get_logins(session, from_, to, Bucket.month))
+
+
+async def _active_users(session: AsyncSession, from_: date, to: date) -> int:
+    # ponytail: scans raw_events over the range; add an (occurred_at, actor_id) index or a daily
+    # distinct-actor rollup if it gets slow. Aggregates can't count distinct across days.
+    query = select(func.count(raw_events.c.actor_id.distinct())).where(*_in_days(from_, to))
+    return int(await session.scalar(query) or 0)
+
+
+async def _signups(session: AsyncSession, from_: date, to: date) -> int:
+    query = select(func.count()).where(raw_events.c.event_type == "user.registered", *_in_days(from_, to))
+    return int(await session.scalar(query) or 0)
+
+
+SUMMARY_FIGURES.add_item(SummaryFigure("logins", gettext_noop("Logins"), _logins, view="logins", order=10))
+SUMMARY_FIGURES.add_item(SummaryFigure("active_users", gettext_noop("Active users"), _active_users, order=20))
+SUMMARY_FIGURES.add_item(SummaryFigure("signups", gettext_noop("Signups"), _signups, order=30))
+
+
+async def summarize(session: AsyncSession, from_: date, to: date) -> list[SummaryCount]:
+    """Count every registered figure for ``from_``..``to`` and for the same number of days before.
+
+    Labels are translated into the request locale. Ordered by ``order``, then ``key``.
+    """
+    prev_to = from_ - timedelta(days=1)
+    prev_from = prev_to - (to - from_)
+    figures = sorted(SUMMARY_FIGURES.iter_values(), key=lambda f: (f.order, f.key))
+    # ponytail: one query per figure and period, in sequence (one session). Batch them if the
+    # figure count grows.
+    return [
+        SummaryCount(
+            key=f.key,
+            label=gettext(f.label),
+            view=f.view,
+            plugin=f.plugin,
+            current=await f.count(session, from_, to),
+            previous=await f.count(session, prev_from, prev_to),
+        )
+        for f in figures
+    ]
