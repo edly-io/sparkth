@@ -62,8 +62,8 @@ async def _record_preview_failure(
         kind=kind,
         action=action_name,
         permission=claims.permission.value,
-        value=_cut(json.dumps(action_value), settings.build_error_limit),
-        error=_cut(error, settings.build_error_limit),
+        value=_cut(json.dumps(action_value), settings.error_limit),
+        error=_cut(error, settings.error_limit),
     )
     try:
         async with session_scope() as session:
