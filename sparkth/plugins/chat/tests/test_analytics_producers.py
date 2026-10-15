@@ -282,6 +282,7 @@ async def test_instructor_turn_emits_message_sent(
 
     assert response.status_code == 200
 
+    await join_live_tasks()  # chat.message_sent lands on a detached task
     sent = await _events(analytics_session, "chat.message_sent")
     assert len(sent) == 1
     assert sent[0]["message_length"] == len(question)
@@ -325,6 +326,7 @@ async def test_attachment_turn_emits_message_sent_with_has_attachment(
 
     assert response.status_code == 200
 
+    await join_live_tasks()  # chat.message_sent lands on a detached task
     sent = await _events(analytics_session, "chat.message_sent")
     assert len(sent) == 1
     assert sent[0]["has_attachment"] is True
@@ -358,6 +360,7 @@ async def test_message_sent_payload_carries_no_message_text(
 
     assert response.status_code == 200
 
+    await join_live_tasks()  # chat.message_sent lands on a detached task
     sent = await _events(analytics_session, "chat.message_sent")
     assert set(sent[0]) == {
         "conversation_id",
@@ -400,6 +403,7 @@ async def test_assistant_turns_in_the_request_do_not_emit_message_sent(
 
     assert response.status_code == 200
 
+    await join_live_tasks()  # chat.message_sent lands on a detached task
     sent = await _events(analytics_session, "chat.message_sent")
     assert len(sent) == 1
     assert sent[0]["message_length"] == len("Add a consent module")
@@ -903,6 +907,7 @@ async def test_event_times_come_from_the_rows_they_describe(
     )
     instructor_turn = next(message for message in stored_messages if message.role == "user")
 
+    await join_live_tasks()  # chat.message_sent lands on a detached task
     (started,) = await _occurred_at(analytics_session, "chat.conversation_started")
     (sent,) = await _occurred_at(analytics_session, "chat.message_sent")
 

@@ -148,6 +148,35 @@ describe("AuthoringPage charts", () => {
   });
 });
 
+describe("AuthoringPage failure rate", () => {
+  // A turn with no usable AI key fails before any message is stored, so it has no message to
+  // divide by: it counts as a failed turn but stays out of the rate.
+  const noKey = (count: number, bucket = "2026-07-23") =>
+    row(CHAT_EVENTS.failed, count, bucket, { dimension: "llm_config_unusable" });
+  const providerError = (count: number, bucket = "2026-07-23") =>
+    row(CHAT_EVENTS.failed, count, bucket, { dimension: "provider_api_error" });
+
+  it("leaves turns with no usable AI key out of the rate but in the count", async () => {
+    answer([row(CHAT_EVENTS.messages, 2), providerError(1), noKey(1)]);
+    renderWithIntl(<AuthoringPage />);
+    const failed = await card("Failed turns");
+    expect(within(failed).getByText("2")).toBeInTheDocument();
+    expect(within(failed).getByText(/^50% of messages ·/)).toBeInTheDocument();
+    const table = await screen.findByRole("table", { name: /^Failure rate,/ });
+    expect(within(table).getByRole("row", { name: "Jul 23, 2026 50% 0%" })).toBeInTheDocument();
+  });
+
+  it("shows no rate from failures that never reached the model", async () => {
+    answer([row(CHAT_EVENTS.messages, 2), noKey(3)]);
+    renderWithIntl(<AuthoringPage />);
+    const failed = await card("Failed turns");
+    expect(within(failed).getByText("3")).toBeInTheDocument();
+    expect(within(failed).getByText(/^0% of messages ·/)).toBeInTheDocument();
+    const table = await screen.findByRole("table", { name: /^Failure rate,/ });
+    expect(within(table).getByRole("row", { name: "Jul 23, 2026 0% 0%" })).toBeInTheDocument();
+  });
+});
+
 describe("AuthoringPage tools", () => {
   it("ranks tools with their failures; a call with no outcome counts in the total only", async () => {
     answer([

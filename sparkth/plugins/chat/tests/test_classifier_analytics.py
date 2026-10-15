@@ -388,6 +388,8 @@ async def test_an_unusable_ai_key_records_a_failed_turn(
     assert failure["provider"] is None
     assert failure["model"] is None
     assert failure["streamed"] is False
+    # The turn failed before any message was stored, so there is none to count.
+    assert await _events(analytics_session, "chat.message_sent") == []
 
 
 async def test_a_provider_failure_records_a_failed_turn(
@@ -396,7 +398,7 @@ async def test_a_provider_failure_records_a_failed_turn(
     session: AsyncSession,
     analytics_session: AsyncSession,
 ) -> None:
-    """The 502 path, which also raises."""
+    """The 500 path, which also raises."""
     config_id = await _seed_llm_config(session, current_user.id or 1)
     conversation_uuid = await _seed_conversation(session, current_user.id or 1)
 
@@ -421,6 +423,9 @@ async def test_a_provider_failure_records_a_failed_turn(
     assert failure["provider"] == "openai"
     assert failure["model"] == "gpt-4o"
     assert failure["conversation_id"] == conversation_uuid
+    # The instructor's message was stored before the route raised, so it still counts.
+    (sent,) = await _events(analytics_session, "chat.message_sent")
+    assert sent["conversation_id"] == conversation_uuid
 
 
 async def test_a_successful_turn_records_no_failure(
@@ -540,3 +545,5 @@ async def test_a_streaming_failure_records_a_failed_turn(
     assert failure["cause"] == "unexpected"
     assert failure["streamed"] is True
     assert failure["conversation_id"] == conversation_uuid
+    (sent,) = await _events(analytics_session, "chat.message_sent")
+    assert sent["conversation_id"] == conversation_uuid
