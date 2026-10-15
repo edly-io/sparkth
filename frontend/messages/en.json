@@ -59,6 +59,7 @@
     },
     "nav": {
       "label": "Analytics views",
+      "overview": "Overview",
       "logins": "Logins",
       "authoring": "Course authoring"
     },
@@ -86,6 +87,12 @@
         "inFuture": "The end date can't be in the future.",
         "tooLong": "The period can't be longer than {days} days."
       }
+    },
+    "overview": {
+      "title": "Overview",
+      "subtitle": "Platform activity, {range} (UTC).",
+      "empty": "No activity in this period.",
+      "new": "New this period"
     }
   },
   "home": {

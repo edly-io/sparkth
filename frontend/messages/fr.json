@@ -59,6 +59,7 @@
     },
     "nav": {
       "label": "Vues des analyses",
+      "overview": "Vue d'ensemble",
       "logins": "Connexions",
       "authoring": "Création de cours"
     },
@@ -86,6 +87,12 @@
         "inFuture": "La date de fin ne peut pas être dans le futur.",
         "tooLong": "La période ne peut pas dépasser {days} jours."
       }
+    },
+    "overview": {
+      "title": "Vue d'ensemble",
+      "subtitle": "Activité de la plateforme, {range} (UTC).",
+      "empty": "Aucune activité sur cette période.",
+      "new": "Nouveau sur cette période"
     }
   },
   "home": {

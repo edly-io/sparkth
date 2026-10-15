@@ -59,6 +59,7 @@
     },
     "nav": {
       "label": "Vistas de analíticas",
+      "overview": "Resumen",
       "logins": "Inicios de sesión",
       "authoring": "Creación de cursos"
     },
@@ -86,6 +87,12 @@
         "inFuture": "La fecha de fin no puede estar en el futuro.",
         "tooLong": "El período no puede superar los {days} días."
       }
+    },
+    "overview": {
+      "title": "Resumen",
+      "subtitle": "Actividad de la plataforma, {range} (UTC).",
+      "empty": "No hay actividad en este periodo.",
+      "new": "Nuevo en este periodo"
     }
   },
   "home": {
