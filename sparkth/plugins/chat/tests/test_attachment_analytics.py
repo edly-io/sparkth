@@ -94,7 +94,7 @@ def _provider() -> MagicMock:
 
 def _in_scope_classifier() -> AsyncMock:
     classifier = AsyncMock()
-    classifier.is_in_scope = AsyncMock(return_value=True)
+    classifier.in_scope = AsyncMock(return_value=True)
     return classifier
 
 

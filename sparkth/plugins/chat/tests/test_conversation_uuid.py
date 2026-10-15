@@ -261,7 +261,7 @@ class TestConversationUUIDRoutes:
             patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_classifier_cls,
         ):
             mock_classifier = AsyncMock()
-            mock_classifier.is_in_scope = AsyncMock(return_value=True)
+            mock_classifier.in_scope = AsyncMock(return_value=True)
             mock_classifier_cls.return_value = mock_classifier
             mock_provider = AsyncMock()
             mock_provider.send_message = AsyncMock(return_value=mock_response)
@@ -311,7 +311,7 @@ class TestConversationUUIDRoutes:
             patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_classifier_cls,
         ):
             mock_classifier = AsyncMock()
-            mock_classifier.is_in_scope = AsyncMock(return_value=True)
+            mock_classifier.in_scope = AsyncMock(return_value=True)
             mock_classifier_cls.return_value = mock_classifier
             mock_provider = AsyncMock()
             mock_provider.send_message = AsyncMock(return_value=mock_response)
