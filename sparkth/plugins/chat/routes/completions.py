@@ -181,7 +181,7 @@ async def chat_completion(
     _skip_main_scope_check = False
     if not conversation_uuid:
         # Nothing is persisted yet, and there is no uuid to log a refusal against.
-        if not await scope_classifier.is_in_scope(query_text, [], request_attachment_names, None):
+        if not await scope_classifier.in_scope(query_text, [], request_attachment_names, None):
             return _refusal_response(REFUSAL_MESSAGE, request.stream, None, model, provider_name)
         # Already judged, so the check below would spend a second call on the same message.
         _skip_main_scope_check = True
@@ -285,7 +285,7 @@ async def chat_completion(
             ]
             # Ingested documents plus anything uploaded with this message, which has no row.
             turn_attachment_names = list(dict.fromkeys(attached_document_names + request_attachment_names))
-            in_scope = await scope_classifier.is_in_scope(
+            in_scope = await scope_classifier.in_scope(
                 query_text, prior_history, turn_attachment_names or None, conversation.uuid
             )
             if not in_scope:

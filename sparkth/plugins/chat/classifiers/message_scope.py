@@ -73,7 +73,7 @@ class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdi
         messages.append(HumanMessage(content=current_turn))
         return messages
 
-    async def is_in_scope(
+    async def in_scope(
         self,
         query: str,
         history: list[HistoryTurn] | None = None,
