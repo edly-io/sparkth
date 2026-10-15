@@ -146,7 +146,7 @@ async def test_serving_an_asset_does_not_open_the_activitys_state_file(
     assert not (tmp_path / "mcq.sqlite3").exists()
 
 
-# Unmarked deliberately: ActivityRuntime.on_action validates the action name against the
+# Unmarked deliberately: ActivityRuntime.on_action_or_raise validates the action name against the
 # manifest and raises ActionValidationError before it ever checks whether a sandbox exists, so
 # this never reaches the wasm.
 async def test_an_undeclared_action_is_unprocessable(client: AsyncClient, token: str) -> None:
@@ -345,3 +345,12 @@ async def test_an_open_page_keeps_its_revisions_ui_script_after_an_update(
     response = await client.get(config.ui_url)
 
     assert response.text == "first"
+
+
+async def test_an_action_whose_sandbox_fails_is_unprocessable_and_hides_the_error(
+    client: AsyncClient, token: str, throwing_sandbox: None
+) -> None:
+    response = await client.post("/api/v1/pxc/actions/answer.submit", params={"token": token}, json=[0])
+
+    assert response.status_code == 422
+    assert response.json() == {"detail": "Activity mcq failed to run answer.submit"}
