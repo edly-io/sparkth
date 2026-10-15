@@ -10,7 +10,7 @@ from datetime import date
 
 from pydantic import BaseModel
 from sqlalchemy import text
-from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from sparkth.lib.analytics import PG_BUCKET, SQLITE_BUCKET, Bucket, read_bucketed
 from sparkth.plugins.chat.analytics.events import (

@@ -133,4 +133,6 @@ markers = [
 ]
 filterwarnings = [
     "ignore::DeprecationWarning:importlib._bootstrap",
+    # SQLModel's deprecated session.execute() fails the test; use session.exec().
+    'error:\s*\S+ You probably want to use .session\.exec\(\).:DeprecationWarning',
 ]

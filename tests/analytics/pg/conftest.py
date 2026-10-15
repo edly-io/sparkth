@@ -24,8 +24,7 @@ from pathlib import Path
 
 import pytest
 from sqlalchemy import create_engine, text
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
-from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 
 _PG_URL_ENV = "ANALYTICS_TEST_PG_URL"
 # tests/analytics/pg/conftest.py -> repo root is three parents up from the file's dir.
