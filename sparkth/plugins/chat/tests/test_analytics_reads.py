@@ -10,7 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession as SQLAlchemyAsyncSession
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.lib.analytics import Bucket, ingest_event
+from sparkth.lib.analytics import Bucket, ingest_event, summarize
 from sparkth.lib.models import User
 from sparkth.lib.testing import grant_global_permission
 from sparkth.plugins.chat.analytics.reads import ChatActivityPoint, get_chat_activity
@@ -246,3 +246,21 @@ async def test_endpoint_requires_authentication(client: AsyncClient) -> None:
     response = await client.get(URL, params={"from": "2026-03-01", "to": "2026-03-31"})
 
     assert response.status_code == 401
+
+
+async def test_chat_figures_count_their_event_type_for_both_periods(analytics_session: SQLAlchemyAsyncSession) -> None:
+    await _seed(analytics_session, "chat.conversation_started", _at("2026-03-12"))
+    await _seed(analytics_session, "chat.message_sent", _at("2026-03-12"))
+    await _seed(analytics_session, "chat.message_sent", _at("2026-03-13"))
+    await _seed(analytics_session, "chat.message_sent", _at("2026-03-05"))  # previous period
+
+    rows = await summarize(analytics_session, date(2026, 3, 11), date(2026, 3, 20))
+
+    chat = {r.key: (r.label, r.view, r.plugin, r.current, r.previous) for r in rows if r.plugin == "chat"}
+    assert chat == {
+        "chat.conversations": ("Conversations started", "authoring", "chat", 1, 0),
+        "chat.messages": ("Messages sent", "authoring", "chat", 2, 1),
+        "chat.tool_calls": ("Tool calls", "authoring", "chat", 0, 0),
+        "chat.failed_turns": ("Messages failed", "authoring", "chat", 0, 0),
+    }
+    assert [r.key for r in rows if r.plugin == "chat"] == list(chat)  # in their own order
