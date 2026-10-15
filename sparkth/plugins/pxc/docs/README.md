@@ -196,7 +196,7 @@ TODO: move builds to a worker container.
 
 ## When an action fails
 
-An action fails when its sandbox throws or writes a value its field or event refuses, or is
+An action fails when its sandbox throws or writes a value its field or event refuses. It is
 refused when the manifest does not accept its name or value. The learner's page then shows a
 notice, and the activity gets no events from it. A sandbox failure keeps any field the action
 saved before it failed, since each write is stored on its own:
