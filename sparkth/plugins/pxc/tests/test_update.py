@@ -13,7 +13,7 @@ from sparkth.lib.models import User
 from sparkth.plugins.pxc.activities import activity_dir, state_file
 from sparkth.plugins.pxc.builder import build_activity, update_activity
 from sparkth.plugins.pxc.constants import PXC_PREVIEW_ACTIVITY_INSTANCE, PXC_PREVIEW_COURSE_ID
-from sparkth.plugins.pxc.exceptions import PxcActivityNotFound, PxcCompileFailed, PxcFieldsFrozen
+from sparkth.plugins.pxc.exceptions import PxcActivityNotFound, PxcCompileFailed, PxcFieldsFrozen, PxcSmokeTestFailed
 from sparkth.plugins.pxc.field_store.sqlite import SqliteFieldStore
 from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.revisions import remove_activity_files, revisions_dir
@@ -230,3 +230,27 @@ async def test_an_updated_activity_launches_with_its_new_content(owner_id: int) 
 
     claims = LaunchClaims(str(activity.id), "instance-1", "course-1", "learner-7", Permission.play)
     assert read_state(build_runtime(claims))["question"] == "What is 3 + 3?"
+
+
+@pytest.mark.wasm
+async def test_an_update_whose_action_throws_is_refused_and_leaves_the_activity_unchanged(
+    session: AsyncSession,
+) -> None:
+    mcq = activity_dir("mcq")
+    source = ActivitySource(
+        title="Two plus two",
+        description="A one-question check",
+        manifest=json.loads((mcq / "manifest.json").read_text()),
+        ui_js=(mcq / "ui.js").read_text(),
+        sandbox_js=(mcq / "sandbox.js").read_text(),
+    )
+    activity = await build_activity(source, 1)
+    parsed = "  const value = JSON.parse(data);\n"
+    assert parsed in source.sandbox_js
+    breaking = parsed + '  if (name === "answer.submit") throw new Error("submit broke");\n'
+    throwing = source.model_copy(update={"sandbox_js": source.sandbox_js.replace(parsed, breaking)})
+
+    with pytest.raises(PxcSmokeTestFailed):
+        await update_activity(activity.id, throwing, 1)
+
+    assert "submit broke" not in (activity_dir(str(activity.id)) / "sandbox.js").read_text()
