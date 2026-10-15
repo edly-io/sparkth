@@ -80,5 +80,12 @@ class PxcTrialFailed(Exception):
     """A run of an activity's actions for the agent stopped before it could report, for a server-side reason."""
 
 
+class PxcTrialTimedOut(Exception):
+    """A run of an activity's actions for the agent did not finish within the time a run gets.
+
+    Not a ``PxcBuildFailed``: a trial builds nothing, and the agent must not count it as a failed build.
+    """
+
+
 class PxcTrialReportTooLarge(Exception):
     """A run of an activity's actions reported more than ``PXC_TRIAL_REPORT_LIMIT``, so it is not handed over."""
