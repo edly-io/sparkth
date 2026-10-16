@@ -38,6 +38,9 @@ PXC_PREVIEW_ACTIVITY_INSTANCE = "preview"
 # Prefixed onto a Sparkth user id in a preview token, so it never equals an LMS learner id.
 PXC_PREVIEW_USER_PREFIX = "sparkth-"
 
+# Ends a recorded failure's value or error that was cut at the build error limit.
+PXC_TRUNCATED_MARKER = "…(truncated)"
+
 # The course, activity instance and learner a throwaway run of an activity acts as.
 PXC_SCRATCH_CONTEXT_ID = "smoke"
 

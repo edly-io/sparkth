@@ -90,6 +90,18 @@ msgstr "Utilisateur introuvable"
 msgid "Failed to get user info from Google"
 msgstr "Impossible de récupérer les informations de l'utilisateur auprès de Google"
 
+#: sparkth/core/analytics/reads.py:193
+msgid "Logins"
+msgstr "Connexions"
+
+#: sparkth/core/analytics/reads.py:194
+msgid "Active users"
+msgstr "Utilisateurs actifs"
+
+#: sparkth/core/analytics/reads.py:195
+msgid "Signups"
+msgstr "Inscriptions"
+
 #: sparkth/core/permissions/__init__.py:93
 msgid "Permission denied"
 msgstr "Permission refusée"

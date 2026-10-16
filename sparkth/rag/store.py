@@ -124,13 +124,13 @@ class ChunkStoreService:
     ) -> list[str]:
         """List all distinct source names."""
         stmt = select(DocumentChunk.source_name).distinct().order_by(col(DocumentChunk.source_name))
-        result = await session.scalars(stmt)
+        result = await session.exec(stmt)
         return list(result.all())
 
 
 async def _create_missing_links(session: AsyncSession, document_id: int, chunk_ids: set[int]) -> None:
     """Insert bridge-table links for chunk_ids not already linked to document_id."""
-    already_linked = await session.scalars(
+    already_linked = await session.exec(
         select(DocumentChunkLink.chunk_id).where(
             col(DocumentChunkLink.document_id) == document_id,
         )
@@ -148,7 +148,7 @@ async def copy_document_chunk_links(
     target_document_id: int,
 ) -> None:
     """Copy all chunk links from source_document_id to target_document_id."""
-    source_chunk_ids = await session.scalars(
+    source_chunk_ids = await session.exec(
         select(DocumentChunkLink.chunk_id).where(
             col(DocumentChunkLink.document_id) == source_document_id,
         )

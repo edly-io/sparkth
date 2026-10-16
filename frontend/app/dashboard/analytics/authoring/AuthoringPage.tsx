@@ -45,10 +45,17 @@ function AuthoringContent({ current, previous, from, to, bucket }: PeriodData<Ch
   });
 
   const { cur, prev, charts, tools } = useMemo(() => {
+    // A turn with no usable AI key fails before any message is stored, so no message stands
+    // for it in the rate's denominator: it counts as a failed turn but not toward the rate.
+    const rated = (rows: ChatActivityPoint[]) =>
+      rows.filter(
+        (r) => !(r.event_type === CHAT_EVENTS.failed && r.dimension === "llm_config_unusable"),
+      );
     const totals = (rows: ChatActivityPoint[]) => ({
       conversations: totalOf(rows, CHAT_EVENTS.conversations),
       messages: totalOf(rows, CHAT_EVENTS.messages),
       failed: totalOf(rows, CHAT_EVENTS.failed),
+      ratedFailed: totalOf(rated(rows), CHAT_EVENTS.failed),
       attached: totalOf(rows, CHAT_EVENTS.attached),
       detached: totalOf(rows, CHAT_EVENTS.detached),
       tools: totalOf(rows, CHAT_EVENTS.tools),
@@ -61,7 +68,7 @@ function AuthoringContent({ current, previous, from, to, bucket }: PeriodData<Ch
         messages,
         conversations: countSeries(rows, CHAT_EVENTS.conversations, at),
         failed,
-        failureRate: rateSeries(failed, messages),
+        failureRate: rateSeries(countSeries(rated(rows), CHAT_EVENTS.failed, at), messages),
       };
     };
     const now = series(current, { from, to });
@@ -133,7 +140,7 @@ function AuthoringContent({ current, previous, from, to, bucket }: PeriodData<Ch
             value={format.number(cur.failed)}
             hint={t("failedHint", {
               // No messages has no meaningful rate, so a dash rather than Infinity% or NaN%.
-              rate: cur.messages ? percent(cur.failed / cur.messages) : "—",
+              rate: cur.messages ? percent(cur.ratedFailed / cur.messages) : "—",
               change: change(cur.failed, prev.failed),
             })}
           />
