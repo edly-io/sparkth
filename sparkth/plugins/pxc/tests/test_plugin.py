@@ -37,6 +37,7 @@ def test_the_plugin_contributes_its_tools_under_the_pxc_category() -> None:
         "pxc_get_activity_source": "pxc",
         "pxc_update_activity": "pxc",
         "pxc_get_activity_failures": "pxc",
+        "pxc_run_activity": "pxc",
     }
 
 
