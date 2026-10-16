@@ -239,7 +239,7 @@ class TestLaterTurnsFollowTheStoredJob:
             response = await _turn(client, config_id, conversation_uuid)
 
         assert response.status_code == 200
-        assert render.call_args.args[0] is stub_job
+        assert render.call_args.args[0] == [stub_job]
 
     async def test_a_conversation_whose_plugin_is_switched_off_is_refused_by_its_label(
         self,

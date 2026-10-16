@@ -17,6 +17,7 @@ def get_asset(file_name: str) -> str:
     return (Path(__file__).parent / "assets" / file_name).read_text(encoding="utf-8").strip()
 
 
+SYSTEM_PROMPT_SKELETON = get_asset("system_prompt_skeleton.txt")
 COURSE_DESIGN_SYSTEM_PROMPT = get_asset("course_design_system_prompt.txt")
 RAG_CONTEXT_PROMPT = get_asset("rag_context_replacement_prompt.txt")
 MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT = get_asset("message_scope_classifier_system_prompt.txt")
@@ -28,6 +29,8 @@ COURSE_DESIGN_SCOPE = get_asset("course_design_scope.txt")
 DEFAULT_RESPONSIBILITY = "course-design"
 # That job's name as authors see it.
 COURSE_DESIGN_LABEL = gettext_noop("Course design")
+# The heading course design's section is rendered under in the system prompt.
+COURSE_DESIGN_TITLE = "Course design"
 # The scope classifier's answer when a message belongs to no job.
 NO_RESPONSIBILITY = "none"
 

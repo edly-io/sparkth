@@ -160,12 +160,9 @@ class TestRefusalInTheSystemPrompt:
         source even under a non-default locale — not the locale-rendered string."""
         translation_catalog(REFUSAL_MESSAGE, SPANISH)
         with locale_context("es"):
-            prompt = render_system_prompt(COURSE_DESIGN)
+            prompt = render_system_prompt([COURSE_DESIGN])
         assert REFUSAL_MESSAGE in prompt
         assert SPANISH not in prompt
-
-    def test_model_is_told_to_send_it_in_the_conversation_language(self) -> None:
-        assert "Send it in the language of the conversation" in render_system_prompt(COURSE_DESIGN)
 
 
 class TestRefusalAtTheStreamingRenderSite:

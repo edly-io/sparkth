@@ -6,22 +6,27 @@ from sparkth.plugins.chat.constants import (
     MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT,
     NO_RESPONSIBILITY,
     REFUSAL_MESSAGE,
+    SYSTEM_PROMPT_SKELETON,
 )
 
 
-def render_system_prompt(responsibility: ChatResponsibility) -> str:
-    """Render the system prompt of the job a conversation does.
+def render_system_prompt(sections: list[ChatResponsibility]) -> str:
+    """Render the chat system prompt: chat's skeleton with each of ``sections`` under its title.
 
-    No language is injected. Each job's template tells the model to write in the language of
-    the user's most recent message and to switch when the user does, so the output language
-    is inferred from the conversation, not resolved from stored state.
+    The skeleton holds every rule the sections share: the date, the assistant's identity, the
+    output language, the response boundaries and the offering-choices format. Each section is
+    inserted as a value, never formatted, so a brace in it reaches the model as written.
 
-    The date is the only substitution that varies per request. The refusal sentence is the
-    English source constant, which the model is told to send in the conversation's language.
+    No language is injected. The skeleton tells the model to write in the language of the
+    user's most recent message and to switch when the user does. The date is the only
+    substitution that varies per request. The refusal sentence is the English source constant,
+    which the model is told to send in the conversation's language.
     """
-    return responsibility.system_prompt.format(
+    capabilities = "\n\n".join(f"## {section.title}\n{section.prompt}" for section in sections)
+    return SYSTEM_PROMPT_SKELETON.format(
         current_datetime=datetime.now(),
         refusal_message=REFUSAL_MESSAGE,
+        capabilities=capabilities,
     )
 
 

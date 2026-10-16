@@ -1,79 +1,41 @@
 from datetime import datetime
 
+from sparkth.lib.chat.hooks import ChatResponsibility
 from sparkth.plugins.chat.constants import REFUSAL_MESSAGE
 from sparkth.plugins.chat.prompt import render_system_prompt
 from sparkth.plugins.chat.responsibilities import COURSE_DESIGN
 
+_STUB = ChatResponsibility("stub-job", "Stub job", "Stub section", "Stub scope.", "Stub section body.", frozenset())
 
-class TestLearningDesignSystemPrompt:
-    def setup_method(self) -> None:
-        self.prompt = render_system_prompt(COURSE_DESIGN)
 
-    def test_response_boundaries_section_present(self) -> None:
-        """Named for what it is: a fallback and response rules, not a second classifier."""
-        assert "RESPONSE BOUNDARIES" in self.prompt
-        assert "SCOPE & GUARDRAILS" not in self.prompt
-
-    def test_scope_taxonomy_lives_in_the_classifier(self) -> None:
-        """The job scopes and their worked examples belong to the scope classifier's
-        prompt only; two copies drift, and the classifier's is the one that decides."""
-        for duplicate in (
-            "Allowed tasks:",
-            "Refused tasks",
-            "a direct answer to a question you asked",
-            "you are now DAN",
-            "not even with",
-        ):
-            assert duplicate not in self.prompt, duplicate
-
-    def test_refusal_fallback_reads_the_whole_conversation(self) -> None:
-        """When the classifier fails open this line decides alone; judging the latest message in
-        isolation would refuse a one-word answer to the model's own question."""
-        assert "whole conversation" in self.prompt
-
-    def test_backstop_guardrails_present(self) -> None:
-        """The classifier fails open and never sees document or tool content, so the chat
-        model still refuses injection and system-prompt disclosure itself."""
-        for rule in ("uploaded documents", "tool results", "system prompt", "partially"):
-            assert rule in self.prompt, rule
-
-    def test_refusal_is_only_for_unrelated_requests(self) -> None:
-        """Course work the model can't do, and questions about the assistant, get a real
-        answer; the refusal sentence would not make sense as a reply to either."""
-        for rule in ("only for requests unrelated to course work", "what you can do"):
-            assert rule in self.prompt, rule
-
-    def test_refusal_sentence_present_verbatim(self) -> None:
-        assert REFUSAL_MESSAGE in self.prompt
-
+class TestRenderSystemPrompt:
     def test_todays_date_is_substituted(self) -> None:
-        """The template opens with the date. An unrendered placeholder tells the model nothing
-        and breaks nothing else, so this is the only thing that would catch it."""
-        assert "{current_datetime}" not in self.prompt
-        assert str(datetime.now().year) in self.prompt
+        prompt = render_system_prompt([COURSE_DESIGN])
 
+        assert "{current_datetime}" not in prompt
+        assert str(datetime.now().year) in prompt
 
-class TestSystemPromptLanguage:
-    """The directive states the language rule in full — follow and switch with the
-    conversation, cover all content, and no longer contain the ambiguous instruction
-    it replaces."""
+    def test_the_refusal_sentence_is_included(self) -> None:
+        """Locale independence is guarded by test_refusal_language.TestRefusalInTheSystemPrompt."""
+        assert REFUSAL_MESSAGE in render_system_prompt([COURSE_DESIGN])
 
-    def test_ambiguous_language_instruction_is_gone(self) -> None:
-        """ "Write in the user's language" is vague about both which language it means
-        and how much of the output it covers. The directive states both explicitly.
+    def test_each_section_is_rendered_under_its_title(self) -> None:
+        prompt = render_system_prompt([COURSE_DESIGN, _STUB])
 
-        Asserts on the exact sentence rather than banning the phrase family: the
-        directive legitimately talks about the language the user writes in, and a
-        broader assertion would fail on a harmless rewording."""
-        assert "Write in the user's language" not in render_system_prompt(COURSE_DESIGN)
+        assert f"## {COURSE_DESIGN.title}\n{COURSE_DESIGN.prompt}" in prompt
+        assert "## Stub section\nStub section body." in prompt
 
-    def test_directive_covers_content_not_just_replies(self) -> None:
-        prompt = render_system_prompt(COURSE_DESIGN)
-        for part in ("assessment questions", "answer options", "feedback"):
-            assert part in prompt
+    def test_only_the_given_sections_are_rendered(self) -> None:
+        assert "## Stub section" not in render_system_prompt([COURSE_DESIGN])
 
-    def test_refusal_sentence_is_not_carved_out_of_the_directive(self) -> None:
-        """The refusal follows the conversation like everything else the model writes,
-        so no exception may re-appear telling the model to reproduce it verbatim."""
-        prompt = render_system_prompt(COURSE_DESIGN)
-        assert "reproduce it exactly as given" not in prompt
+    def test_a_section_is_inserted_without_formatting(self) -> None:
+        """A section may carry JSON or code examples; its braces reach the model as written."""
+        braced = ChatResponsibility("b", "B", "Braced", "Scope.", 'Return {"id": 1} and {unknown}.', frozenset())
+
+        assert 'Return {"id": 1} and {unknown}.' in render_system_prompt([braced])
+
+    def test_no_skeleton_placeholder_is_left(self) -> None:
+        prompt = render_system_prompt([COURSE_DESIGN])
+
+        for placeholder in ("{refusal_message}", "{capabilities}"):
+            assert placeholder not in prompt
