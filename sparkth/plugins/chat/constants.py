@@ -1,9 +1,12 @@
 from pathlib import Path
 
+import aiohttp
 import anthropic
 import httpx
 import openai
 from google.api_core import exceptions as google_exceptions
+from google.genai import errors as google_genai_errors
+from langchain_google_genai.chat_models import ChatGoogleGenerativeAIError
 
 from sparkth.lib.i18n import gettext_noop
 
@@ -58,6 +61,10 @@ LLM_PROVIDER_API_ERRORS = (
     google_exceptions.GoogleAPICallError,
     google_exceptions.ServiceUnavailable,
     httpx.RemoteProtocolError,
+    # langchain-google-genai raises these: a wrapped 4xx, a raw 5xx, and its aiohttp transport errors.
+    ChatGoogleGenerativeAIError,
+    google_genai_errors.APIError,
+    aiohttp.ClientError,
 )
 
 # Category reported for a tool the registry never discovered. A missing category
