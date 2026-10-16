@@ -1,7 +1,7 @@
 from fastapi import status
 
 from sparkth.lib.analytics import register_event_schemas
-from sparkth.lib.chat.hooks import CHAT_CAPABILITIES
+from sparkth.lib.chat.hooks import register_chat_capability
 from sparkth.lib.config.hooks import CONFIG_ADAPTERS, CONFIG_SCHEMAS
 from sparkth.lib.documents import DOCUMENT_DELETED
 from sparkth.lib.exceptions.handlers import register_exception_handler
@@ -54,6 +54,6 @@ class ChatPlugin(SparkthPlugin):
         )
         SIDEBAR_ENTRIES.add_item(self, SidebarEntry(gettext_noop("Create Course"), icon="plus", order=1))
         FRONTEND_APPS.add_item(self, FrontendApp())
-        CHAT_CAPABILITIES.add_item(self, COURSE_DESIGN)
+        register_chat_capability(self, COURSE_DESIGN)
 
         register_event_schemas(self, events)
