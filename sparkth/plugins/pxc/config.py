@@ -51,9 +51,10 @@ class PxcSettings(BaseSettings):
     # TODO: move activity builds to a dedicated worker container to make this scale.
     build_concurrency: int = 2
 
-    # The longest build error handed back to the agent, in characters. Compiler output keeps its end,
-    # where the cause is; the smoke test's list of failures and a manifest schema message keep their start.
-    build_error_limit: int = 4000
+    # The longest error text handed to the agent, in characters: a build error, and a recorded failed
+    # preview action's value and error. Compiler output keeps its end, where the cause is; the smoke
+    # test's list of failures, a manifest schema message and a recorded failure keep their start.
+    error_limit: int = 4000
 
     # The most of a build step's stderr, and of its stdout, kept in memory, in bytes: the end of
     # each, where the cause is. The rest is read and dropped, so a step flooding either can neither
@@ -70,6 +71,16 @@ class PxcSettings(BaseSettings):
     # How many of an author's newest activities reach the model: the pxc_list_activities default,
     # and the cap on the author's activities offered for placing in a course.
     list_activities_limit: int = 20
+
+    # How many of an activity's newest failed preview actions are kept for the author's agent.
+    action_failure_limit: int = 20
+
+    # The most steps one pxc_run_activity call may run.
+    trial_step_limit: int = 20
+
+    # The longest report pxc_run_activity hands the agent, in characters. A longer one is refused,
+    # not cut, since cut JSON says nothing.
+    trial_report_limit: int = 20000
 
 
 @lru_cache

@@ -30,6 +30,7 @@ from sparkth.plugins.chat.analytics import (
     emit_completion,
     executed_tools_from,
 )
+from sparkth.plugins.chat.detached import join_live_tasks, live_tasks
 
 ALL_SCHEMAS = [
     ChatConversationStarted,
@@ -303,7 +304,10 @@ def _turn_seam(background_tasks: BackgroundTasks) -> ChatTurnAnalytics:
 
 
 class TestSchedulingATurnEvent:
-    """A seam queues one event and builds its payload when the queue runs.
+    """A seam sends one event and builds its payload when the task runs, not at the seam.
+
+    ``schedule_message_sent`` detaches its task; every other seam queues it on
+    ``background_tasks``.
 
     Driven through the seam rather than a per-event emit helper: the seam is the only
     surface a call site touches, and building inside the task is the property that keeps
@@ -329,13 +333,16 @@ class TestSchedulingATurnEvent:
             occurred_at=MOMENT,
         )
 
-    async def test_message_sent_is_emitted_when_the_queue_runs(self) -> None:
+    async def test_message_sent_lands_without_the_response(self) -> None:
+        """Detached rather than queued, so it lands even when the turn's route raises and
+        the response that would run the queue never goes out."""
         background_tasks = BackgroundTasks()
         with patch("sparkth.plugins.chat.analytics.utils.emit_event", new_callable=AsyncMock) as emit:
             _turn_seam(background_tasks).schedule_message_sent(
                 message_length=12, has_attachment=True, occurred_at=MOMENT
             )
-            await background_tasks()
+            assert background_tasks.tasks == []
+            await join_live_tasks()
 
         emit.assert_awaited_once_with(
             "chat.message_sent",
@@ -426,20 +433,21 @@ class TestSchedulingATurnEvent:
 
     async def test_a_negative_count_raises_in_the_task_and_not_at_the_seam(self) -> None:
         """The non-negative guard fires at the producer, so no skewed row can be written —
-        but it must fire in the background task, not while the request is still running.
+        but it must fire in the detached task, not while the request is still running.
 
-        The schema is built by the queued task rather than by ``schedule_*``, so scheduling
-        a bad count is silent and the ``ValidationError`` surfaces once the response has been
-        sent — the same place a ``ValidationError`` raised inside ``emit_event`` would. Were
-        the event built at the seam, a skewed count would destroy the turn it only measures.
+        The schema is built by the task rather than by ``schedule_*``, so scheduling a bad
+        count is silent and the ``ValidationError`` surfaces in the task, where asyncio logs
+        it as an unretrieved task exception, as for ``record_turn_failed``. Were the event
+        built at the seam, a skewed count would destroy the turn it only measures.
         """
         background_tasks = BackgroundTasks()
         with patch("sparkth.plugins.chat.analytics.utils.emit_event", new_callable=AsyncMock) as emit:
             _turn_seam(background_tasks).schedule_message_sent(
                 message_length=-1, has_attachment=False, occurred_at=MOMENT
             )
-
+            # join_live_tasks swallows task errors, so await the task itself to see this one.
+            (task,) = live_tasks
             with pytest.raises(ValidationError):
-                await background_tasks()
+                await task
 
         emit.assert_not_awaited()

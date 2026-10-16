@@ -17,7 +17,7 @@ from unittest.mock import patch
 import pytest
 from pydantic import ValidationError
 from sqlalchemy import select
-from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from sparkth.core.analytics.models import raw_events
 from sparkth.lib.analytics import PendingEvent, UnknownEventTypeError, emit_events
