@@ -2,7 +2,7 @@
 
 Most of the suite runs on in-memory SQLite. A small set of tests genuinely needs a
 real PostgreSQL/TimescaleDB — the ones exercising continuous aggregates, whose SQL
-(``_PG_LOGINS_SQL`` in :mod:`sparkth.core.analytics.reads`) and DDL (the analytics migrations)
+(built by ``read_rollup`` in :mod:`sparkth.core.analytics.reads`) and DDL (the analytics migrations)
 SQLite cannot represent. Those tests carry the ``pg`` marker (applied module-wide via
 ``pytestmark = pytest.mark.pg``, not a per-function decorator) and live under this
 directory; they run only when ``ANALYTICS_TEST_PG_URL`` points at a real instance and are
@@ -24,8 +24,7 @@ from pathlib import Path
 
 import pytest
 from sqlalchemy import create_engine, text
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
-from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 
 _PG_URL_ENV = "ANALYTICS_TEST_PG_URL"
 # tests/analytics/pg/conftest.py -> repo root is three parents up from the file's dir.

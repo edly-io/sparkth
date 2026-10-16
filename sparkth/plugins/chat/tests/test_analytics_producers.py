@@ -18,8 +18,9 @@ from uuid import UUID, uuid4
 import pytest
 from httpx import AsyncClient
 from langchain_core.messages import AIMessage
-from sqlalchemy import select
-from sqlmodel import col
+from sqlalchemy import select as sa_select
+from sqlalchemy.ext.asyncio import AsyncSession as SQLAlchemyAsyncSession
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.analytics.models import raw_events
@@ -72,15 +73,15 @@ async def _seed_conversation(session: AsyncSession, user_id: int, llm_config_id:
     return conversation_uuid
 
 
-async def _events(analytics_session: AsyncSession, event_type: str) -> list[dict[str, Any]]:
+async def _events(analytics_session: SQLAlchemyAsyncSession, event_type: str) -> list[dict[str, Any]]:
     """Return payloads of every landed row of one event type, in insertion order."""
-    rows = (await analytics_session.execute(select(raw_events))).mappings().all()
+    rows = (await analytics_session.execute(sa_select(raw_events))).mappings().all()
     return [row["payload"] for row in rows if row["event_type"] == event_type]
 
 
-async def _actors(analytics_session: AsyncSession, event_type: str) -> list[str]:
+async def _actors(analytics_session: SQLAlchemyAsyncSession, event_type: str) -> list[str]:
     """Return the actor_id of every landed row of one event type, in insertion order."""
-    rows = (await analytics_session.execute(select(raw_events))).mappings().all()
+    rows = (await analytics_session.execute(sa_select(raw_events))).mappings().all()
     return [row["actor_id"] for row in rows if row["event_type"] == event_type]
 
 
@@ -93,9 +94,9 @@ def _as_utc(value: datetime) -> datetime:
     return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
-async def _occurred_at(analytics_session: AsyncSession, event_type: str) -> list[datetime]:
+async def _occurred_at(analytics_session: SQLAlchemyAsyncSession, event_type: str) -> list[datetime]:
     """Return the occurred_at of every landed row of one event type, in insertion order."""
-    rows = (await analytics_session.execute(select(raw_events))).mappings().all()
+    rows = (await analytics_session.execute(sa_select(raw_events))).mappings().all()
     return [_as_utc(row["occurred_at"]) for row in rows if row["event_type"] == event_type]
 
 
@@ -147,7 +148,7 @@ def _ingest_failing_only_for(event_type: str, attempted: list[str] | None = None
 
 async def _error_message_count(session: AsyncSession) -> int:
     """Count the assistant messages stored with ``is_error`` set."""
-    rows = (await session.execute(select(Message).where(col(Message.is_error).is_(True)))).scalars().all()
+    rows = (await session.exec(select(Message).where(col(Message.is_error).is_(True)))).all()
     return len(rows)
 
 
@@ -155,7 +156,7 @@ async def test_new_conversation_emits_conversation_started(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     config_id = await _seed_llm_config(session, current_user.id or 1)
 
@@ -194,7 +195,7 @@ async def test_continuing_a_conversation_does_not_re_emit_conversation_started(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     """The event marks a conversation beginning, so a second turn must not repeat it."""
     config_id = await _seed_llm_config(session, current_user.id or 1)
@@ -224,7 +225,7 @@ async def test_refused_first_message_starts_no_conversation_and_emits_nothing(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     """An out-of-scope opening message is refused before any conversation is written.
 
@@ -252,14 +253,14 @@ async def test_refused_first_message_starts_no_conversation_and_emits_nothing(
         )
 
     assert response.status_code == 200
-    assert (await analytics_session.execute(select(raw_events))).mappings().all() == []
+    assert (await analytics_session.execute(sa_select(raw_events))).mappings().all() == []
 
 
 async def test_instructor_turn_emits_message_sent(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     config_id = await _seed_llm_config(session, current_user.id or 1)
     question = "Create a course on data privacy"
@@ -282,6 +283,7 @@ async def test_instructor_turn_emits_message_sent(
 
     assert response.status_code == 200
 
+    await join_live_tasks()  # chat.message_sent lands on a detached task
     sent = await _events(analytics_session, "chat.message_sent")
     assert len(sent) == 1
     assert sent[0]["message_length"] == len(question)
@@ -295,7 +297,7 @@ async def test_attachment_turn_emits_message_sent_with_has_attachment(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     """An inline upload on the turn sets ``has_attachment`` on the landed row."""
     config_id = await _seed_llm_config(session, current_user.id or 1)
@@ -325,6 +327,7 @@ async def test_attachment_turn_emits_message_sent_with_has_attachment(
 
     assert response.status_code == 200
 
+    await join_live_tasks()  # chat.message_sent lands on a detached task
     sent = await _events(analytics_session, "chat.message_sent")
     assert len(sent) == 1
     assert sent[0]["has_attachment"] is True
@@ -334,7 +337,7 @@ async def test_message_sent_payload_carries_no_message_text(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     """A length, never the words. Course content must not reach the analytics store."""
     config_id = await _seed_llm_config(session, current_user.id or 1)
@@ -358,6 +361,7 @@ async def test_message_sent_payload_carries_no_message_text(
 
     assert response.status_code == 200
 
+    await join_live_tasks()  # chat.message_sent lands on a detached task
     sent = await _events(analytics_session, "chat.message_sent")
     assert set(sent[0]) == {
         "conversation_id",
@@ -373,7 +377,7 @@ async def test_assistant_turns_in_the_request_do_not_emit_message_sent(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     """A client replaying history sends assistant turns too; only instructor turns count."""
     config_id = await _seed_llm_config(session, current_user.id or 1)
@@ -400,6 +404,7 @@ async def test_assistant_turns_in_the_request_do_not_emit_message_sent(
 
     assert response.status_code == 200
 
+    await join_live_tasks()  # chat.message_sent lands on a detached task
     sent = await _events(analytics_session, "chat.message_sent")
     assert len(sent) == 1
     assert sent[0]["message_length"] == len("Add a consent module")
@@ -409,7 +414,7 @@ async def test_non_streaming_completion_emits_completion_served(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     config_id = await _seed_llm_config(session, current_user.id or 1)
 
@@ -452,7 +457,7 @@ async def test_non_streaming_tool_executions_emit_tool_invoked(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     """The non-streaming path reads metadata["tool_executions"], keyed "tool"."""
     config_id = await _seed_llm_config(session, current_user.id or 1)
@@ -512,7 +517,7 @@ async def test_refused_query_emits_no_completion_served(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     """A refusal never reaches the LLM, so it is not a completion."""
     config_id = await _seed_llm_config(session, current_user.id or 1)
@@ -545,7 +550,7 @@ async def test_analytics_emission_failure_propagates_from_the_completion(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     """The error-handling contract: a failed analytics write is never hidden.
 
@@ -605,7 +610,7 @@ async def test_streaming_completion_emits_served_and_tool_invoked(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     """The streaming seam reads tool_end records, keyed "name".
 
@@ -669,7 +674,7 @@ async def test_streaming_completion_without_tools_emits_zero_count(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     config_id = await _seed_llm_config(session, current_user.id or 1)
 
@@ -707,7 +712,7 @@ async def test_a_turn_stopped_mid_stream_records_where_it_stopped(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     config_id = await _seed_llm_config(session, current_user.id or 1)
     turn_id = str(uuid4())
@@ -743,7 +748,7 @@ async def test_a_turn_stopped_mid_stream_records_where_it_stopped(
 
     rows = [
         row
-        for row in (await analytics_session.execute(select(raw_events))).mappings().all()
+        for row in (await analytics_session.execute(sa_select(raw_events))).mappings().all()
         if row["event_type"] == "chat.completion_served"
     ]
     assert [row["event_version"] for row in rows] == [1]
@@ -754,7 +759,7 @@ async def test_streaming_analytics_failure_does_not_corrupt_the_conversation(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     """A failed streaming analytics write stays off the stream and out of the transcript.
 
@@ -811,7 +816,7 @@ async def test_a_streamed_turn_timestamps_its_events_in_the_order_they_happened(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     """occurred_at is when the thing happened, not when the row was written.
 
@@ -870,7 +875,7 @@ async def test_event_times_come_from_the_rows_they_describe(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     """Not `now()` at the emit site: the conversation and message rows already know when
     they were created, and those are the authoritative times."""
@@ -895,14 +900,11 @@ async def test_event_times_come_from_the_rows_they_describe(
     assert response.status_code == 200
 
     conversation_uuid = UUID(response.json()["conversation_id"])
-    conversation = (
-        (await session.execute(select(Conversation).where(col(Conversation.uuid) == conversation_uuid))).scalars().one()
-    )
-    stored_messages = (
-        (await session.execute(select(Message).where(col(Message.conversation_id) == conversation.id))).scalars().all()
-    )
+    conversation = (await session.exec(select(Conversation).where(col(Conversation.uuid) == conversation_uuid))).one()
+    stored_messages = (await session.exec(select(Message).where(col(Message.conversation_id) == conversation.id))).all()
     instructor_turn = next(message for message in stored_messages if message.role == "user")
 
+    await join_live_tasks()  # chat.message_sent lands on a detached task
     (started,) = await _occurred_at(analytics_session, "chat.conversation_started")
     (sent,) = await _occurred_at(analytics_session, "chat.message_sent")
 
@@ -955,7 +957,7 @@ async def test_tool_invoked_records_whether_each_call_succeeded(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     """Real tools through the real provider loop: a success, a returned error, and a raise."""
     config_id = await _seed_llm_config(session, current_user.id or 1)
@@ -984,7 +986,7 @@ async def test_tool_invoked_records_whether_each_call_succeeded(
 
     assert response.status_code == 200
 
-    rows = (await analytics_session.execute(select(raw_events))).mappings().all()
+    rows = (await analytics_session.execute(sa_select(raw_events))).mappings().all()
     invoked = [row for row in rows if row["event_type"] == "chat.tool_invoked"]
     assert {row["event_version"] for row in invoked} == {1}
     assert [

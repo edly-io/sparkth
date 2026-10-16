@@ -1,6 +1,6 @@
 from fastapi import status
 
-from sparkth.lib.analytics import register_event_schemas
+from sparkth.lib.analytics import register_event_schemas, register_summary_figure
 from sparkth.lib.chat.hooks import CHAT_RESPONSIBILITIES
 from sparkth.lib.config.hooks import CONFIG_ADAPTERS, CONFIG_SCHEMAS
 from sparkth.lib.documents import DOCUMENT_DELETED
@@ -19,6 +19,7 @@ from sparkth.lib.log import get_logger
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.lib.routes import register_router
 from sparkth.plugins.chat.analytics import events
+from sparkth.plugins.chat.analytics.reads import SUMMARY_FIGURES_CHAT
 from sparkth.plugins.chat.config import ChatUserConfig
 from sparkth.plugins.chat.exceptions import ConversationNotFound, DocumentNotFound, ResponsibilityNotEnabled
 from sparkth.plugins.chat.models import (  # noqa: F401 — registers tables in SQLModel metadata for Alembic
@@ -58,3 +59,5 @@ class ChatPlugin(SparkthPlugin):
         CHAT_RESPONSIBILITIES.add_item(self, COURSE_DESIGN)
 
         register_event_schemas(self, events)
+        for figure in SUMMARY_FIGURES_CHAT:
+            register_summary_figure(self, figure)

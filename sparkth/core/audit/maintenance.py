@@ -15,9 +15,8 @@ Authored with LLM (Claude) assistance.
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import timedelta
-from typing import Any, cast
 
-from sqlalchemy import ColumnElement, CursorResult, delete, text, update
+from sqlalchemy import ColumnElement, delete, text, update
 from sqlmodel import col
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -57,12 +56,12 @@ async def append_only_unlocked(session: AsyncSession) -> AsyncIterator[None]:
     """
     dialect = session.bind.dialect.name if session.bind is not None else ""
     for statement in APPEND_ONLY_UNLOCK_DDL.get(dialect, []):
-        await session.execute(text(statement))
+        await (await session.connection()).execute(text(statement))
     try:
         yield
     finally:
         for statement in APPEND_ONLY_RELOCK_DDL.get(dialect, []):
-            await session.execute(text(statement))
+            await (await session.connection()).execute(text(statement))
 
 
 async def purge_expired_events() -> dict[str, int]:
@@ -91,10 +90,7 @@ async def purge_expired_events() -> dict[str, int]:
                 if days <= 0:
                     continue
                 cutoff = now - timedelta(days=days)
-                result = cast(
-                    CursorResult[Any],
-                    await session.execute(delete(AuditEvent).where(predicate, col(AuditEvent.occurred_at) < cutoff)),
-                )
+                result = await session.exec(delete(AuditEvent).where(predicate, col(AuditEvent.occurred_at) < cutoff))
                 if result.rowcount:
                     deleted[category] = result.rowcount
         for category, rows in deleted.items():
@@ -124,13 +120,10 @@ async def erase_actor(user_id: int) -> int:
     actor_id = str(user_id)
     async with session_scope() as session:
         async with append_only_unlocked(session):
-            result = cast(
-                CursorResult[Any],
-                await session.execute(
-                    update(AuditEvent)
-                    .where(col(AuditEvent.actor_id) == actor_id)
-                    .values(actor_label=None, request_ip=None, user_agent=None, updated_at=utc_now())
-                ),
+            result = await session.exec(
+                update(AuditEvent)
+                .where(col(AuditEvent.actor_id) == actor_id)
+                .values(actor_label=None, request_ip=None, user_agent=None, updated_at=utc_now())
             )
         rows: int = result.rowcount
         await record_event(
