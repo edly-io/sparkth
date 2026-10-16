@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select as sa_select
+from sqlalchemy.ext.asyncio import AsyncSession as SQLAlchemyAsyncSession
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -30,7 +31,7 @@ async def _whitelist(session: AsyncSession, email: str) -> None:
     await session.commit()
 
 
-async def _rows(analytics_session: AsyncSession, event_type: str) -> list[Any]:
+async def _rows(analytics_session: SQLAlchemyAsyncSession, event_type: str) -> list[Any]:
     result = await analytics_session.execute(sa_select(raw_events).where(raw_events.c.event_type == event_type))
     return list(result.mappings().all())
 
@@ -51,7 +52,7 @@ def _google_patches(google_id: str, email: str) -> tuple[Any, Any]:
 
 
 async def test_password_registration_emits_user_registered(
-    client: AsyncClient, session: AsyncSession, analytics_session: AsyncSession
+    client: AsyncClient, session: AsyncSession, analytics_session: SQLAlchemyAsyncSession
 ) -> None:
     email = f"{uuid.uuid4().hex[:8]}@example.com"
     await _whitelist(session, email)
@@ -73,7 +74,7 @@ async def test_password_registration_emits_user_registered(
 
 
 async def test_failed_registration_emits_nothing(
-    client: AsyncClient, session: AsyncSession, analytics_session: AsyncSession
+    client: AsyncClient, session: AsyncSession, analytics_session: SQLAlchemyAsyncSession
 ) -> None:
     response = await client.post(
         REGISTER_URL,
@@ -95,7 +96,7 @@ async def _unverified_user(session: AsyncSession) -> tuple[User, str]:
 
 
 async def test_email_verification_emits_user_email_verified(
-    client: AsyncClient, session: AsyncSession, analytics_session: AsyncSession
+    client: AsyncClient, session: AsyncSession, analytics_session: SQLAlchemyAsyncSession
 ) -> None:
     user, raw = await _unverified_user(session)
 
@@ -112,14 +113,16 @@ async def test_email_verification_emits_user_email_verified(
     assert _utc(rows[0]["occurred_at"]) == _utc(user.email_verified_at)
 
 
-async def test_rejected_verification_emits_nothing(client: AsyncClient, analytics_session: AsyncSession) -> None:
+async def test_rejected_verification_emits_nothing(
+    client: AsyncClient, analytics_session: SQLAlchemyAsyncSession
+) -> None:
     response = await client.post(VERIFY_URL, json={"token": "bogus"})
     assert response.status_code == 400
     assert await _rows(analytics_session, "user.email_verified") == []
 
 
 async def test_google_first_sign_in_emits_user_registered(
-    client: AsyncClient, session: AsyncSession, analytics_session: AsyncSession
+    client: AsyncClient, session: AsyncSession, analytics_session: SQLAlchemyAsyncSession
 ) -> None:
     await _whitelist(session, "firstgoogle@example.com")
     exchange, user_info = _google_patches("gid-first", "firstgoogle@example.com")
@@ -138,7 +141,7 @@ async def test_google_first_sign_in_emits_user_registered(
 
 
 async def test_google_sign_in_of_existing_user_emits_no_user_registered(
-    client: AsyncClient, session: AsyncSession, analytics_session: AsyncSession
+    client: AsyncClient, session: AsyncSession, analytics_session: SQLAlchemyAsyncSession
 ) -> None:
     user = User(name="Old", username="oldgoogle", email="oldgoogle@example.com", hashed_password="x")
     session.add(user)

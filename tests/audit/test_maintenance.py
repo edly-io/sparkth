@@ -93,7 +93,7 @@ async def test_guard_is_rearmed_after_purge(session: AsyncSession, retention: No
     await purge_expired_events()
 
     with pytest.raises(DBAPIError, match="append-only"):
-        await session.execute(delete(AuditEvent))
+        await session.exec(delete(AuditEvent))
 
 
 async def test_erase_actor_blanks_only_that_actors_origin_columns(
@@ -121,4 +121,4 @@ async def test_guard_is_rearmed_after_erasure(session: AsyncSession) -> None:
     await erase_actor(1)
 
     with pytest.raises(DBAPIError, match="append-only"):
-        await session.execute(delete(AuditEvent))
+        await session.exec(delete(AuditEvent))

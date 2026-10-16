@@ -76,6 +76,8 @@ Documentation includes:
 - **Docstrings** — module, class, and function docstrings must reflect current behaviour. If a function no longer does what its docstring says, update the docstring in the same commit. Describe what the code does now — not its history, versioning policy, or why an earlier design changed.
 - **Inline comments** — remove or update comments that describe logic that has changed. Never leave comments that contradict the code.
 - **Markdown files** — `CLAUDE.md`, `README.md`, plugin guides, and any other `.md` files must be updated when commands, architecture, configuration, or behaviour they describe changes.
+  Keep every line you write or edit under 120 characters; wrap prose across lines, and never
+  break inside inline code. Tables, URLs and code blocks are exempt.
 
 The rule applies to both new work and incidental changes. If you touch a file and notice a stale docstring or comment nearby, fix it in the same commit.
 
@@ -121,7 +123,7 @@ How the suite is wired:
 - A file named `tests.py` inside a package is **not** collected — pytest only collects `test_*.py`.
 
 **TimescaleDB test lane.** The suite runs on in-memory SQLite by default. Tests that need a
-real PostgreSQL/TimescaleDB — those exercising continuous aggregates, whose SQL (`_PG_LOGINS_SQL`)
+real PostgreSQL/TimescaleDB — those exercising continuous aggregates, whose SQL (built by `read_rollup`)
 and DDL (the analytics migrations) SQLite cannot represent — carry the `pg` marker (applied
 module-wide via `pytestmark = pytest.mark.pg`) and live under
 [`tests/analytics/pg/`](tests/analytics/pg/). They **skip** unless

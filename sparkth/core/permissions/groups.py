@@ -161,8 +161,8 @@ async def delete_group(group_id: int, session: AsyncSession) -> None:
         raise GroupInUse(group_id)
     # The group_id foreign keys have no ON DELETE CASCADE, so remove dependents (membership
     # rows and historical soft-deleted assignments) in bulk before deleting the group itself.
-    await session.execute(delete(GroupMembership).where(col(GroupMembership.group_id) == group_id))
-    await session.execute(delete(GroupRoleAssignment).where(col(GroupRoleAssignment.group_id) == group_id))
+    await session.exec(delete(GroupMembership).where(col(GroupMembership.group_id) == group_id))
+    await session.exec(delete(GroupRoleAssignment).where(col(GroupRoleAssignment.group_id) == group_id))
     await session.delete(group)
     await record_event(
         session,

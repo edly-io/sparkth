@@ -1,18 +1,17 @@
 """Read-side query over chat authoring activity.
 
-PostgreSQL reads the ``chat_activity_daily`` continuous aggregate; SQLite (tests / e2e)
-computes the same rows from ``raw_events``. The two must stay semantically identical: same
-event types, same ``dimension`` / ``outcome`` extraction, UTC day bucketing, range filtered on
-the day (inclusive both ends).
+Reads the ``chat_activity_daily`` continuous aggregate through ``read_rollup``; its ``dims``
+must match the aggregate's ``dimension`` / ``outcome`` definition. Also declares chat's Overview
+figures, which sum that read.
 """
 
 from datetime import date
 
 from pydantic import BaseModel
-from sqlalchemy import text
-from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from sparkth.lib.analytics import PG_BUCKET, SQLITE_BUCKET, Bucket, read_bucketed
+from sparkth.lib.analytics import Bucket, Count, SummaryFigure, read_rollup
+from sparkth.lib.i18n import gettext_noop
 from sparkth.plugins.chat.analytics.events import (
     ChatConversationStarted,
     ChatDocumentAttached,
@@ -30,7 +29,6 @@ ACTIVITY_EVENT_TYPES = (
     ChatDocumentDetached.event_type,
     ChatTurnFailed.event_type,
 )
-_IN_LIST = ", ".join(f"'{event_type}'" for event_type in ACTIVITY_EVENT_TYPES)
 
 
 class ChatActivityPoint(BaseModel):
@@ -45,37 +43,61 @@ class ChatActivityPoint(BaseModel):
     event_count: int
 
 
-_PG_SQL = {
-    bucket: text(
-        f"SELECT to_char({expr}, 'YYYY-MM-DD') AS bucket, event_type, dimension, outcome, "
-        "CAST(sum(event_count) AS bigint) AS event_count "
-        "FROM chat_activity_daily "
-        "WHERE (day AT TIME ZONE 'UTC')::date BETWEEN :from_ AND :to "
-        "GROUP BY 1, event_type, dimension, outcome"
-    )
-    for bucket, expr in PG_BUCKET.items()
-}
-_SQLITE_SQL = {
-    bucket: text(
-        f"SELECT {expr} AS bucket, event_type, "
-        "CASE event_type WHEN 'chat.tool_invoked' THEN json_extract(payload, '$.tool_name') "
-        "WHEN 'chat.turn_failed' THEN json_extract(payload, '$.cause') END AS dimension, "
-        "json_extract(payload, '$.outcome') AS outcome, count(*) AS event_count "
-        "FROM raw_events "
-        f"WHERE event_type IN ({_IN_LIST}) "
-        "AND date(occurred_at) BETWEEN :from_ AND :to "
-        "GROUP BY 1, 2, 3, 4"
-    )
-    for bucket, expr in SQLITE_BUCKET.items()
-}
-
-
 async def get_chat_activity(session: AsyncSession, from_: date, to: date, bucket: Bucket) -> list[ChatActivityPoint]:
     """Return chat event counts per ``bucket``, event type, dimension and outcome for ``from_``..``to``.
 
-    Sparse: combinations with no events are omitted. Sorted in Python (NULLs first, bytewise)
-    so both dialects return the same order.
+    Sparse: combinations with no events are omitted. Sorted with NULLs first, bytewise.
     """
-    rows = await read_bucketed(session, _PG_SQL, _SQLITE_SQL, from_, to, bucket)
-    points = [ChatActivityPoint.model_validate(dict(row)) for row in rows]
-    return sorted(points, key=lambda p: (p.bucket, p.event_type, p.dimension or "", p.outcome or ""))
+    rows = await read_rollup(
+        session,
+        aggregate="chat_activity_daily",
+        event_types=ACTIVITY_EVENT_TYPES,
+        by_event_type=True,
+        dims={
+            "dimension": {ChatToolInvoked.event_type: "tool_name", ChatTurnFailed.event_type: "cause"},
+            "outcome": "outcome",
+        },
+        count_column="event_count",
+        from_=from_,
+        to=to,
+        bucket=bucket,
+    )
+    return [ChatActivityPoint.model_validate(dict(r)) for r in rows]
+
+
+def _count_of(event_type: str) -> Count:
+    async def count(session: AsyncSession, from_: date, to: date) -> int:
+        # ponytail: each figure re-reads the aggregate; share one read if the Overview gets slow.
+        rows = await get_chat_activity(session, from_, to, Bucket.month)
+        return sum(r.event_count for r in rows if r.event_type == event_type)
+
+    return count
+
+
+# Built once so a second ChatPlugin() registers equal figures (a no-op).
+SUMMARY_FIGURES_CHAT = (
+    SummaryFigure(
+        "chat.conversations",
+        gettext_noop("Conversations started"),
+        _count_of(ChatConversationStarted.event_type),
+        view="authoring",
+        order=40,
+    ),
+    SummaryFigure(
+        "chat.messages",
+        gettext_noop("Messages sent"),
+        _count_of(ChatMessageSent.event_type),
+        view="authoring",
+        order=50,
+    ),
+    SummaryFigure(
+        "chat.tool_calls", gettext_noop("Tool calls"), _count_of(ChatToolInvoked.event_type), view="authoring", order=60
+    ),
+    SummaryFigure(
+        "chat.failed_turns",
+        gettext_noop("Messages failed"),
+        _count_of(ChatTurnFailed.event_type),
+        view="authoring",
+        order=70,
+    ),
+)

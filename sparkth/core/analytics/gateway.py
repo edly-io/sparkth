@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy.exc import SQLAlchemyError
-from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from sparkth.core.analytics import get_event_schema
 from sparkth.core.analytics.models import raw_events
@@ -50,7 +50,7 @@ async def ingest_event(
     validated = schema.model_validate(payload)
 
     try:
-        await session.exec(
+        await session.execute(
             raw_events.insert().values(
                 occurred_at=occurred_at or datetime.now(timezone.utc),
                 event_type=event_type,

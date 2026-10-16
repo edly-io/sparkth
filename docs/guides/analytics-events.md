@@ -41,7 +41,9 @@ pipeline's maintenance window.
 Analytics counts are lower bounds by design: events queued on `background_tasks` are discarded
 whenever a route raises (see the "Known gap" note in `sparkth/plugins/chat/analytics/utils.py`). An
 event that cannot tolerate that is audit-grade — route it to audit rather than hardening
-analytics.
+analytics. The exception is an event a rate divides by: `chat.message_sent` goes out on a
+detached task, like `chat.turn_failed`, so a turn that fails after storing its message still
+counts on both sides of the failure rate.
 
 ## Before adding one
 
@@ -107,7 +109,7 @@ a loud failure for a silent one.
 | Where the thing happens | How to emit |
 |---|---|
 | A route that **returns** | `background_tasks.add_task(...)`, queued after all functional background work |
-| A route that **raises** (`HTTPException`) | Background tasks are **discarded** — FastAPI only attaches them to a response that is returned. Needs a detached task or an exception-handler seam |
+| A route that **raises** (`HTTPException`) | Background tasks are **discarded** — FastAPI only attaches them to a response that is returned. Needs a detached task or an exception-handler seam. An event recorded *before* a later raise, which a rate depends on, takes the detached task too (`schedule_message_sent`) |
 | Inside a detached task (e.g. the stream processor) | `await` the helper directly, outside any `try`/`except` guard |
 | A service or classifier with no `BackgroundTasks` | Give it a scheduling seam — see `ChatTurnAnalytics` in `sparkth/plugins/chat/analytics/utils.py`. Never `await` inline in a request path |
 | A `try`/`except` handling the request's **own** failure | Detached task, never `await` — see *Recording a failure* below |

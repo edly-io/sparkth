@@ -19,10 +19,11 @@ wizer sees one directory as its filesystem root: the process's cwd, whenever the
 under it. So each compile runs with its cwd set to a directory holding only ``sandbox.js``, and
 an import can reach nothing but that file. A relative or absolute import of any server file fails
 to resolve. That is also what limits a sandbox to ``pxc:sandbox/*`` imports: builtins, packages
-and unknown interfaces fail to load the same way. node and the smoke test get only ``PATH`` and
-``NO_COLOR`` as their environment, and only the end of their stderr is kept.
+and unknown interfaces fail to load the same way. node, the smoke test and an agent's trial run
+(``trial.py``) get only ``PATH`` and ``NO_COLOR`` as their environment, and only the end of their
+stderr is kept.
 
-Both child processes run in a session of their own and are killed as a group on timeout or
+Every child process runs in a session of its own and is killed as a group on timeout or
 cancellation. node runs wizer as a grandchild, and killing node alone leaves wizer running.
 """
 
@@ -128,7 +129,7 @@ def validate_manifest(manifest: dict[str, object], activity_id: str) -> dict[str
 
     Raises:
         PxcManifestInvalid: naming every problem found, for the agent to fix, cut to
-            ``PXC_BUILD_ERROR_LIMIT`` characters.
+            ``PXC_ERROR_LIMIT`` characters.
     """
     named = {**manifest, "name": activity_id}
     try:
@@ -140,12 +141,12 @@ def validate_manifest(manifest: dict[str, object], activity_id: str) -> dict[str
         )
         logger.info("Refused the manifest of PXC activity %s: %s", activity_id, problems)
         raise PxcManifestInvalid(
-            f"manifest.json does not match the PXC manifest schema: {problems}"[: get_pxc_settings().build_error_limit]
+            f"manifest.json does not match the PXC manifest schema: {problems}"[: get_pxc_settings().error_limit]
         ) from err
     violations = _manifest_rule_violations(parsed)
     if violations:
         raise PxcManifestInvalid(
-            ("manifest.json breaks the build's rules: " + "; ".join(violations))[: get_pxc_settings().build_error_limit]
+            ("manifest.json breaks the build's rules: " + "; ".join(violations))[: get_pxc_settings().error_limit]
         )
     return named
 
@@ -182,7 +183,7 @@ def _timed_out_message(step: str, timeout: int, stdout: bytearray, stderr: bytea
     reported = stderr.decode("utf-8", "replace").strip()
     if reported:
         message += f"\nBefore that, it reported:\n{reported}"
-    return message[: get_pxc_settings().build_error_limit]
+    return message[: get_pxc_settings().error_limit]
 
 
 async def run_bounded(argv: list[str], cwd: Path, step: str) -> tuple[int, str]:
@@ -253,7 +254,7 @@ async def compile_sandbox(sandbox_js: str, compile_dir: Path, output: Path) -> N
     process cwd as the root a source under it can import from. ``output`` lies outside it.
 
     ``compile.mjs`` writes only the cause of a failure, so its stderr goes to the agent as it is,
-    keeping the last ``PXC_BUILD_ERROR_LIMIT`` characters.
+    keeping the last ``PXC_ERROR_LIMIT`` characters.
 
     Raises:
         PxcCompileFailed: with the cause of the failure, or if the toolchain is missing.
@@ -271,9 +272,7 @@ async def compile_sandbox(sandbox_js: str, compile_dir: Path, output: Path) -> N
     if returncode == PXC_COMPILE_TOOLCHAIN_MISSING:
         raise _toolchain_missing(stderr.strip())
     if returncode != 0:
-        raise PxcCompileFailed(
-            f"sandbox.js failed to compile:\n{stderr.strip()[-get_pxc_settings().build_error_limit :]}"
-        )
+        raise PxcCompileFailed(f"sandbox.js failed to compile:\n{stderr.strip()[-get_pxc_settings().error_limit :]}")
 
 
 async def smoke_test_activity(directory: Path) -> None:
@@ -281,7 +280,7 @@ async def smoke_test_activity(directory: Path) -> None:
 
     The child runs inside ``directory`` and is handed it as ``.``, so no server path can appear
     in what it reports. Its report lists the failing steps in order, so it keeps its start, up to
-    ``PXC_BUILD_ERROR_LIMIT`` characters, and ends with ``PXC_SMOKE_CUT_NOTICE`` when more were cut.
+    ``PXC_ERROR_LIMIT`` characters, and ends with ``PXC_SMOKE_CUT_NOTICE`` when more were cut.
 
     Raises:
         PxcSmokeTestFailed: naming the failing steps with the sandbox's own error text.
@@ -291,7 +290,7 @@ async def smoke_test_activity(directory: Path) -> None:
     argv = [sys.executable, "-m", "sparkth.plugins.pxc.scratch.smoke", "."]
     returncode, stderr = await run_bounded(argv, directory, "The smoke test")
     if returncode != 0:
-        failures, limit = stderr.strip(), get_pxc_settings().build_error_limit
+        failures, limit = stderr.strip(), get_pxc_settings().error_limit
         if len(failures) > limit:
             failures = failures[:limit] + PXC_SMOKE_CUT_NOTICE
         raise PxcSmokeTestFailed(f"sandbox.js compiled, but running the activity failed:\n{failures}")

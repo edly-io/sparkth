@@ -74,12 +74,14 @@ replies with a preview link that opens the activity on the Sparkth
 | `pxc_update_activity` | The id and preview link of an existing activity, changed in place |
 | `pxc_list_activities` | The author's most recent activities (20 by default, set by `PXC_LIST_ACTIVITIES_LIMIT`), newest first, each with id, title, creation time, preview link and whether it is placed |
 | `pxc_get_activity_source` | One of the author's activities as its title, description, manifest, `ui.js` and `sandbox.js`, and whether it is placed |
+| `pxc_get_activity_failures` | The actions that failed in the author's preview of one activity's live version (20 by default, set by `PXC_ACTION_FAILURE_LIMIT`), newest first, each with kind, action, permission, value, error and time |
+| `pxc_run_activity` | The result of the steps the agent gives, run in order on a throwaway store that starts from the manifest's field defaults: each step's events or error, then the state for each permission and the stored fields. At most `PXC_TRIAL_STEP_LIMIT` steps (20 by default), and a report over `PXC_TRIAL_REPORT_LIMIT` characters (20000 by default) is refused, not cut |
 
 A build or update failure is raised, not returned, and the agent reads its message to fix the
 files and try again.
 
-Every tool reads the author from the authenticated request, never from an argument. The two
-read tools and `pxc_update_activity` are owner-only: another author's activity is reported as
+Every tool reads the author from the authenticated request, never from an argument. The read
+tools, `pxc_run_activity` and `pxc_update_activity` are owner-only: another author's activity is reported as
 unknown. The tools need an authenticated chat session; on the unauthenticated `/ai/mcp` endpoint
 they fail with `NoAuthenticatedUser`.
 
@@ -154,7 +156,11 @@ A build runs these steps in order:
 1. Validate the source: no assets or capabilities, fixed file names, and the name is set by the
    server.
 2. Compile `sandbox.js` against the bundled `pxc.wit`.
-3. Smoke-test the result in a child process, calling `get_state` for both play and edit.
+3. Smoke-test the result in a child process, on a throwaway store. It reads `getState` as play and
+   as edit, runs `config.save` as edit with the fields' defaults when the manifest declares it,
+   runs every other action as play and as edit with the simplest value its schema accepts, then
+   reads `getState` again. Any error fails the build. The failure lists the failed steps in order,
+   up to `PXC_ERROR_LIMIT` characters, and says so when more were cut.
 4. Publish the directory as the activity's first revision and point the link at it.
 5. Insert the row.
 
@@ -166,6 +172,10 @@ An update runs the first three steps the same way, then:
 4. Clear the state file if the activity is a draft and a field changed.
 5. Prune old revisions.
 6. Save the title and description.
+
+The manifest is also refused if a field's object type has no properties, since such a field can
+only hold `{}`. The failure tells the agent to list the object's keys, or to store a map as an
+array of objects with fixed keys.
 
 A failure is written for the authoring agent to act on. Nothing is published before the checks
 pass, so a failure before the link swap leaves the activity unchanged. Anything that fails after
@@ -182,6 +192,24 @@ Concurrency is limited per process, and builds run inside the web container at a
 compile.
 
 TODO: move builds to a worker container.
+
+## When an action fails
+
+An action fails when its sandbox throws or writes a value its field or event refuses. It is
+refused when the manifest does not accept its name or value. The learner's page then shows a
+notice, and the activity gets no events from it. A sandbox failure keeps any field the action
+saved before it failed, since each write is stored on its own:
+
+- Over the socket, the server sends `{"error": "action_failed" | "action_rejected", "action": <name>}`
+  to the socket that sent the action, and nothing to the others. The socket stays open.
+- On the action POST, a sandbox failure and a refusal both answer 422, a status no proxy sends.
+  The client drops the action from its queue, so the actions behind it still go. A 502 or other
+  5xx, which a proxy sends while the app redeploys, leaves the action queued.
+
+Only an author's preview records a failure. It is stored in `pxc_action_failures`, with its kind
+(`failed` or `rejected`), the action, the permission, the value and the error, and the newest
+`PXC_ACTION_FAILURE_LIMIT` failures per activity are kept. A learner's failure in a course is never
+stored. Every failure and refusal is logged, over the socket and on the POST alike.
 
 ## Scores and grading
 
@@ -267,7 +295,9 @@ page, and the client scripts, the activity assets and the action POSTs answer wi
 The plugin's own errors, such as a 401 for an expired token, carry the same header, so the
 client reads the status and shows the same notices as the socket. FastAPI's 422 for a malformed
 request, an unhandled 500 and the 403 for a disabled plugin carry no CORS header, so the browser
-reports them as a network failure. In every failure the action is not sent and stays queued.
+reports them as a network failure. Each of those leaves the action queued, as does any network
+failure. The plugin's 422 for an action that cannot run drops it instead (see
+[When an action fails](#when-an-action-fails)).
 
 A refused action is not reported at the moment it is refused. `sendAction` resolves as soon as
 the action is in the page's in-memory queue, before any network round-trip, so an activity's own
@@ -283,6 +313,11 @@ bounded number of retries.
 ## Known limits
 
 - Learner actions have no execution limit. That is pxc-lib's to fix.
+- `pxc_run_activity` runs the activity's live version only.
+- `pxc_run_activity` starts from the field defaults, never from the author's saved preview state,
+  so a failure that depends on saved content reproduces only once earlier steps save it.
+- The smoke test's sample values do not reach every code path, so a build that passes can still
+  fail on a value the activity's UI sends.
 - Course staff who edit an LMS block's activity reference directly can point it at any activity
   id, and the LMS signs it. Ownership is checked only when the agent places content. Such a block
   can point at a draft, which is never marked placed, so a later update that changes one of its
