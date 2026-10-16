@@ -9,7 +9,7 @@ from pydantic import ValidationError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.auth import get_current_user
-from sparkth.lib.chat.hooks import enabled_responsibilities
+from sparkth.lib.chat.hooks import enabled_capabilities
 from sparkth.lib.db import get_async_session
 from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.lib.i18n import _, gettext
@@ -78,7 +78,6 @@ def _unusable_status(document: Document) -> Literal["queued", "processing", "fai
 
 
 def _refusal_response(
-    message: str,
     stream: bool,
     conversation_uuid: UUID | None,
     model: str,
@@ -86,14 +85,14 @@ def _refusal_response(
 ) -> StreamingResponse | ChatCompletionResponse:
     """The refusal that ends the turn, in the shape the client asked for.
 
-    ``message`` is the refusal source constant, rendered under the request locale.
+    The refusal sentence is ``REFUSAL_MESSAGE`` rendered under the request locale.
     ``conversation_uuid`` is None when the turn was refused before any conversation was
     written, which is the answer the client gets rather than a missing field.
     """
     if stream:
-        return StreamingResponse(stream_out_of_scope_refusal(message), media_type="text/event-stream")
+        return StreamingResponse(stream_out_of_scope_refusal(), media_type="text/event-stream")
     return ChatCompletionResponse(
-        message=ChatMessage(role="assistant", content=gettext(message)),
+        message=ChatMessage(role="assistant", content=gettext(REFUSAL_MESSAGE)),
         conversation_id=conversation_uuid,
         model=model,
         provider=provider_name,
@@ -167,11 +166,9 @@ async def chat_completion(
         provider=provider_name,
         actor_id=str(user_id),
     )
-    # Every enabled job's section answers each turn; a switched-off plugin's is left out.
-    jobs = await enabled_responsibilities(session)
-    scope_classifier = MessageScopeClassifier(
-        list(jobs.values()), provider_name, api_key, user_id, classifier_analytics
-    )
+    # Every enabled capability answers each turn; a switched-off plugin's is left out.
+    capabilities = await enabled_capabilities(session)
+    scope_classifier = MessageScopeClassifier(capabilities, provider_name, api_key, user_id, classifier_analytics)
 
     # A file uploaded with the message is base64 content, not a Document row, so its name exists
     # only here — both scope checks below need it.
@@ -182,7 +179,7 @@ async def chat_completion(
     if not conversation_uuid:
         # Nothing is persisted yet, and there is no uuid to log a refusal against.
         if not await scope_classifier.in_scope(query_text, [], request_attachment_names, None):
-            return _refusal_response(REFUSAL_MESSAGE, request.stream, None, model, provider_name)
+            return _refusal_response(request.stream, None, model, provider_name)
         # Already judged, so the check below would spend a second call on the same message.
         _skip_main_scope_check = True
 
@@ -296,13 +293,13 @@ async def chat_completion(
                     content=gettext(REFUSAL_MESSAGE),
                     message_type="text",
                 )
-                return _refusal_response(REFUSAL_MESSAGE, request.stream, conversation.uuid, model, provider_name)
+                return _refusal_response(request.stream, conversation.uuid, model, provider_name)
 
         provider = get_provider(
             provider_name=provider_name,
             api_key=api_key,
             model=model,
-            system_prompt=render_system_prompt(list(jobs.values())),
+            system_prompt=render_system_prompt(capabilities),
             temperature=request.temperature,
             max_tool_executions=config.max_tool_executions,
         )

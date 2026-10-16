@@ -5,13 +5,11 @@ from collections.abc import AsyncIterator, Iterator
 
 import pytest
 
-from sparkth.lib.chat.hooks import CHAT_RESPONSIBILITIES, ChatResponsibility
+from sparkth.lib.chat.hooks import ChatCapability, register_chat_capability
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.plugins.chat.detached import join_live_tasks
 
-STUB_JOB = ChatResponsibility(
-    "stub-job", "Stub job", "Stub job", "Stub scope text.", "STUB SECTION", frozenset({"stub-tools"})
-)
+STUB_CAPABILITY = ChatCapability("Stub capability", "Stub scope text.", "STUB SECTION")
 
 
 @pytest.fixture(autouse=True)
@@ -26,10 +24,10 @@ async def drain_detached_emits() -> AsyncIterator[None]:
 
 
 @pytest.fixture
-def stub_job() -> Iterator[ChatResponsibility]:
-    """A second enabled job beside course-design, gone when its plugin is collected."""
+def stub_capability() -> Iterator[ChatCapability]:
+    """A second enabled capability beside course design, gone when its plugin is collected."""
     plugin = SparkthPlugin("stub")
-    CHAT_RESPONSIBILITIES.add_item(plugin, STUB_JOB)
-    yield STUB_JOB
+    register_chat_capability(plugin, STUB_CAPABILITY)
+    yield STUB_CAPABILITY
     del plugin
     gc.collect()

@@ -2,8 +2,6 @@ from pathlib import Path
 
 from pxc.lib.permission import Permission
 
-from sparkth.lib.i18n import gettext_noop
-
 # Bundled activity sources, one directory per activity type.
 PXC_ACTIVITY_ROOT = Path(__file__).parent / "activities"
 
@@ -85,20 +83,14 @@ PXC_SANDBOX_OUTPUT_LIMIT = 2000
 # The pxc plugin's prompt and contract texts.
 PXC_ASSET_DIR = Path(__file__).parent / "assets"
 
-# The MCP category every pxc tool registers under, which the pxc-activity-builder chat job claims.
+# The MCP category every pxc tool registers under.
 PXC_TOOL_CATEGORY = "pxc"
 
-# The chat job that builds activities.
-PXC_BUILDER_RESPONSIBILITY_NAME = "pxc-activity-builder"
-# That job's name as authors see it.
-PXC_BUILDER_RESPONSIBILITY_LABEL = gettext_noop("PXC activity builder")
 # The heading its section is rendered under in chat's system prompt.
 PXC_ACTIVITY_BUILDER_TITLE = "Interactive PXC activities"
 
-# What the chat classifier reads to route a conversation to the activity builder.
+# What the chat scope classifier judges an activity-building message against.
 PXC_ACTIVITY_BUILDER_SCOPE = (PXC_ASSET_DIR / "pxc_activity_building_scope.txt").read_text(encoding="utf-8").strip()
 
-# Its section of chat's system prompt, inserted as written.
-PXC_ACTIVITY_BUILDER_SYSTEM_PROMPT = (
-    (PXC_ASSET_DIR / "pxc_activity_building_system_prompt.txt").read_text(encoding="utf-8").strip()
-)
+# The activity builder's section of chat's system prompt, inserted as written.
+PXC_ACTIVITY_BUILDER_PROMPT = (PXC_ASSET_DIR / "pxc_activity_builder_prompt.txt").read_text(encoding="utf-8").strip()

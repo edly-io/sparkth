@@ -1,11 +1,11 @@
 from datetime import datetime
 
-from sparkth.lib.chat.hooks import ChatResponsibility
+from sparkth.lib.chat.hooks import ChatCapability
+from sparkth.plugins.chat.capabilities import COURSE_DESIGN
 from sparkth.plugins.chat.constants import REFUSAL_MESSAGE
 from sparkth.plugins.chat.prompt import render_system_prompt
-from sparkth.plugins.chat.responsibilities import COURSE_DESIGN
 
-_STUB = ChatResponsibility("stub-job", "Stub job", "Stub section", "Stub scope.", "Stub section body.", frozenset())
+_STUB = ChatCapability("Stub section", "Stub scope.", "Stub section body.")
 
 
 class TestRenderSystemPrompt:
@@ -30,7 +30,7 @@ class TestRenderSystemPrompt:
 
     def test_a_section_is_inserted_without_formatting(self) -> None:
         """A section may carry JSON or code examples; its braces reach the model as written."""
-        braced = ChatResponsibility("b", "B", "Braced", "Scope.", 'Return {"id": 1} and {unknown}.', frozenset())
+        braced = ChatCapability("Braced", "Scope.", 'Return {"id": 1} and {unknown}.')
 
         assert 'Return {"id": 1} and {unknown}.' in render_system_prompt([braced])
 
