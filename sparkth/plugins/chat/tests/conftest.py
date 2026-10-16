@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator, Iterator
 
 import pytest
 
-from sparkth.lib.chat.hooks import CHAT_CAPABILITIES, ChatCapability
+from sparkth.lib.chat.hooks import ChatCapability, register_chat_capability
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.plugins.chat.detached import join_live_tasks
 
@@ -27,7 +27,7 @@ async def drain_detached_emits() -> AsyncIterator[None]:
 def stub_capability() -> Iterator[ChatCapability]:
     """A second enabled capability beside course design, gone when its plugin is collected."""
     plugin = SparkthPlugin("stub")
-    CHAT_CAPABILITIES.add_item(plugin, STUB_CAPABILITY)
+    register_chat_capability(plugin, STUB_CAPABILITY)
     yield STUB_CAPABILITY
     del plugin
     gc.collect()
