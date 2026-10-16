@@ -17,16 +17,14 @@ import {
 import { LineChart } from "@/components/ui/LineChart";
 import { RankedBar } from "@/components/ui/RankedBar";
 import { StatCard } from "@/components/ui/StatCard";
-import { PeriodView, useComparison, type PeriodData } from "../PeriodView";
+import { PeriodView, bothPeriods, useComparison, type PeriodData } from "../PeriodView";
+
+const load = bothPeriods(fetchChatActivity);
 
 export default function AuthoringPage() {
   const t = useTranslations("analytics.authoring");
   return (
-    <PeriodView
-      title={t("title")}
-      subtitle={(range) => t("subtitle", { range })}
-      fetcher={fetchChatActivity}
-    >
+    <PeriodView title={t("title")} subtitle={(range) => t("subtitle", { range })} load={load}>
       {(data) => <AuthoringContent {...data} />}
     </PeriodView>
   );
