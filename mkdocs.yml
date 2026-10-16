@@ -53,6 +53,9 @@ nav:
       - Signing up and signing in: user-guide/account.md
       - My Plugins: user-guide/plugins.md
       - AI keys: user-guide/ai-keys.md
+      - Create a course: user-guide/create-course.md
+      - Resources: user-guide/resources.md
+      - Publish to your LMS: user-guide/publish-to-lms.md
   - Developer docs:
       - Guides:
           - Configuration: guides/configuration.md

@@ -29,8 +29,8 @@ assistant.
 1. [Sign in](account.md) to Sparkth.
 2. [Add an AI key](ai-keys.md) for your AI provider.
 3. In [My Plugins](plugins.md), turn on Compose and select that key in its configuration.
-4. Turn on and configure the plugin for your LMS.
-5. Open **Create Course** and describe the course you want.
+4. Turn on and [configure the plugin for your LMS](publish-to-lms.md).
+5. Open **Create Course** and [describe the course you want](create-course.md).
 
 ## Supported integrations
 
