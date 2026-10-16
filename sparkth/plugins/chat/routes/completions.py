@@ -320,7 +320,7 @@ async def chat_completion(
             provider_name=provider_name,
             api_key=api_key,
             model=model,
-            system_prompt=render_system_prompt(responsibility),
+            system_prompt=render_system_prompt([responsibility]),
             temperature=request.temperature,
             max_tool_executions=config.max_tool_executions,
         )
