@@ -98,6 +98,8 @@ class PxcPlugin(SparkthPlugin):
                     pxc_tools.pxc_list_activities,
                     pxc_tools.pxc_get_activity_source,
                     pxc_tools.pxc_update_activity,
+                    pxc_tools.pxc_get_activity_failures,
+                    pxc_tools.pxc_run_activity,
                 )
             ],
         )

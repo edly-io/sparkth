@@ -4,6 +4,7 @@ import hashlib
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.user import User
@@ -44,8 +45,7 @@ class TestStoreAndLinkChunks:
         links_result = MagicMock()
         links_result.all.return_value = []
 
-        session.exec = AsyncMock(side_effect=[existing_result])
-        session.scalars = AsyncMock(return_value=links_result)
+        session.exec = AsyncMock(side_effect=[existing_result, links_result])
 
         store.store_chunks = AsyncMock(return_value=[100, 101])
 
@@ -79,8 +79,7 @@ class TestStoreAndLinkChunks:
         links_result = MagicMock()
         links_result.all.return_value = []
 
-        session.exec = AsyncMock(side_effect=[existing_result])
-        session.scalars = AsyncMock(return_value=links_result)
+        session.exec = AsyncMock(side_effect=[existing_result, links_result])
         store.store_chunks = AsyncMock(return_value=[])
 
         new_count, reused_count = await store_and_link_chunks(
@@ -110,8 +109,7 @@ class TestStoreAndLinkChunks:
         links_result = MagicMock()
         links_result.all.return_value = []
 
-        session.exec = AsyncMock(side_effect=[existing_result])
-        session.scalars = AsyncMock(return_value=links_result)
+        session.exec = AsyncMock(side_effect=[existing_result, links_result])
 
         store.store_chunks = AsyncMock(return_value=[51])
 
@@ -144,8 +142,7 @@ class TestStoreAndLinkChunks:
         links_result = MagicMock()
         links_result.all.return_value = [10]
 
-        session.exec = AsyncMock(side_effect=[existing_result])
-        session.scalars = AsyncMock(return_value=links_result)
+        session.exec = AsyncMock(side_effect=[existing_result, links_result])
         store.store_chunks = AsyncMock(return_value=[])
 
         new_count, reused_count = await store_and_link_chunks(
@@ -228,7 +225,7 @@ class TestCopyDocumentChunkLinks:
         already_linked_result = MagicMock()
         already_linked_result.all.return_value = []
 
-        session.scalars = AsyncMock(side_effect=[source_links_result, already_linked_result])
+        session.exec = AsyncMock(side_effect=[source_links_result, already_linked_result])
 
         await copy_document_chunk_links(session, 1, 2)
 
@@ -236,3 +233,28 @@ class TestCopyDocumentChunkLinks:
         links = session.add_all.call_args[0][0]
         chunk_ids = {lnk.chunk_id for lnk in links}
         assert chunk_ids == {10, 11}
+
+    async def test_links_every_source_chunk_to_the_target_once(self, session: AsyncSession) -> None:
+        """The target gains the source's links it lacks; other documents' links are not copied."""
+        session.add_all(
+            [
+                Document(id=1, user_id=1, name="source.pdf"),
+                Document(id=2, user_id=1, name="target.pdf"),
+                Document(id=3, user_id=1, name="other.pdf"),
+                DocumentChunk(id=10, source_name="source.pdf", content="ten"),
+                DocumentChunk(id=11, source_name="source.pdf", content="eleven"),
+                DocumentChunk(id=12, source_name="other.pdf", content="twelve"),
+                DocumentChunkLink(document_id=1, chunk_id=10),
+                DocumentChunkLink(document_id=1, chunk_id=11),
+                DocumentChunkLink(document_id=2, chunk_id=11),
+                DocumentChunkLink(document_id=3, chunk_id=12),
+            ]
+        )
+        await session.flush()
+
+        await copy_document_chunk_links(session, 1, 2)
+
+        target_links = await session.exec(
+            select(DocumentChunkLink.chunk_id).where(col(DocumentChunkLink.document_id) == 2)
+        )
+        assert sorted(target_links.all()) == [10, 11]
