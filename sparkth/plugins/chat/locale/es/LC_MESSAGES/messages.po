@@ -19,11 +19,6 @@ msgstr ""
 "Generated-By: Babel 2.18.0\n"
 
 # Machine-generated translation (LLM), not yet reviewed by a native speaker.
-#: sparkth/plugins/chat/constants.py:30
-msgid "Course design"
-msgstr "Diseño de cursos"
-
-# Machine-generated translation (LLM), not yet reviewed by a native speaker.
 #: sparkth/plugins/chat/constants.py:37
 msgid ""
 "I'm a course creation assistant and can only help with designing and "

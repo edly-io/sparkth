@@ -1,4 +1,4 @@
-from sparkth.lib.chat.hooks import CHAT_RESPONSIBILITIES
+from sparkth.lib.chat.hooks import CHAT_CAPABILITIES
 from sparkth.lib.frontend import plugin_has_frontend
 from sparkth.lib.frontend.hooks import DISPLAY_INFO, SIDEBAR_ENTRIES, SidebarEntry
 from sparkth.lib.mcp.hooks import MCP_TOOLS
@@ -41,17 +41,12 @@ def test_the_plugin_contributes_its_tools_under_the_pxc_category() -> None:
     }
 
 
-def test_the_plugin_registers_the_activity_job() -> None:
+def test_the_plugin_registers_the_activity_capability() -> None:
     plugin = PxcPlugin()
 
-    jobs = [job for owner, job in CHAT_RESPONSIBILITIES.iter_items() if owner is plugin]
+    capabilities = [item for owner, item in CHAT_CAPABILITIES.iter_items() if owner is plugin]
 
-    assert jobs == [PXC_ACTIVITY_BUILDER]
-
-
-def test_the_activity_job_claims_the_pxc_tools() -> None:
-    assert PXC_ACTIVITY_BUILDER.name == "pxc-activity-builder"
-    assert PXC_ACTIVITY_BUILDER.tool_categories == frozenset({"pxc"})
+    assert capabilities == [PXC_ACTIVITY_BUILDER]
 
 
 def test_the_plugin_ships_a_frontend_page() -> None:
