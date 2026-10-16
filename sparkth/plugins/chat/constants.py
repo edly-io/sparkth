@@ -31,8 +31,6 @@ DEFAULT_RESPONSIBILITY = "course-design"
 COURSE_DESIGN_LABEL = gettext_noop("Course design")
 # The heading course design's section is rendered under in the system prompt.
 COURSE_DESIGN_TITLE = "Course design"
-# The scope classifier's answer when a message belongs to no job.
-NO_RESPONSIBILITY = "none"
 
 # How many prior turns reach the scope classifier.
 MESSAGE_SCOPE_CLASSIFIER_CONVERSATION_HISTORY = 6
