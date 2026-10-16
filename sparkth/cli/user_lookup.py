@@ -5,7 +5,7 @@ import typer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.models.user import User
+from sparkth.lib.models import User
 
 
 async def resolve_user(identifier: str, session: AsyncSession) -> User:
