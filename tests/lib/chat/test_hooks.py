@@ -11,7 +11,6 @@ from sparkth.lib.chat.hooks import (
     CHAT_RESPONSIBILITIES,
     ChatResponsibility,
     enabled_responsibilities,
-    registered_responsibility,
 )
 from sparkth.lib.plugins import SparkthPlugin
 
@@ -83,17 +82,3 @@ async def test_a_second_plugin_claiming_the_name_is_ignored_and_logged(
 
     assert jobs["stub-job"] == STUB
     assert "zz-rival" in caplog.text
-
-
-async def test_a_job_of_a_switched_off_plugin_is_still_registered(
-    session: AsyncSession, stub_plugin: SparkthPlugin
-) -> None:
-    """Its conversations still need its label to say why they cannot continue."""
-    session.add(Plugin(name="stub", enabled=False))
-    await session.commit()
-
-    assert registered_responsibility("stub-job") == STUB
-
-
-def test_a_name_no_plugin_registers_is_not_registered() -> None:
-    assert registered_responsibility("gone-job") is None

@@ -61,11 +61,11 @@ class StreamedCompletion:
 
 
 async def stream_out_of_scope_refusal(message: str) -> AsyncGenerator[str, None]:
-    """Yield a single SSE done-event carrying a fixed reply that ends the turn: the refusal or the redirect.
+    """Yield a single SSE done-event carrying the refusal that ends the turn.
 
-    ``message`` is a ``gettext_noop`` source constant (the refusal, or the redirect to a new
-    conversation). It is written by the backend, not a model, so it renders under the active
-    request locale (``gettext``) rather than the conversation's language.
+    ``message`` is a ``gettext_noop`` source constant. It is written by the backend, not a model,
+    so it renders under the active request locale (``gettext``) rather than the conversation's
+    language.
     """
     yield f"data: {json.dumps({'done': True, 'content': gettext(message)})}\n\n"
 

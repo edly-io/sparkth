@@ -1,12 +1,9 @@
 """Hook through which a plugin gives the chat assistant a job it can do.
 
-A *responsibility* is one job a chat conversation can be for, such as designing a course. Every
-conversation does exactly one. The chat plugin asks a classifier which enabled job a new
-conversation's first message belongs to, stores the answer on the conversation, and from then on
-builds each turn from that job: chat's system prompt skeleton with the job's prompt section, and
-the MCP tool categories it binds. Chat reads the enabled jobs on every request. A later message
-for a different job is redirected to a new conversation, and a job with no tool categories binds
-every category no job claims.
+A *responsibility* is one job the chat assistant does, such as designing a course. Chat reads
+the enabled jobs on every request. A classifier judges each message against every enabled job's
+scope and refuses one that fits none. The turn's system prompt is chat's skeleton with every
+enabled job's prompt section under its title, and the turn gets every tool the request asks for.
 
 The hook lives in ``sparkth.lib`` so a plugin can register a job without importing chat. It is
 keyed by plugin, so a job is offered only while its plugin is switched on. A plugin registers
@@ -31,18 +28,18 @@ logger = get_logger(__name__)
 
 @dataclass(frozen=True)
 class ChatResponsibility:
-    """One job a chat conversation can be for.
+    """One job the chat assistant does.
 
-    ``name`` is a slug, stored on every conversation doing this job, so it must never change
-    once shipped. It is at most ``CHAT_RESPONSIBILITY_NAME_MAX_LENGTH`` characters, the size of
-    that stored column, and a longer one raises ``ValueError``. ``label`` is the job's name as
-    authors see it, marked with ``gettext_noop`` and translated where it is shown. ``title`` is
-    the heading the job's ``prompt`` is rendered under in the chat system prompt. ``scope`` is
-    the text the classifier reads to decide whether a message belongs to this job. ``prompt`` is
-    the job's section of the system prompt: plain text inserted as written, never formatted, so
-    a brace needs no escaping. It holds only what is specific to the job, because chat's skeleton
-    carries the date, identity, output language, refusal and offering-choices rules.
-    ``tool_categories`` names the ``MCP_TOOLS`` categories this job claims.
+    ``name`` is a slug that identifies the job. It is at most
+    ``CHAT_RESPONSIBILITY_NAME_MAX_LENGTH`` characters, and a longer one raises
+    ``ValueError``. ``label`` is the job's name as authors would see it, marked with
+    ``gettext_noop``. ``title`` is the heading
+    the job's ``prompt`` is rendered under in the chat system prompt. ``scope`` is the text the
+    classifier reads to decide whether a message belongs to this job. ``prompt`` is the job's
+    section of the system prompt: plain text inserted as written, never formatted, so a brace
+    needs no escaping. It holds only what is specific to the job, because chat's skeleton carries
+    the date, identity, output language, refusal and offering-choices rules. ``tool_categories``
+    is not read by chat: every turn gets every tool the request asks for.
 
     A frozen dataclass, so the copies registered by repeated plugin constructions compare equal.
     """
@@ -74,8 +71,7 @@ async def enabled_responsibilities(session: AsyncSession) -> dict[str, ChatRespo
 
     Equal copies from repeated constructions of one plugin fold into one entry. When two
     different plugins claim one name, the first in plugin-name order is kept and the other is
-    logged and ignored, because conversations store the name and the two would route each
-    other's conversations.
+    logged and ignored, because both would be offered under one name.
     """
     disabled = await system_disabled_plugin_names(session)
     jobs: dict[str, ChatResponsibility] = {}
@@ -90,15 +86,3 @@ async def enabled_responsibilities(session: AsyncSession) -> dict[str, ChatRespo
                 responsibility.name,
             )
     return jobs
-
-
-def registered_responsibility(name: str) -> ChatResponsibility | None:
-    """Return the job registered as ``name``, whether or not its plugin is switched on.
-
-    When two plugins claim one name, the first in plugin-name order is returned, the same one
-    :func:`enabled_responsibilities` keeps.
-    """
-    for _plugin, responsibility in CHAT_RESPONSIBILITIES.iter_items():
-        if responsibility.name == name:
-            return responsibility
-    return None
