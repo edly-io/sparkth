@@ -6,6 +6,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession as SQLAlchemyAsyncSession
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.analytics.models import raw_events
@@ -33,7 +34,7 @@ async def _make_verified_user(session: AsyncSession, username: str, password: st
 
 
 async def test_successful_login_emits_user_logged_in_event(
-    client: AsyncClient, session: AsyncSession, analytics_session: AsyncSession
+    client: AsyncClient, session: AsyncSession, analytics_session: SQLAlchemyAsyncSession
 ) -> None:
     user = await _make_verified_user(session, "loginproducer", "testpassword")
 
@@ -125,7 +126,7 @@ def _google_patches(google_id: str, email: str) -> tuple[Any, Any]:
 
 
 async def test_google_login_emits_user_logged_in_event(
-    client: AsyncClient, session: AsyncSession, analytics_session: AsyncSession
+    client: AsyncClient, session: AsyncSession, analytics_session: SQLAlchemyAsyncSession
 ) -> None:
     user = await _make_verified_user(session, "googleproducer", "testpassword")
     exchange, user_info = _google_patches("gid-producer", user.email)
@@ -144,7 +145,10 @@ async def test_google_login_emits_user_logged_in_event(
 
 
 async def test_google_signup_counts_as_a_login(
-    client: AsyncClient, session: AsyncSession, analytics_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    client: AsyncClient,
+    session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A first Google sign-in creates the account and logs the user in, so it is a login too."""
     monkeypatch.setattr(get_settings(), "REGISTRATION_ENABLED", True)
@@ -161,7 +165,7 @@ async def test_google_signup_counts_as_a_login(
 
 
 async def test_refused_google_login_emits_nothing(
-    client: AsyncClient, session: AsyncSession, analytics_session: AsyncSession
+    client: AsyncClient, session: AsyncSession, analytics_session: SQLAlchemyAsyncSession
 ) -> None:
     """A callback that sends the user back to the login page did not log anyone in."""
     with patch("sparkth.api.v1.auth.exchange_auth_code", new_callable=AsyncMock, side_effect=ValueError("denied")):

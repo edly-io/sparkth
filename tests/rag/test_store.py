@@ -1,14 +1,17 @@
 """Tests for the document chunk store service.
 
-These tests mock the database layer and verify service logic in isolation:
-batching, metadata mapping, and method contracts.
+Most tests mock the database layer and verify service logic in isolation:
+batching, metadata mapping, and method contracts. ``get_sources`` also runs
+against the real in-memory database.
 """
 
 import inspect
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.rag.models import DocumentChunk
 from sparkth.rag.store import ChunkStoreService
 from sparkth.rag.types import ChunkInput
 
@@ -144,12 +147,26 @@ class TestChunkStoreService:
         mock_session = AsyncMock()
         mock_result = MagicMock()
         mock_result.all.return_value = ["doc1.pdf", "doc2.pdf"]
-        mock_session.scalars = AsyncMock(return_value=mock_result)
+        mock_session.exec = AsyncMock(return_value=mock_result)
 
         sources = await service.get_sources(mock_session)
 
         assert sources == ["doc1.pdf", "doc2.pdf"]
-        mock_session.scalars.assert_awaited_once()
+        mock_session.exec.assert_awaited_once()
+
+    async def test_get_sources_lists_each_name_once_in_order(
+        self, service: ChunkStoreService, session: AsyncSession
+    ) -> None:
+        session.add_all(
+            [
+                DocumentChunk(source_name="b.pdf", content="one"),
+                DocumentChunk(source_name="a.pdf", content="two"),
+                DocumentChunk(source_name="b.pdf", content="three"),
+            ]
+        )
+        await session.flush()
+
+        assert await service.get_sources(session) == ["a.pdf", "b.pdf"]
 
 
 class TestDocumentChunkModel:

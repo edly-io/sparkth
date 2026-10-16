@@ -40,10 +40,10 @@ async def cleanup_deleted_documents() -> None:
     intentionally, as orphan cleanup is not scoped per user.
     """
     async with session_scope() as session:
-        deleted_ids_result = await session.scalars(
+        deleted_ids_result = await session.exec(
             select(Document.id).where(col(Document.is_deleted) == True)  # noqa: E712
         )
-        deleted_doc_ids = list(deleted_ids_result.all())
+        deleted_doc_ids = [doc_id for doc_id in deleted_ids_result.all() if doc_id is not None]
 
         if not deleted_doc_ids:
             logger.info("No deleted documents found. Nothing to clean up.")
@@ -51,7 +51,7 @@ async def cleanup_deleted_documents() -> None:
 
         logger.info("Found %d deleted Documents to process.", len(deleted_doc_ids))
 
-        candidate_result = await session.scalars(
+        candidate_result = await session.exec(
             select(DocumentChunkLink.chunk_id).where(col(DocumentChunkLink.document_id).in_(deleted_doc_ids))
         )
         candidate_chunk_ids = set(candidate_result.all())
@@ -59,7 +59,7 @@ async def cleanup_deleted_documents() -> None:
         orphan_chunk_ids: set[int] = set()
 
         if candidate_chunk_ids:
-            alive_result = await session.scalars(
+            alive_result = await session.exec(
                 select(DocumentChunkLink.chunk_id)
                 .join(Document, col(DocumentChunkLink.document_id) == col(Document.id))
                 .where(
@@ -76,12 +76,10 @@ async def cleanup_deleted_documents() -> None:
             logger.info("No orphaned chunks found.")
 
         if candidate_chunk_ids:
-            await session.execute(
-                delete(DocumentChunkLink).where(col(DocumentChunkLink.document_id).in_(deleted_doc_ids))
-            )
+            await session.exec(delete(DocumentChunkLink).where(col(DocumentChunkLink.document_id).in_(deleted_doc_ids)))
 
         if orphan_chunk_ids:
-            await session.execute(delete(DocumentChunk).where(col(DocumentChunk.id).in_(orphan_chunk_ids)))
+            await session.exec(delete(DocumentChunk).where(col(DocumentChunk.id).in_(orphan_chunk_ids)))
 
         # Soft-deleted Documents are never hard-deleted here, so they keep matching on
         # every later run. Only a run that actually removed something is evidence of a
