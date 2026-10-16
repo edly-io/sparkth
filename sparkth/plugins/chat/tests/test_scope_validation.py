@@ -8,6 +8,7 @@ and that the chat model is never reached.
 """
 
 import json
+import logging
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID
@@ -38,6 +39,7 @@ _OPENAI_REQUEST = httpx.Request("POST", "https://api.openai.com/v1/chat/completi
 _ANTHROPIC_REQUEST = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
 _OPENAI_UNREACHABLE = "Could not reach OpenAI. Please check your network connection."
 _GENERIC_FAILURE = "An error occurred while generating a response. Please try again."
+_ROUTE_LOGGER = "sparkth.plugins.chat.routes.completions"
 
 # Provider failures with the text the user reads for each.
 _PROVIDER_FAILURES = [
@@ -484,4 +486,59 @@ class TestAFailedScopeCheck:
         assert response.status_code == 502
         assert response.json() == {"detail": _GENERIC_FAILURE}
         assert await _count_user_conversations(session, user_id) == before
+        chat_provider.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_a_first_message_whose_answer_does_not_fit_fails_with_the_generic_text(
+        self, client: AsyncClient, current_user: User, session: AsyncSession
+    ) -> None:
+        user_id = current_user.id or 1
+        config_id = await _seed_llm_config(session, user_id)
+        before = await _count_user_conversations(session, user_id)
+
+        with (
+            locale_context("en"),
+            patch(
+                "sparkth.plugins.chat.classifiers.base.get_provider",
+                return_value=_classifier_provider(AsyncMock(return_value={"in_scope": "maybe"})),
+            ),
+            patch("sparkth.plugins.chat.routes.completions.get_provider") as chat_provider,
+        ):
+            response = await _send(client, config_id, None, False)
+
+        assert response.status_code == 502
+        assert response.json() == {"detail": _GENERIC_FAILURE}
+        assert await _count_user_conversations(session, user_id) == before
+        chat_provider.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_a_later_turn_whose_answer_does_not_fit_logs_no_content(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """A rejected answer can echo the message, which may hold course content."""
+        user_id = current_user.id or 1
+        config_id = await _seed_llm_config(session, user_id)
+        conversation_uuid = await _seed_conversation(session, user_id)
+
+        with (
+            locale_context("en"),
+            caplog.at_level(logging.ERROR, logger=_ROUTE_LOGGER),
+            patch(
+                "sparkth.plugins.chat.classifiers.base.get_provider",
+                return_value=_classifier_provider(AsyncMock(return_value={"in_scope": "Week 3 confidential syllabus"})),
+            ),
+            patch("sparkth.plugins.chat.routes.completions.get_provider") as chat_provider,
+        ):
+            response = await _send(client, config_id, conversation_uuid, False)
+
+        assert response.status_code == 502
+        stored = await _stored_messages(session, conversation_uuid)
+        assert [(m.role, m.is_error) for m in stored] == [("user", False), ("assistant", True)]
+        assert stored[-1].content == _GENERIC_FAILURE
+        assert "Scope check failed" in caplog.text
+        assert "confidential syllabus" not in caplog.text
         chat_provider.assert_not_called()

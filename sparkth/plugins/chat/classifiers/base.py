@@ -101,8 +101,9 @@ class BaseClassifier(ABC, Generic[InputT, OutputT]):
         already validated the values by the time the instance exists.
 
         Raises:
-            ClassifierError: the model call failed, or its answer did not fit the output
-                schema. The original failure is kept as the cause.
+            ClassifierError: the LangChain call failed, or its answer did not fit the output
+                schema. The original failure is kept as the cause. A provider SDK error (one of
+                ``LLM_PROVIDER_API_ERRORS``) is not translated and propagates unchanged.
         """
         messages: list[BaseMessage] = [
             SystemMessage(content=self._system_prompt),

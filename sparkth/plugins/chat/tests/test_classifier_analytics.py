@@ -23,7 +23,6 @@ from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
 from sparkth.plugins.chat.detached import join_live_tasks
-from sparkth.plugins.chat.exceptions import ClassifierError
 from sparkth.plugins.chat.models import Conversation, ConversationAttachment
 
 COMPLETIONS_URL = "/api/v1/chat/completions"
@@ -97,6 +96,15 @@ def _scope_verdict(in_scope: bool) -> MagicMock:
     verdict.in_scope = in_scope
     verdict.refusal_reason = "the instructor asked about the Schrems II ruling"
     return verdict
+
+
+def _classifier_provider(ainvoke: AsyncMock) -> MagicMock:
+    """A provider whose classifier chain answers, or fails, through ``ainvoke``."""
+    llm = MagicMock()
+    llm.with_structured_output.return_value = MagicMock(ainvoke=ainvoke)
+    provider = MagicMock()
+    provider.create_llm.return_value = llm
+    return provider
 
 
 def _search_verdict(requires_search: bool) -> MagicMock:
@@ -205,32 +213,30 @@ async def test_a_first_message_refusal_is_recorded_without_a_conversation(
     assert decision["conversation_id"] is None
 
 
-async def test_a_classification_that_failed_open_is_recorded_as_not_judged(
+async def test_an_unreadable_scope_answer_records_a_failed_turn_and_no_decision(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
     analytics_session: AsyncSession,
 ) -> None:
-    """The worst failure mode: the turn is admitted unjudged, and this verdict is the only
-    thing that makes it visible."""
+    """The answer fails the schema in the real classify, so the turn fails and is recorded once."""
     config_id = await _seed_llm_config(session, current_user.id or 1)
     conversation_uuid = await _seed_conversation(session, current_user.id or 1)
 
     with (
         patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=_provider()),
-        patch("sparkth.plugins.chat.classifiers.base.get_provider"),
         patch(
-            "sparkth.plugins.chat.classifiers.message_scope.MessageScopeClassifier.classify",
-            new_callable=AsyncMock,
-            side_effect=ClassifierError("provider is down"),
+            "sparkth.plugins.chat.classifiers.base.get_provider",
+            return_value=_classifier_provider(AsyncMock(return_value={"in_scope": "maybe"})),
         ),
     ):
         response = await _turn(client, config_id, conversation_uuid=conversation_uuid)
+        await join_live_tasks()
 
-    # Failing open means the turn still succeeds — that is the behaviour being measured.
-    assert response.status_code == 200
-    (decision,) = await _events(analytics_session, "chat.scope_classified")
-    assert decision["verdict"] == "not_judged"
+    assert response.status_code == 502
+    (failure,) = await _events(analytics_session, "chat.turn_failed")
+    assert failure["cause"] == "scope_classification_error"
+    assert await _events(analytics_session, "chat.scope_classified") == []
 
 
 async def test_a_new_conversation_records_exactly_one_scope_decision(
