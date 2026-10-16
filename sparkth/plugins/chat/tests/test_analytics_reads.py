@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession as SQLAlchemyAsyncSession
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.analytics import Bucket, ingest_event
@@ -34,11 +35,13 @@ def _at(day: str, hour: int = 12) -> datetime:
     return datetime.fromisoformat(day).replace(hour=hour, tzinfo=timezone.utc)
 
 
-async def _seed(session: AsyncSession, event_type: str, occurred_at: datetime) -> None:
+async def _seed(session: SQLAlchemyAsyncSession, event_type: str, occurred_at: datetime) -> None:
     await ingest_event(session, event_type, 1, _PAYLOADS[event_type], actor_id="1", occurred_at=occurred_at)
 
 
-async def _seed_tool(session: AsyncSession, occurred_at: datetime, tool_name: str, outcome: str = "succeeded") -> None:
+async def _seed_tool(
+    session: SQLAlchemyAsyncSession, occurred_at: datetime, tool_name: str, outcome: str = "succeeded"
+) -> None:
     await ingest_event(
         session,
         "chat.tool_invoked",
@@ -55,7 +58,7 @@ async def _seed_tool(session: AsyncSession, occurred_at: datetime, tool_name: st
     )
 
 
-async def _seed_failed_turn(session: AsyncSession, occurred_at: datetime, cause: str) -> None:
+async def _seed_failed_turn(session: SQLAlchemyAsyncSession, occurred_at: datetime, cause: str) -> None:
     await ingest_event(
         session,
         "chat.turn_failed",
@@ -66,7 +69,7 @@ async def _seed_failed_turn(session: AsyncSession, occurred_at: datetime, cause:
     )
 
 
-async def _seed_pre_outcome_tool(session: AsyncSession, occurred_at: datetime, tool_name: str) -> None:
+async def _seed_pre_outcome_tool(session: SQLAlchemyAsyncSession, occurred_at: datetime, tool_name: str) -> None:
     """A tool row as written before tool outcomes were recorded: no ``outcome`` key."""
     stamp = occurred_at.strftime("%Y-%m-%d %H:%M:%S")
     await session.execute(
@@ -79,7 +82,7 @@ async def _seed_pre_outcome_tool(session: AsyncSession, occurred_at: datetime, t
     await session.commit()
 
 
-async def test_counts_each_event_type_per_day(analytics_session: AsyncSession) -> None:
+async def test_counts_each_event_type_per_day(analytics_session: SQLAlchemyAsyncSession) -> None:
     for event_type in _PAYLOADS:
         await _seed(analytics_session, event_type, _at("2026-03-02"))
     await _seed(analytics_session, "chat.message_sent", _at("2026-03-02", 23))
@@ -96,7 +99,9 @@ async def test_counts_each_event_type_per_day(analytics_session: AsyncSession) -
     ]
 
 
-async def test_dimension_is_tool_name_or_cause_and_outcome_splits_tools(analytics_session: AsyncSession) -> None:
+async def test_dimension_is_tool_name_or_cause_and_outcome_splits_tools(
+    analytics_session: SQLAlchemyAsyncSession,
+) -> None:
     await _seed_tool(analytics_session, _at("2026-03-02"), "create_course")
     await _seed_tool(analytics_session, _at("2026-03-02"), "create_course", outcome="failed")
     await _seed_tool(analytics_session, _at("2026-03-02"), "create_course")
@@ -129,7 +134,7 @@ async def test_dimension_is_tool_name_or_cause_and_outcome_splits_tools(analytic
     ]
 
 
-async def test_week_buckets_start_monday_and_month_buckets_the_first(analytics_session: AsyncSession) -> None:
+async def test_week_buckets_start_monday_and_month_buckets_the_first(analytics_session: SQLAlchemyAsyncSession) -> None:
     # 2025-12-29 is a Monday; that week runs to Sunday 2026-01-04.
     for day in ("2025-12-29", "2026-01-04", "2026-01-05"):
         await _seed(analytics_session, "chat.message_sent", _at(day))
@@ -141,7 +146,7 @@ async def test_week_buckets_start_monday_and_month_buckets_the_first(analytics_s
     assert [(p.bucket, p.event_count) for p in months] == [("2025-12-01", 1), ("2026-01-01", 2)]
 
 
-async def test_range_is_inclusive_on_both_ends(analytics_session: AsyncSession) -> None:
+async def test_range_is_inclusive_on_both_ends(analytics_session: SQLAlchemyAsyncSession) -> None:
     for at in (_at("2026-02-28", 23), _at("2026-03-01", 0), _at("2026-03-10", 23), _at("2026-03-11", 0)):
         await _seed(analytics_session, "chat.message_sent", at)
 
@@ -150,7 +155,7 @@ async def test_range_is_inclusive_on_both_ends(analytics_session: AsyncSession) 
     assert [p.bucket for p in result] == ["2026-03-01", "2026-03-10"]
 
 
-async def test_ignores_events_outside_the_activity_set(analytics_session: AsyncSession) -> None:
+async def test_ignores_events_outside_the_activity_set(analytics_session: SQLAlchemyAsyncSession) -> None:
     await ingest_event(
         analytics_session,
         "chat.scope_classified",
@@ -171,7 +176,7 @@ async def test_ignores_events_outside_the_activity_set(analytics_session: AsyncS
     assert await get_chat_activity(analytics_session, date(2026, 3, 1), date(2026, 3, 31), Bucket.day) == []
 
 
-async def test_orders_null_dimension_and_outcome_first(analytics_session: AsyncSession) -> None:
+async def test_orders_null_dimension_and_outcome_first(analytics_session: SQLAlchemyAsyncSession) -> None:
     await _seed_tool(analytics_session, _at("2026-03-02"), "createa")
     await _seed_tool(analytics_session, _at("2026-03-02"), "create_x")
     await _seed_pre_outcome_tool(analytics_session, _at("2026-03-02"), "create_x")
@@ -193,7 +198,7 @@ async def _as_reader(session: AsyncSession, user: User) -> None:
 
 
 async def test_endpoint_returns_points_for_permitted_user(
-    client: AsyncClient, current_user: User, session: AsyncSession, analytics_session: AsyncSession
+    client: AsyncClient, current_user: User, session: AsyncSession, analytics_session: SQLAlchemyAsyncSession
 ) -> None:
     await _as_reader(session, current_user)
     await _seed_tool(analytics_session, _at("2026-03-02"), "create_course")

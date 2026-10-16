@@ -7,7 +7,7 @@ must match the aggregate's ``dimension`` / ``outcome`` definition.
 from datetime import date
 
 from pydantic import BaseModel
-from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from sparkth.lib.analytics import Bucket, read_rollup
 from sparkth.plugins.chat.analytics.events import (

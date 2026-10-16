@@ -5,6 +5,7 @@ from typing import Any, cast
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession as SQLAlchemyAsyncSession
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.user import User
@@ -23,7 +24,9 @@ URL = "/api/v1/analytics/login-activity"
 LOGINS_URL = "/api/v1/analytics/logins"
 
 
-async def _seed_login(session: AsyncSession, username: str, occurred_at: datetime, method: str = "password") -> None:
+async def _seed_login(
+    session: SQLAlchemyAsyncSession, username: str, occurred_at: datetime, method: str = "password"
+) -> None:
     await ingest_event(
         session,
         "user.logged_in",
@@ -47,7 +50,7 @@ def _at(day: str, hour: int = 12) -> datetime:
     return datetime.fromisoformat(day).replace(hour=hour, tzinfo=timezone.utc)
 
 
-async def test_get_logins_buckets_by_day_and_method(analytics_session: AsyncSession) -> None:
+async def test_get_logins_buckets_by_day_and_method(analytics_session: SQLAlchemyAsyncSession) -> None:
     await _seed_login(analytics_session, "a", _at("2026-03-02", 0))
     await _seed_login(analytics_session, "b", _at("2026-03-02", 23), method="google")
     await _seed_login(analytics_session, "c", _at("2026-03-02"), method="google")
@@ -70,7 +73,7 @@ async def test_get_logins_buckets_by_day_and_method(analytics_session: AsyncSess
     ]
 
 
-async def test_get_logins_range_is_inclusive_on_both_ends(analytics_session: AsyncSession) -> None:
+async def test_get_logins_range_is_inclusive_on_both_ends(analytics_session: SQLAlchemyAsyncSession) -> None:
     await _seed_login(analytics_session, "before", _at("2026-02-28", 23))
     await _seed_login(analytics_session, "first", _at("2026-03-01", 0))
     await _seed_login(analytics_session, "last", _at("2026-03-10", 23))
@@ -81,7 +84,7 @@ async def test_get_logins_range_is_inclusive_on_both_ends(analytics_session: Asy
     assert [p.bucket for p in result] == ["2026-03-01", "2026-03-10"]
 
 
-async def test_get_logins_week_starts_monday_across_a_year_boundary(analytics_session: AsyncSession) -> None:
+async def test_get_logins_week_starts_monday_across_a_year_boundary(analytics_session: SQLAlchemyAsyncSession) -> None:
     # 2025-12-29 is a Monday; that week runs to Sunday 2026-01-04.
     await _seed_login(analytics_session, "mon", _at("2025-12-29"))
     await _seed_login(analytics_session, "thu", _at("2026-01-01"))
@@ -96,7 +99,7 @@ async def test_get_logins_week_starts_monday_across_a_year_boundary(analytics_se
     ]
 
 
-async def test_get_logins_week_bucket_filters_on_the_day(analytics_session: AsyncSession) -> None:
+async def test_get_logins_week_bucket_filters_on_the_day(analytics_session: SQLAlchemyAsyncSession) -> None:
     # The range cuts mid-week: only days inside it count toward the Monday bucket.
     await _seed_login(analytics_session, "mon", _at("2025-12-29"))
     await _seed_login(analytics_session, "thu", _at("2026-01-01"))
@@ -106,7 +109,7 @@ async def test_get_logins_week_bucket_filters_on_the_day(analytics_session: Asyn
     assert result == [LoginsPoint(bucket="2025-12-29", method="password", login_count=1)]
 
 
-async def test_get_logins_month_buckets_on_the_first(analytics_session: AsyncSession) -> None:
+async def test_get_logins_month_buckets_on_the_first(analytics_session: SQLAlchemyAsyncSession) -> None:
     await _seed_login(analytics_session, "a", _at("2026-01-15"))
     await _seed_login(analytics_session, "b", _at("2026-01-31", 23), method="google")
     await _seed_login(analytics_session, "c", _at("2026-02-01", 0))
@@ -130,7 +133,7 @@ async def _permitted_reader(client: AsyncClient, session: AsyncSession) -> None:
 
 
 async def test_logins_endpoint_returns_points_for_permitted_user(
-    client: AsyncClient, session: AsyncSession, analytics_session: AsyncSession
+    client: AsyncClient, session: AsyncSession, analytics_session: SQLAlchemyAsyncSession
 ) -> None:
     await _permitted_reader(client, session)
     await _seed_login(analytics_session, "reader", _at("2026-03-02"), method="google")
@@ -142,7 +145,7 @@ async def test_logins_endpoint_returns_points_for_permitted_user(
 
 
 async def test_logins_endpoint_defaults_to_day_buckets(
-    client: AsyncClient, session: AsyncSession, analytics_session: AsyncSession
+    client: AsyncClient, session: AsyncSession, analytics_session: SQLAlchemyAsyncSession
 ) -> None:
     await _permitted_reader(client, session)
     await _seed_login(analytics_session, "reader", _at("2026-03-04"))
@@ -154,7 +157,7 @@ async def test_logins_endpoint_defaults_to_day_buckets(
 
 
 async def test_logins_endpoint_accepts_a_366_day_span(
-    client: AsyncClient, session: AsyncSession, analytics_session: AsyncSession
+    client: AsyncClient, session: AsyncSession, analytics_session: SQLAlchemyAsyncSession
 ) -> None:
     await _permitted_reader(client, session)
 
@@ -174,7 +177,7 @@ async def test_logins_endpoint_accepts_a_366_day_span(
     ids=["from-after-to", "span-367-days", "unknown-bucket", "missing-from"],
 )
 async def test_logins_endpoint_rejects_invalid_query(
-    client: AsyncClient, session: AsyncSession, analytics_session: AsyncSession, params: dict[str, str]
+    client: AsyncClient, session: AsyncSession, analytics_session: SQLAlchemyAsyncSession, params: dict[str, str]
 ) -> None:
     await _permitted_reader(client, session)
 
@@ -184,7 +187,7 @@ async def test_logins_endpoint_rejects_invalid_query(
 
 
 async def test_logins_endpoint_forbidden_without_permission(
-    client: AsyncClient, session: AsyncSession, analytics_session: AsyncSession
+    client: AsyncClient, session: AsyncSession, analytics_session: SQLAlchemyAsyncSession
 ) -> None:
     user = User(id=2, name="Plain", username="plain", email="p@example.com", hashed_password="x")
     session.add(user)
@@ -201,7 +204,7 @@ async def test_logins_endpoint_requires_authentication(client: AsyncClient) -> N
 
 
 async def test_login_activity_endpoint_is_gone(
-    client: AsyncClient, session: AsyncSession, analytics_session: AsyncSession
+    client: AsyncClient, session: AsyncSession, analytics_session: SQLAlchemyAsyncSession
 ) -> None:
     user = User(id=3, name="Reader", username="reader3", email="r3@example.com", hashed_password="x")
     session.add(user)
@@ -214,7 +217,7 @@ async def test_login_activity_endpoint_is_gone(
     assert response.status_code == 404
 
 
-async def _seed_assessment(session: AsyncSession, occurred_at: datetime) -> None:
+async def _seed_assessment(session: SQLAlchemyAsyncSession, occurred_at: datetime) -> None:
     await ingest_event(
         session,
         "assessment.submitted",
@@ -225,7 +228,7 @@ async def _seed_assessment(session: AsyncSession, occurred_at: datetime) -> None
     )
 
 
-async def _rollup(session: AsyncSession, **kwargs: Any) -> list[dict[str, Any]]:
+async def _rollup(session: SQLAlchemyAsyncSession, **kwargs: Any) -> list[dict[str, Any]]:
     args: dict[str, Any] = {
         "aggregate": "agg",
         "event_types": ("user.logged_in", "assessment.submitted"),
@@ -239,7 +242,7 @@ async def _rollup(session: AsyncSession, **kwargs: Any) -> list[dict[str, Any]]:
     return [dict(r) for r in rows]
 
 
-async def test_read_rollup_groups_by_a_payload_key_with_nulls_first(analytics_session: AsyncSession) -> None:
+async def test_read_rollup_groups_by_a_payload_key_with_nulls_first(analytics_session: SQLAlchemyAsyncSession) -> None:
     await _seed_login(analytics_session, "a", _at("2026-03-02"), method="password")
     await _seed_login(analytics_session, "b", _at("2026-03-02"), method="google")
     await _seed_login(analytics_session, "c", _at("2026-03-02"), method="google")
@@ -254,7 +257,7 @@ async def test_read_rollup_groups_by_a_payload_key_with_nulls_first(analytics_se
     ]
 
 
-async def test_read_rollup_per_event_dim_is_null_for_other_types(analytics_session: AsyncSession) -> None:
+async def test_read_rollup_per_event_dim_is_null_for_other_types(analytics_session: SQLAlchemyAsyncSession) -> None:
     await _seed_login(analytics_session, "a", _at("2026-03-02"), method="google")
     await _seed_assessment(analytics_session, _at("2026-03-02"))
 
@@ -266,7 +269,7 @@ async def test_read_rollup_per_event_dim_is_null_for_other_types(analytics_sessi
     ]
 
 
-async def test_read_rollup_filters_event_types_and_binds_the_range(analytics_session: AsyncSession) -> None:
+async def test_read_rollup_filters_event_types_and_binds_the_range(analytics_session: SQLAlchemyAsyncSession) -> None:
     await _seed_login(analytics_session, "before", _at("2026-02-28", 23))
     await _seed_login(analytics_session, "first", _at("2026-03-01", 0))
     await _seed_login(analytics_session, "last", _at("2026-03-31", 23))
@@ -292,7 +295,7 @@ async def test_read_rollup_filters_event_types_and_binds_the_range(analytics_ses
 async def test_read_rollup_rejects_unsafe_identifiers_before_any_query(kwargs: dict[str, Any]) -> None:
     # No session: validation must not depend on the dialect.
     with pytest.raises(ValueError):
-        await _rollup(cast(AsyncSession, None), **kwargs)
+        await _rollup(cast(SQLAlchemyAsyncSession, None), **kwargs)
 
 
 def test_range_query_rejects_inverted_and_overlong_ranges() -> None:

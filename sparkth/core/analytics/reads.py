@@ -25,7 +25,7 @@ from collections.abc import Mapping, Sequence
 from datetime import date
 
 from sqlalchemy import RowMapping, bindparam, text
-from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from sparkth.core.analytics.enums import Bucket
 from sparkth.core.analytics.schemas.reads import LoginsPoint

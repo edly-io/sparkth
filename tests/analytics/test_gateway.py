@@ -1,6 +1,6 @@
 import pytest
 from sqlalchemy import func, select
-from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from sparkth.core.analytics.exceptions import UnknownEventTypeError
 from sparkth.core.analytics.gateway import ingest_event

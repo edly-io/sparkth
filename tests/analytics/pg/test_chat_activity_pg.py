@@ -10,7 +10,7 @@ from datetime import date, datetime, timezone
 
 import pytest
 from sqlalchemy import text
-from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from sparkth.lib.analytics import Bucket, ingest_event
 from sparkth.plugins.chat.analytics.reads import get_chat_activity
