@@ -114,11 +114,9 @@ given request decides which language rule applies. When the assistant model itse
 judges a request out of scope, the refusal is chat-generated text like any other reply,
 so it follows the language of the conversation. A faster check can also end the request
 before the assistant model is ever invoked; a classification step may run there, but it
-only picks which registered chat job the request belongs to, or none — the backend writes
+only decides whether the request is in scope for the assistant — the backend writes
 the refusal sentence itself rather than a model, so that refusal follows the interface
-language instead. A request for a different job than the conversation's gets a second fixed
-sentence, the redirect to a new conversation, which is also rendered in the interface
-language. The refusal reads the same on either path — only the language it arrives in
+language instead. The refusal reads the same on either path — only the language it arrives in
 depends on which path caught the request.
 
 ### Language and the MCP server

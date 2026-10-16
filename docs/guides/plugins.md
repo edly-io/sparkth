@@ -593,77 +593,64 @@ refuses is never reported. A block whose attribute write then fails still counts
 block's attributes unwritten and reports the block's locator, so the block points at nothing and
 the caller can delete it. Like the builders, `on_placed` must be a module-level function.
 
-## Chat responsibilities
+## Chat capabilities
 
-A *responsibility* is one job a chat conversation can be for, such as designing a course. Every
-conversation does exactly one. A plugin offers a job to chat without importing chat, by
-registering a `ChatResponsibility` from `sparkth.lib.chat.hooks`.
+A *capability* is one kind of work the chat assistant does, such as designing a course. A plugin
+contributes one without importing chat, by registering a `ChatCapability` with
+`register_chat_capability` from `sparkth.lib.chat.hooks`. A plugin registers one capability, from
+its `__init__`, keyed by the plugin instance.
 
-A `ChatResponsibility` has five fields:
+A `ChatCapability` has three fields:
 
-- `name` is a slug that identifies the job. It is at most 64 characters, and a longer one raises
-  `ValueError`.
-- `label` is the job's name as authors see it. Mark it with `gettext_noop`, because chat
-  translates it where it is shown.
-- `scope` is the text a classifier reads to decide whether a message belongs to the job.
-- `system_prompt` is a `str.format` template that receives `current_datetime` and
-  `refusal_message`, so any other literal brace in it must be doubled.
-- `tool_categories` is a `frozenset` of the `MCP_TOOLS` categories (the `category=` passed to
-  `Tool`) that the job claims.
+- `title` is the heading the capability appears under, both in the system prompt and in the scope
+  gate's list, so no two capabilities share one.
+- `scope` is the text the scope gate judges a message against.
+- `prompt` is plain text inserted into the system prompt as written, so a brace in it needs no
+  escaping.
 
-A plugin registers one job from its `__init__`, keyed by the plugin instance:
+For example:
 
 ```python
 # sparkth/plugins/myappplugin/plugin.py
-from sparkth.lib.chat.hooks import CHAT_RESPONSIBILITIES, ChatResponsibility
-from sparkth.lib.i18n import gettext_noop
+from sparkth.lib.chat.hooks import ChatCapability, register_chat_capability
+from sparkth.lib.plugins import SparkthPlugin
 
-MY_JOB = ChatResponsibility(
-    "my-job",
-    gettext_noop("My App builder"),
-    "Requests to build or change things in My App.",
-    "You help with My App. It is {current_datetime}. Decline anything else: {refusal_message}",
-    frozenset({"my-app"}),
-)
+TITLE = "My App builder"
+SCOPE = "Requests to build or change things in My App."
+PROMPT = "Ask which My App item the author wants, then build it with the My App tools."
+
+MY_CAPABILITY = ChatCapability(TITLE, SCOPE, PROMPT)
 
 
 class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
         super().__init__("my-app")
-        CHAT_RESPONSIBILITIES.add_item(self, MY_JOB)
+        register_chat_capability(self, MY_CAPABILITY)
 ```
 
-Constructing the plugin again is harmless: the loader and a plugin's own tests each build an
-instance, and copies carrying an equal job fold into one.
+Register through `register_chat_capability`, not `CHAT_CAPABILITIES.add_item`. Constructing the
+plugin again is harmless: the loader and a plugin's own tests each build an instance, and equal
+copies fold into one. Only a *different* capability claiming a registered title raises
+`DuplicateChatCapabilityError`, from `sparkth.lib.chat.exceptions`. The loader logs the failed
+construction and skips that plugin.
 
-A job is offered only while its plugin is enabled system-wide. `name` is stored on every
-conversation doing the job, so never rename it once shipped. If two plugins claim one name, the
-first by plugin name wins and the other is logged and ignored.
+### How chat uses capabilities
 
-### How chat uses a job
+On every request chat reads the capabilities of the plugins enabled system-wide, in plugin-name
+order. Chat contributes its own, course design. A plugin that is switched off contributes no
+section and no scope.
 
-Chat reads the enabled jobs on every request. It registers one of its own, `course-design`,
-which claims no tool categories.
+- **Scope gate.** Each message is judged against every enabled scope. A message that fits none
+  is refused with a fixed sentence before the model runs. A refused first message writes nothing; a refused later message is stored in the
+  conversation, with the refusal as the assistant's reply. If the classification fails, the
+  message is admitted.
+- **System prompt.** The prompt is chat's skeleton with each enabled capability's section under
+  its title. The skeleton owns the date, the assistant's identity, the output language, the
+  refusal, injection and offering-choices rules, so a section must not repeat them. A section
+  holds the capability's workflow, plus any language or guardrail rules specific to it.
+- **Tools.** Every turn gets all the tools the request asks for.
 
-- **New conversation.** The first message is classified against the `scope` of every enabled
-  job, and the chosen name is stored on the conversation. A message that fits no job is
-  refused with a fixed sentence, and no conversation is written.
-- **Later turns.** A message for the stored job proceeds. A message for another registered job
-  gets a fixed redirect to start a new conversation, because a conversation never changes job.
-  A message that fits no job is refused. Both sentences are rendered in the interface
-  language.
-- **Classification failure.** The turn proceeds: as `course-design` on a first message, as the
-  stored job afterwards.
-- **Prompt and tools.** Each turn's system prompt is the stored job's `system_prompt`. Its
-  tools are those whose `MCP_TOOLS` category is in the job's `tool_categories`. A job with no
-  categories gets every category no other job claims, so claiming a category hides those tools
-  from course design. Categories claimed by a switched-off plugin's job stay hidden too.
-- **Stored job not enabled.** A turn in a conversation whose stored job is no longer enabled,
-  because its plugin was switched off or removed, is refused with a `403`. Its detail names the
-  job by its translated `label`, or by its stored `name` when no plugin registers it any more.
-  Nothing is sent to the model or stored.
-
-Plugin-specific knowledge belongs in a `<prefix>about` tool, not in a job's `system_prompt`;
+Plugin-specific knowledge belongs in a `<prefix>about` tool, not in a capability's `prompt`;
 see the LMS `about` tool [above](#lms-plugins-automatic-credential-injection) for the convention.
 
 ## Reacting to a deleted document
