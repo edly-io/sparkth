@@ -5,9 +5,16 @@ development by [Edly](https://edly.io). It provides a unified framework for cour
 generation with integrated AI capabilities exposed via a Model Context Protocol (MCP)
 server.
 
-These pages cover the **narrative guides** (configuration, user management, backend and
-frontend plugin development, permissions) and the **reference** (environment variables and
-the Python API generated from docstrings). Use the navigation to browse them.
+## Using Sparkth
+
+Instructors and administrators: start with the [User guide](user-guide/index.md). It walks you
+from your first sign-in to a course in your LMS.
+
+## Developing Sparkth
+
+The [developer docs](guides/configuration.md) cover the **narrative guides** (configuration,
+user management, backend and frontend plugin development, permissions) and the **reference**
+(environment variables and the Python API generated from docstrings).
 
 Project setup, running the app, and production deployment live in the repository
 [`README.md`](https://github.com/edly-io/sparkth/blob/main/README.md).
