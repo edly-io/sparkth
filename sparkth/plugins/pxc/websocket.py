@@ -1,6 +1,5 @@
 """The activity socket's frame loop: what arrives on the socket, and what it causes."""
 
-import asyncio
 from typing import Any
 
 from fastapi import status
@@ -9,10 +8,9 @@ from pxc.lib.runtime import ActivityRuntime
 from starlette.websockets import WebSocket
 
 from sparkth.lib.log import get_logger
+from sparkth.plugins.pxc.actions import perform_action
 from sparkth.plugins.pxc.constants import PXC_ACTION_FAILED, PXC_ACTION_REJECTED, PXC_CLOSE_INVALID_TOKEN
-from sparkth.plugins.pxc.event_bus import publish_events
 from sparkth.plugins.pxc.exceptions import PxcActionRejected, PxcInvalidLaunchToken, PxcSandboxFailure
-from sparkth.plugins.pxc.runtime import run_action
 from sparkth.plugins.pxc.tokens import read_launch_token
 
 logger = get_logger(__name__)
@@ -103,7 +101,8 @@ async def _run_one_action(runtime: ActivityRuntime, token: str, frame: dict[str,
     """Run one frame's action through the sandbox and fan out the events it produced.
 
     A frame supplies only the action's name and value; permission and context come from the
-    signed claims, re-verified here so an action after the token lapses does not take effect.
+    signed claims, re-verified here so an action after the token lapses does not take effect. A
+    failure in an author's preview is recorded for the author's agent.
 
     Raises:
         PxcInvalidLaunchToken: if the token no longer verifies.
@@ -113,5 +112,4 @@ async def _run_one_action(runtime: ActivityRuntime, token: str, frame: dict[str,
     claims = read_launch_token(token)
     action_name = str(frame["action"])
     action_value: FieldType = frame.get("value", "")
-    events = await asyncio.to_thread(run_action, runtime, action_name, action_value)
-    await publish_events(claims.activity, claims.activity_instance, events)
+    await perform_action(runtime, claims, action_name, action_value)

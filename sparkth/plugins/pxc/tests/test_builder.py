@@ -300,7 +300,7 @@ async def test_a_compile_error_carries_no_toolchain_stack_or_server_path(tmp_pat
 
 @pytest.mark.wasm
 async def test_a_compile_error_keeps_the_end_of_a_long_message(tmp_path: Path) -> None:
-    limit = get_pxc_settings().build_error_limit
+    limit = get_pxc_settings().error_limit
     sandbox_js = (
         f'throw new Error("{"x" * limit}");\n'
         'export function onAction() { return ""; }\nexport function getState() { return "{}"; }\n'
@@ -672,5 +672,5 @@ def test_a_rule_violation_message_is_cut_at_the_error_limit() -> None:
     with pytest.raises(PxcManifestInvalid) as refused:
         validate_manifest({**MCQ_MANIFEST, "fields": fields}, "activity-1")
 
-    assert len(str(refused.value)) == get_pxc_settings().build_error_limit
+    assert len(str(refused.value)) == get_pxc_settings().error_limit
     assert '"array" of objects with fixed keys' in str(refused.value)
