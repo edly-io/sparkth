@@ -123,6 +123,16 @@ async def test_reset_password_changes_hash(session: AsyncSession) -> None:
     assert new_hash != old_hash
 
 
+async def test_reset_password_finds_the_user_by_email(session: AsyncSession) -> None:
+    await users._create_user("carol", "carol@example.com", "old-pass", None, False, True)
+    old_hash = (await session.exec(select(User).where(User.username == "carol"))).one().hashed_password
+
+    await users._reset_password("carol@example.com", "new-pass")
+
+    new_hash = (await session.exec(select(User).where(User.username == "carol"))).one().hashed_password
+    assert new_hash != old_hash
+
+
 async def test_reset_password_unknown_user_exits(session: AsyncSession) -> None:
     with pytest.raises(typer.Exit):
         await users._reset_password(identifier="ghost", new_password="whatever")
