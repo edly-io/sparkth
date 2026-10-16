@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-import { fetchChatActivity, fetchLogins } from "@/lib/analytics";
+import { fetchChatActivity, fetchLogins, fetchSummary } from "@/lib/analytics";
 import { ApiRequestError } from "@/lib/api";
 
 import { mockFetch, sentRequest } from "../test-utils";
@@ -87,5 +87,34 @@ describe("fetchChatActivity", () => {
     }).catch((e: unknown) => e);
 
     expect((error as ApiRequestError).status).toBe(403);
+  });
+});
+
+describe("fetchSummary", () => {
+  it("GETs /api/v1/analytics/summary for a range, with no bucket, and the bearer token", async () => {
+    const counts = [
+      {
+        key: "logins",
+        label: "Logins",
+        view: "logins",
+        plugin: null,
+        current: 3,
+        previous: 1,
+      },
+    ];
+    const spy = mockFetch(counts);
+
+    const result = await fetchSummary("test-token", {
+      from: "2026-07-01",
+      to: "2026-07-20",
+    });
+
+    const url = new URL(sentRequest(spy).url);
+    expect(url.pathname).toBe("/api/v1/analytics/summary");
+    expect(url.searchParams.get("from")).toBe("2026-07-01");
+    expect(url.searchParams.get("to")).toBe("2026-07-20");
+    expect(url.searchParams.has("bucket")).toBe(false);
+    expect(sentRequest(spy).headers.get("authorization")).toBe("Bearer test-token");
+    expect(result).toEqual(counts);
   });
 });
