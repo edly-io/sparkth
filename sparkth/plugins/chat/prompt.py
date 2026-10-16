@@ -2,9 +2,7 @@ from datetime import datetime
 
 from sparkth.lib.chat.hooks import ChatResponsibility
 from sparkth.plugins.chat.constants import (
-    DEFAULT_RESPONSIBILITY,
     MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT,
-    NO_RESPONSIBILITY,
     REFUSAL_MESSAGE,
     SYSTEM_PROMPT_SKELETON,
 )
@@ -30,14 +28,12 @@ def render_system_prompt(sections: list[ChatResponsibility]) -> str:
     )
 
 
-def render_scope_classifier_prompt(jobs: dict[str, ChatResponsibility]) -> str:
-    """Render the scope classifier's system prompt, listing ``jobs``.
+def render_scope_classifier_prompt(capabilities: list[ChatResponsibility]) -> str:
+    """Render the scope classifier's system prompt, listing each of ``capabilities`` by its title
+    and its scope, which is what the classifier judges a message against.
 
-    Each job appears under its name, which is the value the classifier must answer with, and
-    its scope, which is what the classifier judges against. Rendered per request from the
-    enabled jobs, so nothing depends on which plugin was imported first.
+    Rendered per request from the enabled capabilities, so nothing depends on which plugin was
+    imported first.
     """
-    listed = "\n\n".join(f'JOB "{name}":\n{responsibility.scope}' for name, responsibility in jobs.items())
-    return MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT.format(
-        responsibilities=listed, default_job=DEFAULT_RESPONSIBILITY, no_job=NO_RESPONSIBILITY
-    )
+    listed = "\n\n".join(f'CAPABILITY "{capability.title}":\n{capability.scope}' for capability in capabilities)
+    return MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT.format(capabilities=listed)

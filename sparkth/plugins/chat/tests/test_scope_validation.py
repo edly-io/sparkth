@@ -67,7 +67,7 @@ class TestThePreflightCheckSeesTheWholeTurn:
             locale_context("en"),
             patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as MockClassifier,
         ):
-            MockClassifier.return_value.responsibility_for = AsyncMock(return_value=None)
+            MockClassifier.return_value.in_scope = AsyncMock(return_value=False)
             response = await client.post(
                 "/api/v1/chat/completions",
                 json={
@@ -90,7 +90,7 @@ class TestThePreflightCheckSeesTheWholeTurn:
             )
 
         assert response.status_code == 200
-        query, _history, attachments, _uuid = MockClassifier.return_value.responsibility_for.await_args.args
+        query, _history, attachments, _uuid = MockClassifier.return_value.in_scope.await_args.args
         assert query == ""
         assert attachments == ["syllabus.pdf"]
 
@@ -128,7 +128,7 @@ class TestAnExistingConversationSeesTheWholeTurnToo:
             patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as MockClassifier,
             patch("sparkth.plugins.chat.service.ChatService.add_message", new_callable=AsyncMock),
         ):
-            MockClassifier.return_value.responsibility_for = AsyncMock(return_value=None)
+            MockClassifier.return_value.in_scope = AsyncMock(return_value=False)
             response = await client.post(
                 "/api/v1/chat/completions",
                 json={
@@ -152,7 +152,7 @@ class TestAnExistingConversationSeesTheWholeTurnToo:
             )
 
         assert response.status_code == 200
-        query, _history, attachments, _uuid = MockClassifier.return_value.responsibility_for.await_args.args
+        query, _history, attachments, _uuid = MockClassifier.return_value.in_scope.await_args.args
         assert query == ""
         assert attachments == ["syllabus.pdf"]
 
@@ -211,7 +211,7 @@ class TestOutOfScopeConversationCreation:
             patch("sparkth.plugins.chat.routes.completions.get_provider"),
             patch(
                 "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
-                return_value=MagicMock(responsibility_for=AsyncMock(return_value=None)),
+                return_value=MagicMock(in_scope=AsyncMock(return_value=False)),
             ),
             patch(
                 "sparkth.plugins.chat.service.ChatService.add_message",
@@ -266,7 +266,7 @@ class TestOutOfScopeConversationCreation:
             patch("sparkth.plugins.chat.routes.completions.get_provider"),
             patch(
                 "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
-                return_value=MagicMock(responsibility_for=AsyncMock(return_value=None)),
+                return_value=MagicMock(in_scope=AsyncMock(return_value=False)),
             ),
             patch(
                 "sparkth.plugins.chat.service.ChatService.get_conversation_messages",
