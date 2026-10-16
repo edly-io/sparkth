@@ -56,6 +56,9 @@ nav:
       - Create a course: user-guide/create-course.md
       - Resources: user-guide/resources.md
       - Publish to your LMS: user-guide/publish-to-lms.md
+      - Activities and team chat: user-guide/other-plugins.md
+      - Analytics: user-guide/analytics.md
+      - For administrators: user-guide/admin.md
   - Developer docs:
       - Guides:
           - Configuration: guides/configuration.md
