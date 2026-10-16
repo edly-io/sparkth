@@ -226,6 +226,7 @@ class TurnFailureCause(StrEnum):
     PROVIDER_API_ERROR = "provider_api_error"
     RAG_SEARCH_ERROR = "rag_search_error"
     RAG_RETRIEVAL_ERROR = "rag_retrieval_error"
+    SCOPE_CLASSIFICATION_ERROR = "scope_classification_error"
     UNEXPECTED = "unexpected"
 
 

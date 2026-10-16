@@ -9,6 +9,8 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID
 
+import httpx
+import openai
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
@@ -25,6 +27,7 @@ from sparkth.plugins.chat.exceptions import ClassifierError
 from sparkth.plugins.chat.models import Conversation, ConversationAttachment
 
 COMPLETIONS_URL = "/api/v1/chat/completions"
+_OPENAI_REQUEST = httpx.Request("POST", "https://api.openai.com/v1/chat/completions")
 
 
 async def _seed_llm_config(session: AsyncSession, user_id: int) -> int:
@@ -421,6 +424,104 @@ async def test_a_provider_failure_records_a_failed_turn(
     assert failure["provider"] == "openai"
     assert failure["model"] == "gpt-4o"
     assert failure["conversation_id"] == conversation_uuid
+
+
+async def test_a_failed_scope_check_on_a_first_message_records_a_failed_turn(
+    client: AsyncClient,
+    current_user: User,
+    session: AsyncSession,
+    analytics_session: AsyncSession,
+) -> None:
+    """Raised before any conversation exists, so the row carries none, and no decision is recorded."""
+    config_id = await _seed_llm_config(session, current_user.id or 1)
+
+    with (
+        patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=_provider()),
+        patch("sparkth.plugins.chat.classifiers.base.get_provider"),
+        patch(
+            "sparkth.plugins.chat.classifiers.message_scope.MessageScopeClassifier.classify",
+            new_callable=AsyncMock,
+            side_effect=openai.APIConnectionError(request=_OPENAI_REQUEST),
+        ),
+    ):
+        response = await _turn(client, config_id)
+        await join_live_tasks()
+
+    assert response.status_code == 502
+    (failure,) = await _events(analytics_session, "chat.turn_failed")
+    assert failure["cause"] == "scope_classification_error"
+    assert failure["conversation_id"] is None
+    assert failure["provider"] == "openai"
+    assert failure["model"] == "gpt-4o"
+    assert failure["streamed"] is False
+    assert await _events(analytics_session, "chat.scope_classified") == []
+
+
+async def test_a_failed_scope_check_on_a_later_turn_records_one_failed_turn(
+    client: AsyncClient,
+    current_user: User,
+    session: AsyncSession,
+    analytics_session: AsyncSession,
+) -> None:
+    """Exactly one row: the route's provider-error handler must not record the failure again."""
+    config_id = await _seed_llm_config(session, current_user.id or 1)
+    conversation_uuid = await _seed_conversation(session, current_user.id or 1)
+
+    with (
+        patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=_provider()),
+        patch("sparkth.plugins.chat.classifiers.base.get_provider"),
+        patch(
+            "sparkth.plugins.chat.classifiers.message_scope.MessageScopeClassifier.classify",
+            new_callable=AsyncMock,
+            side_effect=openai.APIConnectionError(request=_OPENAI_REQUEST),
+        ),
+    ):
+        response = await _turn(client, config_id, conversation_uuid=conversation_uuid)
+        await join_live_tasks()
+
+    assert response.status_code == 502
+    (failure,) = await _events(analytics_session, "chat.turn_failed")
+    assert failure["cause"] == "scope_classification_error"
+    assert failure["conversation_id"] == conversation_uuid
+    assert await _events(analytics_session, "chat.scope_classified") == []
+
+
+async def test_a_search_classifier_provider_failure_keeps_its_own_cause(
+    client: AsyncClient,
+    current_user: User,
+    session: AsyncSession,
+    analytics_session: AsyncSession,
+) -> None:
+    """Scope passed, so the search classifier's provider failure is not a scope failure."""
+    config_id = await _seed_llm_config(session, current_user.id or 1)
+    conversation_uuid = await _seed_conversation(session, current_user.id or 1)
+    await _seed_attachment(session, current_user.id or 1, conversation_uuid)
+
+    with (
+        patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=_provider()),
+        patch("sparkth.plugins.chat.classifiers.base.get_provider"),
+        patch(
+            "sparkth.plugins.chat.classifiers.message_scope.MessageScopeClassifier.classify",
+            new_callable=AsyncMock,
+            return_value=_scope_verdict(True),
+        ),
+        patch(
+            "sparkth.plugins.chat.classifiers.rag_search.RAGSearchClassifier.classify",
+            new_callable=AsyncMock,
+            side_effect=openai.APIConnectionError(request=_OPENAI_REQUEST),
+        ),
+        patch(
+            "sparkth.plugins.chat.classifiers.rag_search.get_rag_ingested_document_structure",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+    ):
+        response = await _turn(client, config_id, conversation_uuid=conversation_uuid)
+        await join_live_tasks()
+
+    assert response.status_code == 502
+    (failure,) = await _events(analytics_session, "chat.turn_failed")
+    assert failure["cause"] == "provider_api_error"
 
 
 async def test_a_successful_turn_records_no_failure(

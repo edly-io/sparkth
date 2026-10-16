@@ -35,7 +35,7 @@ from sparkth.plugins.chat.classifiers import MessageScopeClassifier, RAGSearchCl
 from sparkth.plugins.chat.config import ChatSettings, get_chat_settings
 from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, REFUSAL_MESSAGE
 from sparkth.plugins.chat.conversation_title import extract_title_from_messages, schedule_title_generation
-from sparkth.plugins.chat.exceptions import RAGSearchError
+from sparkth.plugins.chat.exceptions import ClassifierError, RAGSearchError
 from sparkth.plugins.chat.lms_credentials import build_lms_credentials_message
 from sparkth.plugins.chat.messages import get_last_user_text
 from sparkth.plugins.chat.prompt import render_system_prompt
@@ -97,6 +97,43 @@ def _refusal_response(
         model=model,
         provider=provider_name,
     )
+
+
+async def _fail_scope_check(
+    exc: Exception,
+    conversation_uuid: UUID | None,
+    user_id: int,
+    provider_name: str,
+    model: str,
+    streamed: bool,
+    service: ChatService,
+    session: AsyncSession,
+) -> HTTPException:
+    """Fail a turn whose scope could not be judged, and return the 502 for the caller to raise.
+
+    No turn reaches the chat model unjudged. The user reads the provider's own message when the
+    provider failed the call, and a generic one otherwise. A later turn stores that error so a
+    reload still shows it. A first message has no conversation, and none is created to hold the
+    error. ``conversation_uuid`` is ``None`` on a first message.
+    """
+    detail = streaming_error_message(exc)
+    logger.error(
+        "Scope check failed for user %s conversation %s on %s: %s",
+        user_id,
+        conversation_uuid,
+        type(exc).__name__,
+        exc,
+    )
+    await service.record_error_message(session, conversation_uuid, user_id, detail)
+    record_turn_failed(
+        conversation_id=str(conversation_uuid) if conversation_uuid else None,
+        provider=provider_name,
+        model=model,
+        cause=TurnFailureCause.SCOPE_CLASSIFICATION_ERROR,
+        streamed=streamed,
+        actor_id=str(user_id),
+    )
+    return HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=detail)
 
 
 # The handler returns ChatCompletionResponse (stream=false) or an SSE
@@ -178,7 +215,13 @@ async def chat_completion(
     _skip_main_scope_check = False
     if not conversation_uuid:
         # Nothing is persisted yet, and there is no uuid to log a refusal against.
-        if not await scope_classifier.in_scope(query_text, [], request_attachment_names, None):
+        try:
+            in_scope = await scope_classifier.in_scope(query_text, [], request_attachment_names, None)
+        except (ClassifierError, *LLM_PROVIDER_API_ERRORS) as exc:
+            raise await _fail_scope_check(
+                exc, None, user_id, provider_name, model, request.stream, service, session
+            ) from exc
+        if not in_scope:
             return _refusal_response(request.stream, None, model, provider_name)
         # Already judged, so the check below would spend a second call on the same message.
         _skip_main_scope_check = True
@@ -282,9 +325,15 @@ async def chat_completion(
             ]
             # Ingested documents plus anything uploaded with this message, which has no row.
             turn_attachment_names = list(dict.fromkeys(attached_document_names + request_attachment_names))
-            in_scope = await scope_classifier.in_scope(
-                query_text, prior_history, turn_attachment_names or None, conversation.uuid
-            )
+            try:
+                in_scope = await scope_classifier.in_scope(
+                    query_text, prior_history, turn_attachment_names or None, conversation.uuid
+                )
+            except (ClassifierError, *LLM_PROVIDER_API_ERRORS) as exc:
+                # The HTTPException matches neither handler below, so the turn is recorded once.
+                raise await _fail_scope_check(
+                    exc, conversation.uuid, user_id, provider_name, model, request.stream, service, session
+                ) from exc
             if not in_scope:
                 await service.add_message(
                     session=session,
