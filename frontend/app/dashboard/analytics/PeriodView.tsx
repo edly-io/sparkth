@@ -12,45 +12,56 @@ import { Forbidden } from "@/components/Forbidden";
 import { Spinner } from "@/components/Spinner";
 import { usePeriod } from "./usePeriod";
 
-/** The loaded rows of the selected period and the one before it. */
-export interface PeriodData<T> {
-  current: T[];
-  previous: T[];
+/** The selected period. */
+export interface PeriodRange {
   from: IsoDate;
   to: IsoDate;
   bucket: Bucket;
 }
 
-type State<T> =
+/** The loaded rows of the selected period and the one before it. */
+export type PeriodData<T> = { current: T[]; previous: T[] } & PeriodRange;
+
+type Range = { from: IsoDate; to: IsoDate };
+
+type State<D> =
   | { status: "loading" }
-  | { status: "ready"; current: T[]; previous: T[]; from: IsoDate; to: IsoDate }
+  | { status: "ready"; data: D; from: IsoDate; to: IsoDate }
   | { status: "forbidden" }
   | { status: "error" };
+
+/** A `load` that fetches a read for the period and for the equal-length period before it. */
+export function bothPeriods<T>(fetcher: (token: string, range: Range) => Promise<T[]>) {
+  return (token: string, { from, to }: Range) =>
+    Promise.all([fetcher(token, { from, to }), fetcher(token, previousPeriod(from, to))]).then(
+      ([current, previous]) => ({ current, previous }),
+    );
+}
 
 // API days are UTC calendar days; format them in UTC or a user west of UTC sees the day before.
 const utc = (day: string) => new Date(`${day}T00:00:00Z`);
 
 /**
- * An analytics page for the selected period: fetches it and the previous period of equal
- * length, shows loading, error (with retry) and access states, and renders `children` once
- * both have loaded.
+ * An analytics page for the selected period: loads it with `load` (`bothPeriods` for a read
+ * fetched once per period), shows loading, error (with retry) and access states, and renders
+ * `children` with the loaded data and the period once it is ready.
  */
-export function PeriodView<T>({
+export function PeriodView<D>({
   title,
   subtitle,
-  fetcher,
+  load,
   children,
 }: {
   title: string;
   subtitle: (range: string) => string;
-  fetcher: (token: string, range: { from: IsoDate; to: IsoDate }) => Promise<T[]>;
-  children: (data: PeriodData<T>) => ReactNode;
+  load: (token: string, range: Range) => Promise<D>;
+  children: (data: D & PeriodRange) => ReactNode;
 }) {
   const { token } = useAuth();
   const t = useTranslations("analytics");
   const format = useFormatter();
   const { period } = usePeriod();
-  const [state, setState] = useState<State<T>>({ status: "loading" });
+  const [state, setState] = useState<State<D>>({ status: "loading" });
 
   const [reloadKey, setReloadKey] = useState(0);
   useEffect(() => {
@@ -58,9 +69,9 @@ export function PeriodView<T>({
     let active = true;
     const { from, to } = period;
     setState({ status: "loading" });
-    Promise.all([fetcher(token, { from, to }), fetcher(token, previousPeriod(from, to))])
-      .then(([current, previous]) => {
-        if (active) setState({ status: "ready", current, previous, from, to });
+    load(token, { from, to })
+      .then((data) => {
+        if (active) setState({ status: "ready", data, from, to });
       })
       .catch((err) => {
         if (!active) return;
@@ -120,8 +131,7 @@ export function PeriodView<T>({
 
       {state.status === "ready" &&
         children({
-          current: state.current,
-          previous: state.previous,
+          ...state.data,
           from: state.from,
           to: state.to,
           bucket: period.bucket,

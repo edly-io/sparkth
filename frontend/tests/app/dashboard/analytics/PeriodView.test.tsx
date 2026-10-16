@@ -20,7 +20,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/dashboard/analytics/x",
 }));
 
-import { PeriodView, type PeriodData } from "@/app/dashboard/analytics/PeriodView";
+import { PeriodView, bothPeriods, type PeriodData } from "@/app/dashboard/analytics/PeriodView";
 
 type Row = { n: number };
 const fetcher = vi.fn<(token: string, range: { from: string; to: string }) => Promise<Row[]>>();
@@ -32,7 +32,7 @@ const children = vi.fn((d: PeriodData<Row>) => (
 
 function view() {
   return (
-    <PeriodView title="Things" subtitle={(range) => `During ${range}`} fetcher={fetcher}>
+    <PeriodView title="Things" subtitle={(range) => `During ${range}`} load={bothPeriods(fetcher)}>
       {children}
     </PeriodView>
   );
@@ -77,6 +77,17 @@ describe("PeriodView", () => {
       to: "2026-07-10",
       bucket: "week",
     });
+  });
+
+  it("passes one load's value with the period to children", async () => {
+    const load = vi.fn(async () => ({ total: 3 }));
+    renderWithIntl(
+      <PeriodView title="Things" subtitle={(r) => r} load={load}>
+        {(d) => <p>{`${d.total} ${d.from}..${d.to}`}</p>}
+      </PeriodView>,
+    );
+    expect(await screen.findByText(/^3 /)).toBeInTheDocument();
+    expect(load).toHaveBeenCalledTimes(1);
   });
 
   it.each([
