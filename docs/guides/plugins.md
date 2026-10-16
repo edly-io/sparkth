@@ -583,14 +583,14 @@ the caller can delete it. Like the builders, `on_placed` must be a module-level 
 ## Chat capabilities
 
 A *capability* is one kind of work the chat assistant does, such as designing a course. A plugin
-contributes one without importing chat, by registering a `ChatCapability` from
-`sparkth.lib.chat.hooks` on `CHAT_CAPABILITIES`. A plugin registers one capability, from its
-`__init__`, keyed by the plugin instance.
+contributes one without importing chat, by registering a `ChatCapability` with
+`register_chat_capability` from `sparkth.lib.chat.hooks`. A plugin registers one capability, from
+its `__init__`, keyed by the plugin instance.
 
 A `ChatCapability` has three fields:
 
 - `title` is the heading the capability appears under, both in the system prompt and in the scope
-  gate's list.
+  gate's list, so no two capabilities share one.
 - `scope` is the text the scope gate judges a message against.
 - `prompt` is plain text inserted into the system prompt as written, so a brace in it needs no
   escaping.
@@ -599,7 +599,7 @@ For example:
 
 ```python
 # sparkth/plugins/myappplugin/plugin.py
-from sparkth.lib.chat.hooks import CHAT_CAPABILITIES, ChatCapability
+from sparkth.lib.chat.hooks import ChatCapability, register_chat_capability
 from sparkth.lib.plugins import SparkthPlugin
 
 TITLE = "My App builder"
@@ -612,11 +612,14 @@ MY_CAPABILITY = ChatCapability(TITLE, SCOPE, PROMPT)
 class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
         super().__init__("my-app")
-        CHAT_CAPABILITIES.add_item(self, MY_CAPABILITY)
+        register_chat_capability(self, MY_CAPABILITY)
 ```
 
-Constructing the plugin again is harmless: the loader and a plugin's own tests each build an
-instance, and equal copies fold into one.
+Register through `register_chat_capability`, not `CHAT_CAPABILITIES.add_item`. Constructing the
+plugin again is harmless: the loader and a plugin's own tests each build an instance, and equal
+copies fold into one. Only a *different* capability claiming a registered title raises
+`DuplicateChatCapabilityError`, from `sparkth.lib.chat.exceptions`. The loader logs the failed
+construction and skips that plugin.
 
 ### How chat uses capabilities
 
