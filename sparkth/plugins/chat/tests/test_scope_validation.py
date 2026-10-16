@@ -21,6 +21,7 @@ import pytest
 from google.genai import errors as google_genai_errors
 from httpx import AsyncClient
 from langchain_google_genai.chat_models import ChatGoogleGenerativeAIError
+from langchain_openai.chat_models.base import OpenAIRefusalError
 from sqlalchemy import func
 from sqlalchemy import select as sa_select
 from sqlmodel import col, select
@@ -40,6 +41,13 @@ _ANTHROPIC_REQUEST = httpx.Request("POST", "https://api.anthropic.com/v1/message
 _OPENAI_UNREACHABLE = "Could not reach OpenAI. Please check your network connection."
 _GENERIC_FAILURE = "An error occurred while generating a response. Please try again."
 _ROUTE_LOGGER = "sparkth.plugins.chat.routes.completions"
+_OPENAI_REFUSAL = OpenAIRefusalError("I can't help with that.")
+
+# Classifier answers that carry no verdict: one off the schema, one refused by OpenAI's structured output.
+_UNJUDGED_ANSWERS = [
+    pytest.param(AsyncMock(return_value={"in_scope": "maybe"}), id="schema-misfit"),
+    pytest.param(AsyncMock(side_effect=_OPENAI_REFUSAL), id="openai-refusal"),
+]
 
 # Provider failures with the text the user reads for each.
 _PROVIDER_FAILURES = [
@@ -266,7 +274,7 @@ def _classifier_provider(ainvoke: AsyncMock) -> MagicMock:
     return provider
 
 
-async def _send(client: AsyncClient, config_id: int, conversation_uuid: str | None, stream: bool) -> Any:
+async def _send(client: AsyncClient, config_id: int, conversation_uuid: str | None, stream: bool) -> httpx.Response:
     """One turn of a new chat (no ``conversation_uuid``) or of an existing one."""
     body: dict[str, Any] = {
         "llm_config_id": config_id,
@@ -489,8 +497,9 @@ class TestAFailedScopeCheck:
         chat_provider.assert_not_called()
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("ainvoke", _UNJUDGED_ANSWERS)
     async def test_a_first_message_whose_answer_does_not_fit_fails_with_the_generic_text(
-        self, client: AsyncClient, current_user: User, session: AsyncSession
+        self, client: AsyncClient, current_user: User, session: AsyncSession, ainvoke: AsyncMock
     ) -> None:
         user_id = current_user.id or 1
         config_id = await _seed_llm_config(session, user_id)
@@ -498,10 +507,7 @@ class TestAFailedScopeCheck:
 
         with (
             locale_context("en"),
-            patch(
-                "sparkth.plugins.chat.classifiers.base.get_provider",
-                return_value=_classifier_provider(AsyncMock(return_value={"in_scope": "maybe"})),
-            ),
+            patch("sparkth.plugins.chat.classifiers.base.get_provider", return_value=_classifier_provider(ainvoke)),
             patch("sparkth.plugins.chat.routes.completions.get_provider") as chat_provider,
         ):
             response = await _send(client, config_id, None, False)
@@ -509,6 +515,31 @@ class TestAFailedScopeCheck:
         assert response.status_code == 502
         assert response.json() == {"detail": _GENERIC_FAILURE}
         assert await _count_user_conversations(session, user_id) == before
+        chat_provider.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_a_later_turn_the_classifier_refuses_stores_the_generic_error(
+        self, client: AsyncClient, current_user: User, session: AsyncSession
+    ) -> None:
+        user_id = current_user.id or 1
+        config_id = await _seed_llm_config(session, user_id)
+        conversation_uuid = await _seed_conversation(session, user_id)
+
+        with (
+            locale_context("en"),
+            patch(
+                "sparkth.plugins.chat.classifiers.base.get_provider",
+                return_value=_classifier_provider(AsyncMock(side_effect=_OPENAI_REFUSAL)),
+            ),
+            patch("sparkth.plugins.chat.routes.completions.get_provider") as chat_provider,
+        ):
+            response = await _send(client, config_id, conversation_uuid, False)
+
+        assert response.status_code == 502
+        assert response.json() == {"detail": _GENERIC_FAILURE}
+        stored = await _stored_messages(session, conversation_uuid)
+        assert [(m.role, m.is_error) for m in stored] == [("user", False), ("assistant", True)]
+        assert stored[-1].content == _GENERIC_FAILURE
         chat_provider.assert_not_called()
 
     @pytest.mark.asyncio

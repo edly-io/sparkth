@@ -90,6 +90,7 @@ class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdi
 
         Raises:
             ClassifierError: the LangChain call failed, or the answer did not fit the schema.
+            OpenAIRefusalError: OpenAI refused to give the structured answer; raised unchanged.
             LLM_PROVIDER_API_ERRORS: the provider SDK failed the call; raised unchanged.
         """
         payload = MessageScopeInput(

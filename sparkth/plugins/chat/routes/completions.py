@@ -33,9 +33,9 @@ from sparkth.plugins.chat.analytics import (
 )
 from sparkth.plugins.chat.classifiers import MessageScopeClassifier, RAGSearchClassifier
 from sparkth.plugins.chat.config import ChatSettings, get_chat_settings
-from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, REFUSAL_MESSAGE
+from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, REFUSAL_MESSAGE, SCOPE_CHECK_ERRORS
 from sparkth.plugins.chat.conversation_title import extract_title_from_messages, schedule_title_generation
-from sparkth.plugins.chat.exceptions import ClassifierError, RAGSearchError
+from sparkth.plugins.chat.exceptions import RAGSearchError
 from sparkth.plugins.chat.lms_credentials import build_lms_credentials_message
 from sparkth.plugins.chat.messages import get_last_user_text
 from sparkth.plugins.chat.prompt import render_system_prompt
@@ -111,8 +111,8 @@ async def _fail_scope_check(
 ) -> HTTPException:
     """Fail a turn whose scope could not be judged, and return the 502 for the caller to raise.
 
-    No turn reaches the chat model unjudged. The user reads the provider's own message when the
-    provider failed the call, and a generic one otherwise. A later turn stores that error so a
+    No turn reaches the chat model unjudged. The user reads a provider-specific message where one
+    exists, and the generic one otherwise. A later turn stores that error so a
     reload still shows it. A first message has no conversation, and none is created to hold the
     error. ``conversation_uuid`` is ``None`` on a first message.
     """
@@ -217,7 +217,7 @@ async def chat_completion(
         # Nothing is persisted yet, and there is no uuid to log a refusal against.
         try:
             in_scope = await scope_classifier.in_scope(query_text, [], request_attachment_names, None)
-        except (ClassifierError, *LLM_PROVIDER_API_ERRORS) as exc:
+        except SCOPE_CHECK_ERRORS as exc:
             raise await _fail_scope_check(
                 exc, None, user_id, provider_name, model, request.stream, service, session
             ) from exc
@@ -329,7 +329,7 @@ async def chat_completion(
                 in_scope = await scope_classifier.in_scope(
                     query_text, prior_history, turn_attachment_names or None, conversation.uuid
                 )
-            except (ClassifierError, *LLM_PROVIDER_API_ERRORS) as exc:
+            except SCOPE_CHECK_ERRORS as exc:
                 # The HTTPException matches neither handler below, so the turn is recorded once.
                 raise await _fail_scope_check(
                     exc, conversation.uuid, user_id, provider_name, model, request.stream, service, session

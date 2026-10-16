@@ -102,8 +102,8 @@ class BaseClassifier(ABC, Generic[InputT, OutputT]):
 
         Raises:
             ClassifierError: the LangChain call failed, or its answer did not fit the output
-                schema. The original failure is kept as the cause. A provider SDK error (one of
-                ``LLM_PROVIDER_API_ERRORS``) is not translated and propagates unchanged.
+                schema. The original failure is kept as the cause. Any other exception, a provider
+                SDK error included, propagates unchanged.
         """
         messages: list[BaseMessage] = [
             SystemMessage(content=self._system_prompt),
