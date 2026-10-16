@@ -90,6 +90,4 @@ PXC_ACTIVITY_BUILDER_TITLE = "Interactive PXC activities"
 PXC_ACTIVITY_BUILDER_SCOPE = (PXC_ASSET_DIR / "pxc_activity_building_scope.txt").read_text(encoding="utf-8").strip()
 
 # The activity builder's section of chat's system prompt, inserted as written.
-PXC_ACTIVITY_BUILDER_PROMPT = (
-    (PXC_ASSET_DIR / "pxc_activity_building_system_prompt.txt").read_text(encoding="utf-8").strip()
-)
+PXC_ACTIVITY_BUILDER_PROMPT = (PXC_ASSET_DIR / "pxc_activity_builder_prompt.txt").read_text(encoding="utf-8").strip()
