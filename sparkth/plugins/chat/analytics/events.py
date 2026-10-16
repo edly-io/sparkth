@@ -158,15 +158,14 @@ class ScopeVerdict(StrEnum):
 
     IN_SCOPE = "in_scope"
     OUT_OF_SCOPE = "out_of_scope"
-    NOT_JUDGED = "not_judged"
 
 
 class ChatScopeClassified(AnalyticsEventSchema):
     """The scope classifier judged one turn.
 
     ``out_of_scope`` is a refusal — the chat model is never reached, and this event is the
-    only record of it. Emitted on every classification, so the rate has its denominator
-    here; ``not_judged`` is the fail-open path.
+    only record of it. Emitted on every judged turn, so the rate has its denominator here. A
+    turn the classifier could not judge records ``chat.turn_failed`` instead.
     ``conversation_id`` is null on a first message, judged before the conversation exists.
     ``classifier_model`` is the classifier's own model, not the conversation's.
     """
@@ -226,6 +225,7 @@ class TurnFailureCause(StrEnum):
     PROVIDER_API_ERROR = "provider_api_error"
     RAG_SEARCH_ERROR = "rag_search_error"
     RAG_RETRIEVAL_ERROR = "rag_retrieval_error"
+    SCOPE_CLASSIFICATION_ERROR = "scope_classification_error"
     UNEXPECTED = "unexpected"
 
 

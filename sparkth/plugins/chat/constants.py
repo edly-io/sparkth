@@ -1,11 +1,16 @@
 from pathlib import Path
 
+import aiohttp
 import anthropic
 import httpx
 import openai
 from google.api_core import exceptions as google_exceptions
+from google.genai import errors as google_genai_errors
+from langchain_google_genai.chat_models import ChatGoogleGenerativeAIError
+from langchain_openai.chat_models.base import OpenAIRefusalError
 
 from sparkth.lib.i18n import gettext_noop
+from sparkth.plugins.chat.exceptions import ClassifierError
 
 
 def get_asset(file_name: str) -> str:
@@ -58,7 +63,15 @@ LLM_PROVIDER_API_ERRORS = (
     google_exceptions.GoogleAPICallError,
     google_exceptions.ServiceUnavailable,
     httpx.RemoteProtocolError,
+    # langchain-google-genai raises these: a wrapped 4xx, a raw 5xx, and its aiohttp transport errors.
+    ChatGoogleGenerativeAIError,
+    google_genai_errors.APIError,
+    aiohttp.ClientError,
 )
+
+# What a scope check raises when it cannot judge a turn: a classifier failure, OpenAI refusing the
+# structured answer, or a provider error.
+SCOPE_CHECK_ERRORS = (ClassifierError, OpenAIRefusalError, *LLM_PROVIDER_API_ERRORS)
 
 # Category reported for a tool the registry never discovered. A missing category
 # degrades one analytics dimension; it must never break emission.

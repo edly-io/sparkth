@@ -626,8 +626,9 @@ section and no scope.
 
 - **Scope gate.** Each message is judged against every enabled scope. A message that fits none
   is refused with a fixed sentence before the model runs. A refused first message writes nothing; a refused later message is stored in the
-  conversation, with the refusal as the assistant's reply. If the classification fails, the
-  message is admitted.
+  conversation, with the refusal as the assistant's reply. If the classification fails, the turn
+  fails with an error and the model is not called. A failed first message writes nothing; a
+  failed later message stores the error in the conversation.
 - **System prompt.** The prompt is chat's skeleton with each enabled capability's section under
   its title. The skeleton owns the date, the assistant's identity, the output language, the
   refusal, injection and offering-choices rules, so a section must not repeat them. A section
