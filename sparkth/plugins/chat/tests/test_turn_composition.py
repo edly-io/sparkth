@@ -2,7 +2,7 @@
 
 import json
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -207,12 +207,16 @@ async def _switch_stub(session: AsyncSession, user_id: int, system_on: bool, use
     session.add(plugin)
     await session.flush()
     if user_on is not None:
-        session.add(UserPlugin(user_id=user_id, plugin_id=plugin.id or 0, enabled=user_on))
+        session.add(UserPlugin(user_id=user_id, plugin_id=cast(int, plugin.id), enabled=user_on))
     await session.commit()
 
 
 async def _fake_stream() -> AsyncGenerator[str, None]:
     yield f"data: {json.dumps({'done': True})}\n\n"
+
+
+async def _raise_operational_error(user_id: int, session: AsyncSession) -> set[str]:
+    raise OperationalError("SELECT 1", {}, Exception("connection lost"))
 
 
 class TestPluginSwitches:
@@ -288,10 +292,9 @@ class TestPluginSwitches:
         config_id = await _seed_llm_config(session, current_user.id or 1)
         conversation_uuid = await _seed_conversation(session, current_user.id or 1)
 
-        async def lookup_fails(user_id: int, session: AsyncSession) -> set[str]:
-            raise OperationalError("SELECT 1", {}, Exception("connection lost"))
-
-        monkeypatch.setattr("sparkth.plugins.chat.routes.completions.plugins_disabled_for_user", lookup_fails)
+        monkeypatch.setattr(
+            "sparkth.plugins.chat.routes.completions.plugins_disabled_for_user", _raise_operational_error
+        )
 
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as get_provider,

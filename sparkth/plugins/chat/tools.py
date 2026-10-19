@@ -1,9 +1,9 @@
 """The chat agent's view of every other plugin's MCP tools, as LangChain tools.
 
 Only one thing here holds state — the converted tools, their MCP categories and the plugin
-that contributed each, cached per :class:`ToolRegistry` — so the registry is the only class. Converting an MCP tool
-definition into a LangChain tool is pure input-to-output work, so those steps are plain
-module-level functions.
+that contributed each, cached per :class:`ToolRegistry` — so the registry is the only class.
+Converting an MCP tool definition into a LangChain tool is pure input-to-output work, so
+those steps are plain module-level functions.
 """
 
 import asyncio
