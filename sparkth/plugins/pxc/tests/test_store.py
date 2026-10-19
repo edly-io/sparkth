@@ -1,13 +1,19 @@
 """Owner-scoped reads and writes of generated activities."""
 
+from collections.abc import AsyncGenerator
 from datetime import timedelta
+from sqlite3 import Connection
 from uuid import UUID
 
 import pytest
+from sqlalchemy import event
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.pool import StaticPool
+from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from uuid6 import uuid7
 
-from sparkth.lib.models import utc_now
+from sparkth.lib.models import User, utc_now
 from sparkth.plugins.pxc.enums import PreviewPermission, PxcFailureKind
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound
 from sparkth.plugins.pxc.models import PxcActionFailure, PxcActivity
@@ -116,3 +122,36 @@ async def test_only_an_activitys_newest_failures_are_kept(session: AsyncSession)
 
     assert [failure.action for failure in await list_action_failures(session, activity.id, None, 20)] == ["3", "2"]
     assert len(await list_action_failures(session, other.id, None, 20)) == 1
+
+
+def _enforce_foreign_keys(dbapi_connection: Connection, _record: object) -> None:
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
+
+
+@pytest.fixture
+async def fk_session() -> AsyncGenerator[AsyncSession]:
+    """A session on its own SQLite database that enforces foreign keys, which the shared one does not."""
+    engine = create_async_engine("sqlite+aiosqlite://", poolclass=StaticPool)
+    event.listen(engine.sync_engine, "connect", _enforce_foreign_keys)
+    async with engine.begin() as connection:
+        await connection.run_sync(SQLModel.metadata.create_all)
+    async with AsyncSession(engine, expire_on_commit=False) as fk_session:
+        yield fk_session
+    await engine.dispose()
+
+
+async def test_deleting_an_activity_deletes_its_failures_and_no_others(fk_session: AsyncSession) -> None:
+    fk_session.add(User(id=OWNER, name="Owner", username="owner", email="owner@example.com", hashed_password="x"))
+    await fk_session.commit()
+    first, second = _activity(OWNER, "First"), _activity(OWNER, "Second")
+    for activity in (first, second):
+        await insert_activity(fk_session, activity)
+        await insert_action_failure(fk_session, _failure(activity.id, None, "play"), 20)
+
+    await fk_session.delete(first)
+    await fk_session.commit()
+
+    remaining = (await fk_session.exec(select(PxcActionFailure.activity_id))).all()
+    assert remaining == [second.id]
