@@ -121,15 +121,27 @@ def _is_revision(entry: Path) -> bool:
 
 
 def remove_activity_files(activity_id: str) -> None:
-    """Remove a generated activity's link and every revision of it.
+    """Remove everything a generated activity keeps on disk.
 
-    A failure is logged as a warning and the files it could not remove are left in place. It is
-    not raised, so the caller's own error still propagates.
+    That is the link (or a plain directory where it belongs), every revision, the learner state
+    file with its ``-wal`` and ``-shm`` sidecars, and the learner file storage. The build's failure
+    path and the activity's deletion both call it. It builds the paths itself, so it works whether
+    or not the link still exists. A missing item is skipped. A failure is logged as a warning and
+    the files it could not remove are left in place. It is not raised, so the caller's own error
+    still propagates.
     """
-    revisions = revisions_dir(activity_id)
+    data_dir = get_pxc_settings().data_dir
+    link = generated_activity_dir(activity_id)
+    state = data_dir / f"{activity_id}.sqlite3"
     try:
-        generated_activity_dir(activity_id).unlink(missing_ok=True)
-        if revisions.exists():
-            shutil.rmtree(revisions)
+        if link.is_dir() and not link.is_symlink():
+            shutil.rmtree(link)
+        else:
+            link.unlink(missing_ok=True)
+        for directory in (revisions_dir(activity_id), data_dir / "storage" / activity_id):
+            if directory.exists():
+                shutil.rmtree(directory)
+        for suffix in ("", "-wal", "-shm"):
+            state.with_name(state.name + suffix).unlink(missing_ok=True)
     except OSError as err:
         logger.warning("Could not remove the files of PXC activity %s: %s", activity_id, err)
