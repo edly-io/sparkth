@@ -9,7 +9,7 @@ import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.llm import get_llm_service
-from sparkth.main import app
+from sparkth.main import app, assemble_app
 from sparkth.plugins.chat.config import get_chat_settings
 from sparkth.plugins.chat.models import Conversation, Message
 from sparkth.plugins.chat.service import ChatService, get_chat_service
@@ -109,3 +109,14 @@ class TestGetLastMessage:
     async def test_returns_422_for_non_uuid(self, client: httpx.AsyncClient, current_user: MagicMock) -> None:
         response = await client.get("/api/v1/chat/conversations/not-a-uuid/last-message")
         assert response.status_code == 422
+
+
+def test_message_response_schema_types_role_and_metadata() -> None:
+    """The generated frontend types read these fields' shapes from the published schema."""
+    schema = assemble_app().openapi()["components"]["schemas"]
+    props = schema["MessageResponse"]["properties"]
+
+    assert props["role"]["enum"] == ["system", "user", "assistant", "tool"]
+    assert props["message_type"]["enum"] == ["text", "attachment"]
+    assert props["rag_sections"]["anyOf"][0]["items"]["$ref"] == "#/components/schemas/RagSection"
+    assert props["tool_calls"]["anyOf"][0]["items"]["$ref"] == "#/components/schemas/PersistedToolCall"

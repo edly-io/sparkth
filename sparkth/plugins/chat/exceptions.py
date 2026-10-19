@@ -17,5 +17,17 @@ class RAGSearchError(Exception):
     """Raised when the search classifier cannot decide whether to retrieve."""
 
 
+class ScopeCheckError(Exception):
+    """Raised when the scope classifier cannot judge a turn.
+
+    ``cause`` is the failure underneath: a classifier error, an OpenAI refusal or a provider
+    error. The caller words the message the user reads from it.
+    """
+
+    def __init__(self, cause: Exception) -> None:
+        super().__init__(f"{type(cause).__name__}: {cause}")
+        self.cause = cause
+
+
 class ClassifierError(Exception):
-    """Raised when a classifier's model call fails, or its answer does not fit the output schema."""
+    """Raised when a classifier's LangChain call fails, or its answer does not fit the output schema."""

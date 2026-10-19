@@ -3,22 +3,24 @@
 Model selection, input validation and failure translation belong to the base and are covered
 in test_base_classifier.py. What is asserted here is what makes this classifier itself: how a
 turn is rendered for the model, the empty-turn rule it decides without one, the yes/no answer
-callers act on, and the logging a refusal leaves behind — a refusal ends the turn, so the log
-is the only record that it happened.
+callers act on, that a failed classification reaches the caller, and the logging a refusal
+leaves behind — a refusal ends the turn, so the log is the only record that it happened.
 """
 
 import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
+import httpx
+import openai
 import pytest
 from langchain_core.exceptions import LangChainException
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
 from sparkth.lib.chat.hooks import ChatCapability
-from sparkth.plugins.chat.analytics import ScopeVerdict
 from sparkth.plugins.chat.capabilities import COURSE_DESIGN
 from sparkth.plugins.chat.classifiers import MessageScopeClassifier
+from sparkth.plugins.chat.exceptions import ClassifierError, ScopeCheckError
 from sparkth.plugins.chat.prompt import render_scope_classifier_prompt
 from sparkth.plugins.chat.schemas import HistoryTurn
 
@@ -161,18 +163,6 @@ class TestTheAnswerCallersActOn:
     async def test_a_message_out_of_scope_is_refused(self) -> None:
         assert await _classifier_with(_chain_answering(False)).in_scope("What is the capital of France?") is False
 
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize("answer", [{"in_scope": "maybe"}, {}])
-    async def test_an_answer_outside_the_schema_admits_the_message(self, answer: dict[str, str]) -> None:
-        """A refusal ends the turn, so it is never inferred from a malformed answer."""
-        chain = MagicMock()
-        chain.ainvoke = AsyncMock(return_value=answer)
-
-        analytics = MagicMock()
-
-        assert await _classifier_with(chain, None, analytics).in_scope("q") is True
-        assert analytics.schedule_scope_classified.call_args.kwargs["verdict"] == ScopeVerdict.NOT_JUDGED
-
 
 class TestThePromptListsTheCapabilities:
     @pytest.mark.asyncio
@@ -205,49 +195,49 @@ class TestATurnWithNoWords:
         assert '"syllabus.pdf"' in _sent_messages(chain)[-1].content
 
 
-class TestFailingOpen:
-    """A refusal ends the turn, so it is never inferred from a broken model call."""
+class TestAFailedClassification:
+    """A failure reaches the caller as a ScopeCheckError: a turn is never admitted or refused without a verdict."""
 
     @pytest.mark.asyncio
-    async def test_a_failed_classification_admits_the_message(self) -> None:
-        chain = MagicMock()
-        chain.ainvoke = AsyncMock(side_effect=LangChainException("provider timeout"))
+    async def test_a_langchain_failure_raises_a_scope_check_error(self) -> None:
+        chain = MagicMock(ainvoke=AsyncMock(side_effect=LangChainException("provider timeout")))
 
-        assert await _classifier_with(chain).in_scope("some query") is True
-
-    @pytest.mark.asyncio
-    async def test_the_fallback_is_logged(self, caplog: pytest.LogCaptureFixture) -> None:
-        chain = MagicMock()
-        chain.ainvoke = AsyncMock(side_effect=LangChainException("provider timeout"))
-
-        with caplog.at_level(logging.WARNING, logger=_LOGGER):
+        with pytest.raises(ScopeCheckError) as excinfo:
             await _classifier_with(chain).in_scope("some query")
 
-        assert "Message scope classifier failed" in caplog.text
+        assert isinstance(excinfo.value.cause, ClassifierError)
 
     @pytest.mark.asyncio
-    async def test_the_fallback_names_the_user_and_thread(self, caplog: pytest.LogCaptureFixture) -> None:
-        """A turn that was let through unjudged is worth finding later, and it is the same
-        question a user report asks: whose, and which thread."""
-        conversation_uuid = uuid4()
-        chain = MagicMock()
-        chain.ainvoke = AsyncMock(side_effect=LangChainException("provider timeout"))
+    @pytest.mark.parametrize("answer", [{"in_scope": "maybe"}, {}])
+    async def test_an_answer_outside_the_schema_raises_a_scope_check_error(self, answer: dict[str, str]) -> None:
+        chain = MagicMock(ainvoke=AsyncMock(return_value=answer))
 
-        with caplog.at_level(logging.WARNING, logger=_LOGGER):
-            await _classifier_with(chain).in_scope("some query", None, None, conversation_uuid)
-
-        assert f"user_id={_USER_ID}" in caplog.text
-        assert str(conversation_uuid) in caplog.text
-
-    @pytest.mark.asyncio
-    async def test_a_rejected_answer_is_never_logged(self, caplog: pytest.LogCaptureFixture) -> None:
-        """An answer that fails the schema can echo the message, which may hold course content."""
-        chain = MagicMock(ainvoke=AsyncMock(return_value={"in_scope": "Week 3 confidential syllabus"}))
-
-        with caplog.at_level(logging.WARNING, logger=_LOGGER):
+        with pytest.raises(ScopeCheckError) as excinfo:
             await _classifier_with(chain).in_scope("q")
 
-        assert "confidential syllabus" not in caplog.text
+        assert isinstance(excinfo.value.cause, ClassifierError)
+
+    @pytest.mark.asyncio
+    async def test_a_provider_error_is_carried_as_the_cause(self) -> None:
+        """The route words a provider failure from the provider's own error."""
+        error = openai.APIConnectionError(request=httpx.Request("POST", "https://api.openai.com/v1/chat/completions"))
+        chain = MagicMock(ainvoke=AsyncMock(side_effect=error))
+
+        with pytest.raises(ScopeCheckError) as excinfo:
+            await _classifier_with(chain).in_scope("q")
+
+        assert excinfo.value.cause is error
+
+    @pytest.mark.asyncio
+    async def test_a_failure_records_no_decision(self) -> None:
+        """The failed turn is recorded by the route, as chat.turn_failed."""
+        chain = MagicMock(ainvoke=AsyncMock(side_effect=LangChainException("provider timeout")))
+        analytics = MagicMock()
+
+        with pytest.raises(ScopeCheckError):
+            await _classifier_with(chain, None, analytics).in_scope("q")
+
+        analytics.schedule_scope_classified.assert_not_called()
 
 
 class TestRefusalLogging:

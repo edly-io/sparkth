@@ -36,6 +36,5 @@ A classifier failure raises `RAGSearchError`, and the turn ends with an error th
 that is persisted to the conversation. Retrieval is never guessed at: answering from the model's
 own knowledge while the user believes their document was consulted is worse than an error.
 
-This is the opposite of how scope is handled — `MessageScopeClassifier` fails *open*, letting a
-turn through when it cannot judge it, because the chat model's own system prompt is a second line
-of defence there and there is none here.
+`MessageScopeClassifier` fails closed too: a turn it cannot judge ends with an error and never
+reaches the chat model.

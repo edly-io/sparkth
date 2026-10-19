@@ -18,6 +18,9 @@ class User(UserBase):
     # register) report a non-admin; /user/me computes and sets the real value.
     is_admin: bool = False
     email_verified: bool
+    # Whether the user can sign in with a password; False means Google only. Read off
+    # the model's property, so the hash itself is never exposed.
+    has_password: bool
     # The raw stored preference: None means the user never chose one and the
     # platform default applies. Deliberately not resolved here so the frontend can
     # tell "never chose" from "chose English".

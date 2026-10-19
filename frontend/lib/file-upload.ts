@@ -1,12 +1,6 @@
-import { api, ApiRequestError } from "@/lib/api";
+import { api, ApiRequestError, type Schema } from "@/lib/api";
 
-// The parser route has no response_model, so the generated 200 type is
-// unknown; this interface documents the dict the backend actually returns.
-export interface UploadResponse {
-  filename: string;
-  length: number;
-  text: string;
-}
+export type UploadResponse = Schema<"UploadResponse">;
 
 export async function uploadFile(formData: FormData, token?: string): Promise<UploadResponse> {
   try {
