@@ -82,12 +82,12 @@ async def test_another_users_preference_does_not_disable_it(session: AsyncSessio
 async def test_a_deleted_preference_is_ignored(session: AsyncSession, current_user: User) -> None:
     user_id = cast(int, current_user.id)
     plugin = await _seed_plugin(session, "stub", True)
-    await _seed_preference(session, user_id, plugin, False, deleted=True)
+    await _seed_preference(session, user_id, plugin, False, True)
 
     assert await plugins_disabled_for_user(user_id, session) == set()
 
 
 async def test_a_deleted_plugin_is_ignored(session: AsyncSession, current_user: User) -> None:
-    await _seed_plugin(session, "stub", False, deleted=True)
+    await _seed_plugin(session, "stub", False, True)
 
     assert await plugins_disabled_for_user(cast(int, current_user.id), session) == set()
