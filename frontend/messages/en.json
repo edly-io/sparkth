@@ -26,13 +26,13 @@
       "empty": "No course-authoring activity in this period.",
       "conversations": "Conversations started",
       "messages": "Messages sent",
-      "failedTurns": "Failed turns",
+      "failedTurns": "Messages failed",
       "failedHint": "{rate} of messages · {change}",
       "documentsAttached": "Documents attached",
       "detachedHint": "{count} detached · {change}",
       "messagesCaption": "Messages sent, {range}",
       "conversationsCaption": "Conversations started, {range}",
-      "failedTurnsCaption": "Failed turns, {range}",
+      "failedTurnsCaption": "Messages failed, {range}",
       "failureRateCaption": "Failure rate, {range}",
       "tools": "Tools used",
       "toolsCaption": "Tool calls by tool, {range}",
@@ -47,6 +47,7 @@
     },
     "table": {
       "date": "Date",
+      "activity": "Activity",
       "logins": "Logins",
       "method": "Method",
       "previousPeriod": "Previous period",
@@ -54,11 +55,12 @@
       "calls": "Calls",
       "messages": "Messages",
       "conversations": "Conversations",
-      "failedTurns": "Failed turns",
+      "failedTurns": "Messages failed",
       "failureRate": "Failure rate"
     },
     "nav": {
       "label": "Analytics views",
+      "overview": "Overview",
       "logins": "Logins",
       "authoring": "Course authoring"
     },
@@ -86,6 +88,14 @@
         "inFuture": "The end date can't be in the future.",
         "tooLong": "The period can't be longer than {days} days."
       }
+    },
+    "overview": {
+      "title": "Overview",
+      "subtitle": "Platform activity, {range} (UTC).",
+      "empty": "No activity in this period.",
+      "new": "New this period",
+      "trend": "Activity",
+      "trendCaption": "Logins and messages sent, {range}"
     }
   },
   "home": {

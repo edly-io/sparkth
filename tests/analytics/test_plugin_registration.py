@@ -9,7 +9,7 @@ from collections.abc import Generator
 
 import pytest
 from sqlalchemy import select
-from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from sparkth.core.analytics import ANALYTICS_EVENTS
 from sparkth.core.analytics.models import raw_events

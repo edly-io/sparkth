@@ -4,7 +4,8 @@ Order events by ``occurred_at`` (when it happened), not ``received_at`` (when th
 landed).
 
 Known gap: events queued on ``background_tasks`` are dropped when the route raises, so
-these counts are lower bounds and failed turns are under-counted.
+those counts are lower bounds. ``chat.message_sent`` and ``chat.turn_failed`` go out on
+detached tasks instead, so a failed turn still counts both its message and its failure.
 """
 
 from collections.abc import Callable
@@ -204,8 +205,9 @@ async def emit_completion(
 class ChatTurnAnalytics:
     """The scheduling surface for one request's chat events.
 
-    Built once from the facts a turn's events share; each ``schedule_*`` queues exactly
-    one event and never awaits.
+    Built once from the facts a turn's events share; each ``schedule_*`` sends exactly
+    one event and never awaits. All but ``schedule_message_sent`` queue it on
+    ``background_tasks``; that one detaches it.
 
     **Queue analytics after functional background work.** Starlette runs the queue as one
     sequential loop, so an emit queued ahead of real work lets an analytics outage stop
@@ -231,18 +233,25 @@ class ChatTurnAnalytics:
         )
 
     def schedule_message_sent(self, *, message_length: int, has_attachment: bool, occurred_at: datetime) -> None:
-        """Queue ``chat.message_sent`` for one instructor turn."""
-        self.background_tasks.add_task(
-            _emit,
-            lambda: ChatMessageSent(
-                conversation_id=self.conversation_id,
-                provider=self.provider,
-                model=self.model,
-                message_length=message_length,
-                has_attachment=has_attachment,
-            ),
-            self.actor_id,
-            occurred_at,
+        """Send ``chat.message_sent`` for one stored instructor turn, on a detached task.
+
+        Not ``background_tasks``: the turn's route can still raise after the message is
+        stored, which discards that queue, and a failed turn must count its message for the
+        failure rate to mean anything. The message is already committed, so the event is
+        true either way. Nothing awaits or catches it.
+        """
+        detach(
+            _emit(
+                lambda: ChatMessageSent(
+                    conversation_id=self.conversation_id,
+                    provider=self.provider,
+                    model=self.model,
+                    message_length=message_length,
+                    has_attachment=has_attachment,
+                ),
+                self.actor_id,
+                occurred_at,
+            )
         )
 
     def schedule_completion(

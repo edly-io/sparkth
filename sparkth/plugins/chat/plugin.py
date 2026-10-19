@@ -1,7 +1,7 @@
 from fastapi import status
 
-from sparkth.lib.analytics import register_event_schemas
-from sparkth.lib.chat.hooks import CHAT_CAPABILITIES
+from sparkth.lib.analytics import register_event_schemas, register_summary_figure
+from sparkth.lib.chat.hooks import register_chat_capability
 from sparkth.lib.config.hooks import CONFIG_ADAPTERS, CONFIG_SCHEMAS
 from sparkth.lib.documents import DOCUMENT_DELETED
 from sparkth.lib.exceptions.handlers import register_exception_handler
@@ -19,6 +19,7 @@ from sparkth.lib.log import get_logger
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.lib.routes import register_router
 from sparkth.plugins.chat.analytics import events
+from sparkth.plugins.chat.analytics.reads import SUMMARY_FIGURES_CHAT
 from sparkth.plugins.chat.capabilities import COURSE_DESIGN
 from sparkth.plugins.chat.config import ChatUserConfig
 from sparkth.plugins.chat.exceptions import ConversationNotFound, DocumentNotFound
@@ -54,6 +55,8 @@ class ChatPlugin(SparkthPlugin):
         )
         SIDEBAR_ENTRIES.add_item(self, SidebarEntry(gettext_noop("Create Course"), icon="plus", order=1))
         FRONTEND_APPS.add_item(self, FrontendApp())
-        CHAT_CAPABILITIES.add_item(self, COURSE_DESIGN)
+        register_chat_capability(self, COURSE_DESIGN)
 
         register_event_schemas(self, events)
+        for figure in SUMMARY_FIGURES_CHAT:
+            register_summary_figure(self, figure)

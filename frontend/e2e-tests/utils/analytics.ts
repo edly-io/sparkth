@@ -25,6 +25,13 @@ export async function stubChatActivity(
   await stubPeriods(page, "**/api/v1/chat/analytics/activity**", current, previous, status);
 }
 
+/** Stubs the period summary API: one response carries both periods. */
+export async function stubSummary(page: Page, figures: unknown, status = 200): Promise<void> {
+  await page.route("**/api/v1/analytics/summary**", (route) =>
+    route.fulfill({ status, contentType: "application/json", body: JSON.stringify(figures) }),
+  );
+}
+
 async function stubPeriods(
   page: Page,
   url: string,

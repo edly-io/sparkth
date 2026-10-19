@@ -274,7 +274,20 @@ Scope kinds register the same way, through `PermissionScope.create("course", par
 
 Analytics event schemas register through `register_event_schema(self, MyEvent)`: define an `AnalyticsEventSchema` subclass (from `sparkth.lib.analytics`) declaring its own `event_type` and `version`, then register it from `__init__`. Once a plugin keeps its schemas in an `analytics` module of its own, register the module instead — `register_event_schemas(self, analytics)` picks up every `AnalyticsEventSchema` subclass *defined in* it, so adding an event is one edit in one file rather than a class plus a line in `plugin.py` that is easy to forget. It selects by base class, not by name: seam classes sharing the module, and schemas the module imports from elsewhere, are left alone. Each schema still goes through `register_event_schema`, so the guards below apply either way. The `event_type` **must** be namespaced under the plugin's name (`"myappplugin.data_processed"`), or registration raises `EventNamespaceError` at import; a second class claiming the same `(event_type, version)` raises `DuplicateEventTypeError`. Emit a registered event server-side with `emit_event` (also from `sparkth.lib.analytics`) — it opens its own analytics session so you need no session plumbing. It catches nothing: a failed analytics write propagates to the caller rather than being silently hidden. Emit from a background task so that failure surfaces in the logs without affecting the request being measured. Reach for the lower-level `ingest_event` when the caller already holds an analytics session. What to record, what a payload may carry, and which seam can safely emit are in the [analytics events guide](analytics-events.md).
 
-To read analytics back, build one query per bucket from `PG_BUCKET` / `SQLITE_BUCKET` and run it with `read_bucketed` (all from `sparkth.lib.analytics`), taking the range as `Annotated[RangeQuery, Query()]`. Gate the route with `Depends(ANALYTICS_READ.require_in_global_scope())` (`sparkth.lib.permissions`) and read on `get_analytics_session` (`sparkth.lib.db`). A continuous aggregate the PostgreSQL query reads is added in the analytics migration lineage (`sparkth/migrations/analytics/`); the SQLite query computes the same rows from `raw_events`. The chat plugin's `analytics/reads.py` is a worked example.
+To read analytics back, call `read_rollup` (from `sparkth.lib.analytics`) with the continuous
+aggregate's name, the event types it counts, its count column and its grouping columns as `dims` —
+each mapped to the payload key it comes from, either one key for every event type or a
+per-event-type mapping. No SQL: on PostgreSQL it reads the aggregate, on SQLite it computes the same
+rows from `raw_events`, so `dims` must match the aggregate's definition. Take the range as
+`Annotated[RangeQuery, Query()]`, gate the route with
+`Depends(ANALYTICS_READ.require_in_global_scope())` (`sparkth.lib.permissions`) and read on
+`get_analytics_session` (`sparkth.lib.db`). The aggregate's DDL still goes in the analytics
+migration lineage (`sparkth/migrations/analytics/`). The chat plugin's `analytics/reads.py` is a
+worked example. To put a headline figure on the analytics Overview, build a `SummaryFigure` at
+module level (a plugin-prefixed `key`, a `gettext_noop` label, an async `count(session, from_, to)`
+and the `view` it links to) and register it from `__init__` with
+`register_summary_figure(self, figure)`. The Overview shows it to viewers who have the plugin
+enabled.
 
 ### Where do plugin routes get mounted?
 
@@ -584,14 +597,14 @@ the caller can delete it. Like the builders, `on_placed` must be a module-level 
 ## Chat capabilities
 
 A *capability* is one kind of work the chat assistant does, such as designing a course. A plugin
-contributes one without importing chat, by registering a `ChatCapability` from
-`sparkth.lib.chat.hooks` on `CHAT_CAPABILITIES`. A plugin registers one capability, from its
-`__init__`, keyed by the plugin instance.
+contributes one without importing chat, by registering a `ChatCapability` with
+`register_chat_capability` from `sparkth.lib.chat.hooks`. A plugin registers one capability, from
+its `__init__`, keyed by the plugin instance.
 
 A `ChatCapability` has three fields:
 
 - `title` is the heading the capability appears under, both in the system prompt and in the scope
-  gate's list.
+  gate's list, so no two capabilities share one.
 - `scope` is the text the scope gate judges a message against.
 - `prompt` is plain text inserted into the system prompt as written, so a brace in it needs no
   escaping.
@@ -600,7 +613,7 @@ For example:
 
 ```python
 # sparkth/plugins/myappplugin/plugin.py
-from sparkth.lib.chat.hooks import CHAT_CAPABILITIES, ChatCapability
+from sparkth.lib.chat.hooks import ChatCapability, register_chat_capability
 from sparkth.lib.plugins import SparkthPlugin
 
 TITLE = "My App builder"
@@ -613,11 +626,14 @@ MY_CAPABILITY = ChatCapability(TITLE, SCOPE, PROMPT)
 class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
         super().__init__("my-app")
-        CHAT_CAPABILITIES.add_item(self, MY_CAPABILITY)
+        register_chat_capability(self, MY_CAPABILITY)
 ```
 
-Constructing the plugin again is harmless: the loader and a plugin's own tests each build an
-instance, and equal copies fold into one.
+Register through `register_chat_capability`, not `CHAT_CAPABILITIES.add_item`. Constructing the
+plugin again is harmless: the loader and a plugin's own tests each build an instance, and equal
+copies fold into one. Only a *different* capability claiming a registered title raises
+`DuplicateChatCapabilityError`, from `sparkth.lib.chat.exceptions`. The loader logs the failed
+construction and skips that plugin.
 
 ### How chat uses capabilities
 

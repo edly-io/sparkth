@@ -9,8 +9,7 @@ goes through these providers so the test suite can inject a throwaway engine via
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
-from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 
 from sparkth.core.config import get_settings
 
@@ -46,7 +45,10 @@ def get_analytics_engine() -> AsyncEngine:
 
 @asynccontextmanager
 async def open_analytics_session(expire_on_commit: bool = False) -> AsyncGenerator[AsyncSession, None]:
-    """Open an :class:`AsyncSession` bound to the analytics engine.
+    """Open a SQLAlchemy :class:`AsyncSession` bound to the analytics engine.
+
+    SQLAlchemy's session, not SQLModel's: the analytics tables are Core tables, so
+    SQLModel's ``exec`` adds nothing and its ``execute`` is deprecated.
 
     This is the single low-level session provider that
     :func:`sparkth.lib.db.analytics_session_scope` delegates to. Keep as a dedicated

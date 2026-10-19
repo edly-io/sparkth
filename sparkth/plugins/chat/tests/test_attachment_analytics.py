@@ -13,6 +13,7 @@ from uuid import UUID
 
 from httpx import AsyncClient
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession as SQLAlchemyAsyncSession
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.analytics.models import raw_events
@@ -74,12 +75,12 @@ async def _seed_llm_config(session: AsyncSession, user_id: int) -> int:
     return config_id
 
 
-async def _events(analytics_session: AsyncSession, event_type: str) -> list[dict[str, Any]]:
+async def _events(analytics_session: SQLAlchemyAsyncSession, event_type: str) -> list[dict[str, Any]]:
     rows = (await analytics_session.execute(select(raw_events))).mappings().all()
     return [row["payload"] for row in rows if row["event_type"] == event_type]
 
 
-async def _all_payloads(analytics_session: AsyncSession) -> list[dict[str, Any]]:
+async def _all_payloads(analytics_session: SQLAlchemyAsyncSession) -> list[dict[str, Any]]:
     rows = (await analytics_session.execute(select(raw_events))).mappings().all()
     return [row["payload"] for row in rows]
 
@@ -126,7 +127,7 @@ async def test_attaching_a_document_emits_document_attached(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     _, conversation_uuid = await _seed_conversation(session, current_user.id or 1)
     document_id = await _seed_document(session, current_user.id or 1)
@@ -143,7 +144,7 @@ async def test_re_attaching_the_same_document_emits_nothing(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     """attach_document is upsert-safe, so a repeat is a no-op rather than an action."""
     _, conversation_uuid = await _seed_conversation(session, current_user.id or 1)
@@ -159,7 +160,7 @@ async def test_detaching_emits_document_detached(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     _, conversation_uuid = await _seed_conversation(session, current_user.id or 1)
     document_id = await _seed_document(session, current_user.id or 1)
@@ -179,7 +180,7 @@ async def test_detaching_a_document_that_was_never_attached_emits_nothing(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     """Nothing was removed, so nothing happened."""
     _, conversation_uuid = await _seed_conversation(session, current_user.id or 1)
@@ -195,7 +196,7 @@ async def test_documents_named_on_a_completion_request_are_attributed_to_that_so
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     config_id = await _seed_llm_config(session, current_user.id or 1)
     _, conversation_uuid = await _seed_conversation(session, current_user.id or 1)
@@ -213,7 +214,7 @@ async def test_unowned_document_ids_emit_documents_skipped(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     """The instructor named documents that were silently dropped from their turn."""
     config_id = await _seed_llm_config(session, current_user.id or 1)
@@ -238,7 +239,7 @@ async def test_all_documents_owned_emits_no_skip_event(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     config_id = await _seed_llm_config(session, current_user.id or 1)
     _, conversation_uuid = await _seed_conversation(session, current_user.id or 1)
@@ -254,7 +255,7 @@ async def test_a_still_ingesting_attachment_emits_attachment_unusable(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     """The instructor attached a file and the turn ran as though they had not.
 
@@ -279,7 +280,7 @@ async def test_a_failed_attachment_reports_its_status(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     config_id = await _seed_llm_config(session, current_user.id or 1)
     _, conversation_uuid = await _seed_conversation(session, current_user.id or 1)
@@ -296,7 +297,7 @@ async def test_a_ready_attachment_emits_no_unusable_event(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     config_id = await _seed_llm_config(session, current_user.id or 1)
     _, conversation_uuid = await _seed_conversation(session, current_user.id or 1)
@@ -312,7 +313,7 @@ async def test_no_document_name_reaches_any_payload(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     """A filename is user-authored text, like a conversation title. Ids only."""
     _, conversation_uuid = await _seed_conversation(session, current_user.id or 1)
@@ -328,7 +329,7 @@ async def test_attachment_events_are_timed_when_they_happened(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     """occurred_at comes from the attachment row, not from whenever the task ran."""
     _, conversation_uuid = await _seed_conversation(session, current_user.id or 1)
@@ -349,7 +350,7 @@ async def test_the_conversation_uuid_is_what_lands_not_the_row_id(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     """Every other chat event keys on the uuid; these must match or they cannot be joined."""
     conversation_id, conversation_uuid = await _seed_conversation(session, current_user.id or 1)
