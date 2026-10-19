@@ -24,6 +24,27 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
+def _message_response(msg: Message) -> MessageResponse:
+    """Build the response for a stored message, parsing its role and metadata into typed fields."""
+    return MessageResponse.model_validate(
+        {
+            "id": msg.id,
+            "role": msg.role,
+            "content": msg.content,
+            "tokens_used": msg.tokens_used,
+            "cost": msg.cost,
+            "created_at": msg.created_at,
+            "message_type": msg.message_type,
+            "attachment_name": msg.attachment_name,
+            "attachment_size": msg.attachment_size,
+            "rag_sections": parse_metadata_list(msg.model_metadata, "rag_sections"),
+            "tool_calls": parse_metadata_list(msg.model_metadata, "tool_calls"),
+            "is_error": msg.is_error,
+            "stopped": parse_metadata_flag(msg.model_metadata, "stopped"),
+        }
+    )
+
+
 @router.get("/conversations", response_model=ConversationListResponse)
 async def list_conversations(
     limit: int = Query(default=50, ge=1, le=200),
@@ -89,24 +110,7 @@ async def get_conversation(
         exclude_errors=False,
     )
 
-    message_responses = [
-        MessageResponse(
-            id=cast(int, msg.id),
-            role=msg.role,
-            content=msg.content,
-            tokens_used=msg.tokens_used,
-            cost=msg.cost,
-            created_at=msg.created_at,
-            message_type=msg.message_type,
-            attachment_name=msg.attachment_name,
-            attachment_size=msg.attachment_size,
-            rag_sections=parse_metadata_list(msg.model_metadata, "rag_sections"),
-            tool_calls=parse_metadata_list(msg.model_metadata, "tool_calls"),
-            is_error=msg.is_error,
-            stopped=parse_metadata_flag(msg.model_metadata, "stopped"),
-        )
-        for msg in messages
-    ]
+    message_responses = [_message_response(msg) for msg in messages]
 
     return ConversationDetailResponse(
         id=conversation.uuid,
@@ -141,18 +145,4 @@ async def get_last_conversation_message(
     if msg is None:
         return None
 
-    return MessageResponse(
-        id=cast(int, msg.id),
-        role=msg.role,
-        content=msg.content,
-        tokens_used=msg.tokens_used,
-        cost=msg.cost,
-        created_at=msg.created_at,
-        message_type=msg.message_type,
-        attachment_name=msg.attachment_name,
-        attachment_size=msg.attachment_size,
-        rag_sections=parse_metadata_list(msg.model_metadata, "rag_sections"),
-        tool_calls=parse_metadata_list(msg.model_metadata, "tool_calls"),
-        is_error=msg.is_error,
-        stopped=parse_metadata_flag(msg.model_metadata, "stopped"),
-    )
+    return _message_response(msg)

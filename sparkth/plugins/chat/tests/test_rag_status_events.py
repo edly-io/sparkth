@@ -17,7 +17,7 @@ from sparkth.lib.rag import (
 from sparkth.plugins.chat.detached import join_live_tasks
 from sparkth.plugins.chat.routes.utils import parse_metadata_list
 from sparkth.plugins.chat.routes.utils.stream_processor import ChatStreamProcessor
-from sparkth.plugins.chat.schemas import ChatMessage, MessageResponse
+from sparkth.plugins.chat.schemas import ChatMessage, MessageResponse, PersistedToolCall, RagSection
 
 
 def _make_chunk(
@@ -356,11 +356,11 @@ class TestMessageResponseRagSections:
             message_type="text",
             attachment_name=None,
             attachment_size=None,
-            rag_sections=[{"type": "section", "name": "Introduction", "source": "doc.pdf"}],
+            rag_sections=[RagSection(type="section", name="Introduction", source="doc.pdf")],
         )
         assert response.rag_sections is not None
         assert len(response.rag_sections) == 1
-        assert response.rag_sections[0]["name"] == "Introduction"
+        assert response.rag_sections[0].name == "Introduction"
 
     def test_message_response_rag_sections_defaults_to_none(self) -> None:
         response = MessageResponse(
@@ -757,11 +757,11 @@ class TestMessageResponseToolCalls:
             message_type="text",
             attachment_name=None,
             attachment_size=None,
-            tool_calls=[{"name": "search_web"}, {"name": "search_web"}],
+            tool_calls=[PersistedToolCall(name="search_web"), PersistedToolCall(name="search_web")],
         )
         assert response.tool_calls is not None
         assert len(response.tool_calls) == 2
-        assert response.tool_calls[0]["name"] == "search_web"
+        assert response.tool_calls[0].name == "search_web"
 
     def test_message_response_tool_calls_defaults_to_none(self) -> None:
         response = MessageResponse(

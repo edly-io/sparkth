@@ -1,7 +1,7 @@
 import io
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from pypdf import PdfReader
 
 from sparkth.core.models.user import User
@@ -15,6 +15,12 @@ ALLOWED_TYPES = {
     "text/plain",
     "application/pdf",
 }
+
+
+class UploadResponse(BaseModel):
+    filename: str | None
+    length: int
+    text: str
 
 
 async def parse_txt(content: bytes) -> str:
@@ -36,8 +42,8 @@ async def parse_pdf(content: bytes) -> str:
     return text.strip()
 
 
-@router.post("/upload")
-async def upload_text(current_user: User = Depends(get_current_user), file: UploadFile = File(...)) -> JSONResponse:
+@router.post("/upload", response_model=UploadResponse)
+async def upload_text(current_user: User = Depends(get_current_user), file: UploadFile = File(...)) -> UploadResponse:
     if not current_user or not current_user.id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=_("User not authenticated."))
 
@@ -65,10 +71,4 @@ async def upload_text(current_user: User = Depends(get_current_user), file: Uplo
     else:
         raise HTTPException(status_code=400, detail=_("Unsupported file type"))
 
-    return JSONResponse(
-        {
-            "filename": file.filename,
-            "length": len(text),
-            "text": text,
-        }
-    )
+    return UploadResponse(filename=file.filename, length=len(text), text=text)
