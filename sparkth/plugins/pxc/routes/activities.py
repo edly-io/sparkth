@@ -36,6 +36,7 @@ async def list_activities(
             description=activity.description,
             created_at=activity.created_at,
             preview_url=preview_url(activity.id),
+            placed=activity.placed_at is not None,
         )
         for activity in activities
     ]

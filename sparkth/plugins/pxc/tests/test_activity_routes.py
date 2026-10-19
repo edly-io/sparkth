@@ -9,7 +9,7 @@ from pxc.lib.permission import Permission
 from sqlmodel.ext.asyncio.session import AsyncSession
 from uuid6 import uuid7
 
-from sparkth.lib.models import User
+from sparkth.lib.models import User, utc_now
 from sparkth.plugins.pxc.activities import activity_dir, generated_activity_dir
 from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.store import insert_activity
@@ -53,6 +53,19 @@ async def test_an_author_lists_only_their_own_activities(
     assert [(item["id"], item["title"], item["preview_url"]) for item in response.json()] == [
         (str(mine.id), "Fractions", f"/dashboard/pxc?activity={mine.id}")
     ]
+
+
+async def test_the_list_says_whether_each_activity_was_placed(
+    client: AsyncClient, session: AsyncSession, current_user: User
+) -> None:
+    owner = cast(int, current_user.id)
+    draft = await _insert_owned(session, owner)
+    placed = PxcActivity(owner_user_id=owner, title="Placed", description="In a course", placed_at=utc_now())
+    await insert_activity(session, placed)
+
+    response = await client.get("/api/v1/pxc/activities")
+
+    assert {item["id"]: item["placed"] for item in response.json()} == {str(placed.id): True, str(draft.id): False}
 
 
 async def test_an_author_gets_an_embed_url_for_their_own_activity(
