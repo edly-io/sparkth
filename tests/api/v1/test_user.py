@@ -1,5 +1,5 @@
-"""Tests for the /user/me endpoint: the computed is_admin flag and the
-preferred-language column exposed via GET and PATCH.
+"""Tests for the /user/me endpoint: the computed is_admin flag, whether the user
+has a password, and the name and preferred-language columns exposed via GET and PATCH.
 
 is_admin is not a stored column — it is derived from whether the user holds the
 global ``admin`` role, so those tests seed role assignments and assert the
@@ -7,6 +7,9 @@ endpoint reflects them. The language tests cover reading the raw stored
 preference and writing it through PATCH, including the allowlist validation that
 keeps unsupported tags out of the database, the auth gate on the write endpoint,
 and that a PATCH only ever touches the caller's own row.
+
+PATCH is a partial update: a field left out of the body keeps its stored value,
+so the name and language tests also check that writing one leaves the other alone.
 
 Two of them guard the write itself rather than its result: that the endpoint
 refuses a principal with no row instead of reporting success for a write it never
@@ -28,12 +31,17 @@ from sparkth.lib.permissions import assign_role
 from sparkth.lib.permissions.scopes import GLOBAL, PermissionScope
 
 
-async def _create_user(session: AsyncSession, username: str) -> User:
+async def _create_user(
+    session: AsyncSession,
+    username: str,
+    *,
+    hashed_password: str | None = "fakehash",
+) -> User:
     user = User(
         name="Test",
         username=username,
         email=f"{username}@example.com",
-        hashed_password="fakehash",
+        hashed_password=hashed_password,
     )
     session.add(user)
     await session.flush()
@@ -271,3 +279,72 @@ async def test_patch_me_preserves_the_computed_admin_flag(client: AsyncClient, s
     assert response.status_code == 200
     assert response.json()["is_admin"] is True
     assert response.json()["language"] == "fr"
+
+
+async def test_me_reports_a_password_without_exposing_its_hash(client: AsyncClient, session: AsyncSession) -> None:
+    user = await _create_user(session, "pwonly")
+    _override_current_user(client, user)
+
+    body = (await client.get("/api/v1/user/me")).json()
+
+    assert body["has_password"] is True
+    assert "fakehash" not in str(body)
+
+
+async def test_me_reports_no_password_for_a_google_only_user(client: AsyncClient, session: AsyncSession) -> None:
+    user = await _create_user(session, "googleonly", hashed_password=None)
+    _override_current_user(client, user)
+
+    body = (await client.get("/api/v1/user/me")).json()
+
+    assert body["has_password"] is False
+
+
+async def test_patch_me_changes_the_name_trimmed(client: AsyncClient, session: AsyncSession) -> None:
+    user = await _create_user(session, "renamer")
+    await session.commit()
+    _override_current_user(client, user)
+
+    response = await client.patch("/api/v1/user/me", json={"name": "  Ada Lovelace  "})
+
+    assert response.status_code == 200
+    assert response.json()["name"] == "Ada Lovelace"
+    assert (await client.get("/api/v1/user/me")).json()["name"] == "Ada Lovelace"
+
+
+async def test_patch_me_rejects_an_invalid_name(client: AsyncClient, session: AsyncSession) -> None:
+    """A blank name, a null name and one past the 30-character column are all 422s."""
+    user = await _create_user(session, "badname")
+    await session.commit()
+    _override_current_user(client, user)
+
+    for name in ["", "   ", None, "x" * 31]:
+        response = await client.patch("/api/v1/user/me", json={"name": name})
+        assert response.status_code == 422, name
+
+    assert (await client.get("/api/v1/user/me")).json()["name"] == "Test"
+
+
+async def test_patch_me_leaves_fields_out_of_the_body_alone(client: AsyncClient, session: AsyncSession) -> None:
+    user = await _create_user(session, "partial")
+    await session.commit()
+    _override_current_user(client, user)
+    await client.patch("/api/v1/user/me", json={"name": "Renamed", "language": "es"})
+
+    assert (await client.patch("/api/v1/user/me", json={"name": "Again"})).json()["language"] == "es"
+    assert (await client.patch("/api/v1/user/me", json={"language": "fr"})).json()["name"] == "Again"
+
+
+async def test_patch_me_ignores_fields_it_does_not_edit(client: AsyncClient, session: AsyncSession) -> None:
+    """Username and email are not editable here: sending them changes nothing."""
+    user = await _create_user(session, "fixedid")
+    await session.commit()
+    _override_current_user(client, user)
+
+    response = await client.patch(
+        "/api/v1/user/me", json={"name": "New", "username": "hijack", "email": "hijack@example.com"}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["username"] == "fixedid"
+    assert response.json()["email"] == "fixedid@example.com"

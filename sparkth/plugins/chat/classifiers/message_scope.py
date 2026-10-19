@@ -14,7 +14,8 @@ from sparkth.lib.chat.hooks import ChatCapability
 from sparkth.lib.log import get_logger
 from sparkth.plugins.chat.analytics import ChatClassifierAnalytics, ScopeVerdict
 from sparkth.plugins.chat.classifiers.base import BaseClassifier
-from sparkth.plugins.chat.constants import MESSAGE_SCOPE_CLASSIFIER_CONVERSATION_HISTORY
+from sparkth.plugins.chat.constants import MESSAGE_SCOPE_CLASSIFIER_CONVERSATION_HISTORY, SCOPE_CHECK_ERRORS
+from sparkth.plugins.chat.exceptions import ScopeCheckError
 from sparkth.plugins.chat.prompt import render_scope_classifier_prompt
 from sparkth.plugins.chat.schemas import HistoryTurn, MessageScopeInput, MessageScopeVerdict
 
@@ -89,16 +90,18 @@ class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdi
         left to the caller and nothing is recorded for it here.
 
         Raises:
-            ClassifierError: the LangChain call failed, or the answer did not fit the schema.
-            OpenAIRefusalError: OpenAI refused to give the structured answer; raised unchanged.
-            LLM_PROVIDER_API_ERRORS: the provider SDK failed the call; raised unchanged.
+            ScopeCheckError: no verdict. Its ``cause`` is the classifier error, the OpenAI
+                refusal, or the provider error underneath.
         """
         payload = MessageScopeInput(
             query=query,
             history=history or [],
             attached_document_names=attached_document_names or [],
         )
-        verdict = await self.classify(payload)
+        try:
+            verdict = await self.classify(payload)
+        except SCOPE_CHECK_ERRORS as exc:
+            raise ScopeCheckError(exc) from exc
 
         if not verdict.in_scope:
             self._log_refusal(verdict, conversation_uuid, history, attached_document_names, query)

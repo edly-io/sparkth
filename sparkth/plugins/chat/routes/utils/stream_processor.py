@@ -5,11 +5,14 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, cast
 
+import aiohttp
 import anthropic
 import httpx
 import openai
 from google.api_core import exceptions as google_exceptions
+from google.genai import errors as google_genai_errors
 from langchain_core.exceptions import LangChainException
+from langchain_google_genai.chat_models import ChatGoogleGenerativeAIError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.db import session_scope
@@ -115,6 +118,13 @@ def streaming_error_message(exc: Exception) -> str:
         if status_code is None:
             status_code = "unknown"
         return _("Google API error ({status_code}). Please try again.").format(status_code=status_code)
+    # langchain-google-genai wraps a 4xx from a non-streamed call; a streamed call raises Google's own.
+    if isinstance(exc, ChatGoogleGenerativeAIError) and isinstance(exc.__cause__, google_genai_errors.APIError):
+        return _google_error_message(exc.__cause__)
+    if isinstance(exc, google_genai_errors.APIError):
+        return _google_error_message(exc)
+    if isinstance(exc, aiohttp.ClientConnectionError):
+        return _("Could not reach Google. Please check your network connection.")
 
     # httpx transport errors
     if isinstance(exc, httpx.RemoteProtocolError):
@@ -122,6 +132,24 @@ def streaming_error_message(exc: Exception) -> str:
 
     # Generic fallback
     return _("An error occurred while generating a response. Please try again.")
+
+
+def _google_error_message(exc: google_genai_errors.APIError) -> str:
+    """Word an error from Google's GenAI API by its HTTP code.
+
+    Google answers a bad key with a 400 whose ErrorInfo reason is ``API_KEY_INVALID``, not a 401.
+    """
+    error = exc.details.get("error", {}) if isinstance(exc.details, dict) else {}
+    reasons = {detail.get("reason") for detail in error.get("details", []) if isinstance(detail, dict)}
+    if exc.code == 401 or "API_KEY_INVALID" in reasons:
+        return _("Invalid API key. Please check your Google API key in AI Keys.")
+    if exc.code == 403:
+        return _("Your Google API key does not have permission to use this model.")
+    if exc.code == 429:
+        return _("Google API rate limit reached. Please wait a moment and try again.")
+    if exc.code == 400:
+        return _("The request was rejected by Google. Please try a different message.")
+    return _("Google API error ({status_code}). Please try again.").format(status_code=exc.code)
 
 
 def rag_retrieval_error_message(exc: Exception) -> str:

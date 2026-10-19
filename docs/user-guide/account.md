@@ -1,0 +1,43 @@
+# Signing up and signing in
+
+!!! note "Before you sign up"
+    Your administrator decides who can create an account. Sign-up may be turned off, and only
+    emails or domains on the administrator's whitelist can register. If the whitelist is empty,
+    nobody can sign up. If you cannot register, ask your administrator for an account.
+
+## Create an account
+
+1. On the Sparkth home page, click **Get Started**.
+2. Fill in **Full name**, your username, your email, a password, and **Confirm password**.
+3. Submit the form. Sparkth shows "Check your email" and sends you a confirmation link.
+4. Open the email and click the link.
+
+## Confirm your email
+
+The link opens a page that says "Email confirmed". You can now sign in.
+
+If the link has expired, the page asks for your email instead. Enter it and click
+**Send new link**. If you see "Please wait before resending", wait a minute and try again.
+
+## Sign in
+
+Sign in with your username and password (your username, not your email) and click **Sign In**.
+
+You can also click **Sign in with Google** under "Or continue with":
+
+- If your Google email matches an existing Sparkth account, you are signed in to that account.
+- Otherwise a new account is created for you, as long as your email is on the whitelist.
+
+![The sign-in page](../img/user-guide/login.png)
+
+If you have not confirmed your email yet, signing in shows a reminder with a
+**Resend confirmation email** button.
+
+## Common messages
+
+| Message | What it means |
+|---|---|
+| "Registration is currently disabled" | The sign-up form is turned off. Ask your administrator for an account, or try **Sign in with Google** if your email is on the whitelist. |
+| "This email address is not authorized to register. Contact an administrator." | Your email is not on the whitelist. |
+| "Your email is not authorized to register. Contact an administrator." | The same, when you signed in with Google. |
+| "Please confirm your email before logging in." | Click the link in your confirmation email, or resend it. |

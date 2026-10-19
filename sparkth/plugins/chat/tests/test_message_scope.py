@@ -20,7 +20,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from sparkth.lib.chat.hooks import ChatCapability
 from sparkth.plugins.chat.capabilities import COURSE_DESIGN
 from sparkth.plugins.chat.classifiers import MessageScopeClassifier
-from sparkth.plugins.chat.exceptions import ClassifierError
+from sparkth.plugins.chat.exceptions import ClassifierError, ScopeCheckError
 from sparkth.plugins.chat.prompt import render_scope_classifier_prompt
 from sparkth.plugins.chat.schemas import HistoryTurn
 
@@ -196,33 +196,37 @@ class TestATurnWithNoWords:
 
 
 class TestAFailedClassification:
-    """A failure reaches the caller: a turn is never admitted or refused without a verdict."""
+    """A failure reaches the caller as a ScopeCheckError: a turn is never admitted or refused without a verdict."""
 
     @pytest.mark.asyncio
-    async def test_a_langchain_failure_raises_a_classifier_error(self) -> None:
+    async def test_a_langchain_failure_raises_a_scope_check_error(self) -> None:
         chain = MagicMock(ainvoke=AsyncMock(side_effect=LangChainException("provider timeout")))
 
-        with pytest.raises(ClassifierError):
+        with pytest.raises(ScopeCheckError) as excinfo:
             await _classifier_with(chain).in_scope("some query")
+
+        assert isinstance(excinfo.value.cause, ClassifierError)
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("answer", [{"in_scope": "maybe"}, {}])
-    async def test_an_answer_outside_the_schema_raises_a_classifier_error(self, answer: dict[str, str]) -> None:
+    async def test_an_answer_outside_the_schema_raises_a_scope_check_error(self, answer: dict[str, str]) -> None:
         chain = MagicMock(ainvoke=AsyncMock(return_value=answer))
 
-        with pytest.raises(ClassifierError):
+        with pytest.raises(ScopeCheckError) as excinfo:
             await _classifier_with(chain).in_scope("q")
 
+        assert isinstance(excinfo.value.cause, ClassifierError)
+
     @pytest.mark.asyncio
-    async def test_a_provider_error_reaches_the_caller_unchanged(self) -> None:
+    async def test_a_provider_error_is_carried_as_the_cause(self) -> None:
         """The route words a provider failure from the provider's own error."""
         error = openai.APIConnectionError(request=httpx.Request("POST", "https://api.openai.com/v1/chat/completions"))
         chain = MagicMock(ainvoke=AsyncMock(side_effect=error))
 
-        with pytest.raises(openai.APIConnectionError) as excinfo:
+        with pytest.raises(ScopeCheckError) as excinfo:
             await _classifier_with(chain).in_scope("q")
 
-        assert excinfo.value is error
+        assert excinfo.value.cause is error
 
     @pytest.mark.asyncio
     async def test_a_failure_records_no_decision(self) -> None:
@@ -230,7 +234,7 @@ class TestAFailedClassification:
         chain = MagicMock(ainvoke=AsyncMock(side_effect=LangChainException("provider timeout")))
         analytics = MagicMock()
 
-        with pytest.raises(ClassifierError):
+        with pytest.raises(ScopeCheckError):
             await _classifier_with(chain, None, analytics).in_scope("q")
 
         analytics.schedule_scope_classified.assert_not_called()

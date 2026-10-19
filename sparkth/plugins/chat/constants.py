@@ -69,8 +69,8 @@ LLM_PROVIDER_API_ERRORS = (
     aiohttp.ClientError,
 )
 
-# What a scope check raises when it cannot judge a turn: a classifier failure, OpenAI refusing the
-# structured answer, or a provider error.
+# What the scope classifier wraps in ScopeCheckError when it cannot judge a turn: a classifier
+# failure, OpenAI refusing the structured answer, or a provider error.
 SCOPE_CHECK_ERRORS = (ClassifierError, OpenAIRefusalError, *LLM_PROVIDER_API_ERRORS)
 
 # Category reported for a tool the registry never discovered. A missing category

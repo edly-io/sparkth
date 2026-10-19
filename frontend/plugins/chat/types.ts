@@ -35,7 +35,12 @@ export interface ChatMessage {
   isPending?: boolean;
   pillAttachment?: TextAttachment | null;
   statusPhase?: StreamStatusPhase;
-  ragSections?: { type: string; name: string; source?: string; state: "scanning" | "confirmed" }[];
+  ragSections?: {
+    type: string;
+    name: string;
+    source?: string | null;
+    state: "scanning" | "confirmed";
+  }[];
   toolCalls?: { name: string; status: "running" | "done" }[];
   stopped?: boolean;
 }

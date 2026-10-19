@@ -33,9 +33,9 @@ from sparkth.plugins.chat.analytics import (
 )
 from sparkth.plugins.chat.classifiers import MessageScopeClassifier, RAGSearchClassifier
 from sparkth.plugins.chat.config import ChatSettings, get_chat_settings
-from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, REFUSAL_MESSAGE, SCOPE_CHECK_ERRORS
+from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, REFUSAL_MESSAGE
 from sparkth.plugins.chat.conversation_title import extract_title_from_messages, schedule_title_generation
-from sparkth.plugins.chat.exceptions import RAGSearchError
+from sparkth.plugins.chat.exceptions import RAGSearchError, ScopeCheckError
 from sparkth.plugins.chat.lms_credentials import build_lms_credentials_message
 from sparkth.plugins.chat.messages import get_last_user_text
 from sparkth.plugins.chat.prompt import render_system_prompt
@@ -99,34 +99,23 @@ def _refusal_response(
     )
 
 
-async def _fail_scope_check(
-    exc: Exception,
-    conversation_uuid: UUID | None,
+def _fail_first_message_scope_check(
+    exc: ScopeCheckError,
     user_id: int,
     provider_name: str,
     model: str,
     streamed: bool,
-    service: ChatService,
-    session: AsyncSession,
 ) -> HTTPException:
-    """Fail a turn whose scope could not be judged, and return the 502 for the caller to raise.
+    """Fail a first message whose scope could not be judged, and return the 502 for the caller to raise.
 
     No turn reaches the chat model unjudged. The user reads a provider-specific message where one
-    exists, and the generic one otherwise. A later turn stores that error so a
-    reload still shows it. A first message has no conversation, and none is created to hold the
-    error. ``conversation_uuid`` is ``None`` on a first message.
+    exists, and the generic one otherwise. No conversation exists yet, and none is created to hold
+    the error, so nothing is stored.
     """
-    detail = streaming_error_message(exc)
-    logger.error(
-        "Scope check failed for user %s conversation %s on %s: %s",
-        user_id,
-        conversation_uuid,
-        type(exc).__name__,
-        exc,
-    )
-    await service.record_error_message(session, conversation_uuid, user_id, detail)
+    detail = streaming_error_message(exc.cause)
+    logger.error("Scope check failed for user %s on a first message: %s", user_id, exc)
     record_turn_failed(
-        conversation_id=str(conversation_uuid) if conversation_uuid else None,
+        conversation_id=None,
         provider=provider_name,
         model=model,
         cause=TurnFailureCause.SCOPE_CLASSIFICATION_ERROR,
@@ -217,10 +206,8 @@ async def chat_completion(
         # Nothing is persisted yet, and there is no uuid to log a refusal against.
         try:
             in_scope = await scope_classifier.in_scope(query_text, [], request_attachment_names, None)
-        except SCOPE_CHECK_ERRORS as exc:
-            raise await _fail_scope_check(
-                exc, None, user_id, provider_name, model, request.stream, service, session
-            ) from exc
+        except ScopeCheckError as exc:
+            raise _fail_first_message_scope_check(exc, user_id, provider_name, model, request.stream) from exc
         if not in_scope:
             return _refusal_response(request.stream, None, model, provider_name)
         # Already judged, so the check below would spend a second call on the same message.
@@ -325,15 +312,9 @@ async def chat_completion(
             ]
             # Ingested documents plus anything uploaded with this message, which has no row.
             turn_attachment_names = list(dict.fromkeys(attached_document_names + request_attachment_names))
-            try:
-                in_scope = await scope_classifier.in_scope(
-                    query_text, prior_history, turn_attachment_names or None, conversation.uuid
-                )
-            except SCOPE_CHECK_ERRORS as exc:
-                # The HTTPException matches neither handler below, so the turn is recorded once.
-                raise await _fail_scope_check(
-                    exc, conversation.uuid, user_id, provider_name, model, request.stream, service, session
-                ) from exc
+            in_scope = await scope_classifier.in_scope(
+                query_text, prior_history, turn_attachment_names or None, conversation.uuid
+            )
             if not in_scope:
                 await service.add_message(
                     session=session,
@@ -453,14 +434,18 @@ async def chat_completion(
                 metadata=response.get("metadata", {}),
             )
 
-    except (RAGSearchError, *LLM_PROVIDER_API_ERRORS) as exc:
-        # Both are an upstream service failing the turn: the user is told, and the conversation
+    except (RAGSearchError, ScopeCheckError, *LLM_PROVIDER_API_ERRORS) as exc:
+        # Each is an upstream service failing the turn: the user is told, and the conversation
         # keeps the message so a reload still shows what happened.
-        detail = (
-            _("Failed to determine retrieval intent. Please try again.")
-            if isinstance(exc, RAGSearchError)
-            else streaming_error_message(exc)
-        )
+        if isinstance(exc, RAGSearchError):
+            detail = _("Failed to determine retrieval intent. Please try again.")
+            cause = TurnFailureCause.RAG_SEARCH_ERROR
+        elif isinstance(exc, ScopeCheckError):
+            detail = streaming_error_message(exc.cause)
+            cause = TurnFailureCause.SCOPE_CLASSIFICATION_ERROR
+        else:
+            detail = streaming_error_message(exc)
+            cause = TurnFailureCause.PROVIDER_API_ERROR
         logger.error("Conversation %s failed on %s: %s", conversation_id, type(exc).__name__, exc)
         await service.add_message(
             session=session,
@@ -473,11 +458,7 @@ async def chat_completion(
             conversation_id=str(conversation.uuid),
             provider=provider_name,
             model=model,
-            cause=(
-                TurnFailureCause.RAG_SEARCH_ERROR
-                if isinstance(exc, RAGSearchError)
-                else TurnFailureCause.PROVIDER_API_ERROR
-            ),
+            cause=cause,
             streamed=request.stream,
             actor_id=str(user_id),
         )

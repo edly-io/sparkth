@@ -69,7 +69,7 @@ export async function getConversation(
       headers: authHeader(token),
       signal,
     });
-    return data as unknown as ApiConversation;
+    return data as ApiConversation;
   } catch (error) {
     if (error instanceof ApiRequestError) {
       throw new Error(`Load conversation failed with status ${error.status}`);
@@ -108,7 +108,7 @@ export async function getLastMessage(
       headers: authHeader(token),
       signal,
     });
-    return data as unknown as ApiMessage | null;
+    return data as ApiMessage | null;
   } catch (error) {
     if (error instanceof ApiRequestError) return null;
     passOrWrapNetworkError(error);
