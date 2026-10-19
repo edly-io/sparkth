@@ -60,7 +60,8 @@ The plugin adds an "Activities" entry to the sidebar for its dashboard page at `
 which lists the signed-in author's own activities. The list route reports whether each activity has
 been placed in a course, and an author can delete one of their own through the delete route. An
 activity's `preview_url` is `/dashboard/pxc?activity=<id>`. The page itself lives in
-`frontend/plugins/pxc`.
+`frontend/plugins/pxc`. The page marks each placed activity and gives each row a Delete button that
+asks for confirmation before calling the delete route.
 
 ## Building an activity from chat
 
