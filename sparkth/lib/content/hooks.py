@@ -27,7 +27,7 @@ from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.plugins.service import plugins_disabled_for_user, system_disabled_plugin_names
+from sparkth.core.plugins.service import disabled_plugin_names
 from sparkth.lib.auth import current_user_id
 from sparkth.lib.content.exceptions import DuplicateContentContributorError
 from sparkth.lib.db import session_scope
@@ -142,8 +142,8 @@ async def _caller_disabled_plugins(session: AsyncSession) -> set[str]:
         user_id = current_user_id()
     except NoAuthenticatedUser:
         logger.info("No authenticated user; applying only the system-wide plugin switch")
-        return await system_disabled_plugin_names(session)
-    return await plugins_disabled_for_user(user_id, session)
+        return await disabled_plugin_names(None, session)
+    return await disabled_plugin_names(user_id, session)
 
 
 async def enabled_content_contributors() -> dict[str, ContentContributor]:

@@ -23,7 +23,7 @@ from sparkth.lib.llm import (
 )
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
-from sparkth.lib.plugins import plugins_disabled_for_user
+from sparkth.lib.plugins import disabled_plugin_names
 from sparkth.plugins.chat.analytics import (
     ChatAttachmentAnalytics,
     ChatClassifierAnalytics,
@@ -194,7 +194,7 @@ async def chat_completion(
         actor_id=str(user_id),
     )
     # Read once per turn: the tool filter and the capability list share one set of switched-off plugins.
-    disabled_plugins = await plugins_disabled_for_user(user_id, session)
+    disabled_plugins = await disabled_plugin_names(user_id, session)
     capabilities = enabled_capabilities(disabled_plugins)
     scope_classifier = MessageScopeClassifier(capabilities, provider_name, api_key, user_id, classifier_analytics)
 
