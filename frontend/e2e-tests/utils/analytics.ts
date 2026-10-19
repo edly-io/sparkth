@@ -25,6 +25,22 @@ export async function stubChatActivity(
   await stubPeriods(page, "**/api/v1/chat/analytics/activity**", current, previous, status);
 }
 
+/** Stubs the Drive documents read API, with the same period rule as `stubLogins`. */
+export async function stubDriveDocuments(
+  page: Page,
+  current: unknown,
+  previous: unknown = [],
+  status = 200,
+): Promise<void> {
+  await stubPeriods(
+    page,
+    "**/api/v1/google-drive/analytics/documents**",
+    current,
+    previous,
+    status,
+  );
+}
+
 /** Stubs the period summary API: one response carries both periods. */
 export async function stubSummary(page: Page, figures: unknown, status = 200): Promise<void> {
   await page.route("**/api/v1/analytics/summary**", (route) =>

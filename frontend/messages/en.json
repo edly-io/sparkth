@@ -38,7 +38,19 @@
       "toolsCaption": "Tool calls by tool, {range}",
       "toolValue": "{total} ({failed} failed)",
       "lowerBound": "Counts are lower bounds: activity is occasionally not recorded.",
-      "noPrevious": "No activity in the previous period"
+      "noPrevious": "No activity in the previous period",
+      "documentsProcessed": "Documents processed",
+      "documentsHint": "{ready} ready · {time} avg to ready · {change}",
+      "documentsHintNoneReady": "None ready · {change}",
+      "notUsable": "Why documents weren't usable",
+      "notUsableCaption": "Documents that weren't usable, by reason, {range}",
+      "outcomes": {
+        "too_large": "Too large",
+        "unsupported_type": "Unsupported file type",
+        "scanned_pdf": "Scanned PDF",
+        "drive_error": "Google Drive error",
+        "failed": "Processing failed"
+      }
     },
     "compare": {
       "weekOf": "Week of {date}",
@@ -56,7 +68,9 @@
       "messages": "Messages",
       "conversations": "Conversations",
       "failedTurns": "Messages failed",
-      "failureRate": "Failure rate"
+      "failureRate": "Failure rate",
+      "reason": "Reason",
+      "documents": "Documents"
     },
     "nav": {
       "label": "Analytics views",

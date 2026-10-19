@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import {
   daysAgoUtc,
   stubChatActivity,
+  stubDriveDocuments,
   stubLogins,
   stubPermission,
   stubSummary,
@@ -178,6 +179,7 @@ test.describe("analytics period", () => {
 test.describe("analytics course authoring", () => {
   test("opens from its rail entry, with the entry current", async ({ page }) => {
     await stubLogins(page, []);
+    await stubDriveDocuments(page, []);
     await stubChatActivity(page, []);
     await page.goto("/dashboard/analytics/logins");
     await page.getByRole("link", { name: "Course authoring" }).click();
@@ -189,6 +191,7 @@ test.describe("analytics course authoring", () => {
   });
 
   test("shows activity and the tools used", async ({ page }) => {
+    await stubDriveDocuments(page, []);
     await stubChatActivity(page, [
       { bucket: todayUtc(), event_type: "chat.message_sent", event_count: 4 },
       {
@@ -207,6 +210,7 @@ test.describe("analytics course authoring", () => {
 
   test("keeps the period when switching between Logins and Course authoring", async ({ page }) => {
     await stubLogins(page, []);
+    await stubDriveDocuments(page, []);
     await stubChatActivity(page, []);
     await page.goto("/dashboard/analytics/logins?range=90d&bucket=month");
     await page.getByRole("link", { name: "Course authoring" }).click();
@@ -215,7 +219,32 @@ test.describe("analytics course authoring", () => {
     await expect(page).toHaveURL(/\/logins\/?\?range=90d&bucket=month/);
   });
 
+  test("shows processed Drive documents and why the rest weren't usable", async ({ page }) => {
+    await stubChatActivity(page, []);
+    await stubDriveDocuments(page, [
+      {
+        bucket: todayUtc(),
+        outcome: "ingested",
+        ready: true,
+        document_count: 3,
+        seconds_total: 30,
+      },
+      {
+        bucket: todayUtc(),
+        outcome: "scanned_pdf",
+        ready: false,
+        document_count: 1,
+        seconds_total: 2,
+      },
+    ]);
+    await page.goto("/dashboard/analytics/authoring");
+    await expect(page.getByText("Documents processed", { exact: true })).toBeVisible();
+    // The bar label; the screen-reader table repeats it.
+    await expect(page.getByText("Scanned PDF", { exact: true }).first()).toBeVisible();
+  });
+
   test("shows the empty state for a period with no activity", async ({ page }) => {
+    await stubDriveDocuments(page, []);
     await stubChatActivity(page, []);
     await page.goto("/dashboard/analytics/authoring");
     await expect(page.getByText(/no course-authoring activity in this period/i)).toBeVisible();
