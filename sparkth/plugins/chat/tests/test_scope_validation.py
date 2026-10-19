@@ -11,27 +11,28 @@ import json
 import logging
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import UUID
 
-import aiohttp
 import anthropic
 import httpx
 import openai
 import pytest
-from google.genai import errors as google_genai_errors
 from httpx import AsyncClient
-from langchain_google_genai.chat_models import ChatGoogleGenerativeAIError
 from langchain_openai.chat_models.base import OpenAIRefusalError
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.i18n import locale_context
-from sparkth.lib.encryption import get_encryption_service
-from sparkth.lib.models import LLMConfig, User
-from sparkth.lib.settings import get_settings
+from sparkth.lib.models import User
 from sparkth.plugins.chat.constants import REFUSAL_MESSAGE
-from sparkth.plugins.chat.models import Conversation, Message
+from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.routes.utils.stream_processor import stream_out_of_scope_refusal
+from sparkth.plugins.chat.tests.helpers import (
+    GOOGLE_FAILURES,
+    classifier_provider,
+    seed_conversation,
+    seed_llm_config,
+    stored_messages,
+)
 from sparkth.plugins.chat.types import ConversationDocuments
 
 _OPENAI_REQUEST = httpx.Request("POST", "https://api.openai.com/v1/chat/completions")
@@ -62,21 +63,6 @@ _PROVIDER_FAILURES = [
         "Invalid API key. Please check your Anthropic API key in AI Keys.",
         id="anthropic-key",
     ),
-]
-
-# What langchain-google-genai raises: a wrapped 4xx, a raw 5xx, and an aiohttp transport failure.
-_GOOGLE_FAILURES = [
-    pytest.param(
-        ChatGoogleGenerativeAIError("Error calling model 'gemini-2.0-flash' (UNAUTHENTICATED): 401"),
-        id="google-4xx",
-    ),
-    pytest.param(
-        google_genai_errors.ServerError(
-            503, {"error": {"code": 503, "message": "The model is overloaded.", "status": "UNAVAILABLE"}}
-        ),
-        id="google-5xx",
-    ),
-    pytest.param(aiohttp.ClientConnectionError("Connection refused"), id="google-transport"),
 ]
 
 
@@ -117,7 +103,7 @@ class TestThePreflightCheckSeesTheWholeTurn:
         current_user: User,
         session: AsyncSession,
     ) -> None:
-        llm_config_id = await _seed_llm_config(session, current_user.id or 1)
+        llm_config_id = await seed_llm_config(session, current_user.id or 1)
 
         with (
             locale_context("en"),
@@ -167,7 +153,7 @@ class TestAnExistingConversationSeesTheWholeTurnToo:
         current_user: User,
         session: AsyncSession,
     ) -> None:
-        llm_config_id = await _seed_llm_config(session, current_user.id or 1)
+        llm_config_id = await seed_llm_config(session, current_user.id or 1)
         conversation = Conversation(
             user_id=current_user.id or 1,
             provider="openai",
@@ -216,60 +202,11 @@ class TestAnExistingConversationSeesTheWholeTurnToo:
 # ── helpers ─────────────────────────────────────────────────────────────────
 
 
-async def _seed_llm_config(session: AsyncSession, user_id: int) -> int:
-    """Create an LLMConfig in DB and return its id."""
-    settings = get_settings()
-    enc = get_encryption_service(settings.LLM_ENCRYPTION_KEY)
-    cfg = LLMConfig(
-        user_id=user_id,
-        name="test-cfg-scope",
-        provider="openai",
-        model="gpt-4o",
-        encrypted_key=enc.encrypt("sk-test"),
-        masked_key="sk-***",
-        is_active=True,
-    )
-    session.add(cfg)
-    await session.flush()
-    llm_config_id = cfg.id or 0
-    await session.commit()
-    return llm_config_id
-
-
 async def _count_user_conversations(session: AsyncSession, user_id: int) -> int:
     result = await session.exec(
         select(func.count()).select_from(Conversation).where(col(Conversation.user_id) == user_id)
     )
     return result.one()
-
-
-async def _seed_conversation(session: AsyncSession, user_id: int) -> str:
-    conversation = Conversation(user_id=user_id, provider="openai", model="gpt-4o")
-    session.add(conversation)
-    await session.flush()
-    conversation_uuid = str(conversation.uuid)
-    await session.commit()
-    return conversation_uuid
-
-
-async def _stored_messages(session: AsyncSession, conversation_uuid: str) -> list[Message]:
-    """The conversation's messages, oldest first, read back from the database."""
-    conversation = (
-        await session.exec(select(Conversation).where(col(Conversation.uuid) == UUID(conversation_uuid)))
-    ).one()
-    result = await session.exec(
-        select(Message).where(col(Message.conversation_id) == conversation.id).order_by(col(Message.id))
-    )
-    return list(result.all())
-
-
-def _classifier_provider(ainvoke: AsyncMock) -> MagicMock:
-    """A provider whose classifier chain answers, or fails, through ``ainvoke``."""
-    llm = MagicMock()
-    llm.with_structured_output.return_value = MagicMock(ainvoke=ainvoke)
-    provider = MagicMock()
-    provider.create_llm.return_value = llm
-    return provider
 
 
 async def _send(client: AsyncClient, config_id: int, conversation_uuid: str | None, stream: bool) -> httpx.Response:
@@ -296,7 +233,7 @@ class TestOutOfScopeConversationCreation:
         session: AsyncSession,
     ) -> None:
         """Out-of-scope first message → no conversation in DB."""
-        llm_config_id = await _seed_llm_config(session, current_user.id or 1)
+        llm_config_id = await seed_llm_config(session, current_user.id or 1)
         before = await _count_user_conversations(session, current_user.id or 1)
 
         mock_msg = MagicMock()
@@ -342,7 +279,7 @@ class TestOutOfScopeConversationCreation:
         session: AsyncSession,
     ) -> None:
         """Out-of-scope message in an EXISTING conversation must still save refusal to DB."""
-        llm_config_id = await _seed_llm_config(session, current_user.id or 1)
+        llm_config_id = await seed_llm_config(session, current_user.id or 1)
 
         # Create a conversation first
         conv = Conversation(
@@ -417,7 +354,7 @@ class TestAFailedScopeCheck:
         self, client: AsyncClient, current_user: User, session: AsyncSession, stream: bool
     ) -> None:
         user_id = current_user.id or 1
-        config_id = await _seed_llm_config(session, user_id)
+        config_id = await seed_llm_config(session, user_id)
         before = await _count_user_conversations(session, user_id)
         failure = openai.APIConnectionError(request=_OPENAI_REQUEST)
 
@@ -425,7 +362,7 @@ class TestAFailedScopeCheck:
             locale_context("en"),
             patch(
                 "sparkth.plugins.chat.classifiers.base.get_provider",
-                return_value=_classifier_provider(AsyncMock(side_effect=failure)),
+                return_value=classifier_provider(AsyncMock(side_effect=failure)),
             ),
             patch("sparkth.plugins.chat.routes.completions.get_provider") as chat_provider,
         ):
@@ -450,14 +387,14 @@ class TestAFailedScopeCheck:
         stream: bool,
     ) -> None:
         user_id = current_user.id or 1
-        config_id = await _seed_llm_config(session, user_id)
-        conversation_uuid = await _seed_conversation(session, user_id)
+        config_id = await seed_llm_config(session, user_id)
+        conversation_uuid = await seed_conversation(session, user_id)
 
         with (
             locale_context("en"),
             patch(
                 "sparkth.plugins.chat.classifiers.base.get_provider",
-                return_value=_classifier_provider(AsyncMock(side_effect=failure)),
+                return_value=classifier_provider(AsyncMock(side_effect=failure)),
             ),
             patch("sparkth.plugins.chat.routes.completions.get_provider") as chat_provider,
         ):
@@ -465,32 +402,32 @@ class TestAFailedScopeCheck:
 
         assert response.status_code == 502
         assert response.json() == {"detail": detail}
-        stored = await _stored_messages(session, conversation_uuid)
+        stored = await stored_messages(session, conversation_uuid)
         assert [(m.role, m.is_error) for m in stored] == [("user", False), ("assistant", True)]
         assert stored[-1].content == detail
         chat_provider.assert_not_called()
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("failure", _GOOGLE_FAILURES)
-    async def test_a_google_failure_fails_the_turn_with_the_generic_text(
-        self, client: AsyncClient, current_user: User, session: AsyncSession, failure: Exception
+    @pytest.mark.parametrize(("failure", "detail"), GOOGLE_FAILURES)
+    async def test_a_google_failure_fails_the_turn_with_the_google_text(
+        self, client: AsyncClient, current_user: User, session: AsyncSession, failure: Exception, detail: str
     ) -> None:
         user_id = current_user.id or 1
-        config_id = await _seed_llm_config(session, user_id)
+        config_id = await seed_llm_config(session, user_id)
         before = await _count_user_conversations(session, user_id)
 
         with (
             locale_context("en"),
             patch(
                 "sparkth.plugins.chat.classifiers.base.get_provider",
-                return_value=_classifier_provider(AsyncMock(side_effect=failure)),
+                return_value=classifier_provider(AsyncMock(side_effect=failure)),
             ),
             patch("sparkth.plugins.chat.routes.completions.get_provider") as chat_provider,
         ):
             response = await _send(client, config_id, None, False)
 
         assert response.status_code == 502
-        assert response.json() == {"detail": _GENERIC_FAILURE}
+        assert response.json() == {"detail": detail}
         assert await _count_user_conversations(session, user_id) == before
         chat_provider.assert_not_called()
 
@@ -500,12 +437,12 @@ class TestAFailedScopeCheck:
         self, client: AsyncClient, current_user: User, session: AsyncSession, ainvoke: AsyncMock
     ) -> None:
         user_id = current_user.id or 1
-        config_id = await _seed_llm_config(session, user_id)
+        config_id = await seed_llm_config(session, user_id)
         before = await _count_user_conversations(session, user_id)
 
         with (
             locale_context("en"),
-            patch("sparkth.plugins.chat.classifiers.base.get_provider", return_value=_classifier_provider(ainvoke)),
+            patch("sparkth.plugins.chat.classifiers.base.get_provider", return_value=classifier_provider(ainvoke)),
             patch("sparkth.plugins.chat.routes.completions.get_provider") as chat_provider,
         ):
             response = await _send(client, config_id, None, False)
@@ -520,14 +457,14 @@ class TestAFailedScopeCheck:
         self, client: AsyncClient, current_user: User, session: AsyncSession
     ) -> None:
         user_id = current_user.id or 1
-        config_id = await _seed_llm_config(session, user_id)
-        conversation_uuid = await _seed_conversation(session, user_id)
+        config_id = await seed_llm_config(session, user_id)
+        conversation_uuid = await seed_conversation(session, user_id)
 
         with (
             locale_context("en"),
             patch(
                 "sparkth.plugins.chat.classifiers.base.get_provider",
-                return_value=_classifier_provider(AsyncMock(side_effect=_OPENAI_REFUSAL)),
+                return_value=classifier_provider(AsyncMock(side_effect=_OPENAI_REFUSAL)),
             ),
             patch("sparkth.plugins.chat.routes.completions.get_provider") as chat_provider,
         ):
@@ -535,7 +472,7 @@ class TestAFailedScopeCheck:
 
         assert response.status_code == 502
         assert response.json() == {"detail": _GENERIC_FAILURE}
-        stored = await _stored_messages(session, conversation_uuid)
+        stored = await stored_messages(session, conversation_uuid)
         assert [(m.role, m.is_error) for m in stored] == [("user", False), ("assistant", True)]
         assert stored[-1].content == _GENERIC_FAILURE
         chat_provider.assert_not_called()
@@ -550,24 +487,24 @@ class TestAFailedScopeCheck:
     ) -> None:
         """A rejected answer can echo the message, which may hold course content."""
         user_id = current_user.id or 1
-        config_id = await _seed_llm_config(session, user_id)
-        conversation_uuid = await _seed_conversation(session, user_id)
+        config_id = await seed_llm_config(session, user_id)
+        conversation_uuid = await seed_conversation(session, user_id)
 
         with (
             locale_context("en"),
             caplog.at_level(logging.ERROR, logger=_ROUTE_LOGGER),
             patch(
                 "sparkth.plugins.chat.classifiers.base.get_provider",
-                return_value=_classifier_provider(AsyncMock(return_value={"in_scope": "Week 3 confidential syllabus"})),
+                return_value=classifier_provider(AsyncMock(return_value={"in_scope": "Week 3 confidential syllabus"})),
             ),
             patch("sparkth.plugins.chat.routes.completions.get_provider") as chat_provider,
         ):
             response = await _send(client, config_id, conversation_uuid, False)
 
         assert response.status_code == 502
-        stored = await _stored_messages(session, conversation_uuid)
+        stored = await stored_messages(session, conversation_uuid)
         assert [(m.role, m.is_error) for m in stored] == [("user", False), ("assistant", True)]
         assert stored[-1].content == _GENERIC_FAILURE
-        assert "Scope check failed" in caplog.text
+        assert "ClassifierError" in caplog.text
         assert "confidential syllabus" not in caplog.text
         chat_provider.assert_not_called()

@@ -6,6 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from sparkth.plugins.chat.models import MessageRole, MessageType
+
 MAX_FILE_SIZE = 30 * 1024 * 1024  # 30MB
 
 
@@ -121,18 +123,28 @@ class ChatCompletionResponse(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class RagSection(BaseModel):
+    type: str
+    name: str
+    source: str | None = None
+
+
+class PersistedToolCall(BaseModel):
+    name: str
+
+
 class MessageResponse(BaseModel):
     id: int
-    role: str
+    role: MessageRole
     content: str
     tokens_used: int | None
     cost: float | None
     created_at: datetime
-    message_type: str
+    message_type: MessageType
     attachment_name: str | None
     attachment_size: int | None
-    rag_sections: list[dict[str, Any]] | None = None
-    tool_calls: list[dict[str, Any]] | None = None
+    rag_sections: list[RagSection] | None = None
+    tool_calls: list[PersistedToolCall] | None = None
     is_error: bool = False
     stopped: bool = False
 

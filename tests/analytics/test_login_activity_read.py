@@ -5,9 +5,11 @@ from typing import Any, cast
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession as SQLAlchemyAsyncSession
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.core.analytics.models import raw_events
 from sparkth.core.models.user import User
 from sparkth.lib.analytics import (
     Bucket,
@@ -70,6 +72,25 @@ async def test_get_logins_buckets_by_day_and_method(analytics_session: SQLAlchem
         LoginsPoint(bucket="2026-03-02", method="google", login_count=2),
         LoginsPoint(bucket="2026-03-02", method="password", login_count=1),
         LoginsPoint(bucket="2026-03-04", method="password", login_count=1),
+    ]
+
+
+async def test_get_logins_counts_a_login_without_a_method_as_unknown(
+    analytics_session: SQLAlchemyAsyncSession,
+) -> None:
+    # Written raw: the schema rejects a payload without ``method``.
+    await analytics_session.execute(
+        insert(raw_events).values(
+            occurred_at=_at("2026-03-02"), event_type="user.logged_in", event_version=1, payload={"username": "a"}
+        )
+    )
+    await _seed_login(analytics_session, "b", _at("2026-03-02"))
+
+    result = await get_logins(analytics_session, date(2026, 3, 1), date(2026, 3, 31), Bucket.day)
+
+    assert result == [
+        LoginsPoint(bucket="2026-03-02", method="unknown", login_count=1),
+        LoginsPoint(bucket="2026-03-02", method="password", login_count=1),
     ]
 
 

@@ -31,3 +31,8 @@ class User(TimestampedModel, SoftDeleteModel, table=True):
         default=None,
         sa_type=DateTime(timezone=True),  # type: ignore
     )
+
+    @property
+    def has_password(self) -> bool:
+        """Whether the user can sign in with a password."""
+        return self.hashed_password is not None

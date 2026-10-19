@@ -1,6 +1,11 @@
 import { Dispatch, SetStateAction, useCallback, useEffect, useRef, useState } from "react";
-import { getConversation, getConversationAttachments, getLastMessage } from "@/lib/chat";
-import { ChatMessage, TextAttachment } from "../types";
+import {
+  type ApiMessage,
+  getConversation,
+  getConversationAttachments,
+  getLastMessage,
+} from "@/lib/chat";
+import { ChatMessage, ChatRole, TextAttachment } from "../types";
 import {
   clearStreamProgress,
   getRestoredStreamData,
@@ -106,8 +111,11 @@ export function useConversation(
           getConversationAttachments(token, conversationId, signal),
         ]);
 
+        const transcript = data.messages.filter(
+          (m): m is ApiMessage & { role: ChatRole } => m.role === "user" || m.role === "assistant",
+        );
         const loaded: ChatMessage[] = mergeConsecutiveAttachmentMessages(
-          data.messages.map((m) => ({
+          transcript.map((m) => ({
             id: String(m.id),
             role: m.role,
             content:

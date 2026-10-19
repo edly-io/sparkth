@@ -10,6 +10,7 @@ from uuid6 import uuid7
 from sparkth.lib.models import TimestampedModel
 
 MessageType = Literal["text", "attachment"]
+MessageRole = Literal["system", "user", "assistant", "tool"]
 
 
 class Conversation(TimestampedModel, SQLModel, table=True):
