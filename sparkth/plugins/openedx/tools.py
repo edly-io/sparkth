@@ -882,6 +882,35 @@ async def openedx_list_content_contributors() -> dict[str, dict[str, list[dict[s
     return {"response": {"contributors": contributors}}
 
 
+async def _resolve_enabled_contributor(name: str) -> ContentContributor | dict[str, Any]:
+    """Return the named contributor if its plugin is on for the caller, else the tool's error dict."""
+    contributor = (await enabled_content_contributors()).get(name)
+    if contributor is not None:
+        return contributor
+    if LMS_CONTENT_CONTRIBUTORS.get(name) is not None:
+        logger.info("Refused content contributor %r: its plugin is switched off", name)
+        return {"error": {"message": f"Content contributor {name!r} is unavailable: its plugin is switched off"}}
+    return {"error": {"message": f"Unknown content contributor: {name}"}}
+
+
+def _refuse_misused_option(payload: AddPluginContentArgs, contributor: ContentContributor) -> dict[str, Any] | None:
+    """Return the tool's error dict when ``option_id`` does not fit the contributor's options, else None."""
+    if payload.option_id is not None and contributor.list_options is None:
+        return {"error": {"message": f"Content contributor {payload.contributor!r} offers no options"}}
+
+    if payload.option_id is None and contributor.list_options is not None:
+        logger.info("Refused content contributor %r with no option chosen", payload.contributor)
+        return {
+            "error": {
+                "message": (
+                    f"Content contributor {payload.contributor!r} needs an option_id: ask the author "
+                    "which of its options to place, and place nothing if they decline"
+                )
+            }
+        }
+    return None
+
+
 async def openedx_add_plugin_content(payload: AddPluginContentArgs) -> dict[str, Any]:
     """
     Publish a plugin-contributed content block into an Open edX unit.
@@ -923,34 +952,16 @@ async def openedx_add_plugin_content(payload: AddPluginContentArgs) -> dict[str,
             `locator` when the contributor could not record the placement: that block has no
             attributes and is the caller's to delete before placing the content again.
     """
-    contributor = (await enabled_content_contributors()).get(payload.contributor)
-    if contributor is None and LMS_CONTENT_CONTRIBUTORS.get(payload.contributor) is not None:
-        logger.info("Refused content contributor %r: its plugin is switched off", payload.contributor)
-        return {
-            "error": {
-                "message": f"Content contributor {payload.contributor!r} is unavailable: its plugin is switched off"
-            }
-        }
-    if contributor is None:
-        return {"error": {"message": f"Unknown content contributor: {payload.contributor}"}}
+    contributor = await _resolve_enabled_contributor(payload.contributor)
+    if isinstance(contributor, dict):
+        return contributor
 
     builder = contributor.builders.get(OPENEDX_PLUGIN_NAME)
     if builder is None:
         return {"error": {"message": f"Content contributor {payload.contributor!r} does not target Open edX"}}
 
-    if payload.option_id is not None and contributor.list_options is None:
-        return {"error": {"message": f"Content contributor {payload.contributor!r} offers no options"}}
-
-    if payload.option_id is None and contributor.list_options is not None:
-        logger.info("Refused content contributor %r with no option chosen", payload.contributor)
-        return {
-            "error": {
-                "message": (
-                    f"Content contributor {payload.contributor!r} needs an option_id: ask the author "
-                    "which of its options to place, and place nothing if they decline"
-                )
-            }
-        }
+    if (refusal := _refuse_misused_option(payload, contributor)) is not None:
+        return refusal
 
     try:
         block = await builder(payload.course_id, payload.option_id)

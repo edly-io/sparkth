@@ -149,7 +149,7 @@ async def test_a_contributor_whose_plugin_the_user_switched_off_is_withheld(
 async def test_a_contributor_whose_plugin_is_off_system_wide_is_withheld(
     registered: ContentContributor, session: AsyncSession
 ) -> None:
-    await _seed_owner(session, enabled=False)
+    await _seed_owner(session, False)
     await _seed_user(session)
     bind_current_user_id(1)
 
@@ -161,7 +161,7 @@ async def test_with_no_bound_user_only_the_system_switch_applies(
 ) -> None:
     with pytest.raises(NoAuthenticatedUser):  # precondition: no user leaked from another test
         current_user_id()
-    await _seed_owner(session, enabled=False)
+    await _seed_owner(session, False)
 
     assert "stub" not in await enabled_content_contributors()
 

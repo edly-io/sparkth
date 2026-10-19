@@ -5,7 +5,9 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.models.plugin import Plugin
+from sparkth.core.models.plugin import Plugin, UserPlugin
+from sparkth.core.models.user import User
+from sparkth.lib.auth import bind_current_user_id
 from sparkth.lib.content.exceptions import ContentBuildError, ContentPlacementError
 from sparkth.lib.content.hooks import (
     LMS_CONTENT_CONTRIBUTORS,
@@ -22,7 +24,7 @@ from sparkth.plugins.openedx.tools import openedx_add_plugin_content, openedx_li
 AUTH = AccessTokenPayload(access_token="t", lms_url="https://lms", studio_url="https://studio")
 
 # Every contributor name this module registers, so the cleanup fixture cannot desync from them.
-CONTRIBUTOR_NAMES = ("fake", "broken", "bare", "canvas-only", "no-targets", "optioned", "placing", "off")
+CONTRIBUTOR_NAMES = ("fake", "broken", "bare", "canvas-only", "no-targets", "optioned", "placing", "off", "user-off")
 
 
 async def build_fake(course_id: str, option_id: str | None) -> ContentBlock:
@@ -397,3 +399,44 @@ async def test_a_contributor_whose_plugin_is_off_is_refused_and_creates_nothing(
     create.assert_not_awaited()
     cast(AsyncMock, switched_off_contributor.builders["open-edx"]).assert_not_awaited()
     cast(AsyncMock, switched_off_contributor.on_placed).assert_not_awaited()
+
+
+@pytest.fixture
+async def user_switched_off_contributor(session: AsyncSession) -> ContentContributor:
+    contributor = ContentContributor(
+        "user-off",
+        "A contributor whose plugin the user switched off",
+        {"open-edx": AsyncMock(wraps=build_fake)},
+        AsyncMock(wraps=list_fake_options),
+        AsyncMock(wraps=record_off_placement),
+        plugin_name="user-off-owner",
+    )
+    register_content_contributor(contributor)
+    plugin = Plugin(name="user-off-owner", enabled=True)
+    user = User(id=1, name="U", username="u", email="u@example.com", hashed_password="x")
+    session.add_all([plugin, user])
+    await session.commit()
+    session.add(UserPlugin(user_id=cast(int, user.id), plugin_id=cast(int, plugin.id), enabled=False))
+    await session.commit()
+    bind_current_user_id(1)
+    return contributor
+
+
+async def test_a_contributor_whose_plugin_the_user_switched_off_is_not_listed(
+    user_switched_off_contributor: ContentContributor,
+) -> None:
+    result = await openedx_list_content_contributors()
+
+    assert "user-off" not in [c["name"] for c in result["response"]["contributors"]]
+
+
+async def test_a_contributor_whose_plugin_the_user_switched_off_is_refused_and_creates_nothing(
+    user_switched_off_contributor: ContentContributor,
+) -> None:
+    with patch("sparkth.plugins.openedx.tools.openedx_create_basic_component", new=AsyncMock()) as create:
+        result = await openedx_add_plugin_content(add_args("user-off", "first"))
+
+    assert result == {"error": {"message": "Content contributor 'user-off' is unavailable: its plugin is switched off"}}
+    create.assert_not_awaited()
+    cast(AsyncMock, user_switched_off_contributor.builders["open-edx"]).assert_not_awaited()
+    cast(AsyncMock, user_switched_off_contributor.on_placed).assert_not_awaited()
