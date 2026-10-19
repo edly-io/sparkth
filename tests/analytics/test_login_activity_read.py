@@ -310,8 +310,10 @@ async def test_read_rollup_filters_event_types_and_binds_the_range(analytics_ses
         {"dims": {"bad key": "method"}},
         {"dims": {"method": "$.method"}},
         {"dims": {"method": {"user.logged_in'": "method"}}},
+        {"sums": {"bad key": "seconds"}},
+        {"sums": {"total": "$.seconds"}},
     ],
-    ids=["aggregate", "count-column", "dims-key", "payload-key", "per-event-type"],
+    ids=["aggregate", "count-column", "dims-key", "payload-key", "per-event-type", "sums-key", "sums-payload-key"],
 )
 async def test_read_rollup_rejects_unsafe_identifiers_before_any_query(kwargs: dict[str, Any]) -> None:
     # No session: validation must not depend on the dialect.
@@ -328,3 +330,35 @@ def test_range_query_rejects_inverted_and_overlong_ranges() -> None:
     with pytest.raises(ValueError):
         parse("2026-01-01", "2027-01-02")  # 367 days
     assert parse("2026-01-01", "2027-01-01").bucket == Bucket.day  # 366 days
+
+
+async def test_read_rollup_sums_a_payload_key_per_group(analytics_session: SQLAlchemyAsyncSession) -> None:
+    for learner, score in (("a", 2.0), ("a", 3.0), ("b", 4.0)):
+        await ingest_event(
+            analytics_session,
+            "assessment.submitted",
+            1,
+            {"learner_id": learner, "competency_id": "y", "score": score, "passed": True},
+            actor_id=learner,
+            occurred_at=_at("2026-03-02"),
+        )
+
+    rows = await _rollup(
+        analytics_session,
+        event_types=("assessment.submitted",),
+        dims={"learner": "learner_id"},
+        sums={"score_total": "score"},
+    )
+
+    assert rows == [
+        {"bucket": "2026-03-02", "learner": "a", "n": 2, "score_total": 5},
+        {"bucket": "2026-03-02", "learner": "b", "n": 1, "score_total": 4},
+    ]
+
+
+async def test_read_rollup_sum_of_a_missing_key_is_zero(analytics_session: SQLAlchemyAsyncSession) -> None:
+    await _seed_login(analytics_session, "a", _at("2026-03-02"))
+
+    rows = await _rollup(analytics_session, event_types=("user.logged_in",), sums={"total": "absent"})
+
+    assert rows == [{"bucket": "2026-03-02", "n": 1, "total": 0}]

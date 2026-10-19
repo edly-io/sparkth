@@ -88,6 +88,7 @@ async def read_rollup(
     dims: Mapping[str, str | Mapping[str, str]],
     by_event_type: bool = False,
     count_column: str,
+    sums: Mapping[str, str] | None = None,
     from_: date,
     to: date,
     bucket: Bucket,
@@ -97,8 +98,9 @@ async def read_rollup(
     PostgreSQL sums ``count_column`` of the continuous aggregate ``aggregate``, grouped by
     the aggregate's columns named like the ``dims`` keys; SQLite counts ``raw_events`` of
     ``event_types``, extracting each dim from the payload. The two agree only if ``dims``
-    matches the aggregate's definition and ``count_column`` is the aggregate's count. The
-    aggregate must have a ``day`` bucket column, and each dim must be a string-valued payload key.
+    matches the aggregate's definition, ``count_column`` is the aggregate's count, and each
+    ``sums`` output name is an aggregate column summing that payload key. The aggregate must
+    have a ``day`` bucket column, and each dim must be a string-valued payload key.
 
     Args:
         aggregate: The continuous aggregate PostgreSQL reads.
@@ -107,10 +109,13 @@ async def read_rollup(
             per-event-type mapping (NULL for event types it omits). Payload keys are never SQL.
         by_event_type: Also group by ``event_type``.
         count_column: The aggregate's count column, also the output count's name.
+        sums: Output column -> payload key to sum; PostgreSQL sums the aggregate's column of
+            that output name. Each sum is an integer, 0 when there is nothing to sum.
 
     Returns:
         Rows of ``bucket`` (UTC start, ``YYYY-MM-DD``), ``event_type`` if requested, the dims
-        and ``count_column``, sorted by everything but the count with NULLs first. Sparse.
+        and ``count_column``, then each sum, sorted by everything but the counts with NULLs
+        first. Sparse.
 
     Raises:
         ValueError: A name, payload key or event type interpolated into SQL is unsafe.
@@ -118,6 +123,7 @@ async def read_rollup(
     _safe(aggregate)
     _safe(count_column)
     exprs = {_safe(name): _sqlite_dim(key) for name, key in dims.items()}
+    sum_keys = {_safe(name): _safe(key) for name, key in (sums or {}).items()}
     group = ["event_type"] if by_event_type else []
     params: dict[str, object]
     if session.bind.dialect.name == "postgresql":
@@ -125,7 +131,9 @@ async def read_rollup(
         sql = text(
             f"SELECT to_char({_PG_BUCKET[bucket]}, 'YYYY-MM-DD') AS bucket, "
             + "".join(f"{c}, " for c in cols)
-            + f"CAST(sum({count_column}) AS bigint) AS {count_column} FROM {aggregate} "
+            + f"CAST(sum({count_column}) AS bigint) AS {count_column}"
+            + "".join(f", CAST(coalesce(sum({name}), 0) AS bigint) AS {name}" for name in sum_keys)
+            + f" FROM {aggregate} "
             "WHERE (day AT TIME ZONE 'UTC')::date BETWEEN :from_ AND :to "
             f"GROUP BY {', '.join(str(i) for i in range(1, len(cols) + 2))}"
         )
@@ -135,7 +143,12 @@ async def read_rollup(
         sql = text(
             f"SELECT {_SQLITE_BUCKET[bucket]} AS bucket, "
             + "".join(f"{c}, " for c in cols)
-            + f"count(*) AS {count_column} FROM raw_events "
+            + f"count(*) AS {count_column}"
+            + "".join(
+                f", CAST(coalesce(sum(json_extract(payload, '$.{key}')), 0) AS integer) AS {name}"
+                for name, key in sum_keys.items()
+            )
+            + " FROM raw_events "
             "WHERE event_type IN :event_types AND date(occurred_at) BETWEEN :from_ AND :to "
             f"GROUP BY {', '.join(str(i) for i in range(1, len(cols) + 2))}"
         ).bindparams(bindparam("event_types", expanding=True))
