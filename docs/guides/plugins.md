@@ -277,7 +277,9 @@ To read analytics back, call `read_rollup` (from `sparkth.lib.analytics`) with t
 aggregate's name, the event types it counts, its count column and its grouping columns as `dims` —
 each mapped to the payload key it comes from, either one key for every event type or a
 per-event-type mapping. No SQL: on PostgreSQL it reads the aggregate, on SQLite it computes the same
-rows from `raw_events`, so `dims` must match the aggregate's definition. Take the range as
+rows from `raw_events`, so `dims` must match the aggregate's definition. To also total a payload
+value per group, pass `sums` (output column → payload key); on PostgreSQL the aggregate needs a
+column of that output name summing the key. Take the range as
 `Annotated[RangeQuery, Query()]`, gate the route with
 `Depends(ANALYTICS_READ.require_in_global_scope())` (`sparkth.lib.permissions`) and read on
 `get_analytics_session` (`sparkth.lib.db`). The aggregate's DDL still goes in the analytics
