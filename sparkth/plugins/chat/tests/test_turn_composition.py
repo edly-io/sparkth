@@ -1,4 +1,4 @@
-"""Every turn is answered by one assistant: every enabled section, every requested tool."""
+"""Every turn is answered by one assistant: every enabled section, and every requested tool whose plugin is on."""
 
 import json
 from collections.abc import AsyncGenerator
@@ -228,10 +228,12 @@ async def _switch_stub(session: AsyncSession, user_id: int, system_on: bool, use
     await session.commit()
 
 
-async def _seed_lms_plugins(session: AsyncSession, user_id: int, openedx_on: bool, canvas_on: bool) -> None:
+async def _seed_lms_plugins(
+    session: AsyncSession, user_id: int, openedx_on: bool, canvas_on: bool, openedx_system_on: bool = True
+) -> None:
     """Seed the three plugins, this user's Open edX and Canvas rows with credentials."""
     stub = Plugin(name="stub", enabled=True)
-    openedx = Plugin(name="open-edx", enabled=True)
+    openedx = Plugin(name="open-edx", enabled=openedx_system_on)
     canvas = Plugin(name="canvas", enabled=True)
     session.add_all([stub, openedx, canvas])
     await session.flush()
@@ -339,7 +341,7 @@ class TestPluginSwitches:
             patch("sparkth.plugins.chat.routes.completions.ChatStreamProcessor") as processor_cls,
         ):
             processor_cls.return_value.stream.return_value = _fake_stream()
-            await _turn(client, config_id, conversation_uuid, "*", stream=True)
+            await _turn(client, config_id, conversation_uuid, "*", True)
 
         assert [tool.name for tool in processor_cls.call_args.args[4]] == ["openedx_create_xblock"]
 
@@ -367,11 +369,17 @@ class TestPluginSwitches:
         get_provider.assert_not_called()
 
     async def _lms_turn(
-        self, client: AsyncClient, session: AsyncSession, user_id: int, openedx_on: bool, canvas_on: bool
+        self,
+        client: AsyncClient,
+        session: AsyncSession,
+        user_id: int,
+        openedx_on: bool,
+        canvas_on: bool,
+        openedx_system_on: bool = True,
     ) -> tuple[MagicMock, MagicMock]:
         config_id = await _seed_llm_config(session, user_id)
         conversation_uuid = await _seed_conversation(session, user_id)
-        await _seed_lms_plugins(session, user_id, openedx_on, canvas_on)
+        await _seed_lms_plugins(session, user_id, openedx_on, canvas_on, openedx_system_on)
         provider = _provider()
         with (
             patch(
@@ -383,6 +391,34 @@ class TestPluginSwitches:
         ):
             await _turn(client, config_id, conversation_uuid, "*")
         return provider, get_provider
+
+    async def test_an_lms_switched_off_system_wide_sends_no_credentials(
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
+    ) -> None:
+        provider, _ = await self._lms_turn(client, session, current_user.id or 1, True, True, False)
+
+        assert "https://lms.example.com" not in provider.system_prompt
+        assert "openedx_create_xblock" not in _bound_tool_names(provider)
+
+    async def test_a_plugin_the_user_switched_off_offers_no_scope(
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
+    ) -> None:
+        config_id = await _seed_llm_config(session, current_user.id or 1)
+        conversation_uuid = await _seed_conversation(session, current_user.id or 1)
+        await _switch_stub(session, current_user.id or 1, True, False)
+
+        with (
+            patch(
+                "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
+                return_value=_classifier_answering(True),
+            ) as classifier_cls,
+            patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=_provider()),
+        ):
+            await _turn(client, config_id, conversation_uuid)
+
+        offered = classifier_cls.call_args.args[0]
+        assert stub_capability not in offered
+        assert COURSE_DESIGN in offered
 
     async def test_a_switched_off_lms_sends_no_credentials_beside_an_enabled_one(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability

@@ -58,7 +58,8 @@ class MyLmsConfig(PluginConfig):
         """
         Prefix shared by all tool names for this LMS (e.g. "mylms_").
         Used to detect whether any active tools belong to this LMS before
-        hitting the database.
+        hitting the database, and to send chat only the credentials of an LMS
+        with at least one bound tool carrying this prefix.
         """
         return "mylms_"
 
@@ -312,16 +313,15 @@ tool at registration, and reads `Plugin.enabled` on every call — so disabling 
 takes effect immediately, with no restart, and re-enabling one brings its tools back the
 same way.
 
-Two limits are worth knowing before you rely on it:
+One limit is worth knowing before you rely on it. The gate is **system-wide only**: `/ai/mcp`
+carries no authenticated caller, so there is no user whose per-user preference could be
+checked. A user who turns your plugin off in their settings can still call its tools over MCP;
+only an administrator disabling the plugin outright stops them.
 
-- **System-wide only.** `/ai/mcp` carries no authenticated caller, so there is no user
-  whose per-user preference could be checked. A user who turns your plugin off in their
-  settings can still call its tools over MCP; only an administrator disabling the plugin
-  outright stops them.
-- **MCP is not the only tool door.** Chat applies both switches for the requesting user on
-  every turn: a plugin switched off system-wide or by that user has none of its tools bound,
-  no capability section or scope offered, and no LMS credentials sent. Only `/ai/mcp` stays
-  system-wide.
+MCP is not the only tool door. Chat applies both switches for the requesting user on every
+turn: a plugin switched off system-wide or by that user has none of its tools bound, no
+capability section or scope offered, and no LMS credentials sent. Only `/ai/mcp` stays
+system-wide.
 
 Because `/ai/mcp` has no per-user switch, a tool that must not run for a particular caller
 over MCP has to enforce that inside the tool.
