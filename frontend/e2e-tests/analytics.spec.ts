@@ -4,6 +4,7 @@ import {
   stubChatActivity,
   stubLogins,
   stubPermission,
+  stubSummary,
   todayUtc,
 } from "./utils/analytics";
 
@@ -12,6 +13,25 @@ import {
  * analytics.read and the read API are stubbed (utils/analytics.ts). Each view adds its own
  * specs here.
  */
+const summary = [
+  {
+    key: "logins",
+    label: "Logins",
+    view: "logins",
+    plugin: null,
+    current: 4,
+    previous: 2,
+  },
+  {
+    key: "active_users",
+    label: "Active users",
+    view: null,
+    plugin: null,
+    current: 3,
+    previous: 0,
+  },
+];
+
 test.beforeEach(async ({ page }) => {
   await stubPermission(page, "analytics.read", true);
 });
@@ -60,18 +80,40 @@ test.describe("analytics", () => {
     await expect(page.getByText("+100% vs previous period", { exact: true })).toBeVisible();
   });
 
-  test("opens the Logins view from the sidebar, with its rail entry current", async ({ page }) => {
+  test("opens the Overview from the sidebar, with its rail entry current", async ({ page }) => {
+    await stubSummary(page, []);
     await stubLogins(page, []);
+    await stubChatActivity(page, []);
     await page.goto("/dashboard");
     await page.getByRole("link", { name: "Analytics" }).first().click();
-    await expect(page).toHaveURL(/\/dashboard\/analytics\/logins\/?$/);
-    await expect(page.getByRole("link", { name: "Logins" })).toHaveAttribute(
+    await expect(page).toHaveURL(/\/dashboard\/analytics\/?$/);
+    await expect(page.getByRole("link", { name: "Overview" })).toHaveAttribute(
       "aria-current",
       "page",
     );
-    // The index forwards with replace, so Back returns to the dashboard rather than bouncing.
-    await page.goBack();
-    await expect(page).toHaveURL(/\/dashboard\/?$/);
+  });
+
+  test("opens on the Overview with a card per figure", async ({ page }) => {
+    await stubSummary(page, summary);
+    await stubLogins(page, [{ bucket: todayUtc(), method: "password", login_count: 4 }]);
+    await stubChatActivity(page, []);
+    await page.goto("/dashboard/analytics");
+    await expect(page.getByRole("heading", { name: "Activity" })).toBeVisible();
+    await expect(page.getByText("Logins", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("+100% vs previous period", { exact: true })).toBeVisible();
+    await expect(page.getByText("New this period", { exact: true })).toBeVisible();
+  });
+
+  test("a card opens the view behind it", async ({ page }) => {
+    await stubSummary(page, summary);
+    await stubLogins(page, []);
+    await stubChatActivity(page, []);
+    await page.goto("/dashboard/analytics");
+    await page
+      .getByRole("link", { name: /Logins/ })
+      .filter({ hasText: "4" })
+      .click();
+    await expect(page).toHaveURL(/\/dashboard\/analytics\/logins\/?/);
   });
 
   test("collapses the rail to tabs on a phone with no horizontal scroll", async ({ page }) => {

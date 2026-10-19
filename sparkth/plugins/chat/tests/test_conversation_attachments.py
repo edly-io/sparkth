@@ -7,6 +7,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import select as sa_select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession as SQLAlchemyAsyncSession
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -344,7 +345,7 @@ class TestSoftDeleteDetaches:
 
     @pytest.mark.asyncio
     async def test_detachment_is_recorded_in_analytics(
-        self, session: AsyncSession, analytics_session: AsyncSession
+        self, session: AsyncSession, analytics_session: SQLAlchemyAsyncSession
     ) -> None:
         """Issue #702 point 2: a document could leave a conversation with nothing recording it."""
         plugin = ChatPlugin()  # noqa: F841 - keeps the weakly-keyed hook entries alive

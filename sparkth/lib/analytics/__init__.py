@@ -11,13 +11,15 @@ Plugins:
   - emit it through ``emit_event``, or ``emit_events`` for a group of related
     events that should share one session (reach for the lower-level
     ``ingest_event`` only when the caller already holds an analytics session),
-  - read bucketed data with ``PG_BUCKET`` / ``SQLITE_BUCKET``,
-    ``read_bucketed`` and ``RangeQuery``.
+  - read a continuous aggregate by range and bucket with ``read_rollup`` (payload-key
+    dims, no SQL), taking the range as ``RangeQuery``,
+  - add a headline figure to the Overview with ``register_summary_figure`` (a
+    ``SummaryFigure`` whose count usually sums ``read_rollup`` rows).
 """
 
 import inspect
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from types import ModuleType
 from typing import Any
@@ -31,10 +33,12 @@ from sparkth.core.analytics.exceptions import (
     UnknownEventTypeError,
 )
 from sparkth.core.analytics.gateway import ingest_event
+from sparkth.core.analytics.hooks import SUMMARY_FIGURES
 from sparkth.core.analytics.maintenance import backfill_continuous_aggregates
-from sparkth.core.analytics.reads import PG_BUCKET, SQLITE_BUCKET, get_logins, read_bucketed
+from sparkth.core.analytics.reads import get_logins, read_rollup, summarize
 from sparkth.core.analytics.schemas.base import AnalyticsEventSchema
-from sparkth.core.analytics.schemas.reads import LoginsPoint, RangeQuery
+from sparkth.core.analytics.schemas.reads import LoginsPoint, RangeQuery, SummaryCount
+from sparkth.core.analytics.types import Count, SummaryFigure
 from sparkth.lib.db import analytics_session_scope
 from sparkth.lib.log import get_logger
 from sparkth.lib.plugins import SparkthPlugin
@@ -44,10 +48,14 @@ logger = get_logger(__name__)
 __all__ = [
     "AnalyticsEventSchema",
     "Bucket",
-    "PG_BUCKET",
+    "Count",
+    "SUMMARY_FIGURES",
+    "SummaryCount",
+    "SummaryFigure",
+    "summarize",
+    "register_summary_figure",
     "RangeQuery",
-    "SQLITE_BUCKET",
-    "read_bucketed",
+    "read_rollup",
     "ContinuousAggregateNotFound",
     "DuplicateEventTypeError",
     "EventNamespaceError",
@@ -225,3 +233,14 @@ def register_event_schemas(plugin: SparkthPlugin, module: ModuleType) -> None:
     for _name, schema in inspect.getmembers(module, inspect.isclass):
         if issubclass(schema, AnalyticsEventSchema) and schema.__module__ == module.__name__:
             register_event_schema(plugin, schema)
+
+
+def register_summary_figure(plugin: SparkthPlugin, figure: SummaryFigure) -> None:
+    """Add a plugin's figure to the analytics Overview, tagged with the plugin's name.
+
+    Call from the plugin's ``__init__`` with a figure built once at module level. Registering an
+    equal figure again is a no-op; a different figure under a taken key raises ``ValueError``.
+    """
+    figure = replace(figure, plugin=plugin.name)
+    if SUMMARY_FIGURES.get(figure.key) != figure:
+        SUMMARY_FIGURES.add_item(figure)

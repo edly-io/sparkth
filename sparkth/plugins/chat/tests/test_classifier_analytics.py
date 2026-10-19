@@ -13,8 +13,9 @@ import httpx
 import openai
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
-from sqlmodel import col
+from sqlalchemy import select as sa_select
+from sqlalchemy.ext.asyncio import AsyncSession as SQLAlchemyAsyncSession
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.analytics.models import raw_events
@@ -64,22 +65,20 @@ async def _seed_attachment(session: AsyncSession, user_id: int, conversation_uui
     await session.flush()
     document_id = document.id or 0
     conversation = (
-        (await session.execute(select(Conversation).where(col(Conversation.uuid) == UUID(conversation_uuid))))
-        .scalars()
-        .one()
-    )
+        await session.exec(select(Conversation).where(col(Conversation.uuid) == UUID(conversation_uuid)))
+    ).one()
     session.add(ConversationAttachment(conversation_id=conversation.id or 0, document_id=document_id))
     await session.commit()
     return document_id
 
 
-async def _events(analytics_session: AsyncSession, event_type: str) -> list[dict[str, Any]]:
-    rows = (await analytics_session.execute(select(raw_events))).mappings().all()
+async def _events(analytics_session: SQLAlchemyAsyncSession, event_type: str) -> list[dict[str, Any]]:
+    rows = (await analytics_session.execute(sa_select(raw_events))).mappings().all()
     return [row["payload"] for row in rows if row["event_type"] == event_type]
 
 
-async def _all_payloads(analytics_session: AsyncSession) -> str:
-    rows = (await analytics_session.execute(select(raw_events))).mappings().all()
+async def _all_payloads(analytics_session: SQLAlchemyAsyncSession) -> str:
+    rows = (await analytics_session.execute(sa_select(raw_events))).mappings().all()
     return str([row["payload"] for row in rows])
 
 
@@ -137,7 +136,7 @@ async def test_an_admitted_turn_records_the_scope_decision(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     """Emitted on every classification, not only refusals — that is the denominator."""
     config_id = await _seed_llm_config(session, current_user.id or 1)
@@ -166,7 +165,7 @@ async def test_a_refused_turn_records_the_refusal_as_the_verdict(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     config_id = await _seed_llm_config(session, current_user.id or 1)
     conversation_uuid = await _seed_conversation(session, current_user.id or 1)
@@ -191,7 +190,7 @@ async def test_a_first_message_refusal_is_recorded_without_a_conversation(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     """The case that is most invisible today: judged before any conversation row exists."""
     config_id = await _seed_llm_config(session, current_user.id or 1)
@@ -217,7 +216,7 @@ async def test_an_unreadable_scope_answer_records_a_failed_turn_and_no_decision(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     """The answer fails the schema in the real classify, so the turn fails and is recorded once."""
     config_id = await _seed_llm_config(session, current_user.id or 1)
@@ -243,7 +242,7 @@ async def test_a_new_conversation_records_exactly_one_scope_decision(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     """The route skips the second check on a new conversation; the emit must not double."""
     config_id = await _seed_llm_config(session, current_user.id or 1)
@@ -268,7 +267,7 @@ async def test_the_search_decision_is_recorded_when_the_classifier_is_consulted(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     config_id = await _seed_llm_config(session, current_user.id or 1)
     conversation_uuid = await _seed_conversation(session, current_user.id or 1)
@@ -306,7 +305,7 @@ async def test_no_search_decision_is_recorded_when_there_is_nothing_to_search(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     """Absence of the event means there was no decision to make, not that it was skipped."""
     config_id = await _seed_llm_config(session, current_user.id or 1)
@@ -330,7 +329,7 @@ async def test_documents_whose_structure_cannot_be_read_are_counted(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     """A lookup failure degrades the decision silently; a document with no sections does not."""
     config_id = await _seed_llm_config(session, current_user.id or 1)
@@ -371,7 +370,7 @@ async def test_an_unusable_ai_key_records_a_failed_turn(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     """The raise path: the route returns 404, so a queued emit would never run.
 
@@ -397,15 +396,17 @@ async def test_an_unusable_ai_key_records_a_failed_turn(
     assert failure["provider"] is None
     assert failure["model"] is None
     assert failure["streamed"] is False
+    # The turn failed before any message was stored, so there is none to count.
+    assert await _events(analytics_session, "chat.message_sent") == []
 
 
 async def test_a_provider_failure_records_a_failed_turn(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
-    """The 502 path, which also raises."""
+    """The 500 path, which also raises."""
     config_id = await _seed_llm_config(session, current_user.id or 1)
     conversation_uuid = await _seed_conversation(session, current_user.id or 1)
 
@@ -430,6 +431,9 @@ async def test_a_provider_failure_records_a_failed_turn(
     assert failure["provider"] == "openai"
     assert failure["model"] == "gpt-4o"
     assert failure["conversation_id"] == conversation_uuid
+    # The instructor's message was stored before the route raised, so it still counts.
+    (sent,) = await _events(analytics_session, "chat.message_sent")
+    assert sent["conversation_id"] == conversation_uuid
 
 
 async def test_a_failed_scope_check_on_a_first_message_records_a_failed_turn(
@@ -534,7 +538,7 @@ async def test_a_successful_turn_records_no_failure(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     config_id = await _seed_llm_config(session, current_user.id or 1)
     conversation_uuid = await _seed_conversation(session, current_user.id or 1)
@@ -558,7 +562,7 @@ async def test_no_classifier_reason_reaches_any_payload(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     """Both classifiers produce a model-authored reason that can quote the instructor."""
     config_id = await _seed_llm_config(session, current_user.id or 1)
@@ -583,7 +587,7 @@ async def test_the_failure_records_which_shape_the_client_asked_for(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
     streamed: bool,
 ) -> None:
     conversation_uuid = await _seed_conversation(session, current_user.id or 1)
@@ -609,7 +613,7 @@ async def test_a_streaming_failure_records_a_failed_turn(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
-    analytics_session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
     """Streaming is the default client path, so a failure rate that omits it is misleading."""
     config_id = await _seed_llm_config(session, current_user.id or 1)
@@ -647,3 +651,5 @@ async def test_a_streaming_failure_records_a_failed_turn(
     assert failure["cause"] == "unexpected"
     assert failure["streamed"] is True
     assert failure["conversation_id"] == conversation_uuid
+    (sent,) = await _events(analytics_session, "chat.message_sent")
+    assert sent["conversation_id"] == conversation_uuid

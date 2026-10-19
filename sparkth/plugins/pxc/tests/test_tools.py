@@ -2,10 +2,13 @@
 
 import json
 from datetime import datetime, timedelta
+from typing import cast
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from httpx import AsyncClient
 from pxc.lib.manifest_types import PxcActivityManifest
+from pydantic import ValidationError
 from sqlmodel.ext.asyncio.session import AsyncSession
 from uuid6 import uuid7
 
@@ -15,7 +18,8 @@ from sparkth.lib.exceptions.auth import NoAuthenticatedUser
 from sparkth.lib.models import utc_now
 from sparkth.plugins.pxc.activities import generated_activity_dir, preview_url
 from sparkth.plugins.pxc.config import get_pxc_settings
-from sparkth.plugins.pxc.constants import PXC_ASSET_DIR
+from sparkth.plugins.pxc.constants import PXC_ASSET_DIR, PXC_PREVIEW_ACTIVITY_INSTANCE, PXC_PREVIEW_COURSE_ID
+from sparkth.plugins.pxc.enums import PreviewPermission, PxcFailureKind
 from sparkth.plugins.pxc.exceptions import (
     PxcActivityNotFound,
     PxcBuildFailed,
@@ -23,15 +27,27 @@ from sparkth.plugins.pxc.exceptions import (
     PxcFieldsFrozen,
     PxcManifestInvalid,
 )
-from sparkth.plugins.pxc.models import PxcActivity
-from sparkth.plugins.pxc.schemas import ActivitySource
-from sparkth.plugins.pxc.store import insert_activity
-from sparkth.plugins.pxc.tests.conftest import AUTHORED_MANIFEST, AUTHORED_SANDBOX_JS, AUTHORED_UI_JS, act_as
+from sparkth.plugins.pxc.models import PxcActionFailure, PxcActivity
+from sparkth.plugins.pxc.revisions import publish_revision
+from sparkth.plugins.pxc.schemas import ActivitySource, TrialStep
+from sparkth.plugins.pxc.scratch.schemas import ScratchReport
+from sparkth.plugins.pxc.store import insert_action_failure, insert_activity
+from sparkth.plugins.pxc.tests.conftest import (
+    AUTHORED_MANIFEST,
+    AUTHORED_SANDBOX_JS,
+    AUTHORED_UI_JS,
+    THROWN_TEXT,
+    act_as,
+    staged_activity,
+)
+from sparkth.plugins.pxc.tokens import mint_launch_token, pin_launch_token
 from sparkth.plugins.pxc.tools import (
     pxc_about,
     pxc_build_activity,
+    pxc_get_activity_failures,
     pxc_get_activity_source,
     pxc_list_activities,
+    pxc_run_activity,
     pxc_update_activity,
 )
 
@@ -315,3 +331,142 @@ async def test_a_refused_update_reaches_the_agent_with_its_message() -> None:
         await pxc_update_activity(str(uuid7()), "Poll", "A one-question poll", MANIFEST, "ui", "sandbox")
 
     assert str(caught.value) == "Nothing was updated. field 'question' was removed"
+
+
+def _recorded(activity: PxcActivity, revision: str | None, action: str, kind: PxcFailureKind) -> PxcActionFailure:
+    return PxcActionFailure(
+        activity_id=activity.id,
+        revision=revision,
+        kind=kind,
+        action=action,
+        permission=PreviewPermission.PLAY,
+        value="[0]",
+        error="boom",
+    )
+
+
+async def test_failures_come_back_newest_first_with_their_kind(
+    session: AsyncSession, authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    await insert_action_failure(session, _recorded(authored_activity, None, "place", PxcFailureKind.REJECTED), 20)
+    await insert_action_failure(session, _recorded(authored_activity, None, "check", PxcFailureKind.FAILED), 20)
+    act_as(authors[0])
+
+    failures = (await pxc_get_activity_failures(str(authored_activity.id)))["failures"]
+
+    assert [(failure["action"], failure["kind"]) for failure in failures] == [
+        ("check", "failed"),
+        ("place", "rejected"),
+    ]
+    assert failures[0]["error"] == "boom"
+
+
+async def test_only_the_live_revisions_failures_come_back(
+    session: AsyncSession, authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    activity_id = str(authored_activity.id)
+    older = publish_revision(staged_activity("first"), activity_id).name
+    live = publish_revision(staged_activity("second"), activity_id).name
+    await insert_action_failure(session, _recorded(authored_activity, older, "before", PxcFailureKind.FAILED), 20)
+    await insert_action_failure(session, _recorded(authored_activity, live, "after", PxcFailureKind.FAILED), 20)
+    act_as(authors[0])
+
+    assert [failure["action"] for failure in (await pxc_get_activity_failures(activity_id))["failures"]] == ["after"]
+
+
+async def test_a_failure_in_the_authors_pinned_preview_reaches_the_tool(
+    client: AsyncClient,
+    authored_activity: PxcActivity,
+    authors: tuple[User, User],
+    configured_secret: str,
+    throwing_sandbox: None,
+) -> None:
+    activity_id = str(authored_activity.id)
+    revision = publish_revision(staged_activity("q"), activity_id).name
+    token = mint_launch_token(
+        activity_id, PXC_PREVIEW_ACTIVITY_INSTANCE, PXC_PREVIEW_COURSE_ID, "sparkth-1", "play", configured_secret, 300
+    )
+
+    response = await client.post(
+        "/api/v1/pxc/actions/answer.submit", params={"token": pin_launch_token(token, revision)}, json=[0]
+    )
+    act_as(authors[0])
+    failures = (await pxc_get_activity_failures(activity_id))["failures"]
+
+    assert response.status_code == 422
+    assert [(failure["action"], failure["error"]) for failure in failures] == [("answer.submit", THROWN_TEXT)]
+
+
+async def test_failures_of_another_authors_activity_are_refused(
+    authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    act_as(authors[1])
+
+    with pytest.raises(PxcActivityNotFound):
+        await pxc_get_activity_failures(str(authored_activity.id))
+
+
+async def test_run_hands_the_live_files_and_validated_steps_to_the_trial(
+    authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    act_as(authors[0])
+    report: ScratchReport = {"steps": [], "state": [], "fields": {}}
+    steps = cast(list[TrialStep], [{"action": "check", "permission": "play"}])
+
+    with patch("sparkth.plugins.pxc.tools.run_trial", AsyncMock(return_value=report)) as trial:
+        assert await pxc_run_activity(str(authored_activity.id), steps) == report
+
+    assert trial.await_args is not None
+    directory, validated = trial.await_args.args
+    assert directory == generated_activity_dir(str(authored_activity.id)).resolve()
+    assert [(step.action, step.permission.value, step.value) for step in validated] == [("check", "play", "")]
+
+
+async def test_a_view_step_is_refused_before_anything_runs(
+    authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    act_as(authors[0])
+    steps = cast(list[TrialStep], [{"action": "check", "permission": "view"}])
+
+    with patch("sparkth.plugins.pxc.tools.run_trial", AsyncMock()) as trial:
+        with pytest.raises(ValidationError):
+            await pxc_run_activity(str(authored_activity.id), steps)
+
+    trial.assert_not_awaited()
+
+
+async def test_more_steps_than_the_limit_are_refused_before_anything_runs(
+    authored_activity: PxcActivity, authors: tuple[User, User], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PXC_TRIAL_STEP_LIMIT", "2")
+    get_pxc_settings.cache_clear()
+    act_as(authors[0])
+    steps = cast(list[TrialStep], [{"action": "check", "permission": "play"}] * 3)
+
+    with patch("sparkth.plugins.pxc.tools.run_trial", AsyncMock()) as trial:
+        with pytest.raises(ValidationError):
+            await pxc_run_activity(str(authored_activity.id), steps)
+
+    trial.assert_not_awaited()
+
+
+async def test_running_another_authors_activity_is_refused(
+    authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    act_as(authors[1])
+    steps = cast(list[TrialStep], [{"action": "check", "permission": "play"}])
+
+    with pytest.raises(PxcActivityNotFound):
+        await pxc_run_activity(str(authored_activity.id), steps)
+
+
+async def test_another_authors_activity_is_not_found_before_its_steps_are_checked(
+    authored_activity: PxcActivity, authors: tuple[User, User], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PXC_TRIAL_STEP_LIMIT", "1")
+    get_pxc_settings.cache_clear()
+    act_as(authors[1])
+    steps = cast(list[TrialStep], [{"action": "check", "permission": "view"}] * 2)
+
+    with pytest.raises(PxcActivityNotFound):
+        await pxc_run_activity(str(authored_activity.id), steps)
