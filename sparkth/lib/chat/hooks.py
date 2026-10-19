@@ -3,8 +3,8 @@
 A *capability* is one kind of work the chat assistant does, such as designing a course. On every
 request chat reads the capabilities of the plugins that are switched on for the requesting
 user. Its scope classifier refuses a message that belongs to none of their scopes, and the turn's
-system prompt is chat's own skeleton with every capability's prompt section under its title. Every turn gets all the
-tools the request asks for.
+system prompt is chat's own skeleton with every capability's prompt section under its title.
+Every turn gets the tools the request asks for, except those of plugins switched off for the user.
 
 The hook lives in ``sparkth.lib`` so a plugin can contribute a capability without importing chat.
 It is keyed by plugin, so a capability is offered only while its plugin is switched on for the
