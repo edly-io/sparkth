@@ -32,7 +32,7 @@ class TestPluginsPublicApi:
             "InternalServerError",
             "PluginDisabledError",
             "UserPluginResponse",
-            "plugins_disabled_for_user",
+            "disabled_plugin_names",
         }
 
 
@@ -51,8 +51,8 @@ class TestPluginsImportSafety:
     def test_resolves_plugin_service_lazily(self) -> None:
         assert isinstance(plugins_api.get_plugin_service(), plugins_api.PluginService)
 
-    async def test_resolves_plugins_disabled_for_user_lazily(self, session: AsyncSession, current_user: User) -> None:
-        assert await plugins_api.plugins_disabled_for_user(cast(int, current_user.id), session) == set()
+    async def test_resolves_disabled_plugin_names_lazily(self, session: AsyncSession, current_user: User) -> None:
+        assert await plugins_api.disabled_plugin_names(cast(int, current_user.id), session) == set()
 
     def test_unknown_attribute_raises_attribute_error(self) -> None:
         with pytest.raises(AttributeError):

@@ -17,7 +17,7 @@ from dataclasses import dataclass
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.plugins.service import system_disabled_plugin_names
+from sparkth.core.plugins.service import disabled_plugin_names
 from sparkth.lib.chat.exceptions import DuplicateChatCapabilityError
 from sparkth.lib.hooks import PluginHook
 from sparkth.lib.log import get_logger
@@ -75,6 +75,6 @@ async def enabled_capabilities(session: AsyncSession) -> list[ChatCapability]:
     per request rather than cached, because ``Plugin.enabled`` flips at runtime. Equal copies
     from repeated constructions of one plugin fold into one.
     """
-    disabled = await system_disabled_plugin_names(session)
+    disabled = await disabled_plugin_names(None, session)
     offered = (capability for plugin, capability in CHAT_CAPABILITIES.iter_items() if plugin.name not in disabled)
     return list(dict.fromkeys(offered))

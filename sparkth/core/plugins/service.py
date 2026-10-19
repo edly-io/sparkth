@@ -29,46 +29,26 @@ from sparkth.lib.log import get_logger
 logger = get_logger(__name__)
 
 
-async def system_disabled_plugin_names(session: AsyncSession) -> set[str]:
-    """Names of the plugins an administrator has switched off system-wide.
-
-    Answers "which plugins are off?" rather than "which are on?" on purpose. A plugin
-    with no row in the registry — one that has never reached ``get_or_create_all`` —
-    is simply absent from the result and so stays reachable, matching how the HTTP
-    gate treats an unknown plugin. Asking the question the other way round would make
-    every plugin unreachable until its row existed.
-
-    One query serves a whole request, so a caller checking many plugins (listing the
-    tools on the MCP server, say) does not issue a query per plugin.
-
-    Args:
-        session: The async database session to read the registry through.
-
-    Returns:
-        The set of disabled plugin names, empty when every registered plugin is on.
-    """
-    statement = select(Plugin.name).where(Plugin.enabled == False, Plugin.deleted_at == None)
-    result = await session.exec(statement)
-    return set(result.all())
-
-
-async def plugins_disabled_for_user(user_id: int, session: AsyncSession) -> set[str]:
+async def disabled_plugin_names(user_id: int | None, session: AsyncSession) -> set[str]:
     """Names of the plugins switched off for this user, by either switch that can turn one off.
 
     A plugin is disabled when an administrator turned it off system-wide
     (``Plugin.enabled``) or the user turned it off for themselves (``UserPlugin.enabled``).
     The join is a LEFT OUTER one keyed on the user as well as the plugin, so a plugin the
     user has no preference on stays in play and another user's preference never answers
-    for this one.
+    for this one. With no user, the join matches no preference and only the system-wide
+    switch applies.
 
-    A plugin with no registry row, or with no preference row for this user, is not
-    disabled. Soft-deleted plugin and preference rows are ignored.
+    Answers "which plugins are off?" rather than "which are on?" on purpose. A plugin with
+    no registry row (one that has never reached ``get_or_create_all``), or with no
+    preference row for this user, is absent from the result and so stays reachable.
+    Soft-deleted plugin and preference rows are ignored.
 
     One query serves a whole request, so a caller checking many plugins does not issue a
     query per plugin.
 
     Args:
-        user_id: The user to answer for.
+        user_id: The user to answer for, or None to apply only the system-wide switch.
         session: The async database session to read through.
 
     Returns:
