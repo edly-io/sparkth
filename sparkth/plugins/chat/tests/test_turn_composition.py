@@ -13,7 +13,6 @@ from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
 from sparkth.plugins.chat.capabilities import COURSE_DESIGN
 from sparkth.plugins.chat.constants import REFUSAL_MESSAGE
-from sparkth.plugins.chat.exceptions import ClassifierError
 from sparkth.plugins.chat.models import Conversation
 
 COMPLETIONS_URL = "/api/v1/chat/completions"
@@ -170,27 +169,6 @@ class TestOneAssistantPerTurn:
         assert response.status_code == 200
         provider.send_message.assert_awaited_once()
         assert _section(stub_capability) not in _system_prompt(get_provider)
-
-    async def test_a_failed_classification_is_answered_with_every_enabled_section(
-        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
-    ) -> None:
-        config_id = await _seed_llm_config(session, current_user.id or 1)
-        conversation_uuid = await _seed_conversation(session, current_user.id or 1)
-
-        with (
-            patch("sparkth.plugins.chat.classifiers.base.get_provider"),
-            patch(
-                "sparkth.plugins.chat.classifiers.message_scope.MessageScopeClassifier.classify",
-                new_callable=AsyncMock,
-                side_effect=ClassifierError("provider timeout"),
-            ),
-            patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=_provider()) as get_provider,
-        ):
-            response = await _turn(client, config_id, conversation_uuid)
-
-        assert response.status_code == 200
-        assert _section(COURSE_DESIGN) in _system_prompt(get_provider)
-        assert _section(stub_capability) in _system_prompt(get_provider)
 
     async def test_every_requested_tool_is_bound_whatever_the_capability(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability

@@ -5,12 +5,15 @@ import ctypes
 import gc
 import hashlib
 import sys
+from datetime import datetime, timezone
+from typing import NamedTuple
 
 import httpx
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.lib.analytics import emit_event
 from sparkth.lib.db import session_scope
 from sparkth.lib.documents import (
     Document,
@@ -27,6 +30,7 @@ from sparkth.lib.rag import (
     copy_document_chunk_links,
     ingest_document,
 )
+from sparkth.plugins.googledrive.analytics.events import DocumentOutcome, GoogleDriveDocumentProcessed
 from sparkth.plugins.googledrive.client import GoogleDriveClient
 from sparkth.plugins.googledrive.config import get_googledrive_settings
 from sparkth.plugins.googledrive.exceptions import GoogleDriveAPIError
@@ -121,6 +125,14 @@ async def _reject_if_oversized(
     return True
 
 
+class IngestOutcome(NamedTuple):
+    """How ``_ingest_drive_file`` ended without raising."""
+
+    outcome: DocumentOutcome
+    size_bytes: int | None
+    chunk_count: int = 0
+
+
 async def _ingest_drive_file(
     drive_file: DriveFile,
     user_id: int,
@@ -128,11 +140,12 @@ async def _ingest_drive_file(
     session: AsyncSession,
     filename: str,
     document_id: int,
-) -> None:
+) -> IngestOutcome:
     """Download, guard, dedup-check, and ingest one Drive file (the happy path).
 
     Sets PROCESSING/READY status on the Document and may early-return after a
-    size guard or a duplicate match.
+    size guard or a duplicate match. Returns how it ended; raises on failures
+    ``_process_single_file`` maps to FAILED.
     """
     settings = get_googledrive_settings()
     limit_mb = settings.INGESTION_MAX_FILE_SIZE_MB
@@ -144,11 +157,11 @@ async def _ingest_drive_file(
     if drive_file.size is not None and await _reject_if_oversized(
         session, document_id, drive_file.size, filename, limit_mb
     ):
-        return
+        return IngestOutcome(DocumentOutcome.TOO_LARGE, drive_file.size)
 
     file_bytes = await _download_file(access_token, drive_file)
     if await _reject_if_oversized(session, document_id, len(file_bytes), filename, limit_mb):
-        return
+        return IngestOutcome(DocumentOutcome.TOO_LARGE, len(file_bytes))
 
     content_hash = hashlib.sha256(file_bytes).hexdigest()
     drive_file.content_hash = content_hash
@@ -165,7 +178,7 @@ async def _ingest_drive_file(
             filename,
             content_hash[:12],
         )
-        return
+        return IngestOutcome(DocumentOutcome.DUPLICATE, len(file_bytes))
 
     result = await ingest_document(filename, file_bytes, document_id)
     await update_document_status(session, document_id, DocumentStatus.READY)
@@ -176,6 +189,7 @@ async def _ingest_drive_file(
         result.new_chunks,
         result.reused_chunks,
     )
+    return IngestOutcome(DocumentOutcome.INGESTED, len(file_bytes), result.new_chunks + result.reused_chunks)
 
 
 async def _process_single_file(
@@ -183,13 +197,17 @@ async def _process_single_file(
     user_id: int,
     access_token: str,
     session: AsyncSession,
+    started_at: datetime | None = None,
 ) -> None:
     """Process one Drive file: run the ingestion pipeline and map failures to DocumentStatus.
 
     Owns Drive concerns only (Document status lifecycle + error translation). The actual
     download/ingest pipeline lives in _ingest_drive_file; chunking/storage is
-    delegated to sparkth.lib.rag.ingest_document.
+    delegated to sparkth.lib.rag.ingest_document. Records how it ended as
+    ``google-drive.document_processed``. ``started_at`` is the sync run's start, for
+    ``seconds_to_final``; defaults to now.
     """
+    started_at = started_at or datetime.now(timezone.utc)
     filename = _resolve_filename(drive_file)
     log_name = drive_file.name or filename
 
@@ -207,25 +225,31 @@ async def _process_single_file(
     assert drive_file.document_id is not None
     document_id: int = drive_file.document_id
 
+    mime_type, drive_size = drive_file.mime_type, drive_file.size  # expunge_all detaches it
     try:
-        await _ingest_drive_file(drive_file, user_id, access_token, session, filename, document_id)
+        ingested = await _ingest_drive_file(drive_file, user_id, access_token, session, filename, document_id)
     except UnsupportedFileTypeError:
+        ingested = IngestOutcome(DocumentOutcome.UNSUPPORTED_TYPE, drive_size)
         logger.warning("RAG processing rejected unsupported file type '%s'", log_name)
         await update_document_status(session, document_id, DocumentStatus.FAILED, _("Unsupported file type"))
         await session.commit()
     except ScannedPDFError:
+        ingested = IngestOutcome(DocumentOutcome.SCANNED_PDF, drive_size)
         logger.warning("RAG processing rejected scanned PDF '%s'", log_name)
         await update_document_status(session, document_id, DocumentStatus.FAILED, str(ScannedPDFError.USER_MESSAGE))
         await session.commit()
     except GoogleDriveAPIError as e:
+        ingested = IngestOutcome(DocumentOutcome.DRIVE_ERROR, drive_size)
         logger.error("RAG processing failed for '%s': %s", log_name, e)
         await update_document_status(session, document_id, DocumentStatus.FAILED, _("Google Drive error"))
         await session.commit()
     except (httpx.ConnectError, httpx.TimeoutException) as e:
+        ingested = IngestOutcome(DocumentOutcome.DRIVE_ERROR, drive_size)
         logger.error("RAG processing failed for '%s': %s", log_name, e)
         await update_document_status(session, document_id, DocumentStatus.FAILED, _("Could not reach Google Drive"))
         await session.commit()
     except httpx.HTTPStatusError as e:
+        ingested = IngestOutcome(DocumentOutcome.DRIVE_ERROR, drive_size)
         logger.error("RAG processing failed for '%s': %s", log_name, e)
         await update_document_status(
             session,
@@ -235,16 +259,19 @@ async def _process_single_file(
         )
         await session.commit()
     except (RuntimeError, ValueError, OSError) as e:
+        ingested = IngestOutcome(DocumentOutcome.FAILED, drive_size)
         logger.error("RAG processing failed for '%s': %s", log_name, e)
         await update_document_status(session, document_id, DocumentStatus.FAILED, _("Processing failed"))
         await session.commit()
     except IntegrityError:
+        ingested = IngestOutcome(DocumentOutcome.FAILED, drive_size)
         logger.error("RAG processing failed for '%s': database integrity error", log_name)
         await session.rollback()
         await session.refresh(drive_file)
         await update_document_status(session, document_id, DocumentStatus.FAILED, _("Database integrity error"))
         await session.commit()
     except Exception as exc:
+        ingested = IngestOutcome(DocumentOutcome.FAILED, drive_size)
         # Deliberate lifecycle backstop, not lazy catching: PROCESSING was committed
         # before ingestion, and later syncs skip in-flight documents, so any unexpected
         # error escaping here would wedge the document in PROCESSING forever. The
@@ -258,12 +285,33 @@ async def _process_single_file(
         session.expunge_all()
         gc.collect()
 
+    # Nothing records when the final status landed; the seam's clock is that moment.
+    finished_at = datetime.now(timezone.utc)
+    event = GoogleDriveDocumentProcessed(
+        document_id=document_id,
+        outcome=ingested.outcome,
+        mime_type=mime_type,
+        size_bytes=ingested.size_bytes,
+        chunk_count=ingested.chunk_count,
+        seconds_to_final=max(0, round((finished_at - started_at).total_seconds())),
+    )
+    # Awaited outside every guard and after the final status commit: a failed write propagates
+    # to process_folder_rag's gather log (its traceback names the emit) and can't change the status.
+    await emit_event(
+        event.event_type,
+        event.version,
+        event.model_dump(mode="json"),
+        actor_id=str(user_id),
+        occurred_at=finished_at,
+    )
+
 
 async def _process_with_semaphore(
     drive_file: DriveFile,
     user_id: int,
     access_token: str,
     semaphore: asyncio.Semaphore,
+    started_at: datetime | None = None,
 ) -> None:
     """Process one file with semaphore-based concurrency control.
 
@@ -278,7 +326,7 @@ async def _process_with_semaphore(
             if bound_file is None:
                 logger.warning("Drive file %s disappeared before RAG processing.", drive_file.id)
                 return
-            await _process_single_file(bound_file, user_id, access_token, file_session)
+            await _process_single_file(bound_file, user_id, access_token, file_session, started_at=started_at)
         gc.collect()
         if sys.platform == "linux":
             try:
@@ -293,6 +341,7 @@ async def process_folder_rag(
     access_token: str,
 ) -> None:
     """Run the RAG pipeline for all supported files in a synced folder."""
+    started_at = datetime.now(timezone.utc)
     async with session_scope() as session:
         folder_result = await session.exec(select(DriveFolder).where(DriveFolder.id == folder_id))
         folder = folder_result.first()
@@ -329,7 +378,7 @@ async def process_folder_rag(
 
     semaphore = asyncio.Semaphore(get_googledrive_settings().INGESTION_CONCURRENCY)
     pending_with_names = [(df, df.name) for df in pending_files]
-    tasks = [_process_with_semaphore(df, user_id, access_token, semaphore) for df, _ in pending_with_names]
+    tasks = [_process_with_semaphore(df, user_id, access_token, semaphore, started_at) for df, _ in pending_with_names]
     results = await asyncio.gather(*tasks, return_exceptions=True)
     for i, task_result in enumerate(results):
         if isinstance(task_result, BaseException):
