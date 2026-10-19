@@ -87,4 +87,4 @@ async def delete_owned_activity(
     """
     activity = await get_owned_activity(session, activity_id, cast(int, user.id))
     await delete_activity(session, activity)
-    remove_activity_files(str(activity_id))
+    remove_activity_files(activity_id)

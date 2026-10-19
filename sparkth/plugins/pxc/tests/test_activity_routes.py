@@ -194,7 +194,7 @@ async def test_an_author_deletes_their_own_activity(
     assert not await _row_exists(session, activity.id)
     assert not any(path.exists() for path in [built, *extra])
     (event,) = await audit_events()
-    assert event.actor_id == str(audited_user.id)
+    assert (event.actor_type, event.actor_id) == ("user", str(audited_user.id))
 
 
 async def test_deleting_twice_is_not_found_the_second_time(
@@ -220,15 +220,19 @@ async def test_another_users_activity_cannot_be_deleted(
     response = await client.delete(f"/api/v1/pxc/activities/{activity.id}")
 
     assert response.status_code == 404
+    assert response.json() == {"detail": f"Unknown activity: {activity.id}"}
     assert await _row_exists(session, activity.id)
     assert built.exists()
     assert await audit_events() == []
 
 
 async def test_an_unknown_activity_cannot_be_deleted(client: AsyncClient, current_user: User) -> None:
-    response = await client.delete(f"/api/v1/pxc/activities/{uuid7()}")
+    unknown = uuid7()
+
+    response = await client.delete(f"/api/v1/pxc/activities/{unknown}")
 
     assert response.status_code == 404
+    assert response.json() == {"detail": f"Unknown activity: {unknown}"}
 
 
 async def test_a_bundled_name_cannot_be_deleted(client: AsyncClient, current_user: User) -> None:

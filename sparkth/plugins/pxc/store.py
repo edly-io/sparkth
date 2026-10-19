@@ -12,10 +12,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.audit import record_event
 from sparkth.lib.audit.events import AuditChange, AuditOutcome, AuditTarget
+from sparkth.lib.log import get_logger
 from sparkth.lib.models import utc_now
 from sparkth.plugins.pxc.audit import PXC_ACTIVITY_TARGET, PxcActivityDeletedAuditEvent
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound
 from sparkth.plugins.pxc.models import PxcActionFailure, PxcActivity
+
+logger = get_logger(__name__)
 
 
 async def insert_activity(session: AsyncSession, activity: PxcActivity) -> None:
@@ -49,12 +52,20 @@ def _create_audit_snapshot(activity: PxcActivity) -> dict[str, str | bool]:
 async def delete_activity(session: AsyncSession, activity: PxcActivity) -> None:
     """Delete one activity, record ``pxc.activity_deleted`` and commit.
 
-    The audit row commits atomically with the deletion (fail-closed). Its failure rows go with it.
-    The caller has already checked ownership.
+    The audit row commits atomically with the deletion (fail-closed), and the database deletes the
+    activity's failure rows with it. A delete that matches no row, because a concurrent delete got
+    there first, records nothing. The caller has already checked ownership.
+
+    Raises:
+        PxcActivityNotFound: if the activity's row is already gone.
+        SQLAlchemyError: if the delete or its audit record cannot be committed.
     """
     snapshot = _create_audit_snapshot(activity)
     target = AuditTarget(type=PXC_ACTIVITY_TARGET, id=str(activity.id))
-    await session.delete(activity)
+    result = await session.exec(delete(PxcActivity).where(col(PxcActivity.id) == activity.id))
+    if result.rowcount == 0:
+        logger.info("PXC activity %s was already deleted", activity.id)
+        raise PxcActivityNotFound(f"Unknown activity: {activity.id}")
     await record_event(
         session,
         PxcActivityDeletedAuditEvent(outcome=AuditOutcome.SUCCESS, target=target, change=AuditChange(old=snapshot)),
