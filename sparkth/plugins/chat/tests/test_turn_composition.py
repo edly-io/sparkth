@@ -245,6 +245,25 @@ class TestPluginSwitches:
 
         assert bound == ["openedx_create_xblock"]
 
+    async def test_a_plugin_the_user_switched_off_offers_no_section(
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
+    ) -> None:
+        config_id = await _seed_llm_config(session, current_user.id or 1)
+        conversation_uuid = await _seed_conversation(session, current_user.id or 1)
+        await _switch_stub(session, current_user.id or 1, True, False)
+
+        with (
+            patch(
+                "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
+                return_value=_classifier_answering(True),
+            ),
+            patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=_provider()) as get_provider,
+        ):
+            await _turn(client, config_id, conversation_uuid)
+
+        assert _section(stub_capability) not in _system_prompt(get_provider)
+        assert _section(COURSE_DESIGN) in _system_prompt(get_provider)
+
     async def test_a_plugin_switched_off_system_wide_binds_none_of_its_tools(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
     ) -> None:

@@ -1,23 +1,20 @@
 """Hook through which a plugin gives the chat assistant a capability.
 
 A *capability* is one kind of work the chat assistant does, such as designing a course. On every
-request chat reads the capabilities of the plugins that are switched on. Its scope classifier
-refuses a message that belongs to none of their scopes, and the turn's system prompt is chat's
-own skeleton with every capability's prompt section under its title. Every turn gets all the
+request chat reads the capabilities of the plugins that are switched on for the requesting
+user. Its scope classifier refuses a message that belongs to none of their scopes, and the turn's
+system prompt is chat's own skeleton with every capability's prompt section under its title. Every turn gets all the
 tools the request asks for.
 
 The hook lives in ``sparkth.lib`` so a plugin can contribute a capability without importing chat.
-It is keyed by plugin, so a capability is offered only while its plugin is switched on. A plugin
-registers one capability from its ``__init__``::
+It is keyed by plugin, so a capability is offered only while its plugin is switched on for the
+user, by both switches. A plugin registers one capability from its ``__init__``::
 
     CHAT_CAPABILITIES.add_item(self, ChatCapability(TITLE, SCOPE, PROMPT))
 """
 
 from dataclasses import dataclass
 
-from sqlmodel.ext.asyncio.session import AsyncSession
-
-from sparkth.core.plugins.service import system_disabled_plugin_names
 from sparkth.lib.hooks import PluginHook
 
 
@@ -45,13 +42,14 @@ class ChatCapability:
 CHAT_CAPABILITIES: PluginHook[ChatCapability] = PluginHook()
 
 
-async def enabled_capabilities(session: AsyncSession) -> list[ChatCapability]:
-    """Return the capabilities chat offers right now, in plugin-name order.
+def enabled_capabilities(disabled_plugins: set[str]) -> list[ChatCapability]:
+    """Return the capabilities chat offers, in plugin-name order.
 
-    Leaves out the capability of every plugin an administrator switched off system-wide. Read
-    per request rather than cached, because ``Plugin.enabled`` flips at runtime. Equal copies
-    from repeated constructions of one plugin fold into one.
+    Leaves out the capability of every plugin named in ``disabled_plugins``, the plugins switched
+    off for the requesting user by either switch. Equal copies from repeated constructions of one
+    plugin fold into one.
     """
-    disabled = await system_disabled_plugin_names(session)
-    offered = (capability for plugin, capability in CHAT_CAPABILITIES.iter_items() if plugin.name not in disabled)
+    offered = (
+        capability for plugin, capability in CHAT_CAPABILITIES.iter_items() if plugin.name not in disabled_plugins
+    )
     return list(dict.fromkeys(offered))

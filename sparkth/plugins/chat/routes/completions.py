@@ -204,9 +204,9 @@ async def chat_completion(
         provider=provider_name,
         actor_id=str(user_id),
     )
+    # Read once per turn: the tool filter and the capability list share one set of switched-off plugins.
     disabled_plugins = await plugins_disabled_for_user(user_id, session)
-    # Every enabled capability answers each turn; a switched-off plugin's is left out.
-    capabilities = await enabled_capabilities(session)
+    capabilities = enabled_capabilities(disabled_plugins)
     scope_classifier = MessageScopeClassifier(capabilities, provider_name, api_key, user_id, classifier_analytics)
 
     # A file uploaded with the message is base64 content, not a Document row, so its name exists
