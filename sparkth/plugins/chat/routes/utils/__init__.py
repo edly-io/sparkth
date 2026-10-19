@@ -10,20 +10,24 @@ from sparkth.plugins.chat.tools import ToolRegistry
 logger = get_logger(__name__)
 
 
-async def resolve_tools(request: ChatCompletionRequest, tool_registry: ToolRegistry) -> list[BaseTool] | None:
+async def resolve_tools(
+    request: ChatCompletionRequest, tool_registry: ToolRegistry, disabled_plugins: set[str]
+) -> list[BaseTool] | None:
     """Resolve the tools the request asks for: every tool for ``"*"`` or ``"all"``, the named ones
-    for a list, and none for ``"none"`` or an empty list."""
+    for a list, and none for ``"none"`` or an empty list. A tool whose plugin is in
+    ``disabled_plugins`` is never returned, however it was asked for."""
     if request.tools == "none" or request.tools == []:
         logger.info("Tools explicitly disabled")
         return None
     if request.tools == "*" or request.tools == "all":
-        return tool_registry.get_all_tools()
-    if request.tools and isinstance(request.tools, list):
+        tools = tool_registry.get_all_tools()
+    elif request.tools and isinstance(request.tools, list):
         tools = tool_registry.get_tools_by_names(request.tools)
         if not tools:
             logger.warning("No tools found for: %s", request.tools)
-        return tools
-    return None
+    else:
+        return None
+    return [tool for tool in tools if tool_registry.plugin_for(tool.name) not in disabled_plugins]
 
 
 def parse_metadata_list(model_metadata: str | None, key: str) -> list[dict[str, Any]] | None:

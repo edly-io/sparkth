@@ -23,6 +23,7 @@ from sparkth.lib.llm import (
 )
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
+from sparkth.lib.plugins import plugins_disabled_for_user
 from sparkth.plugins.chat.analytics import (
     ChatAttachmentAnalytics,
     ChatClassifierAnalytics,
@@ -203,6 +204,7 @@ async def chat_completion(
         provider=provider_name,
         actor_id=str(user_id),
     )
+    disabled_plugins = await plugins_disabled_for_user(user_id, session)
     # Every enabled capability answers each turn; a switched-off plugin's is left out.
     capabilities = await enabled_capabilities(session)
     scope_classifier = MessageScopeClassifier(capabilities, provider_name, api_key, user_id, classifier_analytics)
@@ -367,7 +369,7 @@ async def chat_completion(
             request, db_messages, attached_documents, query_text, rag_search_required, provider
         )
 
-        tools = await resolve_tools(request, get_tool_registry())
+        tools = await resolve_tools(request, get_tool_registry(), disabled_plugins)
         if tools and request.include_system_tools_message:
             tool_descriptions = [f"- {tool.name}: {tool.description}" for tool in tools]
             tool_list_message = "You have access to the following tools:\n" + "\n".join(tool_descriptions)

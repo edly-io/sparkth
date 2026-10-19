@@ -1,12 +1,16 @@
 """Every turn is answered by one assistant: every enabled section, every requested tool."""
 
+import json
+from collections.abc import AsyncGenerator
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from httpx import AsyncClient
+from sqlalchemy.exc import OperationalError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.models.plugin import Plugin
+from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.lib.chat.hooks import ChatCapability
 from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.models import LLMConfig, User
@@ -65,6 +69,7 @@ def _tool(name: str) -> MagicMock:
 def _registry() -> MagicMock:
     """Two tools from two plugins; every turn may bind both."""
     registry = MagicMock()
+    registry.plugin_for.side_effect = {"openedx_create_xblock": "open-edx", "stub_build": "stub"}.get
     registry.get_all_tools.return_value = [_tool("openedx_create_xblock"), _tool("stub_build")]
     return registry
 
@@ -82,11 +87,17 @@ def _section(capability: ChatCapability) -> str:
     return f"## {capability.title}\n{capability.prompt}"
 
 
-async def _turn(client: AsyncClient, config_id: int, conversation_uuid: str | None = None, tools: str = "none") -> Any:
+async def _turn(
+    client: AsyncClient,
+    config_id: int,
+    conversation_uuid: str | None = None,
+    tools: str = "none",
+    stream: bool = False,
+) -> Any:
     body: dict[str, Any] = {
         "llm_config_id": config_id,
         "messages": [{"role": "user", "content": "Build it"}],
-        "stream": False,
+        "stream": stream,
         "tools": tools,
     }
     if conversation_uuid:
@@ -188,3 +199,104 @@ class TestOneAssistantPerTurn:
             await _turn(client, config_id, conversation_uuid, "*")
 
         assert _bound_tool_names(provider) == ["openedx_create_xblock", "stub_build"]
+
+
+async def _switch_stub(session: AsyncSession, user_id: int, system_on: bool, user_on: bool | None) -> None:
+    """Seed the ``stub`` plugin's system switch and, when given, this user's own switch."""
+    plugin = Plugin(name="stub", enabled=system_on)
+    session.add(plugin)
+    await session.flush()
+    if user_on is not None:
+        session.add(UserPlugin(user_id=user_id, plugin_id=plugin.id or 0, enabled=user_on))
+    await session.commit()
+
+
+async def _fake_stream() -> AsyncGenerator[str, None]:
+    yield f"data: {json.dumps({'done': True})}\n\n"
+
+
+class TestPluginSwitches:
+    async def _bound_after(
+        self, client: AsyncClient, session: AsyncSession, user_id: int, system_on: bool, user_on: bool | None
+    ) -> list[str]:
+        config_id = await _seed_llm_config(session, user_id)
+        conversation_uuid = await _seed_conversation(session, user_id)
+        await _switch_stub(session, user_id, system_on, user_on)
+        provider = _provider()
+        with (
+            patch(
+                "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
+                return_value=_classifier_answering(True),
+            ),
+            patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=provider),
+            patch("sparkth.plugins.chat.routes.completions.get_tool_registry", return_value=_registry()),
+        ):
+            await _turn(client, config_id, conversation_uuid, "*")
+        return _bound_tool_names(provider)
+
+    async def test_a_plugin_the_user_switched_off_binds_none_of_its_tools(
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
+    ) -> None:
+        bound = await self._bound_after(client, session, current_user.id or 1, True, False)
+
+        assert bound == ["openedx_create_xblock"]
+
+    async def test_a_plugin_switched_off_system_wide_binds_none_of_its_tools(
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
+    ) -> None:
+        bound = await self._bound_after(client, session, current_user.id or 1, False, None)
+
+        assert bound == ["openedx_create_xblock"]
+
+    async def test_an_enabled_plugin_keeps_its_tools(
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
+    ) -> None:
+        bound = await self._bound_after(client, session, current_user.id or 1, True, True)
+
+        assert bound == ["openedx_create_xblock", "stub_build"]
+
+    async def test_a_streamed_turn_binds_the_same_filtered_tools(
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
+    ) -> None:
+        user_id = current_user.id or 1
+        config_id = await _seed_llm_config(session, user_id)
+        conversation_uuid = await _seed_conversation(session, user_id)
+        await _switch_stub(session, user_id, True, False)
+
+        with (
+            patch(
+                "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
+                return_value=_classifier_answering(True),
+            ),
+            patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=_provider()),
+            patch("sparkth.plugins.chat.routes.completions.get_tool_registry", return_value=_registry()),
+            patch("sparkth.plugins.chat.routes.completions.ChatStreamProcessor") as processor_cls,
+        ):
+            processor_cls.return_value.stream.return_value = _fake_stream()
+            await _turn(client, config_id, conversation_uuid, "*", stream=True)
+
+        assert [tool.name for tool in processor_cls.call_args.args[4]] == ["openedx_create_xblock"]
+
+    async def test_a_failed_switch_lookup_never_reaches_the_model(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+        stub_capability: ChatCapability,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        config_id = await _seed_llm_config(session, current_user.id or 1)
+        conversation_uuid = await _seed_conversation(session, current_user.id or 1)
+
+        async def lookup_fails(user_id: int, session: AsyncSession) -> set[str]:
+            raise OperationalError("SELECT 1", {}, Exception("connection lost"))
+
+        monkeypatch.setattr("sparkth.plugins.chat.routes.completions.plugins_disabled_for_user", lookup_fails)
+
+        with (
+            patch("sparkth.plugins.chat.routes.completions.get_provider") as get_provider,
+            pytest.raises(OperationalError),
+        ):
+            await _turn(client, config_id, conversation_uuid, "*")
+
+        get_provider.assert_not_called()
