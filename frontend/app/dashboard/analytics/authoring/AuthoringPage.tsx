@@ -6,23 +6,40 @@ import { ChartColumn } from "lucide-react";
 import {
   CHAT_EVENTS,
   countSeries,
+  documentTotals,
   fetchChatActivity,
+  fetchDriveDocuments,
   previousPeriod,
   rateSeries,
   toolTotals,
   totalOf,
   type BucketCount,
   type ChatActivityPoint,
+  type DriveDocumentsPoint,
+  type IsoDate,
 } from "@/lib/analytics";
 import { LineChart } from "@/components/ui/LineChart";
 import { RankedBar } from "@/components/ui/RankedBar";
 import { StatCard } from "@/components/ui/StatCard";
+import { usePluginContext } from "@/lib/plugins/context";
 import { PeriodView, bothPeriods, useComparison, type PeriodData } from "../PeriodView";
 
-const load = bothPeriods(fetchChatActivity);
+type DocumentsData = { current: DriveDocumentsPoint[]; previous: DriveDocumentsPoint[] } | null;
 
 export default function AuthoringPage() {
   const t = useTranslations("analytics.authoring");
+  const { isPluginEnabled, loading } = usePluginContext();
+  const drive = isPluginEnabled("google-drive");
+  // The plugin list arrives after the first render; wait for it or the card never loads.
+  if (loading) return null;
+  const load = async (token: string, range: { from: IsoDate; to: IsoDate }) => {
+    const [chat, documents] = await Promise.all([
+      bothPeriods(fetchChatActivity)(token, range),
+      // A failed Drive read hides its card rather than taking the chat figures down with it.
+      drive ? bothPeriods(fetchDriveDocuments)(token, range).catch(() => null) : null,
+    ]);
+    return { ...chat, documents };
+  };
   return (
     <PeriodView title={t("title")} subtitle={(range) => t("subtitle", { range })} load={load}>
       {(data) => <AuthoringContent {...data} />}
@@ -30,7 +47,14 @@ export default function AuthoringPage() {
   );
 }
 
-function AuthoringContent({ current, previous, from, to, bucket }: PeriodData<ChatActivityPoint>) {
+function AuthoringContent({
+  current,
+  previous,
+  documents,
+  from,
+  to,
+  bucket,
+}: PeriodData<ChatActivityPoint> & { documents: DocumentsData }) {
   const t = useTranslations("analytics.authoring");
   const tTable = useTranslations("analytics.table");
   const tCompare = useTranslations("analytics.compare");
@@ -91,8 +115,21 @@ function AuthoringContent({ current, previous, from, to, bucket }: PeriodData<Ch
   }, [current, previous, from, to, bucket]);
 
   const percent = (n: number) => format.number(n, { style: "percent", maximumFractionDigits: 0 });
+  const docs = documents && {
+    cur: documentTotals(documents.current),
+    prev: documentTotals(documents.previous),
+  };
+  const seconds = (s: number) =>
+    s < 120
+      ? format.number(s, { style: "unit", unit: "second", unitDisplay: "short" })
+      : format.number(Math.round(s / 60), { style: "unit", unit: "minute", unitDisplay: "short" });
+  // Typed message keys: cast the template key, as LoginsPage does for sign-in methods.
+  const outcome = (o: string) => {
+    const key = `outcomes.${o}` as `outcomes.${"too_large"}`;
+    return t.has(key) ? t(key) : o || "—";
+  };
 
-  if (Object.values(cur).every((n) => n === 0)) {
+  if (Object.values(cur).every((n) => n === 0) && !docs?.cur.total) {
     return (
       <div className="bg-card rounded-lg shadow-sm p-12 text-center border border-border">
         <ChartColumn className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
@@ -150,6 +187,21 @@ function AuthoringContent({ current, previous, from, to, bucket }: PeriodData<Ch
               change: change(cur.attached, prev.attached),
             })}
           />
+          {docs && (
+            <StatCard
+              title={t("documentsProcessed")}
+              value={format.number(docs.cur.total)}
+              hint={
+                docs.cur.avgSecondsToReady === null
+                  ? t("documentsHintNoneReady", { change: change(docs.cur.total, docs.prev.total) })
+                  : t("documentsHint", {
+                      ready: percent(docs.cur.ready / docs.cur.total),
+                      time: seconds(docs.cur.avgSecondsToReady),
+                      change: change(docs.cur.total, docs.prev.total),
+                    })
+              }
+            />
+          )}
         </div>
         <p className="mt-2 text-xs text-muted-foreground">{t("lowerBound")}</p>
       </div>
@@ -184,6 +236,17 @@ function AuthoringContent({ current, previous, from, to, bucket }: PeriodData<Ch
                 ? t("toolValue", { total: format.number(n), failed: format.number(d.failed) })
                 : format.number(n)
             }
+          />
+        </div>
+      )}
+      {docs && docs.cur.notReady.length > 0 && (
+        <div className="bg-card rounded-xl border border-border p-6">
+          <h3 className="mb-4 text-base font-semibold text-foreground">{t("notUsable")}</h3>
+          <RankedBar
+            data={docs.cur.notReady.map((d) => ({ label: outcome(d.outcome), value: d.count }))}
+            caption={t("notUsableCaption", { range })}
+            headers={[tTable("reason"), tTable("documents")]}
+            formatValue={(n) => format.number(n)}
           />
         </div>
       )}

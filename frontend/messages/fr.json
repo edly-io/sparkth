@@ -38,7 +38,19 @@
       "toolsCaption": "Appels par outil, {range}",
       "toolValue": "{total} ({failed} en échec)",
       "lowerBound": "Les comptes sont des minimums : l'activité n'est parfois pas enregistrée.",
-      "noPrevious": "Aucune activité sur la période précédente"
+      "noPrevious": "Aucune activité sur la période précédente",
+      "documentsProcessed": "Documents traités",
+      "documentsHint": "{ready} prêts · {time} en moyenne avant d'être prêts · {change}",
+      "documentsHintNoneReady": "Aucun prêt · {change}",
+      "notUsable": "Pourquoi certains documents n'étaient pas utilisables",
+      "notUsableCaption": "Documents inutilisables, par motif, {range}",
+      "outcomes": {
+        "too_large": "Trop volumineux",
+        "unsupported_type": "Type de fichier non pris en charge",
+        "scanned_pdf": "PDF numérisé",
+        "drive_error": "Erreur Google Drive",
+        "failed": "Échec du traitement"
+      }
     },
     "compare": {
       "weekOf": "Semaine du {date}",
@@ -56,7 +68,9 @@
       "messages": "Messages",
       "conversations": "Conversations",
       "failedTurns": "Messages en échec",
-      "failureRate": "Taux d'échec"
+      "failureRate": "Taux d'échec",
+      "reason": "Motif",
+      "documents": "Documents"
     },
     "nav": {
       "label": "Vues des analyses",

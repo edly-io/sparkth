@@ -13,8 +13,16 @@ vi.mock("@/lib/auth-context", () => ({
 // Analytics data access: keep the real types and helpers, stub the fetch.
 vi.mock("@/lib/analytics", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/analytics")>();
-  return { ...actual, fetchChatActivity: vi.fn() };
+  return { ...actual, fetchChatActivity: vi.fn(), fetchDriveDocuments: vi.fn() };
 });
+
+const plugins = vi.hoisted(() => ({ enabled: new Set(["chat"]), loading: false }));
+vi.mock("@/lib/plugins/context", () => ({
+  usePluginContext: () => ({
+    isPluginEnabled: (name: string) => plugins.enabled.has(name),
+    loading: plugins.loading,
+  }),
+}));
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(""),
@@ -22,7 +30,13 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/dashboard/analytics/authoring",
 }));
 
-import { CHAT_EVENTS, fetchChatActivity, type ChatActivityPoint } from "@/lib/analytics";
+import {
+  CHAT_EVENTS,
+  fetchChatActivity,
+  fetchDriveDocuments,
+  type ChatActivityPoint,
+  type DriveDocumentsPoint,
+} from "@/lib/analytics";
 import AuthoringPage from "@/app/dashboard/analytics/authoring/AuthoringPage";
 
 // Answers by period: the current period ends on the pinned "today".
@@ -44,6 +58,7 @@ const tool = (name: string | null, count: number, outcome?: string | null) =>
 // 2026-05-26..2026-06-24.
 beforeEach(() => {
   vi.clearAllMocks();
+  plugins.enabled = new Set(["chat"]);
   vi.useFakeTimers({ shouldAdvanceTime: true });
   vi.setSystemTime(new Date("2026-07-24T12:00:00Z"));
 });
@@ -229,5 +244,49 @@ describe("AuthoringPage states", () => {
     await userEvent.click(await screen.findByRole("button", { name: /try again/i }));
     expect(await screen.findByText("Messages sent")).toBeInTheDocument();
     expect(fetchChatActivity).toHaveBeenCalledTimes(4); // two periods, twice
+  });
+});
+
+const doc = (outcome: string, document_count: number, seconds_total = 0): DriveDocumentsPoint => ({
+  bucket: "2026-07-23",
+  outcome,
+  ready: outcome === "ingested",
+  document_count,
+  seconds_total,
+});
+
+describe("AuthoringPage documents", () => {
+  it("shows processed documents, the ready share and why the rest weren't usable", async () => {
+    plugins.enabled = new Set(["chat", "google-drive"]);
+    answer([row(CHAT_EVENTS.messages, 1)]);
+    vi.mocked(fetchDriveDocuments).mockImplementation(async (_t, { to }) =>
+      to === "2026-07-24" ? [doc("ingested", 3, 90), doc("scanned_pdf", 1, 2)] : [],
+    );
+    renderWithIntl(<AuthoringPage />);
+    const documents = await card("Documents processed");
+    expect(within(documents).getByText("4")).toBeInTheDocument();
+    expect(within(documents).getByText(/75% ready · 30 sec avg to ready/)).toBeInTheDocument();
+    expect(await screen.findByText("Why documents weren't usable")).toBeInTheDocument();
+    expect(screen.getAllByText("Scanned PDF").length).toBeGreaterThan(0);
+  });
+
+  it("keeps the chat figures when the Drive read fails", async () => {
+    plugins.enabled = new Set(["chat", "google-drive"]);
+    answer([row(CHAT_EVENTS.messages, 10)]);
+    vi.mocked(fetchDriveDocuments).mockRejectedValue(
+      new ApiRequestError({ message: "Permission denied", fieldErrors: {} }, 403),
+    );
+    renderWithIntl(<AuthoringPage />);
+    const messages = await card("Messages sent");
+    expect(within(messages).getByText("10")).toBeInTheDocument();
+    expect(screen.queryByText("Documents processed")).not.toBeInTheDocument();
+  });
+
+  it("does not fetch documents without Google Drive", async () => {
+    answer([row(CHAT_EVENTS.messages, 1)]);
+    renderWithIntl(<AuthoringPage />);
+    await card("Messages sent");
+    expect(fetchDriveDocuments).not.toHaveBeenCalled();
+    expect(screen.queryByText("Documents processed")).not.toBeInTheDocument();
   });
 });
