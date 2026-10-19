@@ -1,8 +1,8 @@
 """The message-scope classifier: does this turn belong to any of the assistant's capabilities?
 
-A turn that fits none ends with the refusal sentence and never reaches the chat model. So this
-module fails open, admitting the turn, when the classification fails. It logs every refusal it
-decides.
+A turn that fits none ends with the refusal sentence and never reaches the chat model. A failed
+classification is raised to the caller, which fails the turn, so no turn reaches the chat model
+without a verdict. It logs every refusal it decides.
 """
 
 from datetime import datetime, timezone
@@ -14,8 +14,8 @@ from sparkth.lib.chat.hooks import ChatCapability
 from sparkth.lib.log import get_logger
 from sparkth.plugins.chat.analytics import ChatClassifierAnalytics, ScopeVerdict
 from sparkth.plugins.chat.classifiers.base import BaseClassifier
-from sparkth.plugins.chat.constants import MESSAGE_SCOPE_CLASSIFIER_CONVERSATION_HISTORY
-from sparkth.plugins.chat.exceptions import ClassifierError
+from sparkth.plugins.chat.constants import MESSAGE_SCOPE_CLASSIFIER_CONVERSATION_HISTORY, SCOPE_CHECK_ERRORS
+from sparkth.plugins.chat.exceptions import ScopeCheckError
 from sparkth.plugins.chat.prompt import render_scope_classifier_prompt
 from sparkth.plugins.chat.schemas import HistoryTurn, MessageScopeInput, MessageScopeVerdict
 
@@ -86,9 +86,12 @@ class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdi
         instead. ``conversation_uuid`` never reaches the model. It is logged so a decision can
         be traced, and it is ``None`` on a new chat's first message.
 
-        Fails open, admitting the turn, when the classification fails, including an answer that
-        does not fit the schema, because a refusal ends the turn and is never inferred from an
-        error.
+        A turn is never admitted or refused without a verdict, so a failed classification is
+        left to the caller and nothing is recorded for it here.
+
+        Raises:
+            ScopeCheckError: no verdict. Its ``cause`` is the classifier error, the OpenAI
+                refusal, or the provider error underneath.
         """
         payload = MessageScopeInput(
             query=query,
@@ -97,16 +100,8 @@ class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdi
         )
         try:
             verdict = await self.classify(payload)
-        except ClassifierError as exc:
-            logger.warning(
-                "Message scope classifier failed, admitting the turn unjudged: user_id=%s conversation_uuid=%s: %s",
-                self._user_id,
-                conversation_uuid,
-                exc,
-            )
-            # Recorded, not silent: the rate of turns admitted unjudged is invisible otherwise.
-            self._record(ScopeVerdict.NOT_JUDGED, conversation_uuid, history, attached_document_names, query)
-            return True
+        except SCOPE_CHECK_ERRORS as exc:
+            raise ScopeCheckError(exc) from exc
 
         if not verdict.in_scope:
             self._log_refusal(verdict, conversation_uuid, history, attached_document_names, query)
