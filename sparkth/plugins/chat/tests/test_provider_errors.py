@@ -1,7 +1,8 @@
-"""What the completions route does when the chat model's provider fails the call.
+"""What the user reads when a provider fails the call, and what the completions route stores.
 
-Each test drives a real request with the chat model raising a real provider SDK exception, then
-reads back what the conversation stored.
+The wording tests hand ``streaming_error_message`` the exceptions Google's SDK raises. The route
+tests drive a real request with the chat model raising one, then read back what the conversation
+stored.
 """
 
 from typing import Any
@@ -21,24 +22,79 @@ from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
 from sparkth.plugins.chat.models import Conversation, Message
+from sparkth.plugins.chat.routes.utils.stream_processor import streaming_error_message
 
 COMPLETIONS_URL = "/api/v1/chat/completions"
 GENERIC_FAILURE = "An error occurred while generating a response. Please try again."
+GOOGLE_INVALID_KEY = "Invalid API key. Please check your Google API key in AI Keys."
+GOOGLE_UNREACHABLE = "Could not reach Google. Please check your network connection."
+GOOGLE_OVERLOADED = "Google API error (503). Please try again."
 
-# What langchain-google-genai raises: a wrapped 4xx, a raw 5xx, and an aiohttp transport failure.
+
+def _google_client_error(code: int, status: str, reason: str | None = None) -> google_genai_errors.ClientError:
+    """A 4xx as Google's SDK raises it, with an ErrorInfo detail when ``reason`` is given."""
+    details = [{"@type": "type.googleapis.com/google.rpc.ErrorInfo", "reason": reason}] if reason else []
+    return google_genai_errors.ClientError(
+        code, {"error": {"code": code, "message": "Request failed.", "status": status, "details": details}}
+    )
+
+
+def _wrapped(cause: google_genai_errors.APIError) -> ChatGoogleGenerativeAIError:
+    """What langchain-google-genai raises from a non-streamed call: its own error, Google's as the cause."""
+    error = ChatGoogleGenerativeAIError(f"Error calling model 'gemini-2.0-flash' ({cause.status}): {cause}")
+    error.__cause__ = cause
+    return error
+
+
+# Google reports a bad key as a 400 whose ErrorInfo reason is API_KEY_INVALID.
+_KEY_INVALID = _google_client_error(400, "INVALID_ARGUMENT", "API_KEY_INVALID")
+_OVERLOADED = google_genai_errors.ServerError(
+    503, {"error": {"code": 503, "message": "The model is overloaded.", "status": "UNAVAILABLE"}}
+)
+
+# What langchain-google-genai raises, with the text the user reads for each: a wrapped 4xx, a raw
+# 5xx, and an aiohttp transport failure.
 GOOGLE_FAILURES = [
-    pytest.param(
-        ChatGoogleGenerativeAIError("Error calling model 'gemini-2.0-flash' (UNAUTHENTICATED): 401"),
-        id="google-4xx",
-    ),
-    pytest.param(
-        google_genai_errors.ServerError(
-            503, {"error": {"code": 503, "message": "The model is overloaded.", "status": "UNAVAILABLE"}}
-        ),
-        id="google-5xx",
-    ),
-    pytest.param(aiohttp.ClientConnectionError("Connection refused"), id="google-transport"),
+    pytest.param(_wrapped(_KEY_INVALID), GOOGLE_INVALID_KEY, id="google-bad-key"),
+    pytest.param(_OVERLOADED, GOOGLE_OVERLOADED, id="google-5xx"),
+    pytest.param(aiohttp.ClientConnectionError("Connection refused"), GOOGLE_UNREACHABLE, id="google-transport"),
 ]
+
+
+class TestGoogleErrorWording:
+    """A Google failure tells the user what went wrong, wrapped or raw."""
+
+    @pytest.mark.parametrize(
+        ("failure", "detail"),
+        [
+            pytest.param(_wrapped(_KEY_INVALID), GOOGLE_INVALID_KEY, id="bad-key-wrapped"),
+            # A streamed call raises Google's error unwrapped.
+            pytest.param(_KEY_INVALID, GOOGLE_INVALID_KEY, id="bad-key-raw"),
+            pytest.param(_google_client_error(401, "UNAUTHENTICATED"), GOOGLE_INVALID_KEY, id="unauthenticated"),
+            pytest.param(
+                _wrapped(_google_client_error(403, "PERMISSION_DENIED")),
+                "Your Google API key does not have permission to use this model.",
+                id="permission",
+            ),
+            pytest.param(
+                _wrapped(_google_client_error(429, "RESOURCE_EXHAUSTED")),
+                "Google API rate limit reached. Please wait a moment and try again.",
+                id="rate-limit",
+            ),
+            pytest.param(
+                _wrapped(_google_client_error(400, "INVALID_ARGUMENT")),
+                "The request was rejected by Google. Please try a different message.",
+                id="rejected",
+            ),
+            pytest.param(_OVERLOADED, GOOGLE_OVERLOADED, id="server-error"),
+            pytest.param(aiohttp.ClientConnectionError("Connection refused"), GOOGLE_UNREACHABLE, id="unreachable"),
+            # Raised for a local failure too, with no Google error underneath.
+            pytest.param(ChatGoogleGenerativeAIError("Unknown error"), GENERIC_FAILURE, id="no-google-cause"),
+        ],
+    )
+    def test_the_user_reads(self, failure: Exception, detail: str) -> None:
+        with locale_context("en"):
+            assert streaming_error_message(failure) == detail
 
 
 async def _seed_llm_config(session: AsyncSession, user_id: int) -> int:
@@ -100,9 +156,9 @@ class TestAGoogleChatModelFailure:
     """A Google SDK error from the chat model fails the turn like any other provider error."""
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("failure", GOOGLE_FAILURES)
+    @pytest.mark.parametrize(("failure", "detail"), GOOGLE_FAILURES)
     async def test_the_turn_fails_with_a_502_and_the_error_is_stored(
-        self, client: AsyncClient, current_user: User, session: AsyncSession, failure: Exception
+        self, client: AsyncClient, current_user: User, session: AsyncSession, failure: Exception, detail: str
     ) -> None:
         user_id = current_user.id or 1
         config_id = await _seed_llm_config(session, user_id)
@@ -126,7 +182,7 @@ class TestAGoogleChatModelFailure:
             response = await client.post(COMPLETIONS_URL, json=body)
 
         assert response.status_code == 502
-        assert response.json() == {"detail": GENERIC_FAILURE}
+        assert response.json() == {"detail": detail}
         stored = await _stored_messages(session, conversation_uuid)
         assert [(m.role, m.is_error) for m in stored] == [("user", False), ("assistant", True)]
-        assert stored[-1].content == GENERIC_FAILURE
+        assert stored[-1].content == detail
