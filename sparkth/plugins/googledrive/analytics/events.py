@@ -22,10 +22,14 @@ class DocumentOutcome(StrEnum):
     FAILED = "failed"
 
 
+READY_OUTCOMES = frozenset({DocumentOutcome.INGESTED, DocumentOutcome.DUPLICATE})
+"""Outcomes that leave the document usable in chat; every other one ends failed."""
+
+
 class GoogleDriveDocumentProcessed(AnalyticsEventSchema):
     """A Drive document reached a final status (ready or failed) in a sync run.
 
-    ``ingested`` and ``duplicate`` end ready; every other outcome ends failed.
+    Outcomes in ``READY_OUTCOMES`` end ready; every other outcome ends failed.
     ``size_bytes`` is the downloaded length, else Drive's reported size, else ``None``.
     ``chunk_count`` is new plus reused chunks, 0 unless ``ingested``.
     ``seconds_to_final`` runs from the start of the sync run, so a retry isn't timed from the

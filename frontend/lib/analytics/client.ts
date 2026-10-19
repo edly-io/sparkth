@@ -1,6 +1,11 @@
 import { api, bearer, call } from "@/lib/api";
 import type { IsoDate } from "@/lib/analytics/dates";
-import type { ChatActivityPoint, LoginsPoint, SummaryCount } from "@/lib/analytics/types";
+import type {
+  ChatActivityPoint,
+  DriveDocumentsPoint,
+  LoginsPoint,
+  SummaryCount,
+} from "@/lib/analytics/types";
 
 /** Logins per day for the range; the page rolls days up itself, so a bucket change doesn't refetch. */
 export async function fetchLogins(
@@ -21,6 +26,19 @@ export async function fetchChatActivity(
 ): Promise<ChatActivityPoint[]> {
   return call<ChatActivityPoint[]>(() =>
     api.GET("/api/v1/chat/analytics/activity", {
+      params: { query: { from, to, bucket: "day" } },
+      headers: bearer(token),
+    }),
+  );
+}
+
+/** Processed Drive documents per day and outcome, with summed seconds to final, for the period. */
+export async function fetchDriveDocuments(
+  token: string,
+  { from, to }: { from: IsoDate; to: IsoDate },
+): Promise<DriveDocumentsPoint[]> {
+  return call<DriveDocumentsPoint[]>(() =>
+    api.GET("/api/v1/google-drive/analytics/documents", {
       params: { query: { from, to, bucket: "day" } },
       headers: bearer(token),
     }),

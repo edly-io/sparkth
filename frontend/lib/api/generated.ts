@@ -1875,6 +1875,8 @@ export interface components {
             document_count: number;
             /** Outcome */
             outcome?: string | null;
+            /** Ready */
+            ready: boolean;
             /** Seconds Total */
             seconds_total: number;
         };
