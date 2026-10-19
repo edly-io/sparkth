@@ -138,11 +138,12 @@ async def _caller_disabled_plugins(session: AsyncSession) -> set[str]:
 
     With no authenticated user bound, only the system-wide switch can apply.
     """
+    user_id: int | None
     try:
         user_id = current_user_id()
     except NoAuthenticatedUser:
         logger.info("No authenticated user; applying only the system-wide plugin switch")
-        return await disabled_plugin_names(None, session)
+        user_id = None
     return await disabled_plugin_names(user_id, session)
 
 
