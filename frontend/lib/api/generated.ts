@@ -2083,14 +2083,18 @@ export interface components {
              * @default false
              */
             is_error: boolean;
-            /** Message Type */
-            message_type: string;
+            /**
+             * Message Type
+             * @enum {string}
+             */
+            message_type: "text" | "attachment";
             /** Rag Sections */
-            rag_sections?: {
-                [key: string]: unknown;
-            }[] | null;
-            /** Role */
-            role: string;
+            rag_sections?: components["schemas"]["RagSection"][] | null;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "system" | "user" | "assistant" | "tool";
             /**
              * Stopped
              * @default false
@@ -2099,9 +2103,7 @@ export interface components {
             /** Tokens Used */
             tokens_used: number | null;
             /** Tool Calls */
-            tool_calls?: {
-                [key: string]: unknown;
-            }[] | null;
+            tool_calls?: components["schemas"]["PersistedToolCall"][] | null;
         };
         /** PaginatedResponse[DriveFileResponse] */
         PaginatedResponse_DriveFileResponse_: {
@@ -2154,6 +2156,11 @@ export interface components {
             /** Allowed */
             allowed: boolean;
         };
+        /** PersistedToolCall */
+        PersistedToolCall: {
+            /** Name */
+            name: string;
+        };
         /**
          * PreviewPermission
          * @description The permissions an author may preview their own activity under.
@@ -2177,6 +2184,15 @@ export interface components {
             label: string;
             /** Models */
             models: string[];
+        };
+        /** RagSection */
+        RagSection: {
+            /** Name */
+            name: string;
+            /** Source */
+            source?: string | null;
+            /** Type */
+            type: string;
         };
         /** RagSourcesResponse */
         RagSourcesResponse: {
@@ -2362,6 +2378,15 @@ export interface components {
         UpdateUserPluginRequest: {
             /** Enabled */
             enabled: boolean;
+        };
+        /** UploadResponse */
+        UploadResponse: {
+            /** Filename */
+            filename: string | null;
+            /** Length */
+            length: number;
+            /** Text */
+            text: string;
         };
         /** User */
         User: {
@@ -3897,7 +3922,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["UploadResponse"];
                 };
             };
             /** @description Validation Error */
