@@ -568,6 +568,6 @@ class TestAFailedScopeCheck:
         stored = await _stored_messages(session, conversation_uuid)
         assert [(m.role, m.is_error) for m in stored] == [("user", False), ("assistant", True)]
         assert stored[-1].content == _GENERIC_FAILURE
-        assert "Scope check failed" in caplog.text
+        assert "ClassifierError" in caplog.text
         assert "confidential syllabus" not in caplog.text
         chat_provider.assert_not_called()
