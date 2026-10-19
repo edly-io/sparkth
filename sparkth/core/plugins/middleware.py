@@ -1,17 +1,15 @@
-from typing import Any, Awaitable, Callable, cast
+from typing import Any, Awaitable, Callable
 
 from fastapi import FastAPI, Request, Response, status
 from fastapi.responses import JSONResponse
 from fastapi.routing import RouteContext, iter_route_contexts
 from sqlalchemy.exc import DatabaseError, OperationalError
-from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.routing import Match
 
-from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.core.models.user import User
 from sparkth.core.plugins.constants import BEARER_SCHEME
+from sparkth.core.plugins.service import plugins_disabled_for_user
 from sparkth.core.routes import get_route_plugin_name
 from sparkth.lib.auth import bind_interface_locale, decode_token_username, get_user_by_username
 from sparkth.lib.db import session_scope
@@ -163,6 +161,10 @@ class PluginAccessMiddleware(BaseHTTPMiddleware):
         enforce, and the route's own auth dependency rejects the request anyway. A database
         failure blocks — the gate cannot confirm access, so it must not grant it.
 
+        A plugin the registry has never seen, or one the user has no preference on, is not
+        in the disabled set, so it is allowed. See ``plugins_disabled_for_user`` for how the
+        system switch and the user's own preference combine.
+
         Args:
             username: The username the request's bearer token names.
             plugin_name: The plugin owning the route being requested.
@@ -176,58 +178,7 @@ class PluginAccessMiddleware(BaseHTTPMiddleware):
                 user = await get_user_by_username(username, session)
                 if user is None or user.id is None:
                     return None, True
-                return user, await _user_may_use_plugin(user.id, plugin_name, session)
+                return user, plugin_name not in await plugins_disabled_for_user(user.id, session)
         except (DatabaseError, OperationalError) as e:
             logger.error(f"Database error checking plugin access for user '{username}' and plugin '{plugin_name}': {e}")
             return None, False
-
-
-async def _user_may_use_plugin(user_id: int, plugin_name: str, session: AsyncSession) -> bool:
-    """Whether this user may reach this plugin, by both switches that can turn it off.
-
-    Reads the system switch and the user's own preference in one query. The join is a
-    LEFT OUTER one, and it is keyed on the user as well as the plugin: an inner join would
-    hide a plugin nobody has expressed a preference on, and a join keyed on the plugin
-    alone would let one user's disabled plugin answer for every other user.
-
-    Both "no plugin row" and "no preference row" mean access is allowed. A plugin the
-    registry has never seen is not a disabled plugin, and a user who has never expressed a
-    preference has not opted out.
-
-    Args:
-        user_id: The user ID to check access for
-        plugin_name: The name of the plugin
-        session: The async database session
-
-    Returns:
-        bool: True if user has access, False otherwise
-    """
-    # cast: SQLModel types a column comparison as bool, so the composed ON clause does not
-    # satisfy outerjoin's signature without it — the same reason joins elsewhere cast.
-    on_clause = cast(
-        Any,
-        (UserPlugin.plugin_id == Plugin.id) & (UserPlugin.user_id == user_id) & (UserPlugin.deleted_at == None),
-    )
-    statement = (
-        select(Plugin.enabled, UserPlugin.enabled)
-        .outerjoin(UserPlugin, on_clause)
-        .where(Plugin.name == plugin_name, Plugin.deleted_at == None)
-    )
-    result = await session.exec(statement)
-    row = result.one_or_none()
-
-    if row is None:
-        logger.debug(f"Plugin '{plugin_name}' not found in database. Allowing access by default.")
-        return True
-
-    system_enabled, user_enabled = row
-
-    if not system_enabled:
-        logger.debug(f"Plugin '{plugin_name}' is disabled at system level")
-        return False
-
-    if user_enabled is None:
-        logger.debug(f"No UserPlugin record for user {user_id} and plugin '{plugin_name}'. Allowing access by default.")
-        return True
-
-    return user_enabled
