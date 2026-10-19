@@ -75,13 +75,15 @@ async def delete_owned_activity(
 ) -> None:
     """Delete one of this user's activities: its row, failure rows, files and learner data.
 
-    The row goes first, in one transaction with its ``pxc.activity_deleted`` audit event. If that
-    fails, nothing else is touched and the activity stays whole. Only then are the live link, the
-    revisions, the learner state file and the storage removed. A file that cannot be removed is
-    logged and left, since the activity is already gone from the author's list and from launches.
+    The row goes first, in one transaction with its ``pxc.activity_deleted`` audit event, then the
+    live link, the revisions, the learner state file and the storage are removed. A failed file
+    removal is logged, not raised, so either order leaves orphaned files when removal fails. The
+    orders differ only when the database fails, and with the row first that changes nothing: the
+    activity and its files stay whole.
 
     Raises:
         PxcActivityNotFound: if the activity does not exist or another user owns it.
+        SQLAlchemyError: if the delete or its audit record cannot be committed; nothing is removed.
     """
     activity = await get_owned_activity(session, activity_id, cast(int, user.id))
     await delete_activity(session, activity)
