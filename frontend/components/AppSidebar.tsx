@@ -13,6 +13,7 @@ import {
   PanelLeftClose,
   PanelLeft,
   Key,
+  ShieldCheck,
 } from "lucide-react";
 import { usePluginContext } from "@/lib/plugins/context";
 import { sidebarItemsFrom, type SidebarItem } from "@/lib/plugins/metadata";
@@ -310,6 +311,14 @@ export default function AppSidebar({
             >
               <Settings className="w-4 h-4 flex-shrink-0" />
               <span className="truncate">Settings</span>
+            </Link>
+            <Link
+              href="/privacy"
+              className="flex items-center gap-3 px-3 py-2 min-h-[40px] text-sm text-foreground hover:bg-surface-variant rounded-lg"
+              onClick={handleNavClick}
+            >
+              <ShieldCheck className="w-4 h-4 flex-shrink-0" />
+              <span className="truncate">Privacy Policy</span>
             </Link>
             {onLogout && (
               <>
