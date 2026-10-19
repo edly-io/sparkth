@@ -151,8 +151,9 @@ async def read_rollup(
 async def get_logins(session: AsyncSession, from_: date, to: date, bucket: Bucket) -> list[LoginsPoint]:
     """Return login counts per ``bucket`` and sign-in method for days ``from_``..``to`` (inclusive).
 
-    Oldest bucket first, methods ordered bytewise (NULLs first) within a bucket. Sparse: buckets or
-    methods with no logins are omitted, so callers zero-fill.
+    Oldest bucket first, methods ordered bytewise (``unknown`` first) within a bucket. Sparse:
+    buckets or methods with no logins are omitted, so callers zero-fill. A login whose payload has
+    no ``method`` counts as ``unknown``.
     """
     rows = await read_rollup(
         session,
@@ -164,7 +165,7 @@ async def get_logins(session: AsyncSession, from_: date, to: date, bucket: Bucke
         to=to,
         bucket=bucket,
     )
-    return [LoginsPoint.model_validate(dict(r)) for r in rows]
+    return [LoginsPoint.model_validate({**r, "method": r["method"] or "unknown"}) for r in rows]
 
 
 def _in_days(from_: date, to: date) -> tuple[Any, Any]:
