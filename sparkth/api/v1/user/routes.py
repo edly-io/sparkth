@@ -1,22 +1,26 @@
-"""The authenticated caller's own profile: ``GET`` and ``PATCH /user/me``.
+"""The authenticated caller's own profile: ``GET`` and ``PATCH /user/me``, and
+``POST /user/me/password``.
 
-Both endpoints serve the caller and nobody else. Neither takes a user id, so a
+Every endpoint serves the caller and nobody else. None takes a user id, so a
 request can only ever read or write its own row.
 
 ``is_admin`` is not a stored column: it is derived per response from whether the
 user holds the ``admin`` role at the global scope, and filled in during
 serialization rather than read off the model.
 
-``PATCH`` carries the preferred language. ``language`` is required in the body
-because ``None`` is a meaningful value rather than a missing one — an explicit
-``null`` clears a previous choice, so the platform default applies again, while
-omitting the field is a 422.
+``PATCH`` is a partial update of the name and the preferred language: a field left
+out of the body keeps its stored value. For ``language`` an explicit ``null`` is
+meaningful, clearing a previous choice so the platform default applies again.
+Username and email cannot be changed here.
+
+``POST /me/password`` changes the password after checking the current one; the
+account service records it as ``auth.password_changed``.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.api.v1.user.schemas import UserLanguageUpdate
+from sparkth.api.v1.user.schemas import PasswordChange, UserUpdate
 from sparkth.core.models.user import User
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
@@ -24,6 +28,7 @@ from sparkth.lib.i18n import _
 from sparkth.lib.permissions import has_role
 from sparkth.lib.permissions.scopes import GLOBAL
 from sparkth.schemas import User as UserSchema
+from sparkth.services.account import change_password
 
 router = APIRouter()
 
@@ -35,6 +40,27 @@ async def _to_schema(user: User, session: AsyncSession) -> UserSchema:
     """
     is_admin = await has_role(user, "admin", GLOBAL, None, session)
     return UserSchema.model_validate(user).model_copy(update={"is_admin": is_admin})
+
+
+async def _own_row(current_user: User, session: AsyncSession) -> User:
+    """Load the row this request intends to write instead of mutating the injected principal.
+
+    In production ``get_current_user`` resolves the same request-scoped session, so
+    this is a cheap identity-map hit — the re-fetch is a deliberate guard, not an
+    optimisation. Its job is to make a write against an instance that is *not*
+    attached to ``session`` fail loudly, rather than have ``commit()`` persist nothing
+    and the endpoint still answer success; that failure mode shows up neither in the
+    response nor in a test that asserts on it.
+    """
+    user = await session.get(User, current_user.id)
+    if user is None:
+        # Unreachable while ``get_current_user`` is the only source of a principal —
+        # it already answers 401 when the row is gone. ``HTTPException`` here mirrors
+        # that dependency: an authenticated principal without a row is an
+        # authentication-boundary condition, not a domain error to route through the
+        # exception-handler registry.
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("User not found"))
+    return user
 
 
 @router.get("/me", response_model=UserSchema)
@@ -52,36 +78,40 @@ async def get_user(
 
 
 @router.patch("/me", response_model=UserSchema)
-async def update_user_language(
-    update: UserLanguageUpdate,
+async def update_user(
+    update: UserUpdate,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
 ) -> UserSchema:
-    """Set or clear the current user's preferred language.
+    """Update the current user's name and preferred language.
 
-    The tag is validated against the supported-language allowlist by
-    ``UserLanguageUpdate``, so an unsupported value is a 422 before reaching here.
-    An explicit ``null`` clears the preference.
+    Only the fields sent in the body are written. ``UserUpdate`` has already trimmed
+    the name and checked the language against the supported-language allowlist, so
+    bad input is a 422 before reaching here. An explicit ``null`` language clears the
+    preference.
     """
-    # Load the row this request intends to write instead of mutating the injected
-    # principal. In production ``get_current_user`` resolves the same request-scoped
-    # session, so this is a cheap identity-map hit — the re-fetch is a deliberate
-    # guard, not an optimisation. Its job is to make a write against an instance that
-    # is *not* attached to ``session`` fail loudly, rather than have ``commit()``
-    # persist nothing and the endpoint still answer 200; that failure mode shows up
-    # neither in the response nor in a test that asserts on it.
-    user = await session.get(User, current_user.id)
-    if user is None:
-        # Unreachable while ``get_current_user`` is the only source of a principal —
-        # it already answers 401 when the row is gone. ``HTTPException`` here mirrors
-        # that dependency: an authenticated principal without a row is an
-        # authentication-boundary condition, not a domain error to route through the
-        # exception-handler registry.
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("User not found"))
+    user = await _own_row(current_user, session)
 
-    user.language = update.language
+    for field in update.model_fields_set:
+        setattr(user, field, getattr(update, field))
     # updated_at has a default_factory but no onupdate, so the bump is manual.
     user.update_timestamp()
     await session.commit()
 
     return await _to_schema(user, session)
+
+
+@router.post("/me/password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_user_password(
+    body: PasswordChange,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+) -> Response:
+    """Change the current user's password, given their current one.
+
+    A weak new password is a 422 from ``PasswordChange``. A wrong current password
+    is a 400, and an account with no password (Google only) a 409.
+    """
+    user = await _own_row(current_user, session)
+    await change_password(session, user, body.current_password, body.new_password)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

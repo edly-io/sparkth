@@ -197,6 +197,20 @@ class PasswordResetAuditEvent(MutationAuditEvent):
 
 @AUDIT_EVENTS.register
 @dataclass(frozen=True, slots=True, kw_only=True)
+class PasswordChangedAuditEvent(MutationAuditEvent):
+    """A signed-in user changed their own password, or tried to.
+
+    The actor and ``target`` are both the user. ``change.new`` carries only the
+    ``method`` (``self_service``), never a password or hash. A wrong current
+    password is a ``failure`` and an account with no password a ``denied``; both
+    record a fixed ``error_detail`` and leave ``change`` unset.
+    """
+
+    event_type: ClassVar[str] = "auth.password_changed"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
 class GoogleLinkedAuditEvent(MutationAuditEvent):
     """A Google identity was attached to an existing account: a new way to
     log in, so a credential-lifecycle event."""
