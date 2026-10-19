@@ -3,7 +3,6 @@ CLI-managed, mirroring how user-role assignment is CLI-only.
 Authored with LLM (Claude) assistance."""
 
 import asyncio
-from typing import cast
 
 import typer
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -60,9 +59,9 @@ async def _add_member(identifier: str, group_name: str) -> None:
     """
     with cli_audit_context():
         async with session_scope() as session:
-            user = await resolve_user(identifier, session)
+            user_id, user = await resolve_user(identifier, session)
             group_id = await _resolve_group_id(group_name, session)
-            await add_group_member(cast(int, user.id), group_id, session)
+            await add_group_member(user_id, group_id, session)
             await session.commit()
             typer.secho(f"Added {user.username} to group '{group_name}'.", fg=typer.colors.GREEN)
 
@@ -85,9 +84,9 @@ async def _remove_member(identifier: str, group_name: str) -> None:
     """
     with cli_audit_context():
         async with session_scope() as session:
-            user = await resolve_user(identifier, session)
+            user_id, user = await resolve_user(identifier, session)
             group_id = await _resolve_group_id(group_name, session)
-            await remove_group_member(cast(int, user.id), group_id, session)
+            await remove_group_member(user_id, group_id, session)
             await session.commit()
             typer.secho(f"Removed {user.username} from group '{group_name}'.", fg=typer.colors.GREEN)
 

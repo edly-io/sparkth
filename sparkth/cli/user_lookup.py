@@ -8,10 +8,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.lib.models import User
 
 
-async def resolve_user(identifier: str, session: AsyncSession) -> User:
-    """Return the user whose username or email equals ``identifier``, or exit non-zero."""
+async def resolve_user(identifier: str, session: AsyncSession) -> tuple[int, User]:
+    """Return ``(id, user)`` for the user whose username or email equals ``identifier``, or exit non-zero."""
     user = (await session.exec(select(User).where((User.username == identifier) | (User.email == identifier)))).first()
-    if user is None:
+    if user is None or user.id is None:
         typer.secho(f"User '{identifier}' not found!", fg=typer.colors.RED)
         raise typer.Exit(code=1)
-    return user
+    return user.id, user

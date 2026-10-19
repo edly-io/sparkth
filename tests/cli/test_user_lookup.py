@@ -18,12 +18,12 @@ async def _seed_user(session: AsyncSession) -> User:
 
 async def test_resolve_user_finds_a_user_by_username(session: AsyncSession) -> None:
     user = await _seed_user(session)
-    assert (await resolve_user("alice", session)).id == user.id
+    assert await resolve_user("alice", session) == (user.id, user)
 
 
 async def test_resolve_user_finds_a_user_by_email(session: AsyncSession) -> None:
     user = await _seed_user(session)
-    assert (await resolve_user("alice@example.com", session)).id == user.id
+    assert await resolve_user("alice@example.com", session) == (user.id, user)
 
 
 async def test_resolve_user_exits_when_no_user_matches(

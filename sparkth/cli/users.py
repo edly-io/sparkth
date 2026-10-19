@@ -133,7 +133,7 @@ async def _reset_password(identifier: str, new_password: str) -> None:
 
 async def _reset_password_in_session(identifier: str, new_password: str) -> None:
     async with session_scope() as session:
-        user = await resolve_user(identifier, session)
+        _, user = await resolve_user(identifier, session)
 
         if user.is_deleted:
             typer.secho(

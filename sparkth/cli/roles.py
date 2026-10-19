@@ -1,5 +1,4 @@
 import asyncio
-from typing import cast
 
 import typer
 
@@ -46,9 +45,9 @@ async def _assign_role(identifier: str, role: str, scope: str, scope_object_id: 
         raise typer.Exit(code=1) from None
     with cli_audit_context():
         async with session_scope() as session:
-            user = await resolve_user(identifier, session)
+            user_id, user = await resolve_user(identifier, session)
             try:
-                await grant_role(cast(int, user.id), role, permission_scope, scope_object_id, session)
+                await grant_role(user_id, role, permission_scope, scope_object_id, session)
             except RoleNotFound:
                 typer.secho(f"Role '{role}' not found!", fg=typer.colors.RED)
                 raise typer.Exit(code=1) from None
