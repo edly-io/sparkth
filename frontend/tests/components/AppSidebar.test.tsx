@@ -43,7 +43,7 @@ describe("AppSidebar user menu", () => {
   it("links to the privacy policy", async () => {
     render(<AppSidebar user={{ name: "Ada" }} />);
 
-    await userEvent.click(screen.getByRole("button", { name: /Ada/ }));
+    await userEvent.click(screen.getByText("Ada"));
 
     expect(screen.getByRole("link", { name: "Privacy Policy" })).toHaveAttribute(
       "href",
