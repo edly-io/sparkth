@@ -1389,14 +1389,38 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Update User Language
-         * @description Set or clear the current user's preferred language.
+         * Update User
+         * @description Update the current user's name and preferred language.
          *
-         *     The tag is validated against the supported-language allowlist by
-         *     ``UserLanguageUpdate``, so an unsupported value is a 422 before reaching here.
-         *     An explicit ``null`` clears the preference.
+         *     Only the fields sent in the body are written. ``UserUpdate`` has already trimmed
+         *     the name and checked the language against the supported-language allowlist, so
+         *     bad input is a 422 before reaching here. An explicit ``null`` language clears the
+         *     preference.
          */
-        patch: operations["update_user_language_api_v1_user_me_patch"];
+        patch: operations["update_user_api_v1_user_me_patch"];
+        trace?: never;
+    };
+    "/api/v1/user/me/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change User Password
+         * @description Change the current user's password, given their current one.
+         *
+         *     A weak new password is a 422 from ``PasswordChange``. A wrong current password
+         *     is a 400, and an account with no password (Google only) a 409.
+         */
+        post: operations["change_user_password_api_v1_user_me_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/whitelist/": {
@@ -2149,6 +2173,19 @@ export interface components {
              */
             total: number;
         };
+        /**
+         * PasswordChange
+         * @description Body of ``POST /user/me/password``.
+         *
+         *     ``new_password`` must meet the same complexity rules as registration, so a weak
+         *     one is a 422 before the current password is checked.
+         */
+        PasswordChange: {
+            /** Current Password */
+            current_password: string;
+            /** New Password */
+            new_password: string;
+        };
         /** PermissionCheckResponse */
         PermissionCheckResponse: {
             /** Allowed */
@@ -2372,6 +2409,8 @@ export interface components {
             email: string;
             /** Email Verified */
             email_verified: boolean;
+            /** Has Password */
+            has_password: boolean;
             /** Id */
             id: number;
             /**
@@ -2399,18 +2438,6 @@ export interface components {
             password: string;
             /** Username */
             username: string;
-        };
-        /**
-         * UserLanguageUpdate
-         * @description Body of ``PATCH /user/me``. Validated here so a bad tag is a 422.
-         *
-         *     ``language`` is required, because ``None`` is a meaningful value here rather
-         *     than a missing one: an explicit ``null`` clears the stored preference, while
-         *     omitting the field is a 422 rather than a no-op.
-         */
-        UserLanguageUpdate: {
-            /** Language */
-            language: string | null;
         };
         /** UserLogin */
         UserLogin: {
@@ -2468,6 +2495,21 @@ export interface components {
             /** Plugin Name */
             plugin_name: string;
             sidebar?: components["schemas"]["SidebarEntry"] | null;
+        };
+        /**
+         * UserUpdate
+         * @description Body of ``PATCH /user/me``: a partial update, validated here so bad input is a 422.
+         *
+         *     Only the fields present in the body are written; one left out keeps its stored
+         *     value. ``name`` is trimmed and must not be blank or ``null``. ``language`` must be
+         *     on the supported-language allowlist, and an explicit ``null`` clears the stored
+         *     preference so the platform default applies again. Any other field is ignored.
+         */
+        UserUpdate: {
+            /** Language */
+            language?: string | null;
+            /** Name */
+            name?: string | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -4916,7 +4958,7 @@ export interface operations {
             };
         };
     };
-    update_user_language_api_v1_user_me_patch: {
+    update_user_api_v1_user_me_patch: {
         parameters: {
             query?: never;
             header?: never;
@@ -4925,7 +4967,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["UserLanguageUpdate"];
+                "application/json": components["schemas"]["UserUpdate"];
             };
         };
         responses: {
@@ -4937,6 +4979,37 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["User"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_user_password_api_v1_user_me_password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
