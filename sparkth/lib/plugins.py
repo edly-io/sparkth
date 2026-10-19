@@ -22,6 +22,7 @@ if TYPE_CHECKING:
         PluginService,
         UserPluginResponse,
         get_plugin_service,
+        plugins_disabled_for_user,
     )
 
 __all__ = [
@@ -37,6 +38,7 @@ __all__ = [
     "InternalServerError",
     "PluginDisabledError",
     "UserPluginResponse",
+    "plugins_disabled_for_user",
 ]
 
 # PluginService lives in ``sparkth.core.plugins.service``; it is re-exported here so
@@ -52,6 +54,7 @@ _SERVICE_EXPORTS = {
     "InternalServerError",
     "PluginDisabledError",
     "UserPluginResponse",
+    "plugins_disabled_for_user",
 }
 
 
