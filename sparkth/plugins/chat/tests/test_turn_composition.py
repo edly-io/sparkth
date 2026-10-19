@@ -18,6 +18,7 @@ from sparkth.lib.settings import get_settings
 from sparkth.plugins.chat.capabilities import COURSE_DESIGN
 from sparkth.plugins.chat.constants import REFUSAL_MESSAGE
 from sparkth.plugins.chat.models import Conversation
+from sparkth.plugins.chat.tests.test_lms_credentials import _CANVAS_PLUGIN_MAP, _OPENEDX_PLUGIN_MAP
 
 COMPLETIONS_URL = "/api/v1/chat/completions"
 
@@ -71,6 +72,22 @@ def _registry() -> MagicMock:
     registry = MagicMock()
     registry.plugin_for.side_effect = {"openedx_create_xblock": "open-edx", "stub_build": "stub"}.get
     registry.get_all_tools.return_value = [_tool("openedx_create_xblock"), _tool("stub_build")]
+    return registry
+
+
+def _lms_registry() -> MagicMock:
+    """Open edX, Canvas and stub tools, each owned by its plugin."""
+    registry = MagicMock()
+    registry.plugin_for.side_effect = {
+        "openedx_create_xblock": "open-edx",
+        "canvas_create_course": "canvas",
+        "stub_build": "stub",
+    }.get
+    registry.get_all_tools.return_value = [
+        _tool("openedx_create_xblock"),
+        _tool("canvas_create_course"),
+        _tool("stub_build"),
+    ]
     return registry
 
 
@@ -211,6 +228,32 @@ async def _switch_stub(session: AsyncSession, user_id: int, system_on: bool, use
     await session.commit()
 
 
+async def _seed_lms_plugins(session: AsyncSession, user_id: int, openedx_on: bool, canvas_on: bool) -> None:
+    """Seed the three plugins, this user's Open edX and Canvas rows with credentials."""
+    stub = Plugin(name="stub", enabled=True)
+    openedx = Plugin(name="open-edx", enabled=True)
+    canvas = Plugin(name="canvas", enabled=True)
+    session.add_all([stub, openedx, canvas])
+    await session.flush()
+    session.add(
+        UserPlugin(
+            user_id=user_id,
+            plugin_id=cast(int, openedx.id),
+            enabled=openedx_on,
+            config=_OPENEDX_PLUGIN_MAP["open-edx"].config,
+        )
+    )
+    session.add(
+        UserPlugin(
+            user_id=user_id,
+            plugin_id=cast(int, canvas.id),
+            enabled=canvas_on,
+            config=_CANVAS_PLUGIN_MAP["canvas"].config,
+        )
+    )
+    await session.commit()
+
+
 async def _fake_stream() -> AsyncGenerator[str, None]:
     yield f"data: {json.dumps({'done': True})}\n\n"
 
@@ -322,3 +365,38 @@ class TestPluginSwitches:
             await _turn(client, config_id, conversation_uuid, "*")
 
         get_provider.assert_not_called()
+
+    async def _lms_turn(
+        self, client: AsyncClient, session: AsyncSession, user_id: int, openedx_on: bool, canvas_on: bool
+    ) -> tuple[MagicMock, MagicMock]:
+        config_id = await _seed_llm_config(session, user_id)
+        conversation_uuid = await _seed_conversation(session, user_id)
+        await _seed_lms_plugins(session, user_id, openedx_on, canvas_on)
+        provider = _provider()
+        with (
+            patch(
+                "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
+                return_value=_classifier_answering(True),
+            ),
+            patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=provider) as get_provider,
+            patch("sparkth.plugins.chat.routes.completions.get_tool_registry", return_value=_lms_registry()),
+        ):
+            await _turn(client, config_id, conversation_uuid, "*")
+        return provider, get_provider
+
+    async def test_a_switched_off_lms_sends_no_credentials_beside_an_enabled_one(
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
+    ) -> None:
+        provider, _ = await self._lms_turn(client, session, current_user.id or 1, False, True)
+
+        assert "https://lms.example.com" not in provider.system_prompt
+        assert "https://canvas.example.com" in provider.system_prompt
+
+    async def test_an_enabled_plugin_contributes_its_tools_section_and_credentials(
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
+    ) -> None:
+        provider, get_provider = await self._lms_turn(client, session, current_user.id or 1, True, True)
+
+        assert _bound_tool_names(provider) == ["openedx_create_xblock", "canvas_create_course", "stub_build"]
+        assert _section(stub_capability) in _system_prompt(get_provider)
+        assert "https://lms.example.com" in provider.system_prompt

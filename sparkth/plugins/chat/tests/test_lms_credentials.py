@@ -6,6 +6,7 @@ import pytest
 from sparkth.plugins.chat.constants import LMS_RULES
 from sparkth.plugins.chat.lms_credentials import (
     _has_lms_tools,
+    _lms_tool_prefixes,
     build_lms_credentials_message,
 )
 
@@ -24,21 +25,21 @@ def _make_user_plugin(config: dict[str, Any]) -> MagicMock:
 
 class TestHasLmsTools:
     def test_empty_list_returns_false(self) -> None:
-        assert _has_lms_tools([]) is False
+        assert _has_lms_tools([], _lms_tool_prefixes()) is False
 
     def test_non_lms_tools_return_false(self) -> None:
         tools = [_make_tool("google_drive_list"), _make_tool("chat_respond")]
-        assert _has_lms_tools(tools) is False
+        assert _has_lms_tools(tools, _lms_tool_prefixes()) is False
 
     def test_openedx_tool_returns_true(self) -> None:
-        assert _has_lms_tools([_make_tool("openedx_authenticate")]) is True
+        assert _has_lms_tools([_make_tool("openedx_authenticate")], _lms_tool_prefixes()) is True
 
     def test_canvas_tool_returns_true(self) -> None:
-        assert _has_lms_tools([_make_tool("canvas_get_courses")]) is True
+        assert _has_lms_tools([_make_tool("canvas_get_courses")], _lms_tool_prefixes()) is True
 
     def test_mixed_tools_returns_true(self) -> None:
         tools = [_make_tool("some_other_tool"), _make_tool("openedx_create_course_run")]
-        assert _has_lms_tools(tools) is True
+        assert _has_lms_tools(tools, _lms_tool_prefixes()) is True
 
 
 _OPENEDX_PLUGIN_MAP = {
@@ -171,3 +172,20 @@ class TestBuildLmsCredentialsMessage:
         ):
             result = await build_lms_credentials_message(session=mock_session, user_id=1, tools=tools)
         assert result == LMS_RULES
+
+    async def test_credentials_of_an_lms_with_no_bound_tool_are_omitted(self, mock_session: AsyncMock) -> None:
+        tools = [_make_tool("canvas_create_course")]
+        with patch(
+            "sparkth.plugins.chat.lms_credentials.PluginService.get_user_plugin_map",
+            new=AsyncMock(return_value=_BOTH_PLUGIN_MAP),
+        ):
+            result = await build_lms_credentials_message(session=mock_session, user_id=1, tools=tools)
+
+        assert result is not None
+        assert "https://canvas.example.com" in result
+        assert "https://lms.example.com" not in result
+
+    async def test_no_message_when_only_non_lms_tools_remain(self, mock_session: AsyncMock) -> None:
+        result = await build_lms_credentials_message(session=mock_session, user_id=1, tools=[_make_tool("stub_build")])
+
+        assert result is None
