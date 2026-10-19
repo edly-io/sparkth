@@ -108,7 +108,10 @@ describe("ActivityList", () => {
   });
 
   it("removes an activity from the list once it is deleted", async () => {
-    vi.mocked(listActivities).mockResolvedValue([ACTIVITY]);
+    vi.mocked(listActivities).mockResolvedValue([
+      ACTIVITY,
+      { ...ACTIVITY, id: "0192f0c4-0000-7000-8000-000000000002", title: "Cell quiz" },
+    ]);
     vi.mocked(deleteActivity).mockResolvedValue(undefined);
     renderWithIntl(<ActivityList />, pxcEn);
 
@@ -126,6 +129,7 @@ describe("ActivityList", () => {
         screen.queryByRole("heading", { name: "Photosynthesis quiz" }),
       ).not.toBeInTheDocument(),
     );
+    expect(screen.getByRole("heading", { name: "Cell quiz" })).toBeInTheDocument();
     expect(listActivities).toHaveBeenCalledTimes(1);
   });
 

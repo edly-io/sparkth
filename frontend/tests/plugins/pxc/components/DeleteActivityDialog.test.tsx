@@ -25,8 +25,8 @@ const ACTIVITY = {
   preview_url: "/dashboard/pxc?activity=0192f0c4-0000-7000-8000-000000000001",
 };
 
-const PLACED_TEXT = /has been placed in a course/;
-const DRAFT_TEXT = /permanently deletes the activity/;
+const PLACED_TEXT = pxcEn.pxc.deletePlacedBody;
+const DRAFT_TEXT = pxcEn.pxc.deleteDraftBody;
 
 function renderDialog(activity = ACTIVITY) {
   const onClose = vi.fn();
@@ -89,6 +89,16 @@ describe("DeleteActivityDialog", () => {
 
     expect(await screen.findByText("Could not delete the activity.")).toBeInTheDocument();
     expect(onDeleted).not.toHaveBeenCalled();
+  });
+
+  it("ignores Escape while the delete is running", async () => {
+    vi.mocked(deleteActivity).mockReturnValue(new Promise(() => {}));
+    const { onClose } = renderDialog();
+
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await userEvent.keyboard("{Escape}");
+
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it("deletes nothing on cancel", async () => {

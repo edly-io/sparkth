@@ -57,7 +57,7 @@ export function DeleteActivityDialog({
   }
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
+    <Dialog open onOpenChange={(open) => !open && !loading && onClose()}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t("deleteTitle", { title: activity.title })}</DialogTitle>
