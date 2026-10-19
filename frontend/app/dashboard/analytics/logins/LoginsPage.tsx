@@ -15,18 +15,16 @@ import { LineChart } from "@/components/ui/LineChart";
 import { RankedBar } from "@/components/ui/RankedBar";
 import { StatCard } from "@/components/ui/StatCard";
 import type { Messages } from "@/lib/i18n/messages";
-import { PeriodView, useComparison, type PeriodData } from "../PeriodView";
+import { PeriodView, bothPeriods, useComparison, type PeriodData } from "../PeriodView";
 
 type LabelledMethod = keyof Messages["analytics"]["logins"]["methods"];
+
+const load = bothPeriods(fetchLogins);
 
 export default function LoginsPage() {
   const t = useTranslations("analytics.logins");
   return (
-    <PeriodView
-      title={t("title")}
-      subtitle={(range) => t("subtitle", { range })}
-      fetcher={fetchLogins}
-    >
+    <PeriodView title={t("title")} subtitle={(range) => t("subtitle", { range })} load={load}>
       {(data) => <AnalyticsContent {...data} />}
     </PeriodView>
   );

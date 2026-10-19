@@ -9,7 +9,7 @@ so they register in ``__init__``.
 
 from fastapi import APIRouter, status
 
-from sparkth.lib.chat.hooks import CHAT_CAPABILITIES, ChatCapability
+from sparkth.lib.chat.hooks import ChatCapability, register_chat_capability
 from sparkth.lib.content.hooks import ContentContributor, register_content_contributor
 from sparkth.lib.exceptions.handlers import register_exception_handler
 from sparkth.lib.frontend.hooks import (
@@ -87,7 +87,7 @@ class PxcPlugin(SparkthPlugin):
         )
         SIDEBAR_ENTRIES.add_item(self, SidebarEntry(gettext_noop("Activities"), icon="blocks", order=2))
         FRONTEND_APPS.add_item(self, FrontendApp())
-        CHAT_CAPABILITIES.add_item(self, PXC_ACTIVITY_BUILDER)
+        register_chat_capability(self, PXC_ACTIVITY_BUILDER)
         MCP_TOOLS.add_items(
             self,
             [
@@ -98,6 +98,8 @@ class PxcPlugin(SparkthPlugin):
                     pxc_tools.pxc_list_activities,
                     pxc_tools.pxc_get_activity_source,
                     pxc_tools.pxc_update_activity,
+                    pxc_tools.pxc_get_activity_failures,
+                    pxc_tools.pxc_run_activity,
                 )
             ],
         )

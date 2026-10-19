@@ -10,17 +10,24 @@ from types import SimpleNamespace
 import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
+from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.websockets import WebSocketDisconnect
+from uuid6 import uuid7
 
 from sparkth.plugins.pxc.constants import (
     PXC_ACTION_FAILED,
     PXC_ACTION_REJECTED,
     PXC_CLOSE_ACTIVITY_NOT_FOUND,
     PXC_CLOSE_INVALID_TOKEN,
+    PXC_PREVIEW_ACTIVITY_INSTANCE,
+    PXC_PREVIEW_COURSE_ID,
 )
+from sparkth.plugins.pxc.enums import PxcFailureKind
 from sparkth.plugins.pxc.event_bus import EVENT_BUS
-from sparkth.plugins.pxc.tests.conftest import inline_config
-from sparkth.plugins.pxc.tokens import mint_launch_token
+from sparkth.plugins.pxc.models import PxcActionFailure
+from sparkth.plugins.pxc.revisions import publish_revision
+from sparkth.plugins.pxc.tests.conftest import inline_config, staged_activity
+from sparkth.plugins.pxc.tokens import mint_launch_token, pin_launch_token
 
 
 def test_a_socket_without_a_token_is_refused(ws_client: TestClient) -> None:
@@ -268,3 +275,33 @@ def test_the_http_action_route_publishes_to_the_socket(ws_client: TestClient, co
 
         assert response.status_code == 204
         assert socket.receive_json()["name"] == "answer.result"
+
+
+# Failures the socket test's stand-in for insert_action_failure received.
+RECORDED: list[PxcActionFailure] = []
+
+
+async def _record(session: AsyncSession, failure: PxcActionFailure, keep: int) -> None:
+    """Stand in for ``insert_action_failure``, keeping the failure in ``RECORDED``."""
+    RECORDED.append(failure)
+
+
+def test_a_preview_socket_action_that_fails_is_recorded_with_its_revision(
+    ws_client: TestClient, configured_secret: str, throwing_sandbox: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    RECORDED.clear()
+    monkeypatch.setattr("sparkth.plugins.pxc.actions.insert_action_failure", _record)
+    activity_id = str(uuid7())
+    revision = publish_revision(staged_activity("q"), activity_id).name
+    token = mint_launch_token(
+        activity_id, PXC_PREVIEW_ACTIVITY_INSTANCE, PXC_PREVIEW_COURSE_ID, "sparkth-1", "play", configured_secret, 300
+    )
+    pinned = pin_launch_token(token, revision)
+
+    with ws_client.websocket_connect(f"/api/v1/pxc/ws?token={pinned}") as socket:
+        socket.send_json({"action": "answer.submit", "value": [0], "permission": "play"})
+        socket.send_json(CLOSE)
+        assert socket.receive_json()["error"] == PXC_ACTION_FAILED
+
+    [failure] = RECORDED
+    assert (failure.kind, failure.action, failure.revision) == (PxcFailureKind.FAILED, "answer.submit", revision)
