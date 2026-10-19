@@ -9,7 +9,7 @@ from starlette.routing import Match
 
 from sparkth.core.models.user import User
 from sparkth.core.plugins.constants import BEARER_SCHEME
-from sparkth.core.plugins.service import plugins_disabled_for_user
+from sparkth.core.plugins.service import disabled_plugin_names
 from sparkth.core.routes import get_route_plugin_name
 from sparkth.lib.auth import bind_interface_locale, decode_token_username, get_user_by_username
 from sparkth.lib.db import session_scope
@@ -162,7 +162,7 @@ class PluginAccessMiddleware(BaseHTTPMiddleware):
         failure blocks — the gate cannot confirm access, so it must not grant it.
 
         A plugin the registry has never seen, or one the user has no preference on, is not
-        in the disabled set, so it is allowed. See ``plugins_disabled_for_user`` for how the
+        in the disabled set, so it is allowed. See ``disabled_plugin_names`` for how the
         system switch and the user's own preference combine.
 
         Args:
@@ -178,7 +178,7 @@ class PluginAccessMiddleware(BaseHTTPMiddleware):
                 user = await get_user_by_username(username, session)
                 if user is None or user.id is None:
                     return None, True
-                return user, plugin_name not in await plugins_disabled_for_user(user.id, session)
+                return user, plugin_name not in await disabled_plugin_names(user.id, session)
         except (DatabaseError, OperationalError) as e:
             logger.error(f"Database error checking plugin access for user '{username}' and plugin '{plugin_name}': {e}")
             return None, False

@@ -356,9 +356,7 @@ class TestPluginSwitches:
         config_id = await _seed_llm_config(session, current_user.id or 1)
         conversation_uuid = await _seed_conversation(session, current_user.id or 1)
 
-        monkeypatch.setattr(
-            "sparkth.plugins.chat.routes.completions.plugins_disabled_for_user", _raise_operational_error
-        )
+        monkeypatch.setattr("sparkth.plugins.chat.routes.completions.disabled_plugin_names", _raise_operational_error)
 
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as get_provider,

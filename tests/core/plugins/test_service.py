@@ -7,7 +7,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.core.models.user import User
-from sparkth.core.plugins.service import plugins_disabled_for_user
+from sparkth.core.plugins.service import disabled_plugin_names
 
 
 async def _seed_plugin(session: AsyncSession, name: str, enabled: bool, deleted: bool = False) -> Plugin:
@@ -43,7 +43,7 @@ async def _seed_other_user(session: AsyncSession) -> int:
 async def test_a_plugin_switched_off_system_wide_is_disabled(session: AsyncSession, current_user: User) -> None:
     await _seed_plugin(session, "stub", False)
 
-    assert await plugins_disabled_for_user(cast(int, current_user.id), session) == {"stub"}
+    assert await disabled_plugin_names(cast(int, current_user.id), session) == {"stub"}
 
 
 async def test_a_plugin_the_user_switched_off_is_disabled(session: AsyncSession, current_user: User) -> None:
@@ -51,13 +51,13 @@ async def test_a_plugin_the_user_switched_off_is_disabled(session: AsyncSession,
     plugin = await _seed_plugin(session, "stub", True)
     await _seed_preference(session, user_id, plugin, False)
 
-    assert await plugins_disabled_for_user(user_id, session) == {"stub"}
+    assert await disabled_plugin_names(user_id, session) == {"stub"}
 
 
 async def test_a_plugin_with_no_preference_is_not_disabled(session: AsyncSession, current_user: User) -> None:
     await _seed_plugin(session, "stub", True)
 
-    assert await plugins_disabled_for_user(cast(int, current_user.id), session) == set()
+    assert await disabled_plugin_names(cast(int, current_user.id), session) == set()
 
 
 async def test_a_plugin_the_user_switched_on_is_not_disabled(session: AsyncSession, current_user: User) -> None:
@@ -65,18 +65,18 @@ async def test_a_plugin_the_user_switched_on_is_not_disabled(session: AsyncSessi
     plugin = await _seed_plugin(session, "stub", True)
     await _seed_preference(session, user_id, plugin, True)
 
-    assert await plugins_disabled_for_user(user_id, session) == set()
+    assert await disabled_plugin_names(user_id, session) == set()
 
 
 async def test_a_plugin_with_no_registry_row_is_not_disabled(session: AsyncSession, current_user: User) -> None:
-    assert "never-registered" not in await plugins_disabled_for_user(cast(int, current_user.id), session)
+    assert "never-registered" not in await disabled_plugin_names(cast(int, current_user.id), session)
 
 
 async def test_another_users_preference_does_not_disable_it(session: AsyncSession, current_user: User) -> None:
     plugin = await _seed_plugin(session, "stub", True)
     await _seed_preference(session, await _seed_other_user(session), plugin, False)
 
-    assert await plugins_disabled_for_user(cast(int, current_user.id), session) == set()
+    assert await disabled_plugin_names(cast(int, current_user.id), session) == set()
 
 
 async def test_a_deleted_preference_is_ignored(session: AsyncSession, current_user: User) -> None:
@@ -84,10 +84,18 @@ async def test_a_deleted_preference_is_ignored(session: AsyncSession, current_us
     plugin = await _seed_plugin(session, "stub", True)
     await _seed_preference(session, user_id, plugin, False, True)
 
-    assert await plugins_disabled_for_user(user_id, session) == set()
+    assert await disabled_plugin_names(user_id, session) == set()
 
 
 async def test_a_deleted_plugin_is_ignored(session: AsyncSession, current_user: User) -> None:
     await _seed_plugin(session, "stub", False, True)
 
-    assert await plugins_disabled_for_user(cast(int, current_user.id), session) == set()
+    assert await disabled_plugin_names(cast(int, current_user.id), session) == set()
+
+
+async def test_with_no_user_only_the_system_switch_applies(session: AsyncSession, current_user: User) -> None:
+    await _seed_plugin(session, "system-off", False)
+    plugin = await _seed_plugin(session, "user-off", True)
+    await _seed_preference(session, cast(int, current_user.id), plugin, False)
+
+    assert await disabled_plugin_names(None, session) == {"system-off"}
