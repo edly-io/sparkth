@@ -319,6 +319,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/google-drive/analytics/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Drive Documents
+         * @description Return processed Drive documents per bucket and outcome, with summed seconds to final.
+         *
+         *     Sparse: consumers zero-fill. Like every Google Drive route, answers 403 when the caller has
+         *     the plugin disabled.
+         */
+        get: operations["drive_documents_api_v1_google_drive_analytics_documents_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/google-drive/browse": {
         parameters: {
             query?: never;
@@ -1842,6 +1865,20 @@ export interface components {
             next_page_token?: string | null;
         };
         /**
+         * DriveDocumentsPoint
+         * @description Documents that reached ``outcome`` in one bucket. ``bucket`` is the UTC start, ``YYYY-MM-DD``.
+         */
+        DriveDocumentsPoint: {
+            /** Bucket */
+            bucket: string;
+            /** Document Count */
+            document_count: number;
+            /** Outcome */
+            outcome?: string | null;
+            /** Seconds Total */
+            seconds_total: number;
+        };
+        /**
          * DriveFileResponse
          * @description Google Drive file metadata.
          */
@@ -3109,6 +3146,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    drive_documents_api_v1_google_drive_analytics_documents_get: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                bucket?: components["schemas"]["Bucket"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriveDocumentsPoint"][];
+                };
             };
             /** @description Validation Error */
             422: {

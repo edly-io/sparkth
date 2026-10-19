@@ -1,1 +1,1 @@
-"""Google Drive analytics events."""
+"""Google Drive analytics: event schemas and the documents read."""
