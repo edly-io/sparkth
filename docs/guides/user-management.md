@@ -9,6 +9,10 @@ source `cli`) and written in the same transaction as the change. Neither record 
 password or its hash. Changes to the registration allowlist are audited
 too, as `whitelist.entry_added` and `whitelist.entry_removed`.
 
+Signed-in users can also change their own password with `POST /api/v1/user/me/password`, which
+needs their current password. Every attempt records `auth.password_changed`: a success, a wrong
+current password (`failure`), or an account that signs in with Google only (`denied`).
+
 ## Create a user
 
 ```bash
