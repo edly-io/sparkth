@@ -72,7 +72,9 @@ class ChatCompletionRequest(BaseModel):
     max_tokens: int | None = Field(default=None, gt=0)
     stream: bool = Field(default=False)
     tools: list[str] | str | None = Field(
-        default="*", description="Automatically includes all tools. Use 'none' or empty list to disable."
+        default="*",
+        description="Includes every tool of the plugins switched on for the requesting user. "
+        "Use 'none' or empty list to disable.",
     )
     tool_choice: str | None = Field(
         default="auto", description="How to use tools: 'auto', 'none', or specific tool name"

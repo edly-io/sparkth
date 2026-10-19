@@ -179,13 +179,13 @@ class TestBuildLmsCredentialsMessage:
             "sparkth.plugins.chat.lms_credentials.PluginService.get_user_plugin_map",
             new=AsyncMock(return_value=_BOTH_PLUGIN_MAP),
         ):
-            result = await build_lms_credentials_message(session=mock_session, user_id=1, tools=tools)
+            result = await build_lms_credentials_message(mock_session, 1, tools)
 
         assert result is not None
         assert "https://canvas.example.com" in result
         assert "https://lms.example.com" not in result
 
     async def test_no_message_when_only_non_lms_tools_remain(self, mock_session: AsyncMock) -> None:
-        result = await build_lms_credentials_message(session=mock_session, user_id=1, tools=[_make_tool("stub_build")])
+        result = await build_lms_credentials_message(mock_session, 1, [_make_tool("stub_build")])
 
         assert result is None
