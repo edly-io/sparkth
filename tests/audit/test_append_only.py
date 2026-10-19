@@ -23,17 +23,17 @@ async def recorded(session: AsyncSession) -> AuditEvent:
 
 async def test_update_is_rejected(session: AsyncSession, recorded: AuditEvent) -> None:
     with pytest.raises(DBAPIError, match="append-only"):
-        await session.execute(update(AuditEvent).where(col(AuditEvent.id) == recorded.id).values(outcome="denied"))
+        await session.exec(update(AuditEvent).where(col(AuditEvent.id) == recorded.id).values(outcome="denied"))
 
 
 async def test_delete_is_rejected(session: AsyncSession, recorded: AuditEvent) -> None:
     with pytest.raises(DBAPIError, match="append-only"):
-        await session.execute(delete(AuditEvent).where(col(AuditEvent.id) == recorded.id))
+        await session.exec(delete(AuditEvent).where(col(AuditEvent.id) == recorded.id))
 
 
 async def test_whole_table_delete_is_rejected(session: AsyncSession, recorded: AuditEvent) -> None:
     with pytest.raises(DBAPIError, match="append-only"):
-        await session.execute(text("DELETE FROM audit_events"))
+        await (await session.connection()).execute(text("DELETE FROM audit_events"))
 
 
 async def test_inserts_still_work_and_rows_survive(

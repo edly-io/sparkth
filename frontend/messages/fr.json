@@ -26,13 +26,13 @@
       "empty": "Aucune activité de création de cours sur cette période.",
       "conversations": "Conversations démarrées",
       "messages": "Messages envoyés",
-      "failedTurns": "Tours en échec",
+      "failedTurns": "Messages en échec",
       "failedHint": "{rate} des messages · {change}",
       "documentsAttached": "Documents joints",
       "detachedHint": "{count} retirés · {change}",
       "messagesCaption": "Messages envoyés, {range}",
       "conversationsCaption": "Conversations démarrées, {range}",
-      "failedTurnsCaption": "Tours en échec, {range}",
+      "failedTurnsCaption": "Messages en échec, {range}",
       "failureRateCaption": "Taux d'échec, {range}",
       "tools": "Outils utilisés",
       "toolsCaption": "Appels par outil, {range}",
@@ -47,6 +47,7 @@
     },
     "table": {
       "date": "Date",
+      "activity": "Activité",
       "logins": "Connexions",
       "method": "Méthode",
       "previousPeriod": "Période précédente",
@@ -54,11 +55,12 @@
       "calls": "Appels",
       "messages": "Messages",
       "conversations": "Conversations",
-      "failedTurns": "Tours en échec",
+      "failedTurns": "Messages en échec",
       "failureRate": "Taux d'échec"
     },
     "nav": {
       "label": "Vues des analyses",
+      "overview": "Vue d'ensemble",
       "logins": "Connexions",
       "authoring": "Création de cours"
     },
@@ -86,6 +88,14 @@
         "inFuture": "La date de fin ne peut pas être dans le futur.",
         "tooLong": "La période ne peut pas dépasser {days} jours."
       }
+    },
+    "overview": {
+      "title": "Vue d'ensemble",
+      "subtitle": "Activité de la plateforme, {range} (UTC).",
+      "empty": "Aucune activité sur cette période.",
+      "new": "Nouveau sur cette période",
+      "trend": "Activité",
+      "trendCaption": "Connexions et messages envoyés, {range}"
     }
   },
   "home": {

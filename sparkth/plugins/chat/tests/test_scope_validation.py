@@ -22,9 +22,7 @@ from google.genai import errors as google_genai_errors
 from httpx import AsyncClient
 from langchain_google_genai.chat_models import ChatGoogleGenerativeAIError
 from langchain_openai.chat_models.base import OpenAIRefusalError
-from sqlalchemy import func
-from sqlalchemy import select as sa_select
-from sqlmodel import col, select
+from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.i18n import locale_context
@@ -239,10 +237,10 @@ async def _seed_llm_config(session: AsyncSession, user_id: int) -> int:
 
 
 async def _count_user_conversations(session: AsyncSession, user_id: int) -> int:
-    result = await session.execute(
-        sa_select(func.count()).where(Conversation.user_id == user_id)  # type: ignore[arg-type]
+    result = await session.exec(
+        select(func.count()).select_from(Conversation).where(col(Conversation.user_id) == user_id)
     )
-    return result.scalar_one()  # type: ignore[no-any-return]
+    return result.one()
 
 
 async def _seed_conversation(session: AsyncSession, user_id: int) -> str:

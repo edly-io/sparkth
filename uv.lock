@@ -2283,7 +2283,7 @@ argon2 = [
 [[package]]
 name = "pxc-lib"
 version = "0.1.0"
-source = { git = "https://github.com/abdulrafey1/pxc?subdirectory=src%2Fpxc%2Flib&rev=2abe79223b55eb81697faa68133fbd3f450b6ed8#2abe79223b55eb81697faa68133fbd3f450b6ed8" }
+source = { git = "https://github.com/edly-io/pxc?subdirectory=src%2Fpxc%2Flib&rev=18186492513ffda470dfa7c96dc4c84662ef67d5#18186492513ffda470dfa7c96dc4c84662ef67d5" }
 dependencies = [
     { name = "jsonschema" },
     { name = "pydantic" },
@@ -3091,7 +3091,7 @@ requires-dist = [
     { name = "psutil", specifier = ">=6.0.0" },
     { name = "psycopg2-binary", specifier = ">=2.9.11" },
     { name = "pwdlib", extras = ["argon2"], specifier = ">=0.3.0" },
-    { name = "pxc-lib", git = "https://github.com/abdulrafey1/pxc?subdirectory=src%2Fpxc%2Flib&rev=2abe79223b55eb81697faa68133fbd3f450b6ed8" },
+    { name = "pxc-lib", git = "https://github.com/edly-io/pxc?subdirectory=src%2Fpxc%2Flib&rev=18186492513ffda470dfa7c96dc4c84662ef67d5" },
     { name = "pydantic", specifier = ">=2.12.4" },
     { name = "pydantic-settings", specifier = ">=2.12.0" },
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.10.1" },

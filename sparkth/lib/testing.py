@@ -32,6 +32,7 @@ from babel.messages.catalog import Catalog
 from babel.messages.mofile import write_mo
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession as SQLAlchemyAsyncSession
 from sqlmodel import SQLModel, col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -83,7 +84,7 @@ async def _db_schema(monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[None]:
             yield s
 
     @asynccontextmanager
-    async def _open_analytics_session(expire_on_commit: bool = False) -> AsyncGenerator[AsyncSession]:
+    async def _open_analytics_session(expire_on_commit: bool = False) -> AsyncGenerator[SQLAlchemyAsyncSession]:
         nonlocal analytics_schema_created
         if not analytics_schema_created:
             from sparkth.core.analytics.models import analytics_metadata
@@ -151,7 +152,7 @@ def audit_events(session: AsyncSession) -> AuditEventsFetcher:
 
 
 @pytest.fixture
-async def analytics_session() -> AsyncGenerator[AsyncSession, None]:
+async def analytics_session() -> AsyncGenerator[SQLAlchemyAsyncSession, None]:
     """Async session on the shared in-memory **analytics** database (schema from ``_db_schema``).
 
     Mirrors the app ``session`` fixture but bound to the analytics engine. Isolation

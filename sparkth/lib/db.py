@@ -11,6 +11,7 @@ The engine itself stays in :mod:`sparkth.core.db` (app DB) and :mod:`sparkth.cor
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+from sqlalchemy.ext.asyncio import AsyncSession as SQLAlchemyAsyncSession
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 # Imported as modules (not `from … import open_session`) on purpose:
@@ -80,7 +81,7 @@ async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 @asynccontextmanager
-async def analytics_session_scope(expire_on_commit: bool = False) -> AsyncGenerator[AsyncSession, None]:
+async def analytics_session_scope(expire_on_commit: bool = False) -> AsyncGenerator[SQLAlchemyAsyncSession, None]:
     """Open an async session against the **analytics** database as a managed context.
 
     Identical in contract to :func:`session_scope`, but bound to the analytics
@@ -96,14 +97,15 @@ async def analytics_session_scope(expire_on_commit: bool = False) -> AsyncGenera
             Defaults to ``False`` (async-safe).
 
     Yields:
-        An :class:`AsyncSession` bound to the analytics async engine.
+        A SQLAlchemy :class:`~sqlalchemy.ext.asyncio.AsyncSession` bound to the
+        analytics async engine.
     """
     async with analytics_db.open_analytics_session(expire_on_commit=expire_on_commit) as session:
         yield session
 
 
-async def get_analytics_session() -> AsyncGenerator[AsyncSession, None]:
-    """FastAPI dependency providing an :class:`AsyncSession` bound to the analytics database.
+async def get_analytics_session() -> AsyncGenerator[SQLAlchemyAsyncSession, None]:
+    """FastAPI dependency providing a SQLAlchemy ``AsyncSession`` bound to the analytics database.
 
     Delegates to :func:`analytics_session_scope`. Parameterless for the same
     reason as :func:`get_async_session`.

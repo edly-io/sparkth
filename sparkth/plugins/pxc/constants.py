@@ -38,6 +38,9 @@ PXC_PREVIEW_ACTIVITY_INSTANCE = "preview"
 # Prefixed onto a Sparkth user id in a preview token, so it never equals an LMS learner id.
 PXC_PREVIEW_USER_PREFIX = "sparkth-"
 
+# Ends a recorded failure's value or error that was cut at the build error limit.
+PXC_TRUNCATED_MARKER = "…(truncated)"
+
 # The course, activity instance and learner a throwaway run of an activity acts as.
 PXC_SCRATCH_CONTEXT_ID = "smoke"
 
@@ -90,6 +93,4 @@ PXC_ACTIVITY_BUILDER_TITLE = "Interactive PXC activities"
 PXC_ACTIVITY_BUILDER_SCOPE = (PXC_ASSET_DIR / "pxc_activity_building_scope.txt").read_text(encoding="utf-8").strip()
 
 # The activity builder's section of chat's system prompt, inserted as written.
-PXC_ACTIVITY_BUILDER_PROMPT = (
-    (PXC_ASSET_DIR / "pxc_activity_building_system_prompt.txt").read_text(encoding="utf-8").strip()
-)
+PXC_ACTIVITY_BUILDER_PROMPT = (PXC_ASSET_DIR / "pxc_activity_builder_prompt.txt").read_text(encoding="utf-8").strip()
