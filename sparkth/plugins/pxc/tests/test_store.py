@@ -6,11 +6,11 @@ from sqlite3 import Connection
 from uuid import UUID
 
 import pytest
-from sqlalchemy import event
+from sqlalchemy import delete, event
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import StaticPool
-from sqlmodel import SQLModel, select
+from sqlmodel import SQLModel, col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from uuid6 import uuid7
 
@@ -194,3 +194,18 @@ async def test_an_activity_is_not_deleted_when_its_audit_record_fails(
 
     await session.rollback()
     assert (await get_owned_activity(session, activity_id, OWNER)).id == activity_id
+
+
+async def test_deleting_an_activity_already_deleted_is_not_found_and_records_nothing(
+    session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    activity = _activity(OWNER)
+    await insert_activity(session, activity)
+    stale = await get_owned_activity(session, activity.id, OWNER)
+    await session.exec(delete(PxcActivity).where(col(PxcActivity.id) == activity.id))
+    await session.commit()
+
+    with pytest.raises(PxcActivityNotFound):
+        await delete_activity(session, stale)
+
+    assert await audit_events() == []

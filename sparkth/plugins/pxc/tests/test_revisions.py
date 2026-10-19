@@ -76,20 +76,20 @@ def test_an_activity_still_resolves_after_its_data_dir_moves(monkeypatch: pytest
 
 
 def test_removing_an_activity_leaves_no_link_and_no_revision() -> None:
-    activity_id = str(uuid7())
-    publish_revision(staged_activity("first"), activity_id)
+    activity_id = uuid7()
+    publish_revision(staged_activity("first"), str(activity_id))
 
     remove_activity_files(activity_id)
 
-    assert not generated_activity_dir(activity_id).is_symlink()
-    assert not revisions_dir(activity_id).exists()
+    assert not generated_activity_dir(str(activity_id)).is_symlink()
+    assert not revisions_dir(str(activity_id)).exists()
 
 
-def write_state_and_storage(activity_id: str) -> list[Path]:
+def write_state_and_storage(activity_id: UUID) -> list[Path]:
     """Publish an activity and write its state file, sidecars and a learner file; return those paths."""
-    publish_revision(staged_activity("first"), activity_id)
-    state = state_file(activity_id)
-    stored = get_pxc_settings().data_dir / "storage" / activity_id / "answer.txt"
+    publish_revision(staged_activity("first"), str(activity_id))
+    state = state_file(str(activity_id))
+    stored = get_pxc_settings().data_dir / "storage" / str(activity_id) / "answer.txt"
     stored.parent.mkdir(parents=True)
     paths = [state, state.with_name(state.name + "-wal"), state.with_name(state.name + "-shm"), stored]
     for path in paths:
@@ -98,7 +98,7 @@ def write_state_and_storage(activity_id: str) -> list[Path]:
 
 
 def test_removing_an_activity_removes_its_state_and_storage() -> None:
-    removed, kept = str(uuid7()), str(uuid7())
+    removed, kept = uuid7(), uuid7()
     removed_paths = write_state_and_storage(removed)
     kept_paths = write_state_and_storage(kept)
 
@@ -109,8 +109,8 @@ def test_removing_an_activity_removes_its_state_and_storage() -> None:
 
 
 def test_removing_a_plain_directory_activity_removes_the_directory(caplog: pytest.LogCaptureFixture) -> None:
-    activity_id = str(uuid7())
-    directory = generated_activity_dir(activity_id)
+    activity_id = uuid7()
+    directory = generated_activity_dir(str(activity_id))
     directory.mkdir(parents=True)
     (directory / "manifest.json").write_text("{}")
 
@@ -121,9 +121,9 @@ def test_removing_a_plain_directory_activity_removes_the_directory(caplog: pytes
 
 
 def test_removing_an_activity_whose_link_is_gone_still_removes_its_state() -> None:
-    activity_id = str(uuid7())
+    activity_id = uuid7()
     paths = write_state_and_storage(activity_id)
-    generated_activity_dir(activity_id).unlink()
+    generated_activity_dir(str(activity_id)).unlink()
 
     remove_activity_files(activity_id)
 
@@ -131,7 +131,7 @@ def test_removing_an_activity_whose_link_is_gone_still_removes_its_state() -> No
 
 
 def test_removing_an_activity_never_published_logs_nothing(caplog: pytest.LogCaptureFixture) -> None:
-    activity_id = str(uuid7())
+    activity_id = uuid7()
 
     remove_activity_files(activity_id)
 
@@ -141,13 +141,36 @@ def test_removing_an_activity_never_published_logs_nothing(caplog: pytest.LogCap
 def test_a_failed_removal_is_logged_and_not_raised(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    activity_id = str(uuid7())
-    publish_revision(staged_activity("first"), activity_id)
+    activity_id = uuid7()
+    publish_revision(staged_activity("first"), str(activity_id))
     monkeypatch.setattr("sparkth.plugins.pxc.revisions.shutil.rmtree", _rmtree_busy)
 
     remove_activity_files(activity_id)
 
-    assert any(record.levelname == "WARNING" and activity_id in record.getMessage() for record in caplog.records)
+    assert any(record.levelname == "WARNING" and str(activity_id) in record.getMessage() for record in caplog.records)
+
+
+_real_rmtree = shutil.rmtree
+
+
+def _rmtree_unless_revisions(path: Path) -> None:
+    if path.parent.name == "revisions":
+        raise OSError("busy")
+    _real_rmtree(path)
+
+
+def test_one_failed_removal_does_not_stop_the_others(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    activity_id = uuid7()
+    paths = write_state_and_storage(activity_id)
+    monkeypatch.setattr("sparkth.plugins.pxc.revisions.shutil.rmtree", _rmtree_unless_revisions)
+
+    remove_activity_files(activity_id)
+
+    assert not any(path.exists() for path in paths)
+    assert revisions_dir(str(activity_id)).exists()
+    assert any(r.levelname == "WARNING" and str(activity_id) in r.getMessage() for r in caplog.records)
 
 
 def jump_past_every_revision(monkeypatch: pytest.MonkeyPatch) -> None:
