@@ -1,10 +1,9 @@
 import asyncio
 
 import typer
-from sqlmodel import select
 
 from sparkth.cli.audit_context import cli_audit_context
-from sparkth.core.models.user import User
+from sparkth.cli.user_lookup import resolve_user
 from sparkth.lib.db import session_scope
 
 # Aliased to avoid colliding with this module's own ``assign_role`` Typer command.
@@ -46,14 +45,9 @@ async def _assign_role(identifier: str, role: str, scope: str, scope_object_id: 
         raise typer.Exit(code=1) from None
     with cli_audit_context():
         async with session_scope() as session:
-            user = (
-                await session.exec(select(User).where((User.username == identifier) | (User.email == identifier)))
-            ).first()
-            if user is None or user.id is None:
-                typer.secho(f"User '{identifier}' not found!", fg=typer.colors.RED)
-                raise typer.Exit(code=1)
+            user_id, user = await resolve_user(identifier, session)
             try:
-                await grant_role(user.id, role, permission_scope, scope_object_id, session)
+                await grant_role(user_id, role, permission_scope, scope_object_id, session)
             except RoleNotFound:
                 typer.secho(f"Role '{role}' not found!", fg=typer.colors.RED)
                 raise typer.Exit(code=1) from None

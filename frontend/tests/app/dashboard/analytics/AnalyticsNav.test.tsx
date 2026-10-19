@@ -39,10 +39,29 @@ describe("AnalyticsNav", () => {
     expect(screen.getByRole("link", { name: "Logins" })).toHaveAttribute("aria-current", "page");
   });
 
-  it("marks nothing current on an unrelated path", () => {
-    nav.pathname = "/dashboard/analytics";
+  it("marks Overview current only on the analytics index", () => {
+    for (const path of ["/dashboard/analytics", "/dashboard/analytics/"]) {
+      nav.pathname = path;
+      const { unmount } = renderWithIntl(<AnalyticsNav />);
+      expect(screen.getByRole("link", { name: "Overview" })).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+      expect(screen.getByRole("link", { name: "Logins" })).not.toHaveAttribute("aria-current");
+      unmount();
+    }
+    nav.pathname = "/dashboard/analytics/logins";
     renderWithIntl(<AnalyticsNav />);
-    expect(screen.getByRole("link", { name: "Logins" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: "Overview" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("links Overview to the analytics index, keeping the period", () => {
+    nav.search = "range=7d";
+    renderWithIntl(<AnalyticsNav />);
+    expect(screen.getByRole("link", { name: "Overview" })).toHaveAttribute(
+      "href",
+      "/dashboard/analytics?range=7d",
+    );
   });
 
   it("keeps the selected period when switching views", () => {
