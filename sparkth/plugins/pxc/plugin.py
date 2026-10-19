@@ -111,5 +111,6 @@ class PxcPlugin(SparkthPlugin):
                 {"open-edx": build_pxc_block},
                 list_pxc_options,
                 record_pxc_placement,
+                plugin_name=self.name,
             )
         )

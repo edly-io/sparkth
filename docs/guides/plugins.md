@@ -556,7 +556,13 @@ class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
         super().__init__("my-app")
         register_content_contributor(
-            ContentContributor("my-app", "What this contributes", {"open-edx": build_my_openedx_block}, list_my_options)
+            ContentContributor(
+                "my-app",
+                "What this contributes",
+                {"open-edx": build_my_openedx_block},
+                list_my_options,
+                plugin_name=self.name,
+            )
         )
 ```
 

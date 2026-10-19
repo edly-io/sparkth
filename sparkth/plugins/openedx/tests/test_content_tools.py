@@ -39,7 +39,9 @@ def unregister_contributors() -> Iterator[None]:
 @pytest.fixture
 def fake_contributor() -> ContentContributor:
     # Wraps (rather than replaces) build_fake so tests can assert what it was awaited with.
-    contributor = ContentContributor("fake", "A fake contributor", {"open-edx": AsyncMock(wraps=build_fake)})
+    contributor = ContentContributor(
+        "fake", "A fake contributor", {"open-edx": AsyncMock(wraps=build_fake)}, plugin_name="stub-owner"
+    )
     register_content_contributor(contributor)
     return contributor
 
@@ -112,7 +114,9 @@ async def build_broken(course_id: str, option_id: str | None) -> ContentBlock:
 
 
 async def test_a_build_failure_is_reported_as_an_error_dict_and_creates_nothing() -> None:
-    broken = ContentContributor("broken", "A contributor that cannot build", {"open-edx": build_broken})
+    broken = ContentContributor(
+        "broken", "A contributor that cannot build", {"open-edx": build_broken}, plugin_name="stub-owner"
+    )
     register_content_contributor(broken)
 
     with patch("sparkth.plugins.openedx.tools.openedx_create_basic_component", new=AsyncMock()) as create:
@@ -128,7 +132,12 @@ async def build_fake_without_attributes(course_id: str, option_id: str | None) -
 
 
 async def test_a_block_with_no_attributes_skips_the_update_call() -> None:
-    bare = ContentContributor("bare", "A contributor with no attributes", {"open-edx": build_fake_without_attributes})
+    bare = ContentContributor(
+        "bare",
+        "A contributor with no attributes",
+        {"open-edx": build_fake_without_attributes},
+        plugin_name="stub-owner",
+    )
     register_content_contributor(bare)
 
     with (
@@ -154,7 +163,9 @@ async def build_canvas_only(course_id: str, option_id: str | None) -> ContentBlo
 
 
 def _register_canvas_only() -> ContentContributor:
-    contributor = ContentContributor("canvas-only", "A canvas contributor", {"canvas": build_canvas_only})
+    contributor = ContentContributor(
+        "canvas-only", "A canvas contributor", {"canvas": build_canvas_only}, plugin_name="stub-owner"
+    )
     register_content_contributor(contributor)
     return contributor
 
@@ -183,7 +194,9 @@ async def test_a_contributor_with_no_openedx_builder_is_refused_and_creates_noth
 
 async def test_a_contributor_that_targets_nothing_is_refused_and_creates_nothing() -> None:
     """An empty builders map registers cleanly, so this tool is what has to refuse it."""
-    register_content_contributor(ContentContributor("no-targets", "A contributor with no builders", {}))
+    register_content_contributor(
+        ContentContributor("no-targets", "A contributor with no builders", {}, plugin_name="stub-owner")
+    )
 
     with patch("sparkth.plugins.openedx.tools.openedx_create_basic_component", new=AsyncMock()) as create:
         result = await openedx_add_plugin_content(add_args("no-targets"))
@@ -224,7 +237,11 @@ async def list_fake_options() -> list[ContentOption]:
 @pytest.fixture
 def optioned_contributor() -> ContentContributor:
     contributor = ContentContributor(
-        "optioned", "A contributor with options", {"open-edx": AsyncMock(wraps=build_fake)}, list_fake_options
+        "optioned",
+        "A contributor with options",
+        {"open-edx": AsyncMock(wraps=build_fake)},
+        list_fake_options,
+        plugin_name="stub-owner",
     )
     register_content_contributor(contributor)
     return contributor
@@ -288,6 +305,7 @@ def placing_contributor() -> ContentContributor:
         {"open-edx": AsyncMock(wraps=build_fake)},
         list_fake_options,
         AsyncMock(),
+        plugin_name="stub-owner",
     )
     register_content_contributor(contributor)
     return contributor

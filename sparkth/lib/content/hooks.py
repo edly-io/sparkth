@@ -8,18 +8,30 @@ A contributor may also offer *options*, the choices an author picks between, suc
 activity to place. The publisher lists them and hands the chosen option's id back to the
 builder.
 
+A contributor names the plugin that owns it, so a plugin switched off for a user stops
+contributing: a publishing plugin resolves contributors through
+:func:`enabled_content_contributors`, which leaves out those of a disabled plugin.
+
 A plugin registers from its ``SparkthPlugin.__init__``::
 
     register_content_contributor(
-        ContentContributor("pxc", "...", {"open-edx": build_pxc_block}, list_pxc_options)
+        ContentContributor(
+            "pxc", "...", {"open-edx": build_pxc_block}, list_pxc_options, plugin_name=self.name
+        )
     )
 """
 
 from collections.abc import Awaitable, Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from sparkth.core.plugins.service import plugins_disabled_for_user, system_disabled_plugin_names
+from sparkth.lib.auth import current_user_id
 from sparkth.lib.content.exceptions import DuplicateContentContributorError
+from sparkth.lib.db import session_scope
+from sparkth.lib.exceptions.auth import NoAuthenticatedUser
 from sparkth.lib.hooks import SingleNamedItemHook
 from sparkth.lib.log import get_logger
 
@@ -72,6 +84,9 @@ class ContentContributor:
     may write its attributes again with another tool. ``on_placed`` reports a failure by raising
     :class:`~sparkth.lib.content.exceptions.ContentPlacementError`.
 
+    ``plugin_name`` is the name of the plugin that owns this contributor. A contributor is
+    offered to a user only while that plugin is enabled for them.
+
     ``list_options``, ``on_placed`` and the builders must be module-level functions.
     Re-registering an equal contributor is a no-op only if they compare equal across
     constructions, and a closure or bound method would not.
@@ -82,6 +97,7 @@ class ContentContributor:
     builders: Mapping[str, Callable[[str, str | None], Awaitable[ContentBlock]]]
     list_options: Callable[[], Awaitable[list[ContentOption]]] | None = None
     on_placed: Callable[[str | None], Awaitable[None]] | None = None
+    plugin_name: str = field(kw_only=True)
 
 
 # Content contributors, keyed by name. Consumed by LMS-publishing plugins.
@@ -115,3 +131,27 @@ def register_content_contributor(contributor: ContentContributor) -> None:
         raise DuplicateContentContributorError(contributor.name)
     LMS_CONTENT_CONTRIBUTORS.add_item(contributor)
     logger.info("Registered content contributor '%s'", contributor.name)
+
+
+async def _caller_disabled_plugins(session: AsyncSession) -> set[str]:
+    """Plugin names switched off for the current caller.
+
+    With no authenticated user bound, only the system-wide switch can apply.
+    """
+    try:
+        user_id = current_user_id()
+    except NoAuthenticatedUser:
+        logger.info("No authenticated user; applying only the system-wide plugin switch")
+        return await system_disabled_plugin_names(session)
+    return await plugins_disabled_for_user(user_id, session)
+
+
+async def enabled_content_contributors() -> dict[str, ContentContributor]:
+    """The registered contributors the current caller may use, by name.
+
+    Leaves out every contributor whose owning plugin is switched off for the caller, system-wide
+    or by their own preference. A database error propagates.
+    """
+    async with session_scope() as session:
+        disabled = await _caller_disabled_plugins(session)
+    return {name: c for name, c in LMS_CONTENT_CONTRIBUTORS.iter_items() if c.plugin_name not in disabled}
