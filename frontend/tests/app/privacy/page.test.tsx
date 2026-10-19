@@ -9,7 +9,7 @@ describe("PrivacyPolicy", () => {
 
     expect(
       screen.getByText(
-        "Sparkth's use and transfer of information received from Google APIs will adhere to the Google API Services User Data Policy, including the Limited Use requirements.",
+        "Sparkth's use and transfer to any other app of information received from Google APIs will adhere to Google API Services User Data Policy, including the Limited Use requirements.",
       ),
     ).toBeInTheDocument();
   });

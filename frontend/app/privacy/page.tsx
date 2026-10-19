@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 const CONTACT_EMAIL = "support@edly.io";
-const LAST_UPDATED = "September 30, 2026";
+const LAST_UPDATED = "October 19, 2026";
 
 export const metadata: Metadata = {
   title: "Privacy Policy — Sparkth",
@@ -152,7 +152,7 @@ export default function PrivacyPolicy() {
           <h2 className="text-xl font-bold">6. Google API Limited Use</h2>
           <p>
             {
-              "Sparkth's use and transfer of information received from Google APIs will adhere to the Google API Services User Data Policy, including the Limited Use requirements."
+              "Sparkth's use and transfer to any other app of information received from Google APIs will adhere to Google API Services User Data Policy, including the Limited Use requirements."
             }
           </p>
           <p>
