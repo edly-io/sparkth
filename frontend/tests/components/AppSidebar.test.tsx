@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 import AppSidebar from "@/components/AppSidebar";
 
@@ -35,5 +36,18 @@ describe("AppSidebar permission-gated nav", () => {
     render(<AppSidebar user={{ name: "A" }} />);
     expect(screen.queryByText("Analytics")).not.toBeInTheDocument();
     expect(screen.queryByText("Admin")).not.toBeInTheDocument();
+  });
+});
+
+describe("AppSidebar user menu", () => {
+  it("links to the privacy policy", async () => {
+    render(<AppSidebar user={{ name: "Ada" }} />);
+
+    await userEvent.click(screen.getByText("Ada"));
+
+    expect(screen.getByRole("link", { name: "Privacy Policy" })).toHaveAttribute(
+      "href",
+      "/privacy",
+    );
   });
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { FolderSync, RefreshCw, Unplug } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/Button";
@@ -69,6 +70,12 @@ export default function ConnectionStatus({
             <p className="text-sm text-muted-foreground">
               {status?.connected ? `Connected as ${status.email}` : "Not connected"}
             </p>
+            <Link
+              href="/privacy"
+              className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+            >
+              Privacy Policy
+            </Link>
           </div>
         </div>
 

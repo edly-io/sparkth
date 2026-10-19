@@ -201,6 +201,12 @@ export default function RegisterPage() {
             </form>
           </>
         )}
+
+        <p className="mt-6 text-center text-xs text-muted-foreground">
+          <Link href="/privacy" className="hover:text-foreground hover:underline">
+            Privacy Policy
+          </Link>
+        </p>
       </Card>
     </div>
   );
