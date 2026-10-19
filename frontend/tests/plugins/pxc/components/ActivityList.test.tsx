@@ -20,6 +20,7 @@ const ACTIVITY = {
   title: "Photosynthesis quiz",
   description: "Five questions on light reactions",
   created_at: "2026-09-30T12:00:00Z",
+  placed: false,
   preview_url: "/dashboard/pxc?activity=0192f0c4-0000-7000-8000-000000000001",
 };
 
