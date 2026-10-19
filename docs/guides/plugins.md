@@ -515,6 +515,12 @@ A builder is awaited with the destination course id and the chosen option's id. 
 is `None` only for a contributor that offers no options: a publishing plugin refuses to build
 for a contributor that offers options until one is chosen, so nothing is placed by default.
 
+Every contributor names its owning plugin through `plugin_name`, set from `self.name`. A
+publishing tool offers and builds a contributor only while that plugin is on for the caller; a
+switched-off contributor is neither listed nor built. Read the switched-on contributors with
+`enabled_content_contributors()` from `sparkth.lib.content.hooks`. With no authenticated caller,
+only the system-wide switch applies.
+
 `builders` is keyed by the publishing plugin's registered name, so its keys are the LMSes a
 contributor targets. `open-edx` is the one shipped publisher. Register one builder per LMS you
 can produce a block for; a publishing plugin skips any contributor that has no builder for it,

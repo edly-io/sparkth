@@ -3,7 +3,9 @@ from typing import cast
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.core.models.plugin import Plugin
 from sparkth.lib.content.exceptions import ContentBuildError, ContentPlacementError
 from sparkth.lib.content.hooks import (
     LMS_CONTENT_CONTRIBUTORS,
@@ -20,7 +22,7 @@ from sparkth.plugins.openedx.tools import openedx_add_plugin_content, openedx_li
 AUTH = AccessTokenPayload(access_token="t", lms_url="https://lms", studio_url="https://studio")
 
 # Every contributor name this module registers, so the cleanup fixture cannot desync from them.
-CONTRIBUTOR_NAMES = ("fake", "broken", "bare", "canvas-only", "no-targets", "optioned", "placing")
+CONTRIBUTOR_NAMES = ("fake", "broken", "bare", "canvas-only", "no-targets", "optioned", "placing", "off")
 
 
 async def build_fake(course_id: str, option_id: str | None) -> ContentBlock:
@@ -354,3 +356,44 @@ async def test_an_unrecorded_placement_leaves_the_block_without_attributes_and_r
     update.assert_not_awaited()
     assert result["error"]["locator"] == LOCATOR
     assert "database unavailable" in result["error"]["message"]
+
+
+async def record_off_placement(option_id: str | None) -> None:
+    return None
+
+
+@pytest.fixture
+async def switched_off_contributor(session: AsyncSession) -> ContentContributor:
+    contributor = ContentContributor(
+        "off",
+        "A contributor whose plugin is switched off",
+        {"open-edx": AsyncMock(wraps=build_fake)},
+        AsyncMock(wraps=list_fake_options),
+        AsyncMock(wraps=record_off_placement),
+        plugin_name="off-owner",
+    )
+    register_content_contributor(contributor)
+    session.add(Plugin(name="off-owner", enabled=False))
+    await session.commit()
+    return contributor
+
+
+async def test_a_contributor_whose_plugin_is_off_is_not_listed(
+    switched_off_contributor: ContentContributor,
+) -> None:
+    result = await openedx_list_content_contributors()
+
+    assert "off" not in [c["name"] for c in result["response"]["contributors"]]
+    cast(AsyncMock, switched_off_contributor.list_options).assert_not_awaited()
+
+
+async def test_a_contributor_whose_plugin_is_off_is_refused_and_creates_nothing(
+    switched_off_contributor: ContentContributor,
+) -> None:
+    with patch("sparkth.plugins.openedx.tools.openedx_create_basic_component", new=AsyncMock()) as create:
+        result = await openedx_add_plugin_content(add_args("off", "first"))
+
+    assert result == {"error": {"message": "Content contributor 'off' is unavailable: its plugin is switched off"}}
+    create.assert_not_awaited()
+    cast(AsyncMock, switched_off_contributor.builders["open-edx"]).assert_not_awaited()
+    cast(AsyncMock, switched_off_contributor.on_placed).assert_not_awaited()
