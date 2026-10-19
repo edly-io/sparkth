@@ -7,6 +7,7 @@ from uuid import UUID
 
 import pytest
 from sqlalchemy import event
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import StaticPool
 from sqlmodel import SQLModel, select
@@ -14,10 +15,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from uuid6 import uuid7
 
 from sparkth.lib.models import User, utc_now
+from sparkth.lib.testing import AuditEventsFetcher
 from sparkth.plugins.pxc.enums import PreviewPermission, PxcFailureKind
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound
 from sparkth.plugins.pxc.models import PxcActionFailure, PxcActivity
 from sparkth.plugins.pxc.store import (
+    delete_activity,
     get_owned_activity,
     insert_action_failure,
     insert_activity,
@@ -155,3 +158,39 @@ async def test_deleting_an_activity_deletes_its_failures_and_no_others(fk_sessio
 
     remaining = (await fk_session.exec(select(PxcActionFailure.activity_id))).all()
     assert remaining == [second.id]
+
+
+async def _failing_record_event(session: AsyncSession, event: object) -> None:
+    raise SQLAlchemyError("audit unavailable")
+
+
+async def test_deleting_an_activity_removes_its_row_and_records_it(
+    session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    activity = PxcActivity(owner_user_id=OWNER, title="Fractions", description="d", placed_at=utc_now())
+    await insert_activity(session, activity)
+
+    await delete_activity(session, activity)
+
+    assert await list_owned_activities(session, OWNER) == []
+    (event,) = await audit_events()
+    assert (event.category, event.action) == ("pxc", "activity_deleted")
+    assert event.outcome == "success"
+    assert (event.target_type, event.target_id) == ("pxc_activity", str(activity.id))
+    assert event.old_values == {"title": "Fractions", "placed": True}
+    assert event.new_values is None
+
+
+async def test_an_activity_is_not_deleted_when_its_audit_record_fails(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    activity = _activity(OWNER)
+    await insert_activity(session, activity)
+    activity_id = activity.id
+    monkeypatch.setattr("sparkth.plugins.pxc.store.record_event", _failing_record_event)
+
+    with pytest.raises(SQLAlchemyError):
+        await delete_activity(session, activity)
+
+    await session.rollback()
+    assert (await get_owned_activity(session, activity_id, OWNER)).id == activity_id
