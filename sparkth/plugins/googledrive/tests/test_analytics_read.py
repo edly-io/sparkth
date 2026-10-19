@@ -45,8 +45,8 @@ async def test_counts_and_sums_per_outcome(
 
     assert response.status_code == 200
     assert response.json() == [
-        {"bucket": "2026-03-01", "outcome": "ingested", "document_count": 2, "seconds_total": 40},
-        {"bucket": "2026-03-01", "outcome": "scanned_pdf", "document_count": 1, "seconds_total": 4},
+        {"bucket": "2026-03-01", "outcome": "ingested", "ready": True, "document_count": 2, "seconds_total": 40},
+        {"bucket": "2026-03-01", "outcome": "scanned_pdf", "ready": False, "document_count": 1, "seconds_total": 4},
     ]
 
 

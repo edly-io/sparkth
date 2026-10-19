@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from sparkth.lib.analytics import Bucket, read_rollup
-from sparkth.plugins.googledrive.analytics.events import GoogleDriveDocumentProcessed
+from sparkth.plugins.googledrive.analytics.events import READY_OUTCOMES, GoogleDriveDocumentProcessed
 
 
 class DriveDocumentsPoint(BaseModel):
@@ -18,6 +18,8 @@ class DriveDocumentsPoint(BaseModel):
 
     bucket: str
     outcome: str | None = None
+    ready: bool
+    """Whether ``outcome`` leaves the document usable in chat."""
     document_count: int
     seconds_total: int
     """Sum of ``seconds_to_final``."""
@@ -38,4 +40,4 @@ async def get_drive_documents(
         to=to,
         bucket=bucket,
     )
-    return [DriveDocumentsPoint.model_validate(dict(r)) for r in rows]
+    return [DriveDocumentsPoint.model_validate({**r, "ready": r["outcome"] in READY_OUTCOMES}) for r in rows]
