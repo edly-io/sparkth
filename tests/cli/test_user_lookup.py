@@ -34,3 +34,15 @@ async def test_resolve_user_exits_when_no_user_matches(
         await resolve_user("nobody", session)
     assert excinfo.value.exit_code == 1
     assert "User 'nobody' not found!" in capsys.readouterr().out
+
+
+async def test_resolve_user_exits_when_a_username_equals_another_users_email(
+    session: AsyncSession, capsys: pytest.CaptureFixture[str]
+) -> None:
+    session.add(User(name="A", username="alice", email="shared@example.com", hashed_password="x"))
+    session.add(User(name="B", username="shared@example.com", email="b@example.com", hashed_password="x"))
+    await session.flush()
+    with pytest.raises(typer.Exit) as excinfo:
+        await resolve_user("shared@example.com", session)
+    assert excinfo.value.exit_code == 1
+    assert "'shared@example.com' matches more than one user" in capsys.readouterr().out
