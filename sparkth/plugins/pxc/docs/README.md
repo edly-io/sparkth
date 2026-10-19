@@ -57,8 +57,9 @@ and place the activity again.
 ## The Activities page
 
 The plugin adds an "Activities" entry to the sidebar for its dashboard page at `/dashboard/pxc`,
-which lists the signed-in author's own activities. An activity's `preview_url` is
-`/dashboard/pxc?activity=<id>`. The page itself lives in `frontend/plugins/pxc`.
+which lists the signed-in author's own activities and whether each has been placed in a course. An
+activity's `preview_url` is `/dashboard/pxc?activity=<id>`. An author can delete one of their own
+activities. The page itself lives in `frontend/plugins/pxc`.
 
 ## Building an activity from chat
 
@@ -146,8 +147,15 @@ so a token from Sparkth or the LMS (`PXC_LAUNCH_TOKEN_TTL_SECONDS` here, and the
 `SPARKTH_PXC_LAUNCH_TOKEN_TTL_SECONDS`) never outlives the revision it names. A page whose token
 expires is told its session ended and asked to reload.
 
-Two session routes let an author list their activities and open a preview; another user's id is
-a 404. Previews use a fixed course and activity instance, shared by the Student and Author views.
+Three session routes let an author list their activities, open a preview and delete one; another
+user's id is a 404. Previews use a fixed course and activity instance, shared by the Student and
+Author views.
+
+A delete removes the activity's row and its failure rows, then its live link and revisions, its
+learner state file with the `-wal` and `-shm` sidecars, and its storage directory. The row goes
+first, in one transaction with a `pxc.activity_deleted` audit event, so a failed audit record
+leaves the activity whole. Afterwards, launches and LMS blocks that point at the activity return
+404.
 
 ## Building an activity
 
@@ -337,3 +345,15 @@ bounded number of retries.
   reconnects.
 - Revisions replaced within `PXC_REVISION_RETENTION_SECONDS` before an activity's last update stay
   on disk until its next update.
+- "Placed" means placed at least once. Every activity built before placement was recorded shows as
+  placed. A block that course staff pointed at a draft by editing it in the LMS shows as not
+  placed, yet deleting the draft breaks that block.
+- A delete that lands between `pxc_update_activity`'s last ownership check and its link swap
+  leaves the update republishing files for an id with no row. Those files are orphaned: nothing
+  lists or places them, but embeds would load again.
+- A learner request already past its activity check when a delete runs can recreate an empty state
+  file. The file is orphaned and harmless.
+- A file that cannot be removed is logged and left on disk. If the live link survives, learners
+  keep loading the activity, though no row lists or places it.
+- A learner socket open when its activity is deleted does not close cleanly: it fails on its next
+  action, and its reconnect gets the existing "activity missing" close (4404).

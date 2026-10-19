@@ -1,21 +1,68 @@
 """The author's own activities, behind their Sparkth session."""
 
 import json
+import logging
+from collections.abc import Generator
+from functools import partial
+from pathlib import Path
 from typing import cast
 from urllib.parse import parse_qs, urlsplit
 
-from httpx import AsyncClient
+import pytest
+from fastapi import FastAPI
+from httpx import ASGITransport, AsyncClient
 from pxc.lib.permission import Permission
+from sqlalchemy.exc import SQLAlchemyError
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from uuid6 import uuid7
 
+from sparkth.lib.auth import bind_request_user, get_current_user
 from sparkth.lib.models import User, utc_now
-from sparkth.plugins.pxc.activities import activity_dir, generated_activity_dir
+from sparkth.lib.testing import AuditEventsFetcher
+from sparkth.plugins.pxc.activities import activity_dir, generated_activity_dir, state_file
+from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.store import insert_activity
 from sparkth.plugins.pxc.tokens import read_launch_token
 
 OTHER_USER = 2
+
+
+def _rmtree_busy(path: Path) -> None:
+    raise OSError("busy")
+
+
+async def _failing_record_event(session: AsyncSession, event: object) -> None:
+    raise SQLAlchemyError("audit unavailable")
+
+
+def _write_state_and_storage(activity: PxcActivity) -> list[Path]:
+    """Write the activity's learner state file and a storage file; return both paths."""
+    activity_id = str(activity.id)
+    stored = get_pxc_settings().data_dir / "storage" / activity_id / "answer.txt"
+    stored.parent.mkdir(parents=True)
+    paths = [state_file(activity_id), stored]
+    for path in paths:
+        path.write_text("x")
+    return paths
+
+
+async def _authenticate_and_bind(user: User) -> User:
+    bind_request_user(user)
+    return user
+
+
+@pytest.fixture
+def audited_user(client: AsyncClient, current_user: User) -> Generator[User, None, None]:
+    """``current_user`` whose auth override also binds the audit actor, as ``get_current_user`` does."""
+    app = cast(FastAPI, cast(ASGITransport, client._transport).app)
+    app.dependency_overrides[get_current_user] = partial(_authenticate_and_bind, current_user)
+    yield current_user
+
+
+async def _row_exists(session: AsyncSession, activity_id: object) -> bool:
+    return (await session.exec(select(PxcActivity).where(PxcActivity.id == activity_id))).first() is not None
 
 
 async def _insert_owned(session: AsyncSession, owner_user_id: int) -> PxcActivity:
@@ -130,3 +177,114 @@ async def test_an_owned_activity_with_no_files_on_disk_cannot_be_launched(
     response = await client.get(f"/api/v1/pxc/activities/{activity.id}/launch", params={"permission": "play"})
 
     assert response.status_code == 404
+
+
+async def test_an_author_deletes_their_own_activity(
+    client: AsyncClient, session: AsyncSession, audited_user: User, audit_events: AuditEventsFetcher
+) -> None:
+    activity = await _insert_owned(session, cast(int, audited_user.id))
+    _write_built_files(activity)
+    extra = _write_state_and_storage(activity)
+    built = generated_activity_dir(str(activity.id))
+    await session.commit()
+
+    response = await client.delete(f"/api/v1/pxc/activities/{activity.id}")
+
+    assert response.status_code == 204
+    assert not await _row_exists(session, activity.id)
+    assert not any(path.exists() for path in [built, *extra])
+    (event,) = await audit_events()
+    assert event.actor_id == str(audited_user.id)
+
+
+async def test_deleting_twice_is_not_found_the_second_time(
+    client: AsyncClient, session: AsyncSession, current_user: User
+) -> None:
+    activity = await _insert_owned(session, cast(int, current_user.id))
+    await session.commit()
+
+    first = await client.delete(f"/api/v1/pxc/activities/{activity.id}")
+    second = await client.delete(f"/api/v1/pxc/activities/{activity.id}")
+
+    assert (first.status_code, second.status_code) == (204, 404)
+
+
+async def test_another_users_activity_cannot_be_deleted(
+    client: AsyncClient, session: AsyncSession, current_user: User, audit_events: AuditEventsFetcher
+) -> None:
+    activity = await _insert_owned(session, OTHER_USER)
+    _write_built_files(activity)
+    built = generated_activity_dir(str(activity.id))
+    await session.commit()
+
+    response = await client.delete(f"/api/v1/pxc/activities/{activity.id}")
+
+    assert response.status_code == 404
+    assert await _row_exists(session, activity.id)
+    assert built.exists()
+    assert await audit_events() == []
+
+
+async def test_an_unknown_activity_cannot_be_deleted(client: AsyncClient, current_user: User) -> None:
+    response = await client.delete(f"/api/v1/pxc/activities/{uuid7()}")
+
+    assert response.status_code == 404
+
+
+async def test_a_bundled_name_cannot_be_deleted(client: AsyncClient, current_user: User) -> None:
+    response = await client.delete("/api/v1/pxc/activities/mcq")
+
+    assert response.status_code == 422
+
+
+async def test_deleting_needs_a_session(client: AsyncClient) -> None:
+    response = await client.delete(f"/api/v1/pxc/activities/{uuid7()}")
+
+    assert response.status_code == 401
+
+
+async def test_an_activity_with_no_files_on_disk_can_still_be_deleted(
+    client: AsyncClient, session: AsyncSession, current_user: User
+) -> None:
+    activity = await _insert_owned(session, cast(int, current_user.id))
+    await session.commit()
+
+    response = await client.delete(f"/api/v1/pxc/activities/{activity.id}")
+
+    assert response.status_code == 204
+    assert not await _row_exists(session, activity.id)
+
+
+async def test_a_failed_file_removal_still_deletes_the_activity(
+    client: AsyncClient,
+    session: AsyncSession,
+    current_user: User,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    activity = await _insert_owned(session, cast(int, current_user.id))
+    _write_built_files(activity)
+    await session.commit()
+    monkeypatch.setattr("sparkth.plugins.pxc.revisions.shutil.rmtree", _rmtree_busy)
+
+    response = await client.delete(f"/api/v1/pxc/activities/{activity.id}")
+
+    assert response.status_code == 204
+    assert not await _row_exists(session, activity.id)
+    assert any(r.levelno == logging.WARNING and str(activity.id) in r.getMessage() for r in caplog.records)
+
+
+async def test_a_failed_audit_record_keeps_the_activity_and_its_files(
+    client: AsyncClient, session: AsyncSession, current_user: User, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    activity = await _insert_owned(session, cast(int, current_user.id))
+    _write_built_files(activity)
+    built = generated_activity_dir(str(activity.id))
+    await session.commit()
+    monkeypatch.setattr("sparkth.plugins.pxc.store.record_event", _failing_record_event)
+
+    with pytest.raises(SQLAlchemyError):
+        await client.delete(f"/api/v1/pxc/activities/{activity.id}")
+
+    assert await _row_exists(session, activity.id)
+    assert built.exists()
