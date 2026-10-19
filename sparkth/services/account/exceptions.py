@@ -21,4 +21,4 @@ class IncorrectPassword(AccountError):
 
 
 class PasswordNotSet(AccountError):
-    """The account has no password to change: the user signs in with Google only."""
+    """The account has no password to change: the user signs in with SSO only."""

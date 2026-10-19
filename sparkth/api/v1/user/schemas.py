@@ -56,6 +56,6 @@ class PasswordChange(BaseModel):
 
     @field_validator("new_password")
     @classmethod
-    def _check_new_password(cls, v: str) -> str:
-        validate_password_complexity(v)
-        return v
+    def _check_new_password(cls, new_password: str) -> str:
+        validate_password_complexity(new_password)
+        return new_password
