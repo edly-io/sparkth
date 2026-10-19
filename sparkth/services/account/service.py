@@ -22,7 +22,7 @@ async def change_password(session: AsyncSession, user: User, current_password: s
 
     The success is recorded in ``session`` so it commits with the new hash. A refusal
     is recorded with ``record_event_now`` so it survives the error response, then
-    raised: ``PasswordNotSet`` when the account has no password (Google only), and
+    raised: ``PasswordNotSet`` when the account has no password (SSO only), and
     ``IncorrectPassword`` when ``current_password`` does not match. ``new_password``
     is expected to have passed the complexity rules already.
     """
@@ -35,7 +35,7 @@ async def change_password(session: AsyncSession, user: User, current_password: s
                 outcome=AuditOutcome.DENIED, target=target, error_detail="account has no password"
             )
         )
-        raise PasswordNotSet(_("Your account has no password. You sign in with Google."))
+        raise PasswordNotSet(_("SSO based sign-ins cannot update passwords."))
 
     if not verify_password(current_password, user.hashed_password):
         logger.info("Password change rejected for user %s: incorrect current password", user.id)

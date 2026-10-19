@@ -42,23 +42,11 @@ async def _to_schema(user: User, session: AsyncSession) -> UserSchema:
     return UserSchema.model_validate(user).model_copy(update={"is_admin": is_admin})
 
 
-async def _own_row(current_user: User, session: AsyncSession) -> User:
-    """Load the row this request intends to write instead of mutating the injected principal.
-
-    In production ``get_current_user`` resolves the same request-scoped session, so
-    this is a cheap identity-map hit — the re-fetch is a deliberate guard, not an
-    optimisation. Its job is to make a write against an instance that is *not*
-    attached to ``session`` fail loudly, rather than have ``commit()`` persist nothing
-    and the endpoint still answer success; that failure mode shows up neither in the
-    response nor in a test that asserts on it.
-    """
+async def _load_user_for_update(current_user: User, session: AsyncSession) -> User:
+    """Load the current user from ``session`` so changes to it are saved on commit."""
     user = await session.get(User, current_user.id)
     if user is None:
-        # Unreachable while ``get_current_user`` is the only source of a principal —
-        # it already answers 401 when the row is gone. ``HTTPException`` here mirrors
-        # that dependency: an authenticated principal without a row is an
-        # authentication-boundary condition, not a domain error to route through the
-        # exception-handler registry.
+        # get_current_user already rejects missing users, so this should not happen.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("User not found"))
     return user
 
@@ -90,7 +78,7 @@ async def update_user(
     bad input is a 422 before reaching here. An explicit ``null`` language clears the
     preference.
     """
-    user = await _own_row(current_user, session)
+    user = await _load_user_for_update(current_user, session)
 
     for field in update.model_fields_set:
         setattr(user, field, getattr(update, field))
@@ -112,6 +100,6 @@ async def change_user_password(
     A weak new password is a 422 from ``PasswordChange``. A wrong current password
     is a 400, and an account with no password (Google only) a 409.
     """
-    user = await _own_row(current_user, session)
+    user = await _load_user_for_update(current_user, session)
     await change_password(session, user, body.current_password, body.new_password)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
