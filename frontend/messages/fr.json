@@ -123,5 +123,44 @@
     "title": "Vous n'avez pas accès à cette page",
     "message": "Demandez l'accès à un administrateur si nécessaire.",
     "back": "Retour au tableau de bord"
+  },
+  "profile": {
+    "title": "Profil",
+    "subtitle": "Les informations de votre compte, votre nom et votre mot de passe.",
+    "loading": "Chargement de votre profil…",
+    "details": {
+      "heading": "Compte",
+      "username": "Nom d'utilisateur",
+      "email": "E-mail",
+      "emailStatus": "Statut de l'e-mail",
+      "verified": "Vérifié",
+      "unverified": "Non vérifié",
+      "signInMethod": "Méthode de connexion",
+      "methods": {
+        "password": "E-mail et mot de passe",
+        "google": "Google"
+      }
+    },
+    "name": {
+      "heading": "Nom",
+      "label": "Nom",
+      "save": "Enregistrer",
+      "saving": "Enregistrement",
+      "saved": "Votre nom a été mis à jour.",
+      "error": "Impossible de mettre à jour votre nom. Veuillez réessayer."
+    },
+    "password": {
+      "heading": "Mot de passe",
+      "current": "Mot de passe actuel",
+      "new": "Nouveau mot de passe",
+      "confirm": "Confirmez le nouveau mot de passe",
+      "hint": "Au moins 8 caractères, avec une majuscule, un chiffre et un caractère spécial.",
+      "mismatch": "Les nouveaux mots de passe ne correspondent pas.",
+      "submit": "Changer le mot de passe",
+      "submitting": "Modification",
+      "changed": "Votre mot de passe a été changé.",
+      "error": "Impossible de changer votre mot de passe. Veuillez réessayer.",
+      "sso": "Vous vous connectez avec Google, il n'y a donc pas de mot de passe Sparkth à changer."
+    }
   }
 }

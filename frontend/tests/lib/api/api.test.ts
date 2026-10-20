@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   ApiRequestError,
   addWhitelistEntry,
+  changePassword,
   getCurrentUser,
   getGoogleLoginUrl,
   getWhitelist,
@@ -10,6 +11,7 @@ import {
   register,
   removeWhitelistEntry,
   resendVerificationEmail,
+  updateCurrentUser,
   verifyEmail,
 } from "@/lib/api";
 
@@ -253,5 +255,77 @@ describe("getCurrentUser", () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(abortError);
 
     await expect(getCurrentUser("test-token")).rejects.toBe(abortError);
+  });
+});
+
+describe("updateCurrentUser", () => {
+  it("PATCHes /api/v1/user/me with only the fields given and returns the user", async () => {
+    const user = {
+      id: 1,
+      name: "New Name",
+      username: "h",
+      email: "h@example.com",
+      is_admin: false,
+      email_verified: true,
+      has_password: true,
+    };
+    const spy = mockFetch(user);
+
+    const result = await updateCurrentUser("test-token", { name: "New Name" });
+
+    const request = sentRequest(spy);
+    expect(new URL(request.url).pathname).toBe("/api/v1/user/me");
+    expect(request.method).toBe("PATCH");
+    expect(request.headers.get("authorization")).toBe("Bearer test-token");
+    await expect(request.clone().json()).resolves.toEqual({ name: "New Name" });
+    expect(result).toEqual(user);
+  });
+
+  it("maps a rejected name to a name field error", async () => {
+    mockFetch(
+      {
+        detail: [
+          { loc: ["body", "name"], msg: "String should have at least 1 character", type: "x" },
+        ],
+      },
+      422,
+    );
+
+    const error = await updateCurrentUser("test-token", { name: "" }).catch((e: unknown) => e);
+
+    expect((error as ApiRequestError).fieldErrors).toEqual({
+      name: "String should have at least 1 character",
+    });
+  });
+});
+
+describe("changePassword", () => {
+  it("POSTs both passwords to /api/v1/user/me/password and resolves on 204", async () => {
+    const spy = mockFetch(null, 204);
+
+    await expect(
+      changePassword("test-token", { current_password: "old", new_password: "N3w-Password!" }),
+    ).resolves.toBeUndefined();
+
+    const request = sentRequest(spy);
+    expect(new URL(request.url).pathname).toBe("/api/v1/user/me/password");
+    expect(request.method).toBe("POST");
+    expect(request.headers.get("authorization")).toBe("Bearer test-token");
+    await expect(request.clone().json()).resolves.toEqual({
+      current_password: "old",
+      new_password: "N3w-Password!",
+    });
+  });
+
+  it("keeps the status and message of a wrong current password", async () => {
+    mockFetch({ detail: "Your current password is incorrect." }, 400);
+
+    const error = await changePassword("test-token", {
+      current_password: "bad",
+      new_password: "N3w-Password!",
+    }).catch((e: unknown) => e);
+
+    expect((error as ApiRequestError).status).toBe(400);
+    expect((error as ApiRequestError).message).toBe("Your current password is incorrect.");
   });
 });

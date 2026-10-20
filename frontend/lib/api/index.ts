@@ -11,6 +11,7 @@ export {
 } from "./errors";
 export {
   addWhitelistEntry,
+  changePassword,
   getCurrentUser,
   getGoogleLoginUrl,
   getWhitelist,
@@ -18,12 +19,15 @@ export {
   register,
   removeWhitelistEntry,
   resendVerificationEmail,
+  updateCurrentUser,
   verifyEmail,
   type CurrentUser,
   type GoogleAuthUrlResponse,
   type LoginRequest,
   type LoginResponse,
+  type PasswordChange,
   type RegisterRequest,
   type RegisterResponse,
+  type UserUpdate,
   type WhitelistEntry,
 } from "./endpoints";

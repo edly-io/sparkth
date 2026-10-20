@@ -8,6 +8,8 @@ export type RegisterResponse = Schema<"User">;
 export type GoogleAuthUrlResponse = Schema<"GoogleAuthUrl">;
 export type WhitelistEntry = Schema<"WhitelistedEmailResponse">;
 export type CurrentUser = Schema<"User">;
+export type UserUpdate = Schema<"UserUpdate">;
+export type PasswordChange = Schema<"PasswordChange">;
 
 export async function login(data: LoginRequest): Promise<LoginResponse> {
   return call<LoginResponse>(() => api.POST("/api/v1/auth/login", { body: data }));
@@ -65,4 +67,18 @@ export async function resendVerificationEmail(email: string): Promise<void> {
 
 export async function getCurrentUser(token: string): Promise<CurrentUser> {
   return call<CurrentUser>(() => api.GET("/api/v1/user/me", { headers: bearer(token) }));
+}
+
+/** Update the current user's name or language; fields left out keep their stored value. */
+export async function updateCurrentUser(token: string, data: UserUpdate): Promise<CurrentUser> {
+  return call<CurrentUser>(() =>
+    api.PATCH("/api/v1/user/me", { body: data, headers: bearer(token) }),
+  );
+}
+
+/** Change the current user's password, given their current one. Resolves on 204. */
+export async function changePassword(token: string, data: PasswordChange): Promise<void> {
+  return call<void>(() =>
+    api.POST("/api/v1/user/me/password", { body: data, headers: bearer(token) }),
+  );
 }
