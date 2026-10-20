@@ -2,7 +2,7 @@ import asyncio
 import json
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, cast
 
 import aiohttp
@@ -29,11 +29,14 @@ from sparkth.lib.rag import (
 )
 from sparkth.plugins.chat.analytics import (
     AnalyticsAttribution,
+    ChatRagSearchCompleted,
     ExecutedTool,
     StopPoint,
     TurnFailureCause,
     emit_completion,
+    emit_rag_search_completed,
     executed_tools_from,
+    rag_search_event,
     record_turn_failed,
 )
 from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, RAG_CONTEXT_PROMPT, REFUSAL_MESSAGE
@@ -61,6 +64,17 @@ class StreamedCompletion:
     executed_tools: list[ExecutedTool]
     occurred_at: datetime
     stopped_at: StopPoint | None
+
+
+@dataclass(frozen=True)
+class CompletedSearch:
+    """A document search the turn ran, recorded inside the guard and emitted after it.
+
+    ``occurred_at`` is when retrieval returned; nothing else records that moment.
+    """
+
+    event: ChatRagSearchCompleted
+    occurred_at: datetime
 
 
 async def stream_out_of_scope_refusal() -> AsyncGenerator[str, None]:
@@ -202,6 +216,7 @@ class ChatStreamProcessor:
         # keeps the processor constructible without analytics — its own unit tests build
         # it with four arguments and have no request to attribute to.
         self.analytics = analytics
+        self.completed_search: CompletedSearch | None = None
         # A turn is stoppable only when the caller named it and its owner is known; the
         # pair is its key in the live-turns registry. None leaves the stop poll never firing.
         self.stoppable_turn: tuple[str, int] | None = (turn_id, user_id) if turn_id and user_id is not None else None
@@ -368,6 +383,17 @@ class ChatStreamProcessor:
         chunks = await self._retrieve_rag_chunks(query_text, document_ids, bg_session)
         if chunks is None:
             return None
+        if self.analytics is not None:
+            self.completed_search = CompletedSearch(
+                rag_search_event(
+                    self.conversation_uuid,
+                    self.analytics.provider,
+                    chunks_found=len(chunks),
+                    document_count=len(document_ids),
+                    streamed=True,
+                ),
+                datetime.now(timezone.utc),
+            )
 
         rag_context, confirmed_rag_sections = self._build_rag_context(chunks)
         if not rag_context:
@@ -555,6 +581,10 @@ class ChatStreamProcessor:
         task exists. The release sits with the sentinel outside the session, where both run
         however the task ends — including a failure to open the session — and the release
         runs first, so a stream that has closed can no longer be stopped.
+
+        A search the turn ran is emitted here too, after the completion so a failed search write
+        cannot cost the completion's rows, and even when the turn produced no completion (the
+        no-results reply).
         """
         if self.stoppable_turn:
             self.stop_requested = register_turn(*self.stoppable_turn)
@@ -573,18 +603,22 @@ class ChatStreamProcessor:
                 release_turn(*self.stoppable_turn)
             await self._put(None)
 
-        if self.analytics is None or completion is None:
+        if self.analytics is None:
             return
-        await emit_completion(
-            conversation_id=self.conversation_uuid,
-            attribution=self.analytics,
-            model=self.provider.model,
-            rag_used=self.rag_search_required,
-            streamed=True,
-            executed_tools=completion.executed_tools,
-            occurred_at=completion.occurred_at,
-            stopped_at=completion.stopped_at,
-        )
+        if completion is not None:
+            await emit_completion(
+                conversation_id=self.conversation_uuid,
+                attribution=self.analytics,
+                model=self.provider.model,
+                rag_used=self.rag_search_required,
+                streamed=True,
+                executed_tools=completion.executed_tools,
+                occurred_at=completion.occurred_at,
+                stopped_at=completion.stopped_at,
+            )
+        if self.completed_search is not None:
+            search = self.completed_search
+            await emit_rag_search_completed(search.event, self.analytics.actor_id, search.occurred_at)
 
     async def stream(self) -> AsyncGenerator[str, None]:
         """Processing runs on a detached task so a client disconnect (CancelledError on the generator)
