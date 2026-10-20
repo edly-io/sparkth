@@ -299,26 +299,26 @@ class TestDiscoverPluginTools:
     def test_converts_a_contributed_tool_and_records_its_category(self) -> None:
         with patch("sparkth.plugins.chat.tools.MCP_TOOLS") as mcp_tools:
             _stub_hook(mcp_tools, (SparkthPlugin("openedx"), Tool(openedx_create_xblock, category="openedx-course")))
-            tools, categories, _plugins = discover_plugin_tools()
+            registered = discover_plugin_tools()
 
-        assert list(tools) == ["openedx_create_xblock"]
-        assert categories == {"openedx_create_xblock": "openedx-course"}
+        assert list(registered) == ["openedx_create_xblock"]
+        assert registered["openedx_create_xblock"].tool.name == "openedx_create_xblock"
+        assert registered["openedx_create_xblock"].category == "openedx-course"
 
     def test_records_the_plugin_that_contributed_each_tool(self) -> None:
         with patch("sparkth.plugins.chat.tools.MCP_TOOLS") as mcp_tools:
             _stub_hook(mcp_tools, (SparkthPlugin("openedx"), Tool(openedx_create_xblock, category="openedx-course")))
-            _tools, _categories, plugins = discover_plugin_tools()
+            registered = discover_plugin_tools()
 
-        assert plugins == {"openedx_create_xblock": "openedx"}
+        assert registered["openedx_create_xblock"].plugin == "openedx"
 
     def test_chat_own_tools_are_skipped(self) -> None:
         """The registry exposes *other* plugins' tools to the chat agent, never chat's own."""
         with patch("sparkth.plugins.chat.tools.MCP_TOOLS") as mcp_tools:
             _stub_hook(mcp_tools, (SparkthPlugin("chat"), Tool(openedx_create_xblock)))
-            tools, categories, _plugins = discover_plugin_tools()
+            registered = discover_plugin_tools()
 
-        assert tools == {}
-        assert categories == {}
+        assert registered == {}
 
     def test_a_tool_that_fails_conversion_is_skipped_not_fatal(self) -> None:
         """One malformed contribution must not cost the whole registry."""
@@ -327,10 +327,9 @@ class TestDiscoverPluginTools:
             patch("sparkth.plugins.chat.tools.convert_mcp_to_langchain_tool", side_effect=TypeError("bad tool")),
         ):
             _stub_hook(mcp_tools, (SparkthPlugin("openedx"), Tool(openedx_create_xblock)))
-            tools, categories, _plugins = discover_plugin_tools()
+            registered = discover_plugin_tools()
 
-        assert tools == {}
-        assert categories == {}
+        assert registered == {}
 
 
 class TestLazyDiscovery:
