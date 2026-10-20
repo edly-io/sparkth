@@ -12,8 +12,8 @@ beforeEach(() => {
 });
 
 describe("GATED_NAV config", () => {
-  it("declares the analytics and admin entries with their permissions/scopes", () => {
-    expect(GATED_NAV.map((i) => i.key)).toEqual(["analytics", "admin"]);
+  it("declares the analytics, admin and audit entries with their permissions/scopes", () => {
+    expect(GATED_NAV.map((i) => i.key)).toEqual(["analytics", "admin", "audit"]);
     const analytics = GATED_NAV.find((i) => i.key === "analytics")!;
     const admin = GATED_NAV.find((i) => i.key === "admin")!;
     expect(analytics.permission).toBe("analytics.read");
@@ -22,6 +22,10 @@ describe("GATED_NAV config", () => {
     expect(admin.scope).toBe("whitelist");
     expect(admin.route).toBe("admin/whitelist");
     expect(admin.activeKey).toBe("admin");
+    const audit = GATED_NAV.find((i) => i.key === "audit")!;
+    expect(audit.permission).toBe("audit.read");
+    expect(audit.scope).toBeUndefined();
+    expect(audit.route).toBe("audit");
   });
 });
 
