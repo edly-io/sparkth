@@ -1,3 +1,4 @@
+import gc
 from collections.abc import Iterator
 from typing import cast
 
@@ -9,14 +10,15 @@ from sparkth.core.models.user import User
 from sparkth.lib.auth import bind_current_user_id, current_user_id
 from sparkth.lib.content.exceptions import DuplicateContentContributorError
 from sparkth.lib.content.hooks import (
-    LMS_CONTENT_CONTRIBUTORS,
     ContentBlock,
     ContentContributor,
     ContentOption,
     enabled_content_contributors,
     register_content_contributor,
+    registered_content_contributors,
 )
 from sparkth.lib.exceptions.auth import NoAuthenticatedUser
+from sparkth.lib.plugins import SparkthPlugin
 
 
 async def build_openedx_stub(course_id: str, option_id: str | None) -> ContentBlock:
@@ -32,30 +34,46 @@ def _stub_contributor() -> ContentContributor:
         "stub",
         "A stub contributor",
         {"open-edx": build_openedx_stub, "canvas": build_canvas_stub},
-        plugin_name="stub-owner",
     )
 
 
 @pytest.fixture
-def registered() -> Iterator[ContentContributor]:
+def owner() -> Iterator[SparkthPlugin]:
+    """The plugin owning the stub contributor, which the hook holds only while the test does."""
+    plugin = SparkthPlugin("stub-owner")
+    yield plugin
+    del plugin
+    gc.collect()
+
+
+@pytest.fixture
+def registered(owner: SparkthPlugin) -> ContentContributor:
     contributor = _stub_contributor()
-    register_content_contributor(contributor)
-    yield contributor
-    LMS_CONTENT_CONTRIBUTORS.remove("stub")
+    register_content_contributor(owner, contributor)
+    return contributor
 
 
 async def test_registered_contributor_is_resolved_by_name(registered: ContentContributor) -> None:
-    assert LMS_CONTENT_CONTRIBUTORS.get("stub") is registered
+    assert registered_content_contributors()["stub"] is registered
 
 
-async def test_unregistered_name_resolves_to_none() -> None:
-    assert LMS_CONTENT_CONTRIBUTORS.get("absent") is None
+async def test_unregistered_name_resolves_to_nothing() -> None:
+    assert "absent" not in registered_content_contributors()
+
+
+async def test_a_contributor_goes_once_its_plugin_is_collected() -> None:
+    plugin = SparkthPlugin("stub-owner")
+    register_content_contributor(plugin, _stub_contributor())
+
+    del plugin
+    gc.collect()
+
+    assert "stub" not in registered_content_contributors()
 
 
 async def test_each_target_builds_the_block_that_target_expects(registered: ContentContributor) -> None:
     """The point of a builder per target: one contributor, a differently shaped block per LMS."""
-    contributor = LMS_CONTENT_CONTRIBUTORS.get("stub")
-    assert contributor is not None
+    contributor = registered_content_contributors()["stub"]
 
     for_openedx = await contributor.builders["open-edx"]("course-v1:X+Y+Z", None)
     for_canvas = await contributor.builders["canvas"]("course-v1:X+Y+Z", None)
@@ -66,29 +84,42 @@ async def test_each_target_builds_the_block_that_target_expects(registered: Cont
     assert for_canvas.attributes == "<p>course-v1:X+Y+Z</p>"
 
 
-async def test_a_second_contributor_claiming_the_name_is_rejected(registered: ContentContributor) -> None:
+async def test_a_second_contributor_claiming_the_name_is_rejected(
+    registered: ContentContributor, owner: SparkthPlugin
+) -> None:
     with pytest.raises(DuplicateContentContributorError, match="stub"):
-        register_content_contributor(
-            ContentContributor("stub", "Another", {"open-edx": build_openedx_stub}, plugin_name="stub-owner")
-        )
+        register_content_contributor(owner, ContentContributor("stub", "Another", {"open-edx": build_openedx_stub}))
+
+
+async def test_another_plugin_claiming_the_name_is_rejected_even_with_an_equal_contributor(
+    registered: ContentContributor,
+) -> None:
+    # The value cannot tell the owners apart, so it could not say whose switch applies.
+    other = SparkthPlugin("other-owner")
+
+    with pytest.raises(DuplicateContentContributorError, match="stub"):
+        register_content_contributor(other, _stub_contributor())
 
 
 async def test_a_contributor_targeting_fewer_lmses_under_the_same_name_is_rejected(
-    registered: ContentContributor,
+    registered: ContentContributor, owner: SparkthPlugin
 ) -> None:
     """``builders`` is now the discriminator: same name and description, fewer targets, unequal."""
     with pytest.raises(DuplicateContentContributorError, match="stub"):
         register_content_contributor(
-            ContentContributor("stub", "A stub contributor", {"open-edx": build_openedx_stub}, plugin_name="stub-owner")
+            owner, ContentContributor("stub", "A stub contributor", {"open-edx": build_openedx_stub})
         )
 
 
-async def test_re_registering_an_equal_contributor_keeps_the_first(registered: ContentContributor) -> None:
+async def test_another_construction_registering_an_equal_contributor_is_accepted(
+    registered: ContentContributor,
+) -> None:
     # The plugin owning a contributor is constructed more than once in one process — by the
-    # loader and again by its own tests — so each construction re-registers the same value.
-    register_content_contributor(_stub_contributor())
+    # loader and again by its own tests — so each construction registers the same value again.
+    again = SparkthPlugin("stub-owner")
+    register_content_contributor(again, _stub_contributor())
 
-    assert LMS_CONTENT_CONTRIBUTORS.get("stub") is registered
+    assert registered_content_contributors()["stub"] == registered
 
 
 async def list_stub_options() -> list[ContentOption]:
@@ -96,18 +127,18 @@ async def list_stub_options() -> list[ContentOption]:
 
 
 async def test_a_contributor_adding_options_under_the_same_name_is_rejected(
-    registered: ContentContributor,
+    registered: ContentContributor, owner: SparkthPlugin
 ) -> None:
     """Options are part of a contributor's identity, like its builders."""
     with pytest.raises(DuplicateContentContributorError) as caught:
         register_content_contributor(
+            owner,
             ContentContributor(
                 "stub",
                 "A stub contributor",
                 {"open-edx": build_openedx_stub, "canvas": build_canvas_stub},
                 list_stub_options,
-                plugin_name="stub-owner",
-            )
+            ),
         )
 
     assert caught.value.name == "stub"

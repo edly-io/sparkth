@@ -6,7 +6,6 @@ the activity's own configuration, and that constructing the plugin registers it 
 ``LMS_CONTENT_CONTRIBUTORS`` hook.
 """
 
-from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock
@@ -17,7 +16,7 @@ from sqlalchemy.exc import OperationalError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.content.exceptions import ContentBuildError, ContentPlacementError
-from sparkth.lib.content.hooks import LMS_CONTENT_CONTRIBUTORS, ContentOption
+from sparkth.lib.content.hooks import LMS_CONTENT_CONTRIBUTORS, ContentOption, registered_content_contributors
 from sparkth.lib.exceptions.auth import NoAuthenticatedUser
 from sparkth.lib.models import User
 from sparkth.plugins.pxc.activities import generated_activity_dir
@@ -30,16 +29,6 @@ from sparkth.plugins.pxc.runtime import build_runtime, read_state
 from sparkth.plugins.pxc.store import insert_activity
 from sparkth.plugins.pxc.tests.conftest import act_as
 from sparkth.plugins.pxc.tokens import LaunchClaims
-
-
-@pytest.fixture
-def unregistered() -> Iterator[None]:
-    # Importing this module already registered the contributor, so a test asserting that
-    # *construction* registers it has to start from an empty hook. The hook is process-global,
-    # hence the restore.
-    LMS_CONTENT_CONTRIBUTORS.remove("pxc")
-    yield
-    PxcPlugin()
 
 
 async def test_the_block_is_a_pxc_block_naming_the_activity() -> None:
@@ -81,22 +70,21 @@ async def test_a_minted_activity_instance_launches_with_the_activitys_own_config
     assert state["answers"] == ["3", "4", "5"]
 
 
-async def test_constructing_the_plugin_registers_the_contributor(unregistered: None) -> None:
-    PxcPlugin()
+async def test_constructing_the_plugin_registers_the_contributor() -> None:
+    plugin = PxcPlugin()
 
-    assert LMS_CONTENT_CONTRIBUTORS.get("pxc") is not None
+    assert [c.name for owner, c in LMS_CONTENT_CONTRIBUTORS.iter_items() if owner is plugin] == ["pxc"]
 
 
-async def test_constructing_the_plugin_again_keeps_one_registration(unregistered: None) -> None:
+async def test_constructing_the_plugin_again_registers_the_same_contributor() -> None:
     # The loader constructs the plugin and these tests construct their own instances, so every
-    # construction re-registers the same contributor rather than colliding with itself.
-    PxcPlugin()
-    registered = LMS_CONTENT_CONTRIBUTORS.get("pxc")
+    # construction registers the same contributor again rather than colliding with itself.
+    first = PxcPlugin()
+    second = PxcPlugin()
 
-    PxcPlugin()
-
-    assert registered is not None
-    assert LMS_CONTENT_CONTRIBUTORS.get("pxc") is registered
+    owned = [c for owner, c in LMS_CONTENT_CONTRIBUTORS.iter_items() if owner is first or owner is second]
+    assert len(owned) == 2
+    assert owned[0] == owned[1] == registered_content_contributors()["pxc"]
 
 
 async def test_no_chosen_activity_places_nothing() -> None:
@@ -249,8 +237,7 @@ async def test_an_option_that_is_neither_bundled_nor_a_uuid_is_refused(authors: 
 
 async def record_registered_placement(option_id: str) -> None:
     """Record a placement through the contributor the plugin registered, as a publishing tool does."""
-    contributor = LMS_CONTENT_CONTRIBUTORS.get("pxc")
-    assert contributor is not None
+    contributor = registered_content_contributors()["pxc"]
     assert contributor.on_placed is not None
     await contributor.on_placed(option_id)
 

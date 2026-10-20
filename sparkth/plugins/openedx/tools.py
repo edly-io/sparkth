@@ -8,10 +8,10 @@ import aiohttp
 
 from sparkth.lib.content.exceptions import ContentBuildError, ContentPlacementError
 from sparkth.lib.content.hooks import (
-    LMS_CONTENT_CONTRIBUTORS,
     ContentBlock,
     ContentContributor,
     enabled_content_contributors,
+    registered_content_contributors,
 )
 from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
@@ -887,7 +887,7 @@ async def _resolve_enabled_contributor(name: str) -> ContentContributor | dict[s
     contributor = (await enabled_content_contributors()).get(name)
     if contributor is not None:
         return contributor
-    if LMS_CONTENT_CONTRIBUTORS.get(name) is not None:
+    if name in registered_content_contributors():
         logger.info("Refused content contributor %r: its plugin is switched off", name)
         return {"error": {"message": f"Content contributor {name!r} is unavailable: its plugin is switched off"}}
     return {"error": {"message": f"Unknown content contributor: {name}"}}

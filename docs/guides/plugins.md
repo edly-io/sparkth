@@ -521,18 +521,18 @@ and the tools they run. On `/ai/mcp` nothing is bound, so the call raises
 A *content contributor* lets a plugin that owns content (e.g. a course-generation plugin)
 hand off one piece of it to a plugin that publishes to an LMS, without either plugin importing
 the other. The owning plugin registers a `ContentContributor` — a name, a human-facing
-description, and a map of builders — with `register_content_contributor` from
+description, and a map of builders — with `register_content_contributor(self, contributor)` from
 `sparkth.lib.content.hooks`. A publishing plugin resolves a contributor **by name** and awaits
 the builder registered under its own plugin name to get back the `ContentBlock` to create.
 A builder is awaited with the destination course id and the chosen option's id. The option id
 is `None` only for a contributor that offers no options: a publishing plugin refuses to build
 for a contributor that offers options until one is chosen, so nothing is placed by default.
 
-Every contributor names its owning plugin through `plugin_name`, set from `self.name`. A
-publishing tool offers and builds a contributor only while that plugin is on for the caller; a
-switched-off contributor is neither listed nor built. Read the switched-on contributors with
-`enabled_content_contributors()` from `sparkth.lib.content.hooks`. With no authenticated caller,
-only the system-wide switch applies.
+The hook is keyed by the registering plugin, one contributor per plugin. A publishing tool offers
+and builds a contributor only while that plugin is on for the caller; a switched-off contributor
+is neither listed nor built. Read the switched-on contributors with
+`enabled_content_contributors()`, and every registered one with `registered_content_contributors()`,
+from `sparkth.lib.content.hooks`. With no authenticated caller, only the system-wide switch applies.
 
 `builders` is keyed by the publishing plugin's registered name, so its keys are the LMSes a
 contributor targets. `open-edx` is the one shipped publisher. Register one builder per LMS you
@@ -550,7 +550,7 @@ to the builder as `option_id`. With `list_options` left `None`, a publishing too
 option id. Options that depend on the caller read the caller with
 `sparkth.lib.auth.current_user_id()`. The builder must re-check the chosen id and never trust that
 it came from the list. `list_options` and the builders must be module-level functions, because
-equality is what makes re-registration a no-op.
+equality is what lets each construction of a plugin register its contributor again.
 
 ```python
 # sparkth/plugins/myappplugin/plugin.py
@@ -575,22 +575,19 @@ class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
         super().__init__("my-app")
         register_content_contributor(
+            self,
             ContentContributor(
-                "my-app",
-                "What this contributes",
-                {"open-edx": build_my_openedx_block},
-                list_my_options,
-                plugin_name=self.name,
-            )
+                "my-app", "What this contributes", {"open-edx": build_my_openedx_block}, list_my_options
+            ),
         )
 ```
 
-Register through `register_content_contributor`, not `LMS_CONTENT_CONTRIBUTORS.add_item`. The
-hook is keyed by name rather than by plugin instance, and a plugin is constructed more than
-once in one process — the loader builds it, and its own tests build their own instances — so
-each construction re-registers the same contributor. The helper treats an equal re-registration
-as a no-op and raises `DuplicateContentContributorError` only when a *different* contributor
-claims a registered name, which is the collision worth failing on.
+Register through `register_content_contributor`, not `LMS_CONTENT_CONTRIBUTORS.add_item`. A
+plugin is constructed more than once in one process — the loader builds it, and its own tests
+build their own instances — so each construction registers the same contributor again. The
+helper accepts an equal contributor from a plugin of the same name, and raises
+`DuplicateContentContributorError` when a contributor claims a registered name with a different
+value or from a different plugin, which is the collision worth failing on.
 
 If a builder cannot produce its block, it reports that by raising
 `sparkth.lib.content.exceptions.ContentBuildError` — not by returning a placeholder block or
