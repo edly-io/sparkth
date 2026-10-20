@@ -7,7 +7,6 @@ import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.plugin import Plugin, UserPlugin
-from sparkth.core.models.user import User
 from sparkth.lib.auth import bind_current_user_id
 from sparkth.lib.content.exceptions import ContentBuildError, ContentPlacementError
 from sparkth.lib.content.hooks import (
@@ -18,6 +17,7 @@ from sparkth.lib.content.hooks import (
 )
 from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import LMSRequestError
+from sparkth.lib.models import User
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.plugins.openedx.schemas import AccessTokenPayload, AddPluginContentArgs
 from sparkth.plugins.openedx.tools import openedx_add_plugin_content, openedx_list_content_contributors
