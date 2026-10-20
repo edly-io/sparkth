@@ -8,14 +8,18 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.core.models.user import User
 from sparkth.lib.auth import bind_current_user_id, current_user_id
-from sparkth.lib.content.exceptions import DuplicateContentContributorError
+from sparkth.lib.content.exceptions import (
+    ContentContributorUnavailableError,
+    DuplicateContentContributorError,
+    UnknownContentContributorError,
+)
 from sparkth.lib.content.hooks import (
     ContentBlock,
     ContentContributor,
     ContentOption,
+    enabled_content_contributor,
     enabled_content_contributors,
     register_content_contributor,
-    registered_content_contributors,
 )
 from sparkth.lib.exceptions.auth import NoAuthenticatedUser
 from sparkth.lib.plugins import SparkthPlugin
@@ -53,12 +57,15 @@ def registered(owner: SparkthPlugin) -> ContentContributor:
     return contributor
 
 
-async def test_registered_contributor_is_resolved_by_name(registered: ContentContributor) -> None:
-    assert registered_content_contributors()["stub"] is registered
+async def test_registered_contributor_is_resolved_by_name(
+    registered: ContentContributor, session: AsyncSession
+) -> None:
+    assert await enabled_content_contributor("stub") is registered
 
 
-async def test_unregistered_name_resolves_to_nothing() -> None:
-    assert "absent" not in registered_content_contributors()
+async def test_an_unregistered_name_is_unknown() -> None:
+    with pytest.raises(UnknownContentContributorError, match="absent"):
+        await enabled_content_contributor("absent")
 
 
 async def test_a_contributor_goes_once_its_plugin_is_collected() -> None:
@@ -68,15 +75,14 @@ async def test_a_contributor_goes_once_its_plugin_is_collected() -> None:
     del plugin
     gc.collect()
 
-    assert "stub" not in registered_content_contributors()
+    with pytest.raises(UnknownContentContributorError):
+        await enabled_content_contributor("stub")
 
 
 async def test_each_target_builds_the_block_that_target_expects(registered: ContentContributor) -> None:
     """The point of a builder per target: one contributor, a differently shaped block per LMS."""
-    contributor = registered_content_contributors()["stub"]
-
-    for_openedx = await contributor.builders["open-edx"]("course-v1:X+Y+Z", None)
-    for_canvas = await contributor.builders["canvas"]("course-v1:X+Y+Z", None)
+    for_openedx = await registered.builders["open-edx"]("course-v1:X+Y+Z", None)
+    for_canvas = await registered.builders["canvas"]("course-v1:X+Y+Z", None)
 
     assert (for_openedx.title, for_openedx.kind) == ("A Stub", "stub")
     assert for_openedx.attributes == {"course": "course-v1:X+Y+Z"}
@@ -112,14 +118,14 @@ async def test_a_contributor_targeting_fewer_lmses_under_the_same_name_is_reject
 
 
 async def test_another_construction_registering_an_equal_contributor_is_accepted(
-    registered: ContentContributor,
+    registered: ContentContributor, session: AsyncSession
 ) -> None:
     # The plugin owning a contributor is constructed more than once in one process — by the
     # loader and again by its own tests — so each construction registers the same value again.
     again = SparkthPlugin("stub-owner")
     register_content_contributor(again, _stub_contributor())
 
-    assert registered_content_contributors()["stub"] == registered
+    assert await enabled_content_contributor("stub") == registered
 
 
 async def list_stub_options() -> list[ContentOption]:
@@ -208,3 +214,25 @@ async def test_with_no_bound_user_a_users_preference_has_no_effect(
     await session.commit()
 
     assert "stub" in await enabled_content_contributors()
+
+
+async def test_a_named_contributor_whose_plugin_is_off_system_wide_is_unavailable(
+    registered: ContentContributor, session: AsyncSession
+) -> None:
+    await _seed_owner(session, False)
+
+    with pytest.raises(ContentContributorUnavailableError, match="stub"):
+        await enabled_content_contributor("stub")
+
+
+async def test_a_named_contributor_whose_plugin_the_user_switched_off_is_unavailable(
+    registered: ContentContributor, session: AsyncSession
+) -> None:
+    plugin = await _seed_owner(session)
+    user = await _seed_user(session)
+    session.add(UserPlugin(user_id=cast(int, user.id), plugin_id=cast(int, plugin.id), enabled=False))
+    await session.commit()
+    bind_current_user_id(1)
+
+    with pytest.raises(ContentContributorUnavailableError, match="stub"):
+        await enabled_content_contributor("stub")

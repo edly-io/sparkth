@@ -16,7 +16,7 @@ from sqlalchemy.exc import OperationalError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.content.exceptions import ContentBuildError, ContentPlacementError
-from sparkth.lib.content.hooks import LMS_CONTENT_CONTRIBUTORS, ContentOption, registered_content_contributors
+from sparkth.lib.content.hooks import LMS_CONTENT_CONTRIBUTORS, ContentOption
 from sparkth.lib.exceptions.auth import NoAuthenticatedUser
 from sparkth.lib.models import User
 from sparkth.plugins.pxc.activities import generated_activity_dir
@@ -84,7 +84,7 @@ async def test_constructing_the_plugin_again_registers_the_same_contributor() ->
 
     owned = [c for owner, c in LMS_CONTENT_CONTRIBUTORS.iter_items() if owner is first or owner is second]
     assert len(owned) == 2
-    assert owned[0] == owned[1] == registered_content_contributors()["pxc"]
+    assert owned[0] == owned[1]
 
 
 async def test_no_chosen_activity_places_nothing() -> None:
@@ -237,7 +237,7 @@ async def test_an_option_that_is_neither_bundled_nor_a_uuid_is_refused(authors: 
 
 async def record_registered_placement(option_id: str) -> None:
     """Record a placement through the contributor the plugin registered, as a publishing tool does."""
-    contributor = registered_content_contributors()["pxc"]
+    contributor = next(c for _owner, c in LMS_CONTENT_CONTRIBUTORS.iter_items() if c.name == "pxc")
     assert contributor.on_placed is not None
     await contributor.on_placed(option_id)
 

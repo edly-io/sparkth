@@ -531,8 +531,10 @@ for a contributor that offers options until one is chosen, so nothing is placed 
 The hook is keyed by the registering plugin, one contributor per plugin. A publishing tool offers
 and builds a contributor only while that plugin is on for the caller; a switched-off contributor
 is neither listed nor built. Read the switched-on contributors with
-`enabled_content_contributors()`, and every registered one with `registered_content_contributors()`,
-from `sparkth.lib.content.hooks`. With no authenticated caller, only the system-wide switch applies.
+`enabled_content_contributors()` from `sparkth.lib.content.hooks`, or one by name with
+`enabled_content_contributor(name)`. It raises `UnknownContentContributorError` for a name nobody
+registered and `ContentContributorUnavailableError` when the plugin is switched off, both from
+`sparkth.lib.content.exceptions`. With no authenticated caller, only the system-wide switch applies.
 
 `builders` is keyed by the publishing plugin's registered name, so its keys are the LMSes a
 contributor targets. `open-edx` is the one shipped publisher. Register one builder per LMS you

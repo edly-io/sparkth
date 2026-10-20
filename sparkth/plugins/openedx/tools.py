@@ -6,12 +6,17 @@ from urllib.parse import quote
 
 import aiohttp
 
-from sparkth.lib.content.exceptions import ContentBuildError, ContentPlacementError
+from sparkth.lib.content.exceptions import (
+    ContentBuildError,
+    ContentContributorUnavailableError,
+    ContentPlacementError,
+    UnknownContentContributorError,
+)
 from sparkth.lib.content.hooks import (
     ContentBlock,
     ContentContributor,
+    enabled_content_contributor,
     enabled_content_contributors,
-    registered_content_contributors,
 )
 from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
@@ -882,17 +887,6 @@ async def openedx_list_content_contributors() -> dict[str, dict[str, list[dict[s
     return {"response": {"contributors": contributors}}
 
 
-async def _resolve_enabled_contributor(name: str) -> ContentContributor | dict[str, Any]:
-    """Return the named contributor if its plugin is on for the caller, else the tool's error dict."""
-    contributor = (await enabled_content_contributors()).get(name)
-    if contributor is not None:
-        return contributor
-    if name in registered_content_contributors():
-        logger.info("Refused content contributor %r: its plugin is switched off", name)
-        return {"error": {"message": f"Content contributor {name!r} is unavailable: its plugin is switched off"}}
-    return {"error": {"message": f"Unknown content contributor: {name}"}}
-
-
 def _refuse_misused_option(payload: AddPluginContentArgs, contributor: ContentContributor) -> dict[str, Any] | None:
     """Return the tool's error dict when ``option_id`` does not fit the contributor's options, else None."""
     if payload.option_id is not None and contributor.list_options is None:
@@ -952,9 +946,13 @@ async def openedx_add_plugin_content(payload: AddPluginContentArgs) -> dict[str,
             `locator` when the contributor could not record the placement: that block has no
             attributes and is the caller's to delete before placing the content again.
     """
-    contributor = await _resolve_enabled_contributor(payload.contributor)
-    if isinstance(contributor, dict):
-        return contributor
+    try:
+        contributor = await enabled_content_contributor(payload.contributor)
+    except UnknownContentContributorError as err:
+        return {"error": {"message": str(err)}}
+    except ContentContributorUnavailableError as err:
+        logger.info("Refused content contributor %r: its plugin is switched off", payload.contributor)
+        return {"error": {"message": str(err)}}
 
     builder = contributor.builders.get(OPENEDX_PLUGIN_NAME)
     if builder is None:

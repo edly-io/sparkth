@@ -26,7 +26,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.plugins.service import disabled_plugin_names
 from sparkth.lib.auth import current_user_id
-from sparkth.lib.content.exceptions import DuplicateContentContributorError
+from sparkth.lib.content.exceptions import (
+    ContentContributorUnavailableError,
+    DuplicateContentContributorError,
+    UnknownContentContributorError,
+)
 from sparkth.lib.db import session_scope
 from sparkth.lib.exceptions.auth import NoAuthenticatedUser
 from sparkth.lib.hooks import PluginHook
@@ -131,14 +135,6 @@ def register_content_contributor(plugin: SparkthPlugin, contributor: ContentCont
     logger.info("Registered content contributor '%s' for plugin '%s'", contributor.name, plugin.name)
 
 
-def registered_content_contributors() -> dict[str, ContentContributor]:
-    """Every registered contributor by name, whether or not its plugin is switched on.
-
-    The equal copies that repeated constructions of one plugin register fold into one.
-    """
-    return {contributor.name: contributor for _owner, contributor in LMS_CONTENT_CONTRIBUTORS.iter_items()}
-
-
 async def _caller_disabled_plugins(session: AsyncSession) -> set[str]:
     """Plugin names switched off for the current caller.
 
@@ -162,3 +158,23 @@ async def enabled_content_contributors() -> dict[str, ContentContributor]:
     async with session_scope() as session:
         disabled = await _caller_disabled_plugins(session)
     return {c.name: c for owner, c in LMS_CONTENT_CONTRIBUTORS.iter_items() if owner.name not in disabled}
+
+
+async def enabled_content_contributor(name: str) -> ContentContributor:
+    """The contributor registered as ``name``, if its plugin is switched on for the current caller.
+
+    The switches are read only once the name is found. A database error propagates.
+
+    Raises:
+        UnknownContentContributorError: No contributor is registered as ``name``.
+        ContentContributorUnavailableError: Its plugin is switched off for the caller.
+    """
+    owned = next(((owner, c) for owner, c in LMS_CONTENT_CONTRIBUTORS.iter_items() if c.name == name), None)
+    if owned is None:
+        raise UnknownContentContributorError(name)
+    owner, contributor = owned
+    async with session_scope() as session:
+        disabled = await _caller_disabled_plugins(session)
+    if owner.name in disabled:
+        raise ContentContributorUnavailableError(name)
+    return contributor
