@@ -23,7 +23,7 @@ from sparkth.lib.llm import (
 )
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
-from sparkth.lib.plugins import disabled_plugin_names
+from sparkth.lib.plugins import get_disabled_plugins
 from sparkth.plugins.chat.analytics import (
     ChatAttachmentAnalytics,
     ChatClassifierAnalytics,
@@ -147,6 +147,7 @@ async def chat_completion(
     service: ChatService = Depends(get_chat_service),
     llm_service: LLMConfigService = Depends(get_llm_service),
     config: ChatSettings = Depends(get_chat_settings),
+    disabled_plugins: set[str] = Depends(get_disabled_plugins),
 ) -> Any:
     user_id: int = cast(int, current_user.id)
     try:
@@ -193,8 +194,7 @@ async def chat_completion(
         provider=provider_name,
         actor_id=str(user_id),
     )
-    # Read once per turn: the tool filter and the capability list share one set of switched-off plugins.
-    disabled_plugins = await disabled_plugin_names(user_id, session)
+    # The tool filter and the capability list share one set of switched-off plugins.
     capabilities = enabled_capabilities(disabled_plugins)
     scope_classifier = MessageScopeClassifier(capabilities, provider_name, api_key, user_id, classifier_analytics)
 

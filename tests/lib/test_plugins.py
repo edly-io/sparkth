@@ -33,6 +33,7 @@ class TestPluginsPublicApi:
             "PluginDisabledError",
             "UserPluginResponse",
             "disabled_plugin_names",
+            "get_disabled_plugins",
         }
 
 
