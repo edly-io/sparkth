@@ -1,7 +1,8 @@
 """Value objects for reading the audit trail: the filter set, one row as the API
-shows it, and a page of rows."""
+shows it, a page of rows, and the export formats."""
 
 from datetime import datetime
+from enum import StrEnum
 from typing import Any, Self
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
@@ -9,6 +10,13 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validato
 from sparkth.lib.audit.context import AuditSource
 from sparkth.lib.audit.events import AuditOutcome
 from sparkth.services.audit_log.constants import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
+
+
+class ExportFormat(StrEnum):
+    """Machine-readable shapes an export can stream as."""
+
+    CSV = "csv"
+    JSONL = "jsonl"
 
 
 class AuditEventQuery(BaseModel):
@@ -43,6 +51,12 @@ class AuditEventPageQuery(AuditEventQuery):
 
     limit: int = Field(default=DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE)
     before_id: int | None = Field(default=None, ge=1)
+
+
+class AuditEventExportQuery(AuditEventQuery):
+    """The filters plus the shape the export streams as."""
+
+    export_format: ExportFormat = Field(default=ExportFormat.CSV, alias="format")
 
 
 class AuditEventRecord(BaseModel):

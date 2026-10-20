@@ -1,10 +1,15 @@
 """Administrators read the audit trail through the REST API: a filtered, paginated
-listing and the categories it can be filtered by, gated by ``audit.read``.
+listing, the categories it can be filtered by, and a streamed CSV / JSON Lines export,
+all gated by ``audit.read``.
 Authored with LLM (Claude) assistance."""
 
+import csv
+import io
+import json
 from datetime import datetime, timedelta, timezone
 from typing import cast
 
+import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -13,7 +18,7 @@ from sparkth.core.models.user import User
 from sparkth.lib.audit import record_event
 from sparkth.lib.audit.context import UserActor
 from sparkth.lib.audit.events import AuditOutcome, AuditTarget, LoginAuditEvent, WhitelistEntryAddedAuditEvent
-from sparkth.lib.testing import grant_global_permission
+from sparkth.lib.testing import AuditEventsFetcher, grant_global_permission
 
 NOW = datetime.now(timezone.utc)
 ALICE = UserActor(id="7", label="alice")
@@ -49,6 +54,7 @@ async def _grant(session: AsyncSession, user: User) -> None:
 async def test_listing_requires_audit_read(client: AsyncClient, current_user: User) -> None:
     assert (await client.get("/api/v1/audit/events")).status_code == 403
     assert (await client.get("/api/v1/audit/categories")).status_code == 403
+    assert (await client.get("/api/v1/audit/events/export")).status_code == 403
 
 
 async def test_lists_newest_first_without_canonical_bytes(
@@ -136,3 +142,62 @@ async def test_lists_the_registered_categories(client: AsyncClient, session: Asy
     categories = response.json()
     assert {"audit", "auth", "role", "tool", "whitelist"} <= set(categories)
     assert categories == sorted(set(categories))
+
+
+async def test_exports_csv_and_records_the_export(
+    client: AsyncClient, session: AsyncSession, current_user: User, audit_events: AuditEventsFetcher
+) -> None:
+    await _grant(session, current_user)
+    await _seed(session)
+
+    response = await client.get("/api/v1/audit/events/export", params={"category": "auth"})
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/csv")
+    assert "attachment" in response.headers["content-disposition"]
+    rows = list(csv.DictReader(io.StringIO(response.text)))
+    assert [r["actor_label"] for r in rows] == ["bob", "alice"]
+
+    exported = (await audit_events())[-1]
+    assert (exported.category, exported.action) == ("audit", "exported")
+    assert exported.actor_id == str(current_user.id)
+    assert exported.new_values == {"format": "csv", "filters": {"category": "auth"}}
+
+
+@pytest.mark.parametrize("label", ['=HYPERLINK("http://x")', "+1", "-1", "@SUM(A1)", "\tx", "\rx"])
+async def test_csv_export_neutralizes_formula_cells(
+    client: AsyncClient, session: AsyncSession, current_user: User, label: str
+) -> None:
+    await _grant(session, current_user)
+    await record_event(session, LoginAuditEvent(outcome=AuditOutcome.FAILURE, actor=UserActor(id="9", label=label)))
+    await session.commit()
+
+    response = await client.get("/api/v1/audit/events/export", params={"action": "login"})
+
+    rows = list(csv.DictReader(io.StringIO(response.text, newline="")))
+    assert [r["actor_label"] for r in rows] == ["'" + label]
+
+
+async def test_exports_json_lines(client: AsyncClient, session: AsyncSession, current_user: User) -> None:
+    await _grant(session, current_user)
+    await _seed(session)
+
+    response = await client.get("/api/v1/audit/events/export", params={"format": "jsonl", "actor_id": "7"})
+
+    assert response.status_code == 200
+    lines = [json.loads(line) for line in response.text.splitlines()]
+    assert [line["action"] for line in lines] == ["entry_added", "login"]
+
+
+async def test_export_streams_past_one_batch(
+    client: AsyncClient, session: AsyncSession, current_user: User, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("sparkth.services.audit_log.service.EXPORT_BATCH_SIZE", 2)
+    await _grant(session, current_user)
+    await _seed(session)
+
+    response = await client.get("/api/v1/audit/events/export", params={"format": "jsonl", "category": "auth"})
+
+    assert [json.loads(line)["actor_label"] for line in response.text.splitlines()] == ["bob", "alice"]
+    everything = await client.get("/api/v1/audit/events/export", params={"format": "jsonl", "to": NOW.isoformat()})
+    assert len(everything.text.splitlines()) == 3

@@ -525,3 +525,16 @@ class ActorErasedAuditEvent(MutationAuditEvent):
     """
 
     event_type: ClassVar[str] = "audit.actor_erased"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class AuditExportedAuditEvent(MutationAuditEvent):
+    """An administrator exported audit events through the REST API.
+
+    Recorded before the export streams, so reading the trail out of the system
+    leaves its own trace (NIST AU-9). ``change.new`` carries the export format
+    and the filters applied, which together say exactly what was pulled.
+    """
+
+    event_type: ClassVar[str] = "audit.exported"

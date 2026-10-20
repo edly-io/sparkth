@@ -288,6 +288,8 @@ credentials can rewrite history.
 Administrators holding `audit.read` read the trail at `/dashboard/audit` or through
 `/api/v1/audit/events` (filtered by time range, actor, category, action, outcome, source and target,
 newest first); `/api/v1/audit/categories` lists the categories to filter by.
+`/api/v1/audit/events/export` streams the same filters as CSV or JSON Lines and records an
+`audit.exported` event naming them before the first row leaves.
 
 Two maintenance operations are allowed past that guard, each inside its own transaction and each
 leaving an audit event of its own behind (`make cli -- audit --help`):
