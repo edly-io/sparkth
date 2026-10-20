@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: sparkth 0.1.11\n"
 "Report-Msgid-Bugs-To: https://github.com/edly-io/sparkth/issues\n"
-"POT-Creation-Date: 2026-08-25 05:31+0500\n"
+"POT-Creation-Date: 2026-10-20 11:57+0800\n"
 "PO-Revision-Date: 2026-08-14 07:25+0500\n"
 "Last-Translator: Hamza Shafique <hamza.shafique1@arbisoft.com>\n"
 "Language: es\n"
@@ -18,11 +18,11 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: sparkth/api/v1/auth.py:58
+#: sparkth/api/v1/auth.py:80
 msgid "Registration is currently disabled"
 msgstr "El registro está deshabilitado actualmente"
 
-#: sparkth/api/v1/auth.py:64
+#: sparkth/api/v1/auth.py:86
 msgid ""
 "This email address is not authorized to register. Contact an "
 "administrator."
@@ -30,32 +30,32 @@ msgstr ""
 "Esta dirección de correo no está autorizada para registrarse. Contacta a "
 "un administrador."
 
-#: sparkth/api/v1/auth.py:69
+#: sparkth/api/v1/auth.py:91
 msgid "Username already registered"
 msgstr "El nombre de usuario ya está registrado"
 
-#: sparkth/api/v1/auth.py:74
+#: sparkth/api/v1/auth.py:96
 msgid "Email already registered"
 msgstr "El correo electrónico ya está registrado"
 
-#: sparkth/api/v1/auth.py:144 sparkth/api/v1/auth.py:159
+#: sparkth/api/v1/auth.py:196 sparkth/api/v1/auth.py:211
 msgid "Incorrect username or password"
 msgstr "Usuario o contraseña incorrectos"
 
-#: sparkth/api/v1/file_parser.py:42 sparkth/api/v1/user_plugins.py:127
-#: sparkth/api/v1/user_plugins.py:202 sparkth/api/v1/user_plugins.py:232
+#: sparkth/api/v1/file_parser.py:48 sparkth/api/v1/user_plugins.py:128
+#: sparkth/api/v1/user_plugins.py:215 sparkth/api/v1/user_plugins.py:249
 msgid "User not authenticated."
 msgstr "Usuario no autenticado."
 
-#: sparkth/api/v1/file_parser.py:47
+#: sparkth/api/v1/file_parser.py:53
 msgid "Only .txt and .pdf files are supported"
 msgstr "Solo se admiten archivos .txt y .pdf"
 
-#: sparkth/api/v1/file_parser.py:56
+#: sparkth/api/v1/file_parser.py:62
 msgid "File size exceeds 30MB limit"
 msgstr "El archivo supera el límite de 30 MB"
 
-#: sparkth/api/v1/file_parser.py:66
+#: sparkth/api/v1/file_parser.py:72
 msgid "Unsupported file type"
 msgstr "Tipo de archivo no compatible"
 
@@ -77,12 +77,12 @@ msgstr "Plugin '{name}' no encontrado"
 msgid "Plugin '{name}' is not enabled"
 msgstr "El plugin '{name}' no está habilitado"
 
-#: sparkth/api/v1/user_plugins.py:136
+#: sparkth/api/v1/user_plugins.py:137
 #, python-brace-format
 msgid "Plugin '{name}' is already configured"
 msgstr "El plugin '{name}' ya está configurado"
 
-#: sparkth/api/v1/user/routes.py:80 sparkth/lib/auth.py:98
+#: sparkth/api/v1/user/routes.py:50 sparkth/lib/auth.py:180
 msgid "User not found"
 msgstr "Usuario no encontrado"
 
@@ -90,19 +90,19 @@ msgstr "Usuario no encontrado"
 msgid "Failed to get user info from Google"
 msgstr "No se pudo obtener la información del usuario de Google"
 
-#: sparkth/core/analytics/reads.py:193
+#: sparkth/core/analytics/reads.py:207
 msgid "Logins"
 msgstr "Inicios de sesión"
 
-#: sparkth/core/analytics/reads.py:194
+#: sparkth/core/analytics/reads.py:208
 msgid "Active users"
 msgstr "Usuarios activos"
 
-#: sparkth/core/analytics/reads.py:195
+#: sparkth/core/analytics/reads.py:209
 msgid "Signups"
 msgstr "Registros"
 
-#: sparkth/core/permissions/__init__.py:93
+#: sparkth/core/permissions/__init__.py:117
 msgid "Permission denied"
 msgstr "Permiso denegado"
 
@@ -155,7 +155,7 @@ msgstr ""
 "Combinación de ámbito e identificador de objeto no válida para el ámbito "
 "{scope!r}: {scope_object_id!r}"
 
-#: sparkth/core/plugins/middleware.py:101
+#: sparkth/core/plugins/middleware.py:106
 #, python-brace-format
 msgid ""
 "Access to plugin '{name}' is disabled for your account. Please enable the"
@@ -164,18 +164,18 @@ msgstr ""
 "El acceso al plugin '{name}' está deshabilitado para tu cuenta. Habilita "
 "el plugin en tu configuración."
 
-#: sparkth/core/plugins/service.py:131 sparkth/core/plugins/service.py:137
+#: sparkth/core/plugins/service.py:159 sparkth/core/plugins/service.py:165
 #, python-brace-format
 msgid "Plugin '{name}' cannot be configured at this time."
 msgstr "El plugin '{name}' no se puede configurar en este momento."
 
-#: sparkth/core/plugins/service.py:340
+#: sparkth/core/plugins/service.py:411
 msgid "Cannot update plugin configuration while the plugin is disabled"
 msgstr ""
 "No se puede actualizar la configuración del plugin mientras está "
 "deshabilitado"
 
-#: sparkth/lib/auth.py:90
+#: sparkth/lib/auth.py:172
 msgid "Could not validate credentials"
 msgstr "No se pudieron validar las credenciales"
 
@@ -187,7 +187,7 @@ msgstr ""
 "Este registro está desactivado. Reactívalo en AI Keys o selecciona otra "
 "configuración."
 
-#: sparkth/llm/adapter.py:76 sparkth/llm/service.py:127
+#: sparkth/llm/adapter.py:76 sparkth/llm/service.py:170
 #, python-brace-format
 msgid ""
 "Model '{model}' not available for provider '{provider}'. Allowed: "
@@ -226,50 +226,94 @@ msgstr ""
 "extraíble). La ingesta basada en OCR aún no es compatible; sube un PDF "
 "basado en texto."
 
-#: sparkth/services/email_verification.py:122
+#: sparkth/services/account/password_reset.py:169
+#: sparkth/services/email_verification.py:134
 #, python-brace-format
 msgid "Hi {name},"
 msgstr "Hola {name}:"
 
-#: sparkth/services/email_verification.py:123
+#: sparkth/services/email_verification.py:135
 msgid "Click the link below to confirm your email address:"
 msgstr ""
 "Haz clic en el enlace de abajo para confirmar tu dirección de correo "
 "electrónico:"
 
-#: sparkth/services/email_verification.py:124
+#: sparkth/services/email_verification.py:136
 #, python-brace-format
 msgid "This link expires in {ttl} hours."
 msgstr "Este enlace caduca en {ttl} horas."
 
-#: sparkth/services/email_verification.py:125
+#: sparkth/services/email_verification.py:137
 msgid "If you didn't sign up for Sparkth, you can ignore this email."
 msgstr "Si no te registraste en Sparkth, puedes ignorar este correo."
 
-#: sparkth/services/email_verification.py:126
+#: sparkth/services/email_verification.py:138
 msgid "Confirm my email"
 msgstr "Confirmar mi correo"
 
-#: sparkth/services/email_verification.py:146
+#: sparkth/services/email_verification.py:158
 msgid "Confirm your Sparkth account"
 msgstr "Confirma tu cuenta de Sparkth"
 
-#: sparkth/services/whitelist/service.py:43
+#: sparkth/services/account/password_reset.py:133
+msgid "This password reset link is invalid or has already been used."
+msgstr "Este enlace para restablecer la contraseña no es válido o ya se ha usado."
+
+#: sparkth/services/account/password_reset.py:137
+msgid "This password reset link has expired. Request a new one."
+msgstr "Este enlace para restablecer la contraseña ha caducado. Solicita uno nuevo."
+
+#: sparkth/services/account/password_reset.py:170
+msgid ""
+"We received a request to reset your Sparkth password. Click the link "
+"below to choose a new one:"
+msgstr ""
+"Recibimos una solicitud para restablecer tu contraseña de Sparkth. Haz "
+"clic en el enlace de abajo para elegir una nueva:"
+
+#: sparkth/services/account/password_reset.py:171
+#, python-brace-format
+msgid "This link expires in {minutes} minutes."
+msgstr "Este enlace caduca en {minutes} minutos."
+
+#: sparkth/services/account/password_reset.py:172
+msgid "If you didn't ask to reset your password, you can ignore this email."
+msgstr ""
+"Si no solicitaste restablecer tu contraseña, puedes ignorar este correo."
+
+#: sparkth/services/account/password_reset.py:173
+msgid "Reset my password"
+msgstr "Restablecer mi contraseña"
+
+#: sparkth/services/account/password_reset.py:192
+msgid "Reset your Sparkth password"
+msgstr "Restablece tu contraseña de Sparkth"
+
+#: sparkth/services/account/service.py:38
+msgid "SSO based sign-ins cannot update passwords."
+msgstr ""
+"Las cuentas que inician sesión con SSO no pueden cambiar la contraseña."
+
+#: sparkth/services/account/service.py:47
+msgid "Your current password is incorrect."
+msgstr "Tu contraseña actual es incorrecta."
+
+#: sparkth/services/whitelist/service.py:70
 #, python-brace-format
 msgid "Invalid domain format: {value}"
 msgstr "Formato de dominio no válido: {value}"
 
-#: sparkth/services/whitelist/service.py:49
+#: sparkth/services/whitelist/service.py:76
 #, python-brace-format
 msgid "Invalid email format: {value}"
 msgstr "Formato de correo no válido: {value}"
 
-#: sparkth/services/whitelist/service.py:72
+#: sparkth/services/whitelist/service.py:118
 #, python-brace-format
 msgid "Entry already exists: {value}"
 msgstr "La entrada ya existe: {value}"
 
-#: sparkth/services/whitelist/service.py:82
+#: sparkth/services/whitelist/service.py:132
 #, python-brace-format
 msgid "Whitelist entry not found: {entry_id}"
 msgstr "Entrada de la lista blanca no encontrada: {entry_id}"
