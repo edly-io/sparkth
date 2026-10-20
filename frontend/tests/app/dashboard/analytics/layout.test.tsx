@@ -12,7 +12,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn() }),
 }));
 const checkPermission = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/permissions", () => ({ checkPermission }));
+vi.mock("@/lib/permissions/client", () => ({ checkPermission }));
 vi.mock("@/lib/plugins/context", () => ({
   usePluginContext: () => ({ isPluginEnabled: () => true }),
 }));
@@ -35,7 +35,7 @@ describe("AnalyticsLayout", () => {
     );
     expect(await screen.findByText("view body")).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Analytics views" })).toBeInTheDocument();
-    expect(checkPermission).toHaveBeenCalledWith("test-token", "analytics.read");
+    expect(checkPermission).toHaveBeenCalledWith("test-token", "analytics.read", {});
   });
 
   it("renders no view content while the check is pending", () => {
