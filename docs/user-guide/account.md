@@ -36,16 +36,14 @@ If you have not confirmed your email yet, signing in shows a reminder with a
 ## Forgot your password
 
 1. On the sign-in page, click **Forgot Password?**.
-2. Enter the email for your account and click **Send reset link**. Sparkth shows
-   "Check your email". It says this whether or not the email has an account, so nobody can use
-   the page to find out who has one.
+2. Enter the email for your account and click **Send reset link**.
 3. Open the email and click **Reset my password**. The link works once, and expires after an
    hour unless your administrator set a different time.
 4. Enter your new password twice and click **Reset password**, then sign in with it.
 
 Resetting your password also confirms your email, since the link proves the inbox is yours.
 
-If you sign in with Google only, your account has no Sparkth password, so no email is sent.
+If you sign in with Google SSO, your account has no Sparkth password, so no email is sent.
 Sign in with Google instead.
 
 ## Your profile
