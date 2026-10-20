@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { renderWithIntl } from "../../../intl-test-utils";
+import { renderWithIntl } from "@/tests/intl-test-utils";
 
 import { ApiRequestError, type CurrentUser } from "@/lib/api";
 

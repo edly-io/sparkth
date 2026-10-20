@@ -44,7 +44,7 @@ your username, email, whether your email is confirmed, and how you sign in.
   **Change password**. The new password needs at least 8 characters, with an uppercase letter,
   a number and a special character.
 
-If you sign in with Google only, your account has no Sparkth password, so the page shows a note
+If you sign in via Google SSO, your account has no Sparkth password, so the page shows a note
 instead of the password form.
 
 ## Common messages
