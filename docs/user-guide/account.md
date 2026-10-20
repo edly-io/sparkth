@@ -33,6 +33,21 @@ You can also click **Sign in with Google** under "Or continue with":
 If you have not confirmed your email yet, signing in shows a reminder with a
 **Resend confirmation email** button.
 
+## Forgot your password
+
+1. On the sign-in page, click **Forgot Password?**.
+2. Enter the email for your account and click **Send reset link**. Sparkth shows
+   "Check your email". It says this whether or not the email has an account, so nobody can use
+   the page to find out who has one.
+3. Open the email and click **Reset my password**. The link works once, and expires after an
+   hour unless your administrator set a different time.
+4. Enter your new password twice and click **Reset password**, then sign in with it.
+
+Resetting your password also confirms your email, since the link proves the inbox is yours.
+
+If you sign in with Google only, your account has no Sparkth password, so no email is sent.
+Sign in with Google instead.
+
 ## Your profile
 
 Open the menu with your name at the bottom of the sidebar and click **Profile**. The page shows
@@ -55,3 +70,6 @@ instead of the password form.
 | "This email address is not authorized to register. Contact an administrator." | Your email is not on the whitelist. |
 | "Your email is not authorized to register. Contact an administrator." | The same, when you signed in with Google. |
 | "Please confirm your email before logging in." | Click the link in your confirmation email, or resend it. |
+| "A reset link was just sent. Please wait a minute before asking again." | You asked for a reset link moments ago. Check your inbox (and spam folder), or wait a minute. |
+| "This password reset link has expired. Request a new one." | Click **Request a new link** and use the newest email. |
+| "This password reset link is invalid or has already been used." | The link was used already, or a newer one replaced it. Request a new link. |

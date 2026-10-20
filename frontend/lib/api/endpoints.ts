@@ -10,6 +10,7 @@ export type WhitelistEntry = Schema<"WhitelistedEmailResponse">;
 export type CurrentUser = Schema<"User">;
 export type UserUpdate = Schema<"UserUpdate">;
 export type PasswordChange = Schema<"PasswordChange">;
+export type PasswordResetConfirm = Schema<"PasswordResetConfirm">;
 
 export async function login(data: LoginRequest): Promise<LoginResponse> {
   return call<LoginResponse>(() => api.POST("/api/v1/auth/login", { body: data }));
@@ -81,4 +82,17 @@ export async function changePassword(token: string, data: PasswordChange): Promi
   return call<void>(() =>
     api.POST("/api/v1/user/me/password", { body: data, headers: bearer(token) }),
   );
+}
+
+/**
+ * Ask for a password reset link to be emailed. Resolves on 202 whether or not the email has an
+ * account; a request inside the per-email cooldown rejects with a 429 `ApiRequestError`.
+ */
+export async function requestPasswordReset(email: string): Promise<void> {
+  await call(() => api.POST("/api/v1/auth/password-reset", { body: { email } }));
+}
+
+/** Set a new password with a reset link's token. Resolves on 204; a refused link is a 400. */
+export async function confirmPasswordReset(data: PasswordResetConfirm): Promise<void> {
+  return call<void>(() => api.POST("/api/v1/auth/password-reset/confirm", { body: data }));
 }

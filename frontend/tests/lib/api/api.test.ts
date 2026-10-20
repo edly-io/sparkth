@@ -4,12 +4,14 @@ import {
   ApiRequestError,
   addWhitelistEntry,
   changePassword,
+  confirmPasswordReset,
   getCurrentUser,
   getGoogleLoginUrl,
   getWhitelist,
   login,
   register,
   removeWhitelistEntry,
+  requestPasswordReset,
   resendVerificationEmail,
   updateCurrentUser,
   verifyEmail,
@@ -327,5 +329,57 @@ describe("changePassword", () => {
 
     expect((error as ApiRequestError).status).toBe(400);
     expect((error as ApiRequestError).message).toBe("Your current password is incorrect.");
+  });
+});
+
+describe("requestPasswordReset", () => {
+  it("POSTs the email to /api/v1/auth/password-reset and resolves on 202", async () => {
+    const spy = mockFetch({}, 202);
+
+    await expect(requestPasswordReset("u@example.com")).resolves.toBeUndefined();
+
+    const request = sentRequest(spy);
+    expect(new URL(request.url).pathname).toBe("/api/v1/auth/password-reset");
+    expect(request.method).toBe("POST");
+    await expect(request.clone().json()).resolves.toEqual({ email: "u@example.com" });
+  });
+
+  it("keeps the 429 status of a rate-limited request", async () => {
+    mockFetch({ detail: "rate_limited" }, 429);
+
+    const error = await requestPasswordReset("u@example.com").catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ApiRequestError);
+    expect((error as ApiRequestError).status).toBe(429);
+  });
+});
+
+describe("confirmPasswordReset", () => {
+  it("POSTs the token and new password to /api/v1/auth/password-reset/confirm", async () => {
+    const spy = mockFetch(null, 204);
+
+    await expect(
+      confirmPasswordReset({ token: "abc", new_password: "N3w-Password!" }),
+    ).resolves.toBeUndefined();
+
+    const request = sentRequest(spy);
+    expect(new URL(request.url).pathname).toBe("/api/v1/auth/password-reset/confirm");
+    await expect(request.clone().json()).resolves.toEqual({
+      token: "abc",
+      new_password: "N3w-Password!",
+    });
+  });
+
+  it("keeps the status and message of a refused link", async () => {
+    mockFetch({ detail: "This password reset link has expired. Request a new one." }, 400);
+
+    const error = await confirmPasswordReset({ token: "old", new_password: "N3w-Password!" }).catch(
+      (e: unknown) => e,
+    );
+
+    expect((error as ApiRequestError).status).toBe(400);
+    expect((error as ApiRequestError).message).toBe(
+      "This password reset link has expired. Request a new one.",
+    );
   });
 });
