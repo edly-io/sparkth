@@ -196,6 +196,9 @@ and `erase_actor` (GDPR, `audit erase-user <id>`), unlock the table only for the
 transaction and record their own event (`audit.retention_purged`, `audit.actor_erased`). Do not
 add a third without the same properties.
 
+Reading the trail never unlocks it. Exports through `/api/v1/audit/events/export` record
+`audit.exported` with the format and filters before streaming, so bulk reads leave a trace.
+
 ## Tests
 
 Follow TDD, and assert on rows that actually landed, using the `audit_events` fixture from
