@@ -118,6 +118,7 @@ function NameForm({ name }: { name: string }) {
             onChange={(e) => {
               setValue(e.target.value);
               setSaved(false);
+              setError("");
             }}
             error={error}
           />
@@ -159,6 +160,7 @@ function PasswordForm() {
   const update = (field: keyof typeof emptyPasswords) => (e: { target: { value: string } }) => {
     setValues((v) => ({ ...v, [field]: e.target.value }));
     setChanged(false);
+    setErrors((prev) => ({ ...prev, [field]: undefined, form: undefined }));
   };
 
   const handleSubmit = async (e: SubmitEvent) => {

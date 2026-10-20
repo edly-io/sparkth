@@ -110,6 +110,20 @@ describe("ProfilePage name form", () => {
     expect(await screen.findByText("Name is too long")).toBeInTheDocument();
     expect(auth.refreshUser).not.toHaveBeenCalled();
   });
+
+  it("clears the name error once the name is edited", async () => {
+    vi.mocked(updateCurrentUser).mockRejectedValue(
+      new ApiRequestError({ message: "Bad", fieldErrors: { name: "Name is too long" } }, 422),
+    );
+    renderWithIntl(<ProfilePage />);
+
+    await userEvent.type(screen.getByLabelText("Name"), "!");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByText("Name is too long");
+    await userEvent.type(screen.getByLabelText("Name"), "{backspace}");
+
+    expect(screen.queryByText("Name is too long")).not.toBeInTheDocument();
+  });
 });
 
 describe("ProfilePage password form", () => {
@@ -155,6 +169,19 @@ describe("ProfilePage password form", () => {
 
     expect(await screen.findByText("Your current password is incorrect.")).toBeInTheDocument();
     expect(screen.getByLabelText("Current password")).toHaveValue("wrong");
+  });
+
+  it("clears a field's error once that field is edited", async () => {
+    vi.mocked(changePassword).mockRejectedValue(
+      new ApiRequestError({ message: "Your current password is incorrect.", fieldErrors: {} }, 400),
+    );
+    renderWithIntl(<ProfilePage />);
+
+    await fillPasswords("wrong", "N3w-Password!", "N3w-Password!");
+    await screen.findByText("Your current password is incorrect.");
+    await userEvent.type(screen.getByLabelText("Current password"), "!");
+
+    expect(screen.queryByText("Your current password is incorrect.")).not.toBeInTheDocument();
   });
 
   it("shows a weak new password error against the new password field", async () => {
