@@ -29,6 +29,8 @@
       "failedTurns": "Mensajes fallidos",
       "failedHint": "{rate} de los mensajes · {change}",
       "documentsAttached": "Documentos adjuntados",
+      "searches": "Búsquedas en documentos",
+      "searchesHint": "{rate} sin resultados · {change}",
       "detachedHint": "{count} retirados · {change}",
       "messagesCaption": "Mensajes enviados, {range}",
       "conversationsCaption": "Conversaciones iniciadas, {range}",

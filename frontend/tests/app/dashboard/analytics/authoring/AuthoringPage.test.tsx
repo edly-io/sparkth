@@ -32,6 +32,7 @@ vi.mock("next/navigation", () => ({
 
 import {
   CHAT_EVENTS,
+  EMPTY_SEARCH,
   fetchChatActivity,
   fetchDriveDocuments,
   type ChatActivityPoint,
@@ -73,6 +74,38 @@ const card = async (title: string) =>
 const empty = /no course-authoring activity in this period/i;
 
 describe("AuthoringPage cards", () => {
+  it("shows document searches and the share that found nothing", async () => {
+    answer(
+      [
+        row(CHAT_EVENTS.messages, 4),
+        row(CHAT_EVENTS.searches, 3, "2026-07-23", { dimension: "found" }),
+        row(CHAT_EVENTS.searches, 1, "2026-07-23", { dimension: EMPTY_SEARCH }),
+      ],
+      [row(CHAT_EVENTS.searches, 2, "2026-06-20", { dimension: "found" })],
+    );
+    renderWithIntl(<AuthoringPage />);
+    const searches = await card("Document searches");
+    expect(within(searches).getByText("4")).toBeInTheDocument();
+    expect(
+      within(searches).getByText("25% found nothing · +100% vs previous period"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows searches even when no messages were sent", async () => {
+    answer([row(CHAT_EVENTS.searches, 2, "2026-07-23", { dimension: EMPTY_SEARCH })]);
+    renderWithIntl(<AuthoringPage />);
+    const searches = await card("Document searches");
+    expect(within(searches).getByText(/100% found nothing/)).toBeInTheDocument();
+    expect(screen.queryByText(empty)).not.toBeInTheDocument();
+  });
+
+  it("shows a dash for the found-nothing share when there were no searches", async () => {
+    answer([row(CHAT_EVENTS.messages, 4)]);
+    renderWithIntl(<AuthoringPage />);
+    const searches = await card("Document searches");
+    expect(within(searches).getByText(/— found nothing/)).toBeInTheDocument();
+  });
+
   it("shows counts compared with the previous period", async () => {
     answer(
       [row(CHAT_EVENTS.conversations, 6), row(CHAT_EVENTS.messages, 10)],
