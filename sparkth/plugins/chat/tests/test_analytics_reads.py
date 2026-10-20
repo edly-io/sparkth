@@ -134,6 +134,32 @@ async def test_dimension_is_tool_name_or_cause_and_outcome_splits_tools(
     ]
 
 
+async def test_activity_counts_searches_by_result(analytics_session: SQLAlchemyAsyncSession) -> None:
+    for result, chunks in (("found", 3), ("empty", 0), ("empty", 0)):
+        await ingest_event(
+            analytics_session,
+            "chat.rag_search_completed",
+            1,
+            {
+                "conversation_id": "c",
+                "provider": "openai",
+                "result": result,
+                "chunks_found": chunks,
+                "document_count": 1,
+                "streamed": True,
+            },
+            actor_id="1",
+            occurred_at=_at("2026-03-02"),
+        )
+
+    points = await get_chat_activity(analytics_session, date(2026, 3, 1), date(2026, 3, 31), Bucket.month)
+
+    assert [(p.event_type, p.dimension, p.event_count) for p in points] == [
+        ("chat.rag_search_completed", "empty", 2),
+        ("chat.rag_search_completed", "found", 1),
+    ]
+
+
 async def test_week_buckets_start_monday_and_month_buckets_the_first(analytics_session: SQLAlchemyAsyncSession) -> None:
     # 2025-12-29 is a Monday; that week runs to Sunday 2026-01-04.
     for day in ("2025-12-29", "2026-01-04", "2026-01-05"):

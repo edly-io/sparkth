@@ -53,6 +53,17 @@ def _tool(name: str, outcome: str) -> dict[str, object]:
     }
 
 
+def _search(result: str, chunks: int) -> dict[str, object]:
+    return {
+        "conversation_id": "c",
+        "provider": "openai",
+        "result": result,
+        "chunks_found": chunks,
+        "document_count": 1,
+        "streamed": True,
+    }
+
+
 _MESSAGE: dict[str, object] = {
     "conversation_id": "c",
     "provider": "openai",
@@ -100,6 +111,8 @@ async def test_pg_chat_activity_matches_sqlite(
             {"conversation_id": "c", "document_id": 1, "source": "explicit"},
         ),
         (_at("2026-02-01", 0), "chat.message_sent", _MESSAGE),
+        (_at("2025-12-01"), "chat.rag_search_completed", _search("found", 3)),
+        (_at("2025-12-29"), "chat.rag_search_completed", _search("empty", 0)),
     ]
     for session in (pg_analytics_session, analytics_session):
         for occurred_at, event_type, payload in seed:
@@ -112,3 +125,4 @@ async def test_pg_chat_activity_matches_sqlite(
 
     assert pg_result == sqlite_result
     assert any(p.outcome is None and p.dimension == "create_x" for p in pg_result)
+    assert any(p.event_type == "chat.rag_search_completed" and p.dimension == "empty" for p in pg_result)

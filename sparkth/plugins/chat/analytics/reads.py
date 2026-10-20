@@ -17,6 +17,7 @@ from sparkth.plugins.chat.analytics.events import (
     ChatDocumentAttached,
     ChatDocumentDetached,
     ChatMessageSent,
+    ChatRagSearchCompleted,
     ChatToolInvoked,
     ChatTurnFailed,
 )
@@ -28,6 +29,7 @@ ACTIVITY_EVENT_TYPES = (
     ChatDocumentAttached.event_type,
     ChatDocumentDetached.event_type,
     ChatTurnFailed.event_type,
+    ChatRagSearchCompleted.event_type,
 )
 
 
@@ -37,7 +39,8 @@ class ChatActivityPoint(BaseModel):
     bucket: str
     event_type: str
     dimension: str | None = None
-    """Tool name for ``chat.tool_invoked``, failure cause for ``chat.turn_failed``."""
+    """Tool name for ``chat.tool_invoked``, failure cause for ``chat.turn_failed``,
+    ``found`` / ``empty`` for ``chat.rag_search_completed``."""
     outcome: str | None = None
     """``succeeded`` / ``failed`` for tool calls recorded with an outcome."""
     event_count: int
@@ -54,7 +57,11 @@ async def get_chat_activity(session: AsyncSession, from_: date, to: date, bucket
         event_types=ACTIVITY_EVENT_TYPES,
         by_event_type=True,
         dims={
-            "dimension": {ChatToolInvoked.event_type: "tool_name", ChatTurnFailed.event_type: "cause"},
+            "dimension": {
+                ChatToolInvoked.event_type: "tool_name",
+                ChatTurnFailed.event_type: "cause",
+                ChatRagSearchCompleted.event_type: "result",
+            },
             "outcome": "outcome",
         },
         count_column="event_count",
