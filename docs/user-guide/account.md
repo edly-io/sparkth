@@ -33,6 +33,20 @@ You can also click **Sign in with Google** under "Or continue with":
 If you have not confirmed your email yet, signing in shows a reminder with a
 **Resend confirmation email** button.
 
+## Your profile
+
+Open the menu with your name at the bottom of the sidebar and click **Profile**. The page shows
+your username, email, whether your email is confirmed, and how you sign in.
+
+- **Name**: edit it and click **Save**. It can be up to 30 characters. Your username and email
+  cannot be changed here.
+- **Password**: enter your current password, then your new one twice, and click
+  **Change password**. The new password needs at least 8 characters, with an uppercase letter,
+  a number and a special character.
+
+If you sign in with Google only, your account has no Sparkth password, so the page shows a note
+instead of the password form.
+
 ## Common messages
 
 | Message | What it means |
