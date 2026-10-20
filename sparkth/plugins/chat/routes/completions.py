@@ -347,7 +347,13 @@ async def chat_completion(
         rag_search_declined = bool(attached_documents) and bool(query_text) and not rag_search_required
 
         messages, unresolved_messages = await assemble_provider_messages(
-            request, db_messages, attached_documents, query_text, rag_search_required, provider
+            request,
+            db_messages,
+            attached_documents,
+            query_text,
+            rag_search_required,
+            provider,
+            analytics=turn_analytics,
         )
 
         tools = await resolve_tools(request, get_tool_registry(), disabled_plugins)
