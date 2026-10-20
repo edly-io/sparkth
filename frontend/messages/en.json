@@ -29,6 +29,8 @@
       "failedTurns": "Messages failed",
       "failedHint": "{rate} of messages · {change}",
       "documentsAttached": "Documents attached",
+      "searches": "Document searches",
+      "searchesHint": "{rate} found nothing · {change}",
       "detachedHint": "{count} detached · {change}",
       "messagesCaption": "Messages sent, {range}",
       "conversationsCaption": "Conversations started, {range}",

@@ -29,6 +29,8 @@
       "failedTurns": "Messages en échec",
       "failedHint": "{rate} des messages · {change}",
       "documentsAttached": "Documents joints",
+      "searches": "Recherches dans les documents",
+      "searchesHint": "{rate} sans résultat · {change}",
       "detachedHint": "{count} retirés · {change}",
       "messagesCaption": "Messages envoyés, {range}",
       "conversationsCaption": "Conversations démarrées, {range}",

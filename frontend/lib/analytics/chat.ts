@@ -9,7 +9,11 @@ export const CHAT_EVENTS = {
   attached: "chat.document_attached",
   detached: "chat.document_detached",
   failed: "chat.turn_failed",
+  searches: "chat.rag_search_completed",
 } as const;
+
+/** The `chat.rag_search_completed` dimension of a search that found nothing. */
+export const EMPTY_SEARCH = "empty";
 
 export function countSeries(
   rows: ChatActivityPoint[],
