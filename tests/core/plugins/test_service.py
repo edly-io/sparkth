@@ -3,11 +3,12 @@
 from datetime import datetime, timezone
 from typing import cast
 
+from fastapi import Request
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.core.models.user import User
-from sparkth.core.plugins.service import disabled_plugin_names
+from sparkth.core.plugins.service import disabled_plugin_names, get_disabled_plugins
 
 
 async def _seed_plugin(session: AsyncSession, name: str, enabled: bool, deleted: bool = False) -> Plugin:
@@ -99,3 +100,19 @@ async def test_with_no_user_only_the_system_switch_applies(session: AsyncSession
     await _seed_preference(session, cast(int, current_user.id), plugin, False)
 
     assert await disabled_plugin_names(None, session) == {"system-off"}
+
+
+async def test_the_dependency_reuses_the_set_the_gate_left(session: AsyncSession, current_user: User) -> None:
+    await _seed_plugin(session, "stub", False)
+    request = Request({"type": "http", "state": {"disabled_plugins": {"from-the-gate"}}})
+
+    assert await get_disabled_plugins(request, current_user, session) == {"from-the-gate"}
+
+
+async def test_the_dependency_reads_the_switches_when_the_gate_left_none(
+    session: AsyncSession, current_user: User
+) -> None:
+    await _seed_plugin(session, "stub", False)
+    request = Request({"type": "http"})
+
+    assert await get_disabled_plugins(request, current_user, session) == {"stub"}
