@@ -52,6 +52,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/audit/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Categories
+         * @description Return every category an audit event can carry, sorted, to filter the listing by.
+         */
+        get: operations["list_categories_api_v1_audit_categories_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/audit/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Events
+         * @description Return audit events matching every given filter, newest first.
+         *
+         *     Pass the response's `next_before_id` as `before_id` to fetch the next page; it is
+         *     null on the last page.
+         */
+        get: operations["list_events_api_v1_audit_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/google/authorize": {
         parameters: {
             query?: never;
@@ -1534,6 +1577,89 @@ export interface components {
             /** Size */
             size: number;
         };
+        /**
+         * AuditEventPage
+         * @description A page of events, newest first; pass ``next_before_id`` back as ``before_id`` for the next one.
+         */
+        AuditEventPage: {
+            /** Items */
+            items: components["schemas"]["AuditEventRecord"][];
+            /** Next Before Id */
+            next_before_id: number | null;
+        };
+        /**
+         * AuditEventRecord
+         * @description One audit row as administrators read it: every column but the sealed canonical bytes.
+         */
+        AuditEventRecord: {
+            /** Action */
+            action: string;
+            /** Actor Id */
+            actor_id: string | null;
+            /** Actor Label */
+            actor_label: string | null;
+            /** Actor Type */
+            actor_type: string;
+            /** Category */
+            category: string;
+            /** Error Detail */
+            error_detail: string | null;
+            /** Id */
+            id: number;
+            /** Model Name */
+            model_name: string | null;
+            /** Model Provider */
+            model_provider: string | null;
+            /** Model Version */
+            model_version: string | null;
+            /** New Values */
+            new_values: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Old Values */
+            old_values: {
+                [key: string]: unknown;
+            } | null;
+            /** Outcome */
+            outcome: string;
+            /** Purpose */
+            purpose: string | null;
+            /** Request Id */
+            request_id: string | null;
+            /** Request Ip */
+            request_ip: string | null;
+            /** Source */
+            source: string;
+            /** Target Id */
+            target_id: string | null;
+            /** Target Type */
+            target_type: string | null;
+            /** Tool Args */
+            tool_args: {
+                [key: string]: unknown;
+            } | null;
+            /** Tool Name */
+            tool_name: string | null;
+            /** User Agent */
+            user_agent: string | null;
+        };
+        /**
+         * AuditOutcome
+         * @description How the audited action ended (the NIST AU-3 outcome field).
+         * @enum {string}
+         */
+        AuditOutcome: "success" | "failure" | "denied";
+        /**
+         * AuditSource
+         * @description Which surface produced the event (the NIST AU-3 where/source field).
+         * @enum {string}
+         */
+        AuditSource: "rest" | "mcp" | "chat" | "rag" | "cli" | "system";
         /** Body_upload_file_api_v1_google_drive_folders__folder_id__files_post */
         Body_upload_file_api_v1_google_drive_folders__folder_id__files_post: {
             /** File */
@@ -2674,6 +2800,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SummaryCount"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_categories_api_v1_audit_categories_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
+        };
+    };
+    list_events_api_v1_audit_events_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                actor_id?: string | null;
+                category?: string | null;
+                action?: string | null;
+                outcome?: components["schemas"]["AuditOutcome"] | null;
+                source?: components["schemas"]["AuditSource"] | null;
+                target_type?: string | null;
+                target_id?: string | null;
+                request_id?: string | null;
+                limit?: number;
+                before_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditEventPage"];
                 };
             };
             /** @description Validation Error */
