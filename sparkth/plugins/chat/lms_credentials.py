@@ -17,8 +17,7 @@ def _lms_tool_prefixes() -> tuple[str, ...]:
     return tuple(prefix for _name, cls in iter_plugin_config_schemas() if (prefix := cls.lms_tool_prefix()) is not None)
 
 
-def _has_lms_tools(tools: list[Any]) -> bool:
-    prefixes = _lms_tool_prefixes()
+def _has_lms_tools(tools: list[Any], prefixes: tuple[str, ...]) -> bool:
     return any(getattr(tool, "name", "").startswith(prefixes) for tool in tools)
 
 
@@ -29,6 +28,8 @@ async def build_lms_credentials_message(
 ) -> str | None:
     """Return a system message for the LLM about LMS credentials, or None when
     no LMS tools are active.
+
+    Credentials are included only for an LMS whose tools are bound to this turn.
 
     - If credentials are configured: includes them so the LLM uses them
       automatically without asking the user.
@@ -42,7 +43,7 @@ async def build_lms_credentials_message(
     # Intentional early-exit for both None (tools disabled by caller) and []
     # (tool names were requested but none resolved). Either way there are no
     # active tools to inspect, so no credentials hint is needed.
-    if not tools or not _has_lms_tools(tools):
+    if not tools or not _has_lms_tools(tools, _lms_tool_prefixes()):
         return None
 
     plugin_service = PluginService()
@@ -51,7 +52,8 @@ async def build_lms_credentials_message(
     credential_sections: list[str] = []
 
     for plugin_name, config_class in iter_plugin_config_schemas():
-        if config_class.lms_tool_prefix() is None:
+        prefix = config_class.lms_tool_prefix()
+        if prefix is None or not _has_lms_tools(tools, (prefix,)):
             continue
 
         user_plugin = user_plugin_map.get(plugin_name)

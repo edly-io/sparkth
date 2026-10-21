@@ -1,4 +1,4 @@
-"""Helpers shared by the chat plugin's route tests: seeded rows, mocked providers and Google's errors."""
+"""Helpers shared by the chat plugin's tests: seeded rows, LMS configs, mocked providers and Google's errors."""
 
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID
@@ -18,6 +18,14 @@ from sparkth.plugins.chat.models import Conversation, Message
 GOOGLE_INVALID_KEY = "Invalid API key. Please check your Google API key in AI Keys."
 GOOGLE_UNREACHABLE = "Could not reach Google. Please check your network connection."
 GOOGLE_OVERLOADED = "Google API error (503). Please try again."
+
+OPENEDX_CONFIG = {
+    "lms_url": "https://lms.example.com",
+    "studio_url": "https://studio.example.com",
+    "lms_username": "admin",
+    "lms_password": "secret",
+}
+CANVAS_CONFIG = {"api_url": "https://canvas.example.com", "api_key": "token-abc123"}
 
 
 async def seed_llm_config(session: AsyncSession, user_id: int) -> int:

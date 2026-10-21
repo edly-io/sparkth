@@ -23,6 +23,7 @@ from sparkth.lib.llm import (
 )
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
+from sparkth.lib.plugins import get_disabled_plugins
 from sparkth.plugins.chat.analytics import (
     ChatAttachmentAnalytics,
     ChatClassifierAnalytics,
@@ -146,6 +147,7 @@ async def chat_completion(
     service: ChatService = Depends(get_chat_service),
     llm_service: LLMConfigService = Depends(get_llm_service),
     config: ChatSettings = Depends(get_chat_settings),
+    disabled_plugins: set[str] = Depends(get_disabled_plugins),
 ) -> Any:
     user_id: int = cast(int, current_user.id)
     try:
@@ -192,8 +194,8 @@ async def chat_completion(
         provider=provider_name,
         actor_id=str(user_id),
     )
-    # Every enabled capability answers each turn; a switched-off plugin's is left out.
-    capabilities = await enabled_capabilities(session)
+    # The tool filter and the capability list share one set of switched-off plugins.
+    capabilities = enabled_capabilities(disabled_plugins)
     scope_classifier = MessageScopeClassifier(capabilities, provider_name, api_key, user_id, classifier_analytics)
 
     # A file uploaded with the message is base64 content, not a Document row, so its name exists
@@ -348,7 +350,7 @@ async def chat_completion(
             request, db_messages, attached_documents, query_text, rag_search_required, provider
         )
 
-        tools = await resolve_tools(request, get_tool_registry())
+        tools = await resolve_tools(request, get_tool_registry(), disabled_plugins)
         if tools and request.include_system_tools_message:
             tool_descriptions = [f"- {tool.name}: {tool.description}" for tool in tools]
             tool_list_message = "You have access to the following tools:\n" + "\n".join(tool_descriptions)

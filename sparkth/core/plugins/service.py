@@ -2,11 +2,13 @@ from collections.abc import Sequence
 from typing import Any, cast
 
 import pydantic
+from fastapi import Depends, Request
 from sqlalchemy import or_
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.plugin import Plugin, UserPlugin
+from sparkth.core.models.user import User
 from sparkth.core.plugins import get_plugin_loader
 from sparkth.core.plugins.config_base import PluginConfig
 from sparkth.lib.audit import record_event
@@ -18,8 +20,9 @@ from sparkth.lib.audit.events import (
     UserPluginConfigUpdatedAuditEvent,
     UserPluginEnabledChangedAuditEvent,
 )
+from sparkth.lib.auth import get_current_user
 from sparkth.lib.config import get_plugin_adapter, get_plugin_config_schema
-from sparkth.lib.db import session_scope
+from sparkth.lib.db import get_async_session, session_scope
 from sparkth.lib.frontend import get_plugin_display_info, get_plugin_sidebar_entry, plugin_has_frontend
 from sparkth.lib.frontend.hooks import DisplayInfo, SidebarEntry
 from sparkth.lib.i18n import _
@@ -67,6 +70,25 @@ async def disabled_plugin_names(user_id: int | None, session: AsyncSession) -> s
     )
     result = await session.exec(statement)
     return set(result.all())
+
+
+async def get_disabled_plugins(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+) -> set[str]:
+    """The plugins switched off for the requesting user, as a route dependency.
+
+    Reuses the set ``PluginAccessMiddleware`` left on ``request.state`` when it has already
+    read the switches for this request's caller, rather than running the same query again.
+    The gate writes it beside ``request.state.user``, from this request's own token, so the
+    answer is the one this dependency would have computed. A request the gate never
+    identified falls through to ``disabled_plugin_names``.
+    """
+    cached = getattr(request.state, "disabled_plugins", None)
+    if isinstance(cached, set):
+        return cached
+    return await disabled_plugin_names(cast(int, current_user.id), session)
 
 
 class ConfigValidationError(Exception):

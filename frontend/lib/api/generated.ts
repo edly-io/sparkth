@@ -1644,7 +1644,7 @@ export interface components {
             tool_choice: string | null;
             /**
              * Tools
-             * @description Automatically includes all tools. Use 'none' or empty list to disable.
+             * @description Includes every tool of the plugins switched on for the requesting user. Use 'none' or empty list to disable.
              * @default *
              */
             tools: string[] | string | null;
