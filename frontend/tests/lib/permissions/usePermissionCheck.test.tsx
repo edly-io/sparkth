@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 
 import { checkPermission } from "@/lib/permissions/client";
-import { usePermission } from "@/lib/permissions/usePermission";
+import { usePermissionCheck } from "@/lib/permissions/usePermissionCheck";
 
 vi.mock("@/lib/permissions/client", () => ({ checkPermission: vi.fn() }));
 
@@ -12,9 +12,9 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("usePermission", () => {
+describe("usePermissionCheck", () => {
   it("stays checking without a token", () => {
-    const { result } = renderHook(() => usePermission(null, "analytics.read"));
+    const { result } = renderHook(() => usePermissionCheck(null, "analytics.read"));
 
     expect(result.current).toBe("checking");
     expect(mockCheck).not.toHaveBeenCalled();
@@ -24,7 +24,7 @@ describe("usePermission", () => {
     mockCheck.mockResolvedValue(true);
 
     const { result } = renderHook(() =>
-      usePermission("tok", "email.whitelist.read", { scope: "whitelist" }),
+      usePermissionCheck("tok", "email.whitelist.read", { scope: "whitelist" }),
     );
 
     await waitFor(() => expect(result.current).toBe("allowed"));
@@ -34,7 +34,7 @@ describe("usePermission", () => {
   it("is denied when the backend refuses", async () => {
     mockCheck.mockResolvedValue(false);
 
-    const { result } = renderHook(() => usePermission("tok", "analytics.read"));
+    const { result } = renderHook(() => usePermissionCheck("tok", "analytics.read"));
 
     await waitFor(() => expect(result.current).toBe("denied"));
   });
@@ -43,7 +43,7 @@ describe("usePermission", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     mockCheck.mockRejectedValue(new Error("network"));
 
-    const { result } = renderHook(() => usePermission("tok", "analytics.read"));
+    const { result } = renderHook(() => usePermissionCheck("tok", "analytics.read"));
 
     await waitFor(() => expect(result.current).toBe("denied"));
   });
@@ -53,9 +53,12 @@ describe("usePermission", () => {
     mockCheck.mockReturnValueOnce(new Promise((resolve) => (resolveOld = resolve)));
     mockCheck.mockReturnValueOnce(new Promise(() => {}));
 
-    const { result, rerender } = renderHook(({ token }) => usePermission(token, "analytics.read"), {
-      initialProps: { token: "old" },
-    });
+    const { result, rerender } = renderHook(
+      ({ token }) => usePermissionCheck(token, "analytics.read"),
+      {
+        initialProps: { token: "old" },
+      },
+    );
     rerender({ token: "new" });
     resolveOld(true);
 

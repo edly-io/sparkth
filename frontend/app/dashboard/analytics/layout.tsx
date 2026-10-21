@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { ChartColumn } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/lib/auth-context";
-import { usePermission } from "@/lib/permissions";
+import { usePermissionCheck } from "@/lib/permissions";
 import { Forbidden } from "@/components/Forbidden";
 import { Spinner } from "@/components/Spinner";
 import { AnalyticsNav } from "./AnalyticsNav";
@@ -13,7 +13,7 @@ import { PeriodSelector } from "./PeriodSelector";
 export default function AnalyticsLayout({ children }: { children: React.ReactNode }) {
   const { token } = useAuth();
   const t = useTranslations("analytics");
-  const access = usePermission(token, "analytics.read");
+  const access = usePermissionCheck(token, "analytics.read");
 
   return (
     <div className="min-h-screen bg-background transition-colors">

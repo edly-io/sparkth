@@ -4,7 +4,7 @@ import { useReducer, useEffect, useCallback, type SubmitEvent } from "react";
 import { redirect } from "next/navigation";
 import { Plus, Trash2, Mail, Globe } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { usePermission } from "@/lib/permissions";
+import { usePermissionCheck } from "@/lib/permissions";
 import {
   getWhitelist,
   addWhitelistEntry,
@@ -82,7 +82,7 @@ export default function WhitelistPage() {
   const { token } = useAuth();
   const [state, dispatch] = useReducer(reducer, initialState);
 
-  const access = usePermission(token, "email.whitelist.read", { scope: "whitelist" });
+  const access = usePermissionCheck(token, "email.whitelist.read", { scope: "whitelist" });
 
   if (access === "denied") {
     redirect("/dashboard");

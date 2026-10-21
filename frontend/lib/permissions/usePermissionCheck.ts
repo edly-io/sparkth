@@ -11,7 +11,7 @@ export type Access = "checking" | "allowed" | "denied";
  * Goes back to `"checking"` whenever the token or permission changes, so a re-login never
  * briefly shows the previous user's answer, and fails closed to `"denied"` when the check errors.
  */
-export function usePermission(
+export function usePermissionCheck(
   token: string | null,
   permission: PermissionName,
   { scope, scopeObjectId }: { scope?: string; scopeObjectId?: string } = {},
