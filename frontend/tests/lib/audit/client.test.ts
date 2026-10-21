@@ -5,6 +5,7 @@ import {
   AUDIT_SOURCES,
   exportAuditEvents,
   fetchAuditCategories,
+  fetchAuditEvent,
   fetchAuditEvents,
 } from "@/lib/audit";
 import { ApiRequestError } from "@/lib/api";
@@ -47,6 +48,19 @@ describe("fetchAuditEvents", () => {
 
     expect(error).toBeInstanceOf(ApiRequestError);
     expect((error as ApiRequestError).status).toBe(403);
+  });
+});
+
+describe("fetchAuditEvent", () => {
+  it("GETs /api/v1/audit/events/{id}", async () => {
+    const record = { id: 42, category: "auth", action: "login" };
+    const spy = mockFetch(record);
+
+    const result = await fetchAuditEvent("test-token", 42);
+
+    expect(new URL(sentRequest(spy).url).pathname).toBe("/api/v1/audit/events/42");
+    expect(sentRequest(spy).headers.get("authorization")).toBe("Bearer test-token");
+    expect(result).toEqual(record);
   });
 });
 

@@ -144,6 +144,7 @@
     "exporting": "Exportation",
     "showDetails": "Afficher les détails",
     "hideDetails": "Masquer les détails",
+    "detailsError": "Impossible de charger les détails de cet événement.",
     "loadMore": "Charger plus",
     "empty": "Aucun événement d'audit ne correspond à ces filtres.",
     "outcomes": {

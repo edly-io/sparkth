@@ -144,6 +144,7 @@
     "exporting": "Exporting",
     "showDetails": "Show details",
     "hideDetails": "Hide details",
+    "detailsError": "We couldn't load this event's details.",
     "loadMore": "Load more",
     "empty": "No audit events match these filters.",
     "outcomes": {

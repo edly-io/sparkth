@@ -144,6 +144,7 @@
     "exporting": "Exportando",
     "showDetails": "Mostrar detalles",
     "hideDetails": "Ocultar detalles",
+    "detailsError": "No pudimos cargar los detalles de este evento.",
     "loadMore": "Cargar más",
     "empty": "Ningún evento de auditoría coincide con estos filtros.",
     "outcomes": {

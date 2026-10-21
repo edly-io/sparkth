@@ -1,6 +1,7 @@
 import type { Schema } from "@/lib/api";
 import type { operations } from "@/lib/api/generated";
 
+export type AuditEventSummary = Schema<"AuditEventSummary">;
 export type AuditEventRecord = Schema<"AuditEventRecord">;
 export type AuditEventPage = Schema<"AuditEventPage">;
 export type AuditOutcome = Schema<"AuditOutcome">;
