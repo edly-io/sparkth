@@ -197,7 +197,8 @@ transaction and record their own event (`audit.retention_purged`, `audit.actor_e
 add a third without the same properties.
 
 Reading the trail never unlocks it. Exports through `/api/v1/audit/events/export` record
-`audit.exported` with the format and filters before streaming, so bulk reads leave a trace.
+`audit.exported` with the format and filters before streaming, so bulk reads leave a trace, and
+a second, failed `audit.exported` when a batch cannot be read and the file is cut short.
 
 ## Tests
 

@@ -51,12 +51,14 @@ async def export_events(
 ) -> StreamingResponse:
     """Download every audit event matching the filters as CSV or JSON Lines, most recently recorded first.
 
-    The export itself is recorded as an `audit.exported` event naming the filters.
+    The export itself is recorded as an `audit.exported` event naming the filters, and
+    again as a failure if the stream is cut short.
     """
-    await audit_service.record_export(UserActor(id=str(current_user.id), label=current_user.username), query)
+    actor = UserActor(id=str(current_user.id), label=current_user.username)
+    await audit_service.record_export(actor, query)
     filename = f"audit-events-{utc_now():%Y%m%dT%H%M%SZ}.{query.export_format.value}"
     return StreamingResponse(
-        audit_service.export_lines(query),
+        audit_service.export_lines(actor, query),
         media_type=_MEDIA_TYPES[query.export_format],
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

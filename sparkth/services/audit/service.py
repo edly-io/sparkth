@@ -10,19 +10,23 @@ import json
 from collections.abc import AsyncIterator
 from typing import Any
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel.sql.expression import SelectOfScalar
 
-from sparkth.lib.audit import record_event_now
+from sparkth.lib.audit import record_event_now, scrub_error_detail
 from sparkth.lib.audit.context import UserActor
 from sparkth.lib.audit.events import AuditChange, AuditExportedAuditEvent, AuditOutcome, AuditTarget
 from sparkth.lib.audit.hooks import AUDIT_EVENTS
 from sparkth.lib.db import session_scope
+from sparkth.lib.log import get_logger
 from sparkth.lib.models import AuditEvent
 from sparkth.services.audit.constants import EXPORT_BATCH_SIZE, FORMULA_PREFIXES
 from sparkth.services.audit.enums import ExportFormat
 from sparkth.services.audit.schemas import AuditEventExportQuery, AuditEventPage, AuditEventQuery, AuditEventRecord
+
+logger = get_logger(__name__)
 
 CSV_COLUMNS = list(AuditEventRecord.model_fields)
 
@@ -90,35 +94,47 @@ def list_categories() -> list[str]:
     return sorted({event_type.partition(".")[0] for event_type in AUDIT_EVENTS.iter_keys()})
 
 
+def _export_event(
+    actor: UserActor, query: AuditEventExportQuery, outcome: AuditOutcome, error_detail: str | None = None
+) -> AuditExportedAuditEvent:
+    return AuditExportedAuditEvent(
+        outcome=outcome,
+        actor=actor,
+        target=AuditTarget(type="audit_events"),
+        change=AuditChange(new=_create_audit_snapshot(query)),
+        error_detail=error_detail,
+    )
+
+
 async def record_export(actor: UserActor, query: AuditEventExportQuery) -> None:
     """Commit ``audit.exported`` for ``actor`` before any row leaves the system.
 
     Fail-closed: if the record cannot be written the error propagates and the
     export never starts.
     """
-    await record_event_now(
-        AuditExportedAuditEvent(
-            outcome=AuditOutcome.SUCCESS,
-            actor=actor,
-            target=AuditTarget(type="audit_events"),
-            change=AuditChange(new=_create_audit_snapshot(query)),
-        )
-    )
+    await record_event_now(_export_event(actor, query, AuditOutcome.SUCCESS))
 
 
-async def export_lines(query: AuditEventExportQuery) -> AsyncIterator[str]:
+async def export_lines(actor: UserActor, query: AuditEventExportQuery) -> AsyncIterator[str]:
     """Stream every event matching ``query``, most recently recorded first, as CSV or JSON Lines.
 
     Fetches ``EXPORT_BATCH_SIZE`` rows at a time, each batch in a session of its
     own that closes before the batch is sent, so a slow client never holds a pool
     connection. The keyset cursor carries the position from one batch to the next.
+    A batch that cannot be read cuts the file short, so it is recorded as a failed
+    ``audit.exported`` for ``actor`` before the error propagates.
     """
     if query.export_format is ExportFormat.CSV:
         yield ",".join(CSV_COLUMNS) + "\r\n"
     before_id: int | None = None
     while True:
-        async with session_scope() as session:
-            page = await list_events(session, query, limit=EXPORT_BATCH_SIZE, before_id=before_id)
+        try:
+            async with session_scope() as session:
+                page = await list_events(session, query, limit=EXPORT_BATCH_SIZE, before_id=before_id)
+        except SQLAlchemyError as exc:
+            logger.exception("Audit export by user %s failed before id %s", actor.id, before_id)
+            await record_event_now(_export_event(actor, query, AuditOutcome.FAILURE, scrub_error_detail(exc)))
+            raise
         yield _render(page, query.export_format)
         if page.next_before_id is None:
             return

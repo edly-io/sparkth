@@ -11,6 +11,7 @@ from typing import cast
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.audit.models import AuditEvent
@@ -19,6 +20,7 @@ from sparkth.lib.audit import record_event
 from sparkth.lib.audit.context import UserActor
 from sparkth.lib.audit.events import AuditOutcome, AuditTarget, LoginAuditEvent, WhitelistEntryAddedAuditEvent
 from sparkth.lib.testing import AuditEventsFetcher, grant_global_permission
+from sparkth.services.audit import AuditEventPage, AuditEventQuery
 
 NOW = datetime.now(timezone.utc)
 ALICE = UserActor(id="7", label="alice")
@@ -201,3 +203,53 @@ async def test_export_streams_past_one_batch(
     assert [json.loads(line)["actor_label"] for line in response.text.splitlines()] == ["bob", "alice"]
     everything = await client.get("/api/v1/audit/events/export", params={"format": "jsonl", "to": NOW.isoformat()})
     assert len(everything.text.splitlines()) == 3
+
+
+async def test_export_is_fail_closed_when_the_record_cannot_be_written(
+    client: AsyncClient, session: AsyncSession, current_user: User, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def broken_record(*args: object, **kwargs: object) -> None:
+        raise SQLAlchemyError("audit unavailable")
+
+    monkeypatch.setattr("sparkth.services.audit.service.record_event_now", broken_record)
+    await _grant(session, current_user)
+    await _seed(session)
+
+    with pytest.raises(SQLAlchemyError):
+        await client.get("/api/v1/audit/events/export", params={"format": "jsonl"})
+
+
+async def test_export_records_a_failure_when_a_batch_cannot_be_read(
+    client: AsyncClient,
+    session: AsyncSession,
+    current_user: User,
+    audit_events: AuditEventsFetcher,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sparkth.services.audit import service
+
+    read_batch = service.list_events
+    calls = 0
+
+    async def failing_second_batch(
+        batch_session: AsyncSession, query: AuditEventQuery, *, limit: int, before_id: int | None = None
+    ) -> AuditEventPage:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise SQLAlchemyError("connection lost")
+        return await read_batch(batch_session, query, limit=limit, before_id=before_id)
+
+    monkeypatch.setattr(service, "EXPORT_BATCH_SIZE", 1)
+    monkeypatch.setattr(service, "list_events", failing_second_batch)
+    await _grant(session, current_user)
+    await _seed(session)
+
+    with pytest.raises(SQLAlchemyError):
+        await client.get("/api/v1/audit/events/export", params={"format": "jsonl"})
+
+    started, failed = (await audit_events())[-2:]
+    assert [(e.action, e.outcome) for e in (started, failed)] == [("exported", "success"), ("exported", "failure")]
+    assert failed.actor_id == str(current_user.id)
+    assert failed.new_values == {"format": "jsonl", "filters": {}}
+    assert failed.error_detail is not None and "connection lost" in failed.error_detail

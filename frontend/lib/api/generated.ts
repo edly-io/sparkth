@@ -106,7 +106,8 @@ export interface paths {
          * Export Events
          * @description Download every audit event matching the filters as CSV or JSON Lines, most recently recorded first.
          *
-         *     The export itself is recorded as an `audit.exported` event naming the filters.
+         *     The export itself is recorded as an `audit.exported` event naming the filters, and
+         *     again as a failure if the stream is cut short.
          */
         get: operations["export_events_api_v1_audit_events_export_get"];
         put?: never;
