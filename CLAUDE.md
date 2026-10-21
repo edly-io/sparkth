@@ -122,7 +122,7 @@ How the suite is wired:
 
 - Discovery is plain `pytest` recursion from the repo root — any new `…/tests/` directory is picked up automatically. **Do not add `testpaths` to `pyproject.toml`**: it risks silently dropping a test dir.
 - Shared fixtures (`session`, `client`, `current_user`, `audit_events`, `analytics_session`, …) and the generic test environment live in [`sparkth/lib/testing.py`](sparkth/lib/testing.py), registered globally as a pytest plugin by the root [`conftest.py`](conftest.py) (`pytest_plugins = ["sparkth.lib.testing"]`). No per-conftest fixture imports are needed — just use the fixtures by name.
-- The three required-and-defaultless `Settings` fields (`DATABASE_URL`, `SECRET_KEY`, `LLM_ENCRYPTION_KEY`) are set by `sparkth/lib/testing.py`; tests must not redefine them. Plugin-specific test env (e.g. `SLACK_*`) belongs in that plugin's own conftest.
+- The three required-and-defaultless `Settings` fields (`DATABASE_URL`, `SECRET_KEY`, `ENCRYPTION_KEY`) are set by `sparkth/lib/testing.py`; tests must not redefine them. Plugin-specific test env (e.g. `SLACK_*`) belongs in that plugin's own conftest.
 - A file named `tests.py` inside a package is **not** collected — pytest only collects `test_*.py`.
 
 **TimescaleDB test lane.** The suite runs on in-memory SQLite by default. Tests that need a
