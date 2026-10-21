@@ -10,6 +10,7 @@ from sparkth.lib.i18n import gettext_noop
 from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.plugins.moodle.config import MoodleConfig
+from sparkth.plugins.moodle.constants import MOODLE_PLUGIN_NAME
 
 
 class MoodlePlugin(SparkthPlugin):
@@ -18,13 +19,13 @@ class MoodlePlugin(SparkthPlugin):
 
     Provides Moodle web services integration with MCP tools for:
     - Moodle vocabulary, structure and publish semantics (``moodle_about``)
-    - Authentication and credential validation
+    - Checking the user's stored Moodle settings
     - Course creation and listing
     - Section, Page and Quiz authoring
     """
 
     def __init__(self) -> None:
-        super().__init__("moodle")
+        super().__init__(MOODLE_PLUGIN_NAME)
         CONFIG_SCHEMAS.add_item(self, MoodleConfig)
         DISPLAY_INFO.add_item(
             self,
