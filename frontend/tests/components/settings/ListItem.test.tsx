@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
+
+import { renderWithIntl } from "@/tests/intl-test-utils";
 
 import PluginListItem from "@/components/settings/ListItem";
 import type { UserPluginState } from "@/lib/plugins";
@@ -7,7 +9,7 @@ import type { UserPluginState } from "@/lib/plugins";
 const noop = async () => {};
 
 function renderItem(plugin: UserPluginState) {
-  return render(
+  return renderWithIntl(
     <PluginListItem
       plugin={plugin}
       isLast

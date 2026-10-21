@@ -18,6 +18,9 @@ Most plugins need settings before they do anything, such as an AI key or your LM
 2. Click the sliders button. A "Configure" window opens with the plugin's fields.
 3. Fill in the fields and click **Save Changes**.
 
+A saved password or key shows as dots. To change it, click **Replace** and type the new one; leaving it
+alone keeps the saved one.
+
 ![Configuring a plugin](../img/user-guide/my-plugins-configure.png)
 
 !!! warning "Enabled is not configured"
