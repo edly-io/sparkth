@@ -1,5 +1,6 @@
 """Integration tests for Slack OAuth routes."""
 
+import json
 import time
 from datetime import datetime, timedelta, timezone
 from typing import cast
@@ -30,6 +31,9 @@ from sparkth.plugins.slack.models import (
 from sparkth.plugins.slack.oauth import generate_state
 from sparkth.plugins.slack.routes import _dispatch_event
 from sparkth.plugins.slack.service import WorkspaceService
+from sparkth.plugins.slack.tests.conftest import signed_event_headers
+
+SIGNING_SECRET = "test-signing-secret"
 
 
 class TestGetAuthorizationUrl:
@@ -199,12 +203,13 @@ class TestSlackEvents:
     @pytest.mark.asyncio
     async def test_url_verification_returns_challenge(self, slack_client: AsyncClient) -> None:
         payload = {"type": "url_verification", "challenge": "3eZbrw1aBm"}
+        body = json.dumps(payload).encode()
         with patch("sparkth.plugins.slack.routes.get_slack_settings") as mock_settings:
-            mock_settings.return_value.signing_secret = ""
+            mock_settings.return_value.signing_secret = SIGNING_SECRET
             response = await slack_client.post(
                 "/api/v1/slack/events",
-                json=payload,
-                headers={"X-Slack-Request-Timestamp": "0", "X-Slack-Signature": "v0=skip"},
+                content=body,
+                headers=signed_event_headers(SIGNING_SECRET, body),
             )
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["challenge"] == "3eZbrw1aBm"
@@ -231,12 +236,13 @@ class TestSlackEvents:
             "team_id": "T_UNKNOWN",
             "event": {"type": "app_mention", "text": "<@BOT> hi", "user": "U1", "channel": "C1"},
         }
+        body = json.dumps(payload).encode()
         with patch("sparkth.plugins.slack.routes.get_slack_settings") as mock_settings:
-            mock_settings.return_value.signing_secret = ""
+            mock_settings.return_value.signing_secret = SIGNING_SECRET
             response = await slack_client.post(
                 "/api/v1/slack/events",
-                json=payload,
-                headers={"X-Slack-Request-Timestamp": "0", "X-Slack-Signature": "v0=skip"},
+                content=body,
+                headers=signed_event_headers(SIGNING_SECRET, body),
             )
         assert response.status_code == status.HTTP_200_OK
         assert response.json() == {"ok": "true"}
@@ -258,15 +264,16 @@ class TestSlackEvents:
                 "ts": "1234567890.000001",
             },
         }
+        body = json.dumps(payload).encode()
         with (
             patch("sparkth.plugins.slack.routes.get_slack_settings") as mock_settings,
             patch("sparkth.plugins.slack.routes._dispatch_event", new_callable=AsyncMock) as mock_dispatch,
         ):
-            mock_settings.return_value.signing_secret = ""
+            mock_settings.return_value.signing_secret = SIGNING_SECRET
             response = await slack_client.post(
                 "/api/v1/slack/events",
-                json=payload,
-                headers={"X-Slack-Request-Timestamp": "0", "X-Slack-Signature": "v0=skip"},
+                content=body,
+                headers=signed_event_headers(SIGNING_SECRET, body),
             )
 
         assert response.status_code == status.HTTP_200_OK
@@ -296,15 +303,16 @@ class TestDispatchEventGreeting:
                 "ts": "1234567890.000001",
             },
         }
+        body = json.dumps(payload).encode()
         with (
             patch("sparkth.plugins.slack.routes.get_slack_settings") as mock_settings,
             patch("sparkth.plugins.slack.routes._dispatch_event", new_callable=AsyncMock) as mock_dispatch,
         ):
-            mock_settings.return_value.signing_secret = ""
+            mock_settings.return_value.signing_secret = SIGNING_SECRET
             response = await slack_client.post(
                 "/api/v1/slack/events",
-                json=payload,
-                headers={"X-Slack-Request-Timestamp": "0", "X-Slack-Signature": "v0=skip"},
+                content=body,
+                headers=signed_event_headers(SIGNING_SECRET, body),
             )
 
         assert response.status_code == status.HTTP_200_OK
