@@ -61,7 +61,9 @@ An LMS plugin should also ship a zero-argument `<prefix>about` tool (e.g. `mylms
 
 ## Register the plugin configuration class
 
-Register a Pydantic configuration class when your plugin has user-configurable settings that the system should validate and normalize — and always for LMS plugins, whose tools load it with `load_user_plugin_config`. Plugins with no user-facing configuration can skip this entirely.
+Register a Pydantic configuration class when your plugin has user-configurable settings that the system
+should validate and normalize, and always for LMS plugins, whose tools load it with
+`load_user_plugin_config`. Plugins with no user-facing configuration can skip this entirely.
 
 When you do register one, contribute your config class to the `CONFIG_SCHEMAS` hook from your plugin's `__init__`, right after calling `super().__init__(...)`. The system resolves config classes by the plugin's _declared_ name (the value you pass to `super().__init__()`, see [Plugin Names](#plugin-names) below), so no name string is needed at the call site.
 
@@ -337,7 +339,7 @@ only an administrator disabling the plugin outright stops them.
 
 MCP is not the only tool door. Chat applies both switches for the requesting user on every
 turn: a plugin switched off system-wide or by that user has none of its tools bound, no
-capability section or scope offered, and no LMS credentials sent. Only `/ai/mcp` stays
+capability section or scope offered. Only `/ai/mcp` stays
 system-wide.
 
 Because `/ai/mcp` has no per-user switch, a tool that must not run for a particular caller
@@ -673,7 +675,7 @@ construction and skips that plugin.
 
 On every request chat reads the capabilities of the plugins enabled for the requesting user, in
 plugin-name order. Chat contributes its own, course design. A plugin switched off system-wide or
-by the user contributes no section, no scope, no tools and no LMS credentials.
+by the user contributes no section, no scope and no tools.
 
 - **Scope gate.** Each message is judged against every enabled scope. A message that fits none
   is refused with a fixed sentence before the model runs. A refused first message writes nothing; a refused later message is stored in the
