@@ -28,6 +28,7 @@ from sparkth.core.permissions import (
     ROLE_DELETE,
     ROLE_READ,
     ROLE_UPDATE,
+    USER_READ,
     Permission,
     assign_role,
     can,
@@ -71,4 +72,5 @@ __all__ = [
     "PERMISSION_READ",
     "ANALYTICS_READ",
     "AUDIT_READ",
+    "USER_READ",
 ]
