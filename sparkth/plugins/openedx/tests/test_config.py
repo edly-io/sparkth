@@ -4,8 +4,11 @@ from sparkth.plugins.openedx.config import OpenEdxConfig
 
 
 def test_password_is_declared_as_a_secret() -> None:
-    """Without the hint the settings form renders the password in cleartext."""
-    assert OpenEdxConfig.model_json_schema()["properties"]["lms_password"]["widget"] == "password"
+    """Without the marker the API returns the password and the form shows it in cleartext."""
+    field = OpenEdxConfig.model_json_schema()["properties"]["lms_password"]
+
+    assert field["secret"] is True
+    assert field["widget"] == "password"
 
 
 def test_urls_and_username_are_plain_fields() -> None:

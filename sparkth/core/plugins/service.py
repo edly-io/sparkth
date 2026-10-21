@@ -160,11 +160,14 @@ class UserPluginResponse(pydantic.BaseModel):
     UI renders its form from -- field types, labels, defaults, and the widget
     hints a plugin sets through ``json_schema_extra``. It is empty for a plugin
     that registered no config class.
+
+    ``config`` never carries a field marked ``secret()``; ``secrets_set`` names the ones stored.
     """
 
     plugin_name: str
     enabled: bool
     config: dict[str, Any]
+    secrets_set: list[str] = []
     is_core: bool
     config_schema: dict[str, Any] = {}
     display: DisplayInfo | None = None
@@ -192,10 +195,13 @@ class UserPluginResponse(pydantic.BaseModel):
         sidebar = get_plugin_sidebar_entry(plugin_name)
         if sidebar is not None:
             sidebar = SidebarEntry(translate(sidebar.label), sidebar.icon, sidebar.order)
+        properties = (config_schema or {}).get("properties", {})
+        secrets = [name for name, prop in properties.items() if prop.get("secret")]
         return cls(
             plugin_name=plugin_name,
             enabled=enabled,
-            config=config,
+            config={key: value for key, value in config.items() if key not in secrets},
+            secrets_set=[name for name in secrets if config.get(name)],
             is_core=is_core,
             config_schema=config_schema or {},
             display=display,
@@ -252,7 +258,7 @@ class PluginService:
         try:
             validated_config = config_class(**user_config)
         except pydantic.ValidationError as e:
-            raise ConfigValidationError(e.errors())
+            raise ConfigValidationError(e.errors(include_input=False))
 
         return validated_config.model_dump(mode="json")
 
