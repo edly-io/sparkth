@@ -2844,6 +2844,8 @@ export interface components {
          *     UI renders its form from -- field types, labels, defaults, and the widget
          *     hints a plugin sets through ``json_schema_extra``. It is empty for a plugin
          *     that registered no config class.
+         *
+         *     ``config`` never carries a ``password``-widget field; ``secrets_set`` names the ones stored.
          */
         UserPluginResponse: {
             /** Config */
@@ -2869,6 +2871,11 @@ export interface components {
             is_core: boolean;
             /** Plugin Name */
             plugin_name: string;
+            /**
+             * Secrets Set
+             * @default []
+             */
+            secrets_set: string[];
             sidebar?: components["schemas"]["SidebarEntry"] | null;
         };
         /**
