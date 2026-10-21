@@ -5,7 +5,6 @@ import { useSearchParams } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import { ChartColumn, X } from "lucide-react";
 import {
-  PERIOD_KEYS,
   buildSeries,
   exploreParams,
   fetchEventCatalog,
@@ -34,6 +33,8 @@ import { Select } from "@/components/ui/Select";
 import { Forbidden } from "@/components/Forbidden";
 import { Spinner } from "@/core/components/ui/Spinner";
 import { PeriodView, useComparison, type PeriodRange } from "../PeriodView";
+import { SavedViewActions } from "./SavedViewActions";
+import { configQuery, useSavedView } from "./useSavedView";
 import { usePeriod, useReplaceQuery } from "../usePeriod";
 
 const MEASURES: Measure[] = ["count", "distinct_actors"];
@@ -45,9 +46,9 @@ const VISIBLE_TABLE =
 
 /**
  * Builds a chart from any recorded event: pick an event, filter, measure, break down and chart
- * type. The settings live in the URL, so a configured view can be bookmarked or shared. Event
- * types, field names and values show as recorded. Needs `user.read`, since a breakdown by actor
- * names users.
+ * type. The settings live in the URL, so a configured view can be bookmarked or shared, and can
+ * be saved as a view private to the viewer; `?view=<id>` opens one. Event types, field names and
+ * values show as recorded. Needs `user.read`, since a breakdown by actor names users.
  */
 export default function ExplorePage() {
   const t = useTranslations("analytics.explore");
@@ -58,6 +59,7 @@ export default function ExplorePage() {
   const replaceQuery = useReplaceQuery();
   const access = usePermissionCheck(token, "user.read");
   const [catalog, setCatalog] = useState<EventCatalogEntry[] | "forbidden" | "error" | null>(null);
+  const saved = useSavedView();
 
   useEffect(() => {
     if (!token) return;
@@ -97,21 +99,35 @@ export default function ExplorePage() {
   }
 
   const { config, dropped } = pruned;
-  // Keeps the period, replaces Explore's own settings.
-  const update = (change: (current: ExploreConfig) => ExploreConfig) =>
+  // Keeps the period and the open view, replaces Explore's own settings.
+  const update = (change: (current: ExploreConfig) => ExploreConfig) => {
+    saved.clearNotice();
     replaceQuery((latest) => {
       const current = pruneConfig(parseExploreConfig(latest), catalog).config;
-      const kept = [...latest].filter(([k]) => PERIOD_KEYS.includes(k));
-      return new URLSearchParams([...kept, ...exploreParams(change(current))]).toString();
+      return configQuery(latest, change(current), latest.get("view"));
     });
+  };
   const entry = catalog.find((e) => e.event_type === config.event);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold text-foreground">{t("title")}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">{t("description")}</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-semibold text-foreground">
+            {saved.view?.name ?? t("title")}
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">{t("description")}</p>
+        </div>
+        <SavedViewActions saved={saved} config={config} />
       </div>
+      {saved.notice === "saved" && (
+        <p role="status" className="text-sm text-muted-foreground">
+          {t("saved")}
+        </p>
+      )}
+      {saved.notice === "error" && <Alert severity="error">{t("saveError")}</Alert>}
+      {saved.failure === "missing" && <Alert severity="warning">{t("viewMissing")}</Alert>}
+      {saved.failure === "error" && <Alert severity="error">{tAnalytics("loadError")}</Alert>}
       {dropped && <Alert severity="warning">{t("stale")}</Alert>}
       {/* Keyed by event, so a half-built filter doesn't outlive its event's fields. */}
       <Controls

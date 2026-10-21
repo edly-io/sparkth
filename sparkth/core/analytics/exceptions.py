@@ -81,3 +81,11 @@ class UngroupableExploreField(ExploreQueryError):
         self.event_type = event_type
         self.field = field
         super().__init__(f"Cannot group event type '{event_type}' by integer field '{field}'")
+
+
+class AnalyticsViewNotFound(Exception):
+    """The owner has no saved view with this id."""
+
+
+class AnalyticsViewAlreadyExists(Exception):
+    """The owner already has a saved view with this name."""
