@@ -278,5 +278,6 @@ async def _permitted(session: AsyncSession) -> None:
     session.add(user)
     await session.flush()
     await grant_global_permission(session, 1, "analytics.read")
+    await grant_global_permission(session, 1, "user.read")
     await session.commit()
     _login_as(user)
