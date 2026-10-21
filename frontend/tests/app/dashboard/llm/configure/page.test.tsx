@@ -49,4 +49,17 @@ describe("AI Keys page", () => {
     expect(await screen.findByText("nope")).toBeDefined();
     expect(screen.getByRole("listitem").textContent).toContain("my-key");
   });
+
+  it("checks a config name as it is typed", async () => {
+    renderWithIntl(<LLMConfigurePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit config my-key" }));
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "bad name!" },
+    });
+
+    expect(
+      await screen.findByText("Only letters, numbers, hyphens, and underscores allowed"),
+    ).toBeDefined();
+    expect(screen.getByRole("button", { name: "Save Changes" })).toBeDisabled();
+  });
 });

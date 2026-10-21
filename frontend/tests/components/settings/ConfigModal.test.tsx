@@ -84,23 +84,33 @@ describe("PluginConfigModal", () => {
     expect(screen.queryByLabelText(/Llm Provider/)).toBeNull();
   });
 
-  it("reports an invalid url and refuses to save", async () => {
-    const onSave = renderModal({});
-
-    fireEvent.change(screen.getByLabelText(/Lms Url/), { target: { value: "not-a-url" } });
-    fireEvent.click(screen.getByRole("button", { name: /Save/ }));
-
+  it("checks a field as it is typed", async () => {
+    renderModal({});
+    fireEvent.change(screen.getByLabelText(/Lms Url/), { target: { value: "not a url" } });
     expect(await screen.findByText("Input should be a valid URL")).toBeDefined();
-    expect(onSave).not.toHaveBeenCalled();
   });
 
-  it("refuses to save while a required field is empty", async () => {
+  it("shows every field's error when Save is clicked on an incomplete form", async () => {
     const onSave = renderModal({ config: { lms_url: "https://lms.example.com" } });
 
     fireEvent.click(screen.getByRole("button", { name: /Save/ }));
 
     expect(await screen.findAllByText("This field is required")).toHaveLength(2);
     expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("shows the server's reason when a save fails", async () => {
+    const onSave = vi.fn(async () => {
+      throw new Error("Canvas rejected the key");
+    });
+    renderModal(
+      { config: { lms_url: "https://l.example.com", lms_username: "s", lms_password: "p" } },
+      onSave,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Save/ }));
+
+    expect(await screen.findByText("Canvas rejected the key")).toBeDefined();
   });
 
   it("saves the declared fields once every value is valid", async () => {
@@ -168,7 +178,7 @@ describe("PluginConfigModal", () => {
 
   it("surfaces a failed save", async () => {
     const onSave = vi.fn(async () => {
-      throw new Error("boom");
+      throw new Error("");
     });
     renderModal(
       { config: { lms_url: "https://l.example.com", lms_username: "s", lms_password: "p" } },

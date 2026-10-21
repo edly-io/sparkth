@@ -120,7 +120,7 @@ function EditModal({ config, providers, token, onClose, onSaved }: EditModalProp
             error={nameError}
             onChange={(e) => {
               setName(e.target.value);
-              if (nameError) setNameError(validateLLMConfigName(e.target.value));
+              setNameError(validateLLMConfigName(e.target.value));
             }}
             onBlur={() => setNameError(validateLLMConfigName(name))}
             placeholder={t("namePlaceholder")}
@@ -211,6 +211,7 @@ function EditModal({ config, providers, token, onClose, onSaved }: EditModalProp
             loading={saving}
             spinnerLabel={t("saving")}
             onClick={handleSave}
+            disabled={!!validateLLMConfigName(name)}
           >
             {t("saveChanges")}
           </Button>
@@ -501,7 +502,7 @@ function NewConfigModal({ token, onClose, onCreated }: NewConfigModalProps) {
                 autoFocus
                 onChange={(e) => {
                   setName(e.target.value);
-                  if (nameError) setNameError(validateLLMConfigName(e.target.value));
+                  setNameError(validateLLMConfigName(e.target.value));
                 }}
                 onBlur={(e) => setNameError(validateLLMConfigName(e.target.value))}
                 disabled={submitting || !!catalogError}
