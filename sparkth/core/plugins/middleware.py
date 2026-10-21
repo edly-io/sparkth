@@ -5,12 +5,12 @@ from fastapi.responses import JSONResponse
 from fastapi.routing import RouteContext, iter_route_contexts
 from sqlalchemy.exc import DatabaseError, OperationalError
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.routing import Match
+from starlette.routing import BaseRoute, Match
 
 from sparkth.core.models.user import User
 from sparkth.core.plugins.constants import BEARER_SCHEME
 from sparkth.core.plugins.service import disabled_plugin_names
-from sparkth.core.routes import get_route_plugin_name
+from sparkth.core.routes import get_route_plugin_name, is_platform_wide_route
 from sparkth.lib.auth import bind_interface_locale, decode_token_username, get_user_by_username
 from sparkth.lib.db import session_scope
 from sparkth.lib.i18n import _
@@ -49,6 +49,8 @@ class PluginAccessMiddleware(BaseHTTPMiddleware):
     OAuth callback is called by Slack itself, with no token — and a per-user preference is
     meaningless without a user; endpoints that do require a caller are still rejected by
     their own auth dependency.
+
+    Routes registered ``platform_wide`` pass like core routes.
     """
 
     def __init__(self, app: Any, exclude_paths: list[str] | None = None) -> None:
@@ -72,8 +74,8 @@ class PluginAccessMiddleware(BaseHTTPMiddleware):
             response: Response = await call_next(request)
             return response
 
-        plugin_name = self._get_route_plugin_name(request)
-        if not plugin_name:
+        route = self._match_route(request)
+        if route is None or is_platform_wide_route(route) or not (plugin_name := get_route_plugin_name(route)):
             response = await call_next(request)
             return response
 
@@ -118,20 +120,20 @@ class PluginAccessMiddleware(BaseHTTPMiddleware):
                 return True
         return False
 
-    def _get_route_plugin_name(self, request: Request) -> str | None:
-        """Name of the plugin owning the route this request targets, or None for a core route.
+    def _match_route(self, request: Request) -> BaseRoute | None:
+        """The route this request targets, or None when no route matches.
 
         Since FastAPI 0.137 include_router() no longer copies the sub-routes into
         app.routes: it appends a single lazy _IncludedRouter branch, which has no .endpoint
         carrying the plugin name. iter_route_contexts flattens those branches into contexts
         that match on the *prefixed* path — the underlying route's own .path is unprefixed
         and would never match the request — while original_route is the real route whose
-        endpoint holds the stamp.
+        endpoint holds the plugin stamps.
         """
         for context in self._flattened_routes(request.app):
             match, _ = context.matches(request.scope)
             if match == Match.FULL:
-                return get_route_plugin_name(context.original_route)
+                return context.original_route
         return None
 
     def _flattened_routes(self, app: FastAPI) -> list[RouteContext]:

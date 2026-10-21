@@ -304,6 +304,10 @@ has turned your plugin off in their settings — or a request to a plugin disabl
 system-wide — is answered with `403` before it reaches your handler, so a handler never has
 to check plugin access itself.
 
+A route that serves platform-wide data, such as an analytics read, opts out with
+`@platform_wide` from `sparkth.lib.routes`, placed below the route decorator. The gate lets it
+through whatever either switch says; its own dependencies, such as a permission, still apply.
+
 The gate identifies the caller from the request's bearer token. A request carrying no
 readable token passes straight through it: a per-user preference is meaningless without a
 user, so endpoints that are called by someone other than a logged-in user — an OAuth

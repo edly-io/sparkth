@@ -1,4 +1,5 @@
-from typing import cast
+from collections.abc import Callable
+from typing import Any, cast
 
 from fastapi import APIRouter
 from fastapi.routing import iter_route_contexts
@@ -9,6 +10,7 @@ from sparkth.lib.plugins import SparkthPlugin
 from . import hooks
 
 PLUGIN_NAME_ATTRIBUTE = "__sparkth_plugin_name__"
+PLATFORM_WIDE_ATTRIBUTE = "__sparkth_platform_wide__"
 
 
 def register_router(plugin: SparkthPlugin, router: APIRouter) -> None:
@@ -50,3 +52,18 @@ def get_route_plugin_name(route: BaseRoute) -> str | None:
         if plugin_name := getattr(endpoint, PLUGIN_NAME_ATTRIBUTE, None):
             return cast(str, plugin_name)
     return None
+
+
+def platform_wide[F: Callable[..., Any]](endpoint: F) -> F:
+    """Mark a plugin endpoint as serving platform-wide data.
+
+    The plugin access gate lets a marked endpoint through whatever the plugin switches say;
+    its own dependencies (e.g. a permission) still apply. Apply it below the route decorator.
+    """
+    setattr(endpoint, PLATFORM_WIDE_ATTRIBUTE, True)
+    return endpoint
+
+
+def is_platform_wide_route(route: BaseRoute) -> bool:
+    """Whether the route's endpoint is marked :func:`platform_wide`."""
+    return getattr(getattr(route, "endpoint", None), PLATFORM_WIDE_ATTRIBUTE, False)
