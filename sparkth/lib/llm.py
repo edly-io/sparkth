@@ -62,6 +62,6 @@ __all__ = [
 def get_llm_service() -> LLMConfigService:
     settings = get_settings()
     return LLMConfigService(
-        get_encryption_service(settings.LLM_ENCRYPTION_KEY),
+        get_encryption_service(settings.ENCRYPTION_KEY),
         get_cache_service(settings.REDIS_URL, settings.REDIS_KEY_TTL),
     )

@@ -110,7 +110,8 @@ class Settings(BaseSettings):
 
     MEMORY_PROFILING_ENABLED: bool = False
 
-    LLM_ENCRYPTION_KEY: str
+    # Encrypts stored AI keys.
+    ENCRYPTION_KEY: str
     REDIS_URL: str = "redis://localhost:6379/0"
     REDIS_KEY_TTL: int = 3600
 

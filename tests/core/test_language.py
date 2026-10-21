@@ -38,7 +38,7 @@ def test_default_language_setting_defaults_to_english(monkeypatch: pytest.Monkey
         DATABASE_URL="sqlite+aiosqlite:///:memory:",
         ANALYTICS_DATABASE_URL="sqlite+aiosqlite:///:memory:",
         SECRET_KEY="test-secret",
-        LLM_ENCRYPTION_KEY="test-key",
+        ENCRYPTION_KEY="test-key",
     )
     assert settings.DEFAULT_LANGUAGE == "en"
 
@@ -50,7 +50,7 @@ def test_default_language_outside_the_allowlist_is_rejected_at_startup() -> None
             DATABASE_URL="sqlite+aiosqlite:///:memory:",
             ANALYTICS_DATABASE_URL="sqlite+aiosqlite:///:memory:",
             SECRET_KEY="test-secret",
-            LLM_ENCRYPTION_KEY="test-key",
+            ENCRYPTION_KEY="test-key",
             DEFAULT_LANGUAGE="klingon",
         )
 
@@ -76,7 +76,7 @@ def test_the_default_is_validated_by_the_same_rule_as_any_other_tag() -> None:
             DATABASE_URL="sqlite+aiosqlite:///:memory:",
             ANALYTICS_DATABASE_URL="sqlite+aiosqlite:///:memory:",
             SECRET_KEY="test-secret",
-            LLM_ENCRYPTION_KEY="test-key",
+            ENCRYPTION_KEY="test-key",
             DEFAULT_LANGUAGE="en-US",
         )
 

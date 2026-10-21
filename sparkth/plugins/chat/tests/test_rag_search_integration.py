@@ -40,7 +40,7 @@ class _SeededData:
 
 async def _seed(session: AsyncSession, user_id: int) -> _SeededData:
     settings = get_settings()
-    enc = get_encryption_service(settings.LLM_ENCRYPTION_KEY)
+    enc = get_encryption_service(settings.ENCRYPTION_KEY)
     llm_config = LLMConfig(
         user_id=user_id,
         name="test-cfg",
