@@ -1,7 +1,7 @@
-"""Analytics read API — dashboards call these endpoints; they read rollups only.
+"""Analytics read API — the dashboards and Explore call these endpoints.
 
-Never touches the application database or raw events beyond the analytics read
-functions. Every endpoint is gated by the ``analytics.read`` permission. (Analytics
+The dashboards read rollups and ``/events`` lists the registered event types; none of them
+touch the application database. Every endpoint is gated by the ``analytics.read`` permission. (Analytics
 is emitted server-side via ``ingest_event`` — validated against the schema on the
 ``ANALYTICS_EVENTS`` hook; there is no HTTP emission endpoint — this read router is
 the analytics HTTP surface.)
@@ -12,7 +12,15 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sparkth.lib.analytics import LoginsPoint, RangeQuery, SummaryCount, get_logins, summarize
+from sparkth.lib.analytics import (
+    EventCatalogEntry,
+    LoginsPoint,
+    RangeQuery,
+    SummaryCount,
+    event_catalog,
+    get_logins,
+    summarize,
+)
 from sparkth.lib.db import get_analytics_session
 from sparkth.lib.permissions import ANALYTICS_READ
 
@@ -53,3 +61,13 @@ async def summary(
     ignored.
     """
     return await summarize(session, query.from_, query.to)
+
+
+@router.get(
+    "/events",
+    response_model=list[EventCatalogEntry],
+    dependencies=[Depends(ANALYTICS_READ.require_in_global_scope())],
+)
+async def events() -> list[EventCatalogEntry]:
+    """Return every registered event type with its payload fields, sorted by type."""
+    return event_catalog()

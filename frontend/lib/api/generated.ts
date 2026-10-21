@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/api/v1/analytics/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Events
+         * @description Return every registered event type with its payload fields, sorted by type.
+         */
+        get: operations["events_api_v1_analytics_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/analytics/logins": {
         parameters: {
             query?: never;
@@ -2238,6 +2258,32 @@ export interface components {
             sync_status: string;
         };
         /**
+         * EventCatalogEntry
+         * @description An event type and its payload fields, merged across versions.
+         */
+        EventCatalogEntry: {
+            /** Event Type */
+            event_type: string;
+            /** Fields */
+            fields: components["schemas"]["EventField"][];
+        };
+        /**
+         * EventField
+         * @description One payload field of an event type. ``values`` lists the choices of an ``enum``.
+         */
+        EventField: {
+            kind: components["schemas"]["FilterFieldType"];
+            /** Name */
+            name: string;
+            /**
+             * Nullable
+             * @default false
+             */
+            nullable: boolean;
+            /** Values */
+            values?: string[] | null;
+        };
+        /**
          * ExportFormat
          * @description Machine-readable shapes an export can stream as.
          * @enum {string}
@@ -2256,6 +2302,15 @@ export interface components {
             rag_error?: string | null;
             rag_status?: components["schemas"]["DocumentStatus"] | null;
         };
+        /**
+         * FilterFieldType
+         * @description How an event payload field is filtered: it picks the filter control and how a value is parsed.
+         *
+         *     ``string`` is free text, ``enum`` one of the field's listed ``values``, ``boolean`` ``true`` or
+         *     ``false``, and ``integer`` a whole number.
+         * @enum {string}
+         */
+        FilterFieldType: "string" | "enum" | "boolean" | "integer";
         /**
          * FolderRagStatusResponse
          * @description RAG processing status for all files in a folder.
@@ -2939,6 +2994,26 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    events_api_v1_analytics_events_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventCatalogEntry"][];
+                };
+            };
+        };
+    };
     logins_api_v1_analytics_logins_get: {
         parameters: {
             query: {

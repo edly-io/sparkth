@@ -1,6 +1,7 @@
 """Rows and query models for analytics reads."""
 
 from datetime import date
+from enum import StrEnum
 from typing import Self
 
 from pydantic import BaseModel, Field, model_validator
@@ -44,3 +45,32 @@ class RangeQuery(BaseModel):
         if (self.to - self.from_).days + 1 > MAX_RANGE_DAYS:
             raise ValueError(f"range must not exceed {MAX_RANGE_DAYS} days")
         return self
+
+
+class FilterFieldType(StrEnum):
+    """How an event payload field is filtered: it picks the filter control and how a value is parsed.
+
+    ``string`` is free text, ``enum`` one of the field's listed ``values``, ``boolean`` ``true`` or
+    ``false``, and ``integer`` a whole number.
+    """
+
+    string = "string"
+    enum = "enum"
+    boolean = "boolean"
+    integer = "integer"
+
+
+class EventField(BaseModel):
+    """One payload field of an event type. ``values`` lists the choices of an ``enum``."""
+
+    name: str
+    kind: FilterFieldType
+    values: list[str] | None = None
+    nullable: bool = False
+
+
+class EventCatalogEntry(BaseModel):
+    """An event type and its payload fields, merged across versions."""
+
+    event_type: str
+    fields: list[EventField]
