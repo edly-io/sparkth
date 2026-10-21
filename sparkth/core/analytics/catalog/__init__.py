@@ -58,4 +58,16 @@ def catalog_entry(event_type: str) -> EventCatalogEntry | None:
     return next((e for e in event_catalog() if e.event_type == event_type), None)
 
 
-__all__ = ["EventCatalogEntry", "EventField", "FilterFieldType", "catalog_entry", "event_catalog"]
+def versions_with_kind(event_type: str, name: str, kind: FilterFieldType) -> list[int]:
+    """The versions of ``event_type`` whose field ``name`` is of ``kind``, ascending."""
+    return sorted(
+        schema.version
+        for schema in ANALYTICS_EVENTS.iter_values()
+        if schema.event_type == event_type
+        and (info := schema.model_fields.get(name)) is not None
+        and (field := _field(name, info)) is not None
+        and field.kind == kind
+    )
+
+
+__all__ = ["EventCatalogEntry", "EventField", "FilterFieldType", "catalog_entry", "event_catalog", "versions_with_kind"]

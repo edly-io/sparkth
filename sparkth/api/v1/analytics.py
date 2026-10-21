@@ -1,28 +1,35 @@
 """Analytics read API — the dashboards and Explore call these endpoints.
 
-The dashboards read rollups and ``/events`` lists the registered event types; none of them
-touch the application database. Every endpoint is gated by the ``analytics.read`` permission. (Analytics
-is emitted server-side via ``ingest_event`` — validated against the schema on the
-``ANALYTICS_EVENTS`` hook; there is no HTTP emission endpoint — this read router is
-the analytics HTTP surface.)
+The dashboards read rollups, ``/events`` lists the registered event types and ``/query`` counts
+raw events; none of them touch the application database. Every endpoint is gated by the
+``analytics.read`` permission. (Analytics is emitted server-side via ``ingest_event`` —
+validated against the schema on the ``ANALYTICS_EVENTS`` hook; there is no HTTP emission
+endpoint — this read router is the analytics HTTP surface.)
 """
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from sparkth.lib.analytics import (
     EventCatalogEntry,
+    ExploreQuery,
+    ExploreQueryError,
+    ExploreResult,
     LoginsPoint,
     RangeQuery,
     SummaryCount,
     event_catalog,
     get_logins,
+    measure_raw_events,
     summarize,
 )
 from sparkth.lib.db import get_analytics_session
+from sparkth.lib.exceptions.handlers import register_exception_handler
 from sparkth.lib.permissions import ANALYTICS_READ
+
+register_exception_handler(ExploreQueryError, status.HTTP_422_UNPROCESSABLE_CONTENT)
 
 router = APIRouter()
 
@@ -71,3 +78,20 @@ async def summary(
 async def events() -> list[EventCatalogEntry]:
     """Return every registered event type with its payload fields, sorted by type."""
     return event_catalog()
+
+
+@router.get(
+    "/query",
+    response_model=ExploreResult,
+    dependencies=[Depends(ANALYTICS_READ.require_in_global_scope())],
+)
+async def query_events(
+    query: Annotated[ExploreQuery, Query()],
+    session: AsyncSession = Depends(get_analytics_session),
+) -> ExploreResult:
+    """Measure one event type's raw events per bucket, filtered and grouped by payload fields.
+
+    Sparse. Grouped results keep the top 20 groups by range total and set `truncated` when more
+    existed. An unknown event type or field, or a value that does not fit its field, is a 422.
+    """
+    return await measure_raw_events(session, query)

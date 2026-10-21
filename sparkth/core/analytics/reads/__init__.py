@@ -5,7 +5,7 @@ to the API layer and plugins via ``sparkth.lib.analytics``. Importing it seeds t
 figures.
 """
 
-from sparkth.core.analytics.reads.buckets import PG_BUCKET, SQLITE_BUCKET, in_days
+from sparkth.core.analytics.reads.buckets import PG_BUCKET, PG_RAW_BUCKET, SQLITE_BUCKET, in_days
 from sparkth.core.analytics.reads.enums import Bucket
 from sparkth.core.analytics.reads.queries import get_logins, summarize
 from sparkth.core.analytics.reads.rollups import read_rollup
@@ -14,6 +14,7 @@ from sparkth.core.analytics.reads.schemas import MAX_RANGE_DAYS, LoginsPoint, Ra
 __all__ = [
     "MAX_RANGE_DAYS",
     "PG_BUCKET",
+    "PG_RAW_BUCKET",
     "SQLITE_BUCKET",
     "Bucket",
     "LoginsPoint",
