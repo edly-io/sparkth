@@ -1,4 +1,4 @@
-"""Analytics read API — dashboards call these endpoints; they read rollups only.
+"""Analytics read API — dashboards call these endpoints; they read rollups, and ``/query`` raw events.
 
 Never touches the application database or raw events beyond the analytics read
 functions. Every endpoint is gated by the ``analytics.read`` permission. (Analytics
@@ -9,20 +9,27 @@ the analytics HTTP surface.)
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from sparkth.lib.analytics import (
     EventCatalogEntry,
+    ExploreQuery,
+    ExploreQueryError,
+    ExploreResult,
     LoginsPoint,
     RangeQuery,
     SummaryCount,
     event_catalog,
+    explore,
     get_logins,
     summarize,
 )
 from sparkth.lib.db import get_analytics_session
+from sparkth.lib.exceptions.handlers import register_exception_handler
 from sparkth.lib.permissions import ANALYTICS_READ
+
+register_exception_handler(ExploreQueryError, status.HTTP_422_UNPROCESSABLE_CONTENT)
 
 router = APIRouter()
 
@@ -71,3 +78,20 @@ async def summary(
 async def events() -> list[EventCatalogEntry]:
     """Return every registered event type with its payload fields, sorted by type."""
     return event_catalog()
+
+
+@router.get(
+    "/query",
+    response_model=ExploreResult,
+    dependencies=[Depends(ANALYTICS_READ.require_in_global_scope())],
+)
+async def query_events(
+    query: Annotated[ExploreQuery, Query()],
+    session: AsyncSession = Depends(get_analytics_session),
+) -> ExploreResult:
+    """Measure one event type's raw events per bucket, filtered and grouped by payload fields.
+
+    Sparse. Grouped results keep the top 20 groups by range total and set `truncated` when more
+    existed. An unknown event type or field, or a value that does not fit its field, is a 422.
+    """
+    return await explore(session, query)

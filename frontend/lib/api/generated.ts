@@ -49,6 +49,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/analytics/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Query Events
+         * @description Measure one event type's raw events per bucket, filtered and grouped by payload fields.
+         *
+         *     Sparse. Grouped results keep the top 20 groups by range total and set `truncated` when more
+         *     existed. An unknown event type or field, or a value that does not fit its field, is a 422.
+         */
+        get: operations["query_events_api_v1_analytics_query_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/analytics/summary": {
         parameters: {
             query?: never;
@@ -2284,6 +2307,47 @@ export interface components {
             values?: string[] | null;
         };
         /**
+         * ExplorePoint
+         * @description A measure for one bucket and group. ``bucket`` is the UTC start, ``YYYY-MM-DD``.
+         */
+        ExplorePoint: {
+            /** Bucket */
+            bucket: string;
+            /** Group */
+            group: string | null;
+            /** Value */
+            value: number;
+        };
+        /**
+         * ExploreResult
+         * @description Explore points and totals; ``truncated`` when groups beyond the cap were dropped.
+         */
+        ExploreResult: {
+            /**
+             * Actor Names
+             * @default {}
+             */
+            actor_names: {
+                [key: string]: string;
+            };
+            /** Points */
+            points: components["schemas"]["ExplorePoint"][];
+            /** Totals */
+            totals: components["schemas"]["ExploreTotal"][];
+            /** Truncated */
+            truncated: boolean;
+        };
+        /**
+         * ExploreTotal
+         * @description A group's measure over the whole range.
+         */
+        ExploreTotal: {
+            /** Group */
+            group: string | null;
+            /** Value */
+            value: number;
+        };
+        /**
          * ExportFormat
          * @description Machine-readable shapes an export can stream as.
          * @enum {string}
@@ -2463,6 +2527,12 @@ export interface components {
             /** Total */
             total: number;
         };
+        /**
+         * Measure
+         * @description What an explore query counts per bucket.
+         * @enum {string}
+         */
+        Measure: "count" | "distinct_actors";
         /** MessageResponse */
         MessageResponse: {
             /** Attachment Name */
@@ -3024,6 +3094,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LoginsPoint"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    query_events_api_v1_analytics_query_get: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                bucket?: components["schemas"]["Bucket"];
+                event_type: string;
+                actor_id?: string | null;
+                filter?: string[];
+                measure?: components["schemas"]["Measure"];
+                group_by?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExploreResult"];
                 };
             };
             /** @description Validation Error */

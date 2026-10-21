@@ -12,6 +12,8 @@ Plugins:
     events that should share one session (reach for the lower-level
     ``ingest_event`` only when the caller already holds an analytics session),
   - list the registered event types and their payload fields with ``event_catalog``,
+  - measure one event type's raw events, filtered and grouped by payload fields, with
+    ``explore`` (an ``ExploreQuery``; bad names or values raise ``ExploreQueryError``),
   - read a continuous aggregate by range and bucket with ``read_rollup`` (payload-key
     dims, no SQL), taking the range as ``RangeQuery``,
   - add a headline figure to the Overview with ``register_summary_figure`` (a
@@ -32,8 +34,13 @@ from sparkth.core.analytics.exceptions import (
     ContinuousAggregateNotFound,
     DuplicateEventTypeError,
     EventNamespaceError,
+    ExploreQueryError,
+    InvalidFilterValue,
     UnknownEventTypeError,
+    UnknownExploreEvent,
+    UnknownExploreField,
 )
+from sparkth.core.analytics.explore import GROUP_LIMIT, explore
 from sparkth.core.analytics.gateway import ingest_event
 from sparkth.core.analytics.hooks import SUMMARY_FIGURES
 from sparkth.core.analytics.maintenance import backfill_continuous_aggregates
@@ -42,8 +49,13 @@ from sparkth.core.analytics.schemas.base import AnalyticsEventSchema
 from sparkth.core.analytics.schemas.reads import (
     EventCatalogEntry,
     EventField,
+    ExplorePoint,
+    ExploreQuery,
+    ExploreResult,
+    ExploreTotal,
     FieldKind,
     LoginsPoint,
+    Measure,
     RangeQuery,
     SummaryCount,
 )
@@ -71,6 +83,17 @@ __all__ = [
     "EventField",
     "FieldKind",
     "EventNamespaceError",
+    "ExplorePoint",
+    "ExploreQuery",
+    "ExploreQueryError",
+    "ExploreResult",
+    "ExploreTotal",
+    "GROUP_LIMIT",
+    "InvalidFilterValue",
+    "Measure",
+    "UnknownExploreEvent",
+    "UnknownExploreField",
+    "explore",
     "UnknownEventTypeError",
     "backfill_continuous_aggregates",
     "catalog_entry",
