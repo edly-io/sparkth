@@ -79,13 +79,14 @@ class ContentContributor:
     and a publishing tool requires one of them: nothing is built by default. Leave it ``None``
     for a contributor that builds one kind of block; a publishing tool then refuses any option id.
 
-    ``on_placed``, when set, is awaited with the option id the builder was given, once the
-    publishing tool has created the block in the course and before it writes the block's
-    attributes. A block whose attribute write then fails still counts as placed, since the caller
-    may write its attributes again with another tool. ``on_placed`` reports a failure by raising
+    ``callback``, when set, is awaited by a publishing tool after it calls the builder, with the
+    option id the builder was given. The tool awaits it once it has created the block in the
+    course and before it writes the block's attributes. A block whose attribute write then fails
+    still counts as placed, since the caller may write its attributes again with another tool.
+    ``callback`` reports a failure by raising
     :class:`~sparkth.lib.content.exceptions.ContentPlacementError`.
 
-    ``list_options``, ``on_placed`` and the builders must be module-level functions. Each
+    ``list_options``, ``callback`` and the builders must be module-level functions. Each
     construction of a plugin registers its contributor again, which is accepted only if the
     copies compare equal, and a closure or bound method would not.
     """
@@ -94,7 +95,7 @@ class ContentContributor:
     description: str
     builders: Mapping[str, Callable[[str, str | None], Awaitable[ContentBlock]]]
     list_options: Callable[[], Awaitable[list[ContentOption]]] | None = None
-    on_placed: Callable[[str | None], Awaitable[None]] | None = None
+    callback: Callable[[str | None], Awaitable[None]] | None = None
 
 
 # One content contributor per plugin, consumed by LMS-publishing plugins. Keyed by plugin
