@@ -1,8 +1,7 @@
 from collections.abc import Iterator
 
 from sparkth.lib.config.hooks import CONFIG_ADAPTERS, CONFIG_SCHEMAS
-from sparkth.lib.llm import LLMConfigAdapter
-from sparkth.lib.plugins import PluginConfig
+from sparkth.lib.plugins import ConfigAdapter, PluginConfig
 
 
 def iter_plugin_config_schemas() -> Iterator[tuple[str, type[PluginConfig]]]:
@@ -24,7 +23,7 @@ def get_plugin_config_schema(plugin_name: str) -> type[PluginConfig] | None:
     return None
 
 
-def iter_plugin_adapters() -> Iterator[tuple[str, LLMConfigAdapter]]:
+def iter_plugin_adapters() -> Iterator[tuple[str, ConfigAdapter]]:
     """Yield (plugin_name, adapter) for every plugin that contributed a config adapter.
 
     Like CONFIG_SCHEMAS, CONFIG_ADAPTERS is populated when plugins are instantiated
@@ -34,7 +33,7 @@ def iter_plugin_adapters() -> Iterator[tuple[str, LLMConfigAdapter]]:
         yield plugin.name, adapter
 
 
-def get_plugin_adapter(plugin_name: str) -> LLMConfigAdapter | None:
+def get_plugin_adapter(plugin_name: str) -> ConfigAdapter | None:
     """Return the config adapter a plugin contributed, looked up by plugin name."""
     for name, adapter in iter_plugin_adapters():
         if name == plugin_name:

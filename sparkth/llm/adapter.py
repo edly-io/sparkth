@@ -6,6 +6,7 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.llm import LLMConfig
+from sparkth.core.plugins.config_base import ConfigAdapter
 from sparkth.lib.i18n import _
 from sparkth.llm.exceptions import LLMConfigValidationError
 from sparkth.llm.providers import get_models_for_provider
@@ -13,7 +14,7 @@ from sparkth.llm.providers import get_models_for_provider
 _EMPTY_LLM_FIELDS: dict[str, None] = {"llm_config_name": None, "llm_provider": None, "llm_model": None}
 
 
-class LLMConfigAdapter:
+class LLMConfigAdapter(ConfigAdapter):
     """Base adapter for plugins that hold an optional llm_config_id reference.
 
     preprocess_config: validates the referenced LLMConfig is owned by the user.
@@ -101,12 +102,3 @@ class LLMConfigAdapter:
         else:
             config.update({"llm_config_name": llm.name, "llm_provider": llm.provider, "llm_model": llm.model})
         return config
-
-    async def sync_cache(
-        self,
-        *,
-        session: AsyncSession,
-        user_id: int,
-        stored_config: dict[str, Any],
-    ) -> None:
-        pass
