@@ -287,7 +287,8 @@ credentials can rewrite history.
 
 Administrators holding `audit.read` read the trail at `/dashboard/audit` or through
 `/api/v1/audit/events` (filtered by time range, actor, category, action, outcome, source and target,
-most recently recorded first); `/api/v1/audit/categories` lists the categories to filter by.
+most recently recorded first, a summary per row); `/api/v1/audit/events/{id}` reads one event in full and
+`/api/v1/audit/categories` lists the categories to filter by.
 `/api/v1/audit/events/export` streams the same filters as CSV or JSON Lines and records an
 `audit.exported` event naming them before the first row leaves.
 

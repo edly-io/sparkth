@@ -1,5 +1,5 @@
 """Request and response schemas for reading the audit trail: the filter set, one row
-as the API shows it, a page of rows, and the export query."""
+in summary and in full, a page of rows, and the export query."""
 
 from datetime import datetime
 from typing import Any, Self
@@ -52,8 +52,30 @@ class AuditEventExportQuery(AuditEventQuery):
     export_format: ExportFormat = Field(default=ExportFormat.CSV, alias="format")
 
 
+class AuditEventSummary(BaseModel):
+    """One audit row as the listing shows it: when, what, who, outcome and target.
+
+    The rest of the row (request metadata, changed values, tool and model details) is
+    read on demand as an :class:`AuditEventRecord`.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    occurred_at: datetime
+    category: str
+    action: str
+    source: str
+    actor_type: str
+    actor_id: str | None
+    actor_label: str | None
+    outcome: str
+    target_type: str | None
+    target_id: str | None
+
+
 class AuditEventRecord(BaseModel):
-    """One audit row as administrators read it: every column but the sealed canonical bytes."""
+    """One audit row in full: every column but the sealed canonical bytes."""
 
     model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
@@ -88,5 +110,5 @@ class AuditEventPage(BaseModel):
     Pass ``next_before_id`` back as ``before_id`` for the next one.
     """
 
-    items: list[AuditEventRecord]
+    items: list[AuditEventSummary]
     next_before_id: int | None

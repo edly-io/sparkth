@@ -118,6 +118,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/audit/events/{event_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Event
+         * @description Return one audit event in full: request metadata, changed values, tool and model details.
+         */
+        get: operations["get_event_api_v1_audit_events__event_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/google/authorize": {
         parameters: {
             query?: never;
@@ -1608,13 +1628,13 @@ export interface components {
          */
         AuditEventPage: {
             /** Items */
-            items: components["schemas"]["AuditEventRecord"][];
+            items: components["schemas"]["AuditEventSummary"][];
             /** Next Before Id */
             next_before_id: number | null;
         };
         /**
          * AuditEventRecord
-         * @description One audit row as administrators read it: every column but the sealed canonical bytes.
+         * @description One audit row in full: every column but the sealed canonical bytes.
          */
         AuditEventRecord: {
             /** Action */
@@ -1672,6 +1692,40 @@ export interface components {
             tool_name: string | null;
             /** User Agent */
             user_agent: string | null;
+        };
+        /**
+         * AuditEventSummary
+         * @description One audit row as the listing shows it: when, what, who, outcome and target.
+         *
+         *     The rest of the row (request metadata, changed values, tool and model details) is
+         *     read on demand as an :class:`AuditEventRecord`.
+         */
+        AuditEventSummary: {
+            /** Action */
+            action: string;
+            /** Actor Id */
+            actor_id: string | null;
+            /** Actor Label */
+            actor_label: string | null;
+            /** Actor Type */
+            actor_type: string;
+            /** Category */
+            category: string;
+            /** Id */
+            id: number;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Outcome */
+            outcome: string;
+            /** Source */
+            source: string;
+            /** Target Id */
+            target_id: string | null;
+            /** Target Type */
+            target_type: string | null;
         };
         /**
          * AuditOutcome
@@ -2933,6 +2987,37 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_event_api_v1_audit_events__event_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                event_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditEventRecord"];
+                };
             };
             /** @description Validation Error */
             422: {

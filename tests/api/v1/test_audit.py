@@ -20,7 +20,7 @@ from sparkth.lib.audit import record_event
 from sparkth.lib.audit.context import UserActor
 from sparkth.lib.audit.events import AuditOutcome, AuditTarget, LoginAuditEvent, WhitelistEntryAddedAuditEvent
 from sparkth.lib.testing import AuditEventsFetcher, grant_global_permission
-from sparkth.services.audit import AuditEventPage, AuditEventQuery
+from sparkth.services.audit import AuditEventQuery
 
 NOW = datetime.now(timezone.utc)
 ALICE = UserActor(id="7", label="alice")
@@ -57,6 +57,7 @@ async def test_listing_requires_audit_read(client: AsyncClient, current_user: Us
     assert (await client.get("/api/v1/audit/events")).status_code == 403
     assert (await client.get("/api/v1/audit/categories")).status_code == 403
     assert (await client.get("/api/v1/audit/events/export")).status_code == 403
+    assert (await client.get("/api/v1/audit/events/1")).status_code == 403
 
 
 async def test_lists_newest_first_without_canonical_bytes(
@@ -130,9 +131,10 @@ async def test_an_event_shows_every_column_but_the_sealed_bytes(
     await _grant(session, current_user)
     await _seed(session)
 
-    item = (await client.get("/api/v1/audit/events")).json()["items"][0]
+    newest = (await client.get("/api/v1/audit/events")).json()["items"][0]
+    event = (await client.get(f"/api/v1/audit/events/{newest['id']}")).json()
 
-    assert set(item) == set(AuditEvent.model_fields) - {"canonical_bytes", "created_at", "updated_at"}
+    assert set(event) == set(AuditEvent.model_fields) - {"canonical_bytes", "created_at", "updated_at"}
 
 
 async def test_lists_the_registered_categories(client: AsyncClient, session: AsyncSession, current_user: User) -> None:
@@ -228,20 +230,20 @@ async def test_export_records_a_failure_when_a_batch_cannot_be_read(
 ) -> None:
     from sparkth.services.audit import service
 
-    read_batch = service.list_events
+    read_rows = service._read_rows
     calls = 0
 
     async def failing_second_batch(
-        batch_session: AsyncSession, query: AuditEventQuery, *, limit: int, before_id: int | None = None
-    ) -> AuditEventPage:
+        batch_session: AsyncSession, query: AuditEventQuery, *, limit: int, before_id: int | None
+    ) -> tuple[list[AuditEvent], int | None]:
         nonlocal calls
         calls += 1
         if calls == 2:
             raise SQLAlchemyError("connection lost")
-        return await read_batch(batch_session, query, limit=limit, before_id=before_id)
+        return await read_rows(batch_session, query, limit=limit, before_id=before_id)
 
     monkeypatch.setattr(service, "EXPORT_BATCH_SIZE", 1)
-    monkeypatch.setattr(service, "list_events", failing_second_batch)
+    monkeypatch.setattr(service, "_read_rows", failing_second_batch)
     await _grant(session, current_user)
     await _seed(session)
 
@@ -253,3 +255,43 @@ async def test_export_records_a_failure_when_a_batch_cannot_be_read(
     assert failed.actor_id == str(current_user.id)
     assert failed.new_values == {"format": "jsonl", "filters": {}}
     assert failed.error_detail is not None and "connection lost" in failed.error_detail
+
+
+async def test_listing_sends_a_summary_per_row(client: AsyncClient, session: AsyncSession, current_user: User) -> None:
+    await _grant(session, current_user)
+    await _seed(session)
+
+    item = (await client.get("/api/v1/audit/events")).json()["items"][0]
+
+    assert set(item) == {
+        "id",
+        "occurred_at",
+        "category",
+        "action",
+        "source",
+        "actor_type",
+        "actor_id",
+        "actor_label",
+        "outcome",
+        "target_type",
+        "target_id",
+    }
+
+
+async def test_reads_one_event_in_full(client: AsyncClient, session: AsyncSession, current_user: User) -> None:
+    await _grant(session, current_user)
+    await _seed(session)
+    newest = (await client.get("/api/v1/audit/events", params={"limit": 1})).json()["items"][0]
+
+    response = await client.get(f"/api/v1/audit/events/{newest['id']}")
+
+    assert response.status_code == 200
+    event = response.json()
+    assert (event["id"], event["category"], event["action"]) == (newest["id"], "whitelist", "entry_added")
+    assert event["target_id"] == "3"
+
+
+async def test_reading_a_missing_event_is_404(client: AsyncClient, session: AsyncSession, current_user: User) -> None:
+    await _grant(session, current_user)
+
+    assert (await client.get("/api/v1/audit/events/999999")).status_code == 404
