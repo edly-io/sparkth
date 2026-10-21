@@ -79,8 +79,8 @@ descendants. Object-bearing multi-level cascade (e.g. a grant at one `org` apply
 | Kind | Names | Notes |
 |---|---|---|
 | **Scopes** | `global`, `whitelist`, `role` | `global` is the objectless root (applies platform-wide). `whitelist` is an objectless singleton nested under `global` for the registration whitelist. `role` is object-bearing (nested under `global`) so role management can be delegated per-role by that role's id. A `global` grant cascades down to both. |
-| **Permissions** | `email.whitelist.{read,create,delete}`; `role.{create,read,update,delete}`; `group.{create,read,update,delete}`; `permission.read`; `analytics.read`; `audit.read` | Gate the registration email-whitelist endpoints, the role-management API, the group-management API, listing the assignable permission vocabulary, the analytics dashboards and their read API, and querying and exporting the audit trail respectively. |
-| **Roles** | `admin` | Grants the three `email.whitelist.*`, the four `role.*`, the four `group.*`, `permission.read`, `analytics.read`, and `audit.read`. A seed migration also assigned it at `global` to every account that was a superuser when the migration ran — a one-time backfill. |
+| **Permissions** | `email.whitelist.{read,create,delete}`; `role.{create,read,update,delete}`; `group.{create,read,update,delete}`; `permission.read`; `analytics.read`; `audit.read`; `user.read` | Gate the registration email-whitelist endpoints, the role-management API, the group-management API, listing the assignable permission vocabulary, the analytics dashboards and their read API, querying and exporting the audit trail, and showing usernames in analytics results respectively. |
+| **Roles** | `admin` | Grants the three `email.whitelist.*`, the four `role.*`, the four `group.*`, `permission.read`, `analytics.read`, `audit.read`, and `user.read`. A seed migration also assigned it at `global` to every account that was a superuser when the migration ran — a one-time backfill. |
 
 Roles and their permission grants are managed at runtime through the role-management REST API
 under `/api/v1/permissions` (gated by `role.*` / `permission.read`). See the REST API docs
