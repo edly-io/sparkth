@@ -14,6 +14,7 @@ import {
   PanelLeft,
   Key,
   ShieldCheck,
+  BookOpen,
 } from "lucide-react";
 import { usePluginContext } from "@/lib/plugins/context";
 import { sidebarItemsFrom, type SidebarItem } from "@/lib/plugins/metadata";
@@ -243,6 +244,16 @@ export default function AppSidebar({
                 onClick={handleNavClick}
               />
             ))}
+
+            <NavItem
+              href="https://edly-io.github.io/sparkth/"
+              label="Documentation"
+              icon={BookOpen}
+              isActive={false}
+              isCollapsed={isCollapsed && variant === "desktop"}
+              onClick={handleNavClick}
+              external
+            />
           </>
         )}
       </div>

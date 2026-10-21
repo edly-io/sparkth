@@ -18,6 +18,7 @@ After you sign in, the sidebar on the left takes you everywhere:
 | **AI Keys** | The keys Sparkth uses to call your AI provider. |
 | **Analytics** | [Usage figures](analytics.md). Shown only if your account has the [required permission](analytics.md#required-permissions). |
 | **Admin** | [Administrator features](admin.md), such as managing the email whitelist. Shown only if your account has the [required permissions](admin.md#required-permissions). |
+| **Documentation** | This documentation, in a new browser tab. |
 
 The **Dashboard** lists the plugins you have turned on that have a page of their own. LMS
 plugins never appear there: you configure them in **My Plugins** and use them through the

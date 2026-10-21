@@ -8,6 +8,7 @@ interface NavItemProps {
   isActive: boolean;
   isCollapsed?: boolean;
   onClick?: () => void;
+  external?: boolean; // open in a new tab
 }
 
 export function NavItem({
@@ -17,12 +18,14 @@ export function NavItem({
   isActive,
   isCollapsed = false,
   onClick,
+  external = false,
 }: NavItemProps) {
   return (
     <div>
       <Link
         href={href}
         onClick={onClick}
+        {...(external && { target: "_blank", rel: "noopener noreferrer" })}
         className={`
           flex items-center gap-3 px-3 py-2 min-h-[40px] rounded-lg transition-colors
           ${isCollapsed ? "justify-center" : ""}

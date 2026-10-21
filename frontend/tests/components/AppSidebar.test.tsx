@@ -39,6 +39,17 @@ describe("AppSidebar permission-gated nav", () => {
   });
 });
 
+describe("AppSidebar documentation link", () => {
+  it("opens the documentation home page in a new tab", () => {
+    render(<AppSidebar user={{ name: "A" }} />);
+
+    const link = screen.getByRole("link", { name: "Documentation" });
+    expect(link).toHaveAttribute("href", "https://edly-io.github.io/sparkth/");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+});
+
 describe("AppSidebar user menu", () => {
   it("links to the privacy policy", async () => {
     render(<AppSidebar user={{ name: "Ada" }} />);
