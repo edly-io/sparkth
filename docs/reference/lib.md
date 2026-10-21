@@ -67,3 +67,7 @@ The plugin authoring surface and the permissions API have their own pages:
 ## Exceptions
 
 ::: sparkth.lib.exceptions
+
+## Cache
+
+::: sparkth.lib.cache

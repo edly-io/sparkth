@@ -13,14 +13,11 @@ import pytest
 from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import LMSRequestError
 from sparkth.plugins.openedx.client import OpenEdxClient
-from sparkth.plugins.openedx.schemas import AccessTokenPayload, CreateCourseArgs
+from sparkth.plugins.openedx.schemas import CreateCourseArgs
+from sparkth.plugins.openedx.tests.conftest import OPENEDX_CONFIG
 from sparkth.plugins.openedx.tools import openedx_create_course_run, set_course_language
 
-LMS_URL = "https://lms.example.com"
-STUDIO_URL = "https://studio.example.com"
-ACCESS_TOKEN = "test_access_token"
-
-_AUTH = AccessTokenPayload(access_token=ACCESS_TOKEN, lms_url=LMS_URL, studio_url=STUDIO_URL)
+STUDIO_URL = str(OPENEDX_CONFIG.studio_url).rstrip("/")
 
 
 @pytest.fixture
@@ -84,13 +81,12 @@ class TestCreateCourseRunWithLanguage:
         client.post.return_value = {"id": "course-v1:X+Y+Z"}
         client.get.return_value = {"language": None}
         client.put.return_value = {}
-        args = CreateCourseArgs(
-            auth=_AUTH, org="X", number="Y", run="Z", title="T", pacing_type="self_paced", language="es"
-        )
+        args = CreateCourseArgs(org="X", number="Y", run="Z", title="T", pacing_type="self_paced", language="es")
 
         await openedx_create_course_run(args)
 
         assert mock_cls.call_count == 1
+        assert client.put.call_args[0][0] == STUDIO_URL
         assert client.put.call_args[0][2]["language"] == "es"
 
     async def test_language_is_not_sent_to_the_course_runs_endpoint(
@@ -100,9 +96,7 @@ class TestCreateCourseRunWithLanguage:
         so sending it there would look like success and do nothing."""
         _, client = mock_openedx_client
         client.post.return_value = {"id": "course-v1:X+Y+Z"}
-        args = CreateCourseArgs(
-            auth=_AUTH, org="X", number="Y", run="Z", title="T", pacing_type="self_paced", language="es"
-        )
+        args = CreateCourseArgs(org="X", number="Y", run="Z", title="T", pacing_type="self_paced", language="es")
 
         with patch("sparkth.plugins.openedx.tools.set_course_language", new_callable=AsyncMock):
             await openedx_create_course_run(args)
@@ -114,9 +108,7 @@ class TestCreateCourseRunWithLanguage:
     ) -> None:
         _, client = mock_openedx_client
         client.post.return_value = {"id": "course-v1:X+Y+Z"}
-        args = CreateCourseArgs(
-            auth=_AUTH, org="X", number="Y", run="Z", title="T", pacing_type="self_paced", language="es"
-        )
+        args = CreateCourseArgs(org="X", number="Y", run="Z", title="T", pacing_type="self_paced", language="es")
 
         with patch("sparkth.plugins.openedx.tools.set_course_language", new_callable=AsyncMock) as mock_set:
             await openedx_create_course_run(args)
@@ -130,7 +122,7 @@ class TestCreateCourseRunWithLanguage:
     ) -> None:
         _, client = mock_openedx_client
         client.post.return_value = {"id": "course-v1:X+Y+Z"}
-        args = CreateCourseArgs(auth=_AUTH, org="X", number="Y", run="Z", title="T", pacing_type="self_paced")
+        args = CreateCourseArgs(org="X", number="Y", run="Z", title="T", pacing_type="self_paced")
 
         with patch("sparkth.plugins.openedx.tools.set_course_language", new_callable=AsyncMock) as mock_set:
             await openedx_create_course_run(args)
@@ -144,9 +136,7 @@ class TestCreateCourseRunWithLanguage:
         would lose the caller's work for no reason."""
         _, client = mock_openedx_client
         client.post.return_value = {"id": "course-v1:X+Y+Z"}
-        args = CreateCourseArgs(
-            auth=_AUTH, org="X", number="Y", run="Z", title="T", pacing_type="self_paced", language="es"
-        )
+        args = CreateCourseArgs(org="X", number="Y", run="Z", title="T", pacing_type="self_paced", language="es")
         details_endpoint = "api/contentstore/v1/course_details/course-v1:X+Y+Z"
         language_write_failure = LMSRequestError(Method.PUT, details_endpoint, 500, "boom")
 
@@ -173,9 +163,7 @@ class TestCreateCourseRunWithLanguage:
         """
         _, client = mock_openedx_client
         client.post.return_value = {"id": "course-v1:X+Y+Z"}
-        args = CreateCourseArgs(
-            auth=_AUTH, org="X", number="Y", run="Z", title="T", pacing_type="self_paced", language="es"
-        )
+        args = CreateCourseArgs(org="X", number="Y", run="Z", title="T", pacing_type="self_paced", language="es")
         transport_failure = aiohttp.ClientConnectionError("Connection refused")
 
         with patch(
