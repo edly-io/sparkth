@@ -19,6 +19,12 @@ PG_BUCKET = {
     Bucket.week: "date_trunc('week', day AT TIME ZONE 'UTC')",
     Bucket.month: "date_trunc('month', day AT TIME ZONE 'UTC')",
 }
+# The same buckets over raw_events.occurred_at, for queries that read raw events on PostgreSQL.
+PG_RAW_BUCKET = {
+    Bucket.day: "date_trunc('day', occurred_at AT TIME ZONE 'UTC')",
+    Bucket.week: "date_trunc('week', occurred_at AT TIME ZONE 'UTC')",
+    Bucket.month: "date_trunc('month', occurred_at AT TIME ZONE 'UTC')",
+}
 SQLITE_BUCKET = {
     Bucket.day: "date(occurred_at)",
     Bucket.week: "date(occurred_at, 'weekday 0', '-6 days')",
