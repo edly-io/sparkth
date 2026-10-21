@@ -71,6 +71,7 @@ async def disabled_plugins() -> set[str]:
         OperationalError: If the database could not be reached.
     """
     async with session_scope() as session:
+        # No user, so only the system-wide switch applies.
         return await disabled_plugin_names(None, session)
 
 
