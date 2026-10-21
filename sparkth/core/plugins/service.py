@@ -1,7 +1,8 @@
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, cast
 
 import pydantic
+from sqlalchemy import or_
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -28,25 +29,42 @@ from sparkth.lib.log import get_logger
 logger = get_logger(__name__)
 
 
-async def system_disabled_plugin_names(session: AsyncSession) -> set[str]:
-    """Names of the plugins an administrator has switched off system-wide.
+async def disabled_plugin_names(user_id: int | None, session: AsyncSession) -> set[str]:
+    """Names of the plugins switched off for this user, by either switch that can turn one off.
 
-    Answers "which plugins are off?" rather than "which are on?" on purpose. A plugin
-    with no row in the registry — one that has never reached ``get_or_create_all`` —
-    is simply absent from the result and so stays reachable, matching how the HTTP
-    gate treats an unknown plugin. Asking the question the other way round would make
-    every plugin unreachable until its row existed.
+    A plugin is disabled when an administrator turned it off system-wide
+    (``Plugin.enabled``) or the user turned it off for themselves (``UserPlugin.enabled``).
+    The join is a LEFT OUTER one keyed on the user as well as the plugin, so a plugin the
+    user has no preference on stays in play and another user's preference never answers
+    for this one. With no user, the join matches no preference and only the system-wide
+    switch applies.
 
-    One query serves a whole request, so a caller checking many plugins (listing the
-    tools on the MCP server, say) does not issue a query per plugin.
+    Answers "which plugins are off?" rather than "which are on?" on purpose. A plugin with
+    no registry row (one that has never reached ``get_or_create_all``), or with no
+    preference row for this user, is absent from the result and so stays reachable.
+    Soft-deleted plugin and preference rows are ignored.
+
+    One query serves a whole request, so a caller checking many plugins does not issue a
+    query per plugin.
 
     Args:
-        session: The async database session to read the registry through.
+        user_id: The user to answer for, or None to apply only the system-wide switch.
+        session: The async database session to read through.
 
     Returns:
-        The set of disabled plugin names, empty when every registered plugin is on.
+        The set of disabled plugin names, empty when every plugin is on for this user.
     """
-    statement = select(Plugin.name).where(Plugin.enabled == False, Plugin.deleted_at == None)
+    # cast: SQLModel types a column comparison as bool, so the composed ON clause does not
+    # satisfy outerjoin's signature without it.
+    on_clause = cast(
+        Any,
+        (UserPlugin.plugin_id == Plugin.id) & (UserPlugin.user_id == user_id) & (UserPlugin.deleted_at == None),
+    )
+    statement = (
+        select(Plugin.name)
+        .outerjoin(UserPlugin, on_clause)
+        .where(Plugin.deleted_at == None, or_(col(Plugin.enabled) == False, col(UserPlugin.enabled) == False))
+    )
     result = await session.exec(statement)
     return set(result.all())
 
