@@ -24,6 +24,6 @@ alone keeps the saved one. Clicked **Replace** by mistake? Click **Keep stored**
 ![Configuring a plugin](../img/user-guide/my-plugins-configure.png)
 
 !!! warning "Enabled is not configured"
-    **Connected** only means the plugin is turned on. It does not check your credentials or
+    **Enabled** only means the plugin is turned on. It does not check your credentials or
     your key. Compose, for example, does nothing until you select an AI key in its
     configuration: see [AI keys](ai-keys.md).
