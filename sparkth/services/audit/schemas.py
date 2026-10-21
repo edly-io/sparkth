@@ -1,5 +1,5 @@
-"""Value objects for reading the audit trail: the filter set, one row as the API
-shows it, and a page of rows."""
+"""Request and response schemas for reading the audit trail: the filter set, one row
+as the API shows it, and a page of rows."""
 
 from datetime import datetime
 from typing import Any, Self
@@ -8,7 +8,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validato
 
 from sparkth.lib.audit.context import AuditSource
 from sparkth.lib.audit.events import AuditOutcome
-from sparkth.services.audit_log.constants import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
+from sparkth.services.audit.constants import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 
 
 class AuditEventQuery(BaseModel):
@@ -76,7 +76,10 @@ class AuditEventRecord(BaseModel):
 
 
 class AuditEventPage(BaseModel):
-    """A page of events, newest first; pass ``next_before_id`` back as ``before_id`` for the next one."""
+    """A page of events, most recently recorded first.
+
+    Pass ``next_before_id`` back as ``before_id`` for the next one.
+    """
 
     items: list[AuditEventRecord]
     next_before_id: int | None

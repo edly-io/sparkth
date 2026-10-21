@@ -81,7 +81,7 @@ export interface paths {
         };
         /**
          * List Events
-         * @description Return audit events matching every given filter, newest first.
+         * @description Return audit events matching every given filter, most recently recorded first.
          *
          *     Pass the response's `next_before_id` as `before_id` to fetch the next page; it is
          *     null on the last page.
@@ -1579,7 +1579,9 @@ export interface components {
         };
         /**
          * AuditEventPage
-         * @description A page of events, newest first; pass ``next_before_id`` back as ``before_id`` for the next one.
+         * @description A page of events, most recently recorded first.
+         *
+         *     Pass ``next_before_id`` back as ``before_id`` for the next one.
          */
         AuditEventPage: {
             /** Items */
