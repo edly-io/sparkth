@@ -50,7 +50,9 @@ class ConfigAdapter:
 
     preprocess_config: validates or rewrites the config a user is saving; returns the config to store.
     postprocess_config: derives the config returned to the frontend from the stored one.
-    sync_cache: runs after a save so the plugin can drop state cached from the old config.
+    sync_cache: runs only after ``PUT /api/v1/user-plugins/{plugin_name}/config`` updates the config,
+    not after ``POST /api/v1/user-plugins/{plugin_name}/configure``, so the plugin can drop state
+    cached from the old config.
     """
 
     async def preprocess_config(
@@ -78,4 +80,4 @@ class ConfigAdapter:
         user_id: int,
         stored_config: dict[str, Any],
     ) -> None:
-        return None
+        """Does nothing unless a subclass overrides it."""
