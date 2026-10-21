@@ -78,7 +78,8 @@
       "label": "Vistas de analíticas",
       "overview": "Resumen",
       "logins": "Inicios de sesión",
-      "authoring": "Creación de cursos"
+      "authoring": "Creación de cursos",
+      "explore": "Explorar"
     },
     "period": {
       "range": "Periodo",
@@ -112,6 +113,41 @@
       "new": "Nuevo en este periodo",
       "trend": "Actividad",
       "trendCaption": "Inicios de sesión y mensajes enviados, {range}"
+    },
+    "explore": {
+      "title": "Explorar",
+      "description": "Crea un gráfico a partir de cualquier evento registrado. Los eventos, campos y valores se muestran tal como se registraron.",
+      "subtitle": "{range} (UTC).",
+      "event": "Evento",
+      "pickEvent": "Elige un evento",
+      "actorId": "ID del actor",
+      "actor": "Actor",
+      "measure": "Medida",
+      "measures": {
+        "count": "Eventos",
+        "distinct_actors": "Actores distintos"
+      },
+      "groupBy": "Desglosar por",
+      "noGroup": "Sin desglose",
+      "chart": "Gráfico",
+      "charts": {
+        "line": "Líneas",
+        "bar": "Barras",
+        "table": "Tabla"
+      },
+      "filters": "Filtros",
+      "field": "Campo",
+      "pickField": "Elige un campo",
+      "value": "Valor",
+      "addFilter": "Añadir filtro",
+      "removeFilter": "Quitar el filtro {filter}",
+      "start": "Elige un evento para crear un gráfico.",
+      "empty": "No hay eventos coincidentes en este periodo.",
+      "stale": "Esta vista mencionaba eventos, campos o valores que ya no existen, así que se omitieron.",
+      "truncated": "Se muestran los 20 grupos principales; hay más.",
+      "none": "(ninguno)",
+      "chartCaption": "{event}, {range}",
+      "groupCaption": "{event} por {group}, {range}"
     }
   },
   "home": {

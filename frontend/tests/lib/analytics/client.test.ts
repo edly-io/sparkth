@@ -1,6 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-import { fetchChatActivity, fetchLogins, fetchSummary } from "@/lib/analytics";
+import {
+  fetchChatActivity,
+  fetchEventCatalog,
+  fetchExplore,
+  fetchLogins,
+  fetchSummary,
+  type ExploreConfig,
+} from "@/lib/analytics";
 import { ApiRequestError } from "@/lib/api";
 
 import { mockFetch, sentRequest } from "@/tests/lib/test-utils";
@@ -116,5 +123,68 @@ describe("fetchSummary", () => {
     expect(url.searchParams.has("bucket")).toBe(false);
     expect(sentRequest(spy).headers.get("authorization")).toBe("Bearer test-token");
     expect(result).toEqual(counts);
+  });
+});
+
+describe("fetchEventCatalog", () => {
+  it("GETs /api/v1/analytics/events with the bearer token", async () => {
+    const catalog = [{ event_type: "x", fields: [] }];
+    const spy = mockFetch(catalog);
+
+    const result = await fetchEventCatalog("test-token");
+
+    expect(new URL(sentRequest(spy).url).pathname).toBe("/api/v1/analytics/events");
+    expect(sentRequest(spy).headers.get("authorization")).toBe("Bearer test-token");
+    expect(result).toEqual(catalog);
+  });
+});
+
+describe("fetchExplore", () => {
+  const period = { from: "2026-07-01", to: "2026-07-20", bucket: "week" } as const;
+  const bare: ExploreConfig = {
+    event: "chat.tool_invoked",
+    actor: null,
+    filters: [],
+    measure: "count",
+    groupBy: null,
+    chart: "line",
+  };
+  const empty = { points: [], totals: [], truncated: false, actor_names: {} };
+
+  it("sends the period, event and measure, and nothing unset", async () => {
+    const spy = mockFetch(empty);
+
+    await fetchExplore("test-token", period, bare);
+
+    const url = new URL(sentRequest(spy).url);
+    expect(url.pathname).toBe("/api/v1/analytics/query");
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      from: "2026-07-01",
+      to: "2026-07-20",
+      bucket: "week",
+      event_type: "chat.tool_invoked",
+      measure: "count",
+    });
+  });
+
+  it("sends the actor, each filter and the grouping when set", async () => {
+    const spy = mockFetch(empty);
+
+    await fetchExplore("test-token", period, {
+      ...bare,
+      actor: "42",
+      filters: [
+        { field: "outcome", value: "failed" },
+        { field: "outcome", value: "null" },
+      ],
+      measure: "distinct_actors",
+      groupBy: "actor",
+    });
+
+    const params = new URL(sentRequest(spy).url).searchParams;
+    expect(params.get("actor_id")).toBe("42");
+    expect(params.getAll("filter")).toEqual(["outcome:failed", "outcome:null"]);
+    expect(params.get("measure")).toBe("distinct_actors");
+    expect(params.get("group_by")).toBe("actor");
   });
 });

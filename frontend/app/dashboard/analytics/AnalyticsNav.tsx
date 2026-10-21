@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { LayoutDashboard, LogIn, PenLine } from "lucide-react";
+import { Compass, LayoutDashboard, LogIn, PenLine } from "lucide-react";
+import { PERIOD_KEYS } from "@/lib/analytics";
 import { isInstalled } from "@/lib/plugins/installed";
 import { cn } from "@/lib/utils";
 
@@ -13,12 +14,16 @@ export const ANALYTICS_VIEWS = [
   { key: "overview", href: "/dashboard/analytics", icon: LayoutDashboard },
   { key: "logins", href: "/dashboard/analytics/logins", icon: LogIn },
   { key: "authoring", href: "/dashboard/analytics/authoring", icon: PenLine, plugin: "chat" },
+  { key: "explore", href: "/dashboard/analytics/explore", icon: Compass },
 ] as const;
 
 export function AnalyticsNav() {
   const t = useTranslations("analytics.nav");
   const pathname = usePathname();
-  const query = useSearchParams().toString();
+  // Only the period carries over; a view's own settings stay with that view.
+  const query = new URLSearchParams(
+    [...useSearchParams()].filter(([k]) => PERIOD_KEYS.includes(k)),
+  ).toString();
   const views = ANALYTICS_VIEWS.filter((v) => !("plugin" in v) || isInstalled(v.plugin));
 
   return (

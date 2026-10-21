@@ -76,6 +76,22 @@ describe("AnalyticsNav", () => {
     );
   });
 
+  it("links Explore", () => {
+    renderWithIntl(<AnalyticsNav />);
+    expect(screen.getByRole("link", { name: "Explore" })).toHaveAttribute(
+      "href",
+      "/dashboard/analytics/explore",
+    );
+  });
+
+  it("carries only the period to every view", () => {
+    nav.search = "range=7d&bucket=week&event=x&filter=a:b";
+    renderWithIntl(<AnalyticsNav />);
+    for (const link of screen.getAllByRole("link")) {
+      expect(link.getAttribute("href")).toMatch(/\?range=7d&bucket=week$/);
+    }
+  });
+
   it("lists Course authoring while chat is installed", () => {
     renderWithIntl(<AnalyticsNav />);
     expect(screen.getByRole("link", { name: "Course authoring" })).toHaveAttribute(

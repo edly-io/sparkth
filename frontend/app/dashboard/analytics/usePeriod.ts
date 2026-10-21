@@ -2,32 +2,56 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { parsePeriod, periodQuery, toIsoDate, type Period } from "@/lib/analytics";
+import { PERIOD_KEYS, parsePeriod, periodQuery, toIsoDate, type Period } from "@/lib/analytics";
 
-export function usePeriod() {
-  const params = useSearchParams();
+// The last query written but not yet in the URL, shared by every writer on the page:
+// router.replace lands after a commit, so a second change made before then, by the same control
+// or another, must build on the first, not on the rendered URL.
+let pending: string | null = null;
+
+/**
+ * Replaces the URL's query with `build(latest)`, where `latest` includes any write still in
+ * flight. Does nothing when the query would not change. The returned function is stable, so an
+ * async callback can call it after later renders.
+ */
+export function useReplaceQuery() {
   const router = useRouter();
   const pathname = usePathname();
+  const query = useSearchParams().toString();
+  const rendered = useRef(query);
+  useEffect(() => {
+    rendered.current = query;
+    pending = null;
+  }, [query]);
+  return useCallback(
+    (build: (latest: URLSearchParams) => string) => {
+      const latest = pending ?? rendered.current;
+      const next = build(new URLSearchParams(latest));
+      if (next === latest) return;
+      pending = next;
+      router.replace(next ? `${pathname}?${next}` : pathname);
+    },
+    [router, pathname],
+  );
+}
+
+export function usePeriod() {
+  const query = useSearchParams().toString();
   const today = toIsoDate(new Date());
-  const query = params.toString();
   const { period, error } = useMemo(
     () => parsePeriod(new URLSearchParams(query), today),
     [query, today],
   );
-  // The last query written but not yet in the URL: router.replace lands after a commit, so a
-  // second change made before then must build on the first, not on the rendered period.
-  const pending = useRef<string | null>(null);
-  useEffect(() => {
-    pending.current = null;
-  }, [query]);
+  const replaceQuery = useReplaceQuery();
   const setPeriod = useCallback(
-    (update: (current: Period) => Period) => {
-      const current = parsePeriod(new URLSearchParams(pending.current ?? query), today).period;
-      const next = periodQuery(update(current));
-      pending.current = next;
-      router.replace(`${pathname}?${next}`);
-    },
-    [router, pathname, query, today],
+    (update: (current: Period) => Period) =>
+      replaceQuery((latest) => {
+        const current = parsePeriod(latest, today).period;
+        // A view's own settings (Explore's) stay after the period.
+        const rest = new URLSearchParams([...latest].filter(([k]) => !PERIOD_KEYS.includes(k)));
+        return [periodQuery(update(current)), rest.toString()].filter(Boolean).join("&");
+      }),
+    [replaceQuery, today],
   );
   return { period, error, setPeriod };
 }
