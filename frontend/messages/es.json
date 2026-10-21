@@ -247,6 +247,12 @@
       "keepStored": "Mantener guardada",
       "keepStoredField": "Mantener guardada {field}",
       "replaceField": "Reemplazar {field}"
-    }
+    },
+    "toggle": "Activar o desactivar {name}",
+    "configure": "Configurar {name}",
+    "enableError": "No se pudo activar el plugin.",
+    "disableError": "No se pudo desactivar el plugin.",
+    "enabled": "Habilitado",
+    "disabled": "Deshabilitado"
   }
 }
