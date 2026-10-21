@@ -242,6 +242,12 @@
       "stored": "Stored",
       "replace": "Replace",
       "replaceField": "Replace {field}"
-    }
+    },
+    "toggle": "Turn {name} on or off",
+    "configure": "Configure {name}",
+    "enableError": "Failed to enable the plugin.",
+    "disableError": "Failed to disable the plugin.",
+    "enabled": "Enabled",
+    "disabled": "Disabled"
   }
 }
