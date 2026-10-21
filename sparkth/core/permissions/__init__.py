@@ -186,7 +186,7 @@ PERMISSION_READ = Permission.create("permission.read")
 # The analytics read permission gates the in-app analytics dashboards / read API.
 ANALYTICS_READ = Permission.create("analytics.read")
 
-# The audit read permission gates querying and exporting the audit trail (sparkth/api/v1/audit).
+# The audit read permission gates querying and exporting the audit trail.
 AUDIT_READ = Permission.create("audit.read")
 
 
