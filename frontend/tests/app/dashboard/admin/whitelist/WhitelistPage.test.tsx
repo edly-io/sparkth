@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 const auth = vi.hoisted(() => ({ token: "test-token" }));
 vi.mock("@/lib/auth-context", () => ({
@@ -9,11 +10,11 @@ vi.mock("@/lib/permissions", () => ({ checkPermission: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("@/lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api")>();
-  return { ...actual, getWhitelist: vi.fn().mockResolvedValue([]) };
+  return { ...actual, getWhitelist: vi.fn().mockResolvedValue([]), removeWhitelistEntry: vi.fn() };
 });
 
 import { checkPermission } from "@/lib/permissions";
-import { getWhitelist } from "@/lib/api";
+import { getWhitelist, removeWhitelistEntry } from "@/lib/api";
 import { redirect } from "next/navigation";
 import WhitelistPage from "@/app/dashboard/admin/whitelist/WhitelistPage";
 
@@ -69,5 +70,41 @@ describe("WhitelistPage access guard", () => {
 
     await waitFor(() => expect(redirect).toHaveBeenCalledWith("/dashboard"));
     expect(getWhitelist).not.toHaveBeenCalled();
+  });
+});
+
+const ENTRY = {
+  id: 7,
+  value: "@example.com",
+  entry_type: "domain",
+  created_at: "2026-10-01T00:00:00Z",
+};
+
+async function confirmRemoval() {
+  vi.mocked(checkPermission).mockResolvedValue(true);
+  vi.mocked(getWhitelist).mockResolvedValueOnce([ENTRY]);
+  render(<WhitelistPage />);
+  await userEvent.click(await screen.findByRole("button", { name: "Remove @example.com" }));
+  await userEvent.click(screen.getByRole("button", { name: "Remove" }));
+}
+
+describe("WhitelistPage removal", () => {
+  it("removes an entry after confirming", async () => {
+    vi.mocked(removeWhitelistEntry).mockResolvedValue(undefined);
+
+    await confirmRemoval();
+
+    expect(removeWhitelistEntry).toHaveBeenCalledWith("test-token", ENTRY.id);
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("keeps the dialog open with an error when removal fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(removeWhitelistEntry).mockRejectedValue(new Error("boom"));
+
+    await confirmRemoval();
+
+    expect(await screen.findByText("Failed to remove the entry.")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });
