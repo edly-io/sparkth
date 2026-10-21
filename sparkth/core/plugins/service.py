@@ -258,7 +258,9 @@ class PluginService:
         try:
             validated_config = config_class(**user_config)
         except pydantic.ValidationError as e:
-            raise ConfigValidationError(e.errors(include_input=False))
+            raise ConfigValidationError(
+                "; ".join(f"{'.'.join(map(str, err['loc']))}: {err['msg']}" for err in e.errors())
+            )
 
         return validated_config.model_dump(mode="json")
 
