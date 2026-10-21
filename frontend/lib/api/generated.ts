@@ -314,8 +314,8 @@ export interface paths {
          * @description Return chat authoring event counts per bucket, event type, dimension and outcome.
          *
          *     Sparse: combinations with no events are omitted; consumers zero-fill. Counts are lower
-         *     bounds: events queued on background tasks are lost when a route raises. Like every chat
-         *     route, answers 403 when the caller has the chat plugin disabled.
+         *     bounds: events queued on background tasks are lost when a route raises. Answers whatever
+         *     the plugin switches say.
          */
         get: operations["chat_activity_api_v1_chat_analytics_activity_get"];
         put?: never;
@@ -460,8 +460,7 @@ export interface paths {
          * Drive Documents
          * @description Return processed Drive documents per bucket and outcome, with summed seconds to final.
          *
-         *     Sparse: consumers zero-fill. Like every Google Drive route, answers 403 when the caller has
-         *     the plugin disabled.
+         *     Sparse: consumers zero-fill. Answers whatever the plugin switches say.
          */
         get: operations["drive_documents_api_v1_google_drive_analytics_documents_get"];
         put?: never;
