@@ -19,8 +19,8 @@ import {
   type SummaryCount,
 } from "@/lib/analytics";
 import { LineChart } from "@/components/ui/LineChart";
-import { usePluginContext } from "@/lib/plugins/context";
 import { StatCard } from "@/components/ui/StatCard";
+import { isInstalled } from "@/lib/plugins";
 import { ANALYTICS_VIEWS } from "./AnalyticsNav";
 import { PeriodView, useComparison, type PeriodRange } from "./PeriodView";
 
@@ -36,10 +36,7 @@ type OverviewData = {
 /** The analytics index: one card per headline figure the server declares, for the selected period. */
 export default function OverviewPage() {
   const t = useTranslations("analytics.overview");
-  const { isPluginEnabled, loading } = usePluginContext();
-  const chat = isPluginEnabled("chat");
-  // The plugin list arrives after the first render; wait for it or the trend skips chat.
-  if (loading) return null;
+  const chat = isInstalled("chat");
   const load = async (token: string, range: { from: IsoDate; to: IsoDate }) => {
     const prev = previousPeriod(range.from, range.to);
     const [figures, logins, prevLogins, activity, prevActivity] = await Promise.all([
@@ -63,11 +60,9 @@ function OverviewCards({ figures, from, to, bucket, ...rest }: OverviewData & Pe
   const t = useTranslations("analytics.overview");
   const format = useFormatter();
   const query = useSearchParams().toString();
-  const { isPluginEnabled } = usePluginContext();
   const { change } = useComparison({ bucket, from, to, noPrevious: t("new") });
-  const shown = figures.filter((f) => !f.plugin || isPluginEnabled(f.plugin));
 
-  if (shown.every((f) => f.current === 0 && f.previous === 0)) {
+  if (figures.every((f) => f.current === 0 && f.previous === 0)) {
     return (
       <div className="bg-card rounded-lg shadow-sm p-12 text-center border border-border">
         <ChartColumn className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
@@ -79,7 +74,7 @@ function OverviewCards({ figures, from, to, bucket, ...rest }: OverviewData & Pe
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {shown.map((f) => {
+        {figures.map((f) => {
           const card = (
             <StatCard
               title={f.label}

@@ -4,11 +4,11 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { LayoutDashboard, LogIn, PenLine } from "lucide-react";
-import { usePluginContext } from "@/lib/plugins/context";
+import { isInstalled } from "@/lib/plugins";
 import { cn } from "@/lib/utils";
 
 // The Insights-style rail: one entry per view. A view's entry lands with the view. A view read
-// from a plugin's route names that plugin, and its entry shows only when the viewer has it enabled.
+// from a plugin's route names that plugin, and its entry shows while that plugin is installed.
 export const ANALYTICS_VIEWS = [
   { key: "overview", href: "/dashboard/analytics", icon: LayoutDashboard },
   { key: "logins", href: "/dashboard/analytics/logins", icon: LogIn },
@@ -19,8 +19,7 @@ export function AnalyticsNav() {
   const t = useTranslations("analytics.nav");
   const pathname = usePathname();
   const query = useSearchParams().toString();
-  const { isPluginEnabled } = usePluginContext();
-  const views = ANALYTICS_VIEWS.filter((v) => !("plugin" in v) || isPluginEnabled(v.plugin));
+  const views = ANALYTICS_VIEWS.filter((v) => !("plugin" in v) || isInstalled(v.plugin));
 
   return (
     <nav aria-label={t("label")} className="lg:w-48 lg:shrink-0">

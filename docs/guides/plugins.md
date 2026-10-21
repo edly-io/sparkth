@@ -288,8 +288,10 @@ migration lineage (`sparkth/migrations/analytics/`). The chat plugin's `analytic
 worked example. To put a headline figure on the analytics Overview, build a `SummaryFigure` at
 module level (a plugin-prefixed `key`, a `gettext_noop` label, an async `count(session, from_, to)`
 and the `view` it links to) and register it from `__init__` with
-`register_summary_figure(self, figure)`. The Overview shows it to viewers who have the plugin
-enabled.
+`register_summary_figure(self, figure)`. The Overview shows it to every viewer with
+`analytics.read` while the plugin is installed, whatever the plugin switches say. Mark the plugin's
+analytics read routes `@platform_wide` (see [Who can reach plugin routes?](#who-can-reach-plugin-routes))
+so they answer the same way.
 
 ### Where do plugin routes get mounted?
 

@@ -12,3 +12,4 @@ export * from "./schema";
 export * from "./usePlugins";
 export * from "./metadata";
 export * from "./icons";
+export * from "./installed";

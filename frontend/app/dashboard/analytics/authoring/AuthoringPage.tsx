@@ -22,17 +22,14 @@ import {
 import { LineChart } from "@/components/ui/LineChart";
 import { RankedBar } from "@/components/ui/RankedBar";
 import { StatCard } from "@/components/ui/StatCard";
-import { usePluginContext } from "@/lib/plugins/context";
+import { isInstalled } from "@/lib/plugins";
 import { PeriodView, bothPeriods, useComparison, type PeriodData } from "../PeriodView";
 
 type DocumentsData = { current: DriveDocumentsPoint[]; previous: DriveDocumentsPoint[] } | null;
 
 export default function AuthoringPage() {
   const t = useTranslations("analytics.authoring");
-  const { isPluginEnabled, loading } = usePluginContext();
-  const drive = isPluginEnabled("google-drive");
-  // The plugin list arrives after the first render; wait for it or the card never loads.
-  if (loading) return null;
+  const drive = isInstalled("google-drive");
   const load = async (token: string, range: { from: IsoDate; to: IsoDate }) => {
     const [chat, documents] = await Promise.all([
       bothPeriods(fetchChatActivity)(token, range),
