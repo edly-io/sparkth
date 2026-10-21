@@ -110,7 +110,7 @@ class Settings(BaseSettings):
 
     MEMORY_PROFILING_ENABLED: bool = False
 
-    # Encrypts stored AI keys.
+    # Encrypts stored AI keys and user plugin configs.
     ENCRYPTION_KEY: str
     REDIS_URL: str = "redis://localhost:6379/0"
     REDIS_KEY_TTL: int = 3600

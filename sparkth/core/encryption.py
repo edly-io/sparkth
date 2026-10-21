@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import Fernet, InvalidToken, MultiFernet
 
 from sparkth.lib.log import get_logger
 
@@ -8,9 +8,15 @@ logger = get_logger(__name__)
 
 
 class EncryptionService:
+    """Encrypts and decrypts text with Fernet.
+
+    ``encryption_key`` is one Fernet key, or several separated by commas to rotate keys: the
+    first encrypts, and any of them decrypts.
+    """
+
     def __init__(self, encryption_key: str):
         try:
-            self._cipher = Fernet(encryption_key.encode())
+            self._cipher = MultiFernet([Fernet(key.strip().encode()) for key in encryption_key.split(",")])
         except (ValueError, TypeError) as e:
             raise ValueError(f"Invalid encryption key: {e}")
 
