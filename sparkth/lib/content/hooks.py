@@ -24,7 +24,6 @@ from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.plugins.service import disabled_plugin_names
 from sparkth.lib.auth import current_user_id
 from sparkth.lib.content.exceptions import (
     ContentContributorUnavailableError,
@@ -35,7 +34,7 @@ from sparkth.lib.db import session_scope
 from sparkth.lib.exceptions.auth import NoAuthenticatedUser
 from sparkth.lib.hooks import PluginHook
 from sparkth.lib.log import get_logger
-from sparkth.lib.plugins import SparkthPlugin
+from sparkth.lib.plugins import SparkthPlugin, disabled_plugin_names
 
 logger = get_logger(__name__)
 
