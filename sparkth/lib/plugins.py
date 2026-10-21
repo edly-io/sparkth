@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 from sparkth.core.plugins import get_plugin_loader
 from sparkth.core.plugins.base import SparkthPlugin
 from sparkth.core.plugins.config_base import PluginConfig
+from sparkth.core.plugins.exceptions import PluginNotConfiguredError
 from sparkth.core.plugins.widgets import ConfigWidget, widget
 
 if TYPE_CHECKING:
@@ -24,6 +25,7 @@ if TYPE_CHECKING:
         disabled_plugin_names,
         get_disabled_plugins,
         get_plugin_service,
+        load_user_plugin_config,
     )
 
 __all__ = [
@@ -41,6 +43,8 @@ __all__ = [
     "UserPluginResponse",
     "disabled_plugin_names",
     "get_disabled_plugins",
+    "load_user_plugin_config",
+    "PluginNotConfiguredError",
 ]
 
 # PluginService lives in ``sparkth.core.plugins.service``; it is re-exported here so
@@ -58,6 +62,7 @@ _SERVICE_EXPORTS = {
     "UserPluginResponse",
     "disabled_plugin_names",
     "get_disabled_plugins",
+    "load_user_plugin_config",
 }
 
 
