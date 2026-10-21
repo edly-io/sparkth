@@ -207,7 +207,9 @@ Plugin code raises typed exceptions; FastAPI translates them to `HTTPException` 
   is in scope for any enabled chat capability (`MessageScopeClassifier`) and whether answering it needs
   the attached documents (`RAGSearchClassifier`). Both are one structured-output call on the
   cheapest model of the user's provider, sharing `BaseClassifier` for everything but the judgement
-- Stored LLM API keys are encrypted at rest with Fernet via `EncryptionService` (`sparkth/core/encryption.py`); key from `ENCRYPTION_KEY`. Conversation contents themselves are not encrypted
+- Stored LLM API keys and user plugin configs are encrypted at rest with Fernet via `EncryptionService`
+  (`sparkth/core/encryption.py`, `EncryptedJSON` in `sparkth/core/models/types.py`); key from
+  `ENCRYPTION_KEY`. Conversation contents themselves are not encrypted
 - Redis (`sparkth/core/cache.py`) backs the rate limiting enforced in `chat/middleware.py` — per-minute request/chat limits and a concurrent-stream cap, configured in `chat/config.py`
 
 ---

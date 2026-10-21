@@ -8,6 +8,7 @@ from sqlalchemy import UniqueConstraint
 from sqlmodel import JSON, Column, Field, Relationship
 
 from sparkth.core.models.base import SoftDeleteModel, TimestampedModel
+from sparkth.core.models.types import EncryptedJSON
 
 
 class Plugin(TimestampedModel, SoftDeleteModel, table=True):
@@ -37,6 +38,6 @@ class UserPlugin(TimestampedModel, SoftDeleteModel, table=True):
     user_id: int = Field(foreign_key="user.id", index=True)
     plugin_id: int = Field(foreign_key="plugins.id", index=True)
     enabled: bool = Field(default=True)
-    config: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    config: dict[str, Any] = Field(default_factory=dict, sa_column=Column(EncryptedJSON))
 
     plugin: "Plugin" = Relationship(back_populates="user_plugins")
