@@ -233,5 +233,20 @@
   },
   "api": {
     "connectionFailed": "No se pudo conectar con el servidor: {detail}"
+  },
+  "plugins": {
+    "config": {
+      "title": "Configurar {name}",
+      "empty": "No hay opciones de configuración disponibles",
+      "cancel": "Cancelar",
+      "save": "Guardar cambios",
+      "saving": "Guardando",
+      "saveError": "No se pudo guardar la configuración.",
+      "stored": "Guardado",
+      "replace": "Reemplazar",
+      "keepStored": "Mantener guardada",
+      "keepStoredField": "Mantener guardada {field}",
+      "replaceField": "Reemplazar {field}"
+    }
   }
 }
