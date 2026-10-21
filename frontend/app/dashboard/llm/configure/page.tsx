@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { KeyRound, Pencil, Plus, RotateCw, Save, Trash2 } from "lucide-react";
 
 import { Spinner } from "@/components/Spinner";
@@ -16,7 +17,8 @@ import {
 } from "@/components/ui/Dialog";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import { Switch } from "@/components/ui/Switch";
+import { SettingsList, SettingsPage } from "@/components/settings/SettingsPage";
+import { SettingsRow } from "@/components/settings/SettingsRow";
 import { useAuth } from "@/lib/auth-context";
 import { validateLLMConfigName } from "@/lib/llm-validation";
 import {
@@ -42,8 +44,12 @@ interface EditModalProps {
 }
 
 function EditModal({ config, providers, token, onClose, onSaved }: EditModalProps) {
+  const t = useTranslations("aiKeys");
   const provider = providers.find((p) => p.id === config.provider);
-  const modelOptions = (provider?.models ?? []).map((m) => ({ value: m, label: m }));
+  const modelOptions = (provider?.models ?? []).map((m) => ({
+    value: m,
+    label: m,
+  }));
 
   const [name, setName] = useState(config.name);
   const [nameError, setNameError] = useState("");
@@ -71,7 +77,7 @@ function EditModal({ config, providers, token, onClose, onSaved }: EditModalProp
       onSaved();
       onClose();
     } catch (e) {
-      setSaveError(e instanceof Error ? e.message : "Failed to save changes");
+      setSaveError(e instanceof Error ? e.message : t("saveError"));
     } finally {
       setSaving(false);
     }
@@ -90,7 +96,7 @@ function EditModal({ config, providers, token, onClose, onSaved }: EditModalProp
       setShowKeyInput(false);
       onSaved();
     } catch (e) {
-      setRotateError(e instanceof Error ? e.message : "Failed to rotate API key");
+      setRotateError(e instanceof Error ? e.message : t("rotateError"));
     } finally {
       setRotating(false);
     }
@@ -100,17 +106,16 @@ function EditModal({ config, providers, token, onClose, onSaved }: EditModalProp
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Edit Config</DialogTitle>
-          <DialogDescription>
-            Update the name, model, or API key for this configuration.
-          </DialogDescription>
+          <DialogTitle>{t("editTitle")}</DialogTitle>
+          <DialogDescription>{t("editDescription")}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           {saveError && <Alert severity="error">{saveError}</Alert>}
 
           <Input
-            label="Name"
+            label={t("name")}
+            name="name"
             value={name}
             error={nameError}
             onChange={(e) => {
@@ -118,32 +123,30 @@ function EditModal({ config, providers, token, onClose, onSaved }: EditModalProp
               if (nameError) setNameError(validateLLMConfigName(e.target.value));
             }}
             onBlur={() => setNameError(validateLLMConfigName(name))}
-            placeholder="e.g. my-openai-key"
+            placeholder={t("namePlaceholder")}
           />
 
           <div>
-            <p className="block text-sm font-medium text-foreground mb-1.5">Provider</p>
+            <p className="block text-sm font-medium text-foreground mb-1.5">{t("provider")}</p>
             <p className="px-4 py-3 rounded-lg bg-surface-variant text-muted-foreground text-sm border-2 border-border">
               {provider?.label ?? config.provider}
-              <span className="ml-2 text-xs text-muted-foreground">(cannot be changed)</span>
+              <span className="ml-2 text-xs text-muted-foreground">{t("providerLocked")}</span>
             </p>
           </div>
 
           <Select
-            label="Model"
+            label={t("model")}
             value={model}
             options={modelOptions}
             onChange={(e) => setModel(e.target.value)}
-            placeholder="Select a model"
+            placeholder={t("modelPlaceholder")}
           />
 
           <div className="border-t border-border pt-4">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <p className="text-sm font-medium text-foreground">Rotate API Key</p>
-                <p className="text-xs text-muted-foreground">
-                  Replace the stored key with a new one
-                </p>
+                <p className="text-sm font-medium text-foreground">{t("rotateTitle")}</p>
+                <p className="text-xs text-muted-foreground">{t("rotateHint")}</p>
               </div>
               <Button
                 variant="outline"
@@ -155,13 +158,13 @@ function EditModal({ config, providers, token, onClose, onSaved }: EditModalProp
                 }}
               >
                 <RotateCw className="h-4 w-4 mr-1.5" aria-hidden="true" />
-                Rotate Key
+                {t("rotate")}
               </Button>
             </div>
 
             {rotateSuccess && (
               <Alert severity="success" className="mb-3">
-                API key rotated successfully.
+                {t("rotated")}
               </Alert>
             )}
 
@@ -175,7 +178,8 @@ function EditModal({ config, providers, token, onClose, onSaved }: EditModalProp
               <div className="flex gap-2">
                 <Input
                   type="password"
-                  placeholder="New API key"
+                  placeholder={t("newKeyPlaceholder")}
+                  aria-label={t("newKeyPlaceholder")}
                   value={newKey}
                   onChange={(e) => setNewKey(e.target.value)}
                   className="flex-1"
@@ -184,13 +188,13 @@ function EditModal({ config, providers, token, onClose, onSaved }: EditModalProp
                   variant="primary"
                   size="sm"
                   loading={rotating}
-                  spinnerLabel="Saving"
+                  spinnerLabel={t("saving")}
                   onClick={handleRotateKey}
                   disabled={!newKey.trim()}
-                  aria-label="Confirm key rotation"
+                  aria-label={t("confirmRotation")}
                 >
                   <Save className="h-4 w-4 mr-1.5" aria-hidden="true" />
-                  Save Key
+                  {t("saveKey")}
                 </Button>
               </div>
             )}
@@ -199,16 +203,16 @@ function EditModal({ config, providers, token, onClose, onSaved }: EditModalProp
 
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={onClose} disabled={saving}>
-            Cancel
+            {t("cancel")}
           </Button>
           <Button
             variant="primary"
             size="sm"
             loading={saving}
-            spinnerLabel="Saving"
+            spinnerLabel={t("saving")}
             onClick={handleSave}
           >
-            Save Changes
+            {t("saveChanges")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -226,6 +230,7 @@ interface DeleteDialogProps {
 }
 
 function DeleteDialog({ config, token, onClose, onDone }: DeleteDialogProps) {
+  const t = useTranslations("aiKeys");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -237,7 +242,7 @@ function DeleteDialog({ config, token, onClose, onDone }: DeleteDialogProps) {
       onDone();
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to delete config");
+      setError(e instanceof Error ? e.message : t("deleteError"));
     } finally {
       setLoading(false);
     }
@@ -251,7 +256,7 @@ function DeleteDialog({ config, token, onClose, onDone }: DeleteDialogProps) {
       onDone();
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to deactivate config");
+      setError(e instanceof Error ? e.message : t("deactivateError"));
     } finally {
       setLoading(false);
     }
@@ -261,42 +266,41 @@ function DeleteDialog({ config, token, onClose, onDone }: DeleteDialogProps) {
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Delete Config</DialogTitle>
-          <DialogDescription>
-            This action cannot be undone. Plugins using this config will lose access.
-          </DialogDescription>
+          <DialogTitle>{t("deleteTitle")}</DialogTitle>
+          <DialogDescription>{t("deleteDescription")}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           {error && <Alert severity="error">{error}</Alert>}
           <p className="text-sm text-foreground">
-            Are you sure you want to delete <span className="font-semibold">{config.name}</span>?
-            Plugins using this config will lose access. Consider deactivating it instead if you
-            might need it later.
+            {t.rich("deleteConfirm", {
+              name: config.name,
+              b: (chunks) => <span className="font-semibold">{chunks}</span>,
+            })}
           </p>
         </div>
 
         <DialogFooter className="gap-2">
           <Button variant="outline" size="sm" onClick={onClose} disabled={loading}>
-            Cancel
+            {t("cancel")}
           </Button>
           <Button
             variant="secondary"
             size="sm"
             loading={loading}
-            spinnerLabel="Deactivating"
+            spinnerLabel={t("deactivating")}
             onClick={handleDeactivate}
           >
-            Deactivate
+            {t("deactivate")}
           </Button>
           <Button
             variant="error"
             size="sm"
             loading={loading}
-            spinnerLabel="Deleting"
+            spinnerLabel={t("deleting")}
             onClick={handleDelete}
           >
-            Delete
+            {t("deleteAction")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -312,89 +316,54 @@ interface ConfigRowProps {
   onEdit: (config: LLMConfig) => void;
   onDelete: (config: LLMConfig) => void;
   onToggled: () => void;
-  onError: (message: string) => void;
-  isLast: boolean;
 }
 
-function ConfigRow({
-  config,
-  token,
-  onEdit,
-  onDelete,
-  onToggled,
-  onError,
-  isLast,
-}: ConfigRowProps) {
-  const [toggling, setToggling] = useState(false);
-
-  async function handleToggle(checked: boolean) {
-    setToggling(true);
-    try {
-      await setLLMConfigActive(token, config.id, checked);
-      onToggled();
-    } catch (e) {
-      onError(e instanceof Error ? e.message : "Failed to toggle config");
-    } finally {
-      setToggling(false);
-    }
-  }
-
+function ConfigRow({ config, token, onEdit, onDelete, onToggled }: ConfigRowProps) {
+  const t = useTranslations("aiKeys");
   return (
-    <div
-      role="listitem"
-      className={`flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-4 ${!isLast ? "border-b border-border" : ""}`}
-    >
-      {/* Info */}
-      <div className="flex-1 min-w-0">
-        <div className="flex flex-wrap items-center gap-2 mb-1">
-          <span className="font-medium text-foreground truncate">{config.name}</span>
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-secondary-50 text-secondary-700 dark:bg-secondary-900/30 dark:text-secondary-300">
-            {config.provider}
-          </span>
-          <span
-            aria-label={config.is_active ? "Active" : "Inactive"}
-            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-              config.is_active
-                ? "bg-success-50 text-success-700 dark:bg-success-900/30 dark:text-success-300"
-                : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400"
-            }`}
-          >
-            {config.is_active ? "Active" : "Inactive"}
-          </span>
-        </div>
-        <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-sm text-muted-foreground">
+    <SettingsRow
+      name={config.name}
+      active={config.is_active}
+      statusLabel={config.is_active ? t("active") : t("inactive")}
+      badges={
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-secondary-50 text-secondary-700 dark:bg-secondary-900/30 dark:text-secondary-300">
+          {config.provider}
+        </span>
+      }
+      details={
+        <>
           <span>{config.model}</span>
           <span className="font-mono">{config.masked_key}</span>
-        </div>
-      </div>
-
-      {/* Actions */}
-      <div className="flex items-center gap-2 shrink-0">
-        <Switch
-          checked={config.is_active}
-          onCheckedChange={handleToggle}
-          disabled={toggling}
-          aria-label={`Toggle active status for ${config.name}`}
-        />
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => onEdit(config)}
-          aria-label={`Edit config ${config.name}`}
-        >
-          <Pencil className="h-4 w-4" aria-hidden="true" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => onDelete(config)}
-          aria-label={`Delete config ${config.name}`}
-          className="text-error-500 hover:text-error-600 hover:bg-error-50 dark:hover:bg-error-900/20"
-        >
-          <Trash2 className="h-4 w-4" aria-hidden="true" />
-        </Button>
-      </div>
-    </div>
+        </>
+      }
+      toggleLabel={t("toggle", { name: config.name })}
+      onToggle={async (checked) => {
+        await setLLMConfigActive(token, config.id, checked);
+        onToggled();
+      }}
+      toggleErrorMessage={(e) => (e instanceof Error ? e.message : t("toggleError"))}
+      actions={
+        <>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onEdit(config)}
+            aria-label={t("edit", { name: config.name })}
+          >
+            <Pencil className="h-4 w-4" aria-hidden="true" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onDelete(config)}
+            aria-label={t("delete", { name: config.name })}
+            className="text-error-500 hover:text-error-600 hover:bg-error-50 dark:hover:bg-error-900/20"
+          >
+            <Trash2 className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </>
+      }
+    />
   );
 }
 
@@ -407,6 +376,7 @@ interface NewConfigModalProps {
 }
 
 function NewConfigModal({ token, onClose, onCreated }: NewConfigModalProps) {
+  const t = useTranslations("aiKeys");
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState("");
@@ -436,8 +406,7 @@ function NewConfigModal({ token, onClose, onCreated }: NewConfigModalProps) {
         }
       })
       .catch((e) => {
-        if (!ignore)
-          setCatalogError(e instanceof Error ? e.message : "Failed to load provider catalog");
+        if (!ignore) setCatalogError(e instanceof Error ? e.message : t("catalogError"));
       })
       .finally(() => {
         if (!ignore) setCatalogLoading(false);
@@ -454,8 +423,14 @@ function NewConfigModal({ token, onClose, onCreated }: NewConfigModalProps) {
   }
 
   const currentProviderInfo = providers.find((p) => p.id === selectedProvider);
-  const modelOptions = (currentProviderInfo?.models ?? []).map((m) => ({ value: m, label: m }));
-  const providerOptions = providers.map((p) => ({ value: p.id, label: p.label }));
+  const modelOptions = (currentProviderInfo?.models ?? []).map((m) => ({
+    value: m,
+    label: m,
+  }));
+  const providerOptions = providers.map((p) => ({
+    value: p.id,
+    label: p.label,
+  }));
 
   const formValid =
     !catalogError &&
@@ -485,7 +460,7 @@ function NewConfigModal({ token, onClose, onCreated }: NewConfigModalProps) {
       onCreated();
       onClose();
     } catch (e) {
-      setSubmitError(e instanceof Error ? e.message : "Failed to create LLM config");
+      setSubmitError(e instanceof Error ? e.message : t("createError"));
     } finally {
       setSubmitting(false);
     }
@@ -495,10 +470,8 @@ function NewConfigModal({ token, onClose, onCreated }: NewConfigModalProps) {
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>New LLM Config</DialogTitle>
-          <DialogDescription>
-            Add an API key and model configuration for an LLM provider.
-          </DialogDescription>
+          <DialogTitle>{t("newTitle")}</DialogTitle>
+          <DialogDescription>{t("newDescription")}</DialogDescription>
         </DialogHeader>
 
         {catalogLoading ? (
@@ -507,7 +480,7 @@ function NewConfigModal({ token, onClose, onCreated }: NewConfigModalProps) {
           </div>
         ) : (
           <form
-            aria-label="Create LLM config"
+            aria-label={t("newFormLabel")}
             onSubmit={(e) => {
               e.preventDefault();
               void handleSubmit();
@@ -519,10 +492,10 @@ function NewConfigModal({ token, onClose, onCreated }: NewConfigModalProps) {
               {submitError && <Alert severity="error">{submitError}</Alert>}
 
               <Input
-                label="Name"
+                label={t("name")}
                 name="name"
                 required
-                placeholder="e.g. my-openai-key"
+                placeholder={t("namePlaceholder")}
                 value={name}
                 error={nameError}
                 autoFocus
@@ -535,10 +508,10 @@ function NewConfigModal({ token, onClose, onCreated }: NewConfigModalProps) {
               />
 
               <Select
-                label="Provider"
+                label={t("provider")}
                 name="provider"
                 required
-                placeholder="Select a provider"
+                placeholder={t("providerPlaceholder")}
                 value={selectedProvider}
                 options={providerOptions}
                 onChange={(e) => handleProviderChange(e.target.value)}
@@ -547,10 +520,10 @@ function NewConfigModal({ token, onClose, onCreated }: NewConfigModalProps) {
 
               <div aria-live="polite">
                 <Select
-                  label="Model"
+                  label={t("model")}
                   name="model"
                   required
-                  placeholder="Select a model"
+                  placeholder={t("modelPlaceholder")}
                   value={selectedModel}
                   options={modelOptions}
                   onChange={(e) => setSelectedModel(e.target.value)}
@@ -561,7 +534,7 @@ function NewConfigModal({ token, onClose, onCreated }: NewConfigModalProps) {
               </div>
 
               <Input
-                label="API Key"
+                label={t("apiKey")}
                 name="api_key"
                 type="password"
                 required
@@ -581,17 +554,17 @@ function NewConfigModal({ token, onClose, onCreated }: NewConfigModalProps) {
                 onClick={onClose}
                 disabled={submitting}
               >
-                Cancel
+                {t("cancel")}
               </Button>
               <Button
                 type="submit"
                 variant="primary"
                 size="sm"
                 loading={submitting}
-                spinnerLabel="Creating"
+                spinnerLabel={t("creating")}
                 disabled={!formValid || submitting}
               >
-                Create Config
+                {t("create")}
               </Button>
             </DialogFooter>
           </form>
@@ -604,6 +577,7 @@ function NewConfigModal({ token, onClose, onCreated }: NewConfigModalProps) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function LLMConfigurePage() {
+  const t = useTranslations("aiKeys");
   const { token } = useAuth();
 
   const [configs, setConfigs] = useState<LLMConfig[]>([]);
@@ -634,7 +608,7 @@ export default function LLMConfigurePage() {
         prev ? (configsResult.configs.find((c) => c.id === prev.id) ?? null) : null,
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load LLM configs");
+      setError(e instanceof Error ? e.message : t("loadError"));
     } finally {
       setLoading(false);
     }
@@ -644,58 +618,40 @@ export default function LLMConfigurePage() {
     loadData();
   }, [loadData]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <div className="text-center">
-          <Spinner className="mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading LLM configs...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!token) return null;
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-background">
-        <div className="border-b border-border px-6 py-4">
-          <h1 className="text-xl font-semibold text-foreground">AI Keys</h1>
-        </div>
-        <div className="px-4 py-4 sm:py-6 sm:px-6 lg:px-8">
-          <Alert severity="error">{error}</Alert>
-        </div>
-      </div>
-    );
-  }
+  if (!loading && !token) return null;
 
   return (
-    <div className="min-h-screen bg-background transition-colors">
-      {/* Header */}
-      <div className="border-b border-border px-6 py-4">
-        <h1 className="text-xl font-semibold text-foreground">AI Keys</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Manage API keys and model configurations for connected LLM providers.
-        </p>
-      </div>
-
-      <div className="px-4 py-4 sm:py-6 sm:px-6 lg:px-8">
-        {/* New Config button */}
-        <div className="mb-4 sm:mb-6">
-          <Button variant="primary" size="sm" onClick={() => setShowNewModal(true)}>
-            <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" />
-            New Config
-          </Button>
-        </div>
-
-        {/* List */}
-        {configs.length > 0 ? (
-          <div
-            role="list"
-            className="bg-card rounded-lg shadow-sm overflow-hidden border border-border"
+    <SettingsPage
+      title={t("title")}
+      subtitle={t("subtitle")}
+      loading={loading}
+      loadingLabel={t("loading")}
+      error={error}
+      actions={
+        <Button variant="primary" size="sm" onClick={() => setShowNewModal(true)}>
+          <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" />
+          {t("newConfig")}
+        </Button>
+      }
+    >
+      {token && (
+        <>
+          <SettingsList
+            empty={
+              <>
+                <KeyRound
+                  className="mx-auto mb-4 h-10 w-10 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <p className="text-muted-foreground mb-4">{t("empty")}</p>
+                <Button variant="primary" size="sm" onClick={() => setShowNewModal(true)}>
+                  <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" />
+                  {t("createFirst")}
+                </Button>
+              </>
+            }
           >
-            {configs.map((config, index) => (
+            {configs.map((config) => (
               <ConfigRow
                 key={config.id}
                 config={config}
@@ -703,48 +659,38 @@ export default function LLMConfigurePage() {
                 onEdit={setEditingConfig}
                 onDelete={setDeletingConfig}
                 onToggled={loadData}
-                onError={setError}
-                isLast={index === configs.length - 1}
               />
             ))}
-          </div>
-        ) : (
-          <div className="bg-card rounded-lg shadow-sm p-12 text-center border border-border">
-            <KeyRound className="mx-auto mb-4 h-10 w-10 text-muted-foreground" aria-hidden="true" />
-            <p className="text-muted-foreground mb-4">No LLM configs found.</p>
-            <Button variant="primary" size="sm" onClick={() => setShowNewModal(true)}>
-              <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" />
-              Create Your First Config
-            </Button>
-          </div>
-        )}
-      </div>
+          </SettingsList>
 
-      {/* New Config Modal */}
-      {showNewModal && (
-        <NewConfigModal token={token} onClose={() => setShowNewModal(false)} onCreated={loadData} />
-      )}
+          {showNewModal && (
+            <NewConfigModal
+              token={token}
+              onClose={() => setShowNewModal(false)}
+              onCreated={loadData}
+            />
+          )}
 
-      {/* Edit Modal */}
-      {editingConfig && (
-        <EditModal
-          config={editingConfig}
-          providers={providers}
-          token={token}
-          onClose={() => setEditingConfig(null)}
-          onSaved={loadData}
-        />
-      )}
+          {editingConfig && (
+            <EditModal
+              config={editingConfig}
+              providers={providers}
+              token={token}
+              onClose={() => setEditingConfig(null)}
+              onSaved={loadData}
+            />
+          )}
 
-      {/* Delete Dialog */}
-      {deletingConfig && (
-        <DeleteDialog
-          config={deletingConfig}
-          token={token}
-          onClose={() => setDeletingConfig(null)}
-          onDone={loadData}
-        />
+          {deletingConfig && (
+            <DeleteDialog
+              config={deletingConfig}
+              token={token}
+              onClose={() => setDeletingConfig(null)}
+              onDone={loadData}
+            />
+          )}
+        </>
       )}
-    </div>
+    </SettingsPage>
   );
 }
