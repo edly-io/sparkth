@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
 
+import { renderWithIntl } from "@/tests/intl-test-utils";
 import { PluginConfigModal } from "@/components/settings/ConfigModal";
 import type { UserPluginState } from "@/core/plugins/types";
 
@@ -17,7 +18,7 @@ const OPENEDX_SCHEMA = {
 };
 
 function renderModal(plugin: Partial<UserPluginState>, onSave = vi.fn(async () => {})) {
-  render(
+  renderWithIntl(
     <PluginConfigModal
       plugin={{
         plugin_name: "open-edx",
@@ -177,5 +178,87 @@ describe("PluginConfigModal", () => {
     fireEvent.click(screen.getByRole("button", { name: /Save/ }));
 
     expect(await screen.findByText(/Failed to save configuration/)).toBeDefined();
+  });
+
+  it("shows a stored secret as dots, never as a value", () => {
+    renderModal({
+      config: { lms_url: "https://l.example.com", lms_username: "s" },
+      secrets_set: ["lms_password"],
+    });
+
+    expect(screen.getByText("••••••••")).toBeDefined();
+    // The selector skips the Replace button, whose aria-label also mentions the field.
+    expect(screen.queryByLabelText(/Lms Password/, { selector: "input" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Replace Lms Password" })).toBeDefined();
+  });
+
+  it("keeps a stored secret it was not asked to replace", async () => {
+    const onSave = renderModal({
+      config: { lms_url: "https://l.example.com", lms_username: "s" },
+      secrets_set: ["lms_password"],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Save/ }));
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({
+        lms_url: "https://l.example.com",
+        lms_username: "s",
+        note: "",
+      }),
+    );
+  });
+
+  it("sends a replaced secret", async () => {
+    const onSave = renderModal({
+      config: { lms_url: "https://l.example.com", lms_username: "s" },
+      secrets_set: ["lms_password"],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Replace Lms Password" }));
+    fireEvent.change(screen.getByLabelText(/Lms Password/, { selector: "input" }), {
+      target: { value: "n3w" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Save/ }));
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ lms_password: "n3w" })),
+    );
+  });
+
+  it("refuses to save a replaced secret left empty", async () => {
+    const onSave = renderModal({
+      config: { lms_url: "https://l.example.com", lms_username: "s" },
+      secrets_set: ["lms_password"],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Replace Lms Password" }));
+    fireEvent.click(screen.getByRole("button", { name: /Save/ }));
+
+    expect(await screen.findByText("This field is required")).toBeDefined();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("keeps the stored secret again after a replace is undone", async () => {
+    const onSave = renderModal({
+      config: { lms_url: "https://l.example.com", lms_username: "s" },
+      secrets_set: ["lms_password"],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Replace Lms Password" }));
+    fireEvent.change(screen.getByLabelText(/Lms Password/, { selector: "input" }), {
+      target: { value: "typo" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Keep stored Lms Password" }));
+    fireEvent.click(screen.getByRole("button", { name: /Save/ }));
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({
+        lms_url: "https://l.example.com",
+        lms_username: "s",
+        note: "",
+      }),
+    );
+    expect(screen.getByText("••••••••")).toBeDefined();
   });
 });

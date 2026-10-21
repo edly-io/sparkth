@@ -233,5 +233,20 @@
   },
   "api": {
     "connectionFailed": "Impossible de se connecter au serveur : {detail}"
+  },
+  "plugins": {
+    "config": {
+      "title": "Configurer {name}",
+      "empty": "Aucune option de configuration disponible",
+      "cancel": "Annuler",
+      "save": "Enregistrer les modifications",
+      "saving": "Enregistrement",
+      "saveError": "Échec de l'enregistrement de la configuration.",
+      "stored": "Enregistré",
+      "replace": "Remplacer",
+      "keepStored": "Conserver l’actuelle",
+      "keepStoredField": "Conserver l’actuelle {field}",
+      "replaceField": "Remplacer {field}"
+    }
   }
 }
