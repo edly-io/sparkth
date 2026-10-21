@@ -136,3 +136,15 @@ def test_validation_error_never_echoes_stored_values() -> None:
             PluginService.validate_user_config(Plugin(name="lms"), {"api_key": "s3cret"})
 
     assert "s3cret" not in str(raised.value)
+
+
+def test_validation_error_names_each_field_and_problem() -> None:
+    class LmsConfig(PluginConfig):
+        api_url: str
+        api_key: str
+
+    with patch("sparkth.core.plugins.service.get_plugin_config_schema", return_value=LmsConfig):
+        with pytest.raises(ConfigValidationError) as raised:
+            PluginService.validate_user_config(Plugin(name="lms"), {})
+
+    assert str(raised.value) == "api_url: Field required; api_key: Field required"
