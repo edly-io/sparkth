@@ -21,7 +21,7 @@ import {
 import { LineChart } from "@/components/ui/LineChart";
 import { StatCard } from "@/components/ui/StatCard";
 import { isInstalled } from "@/lib/plugins/installed";
-import { ANALYTICS_VIEWS } from "./AnalyticsNav";
+import { ANALYTICS_VIEWS } from "@/core/analytics/components/layout/AnalyticsNav";
 import { PeriodView, useComparison, type PeriodRange } from "./PeriodView";
 
 /** Everything the Overview loads for the period and the one before it. */

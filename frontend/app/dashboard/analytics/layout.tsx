@@ -7,7 +7,7 @@ import { useAuth } from "@/core/auth/hooks";
 import { usePermissionCheck } from "@/lib/permissions";
 import { Forbidden } from "@/components/Forbidden";
 import { Spinner } from "@/core/components/ui/Spinner";
-import { AnalyticsNav } from "./AnalyticsNav";
+import { AnalyticsNav } from "@/core/analytics/components/layout/AnalyticsNav";
 import { PeriodSelector } from "./PeriodSelector";
 
 export default function AnalyticsLayout({ children }: { children: React.ReactNode }) {

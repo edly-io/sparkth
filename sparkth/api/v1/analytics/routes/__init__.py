@@ -1,22 +1,23 @@
-"""Analytics read API — the dashboards and Explore call these endpoints.
+"""Analytics API router — the dashboards and Explore call these endpoints.
 
 The dashboards read rollups, ``/events`` lists the registered event types and ``/query`` counts
-raw events, naming actors from the application database. Every endpoint is gated by the
-``analytics.read`` permission, and ``/query`` also by ``user.read``. (Analytics is emitted
-server-side via ``ingest_event`` — validated against the schema on the ``ANALYTICS_EVENTS``
-hook; there is no HTTP emission endpoint — this read router is the analytics HTTP surface.)
+raw events, naming actors from the application database. Saved Explore views live under
+``/views`` via the views sub-router. Every endpoint is gated by the ``analytics.read``
+permission, and ``/query`` and ``/views`` also by ``user.read``. (Analytics is emitted server-side via
+``ingest_event`` — validated against the schema on the ``ANALYTICS_EVENTS`` hook; there is no
+HTTP emission endpoint.)
 """
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel.ext.asyncio.session import AsyncSession as AppSession
 
+from sparkth.api.v1.analytics.routes import views
 from sparkth.lib.analytics import (
     EventCatalogEntry,
     ExploreQuery,
-    ExploreQueryError,
     ExploreResult,
     LoginsPoint,
     RangeQuery,
@@ -27,11 +28,8 @@ from sparkth.lib.analytics import (
     summarize,
 )
 from sparkth.lib.db import get_analytics_session, get_async_session
-from sparkth.lib.exceptions.handlers import register_exception_handler
 from sparkth.lib.permissions import ANALYTICS_READ, USER_READ
 from sparkth.services.users import get_usernames
-
-register_exception_handler(ExploreQueryError, status.HTTP_422_UNPROCESSABLE_CONTENT)
 
 router = APIRouter()
 
@@ -103,6 +101,9 @@ async def query_events(
     """
     result = await measure_raw_events(session, query)
     if query.group_by == "actor":
-        ids = {int(t.group) for t in result.totals if t.group is not None and t.group.isdecimal()}
+        ids = {int(total.group) for total in result.totals if total.group is not None and total.group.isdecimal()}
         result.actor_names = {str(uid): name for uid, name in (await get_usernames(app_session, ids)).items()}
     return result
+
+
+router.include_router(views.router, prefix="/views")

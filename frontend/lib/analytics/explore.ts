@@ -1,19 +1,16 @@
+import type { Schema } from "@/lib/api";
 import type { EventCatalogEntry } from "@/lib/analytics/types";
 
 /** What an Explore chart counts: events, or distinct actors. */
-export type Measure = "count" | "distinct_actors";
+export type Measure = Schema<"Measure">;
 /** How an Explore result is drawn. */
-export type ChartKind = "line" | "bar" | "table";
+export type ChartKind = Schema<"ChartKind">;
 
-/** An Explore view's settings, as kept in the URL. `groupBy` is a field name or `"actor"`. */
-export interface ExploreConfig {
-  event: string | null;
-  actor: string | null;
-  filters: { field: string; value: string }[];
-  measure: Measure;
-  groupBy: string | null;
-  chart: ChartKind;
-}
+/**
+ * An Explore view's settings, as kept in the URL and in a saved view. `groupBy` is a field name
+ * or `"actor"`.
+ */
+export type ExploreConfig = Required<Schema<"ViewConfig">>;
 
 type EventField = EventCatalogEntry["fields"][number];
 

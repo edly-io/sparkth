@@ -79,7 +79,8 @@
       "overview": "Resumen",
       "logins": "Inicios de sesión",
       "authoring": "Creación de cursos",
-      "explore": "Explorar"
+      "explore": "Explorar",
+      "savedViews": "Vistas guardadas"
     },
     "period": {
       "range": "Periodo",
@@ -147,7 +148,19 @@
       "truncated": "Se muestran los 20 grupos principales; hay más.",
       "none": "(ninguno)",
       "chartCaption": "{event}, {range}",
-      "groupCaption": "{event} por {group}, {range}"
+      "groupCaption": "{event} por {group}, {range}",
+      "saveView": "Guardar vista",
+      "save": "Guardar",
+      "saveAsNew": "Guardar como nueva",
+      "rename": "Cambiar nombre",
+      "delete": "Eliminar",
+      "renameView": "Cambiar nombre de la vista",
+      "viewName": "Nombre",
+      "nameTaken": "Ya tienes una vista con este nombre.",
+      "saveError": "No pudimos guardar los cambios de la vista. Inténtalo de nuevo.",
+      "saved": "Vista guardada.",
+      "confirmDelete": "¿Eliminar la vista “{name}”?",
+      "viewMissing": "Esta vista guardada no existe o no es tuya."
     }
   },
   "home": {

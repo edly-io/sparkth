@@ -14,6 +14,8 @@ Plugins:
   - list the registered event types and their payload fields with ``event_catalog``,
   - measure one event type's raw events, filtered and grouped by payload fields, with
     ``measure_raw_events`` (an ``ExploreQuery``; bad names or values raise ``ExploreQueryError``),
+  - save a user's Explore configs as private views with ``create_view``, ``list_views``,
+    ``get_view``, ``update_view`` and ``delete_view``,
   - read a continuous aggregate by range and bucket with ``read_rollup`` (payload-key
     dims, no SQL), taking the range as ``RangeQuery``,
   - add a headline figure to the Overview with ``register_summary_figure`` (a
@@ -30,6 +32,8 @@ from typing import Any
 from sparkth.core.analytics import ANALYTICS_EVENTS, get_event_schema
 from sparkth.core.analytics.catalog import EventCatalogEntry, EventField, FilterFieldType, catalog_entry, event_catalog
 from sparkth.core.analytics.exceptions import (
+    AnalyticsViewAlreadyExists,
+    AnalyticsViewNotFound,
     ContinuousAggregateNotFound,
     DuplicateEventTypeError,
     EventNamespaceError,
@@ -42,12 +46,20 @@ from sparkth.core.analytics.exceptions import (
 )
 from sparkth.core.analytics.explore import (
     GROUP_LIMIT,
+    ChartKind,
     ExplorePoint,
     ExploreQuery,
     ExploreResult,
     ExploreTotal,
     Measure,
+    ViewConfig,
+    ViewFilter,
+    create_view,
+    delete_view,
+    get_view,
+    list_views,
     measure_raw_events,
+    update_view,
 )
 from sparkth.core.analytics.gateway import ingest_event
 from sparkth.core.analytics.hooks import SUMMARY_FIGURES
@@ -70,6 +82,16 @@ from sparkth.lib.plugins import SparkthPlugin
 logger = get_logger(__name__)
 
 __all__ = [
+    "AnalyticsViewAlreadyExists",
+    "AnalyticsViewNotFound",
+    "create_view",
+    "delete_view",
+    "get_view",
+    "list_views",
+    "update_view",
+    "ChartKind",
+    "ViewConfig",
+    "ViewFilter",
     "AnalyticsEventSchema",
     "Bucket",
     "Count",
