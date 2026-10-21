@@ -75,6 +75,7 @@ async def enabled_capabilities(session: AsyncSession) -> list[ChatCapability]:
     per request rather than cached, because ``Plugin.enabled`` flips at runtime. Equal copies
     from repeated constructions of one plugin fold into one.
     """
+    # No user, so only the system-wide switch applies.
     disabled = await disabled_plugin_names(None, session)
     offered = (capability for plugin, capability in CHAT_CAPABILITIES.iter_items() if plugin.name not in disabled)
     return list(dict.fromkeys(offered))
