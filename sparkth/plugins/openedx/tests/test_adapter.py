@@ -29,10 +29,10 @@ async def test_the_config_route_drops_the_cached_token(
     session.add(Plugin(name=OPENEDX_PLUGIN_NAME, is_core=True, enabled=True))
     await session.commit()
     await seed_tokens(current_user.id or 0)
+    sent = OPENEDX_CONFIG.model_dump(mode="json")
 
-    response = await client.put(
-        f"/api/v1/user-plugins/{OPENEDX_PLUGIN_NAME}/config", json={"config": OPENEDX_CONFIG.model_dump(mode="json")}
-    )
+    response = await client.put(f"/api/v1/user-plugins/{OPENEDX_PLUGIN_NAME}/config", json={"config": sent})
 
     assert response.status_code == 200
+    assert response.json()["config"] == sent
     assert fake_redis.store == {}
