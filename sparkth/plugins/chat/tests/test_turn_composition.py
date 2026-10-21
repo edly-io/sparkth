@@ -18,7 +18,7 @@ from sparkth.lib.settings import get_settings
 from sparkth.plugins.chat.capabilities import COURSE_DESIGN
 from sparkth.plugins.chat.constants import REFUSAL_MESSAGE
 from sparkth.plugins.chat.models import Conversation
-from sparkth.plugins.chat.tests.test_lms_credentials import _CANVAS_PLUGIN_MAP, _OPENEDX_PLUGIN_MAP
+from sparkth.plugins.chat.tests.helpers import CANVAS_CONFIG, OPENEDX_CONFIG
 
 COMPLETIONS_URL = "/api/v1/chat/completions"
 
@@ -242,7 +242,7 @@ async def _seed_lms_plugins(
             user_id=user_id,
             plugin_id=cast(int, openedx.id),
             enabled=openedx_on,
-            config=_OPENEDX_PLUGIN_MAP["open-edx"].config,
+            config=OPENEDX_CONFIG,
         )
     )
     session.add(
@@ -250,7 +250,7 @@ async def _seed_lms_plugins(
             user_id=user_id,
             plugin_id=cast(int, canvas.id),
             enabled=canvas_on,
-            config=_CANVAS_PLUGIN_MAP["canvas"].config,
+            config=CANVAS_CONFIG,
         )
     )
     await session.commit()

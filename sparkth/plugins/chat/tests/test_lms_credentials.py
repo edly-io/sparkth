@@ -9,6 +9,7 @@ from sparkth.plugins.chat.lms_credentials import (
     _lms_tool_prefixes,
     build_lms_credentials_message,
 )
+from sparkth.plugins.chat.tests.helpers import CANVAS_CONFIG, OPENEDX_CONFIG
 
 
 def _make_tool(name: str) -> MagicMock:
@@ -42,25 +43,9 @@ class TestHasLmsTools:
         assert _has_lms_tools(tools, _lms_tool_prefixes()) is True
 
 
-_OPENEDX_PLUGIN_MAP = {
-    "open-edx": _make_user_plugin(
-        {
-            "lms_url": "https://lms.example.com",
-            "studio_url": "https://studio.example.com",
-            "lms_username": "admin",
-            "lms_password": "secret",
-        }
-    )
-}
+_OPENEDX_PLUGIN_MAP = {"open-edx": _make_user_plugin(OPENEDX_CONFIG)}
 
-_CANVAS_PLUGIN_MAP = {
-    "canvas": _make_user_plugin(
-        {
-            "api_url": "https://canvas.example.com",
-            "api_key": "token-abc123",
-        }
-    )
-}
+_CANVAS_PLUGIN_MAP = {"canvas": _make_user_plugin(CANVAS_CONFIG)}
 
 _BOTH_PLUGIN_MAP = {**_OPENEDX_PLUGIN_MAP, **_CANVAS_PLUGIN_MAP}
 
