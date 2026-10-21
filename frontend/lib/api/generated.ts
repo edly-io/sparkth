@@ -1152,7 +1152,11 @@ export interface paths {
         put?: never;
         /**
          * Slack Events
-         * @description Receive Slack Events API payloads. Returns 200 immediately.
+         * @description Receive Slack Events API payloads.
+         *
+         *     Returns 403 unless the request signature verifies against `SLACK_SIGNING_SECRET`, and
+         *     returns 403 for every request while that secret is unset. Once a payload is accepted,
+         *     returns 200 immediately.
          */
         post: operations["slack_events_api_v1_slack_events_post"];
         delete?: never;
