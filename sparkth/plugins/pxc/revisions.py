@@ -24,7 +24,13 @@ from uuid import UUID
 from uuid6 import uuid7
 
 from sparkth.lib.log import get_logger
-from sparkth.plugins.pxc.activities import activity_dir, generated_activity_dir, parse_activity_id
+from sparkth.plugins.pxc.activities import (
+    activity_dir,
+    generated_activity_dir,
+    parse_activity_id,
+    state_file_path,
+    storage_dir,
+)
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound
 
@@ -139,12 +145,11 @@ def remove_activity_files(activity_id: UUID) -> None:
     so the caller's own error still propagates.
     """
     name = str(activity_id)
-    data_dir = get_pxc_settings().data_dir
-    state = data_dir / f"{name}.sqlite3"
+    state = state_file_path(name)
     paths = [
         generated_activity_dir(name),
         revisions_dir(name),
-        data_dir / "storage" / name,
+        storage_dir(name),
         *(state.with_name(state.name + suffix) for suffix in ("", "-wal", "-shm")),
     ]
     for path in paths:

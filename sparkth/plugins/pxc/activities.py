@@ -91,7 +91,17 @@ def state_file(activity_name: str) -> Path:
             rejects a path-escaping name, which can never match one.
     """
     activity_dir(activity_name)
+    return state_file_path(activity_name)
+
+
+def state_file_path(activity_name: str) -> Path:
+    """Where one activity's learner state file lives, whether or not the activity exists."""
     return get_pxc_settings().data_dir / f"{activity_name}.sqlite3"
+
+
+def storage_dir(activity_name: str) -> Path:
+    """Where one activity's learner file storage lives, whether or not the activity exists."""
+    return get_pxc_settings().data_dir / "storage" / activity_name
 
 
 def asset_path(directory: Path, file_path: str) -> Path:
