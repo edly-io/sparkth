@@ -15,8 +15,7 @@ from pxc.lib.runtime import ActivityRuntime, AssetAccessError, PendingEvent
 from pxc.lib.sandbox import SandboxRuntimeError
 
 from sparkth.lib.log import get_logger
-from sparkth.plugins.pxc.activities import activity_dir, state_file
-from sparkth.plugins.pxc.config import get_pxc_settings
+from sparkth.plugins.pxc.activities import activity_dir, state_file, storage_dir
 from sparkth.plugins.pxc.constants import (
     PXC_SANDBOX_ABORT_NOTICE,
     PXC_SANDBOX_OUTPUT_LIMIT,
@@ -55,7 +54,7 @@ def build_runtime(claims: LaunchClaims) -> ActivityRuntime:
     return ActivityRuntime(
         launch_dir(claims),
         SqliteFieldStore(state_file(claims.activity)),
-        LocalFileStorage(get_pxc_settings().data_dir / "storage" / claims.activity),
+        LocalFileStorage(storage_dir(claims.activity)),
         claims.activity_instance,
         claims.course_id,
         claims.user_id,

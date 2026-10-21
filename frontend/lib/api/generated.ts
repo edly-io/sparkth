@@ -1010,6 +1010,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/pxc/activities/{activity_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Owned Activity
+         * @description Delete one of this user's activities: its row, failure rows, files and learner data.
+         *
+         *     Deletes the row and its ``pxc.activity_deleted`` audit event in one commit, then removes the
+         *     files. A file that cannot be removed is logged and left behind.
+         *
+         *     Raises:
+         *         PxcActivityNotFound: if the activity does not exist or another user owns it.
+         *         SQLAlchemyError: if the delete or its audit record cannot be committed; nothing is removed.
+         */
+        delete: operations["delete_owned_activity_api_v1_pxc_activities__activity_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/pxc/activities/{activity_id}/launch": {
         parameters: {
             query?: never;
@@ -1495,7 +1522,7 @@ export interface components {
         };
         /**
          * ActivitySummary
-         * @description One of an author's activities, as the Activities page lists it.
+         * @description One of an author's activities, as the Activities page lists it, and whether it was placed in a course.
          */
         ActivitySummary: {
             /**
@@ -1510,6 +1537,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Placed */
+            placed: boolean;
             /** Preview Url */
             preview_url: string;
             /** Title */
@@ -4514,6 +4543,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ActivitySummary"][];
+                };
+            };
+        };
+    };
+    delete_owned_activity_api_v1_pxc_activities__activity_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                activity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

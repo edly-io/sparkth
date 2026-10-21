@@ -1,7 +1,6 @@
 """Connecting and disconnecting a Slack workspace leaves an audit row that
 never carries the bot token."""
 
-from collections.abc import AsyncGenerator
 from typing import cast
 from unittest.mock import AsyncMock, patch
 
@@ -13,10 +12,8 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.audit.hooks import AUDIT_EVENTS
-from sparkth.lib.auth import bind_request_user, get_current_user
 from sparkth.lib.models import User
 from sparkth.lib.testing import AuditEventsFetcher
-from sparkth.main import app
 from sparkth.plugins.slack.audit import SlackConnectedAuditEvent, SlackDisconnectedAuditEvent
 from sparkth.plugins.slack.models import SlackWorkspace
 from sparkth.plugins.slack.oauth import generate_state
@@ -30,18 +27,6 @@ TOKEN_DATA = {
     "bot_user_id": "U_NEW_BOT",
     "team": {"id": "T_NEW", "name": "New Team"},
 }
-
-
-@pytest.fixture
-async def authed_client(slack_client: AsyncClient, test_user: User) -> AsyncGenerator[AsyncClient, None]:
-    """``slack_client`` whose auth override binds the audit actor, as ``get_current_user`` does."""
-
-    async def get_user_override() -> User:
-        bind_request_user(test_user)
-        return test_user
-
-    app.dependency_overrides[get_current_user] = get_user_override
-    yield slack_client
 
 
 async def _callback(slack_client: AsyncClient, user_id: int) -> int:
@@ -95,12 +80,12 @@ async def test_rejected_connect_records_nothing(
 
 @pytest.mark.asyncio
 async def test_disconnect_records_disconnected(
-    authed_client: AsyncClient, test_user: User, test_workspace: SlackWorkspace, audit_events: AuditEventsFetcher
+    slack_client: AsyncClient, test_user: User, test_workspace: SlackWorkspace, audit_events: AuditEventsFetcher
 ) -> None:
     workspace_id = test_workspace.id
     encrypted = test_workspace.bot_token_encrypted
 
-    response = await authed_client.delete(DISCONNECT_URL)
+    response = await slack_client.delete(DISCONNECT_URL)
 
     assert response.status_code == status.HTTP_200_OK
     (event,) = await audit_events()
