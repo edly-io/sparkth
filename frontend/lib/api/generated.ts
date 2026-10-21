@@ -1001,11 +1001,8 @@ export interface paths {
          * Delete Owned Activity
          * @description Delete one of this user's activities: its row, failure rows, files and learner data.
          *
-         *     The row goes first, in one transaction with its ``pxc.activity_deleted`` audit event, then the
-         *     live link, the revisions, the learner state file and the storage are removed. A failed file
-         *     removal is logged, not raised, so either order leaves orphaned files when removal fails. The
-         *     orders differ only when the database fails, and with the row first that changes nothing: the
-         *     activity and its files stay whole.
+         *     Deletes the row and its ``pxc.activity_deleted`` audit event in one commit, then removes the
+         *     files. A file that cannot be removed is logged and left behind.
          *
          *     Raises:
          *         PxcActivityNotFound: if the activity does not exist or another user owns it.
