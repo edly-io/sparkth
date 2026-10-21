@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { parsePeriod, periodQuery, toIsoDate, type Period } from "@/lib/analytics";
+import { PERIOD_KEYS, parsePeriod, periodQuery, toIsoDate, type Period } from "@/lib/analytics";
 
 export function usePeriod() {
   const params = useSearchParams();
@@ -22,8 +22,11 @@ export function usePeriod() {
   }, [query]);
   const setPeriod = useCallback(
     (update: (current: Period) => Period) => {
-      const current = parsePeriod(new URLSearchParams(pending.current ?? query), today).period;
-      const next = periodQuery(update(current));
+      const params = new URLSearchParams(pending.current ?? query);
+      const current = parsePeriod(params, today).period;
+      // A view's own settings (Explore's) stay after the period.
+      const rest = new URLSearchParams([...params].filter(([k]) => !PERIOD_KEYS.includes(k)));
+      const next = [periodQuery(update(current)), rest.toString()].filter(Boolean).join("&");
       pending.current = next;
       router.replace(`${pathname}?${next}`);
     },

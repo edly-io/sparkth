@@ -6,6 +6,8 @@ export type Preset = keyof typeof PRESETS;
 export const DEFAULT_PRESET: Preset = "30d";
 export const BUCKETS: readonly Bucket[] = ["day", "week", "month"];
 export const MAX_RANGE_DAYS = 366;
+/** The URL params that hold the period. */
+export const PERIOD_KEYS: readonly string[] = ["range", "from", "to", "bucket"];
 
 export interface Period {
   from: IsoDate;
