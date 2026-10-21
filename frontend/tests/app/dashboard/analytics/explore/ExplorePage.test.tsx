@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { NextIntlClientProvider } from "next-intl";
 
 import { renderWithIntl } from "@/tests/intl-test-utils";
+import en from "@/messages/en.json";
 
 vi.mock("@/lib/auth-context", () => ({
   useAuth: () => ({ token: "test-token" }),
@@ -11,7 +13,15 @@ vi.mock("@/lib/auth-context", () => ({
 // Analytics data access: keep the real helpers, stub the fetches.
 vi.mock("@/lib/analytics", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/analytics")>();
-  return { ...actual, fetchEventCatalog: vi.fn(), fetchExplore: vi.fn() };
+  return {
+    ...actual,
+    fetchEventCatalog: vi.fn(),
+    fetchExplore: vi.fn(),
+    fetchView: vi.fn(),
+    createView: vi.fn(),
+    updateView: vi.fn(),
+    deleteView: vi.fn(),
+  };
 });
 
 const nav = vi.hoisted(() => ({ search: "", replace: vi.fn() }));
@@ -22,11 +32,17 @@ vi.mock("next/navigation", () => ({
 }));
 
 import {
+  createView,
+  deleteView,
   fetchEventCatalog,
   fetchExplore,
+  fetchView,
+  updateView,
+  type AnalyticsView,
   type EventCatalogEntry,
   type ExploreResult,
 } from "@/lib/analytics";
+import { ApiRequestError } from "@/lib/api";
 import ExplorePage from "@/app/dashboard/analytics/explore/ExplorePage";
 
 const catalog: EventCatalogEntry[] = [
@@ -40,6 +56,10 @@ const catalog: EventCatalogEntry[] = [
   },
   { event_type: "auth.login", fields: [] },
 ];
+
+function savedView(config: Record<string, unknown>, id = "v1", name = "Logins"): AnalyticsView {
+  return { id, name, config, created_at: "", updated_at: "" };
+}
 
 function answer(result: Partial<ExploreResult>) {
   vi.mocked(fetchExplore).mockResolvedValue({
@@ -198,5 +218,148 @@ describe("ExplorePage", () => {
       expect.anything(),
       expect.objectContaining({ filters: [] }),
     );
+  });
+
+  it("opens a saved view by applying its config to the URL, keeping the period", async () => {
+    nav.search = "range=7d&view=v1";
+    vi.mocked(fetchView).mockResolvedValue(savedView({ event: "auth.login", chart: "bar" }));
+    renderWithIntl(<ExplorePage />);
+    await vi.waitFor(() =>
+      expect(nav.replace).toHaveBeenCalledWith(
+        "/dashboard/analytics/explore?range=7d&view=v1&event=auth.login&chart=bar",
+      ),
+    );
+    expect(fetchView).toHaveBeenCalledWith("test-token", "v1");
+  });
+
+  it("shows the notice for a saved view naming a removed field", async () => {
+    nav.search = "view=v1";
+    vi.mocked(fetchView).mockResolvedValue(
+      savedView({ event: "chat.tool_invoked", filters: [{ field: "gone", value: "x" }] }),
+    );
+    const first = renderWithIntl(<ExplorePage />);
+    await vi.waitFor(() => expect(nav.replace).toHaveBeenCalled());
+    first.unmount();
+    // What the router would render next.
+    nav.search = vi.mocked(nav.replace).mock.calls[0][0].split("?")[1];
+    answer({});
+    renderWithIntl(<ExplorePage />);
+    expect(await screen.findByText(/no longer exist/i)).toBeInTheDocument();
+  });
+
+  it.each([
+    ["an unknown id (404)", "9b2f6c1e-4d1a-4c3b-8e2f-0a1b2c3d4e5f", 404],
+    ["an id that isn't a UUID (422)", "abc", 422],
+  ])("says when a saved view can't be found: %s", async (_, id, status) => {
+    nav.search = `view=${id}`;
+    vi.mocked(fetchView).mockRejectedValue(
+      new ApiRequestError({ message: "Not found", fieldErrors: {} }, status),
+    );
+    renderWithIntl(<ExplorePage />);
+    expect(await screen.findByText(/saved view doesn't exist/i)).toBeInTheDocument();
+  });
+
+  it("saves the config as a new view and opens it", async () => {
+    nav.search = "range=7d&event=auth.login";
+    vi.mocked(createView).mockResolvedValue(savedView({ event: "auth.login" }, "v9"));
+    renderWithIntl(<ExplorePage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Save view" }));
+    await userEvent.type(screen.getByLabelText("Name"), "Logins");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(createView).toHaveBeenCalledWith(
+      "test-token",
+      "Logins",
+      expect.objectContaining({ event: "auth.login" }),
+    );
+    await vi.waitFor(() =>
+      expect(nav.replace).toHaveBeenLastCalledWith(
+        "/dashboard/analytics/explore?range=7d&view=v9&event=auth.login",
+      ),
+    );
+  });
+
+  it("says when the name is taken", async () => {
+    nav.search = "event=auth.login";
+    vi.mocked(createView).mockRejectedValue(
+      new ApiRequestError({ message: "exists", fieldErrors: {} }, 409),
+    );
+    renderWithIntl(<ExplorePage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Save view" }));
+    await userEvent.type(screen.getByLabelText("Name"), "Logins");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByText(/already have a view with this name/i)).toBeInTheDocument();
+  });
+
+  describe("with a saved view open", () => {
+    beforeEach(() => {
+      nav.search = "view=v1&event=auth.login";
+      vi.mocked(fetchView).mockResolvedValue(savedView({ event: "auth.login" }));
+      answer({});
+    });
+
+    it("saves the current config to the open view", async () => {
+      vi.mocked(updateView).mockResolvedValue(savedView({ event: "auth.login" }));
+      renderWithIntl(<ExplorePage />);
+      await userEvent.click(await screen.findByRole("button", { name: "Save" }));
+      expect(updateView).toHaveBeenCalledWith("test-token", "v1", {
+        config: expect.objectContaining({ event: "auth.login" }),
+      });
+    });
+
+    it("re-applies the view's config when the URL drops it", async () => {
+      const page = renderWithIntl(<ExplorePage />);
+      await screen.findByRole("button", { name: "Save" });
+      nav.replace.mockClear();
+      // The rail's link for the open view carries only the view and period.
+      nav.search = "view=v1&range=7d";
+      page.rerender(
+        <NextIntlClientProvider locale="en" timeZone="UTC" messages={en}>
+          <ExplorePage />
+        </NextIntlClientProvider>,
+      );
+      await vi.waitFor(() =>
+        expect(nav.replace).toHaveBeenCalledWith(
+          "/dashboard/analytics/explore?range=7d&view=v1&event=auth.login",
+        ),
+      );
+    });
+
+    it("saves as a new view", async () => {
+      vi.mocked(createView).mockResolvedValue(savedView({ event: "auth.login" }, "v2", "Copy"));
+      renderWithIntl(<ExplorePage />);
+      await userEvent.click(await screen.findByRole("button", { name: "Save as new" }));
+      await userEvent.type(screen.getByLabelText("Name"), "Copy");
+      await userEvent.click(screen.getByRole("button", { name: "Save" }));
+      expect(createView).toHaveBeenCalledWith(
+        "test-token",
+        "Copy",
+        expect.objectContaining({ event: "auth.login" }),
+      );
+    });
+
+    it("renames the view", async () => {
+      vi.mocked(updateView).mockResolvedValue(savedView({ event: "auth.login" }, "v1", "Renamed"));
+      renderWithIntl(<ExplorePage />);
+      await userEvent.click(await screen.findByRole("button", { name: "Rename" }));
+      const name = screen.getByLabelText("Name");
+      expect(name).toHaveValue("Logins");
+      await userEvent.clear(name);
+      await userEvent.type(name, "Renamed");
+      await userEvent.click(screen.getByRole("button", { name: "Save" }));
+      expect(updateView).toHaveBeenCalledWith("test-token", "v1", { name: "Renamed" });
+    });
+
+    it("deletes the view and keeps the config", async () => {
+      vi.spyOn(window, "confirm").mockReturnValue(true);
+      vi.mocked(deleteView).mockResolvedValue();
+      renderWithIntl(<ExplorePage />);
+      await userEvent.click(await screen.findByRole("button", { name: "Delete" }));
+      expect(deleteView).toHaveBeenCalledWith("test-token", "v1");
+      await vi.waitFor(() =>
+        expect(nav.replace).toHaveBeenLastCalledWith(
+          "/dashboard/analytics/explore?event=auth.login",
+        ),
+      );
+    });
   });
 });

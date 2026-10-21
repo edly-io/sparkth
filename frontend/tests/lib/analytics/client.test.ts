@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import {
+  createView,
+  deleteView,
+  fetchView,
+  listViews,
+  updateView,
   fetchChatActivity,
   fetchEventCatalog,
   fetchExplore,
@@ -186,5 +191,60 @@ describe("fetchExplore", () => {
     expect(params.getAll("filter")).toEqual(["outcome:failed", "outcome:null"]);
     expect(params.get("measure")).toBe("distinct_actors");
     expect(params.get("group_by")).toBe("actor");
+  });
+});
+
+describe("saved views", () => {
+  const config: ExploreConfig = {
+    event: "auth.login",
+    actor: null,
+    filters: [],
+    measure: "count",
+    groupBy: null,
+    chart: "line",
+  };
+  const view = { id: "v1", name: "Logins", config, created_at: "", updated_at: "" };
+
+  it("lists the caller's views", async () => {
+    const spy = mockFetch([view]);
+    expect(await listViews("test-token")).toEqual([view]);
+    expect(new URL(sentRequest(spy).url).pathname).toBe("/api/v1/analytics/views");
+    expect(sentRequest(spy).headers.get("authorization")).toBe("Bearer test-token");
+  });
+
+  it("fetches one view by id", async () => {
+    const spy = mockFetch(view);
+    expect(await fetchView("test-token", "v1")).toEqual(view);
+    expect(new URL(sentRequest(spy).url).pathname).toBe("/api/v1/analytics/views/v1");
+  });
+
+  it("POSTs a new view with its name and config", async () => {
+    const spy = mockFetch(view, 201);
+    expect(await createView("test-token", "Logins", config)).toEqual(view);
+    const request = sentRequest(spy);
+    expect(request.method).toBe("POST");
+    expect(await request.json()).toEqual({ name: "Logins", config });
+  });
+
+  it("PATCHes only the parts given", async () => {
+    const spy = mockFetch(view);
+    await updateView("test-token", "v1", { name: "Renamed" });
+    const request = sentRequest(spy);
+    expect(request.method).toBe("PATCH");
+    expect(new URL(request.url).pathname).toBe("/api/v1/analytics/views/v1");
+    expect(await request.json()).toEqual({ name: "Renamed" });
+  });
+
+  it("DELETEs a view", async () => {
+    const spy = mockFetch(null, 204);
+    await deleteView("test-token", "v1");
+    expect(sentRequest(spy).method).toBe("DELETE");
+    expect(new URL(sentRequest(spy).url).pathname).toBe("/api/v1/analytics/views/v1");
+  });
+
+  it("rejects with the status when the view is missing", async () => {
+    mockFetch({ detail: "not found" }, 404);
+    const error = await fetchView("test-token", "v1").catch((e: unknown) => e);
+    expect((error as ApiRequestError).status).toBe(404);
   });
 });

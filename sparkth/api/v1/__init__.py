@@ -14,6 +14,7 @@ from fastapi import APIRouter
 
 from sparkth.api.v1 import (
     analytics,
+    analytics_views,
     audit,
     auth,
     file_parser,
@@ -36,5 +37,6 @@ api_router.include_router(llm.router, prefix="/llm", tags=["LLM Configuration"])
 api_router.include_router(permissions.router, prefix="/permissions", tags=["Permissions"])
 api_router.include_router(analytics.router, prefix="/analytics", tags=["Analytics"])
 api_router.include_router(audit.router, prefix="/audit", tags=["Audit"])
+api_router.include_router(analytics_views.router, prefix="/analytics/views", tags=["Analytics"])
 
 __all__ = ["api_router"]

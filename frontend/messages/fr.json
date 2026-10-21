@@ -79,7 +79,8 @@
       "overview": "Vue d'ensemble",
       "logins": "Connexions",
       "authoring": "Création de cours",
-      "explore": "Explorer"
+      "explore": "Explorer",
+      "savedViews": "Vues enregistrées"
     },
     "period": {
       "range": "Période",
@@ -147,7 +148,19 @@
       "truncated": "Les 20 premiers groupes sont affichés ; il y en a d'autres.",
       "none": "(aucun)",
       "chartCaption": "{event}, {range}",
-      "groupCaption": "{event} par {group}, {range}"
+      "groupCaption": "{event} par {group}, {range}",
+      "saveView": "Enregistrer la vue",
+      "save": "Enregistrer",
+      "saveAsNew": "Enregistrer comme nouvelle",
+      "rename": "Renommer",
+      "delete": "Supprimer",
+      "renameView": "Renommer la vue",
+      "viewName": "Nom",
+      "nameTaken": "Vous avez déjà une vue portant ce nom.",
+      "saveError": "Impossible d'enregistrer les modifications de la vue. Veuillez réessayer.",
+      "saved": "Vue enregistrée.",
+      "confirmDelete": "Supprimer la vue « {name} » ?",
+      "viewMissing": "Cette vue enregistrée n'existe pas ou ne vous appartient pas."
     }
   },
   "home": {
