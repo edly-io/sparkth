@@ -13,15 +13,13 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/dashboard/analytics",
 }));
 
-const plugins = vi.hoisted(() => ({
-  enabled: new Set(["chat"]),
-  loading: false,
-}));
-vi.mock("@/lib/plugins/context", () => ({
-  usePluginContext: () => ({
-    isPluginEnabled: (name: string) => plugins.enabled.has(name),
-    loading: plugins.loading,
-  }),
+// The plugins installed in the backend build. No PluginProvider is mounted: analytics must not
+// depend on the viewer's own plugin switches.
+const plugins = vi.hoisted(() => ({ installed: ["chat"] }));
+vi.mock("@/lib/plugins/generated", () => ({
+  get FRONTEND_PLUGIN_NAMES() {
+    return plugins.installed;
+  },
 }));
 
 vi.mock("@/lib/analytics", async (orig) => ({
@@ -52,8 +50,7 @@ const fig = (over: Partial<SummaryCount>): SummaryCount => ({
 beforeEach(() => {
   vi.clearAllMocks();
   nav.search = "";
-  plugins.enabled = new Set(["chat"]);
-  plugins.loading = false;
+  plugins.installed = ["chat"];
   logins.mockResolvedValue([]);
   activity.mockResolvedValue([]);
 });
@@ -90,8 +87,8 @@ describe("OverviewPage", () => {
     expect(screen.queryByRole("link", { name: /Mystery/ })).toBeNull();
   });
 
-  it("hides a plugin's figures when the viewer has that plugin disabled", async () => {
-    plugins.enabled = new Set();
+  it("shows every figure the server returns, even from a plugin with no frontend page", async () => {
+    plugins.installed = [];
     summary.mockResolvedValue([
       fig({ current: 1 }),
       fig({
@@ -104,7 +101,7 @@ describe("OverviewPage", () => {
     ]);
     renderWithIntl(<OverviewPage />);
     await screen.findByText("Logins");
-    expect(screen.queryByText("Messages sent")).toBeNull();
+    expect(screen.getByText("Messages sent")).toBeInTheDocument();
   });
 
   it("says new when the previous period was zero, and nothing when both were", async () => {
@@ -159,8 +156,8 @@ describe("OverviewPage", () => {
       expect(screen.getByRole("cell", { name: "5" })).toBeInTheDocument();
     });
 
-    it("counts logins only, and never reads chat, when chat is disabled", async () => {
-      plugins.enabled = new Set();
+    it("counts logins only, and never reads chat, when chat is not installed", async () => {
+      plugins.installed = [];
       busyFigures();
       logins.mockResolvedValue([loginRow]);
       renderWithIntl(<OverviewPage />);
@@ -174,12 +171,6 @@ describe("OverviewPage", () => {
       logins.mockRejectedValue(new Error());
       renderWithIntl(<OverviewPage />);
       expect(await screen.findByText("Try again")).toBeInTheDocument();
-    });
-
-    it("makes no request while the plugin context is loading", () => {
-      plugins.loading = true;
-      renderWithIntl(<OverviewPage />);
-      expect(summary).not.toHaveBeenCalled();
     });
   });
 });

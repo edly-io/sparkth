@@ -16,12 +16,13 @@ vi.mock("@/lib/analytics", async (importOriginal) => {
   return { ...actual, fetchChatActivity: vi.fn(), fetchDriveDocuments: vi.fn() };
 });
 
-const plugins = vi.hoisted(() => ({ enabled: new Set(["chat"]), loading: false }));
-vi.mock("@/lib/plugins/context", () => ({
-  usePluginContext: () => ({
-    isPluginEnabled: (name: string) => plugins.enabled.has(name),
-    loading: plugins.loading,
-  }),
+// The plugins installed in the backend build. No PluginProvider is mounted: analytics must not
+// depend on the viewer's own plugin switches.
+const plugins = vi.hoisted(() => ({ installed: ["chat"] }));
+vi.mock("@/lib/plugins/generated", () => ({
+  get FRONTEND_PLUGIN_NAMES() {
+    return plugins.installed;
+  },
 }));
 
 vi.mock("next/navigation", () => ({
@@ -59,7 +60,7 @@ const tool = (name: string | null, count: number, outcome?: string | null) =>
 // 2026-05-26..2026-06-24.
 beforeEach(() => {
   vi.clearAllMocks();
-  plugins.enabled = new Set(["chat"]);
+  plugins.installed = ["chat"];
   vi.useFakeTimers({ shouldAdvanceTime: true });
   vi.setSystemTime(new Date("2026-07-24T12:00:00Z"));
 });
@@ -290,7 +291,7 @@ const doc = (outcome: string, document_count: number, seconds_total = 0): DriveD
 
 describe("AuthoringPage documents", () => {
   it("shows processed documents, the ready share and why the rest weren't usable", async () => {
-    plugins.enabled = new Set(["chat", "google-drive"]);
+    plugins.installed = ["chat", "google-drive"];
     answer([row(CHAT_EVENTS.messages, 1)]);
     vi.mocked(fetchDriveDocuments).mockImplementation(async (_t, { to }) =>
       to === "2026-07-24" ? [doc("ingested", 3, 90), doc("scanned_pdf", 1, 2)] : [],
@@ -304,7 +305,7 @@ describe("AuthoringPage documents", () => {
   });
 
   it("keeps the chat figures when the Drive read fails", async () => {
-    plugins.enabled = new Set(["chat", "google-drive"]);
+    plugins.installed = ["chat", "google-drive"];
     answer([row(CHAT_EVENTS.messages, 10)]);
     vi.mocked(fetchDriveDocuments).mockRejectedValue(
       new ApiRequestError({ message: "Permission denied", fieldErrors: {} }, 403),
@@ -315,7 +316,7 @@ describe("AuthoringPage documents", () => {
     expect(screen.queryByText("Documents processed")).not.toBeInTheDocument();
   });
 
-  it("does not fetch documents without Google Drive", async () => {
+  it("does not fetch documents when Google Drive is not installed", async () => {
     answer([row(CHAT_EVENTS.messages, 1)]);
     renderWithIntl(<AuthoringPage />);
     await card("Messages sent");
