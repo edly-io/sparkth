@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
-import { renderWithIntl } from "../../../intl-test-utils";
+import { renderWithIntl } from "@/tests/intl-test-utils";
 
 vi.mock("@/lib/auth-context", () => ({
   useAuth: () => ({ token: "test-token" }),

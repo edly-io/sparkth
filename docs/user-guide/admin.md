@@ -25,16 +25,16 @@ Someone who is not on the whitelist sees one of the messages in
 ## Review the audit log
 
 **Audit log** in the sidebar lists who did what and when: sign-ins, key and plugin changes,
-permission changes, AI tool calls and more, newest first.
+permission changes, AI tool calls and more, most recent first.
 
 1. Narrow the list with the filters: a time range, an actor's user id, a category (`auth`,
    `tool`, `llm_config`, ...), an outcome or a source, then click **Apply**. The time range
    includes the whole of the last minute you pick.
-2. Click a row to see its full details, including what changed and the tool arguments.
+2. Click the arrow at the start of a row to see its full details, including what changed and
+   the tool arguments.
 3. Click **Load more** at the bottom for older events.
 4. Click **Export CSV** or **Export JSON Lines** to download every event that matches the
-   filters. Each export is itself recorded in the log. In the CSV, a value that starts with
-   `=`, `+`, `-` or `@` gets a leading `'` so a spreadsheet shows it as text, not a formula.
+   filters. Each export is itself recorded in the log.
 
 ## Accounts
 
@@ -56,4 +56,4 @@ rights or reset a password, ask whoever runs your Sparkth server.
 
 The admin role has all three.
 
-**Audit log** needs `audit.read`, which the admin role also has.
+**Audit log** needs `audit.read`.

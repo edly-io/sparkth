@@ -4,7 +4,7 @@ import { Fragment, useCallback, useEffect, useRef, useState, type SubmitEvent } 
 import { ChevronDown, ChevronRight, Download, ScrollText } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import { useAuth } from "@/lib/auth-context";
-import { usePermission } from "@/lib/permissions";
+import { usePermissionCheck } from "@/lib/permissions";
 import { ApiRequestError } from "@/lib/api";
 import {
   AUDIT_OUTCOMES,
@@ -67,7 +67,7 @@ export default function AuditLogPage() {
   const { token } = useAuth();
   const t = useTranslations("audit");
   const format = useFormatter();
-  const access = usePermission(token, "audit.read");
+  const access = usePermissionCheck(token, "audit.read");
   const [form, setForm] = useState<FilterForm>(EMPTY_FORM);
   const [categories, setCategories] = useState<string[]>([]);
   const [filters, setFilters] = useState<AuditFilters>({});
