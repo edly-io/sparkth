@@ -13,6 +13,8 @@ logger = get_logger(__name__)
 
 
 class CacheService:
+    """Async Redis cache of string values, each stored with a TTL; it connects on first use."""
+
     def __init__(self, redis_url: str, default_ttl: int = 3600):
         self.redis_url = redis_url
         self.default_ttl = default_ttl
@@ -38,6 +40,10 @@ class CacheService:
             logger.info("Disconnected from Redis")
 
     async def get(self, key: str) -> str | None:
+        """Return the value stored at ``key``, or ``None`` when it is missing.
+
+        A Redis error is logged and swallowed, and ``None`` is returned.
+        """
         await self.connect()
 
         if self._redis is None:
@@ -54,6 +60,11 @@ class CacheService:
             return None
 
     async def set(self, key: str, value: str, ttl: int | None = None) -> bool:
+        """Store ``value`` at ``key`` for ``ttl`` seconds and return ``True``.
+
+        A ``ttl`` of ``None`` or ``0`` falls back to the default TTL. A Redis error is logged and
+        swallowed, and ``False`` is returned.
+        """
         if not self._redis:
             await self.connect()
 
@@ -67,6 +78,10 @@ class CacheService:
             return False
 
     async def delete(self, key: str) -> bool:
+        """Remove ``key`` and return ``True`` if a value was removed, ``False`` if none was stored.
+
+        A Redis error is logged and swallowed, and ``False`` is returned.
+        """
         if not self._redis:
             await self.connect()
 
@@ -109,9 +124,11 @@ class CacheService:
             return False
 
     def make_key(self, *parts: str) -> str:
+        """Join ``parts`` with ``:`` into one key: ``make_key("openedx", "7")`` is ``"openedx:7"``."""
         return ":".join(str(part) for part in parts)
 
 
 @lru_cache(maxsize=1)
 def get_cache_service(redis_url: str, default_ttl: int = 3600) -> CacheService:
+    """Return the shared ``CacheService``; calls with the same arguments get the same instance."""
     return CacheService(redis_url, default_ttl)

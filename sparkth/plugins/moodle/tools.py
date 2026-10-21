@@ -1,4 +1,4 @@
-"""Moodle MCP tools, including authentication, course, section, page and quiz management."""
+"""Moodle MCP tools, including the settings check, LMS vocabulary, course, section, page and quiz management."""
 
 import logging
 from pathlib import Path
