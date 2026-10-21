@@ -108,7 +108,7 @@ def register_content_contributor(plugin: SparkthPlugin, contributor: ContentCont
 
     Call this from a plugin's ``__init__``, passing ``self``. The hook records the plugin, so
     that plugin's switches decide whether the contributor is offered. A plugin has one
-    contributor: registering another from the same instance replaces the first.
+    contributor: registering one under another name from the same instance replaces the first.
 
     A plugin is constructed more than once in a single process — the loader builds it, and its
     own tests build their own instances — so each construction registers the same contributor
