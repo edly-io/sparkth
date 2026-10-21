@@ -12,6 +12,7 @@ from sparkth.lib.i18n import gettext_noop
 from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.plugins.canvas.config import CanvasConfig
+from sparkth.plugins.canvas.constants import CANVAS_PLUGIN_NAME
 
 
 class CanvasPlugin(SparkthPlugin):
@@ -20,7 +21,7 @@ class CanvasPlugin(SparkthPlugin):
 
     Provides comprehensive Canvas LMS API integration with 30+ MCP tools for:
     - Canvas vocabulary, structure and publish semantics (``canvas_about``)
-    - Authentication and credential validation
+    - Checking the user's stored Canvas settings
     - Course CRUD operations
     - Module and module item management
     - Wiki page management
@@ -31,7 +32,7 @@ class CanvasPlugin(SparkthPlugin):
     """
 
     def __init__(self) -> None:
-        super().__init__("canvas")
+        super().__init__(CANVAS_PLUGIN_NAME)
         CONFIG_SCHEMAS.add_item(self, CanvasConfig)
         DISPLAY_INFO.add_item(
             self,

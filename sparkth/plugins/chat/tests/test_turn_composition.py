@@ -424,7 +424,7 @@ class TestPluginSwitches:
         provider, _ = await self._lms_turn(client, session, current_user.id or 1, False, True)
 
         assert "https://lms.example.com" not in provider.system_prompt
-        assert "https://canvas.example.com" in provider.system_prompt
+        assert "token-abc123" not in provider.system_prompt
 
     async def test_an_enabled_plugin_contributes_its_tools_section_and_credentials(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
