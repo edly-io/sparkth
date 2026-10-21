@@ -2,22 +2,18 @@
 
 import json
 import logging
-from collections.abc import Generator
-from functools import partial
 from pathlib import Path
 from typing import cast
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
-from fastapi import FastAPI
-from httpx import ASGITransport, AsyncClient
+from httpx import AsyncClient
 from pxc.lib.permission import Permission
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from uuid6 import uuid7
 
-from sparkth.lib.auth import bind_request_user, get_current_user
 from sparkth.lib.models import User, utc_now
 from sparkth.lib.testing import AuditEventsFetcher
 from sparkth.plugins.pxc.activities import activity_dir, generated_activity_dir, state_file
@@ -46,19 +42,6 @@ def _write_state_and_storage(activity: PxcActivity) -> list[Path]:
     for path in paths:
         path.write_text("x")
     return paths
-
-
-async def _authenticate_and_bind(user: User) -> User:
-    bind_request_user(user)
-    return user
-
-
-@pytest.fixture
-def audited_user(client: AsyncClient, current_user: User) -> Generator[User, None, None]:
-    """``current_user`` whose auth override also binds the audit actor, as ``get_current_user`` does."""
-    app = cast(FastAPI, cast(ASGITransport, client._transport).app)
-    app.dependency_overrides[get_current_user] = partial(_authenticate_and_bind, current_user)
-    yield current_user
 
 
 async def _row_exists(session: AsyncSession, activity_id: object) -> bool:
@@ -180,9 +163,9 @@ async def test_an_owned_activity_with_no_files_on_disk_cannot_be_launched(
 
 
 async def test_an_author_deletes_their_own_activity(
-    client: AsyncClient, session: AsyncSession, audited_user: User, audit_events: AuditEventsFetcher
+    client: AsyncClient, session: AsyncSession, current_user: User, audit_events: AuditEventsFetcher
 ) -> None:
-    activity = await _insert_owned(session, cast(int, audited_user.id))
+    activity = await _insert_owned(session, cast(int, current_user.id))
     _write_built_files(activity)
     extra = _write_state_and_storage(activity)
     built = generated_activity_dir(str(activity.id))
@@ -194,7 +177,7 @@ async def test_an_author_deletes_their_own_activity(
     assert not await _row_exists(session, activity.id)
     assert not any(path.exists() for path in [built, *extra])
     (event,) = await audit_events()
-    assert (event.actor_type, event.actor_id) == ("user", str(audited_user.id))
+    assert (event.actor_type, event.actor_id) == ("user", str(current_user.id))
 
 
 async def test_deleting_twice_is_not_found_the_second_time(
