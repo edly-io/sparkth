@@ -28,6 +28,7 @@ function renderModal(plugin: Partial<UserPluginState>, onSave = vi.fn(async () =
         display: null,
         sidebar: null,
         has_frontend: false,
+        secrets_set: [],
         ...plugin,
       }}
       open
