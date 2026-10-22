@@ -287,6 +287,10 @@ a migration on existing databases) reject `UPDATE`, `DELETE`, and `TRUNCATE` on
 `audit_events`, so corrections are new events and no code path holding the application's database
 credentials can rewrite history.
 
+Administrators holding `audit.read` read the trail at `/dashboard/audit` or through
+`/api/v1/audit/events` (filtered by time range, actor, category, action, outcome, source and target,
+most recently recorded first); `/api/v1/audit/categories` lists the categories to filter by.
+
 Two maintenance operations are allowed past that guard, each inside its own transaction and each
 leaving an audit event of its own behind (`make cli -- audit --help`):
 
