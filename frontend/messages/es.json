@@ -126,6 +126,42 @@
     "message": "Pide acceso a un administrador si lo necesitas.",
     "back": "Volver al panel"
   },
+  "audit": {
+    "title": "Registro de auditoría",
+    "subtitle": "Quién hizo qué, cuándo y con qué resultado, del más reciente al más antiguo.",
+    "loadError": "No pudimos cargar el registro de auditoría. Inténtalo de nuevo.",
+    "exportError": "No pudimos exportar el registro de auditoría. Inténtalo de nuevo.",
+    "from": "Desde",
+    "to": "Hasta",
+    "actorId": "ID de usuario del actor",
+    "actorIdPlaceholder": "p. ej. 42",
+    "category": "Categoría",
+    "outcome": "Resultado",
+    "source": "Origen",
+    "any": "Cualquiera",
+    "apply": "Aplicar",
+    "reset": "Restablecer",
+    "exportCsv": "Exportar CSV",
+    "exportJsonl": "Exportar JSON Lines",
+    "exporting": "Exportando",
+    "showDetails": "Mostrar detalles",
+    "hideDetails": "Ocultar detalles",
+    "loadMore": "Cargar más",
+    "empty": "Ningún evento de auditoría coincide con estos filtros.",
+    "outcomes": {
+      "success": "Éxito",
+      "failure": "Fallo",
+      "denied": "Denegado"
+    },
+    "columns": {
+      "time": "Hora",
+      "event": "Evento",
+      "actor": "Actor",
+      "outcome": "Resultado",
+      "target": "Objetivo",
+      "source": "Origen"
+    }
+  },
   "profile": {
     "title": "Perfil",
     "subtitle": "Los datos de tu cuenta, tu nombre y tu contraseña.",
