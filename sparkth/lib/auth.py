@@ -91,8 +91,8 @@ def bind_current_user_id(user_id: int) -> None:
     """Bind ``user_id`` as the caller ``current_user_id`` returns for the rest of this context.
 
     Set inside the request's own context. Tasks the request spawns copy it, and the value
-    never leaks into the next request. Called by ``bind_request_user``, and by the test
-    harness's ``current_user`` override, which replaces ``get_current_user`` entirely.
+    never leaks into the next request. Called by ``bind_request_user``, and by tests that act
+    for a user outside a request.
     """
     _current_user_id.set(user_id)
 

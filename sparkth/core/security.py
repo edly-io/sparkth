@@ -1,3 +1,4 @@
+import hashlib
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -18,6 +19,11 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def get_password_hash(password: str) -> str:
     return password_hash.hash(password)
+
+
+def hash_token(raw: str) -> str:
+    """SHA-256 hex digest of a single-use link token, the form tokens are stored in."""
+    return hashlib.sha256(raw.encode()).hexdigest()
 
 
 MAX_PASSWORD_LENGTH = 128

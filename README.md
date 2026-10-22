@@ -181,8 +181,10 @@ analytics databases), and Redis. Every service loads `.env` and then `.env.local
    `FRONTEND_BASE_URL` and the `*_REDIRECT_URI` values at the public address nginx serves
    (e.g. `http://<server-ip>` until a domain and certificate exist).
 
-2. Build the image with `make docker.build`, or let compose pull
-   `ghcr.io/edly-io/sparkth:latest` from GHCR (set `SPARKTH_TAG` to pin a release).
+2. Let compose pull `ghcr.io/edly-io/sparkth:main` from GHCR, the image built from the
+   `main` branch, or set `SPARKTH_TAG` to a release tag (e.g. `v0.2.0`) to pin a release.
+   To run a local build instead, build it with `make docker.build`, which tags it `latest`,
+   and set `SPARKTH_TAG=latest`.
 3. Start the stack:
 
    ```bash

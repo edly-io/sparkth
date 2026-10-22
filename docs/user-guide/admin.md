@@ -24,11 +24,11 @@ Someone who is not on the whitelist sees one of the messages in
 
 ## Accounts
 
-<!-- TODO: describe the profile page once Sparkth has one. -->
 <!-- TODO: describe role management and permission assignment once they have a screen. -->
 
-Sparkth has no screen for managing accounts yet. To create an account, give someone admin
-rights or reset a password, ask whoever runs your Sparkth server.
+Sparkth has no screen for managing other people's accounts yet. Each user can change their own
+name and password on their [profile page](account.md#your-profile). To create an account, give
+someone admin rights or reset a forgotten password, ask whoever runs your Sparkth server.
 
 ## Required permissions
 

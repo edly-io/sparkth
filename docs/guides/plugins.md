@@ -58,7 +58,8 @@ class MyLmsConfig(PluginConfig):
         """
         Prefix shared by all tool names for this LMS (e.g. "mylms_").
         Used to detect whether any active tools belong to this LMS before
-        hitting the database.
+        hitting the database, and to send chat only the credentials of an LMS
+        with at least one bound tool carrying this prefix.
         """
         return "mylms_"
 
@@ -327,18 +328,18 @@ tool at registration, and reads `Plugin.enabled` on every call — so disabling 
 takes effect immediately, with no restart, and re-enabling one brings its tools back the
 same way.
 
-Two limits are worth knowing before you rely on it:
+One limit is worth knowing before you rely on it. The gate is **system-wide only**: `/ai/mcp`
+carries no authenticated caller, so there is no user whose per-user preference could be
+checked. A user who turns your plugin off in their settings can still call its tools over MCP;
+only an administrator disabling the plugin outright stops them.
 
-- **System-wide only.** `/ai/mcp` carries no authenticated caller, so there is no user
-  whose per-user preference could be checked. A user who turns your plugin off in their
-  settings can still call its tools over MCP; only an administrator disabling the plugin
-  outright stops them.
-- **MCP is not the only tool door.** The chat agent builds its LangChain tools from the
-  same `MCP_TOOLS` hook (`sparkth/plugins/chat/tools.py`), and that path is ungated —
-  a disabled plugin's tools remain callable through chat.
+MCP is not the only tool door. Chat applies both switches for the requesting user on every
+turn: a plugin switched off system-wide or by that user has none of its tools bound, no
+capability section or scope offered, and no LMS credentials sent. Only `/ai/mcp` stays
+system-wide.
 
-So if a tool must not run for someone in particular, enforce that inside the tool; the
-plugin switch is an administrative control, not a per-user one.
+Because `/ai/mcp` has no per-user switch, a tool that must not run for a particular caller
+over MCP has to enforce that inside the tool.
 
 ## Frontend Metadata
 
@@ -522,12 +523,20 @@ and the tools they run. On `/ai/mcp` nothing is bound, so the call raises
 A *content contributor* lets a plugin that owns content (e.g. a course-generation plugin)
 hand off one piece of it to a plugin that publishes to an LMS, without either plugin importing
 the other. The owning plugin registers a `ContentContributor` — a name, a human-facing
-description, and a map of builders — with `register_content_contributor` from
+description, and a map of builders — with `register_content_contributor(self, contributor)` from
 `sparkth.lib.content.hooks`. A publishing plugin resolves a contributor **by name** and awaits
 the builder registered under its own plugin name to get back the `ContentBlock` to create.
 A builder is awaited with the destination course id and the chosen option's id. The option id
 is `None` only for a contributor that offers no options: a publishing plugin refuses to build
 for a contributor that offers options until one is chosen, so nothing is placed by default.
+
+The hook is keyed by the registering plugin, one contributor per plugin. A publishing tool offers
+and builds a contributor only while that plugin is on for the caller; a switched-off contributor
+is neither listed nor built. Read the switched-on contributors with
+`enabled_content_contributors()` from `sparkth.lib.content.hooks`, or one by name with
+`enabled_content_contributor(name)`. It raises `UnknownContentContributorError` for a name nobody
+registered and `ContentContributorUnavailableError` when the plugin is switched off, both from
+`sparkth.lib.content.exceptions`. With no authenticated caller, only the system-wide switch applies.
 
 `builders` is keyed by the publishing plugin's registered name, so its keys are the LMSes a
 contributor targets. `open-edx` is the one shipped publisher. Register one builder per LMS you
@@ -545,7 +554,7 @@ to the builder as `option_id`. With `list_options` left `None`, a publishing too
 option id. Options that depend on the caller read the caller with
 `sparkth.lib.auth.current_user_id()`. The builder must re-check the chosen id and never trust that
 it came from the list. `list_options` and the builders must be module-level functions, because
-equality is what makes re-registration a no-op.
+equality is what lets each construction of a plugin register its contributor again.
 
 ```python
 # sparkth/plugins/myappplugin/plugin.py
@@ -570,16 +579,19 @@ class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
         super().__init__("my-app")
         register_content_contributor(
-            ContentContributor("my-app", "What this contributes", {"open-edx": build_my_openedx_block}, list_my_options)
+            self,
+            ContentContributor(
+                "my-app", "What this contributes", {"open-edx": build_my_openedx_block}, list_my_options
+            ),
         )
 ```
 
-Register through `register_content_contributor`, not `LMS_CONTENT_CONTRIBUTORS.add_item`. The
-hook is keyed by name rather than by plugin instance, and a plugin is constructed more than
-once in one process — the loader builds it, and its own tests build their own instances — so
-each construction re-registers the same contributor. The helper treats an equal re-registration
-as a no-op and raises `DuplicateContentContributorError` only when a *different* contributor
-claims a registered name, which is the collision worth failing on.
+Register through `register_content_contributor`, not `LMS_CONTENT_CONTRIBUTORS.add_item`. A
+plugin is constructed more than once in one process — the loader builds it, and its own tests
+build their own instances — so each construction registers the same contributor again. The
+helper accepts an equal contributor from a plugin of the same name, and raises
+`DuplicateContentContributorError` when a contributor claims a registered name with a different
+value or from a different plugin, which is the collision worth failing on.
 
 If a builder cannot produce its block, it reports that by raising
 `sparkth.lib.content.exceptions.ContentBuildError` — not by returning a placeholder block or
@@ -638,9 +650,9 @@ construction and skips that plugin.
 
 ### How chat uses capabilities
 
-On every request chat reads the capabilities of the plugins enabled system-wide, in plugin-name
-order. Chat contributes its own, course design. A plugin that is switched off contributes no
-section and no scope.
+On every request chat reads the capabilities of the plugins enabled for the requesting user, in
+plugin-name order. Chat contributes its own, course design. A plugin switched off system-wide or
+by the user contributes no section, no scope, no tools and no LMS credentials.
 
 - **Scope gate.** Each message is judged against every enabled scope. A message that fits none
   is refused with a fixed sentence before the model runs. A refused first message writes nothing; a refused later message is stored in the
@@ -651,7 +663,8 @@ section and no scope.
   its title. The skeleton owns the date, the assistant's identity, the output language, the
   refusal, injection and offering-choices rules, so a section must not repeat them. A section
   holds the capability's workflow, plus any language or guardrail rules specific to it.
-- **Tools.** Every turn gets all the tools the request asks for.
+- **Tools.** Every turn gets the tools the request asks for, minus those of a switched-off
+  plugin.
 
 Plugin-specific knowledge belongs in a `<prefix>about` tool, not in a capability's `prompt`;
 see the LMS `about` tool [above](#lms-plugins-automatic-credential-injection) for the convention.

@@ -9,6 +9,7 @@
     "createdOn": "Created {date}",
     "preview": "Preview",
     "previewActivity": "Preview {title}",
+    "placed": "Placed",
     "loading": "Loading activities",
     "backToList": "Back to activities",
     "viewAs": "Preview as",
@@ -19,6 +20,14 @@
     "launchFailed": "Could not load the activity.",
     "frameTitle": "Activity preview",
     "loadingActivity": "Loading activity",
-    "retry": "Try again"
+    "retry": "Try again",
+    "deleteActivity": "Delete {title}",
+    "deleteTitle": "Delete {title}?",
+    "deleteDraftBody": "This permanently deletes the activity and its preview data. You can't undo this.",
+    "deletePlacedBody": "This activity has been placed in a course. Sparkth can't tell whether it is still there. If it is, learners will see an error in its place and lose their answers. You can't undo this.",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "deleting": "Deleting",
+    "deleteFailed": "Could not delete the activity."
   }
 }

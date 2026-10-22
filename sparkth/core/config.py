@@ -104,6 +104,10 @@ class Settings(BaseSettings):
     EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS: int = 60
     FRONTEND_BASE_URL: str = "http://localhost:7727"
 
+    # Self-service password reset (shares REDIS_URL for request rate limiting)
+    PASSWORD_RESET_TOKEN_TTL_MINUTES: int = 60
+    PASSWORD_RESET_COOLDOWN_SECONDS: int = 60
+
     MEMORY_PROFILING_ENABLED: bool = False
 
     LLM_ENCRYPTION_KEY: str

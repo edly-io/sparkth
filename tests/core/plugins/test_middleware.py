@@ -57,10 +57,22 @@ class _UserSelectCounter:
             self.count += 1
 
 
+class _SwitchReadCounter:
+    """Counts the reads of the plugin switches, the one query joining user_plugins onto plugins."""
+
+    def __init__(self) -> None:
+        self.count = 0
+
+    def __call__(self, conn: Any, cursor: Any, statement: str, *args: Any) -> None:
+        if "left outer join user_plugins" in " ".join(statement.split()).lower():
+            self.count += 1
+
+
 @contextmanager
-def _counting_user_selects() -> Iterator[_UserSelectCounter]:
-    """Count user-table reads for the duration of the block."""
-    counter = _UserSelectCounter()
+def _counting(
+    counter: _UserSelectCounter | _SwitchReadCounter,
+) -> Iterator[_UserSelectCounter | _SwitchReadCounter]:
+    """Count the statements ``counter`` recognises for the duration of the block."""
     engine = get_engine().sync_engine
     event.listen(engine, "before_cursor_execute", counter)
     try:
@@ -377,7 +389,23 @@ class TestCallerIsResolvedOnce:
         plugin = await _seed_plugin(session, "chat", True)
         await _seed_user_plugin(session, user, plugin, True)
 
-        with _counting_user_selects() as counter:
+        with _counting(_UserSelectCounter()) as counter:
+            await client.post(
+                CHAT_COMPLETIONS_PATH,
+                json={"messages": []},
+                headers=_auth_headers(user.username),
+            )
+
+        assert counter.count == 1
+
+    async def test_a_gated_route_reads_the_plugin_switches_once(
+        self, client: AsyncClient, session: AsyncSession
+    ) -> None:
+        user = await _seed_user(session, "switch-reuse-user")
+        plugin = await _seed_plugin(session, "chat", True)
+        await _seed_user_plugin(session, user, plugin, True)
+
+        with _counting(_SwitchReadCounter()) as counter:
             await client.post(
                 CHAT_COMPLETIONS_PATH,
                 json={"messages": []},
@@ -391,7 +419,7 @@ class TestCallerIsResolvedOnce:
         dependency to reuse and it must still resolve the caller itself."""
         user = await _seed_user(session, "core-route-user")
 
-        with _counting_user_selects() as counter:
+        with _counting(_UserSelectCounter()) as counter:
             response = await client.get("/api/v1/user/me", headers=_auth_headers(user.username))
 
         assert response.status_code == 200
