@@ -95,6 +95,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/audit/events/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Events
+         * @description Download every audit event matching the filters as CSV or JSON Lines, most recently recorded first.
+         *
+         *     The export itself is recorded as an `audit.exported` event naming the filters, and
+         *     again as a failure if the stream is cut short.
+         */
+        get: operations["export_events_api_v1_audit_events_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/google/authorize": {
         parameters: {
             query?: never;
@@ -2158,6 +2181,12 @@ export interface components {
             sync_status: string;
         };
         /**
+         * ExportFormat
+         * @description Machine-readable shapes an export can stream as.
+         * @enum {string}
+         */
+        ExportFormat: "csv" | "jsonl";
+        /**
          * FileRagStatusResponse
          * @description RAG processing status for a single file.
          */
@@ -2962,6 +2991,45 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AuditEventPage"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_events_api_v1_audit_events_export_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                actor_id?: string | null;
+                category?: string | null;
+                action?: string | null;
+                outcome?: components["schemas"]["AuditOutcome"] | null;
+                source?: components["schemas"]["AuditSource"] | null;
+                target_type?: string | null;
+                target_id?: string | null;
+                request_id?: string | null;
+                format?: components["schemas"]["ExportFormat"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

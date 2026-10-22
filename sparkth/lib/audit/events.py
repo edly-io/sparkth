@@ -10,6 +10,7 @@ from sparkth.core.audit.enums import AuditOutcome
 from sparkth.core.audit.events import (
     ActorErasedAuditEvent,
     AIActionAuditEvent,
+    AuditExportedAuditEvent,
     BaseAuditEvent,
     EmailVerifiedAuditEvent,
     GoogleLinkedAuditEvent,
@@ -58,6 +59,7 @@ __all__ = [
     "AIActionAuditEvent",
     "ActorErasedAuditEvent",
     "AuditChange",
+    "AuditExportedAuditEvent",
     "AuditModelInfo",
     "AuditOutcome",
     "AuditTarget",
