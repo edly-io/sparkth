@@ -6,6 +6,7 @@ failures surface as HTTP errors here, because whether a missing or half-ingested
 client's problem or ours is an answer only this boundary has.
 """
 
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -20,6 +21,7 @@ from sparkth.lib.rag import (
     agentic_retrieve_context,
     format_document_chunks_as_llm_context,
 )
+from sparkth.plugins.chat.analytics import ChatTurnAnalytics
 from sparkth.plugins.chat.constants import RAG_CONTEXT_PROMPT
 from sparkth.plugins.chat.messages import get_last_user_text
 from sparkth.plugins.chat.schemas import ChatMessage
@@ -46,6 +48,7 @@ def collect_document_ids(messages: list[ChatMessage]) -> list[int]:
 async def resolve_document_blocks(
     messages: list[ChatMessage],
     llm: Any,
+    analytics: ChatTurnAnalytics | None = None,
 ) -> list[ChatMessage]:
     """Replace document attachment content blocks with RAG context text blocks.
 
@@ -53,6 +56,7 @@ async def resolve_document_blocks(
     once per message, groups results by source, and injects one text block per source.
     Returns a new list; original messages are not mutated.
     Base64 and plain text blocks pass through unchanged.
+    ``analytics`` schedules ``chat.rag_search_completed`` for each search that returns.
 
     Raises:
         HTTPException(422): document not found or RAG not ready.
@@ -83,6 +87,11 @@ async def resolve_document_blocks(
             continue
 
         chunks = await _retrieve_rag_chunks(document_ids, query_text, llm)
+        if analytics is not None:
+            # Nothing records when the search returned; the seam's clock is that moment.
+            analytics.schedule_rag_search_completed(
+                chunks_found=len(chunks), document_count=len(document_ids), occurred_at=datetime.now(timezone.utc)
+            )
 
         rag_blocks: list[dict[str, Any]] = (
             [{"type": "text", "text": format_document_chunks_as_llm_context(chunks)}] if chunks else []

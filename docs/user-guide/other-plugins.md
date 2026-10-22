@@ -8,6 +8,10 @@ turn it on in [My Plugins](plugins.md), ask your administrator.
 **Activities** lists the interactive learning activities you have built in **Create Course**,
 each with a preview. The assistant can place them in a course in your LMS for you.
 
+An activity shows **Placed** once it has been put in a course, and the mark stays even if the
+course later drops it. **Delete** asks you to confirm first. Deleting a placed activity breaks it
+in any course that still holds it, and learners lose their answers. A delete cannot be undone.
+
 !!! note
     Activities need setup on the Sparkth server and in your LMS, and not every LMS supports
     them. If the page is empty, or learners see nothing in the course, ask your administrator.

@@ -5,6 +5,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { ChartColumn } from "lucide-react";
 import {
   CHAT_EVENTS,
+  EMPTY_SEARCH,
   countSeries,
   documentTotals,
   fetchChatActivity,
@@ -81,6 +82,11 @@ function AuthoringContent({
       attached: totalOf(rows, CHAT_EVENTS.attached),
       detached: totalOf(rows, CHAT_EVENTS.detached),
       tools: totalOf(rows, CHAT_EVENTS.tools),
+      searches: totalOf(rows, CHAT_EVENTS.searches),
+      emptySearches: totalOf(
+        rows.filter((r) => r.dimension === EMPTY_SEARCH),
+        CHAT_EVENTS.searches,
+      ),
     });
     const series = (rows: ChatActivityPoint[], period: { from: string; to: string }) => {
       const at = { ...period, bucket };
@@ -115,6 +121,8 @@ function AuthoringContent({
   }, [current, previous, from, to, bucket]);
 
   const percent = (n: number) => format.number(n, { style: "percent", maximumFractionDigits: 0 });
+  // A zero denominator has no meaningful share, so a dash rather than NaN% or Infinity%.
+  const share = (part: number, whole: number) => (whole ? percent(part / whole) : "—");
   const docs = documents && {
     cur: documentTotals(documents.current),
     prev: documentTotals(documents.previous),
@@ -174,8 +182,7 @@ function AuthoringContent({
             title={t("failedTurns")}
             value={format.number(cur.failed)}
             hint={t("failedHint", {
-              // No messages has no meaningful rate, so a dash rather than Infinity% or NaN%.
-              rate: cur.messages ? percent(cur.ratedFailed / cur.messages) : "—",
+              rate: share(cur.ratedFailed, cur.messages),
               change: change(cur.failed, prev.failed),
             })}
           />
@@ -185,6 +192,14 @@ function AuthoringContent({
             hint={t("detachedHint", {
               count: format.number(cur.detached),
               change: change(cur.attached, prev.attached),
+            })}
+          />
+          <StatCard
+            title={t("searches")}
+            value={format.number(cur.searches)}
+            hint={t("searchesHint", {
+              rate: share(cur.emptySearches, cur.searches),
+              change: change(cur.searches, prev.searches),
             })}
           />
           {docs && (

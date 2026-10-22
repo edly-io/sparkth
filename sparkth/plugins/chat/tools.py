@@ -1,14 +1,15 @@
 """The chat agent's view of every other plugin's MCP tools, as LangChain tools.
 
-Only one thing here holds state — the converted tools and their MCP categories, cached
-per :class:`ToolRegistry` — so the registry is the only class. Converting an MCP tool
-definition into a LangChain tool is pure input-to-output work, so those steps are plain
-module-level functions.
+Only one thing here holds state — the discovered tools, cached per :class:`ToolRegistry` —
+so the registry is the only class with behaviour; :class:`RegisteredTool` is a plain record.
+Converting an MCP tool definition into a LangChain tool is pure input-to-output work, so
+those steps are plain module-level functions.
 """
 
 import asyncio
 import inspect
 import json
+from dataclasses import dataclass
 from typing import Any, get_type_hints
 
 from langchain_core.tools import BaseTool, StructuredTool
@@ -22,8 +23,22 @@ from sparkth.plugins.chat.constants import UNKNOWN_TOOL_CATEGORY
 logger = get_logger(__name__)
 
 
+@dataclass(frozen=True)
+class RegisteredTool:
+    """A converted tool with what discovery recorded beside it.
+
+    LangChain tools carry neither the MCP category nor the contributing plugin —
+    ``convert_mcp_to_langchain_tool`` drops both — so discovery keeps them here.
+    """
+
+    tool: BaseTool
+    category: str
+    plugin: str
+
+
 class ToolRegistry:
-    """Cache of the LangChain tools converted from the ``MCP_TOOLS`` hook.
+    """Cache of the LangChain tools converted from the ``MCP_TOOLS`` hook, with the category
+    and owning plugin of each.
 
     Discovery is deferred to first access rather than run at construction: plugins
     populate ``MCP_TOOLS`` at the process entrypoint, while every read here happens
@@ -33,48 +48,50 @@ class ToolRegistry:
     """
 
     def __init__(self) -> None:
-        self._tools: dict[str, BaseTool] | None = None
-        self._categories: dict[str, str] = {}
+        self._registered: dict[str, RegisteredTool] | None = None
+
+    def _discovered(self) -> dict[str, RegisteredTool]:
+        """Return every discovered tool's record by name, discovering on first access."""
+        if self._registered is None:
+            self._registered = discover_plugin_tools()
+        return self._registered
 
     def tools_dict(self) -> dict[str, BaseTool]:
         """Return the discovered tools by name, discovering on first access."""
-        if self._tools is None:
-            self._tools, self._categories = discover_plugin_tools()
-        return self._tools
+        return {name: registered.tool for name, registered in self._discovered().items()}
 
     def get_all_tools(self) -> list[BaseTool]:
         """Return every discovered tool."""
-        return list(self.tools_dict().values())
+        return [registered.tool for registered in self._discovered().values()]
 
     def get_tools_by_names(self, names: list[str]) -> list[BaseTool]:
         """Return the named tools, skipping any name that was never registered."""
-        tools = self.tools_dict()
-        return [tools[name] for name in names if name in tools]
+        discovered = self._discovered()
+        return [discovered[name].tool for name in names if name in discovered]
 
     def category_for(self, tool_name: str) -> str:
         """Return the MCP category a tool was contributed under.
 
-        LangChain tools carry no category — ``convert_mcp_to_langchain_tool`` drops it —
-        so the mapping is recorded by the same discovery pass that converts the tools.
         Unknown names resolve to :data:`UNKNOWN_TOOL_CATEGORY` rather than raising.
         """
-        self.tools_dict()  # categories are populated by the same pass; this gates on it
-        return self._categories.get(tool_name, UNKNOWN_TOOL_CATEGORY)
+        registered = self._discovered().get(tool_name)
+        return registered.category if registered else UNKNOWN_TOOL_CATEGORY
+
+    def plugin_for(self, tool_name: str) -> str | None:
+        """Return the name of the plugin that contributed a tool, or ``None`` for an unknown name."""
+        registered = self._discovered().get(tool_name)
+        return registered.plugin if registered else None
 
 
-def discover_plugin_tools() -> tuple[dict[str, BaseTool], dict[str, str]]:
-    """Convert every plugin-contributed MCP tool, returning the tools and their categories.
+def discover_plugin_tools() -> dict[str, RegisteredTool]:
+    """Convert every plugin-contributed MCP tool, returning each one's record by tool name.
 
     Reads the ``MCP_TOOLS`` hook, which plugins populate at the process entrypoint. Chat's
     own tools are skipped: the registry exists to expose *other* plugins' tools to the chat
     agent. A tool that fails to convert is logged and skipped, so one malformed
     contribution costs its own tool rather than the whole registry.
-
-    Both mappings are keyed by tool name and populated together, which is what lets
-    :meth:`ToolRegistry.category_for` gate on the same lazy discovery as the tools.
     """
-    tools: dict[str, BaseTool] = {}
-    categories: dict[str, str] = {}
+    discovered: dict[str, RegisteredTool] = {}
 
     for plugin, mcp_tool in MCP_TOOLS.iter_items():
         if plugin.name == "chat":
@@ -91,12 +108,13 @@ def discover_plugin_tools() -> tuple[dict[str, BaseTool], dict[str, str]]:
             )
             continue
 
-        tools[langchain_tool.name] = langchain_tool
-        categories[langchain_tool.name] = mcp_tool.category or UNKNOWN_TOOL_CATEGORY
+        discovered[langchain_tool.name] = RegisteredTool(
+            langchain_tool, mcp_tool.category or UNKNOWN_TOOL_CATEGORY, plugin.name
+        )
         logger.info("Registered tool: %s", langchain_tool.name)
 
-    logger.info("Discovered %d tools from plugins", len(tools))
-    return tools, categories
+    logger.info("Discovered %d tools from plugins", len(discovered))
+    return discovered
 
 
 def get_handler_type_hints(handler: Any) -> dict[str, Any]:

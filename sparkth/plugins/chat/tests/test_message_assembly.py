@@ -48,7 +48,9 @@ class TestHistoryAndCurrentTurns:
             _stored("user", "what about chapter 3?"),
         ]
 
-        messages, _unresolved = await assemble_provider_messages(request, db_messages, [], "", False, MagicMock())
+        messages, _unresolved = await assemble_provider_messages(
+            request, db_messages, [], "", False, MagicMock(), analytics=MagicMock()
+        )
 
         assert [m["content"] for m in messages] == ["hello", "hi", "what about chapter 3?"]
 
@@ -60,7 +62,9 @@ class TestHistoryAndCurrentTurns:
         request = _request(blocks)
         db_messages = [_stored("user", "summarise this")]
 
-        messages, _unresolved = await assemble_provider_messages(request, db_messages, [], "", False, MagicMock())
+        messages, _unresolved = await assemble_provider_messages(
+            request, db_messages, [], "", False, MagicMock(), analytics=MagicMock()
+        )
 
         assert messages[-1]["content"] == blocks
 
@@ -69,7 +73,7 @@ class TestHistoryAndCurrentTurns:
         request = _request("first message")
 
         messages, _unresolved = await assemble_provider_messages(
-            request, [_stored("user", "first message")], [], "", False, MagicMock()
+            request, [_stored("user", "first message")], [], "", False, MagicMock(), analytics=MagicMock()
         )
 
         assert [m["content"] for m in messages] == ["first message"]
@@ -84,7 +88,7 @@ class TestWhenRetrievalWillRun:
         request = _request("what powers a cell?", stream=True)
 
         messages, unresolved = await assemble_provider_messages(
-            request, [], [_document(7)], "what powers a cell?", True, MagicMock()
+            request, [], [_document(7)], "what powers a cell?", True, MagicMock(), analytics=MagicMock()
         )
 
         assert unresolved is not None
@@ -100,7 +104,7 @@ class TestWhenRetrievalWillRun:
 
         with patch(_RESOLVE, new_callable=AsyncMock, return_value=resolved) as mock_resolve:
             messages, unresolved = await assemble_provider_messages(
-                request, [], [_document(7)], "what powers a cell?", True, MagicMock()
+                request, [], [_document(7)], "what powers a cell?", True, MagicMock(), analytics=MagicMock()
             )
 
         mock_resolve.assert_awaited_once()
@@ -112,7 +116,13 @@ class TestWhenRetrievalWillRun:
         request = _request("compare them", stream=True)
 
         messages, _unresolved = await assemble_provider_messages(
-            request, [], [_document(1, "a.pdf"), _document(2, "b.pdf")], "compare them", True, MagicMock()
+            request,
+            [],
+            [_document(1, "a.pdf"), _document(2, "b.pdf")],
+            "compare them",
+            True,
+            MagicMock(),
+            analytics=MagicMock(),
         )
 
         file_ids = [b["file_id"] for b in messages[-1]["content"] if b.get("type") == "drive_file"]
@@ -123,7 +133,9 @@ class TestWhenRetrievalWillRun:
         """Sending a document and typing nothing leaves no text block to carry."""
         request = _request([{"type": "document", "source": {"type": "base64", "data": ""}}], stream=True)
 
-        messages, _unresolved = await assemble_provider_messages(request, [], [_document(3)], "", True, MagicMock())
+        messages, _unresolved = await assemble_provider_messages(
+            request, [], [_document(3)], "", True, MagicMock(), analytics=MagicMock()
+        )
 
         blocks = messages[-1]["content"]
         assert blocks == [{"type": "drive_file", "file_id": 3}]
@@ -137,7 +149,7 @@ class TestWhenRetrievalWillNotRun:
         request = _request("just chatting", stream=True)
 
         _messages, unresolved = await assemble_provider_messages(
-            request, [], [_document()], "just chatting", False, MagicMock()
+            request, [], [_document()], "just chatting", False, MagicMock(), analytics=MagicMock()
         )
 
         assert unresolved is None
@@ -147,6 +159,8 @@ class TestWhenRetrievalWillNotRun:
         request = _request("just chatting")
 
         with patch(_RESOLVE, new_callable=AsyncMock) as mock_resolve:
-            await assemble_provider_messages(request, [], [_document()], "just chatting", False, MagicMock())
+            await assemble_provider_messages(
+                request, [], [_document()], "just chatting", False, MagicMock(), analytics=MagicMock()
+            )
 
         mock_resolve.assert_not_awaited()

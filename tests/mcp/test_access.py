@@ -49,7 +49,7 @@ async def unreachable_call_next(context: MiddlewareContext[mt.CallToolRequestPar
     raise AssertionError("the gate let the call through")
 
 
-async def raise_operational_error(session: AsyncSession) -> set[str]:
+async def raise_operational_error(user_id: int | None, session: AsyncSession) -> set[str]:
     """Stand in for the disabled-plugins lookup when the database is unreachable."""
     raise OperationalError("SELECT 1", {}, Exception("connection lost"))
 
@@ -152,7 +152,7 @@ class TestToolCallGate:
         self, session: AsyncSession, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """The gate fails closed: a lookup that could not complete is not permission to run."""
-        monkeypatch.setattr("sparkth.mcp.access.system_disabled_plugin_names", raise_operational_error)
+        monkeypatch.setattr("sparkth.mcp.access.disabled_plugin_names", raise_operational_error)
 
         async with Client(gated_server()) as client:
             with pytest.raises(ToolError):
@@ -201,7 +201,7 @@ class TestToolListingFilter:
         """Deliberately the opposite of the call gate. The lifespan lists tools to log how
         many are registered, so a raising filter would take startup down with it — and the
         listing is discoverability, not the boundary. The call is still refused."""
-        monkeypatch.setattr("sparkth.mcp.access.system_disabled_plugin_names", raise_operational_error)
+        monkeypatch.setattr("sparkth.mcp.access.disabled_plugin_names", raise_operational_error)
 
         async with Client(gated_server()) as client:
             listed = [tool.name for tool in await client.list_tools()]

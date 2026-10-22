@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { ApiRequestError } from "@/lib/api";
-import { getActivityEmbedUrl, listActivities } from "@/plugins/pxc/client";
+import { deleteActivity, getActivityEmbedUrl, listActivities } from "@/plugins/pxc/client";
 import { mockFetch, sentRequest } from "@/tests/lib/test-utils";
 
 vi.mock("@/lib/auth-tokens", () => ({
@@ -52,6 +52,28 @@ describe("getActivityEmbedUrl", () => {
     const error = await getActivityEmbedUrl("test-token", "missing", "play").catch(
       (e: unknown) => e,
     );
+
+    expect(error).toBeInstanceOf(ApiRequestError);
+    expect((error as ApiRequestError).status).toBe(404);
+  });
+});
+
+describe("deleteActivity", () => {
+  it("DELETEs the activity with the bearer token", async () => {
+    const spy = mockFetch(null, 204);
+
+    await deleteActivity("test-token", "act-1");
+
+    const request = sentRequest(spy);
+    expect(request.method).toBe("DELETE");
+    expect(new URL(request.url).pathname).toBe("/api/v1/pxc/activities/act-1");
+    expect(request.headers.get("authorization")).toBe("Bearer test-token");
+  });
+
+  it("surfaces a 404 as an ApiRequestError carrying the status", async () => {
+    mockFetch({ detail: "Activity not found" }, 404);
+
+    const error = await deleteActivity("test-token", "missing").catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(ApiRequestError);
     expect((error as ApiRequestError).status).toBe(404);

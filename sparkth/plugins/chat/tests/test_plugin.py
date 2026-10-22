@@ -1,7 +1,5 @@
 """Tests for the chat plugin's declared identity and frontend metadata."""
 
-from sqlmodel.ext.asyncio.session import AsyncSession
-
 from sparkth.lib.chat.hooks import enabled_capabilities
 from sparkth.lib.frontend import (
     get_plugin_display_info,
@@ -32,10 +30,10 @@ def test_declares_frontend_metadata() -> None:
     assert plugin_has_frontend("chat") is True
 
 
-async def test_offers_course_design_and_survives_a_second_construction(session: AsyncSession) -> None:
+def test_offers_course_design_and_survives_a_second_construction() -> None:
     """The loader builds the plugin, and tests build it again; the capability is offered once."""
     plugin = ChatPlugin()  # noqa: F841 - keeps the weakly-keyed hook entry alive
 
-    capabilities = await enabled_capabilities(session)
+    capabilities = enabled_capabilities(set())
 
     assert capabilities.count(COURSE_DESIGN) == 1
