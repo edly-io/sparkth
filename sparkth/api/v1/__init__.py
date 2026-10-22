@@ -12,7 +12,18 @@ client, independently of how the module behind it is laid out on disk.
 
 from fastapi import APIRouter
 
-from sparkth.api.v1 import analytics, auth, file_parser, language, llm, permissions, user, user_plugins, whitelist
+from sparkth.api.v1 import (
+    analytics,
+    audit,
+    auth,
+    file_parser,
+    language,
+    llm,
+    permissions,
+    user,
+    user_plugins,
+    whitelist,
+)
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
@@ -24,5 +35,6 @@ api_router.include_router(whitelist.router, prefix="/whitelist", tags=["Whitelis
 api_router.include_router(llm.router, prefix="/llm", tags=["LLM Configuration"])
 api_router.include_router(permissions.router, prefix="/permissions", tags=["Permissions"])
 api_router.include_router(analytics.router, prefix="/analytics", tags=["Analytics"])
+api_router.include_router(audit.router, prefix="/audit", tags=["Audit"])
 
 __all__ = ["api_router"]

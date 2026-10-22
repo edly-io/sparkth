@@ -50,4 +50,15 @@ describe("AppSidebar user menu", () => {
       "/privacy",
     );
   });
+
+  it("links to the profile page inside the dashboard", async () => {
+    render(<AppSidebar user={{ name: "Ada" }} />);
+
+    await userEvent.click(screen.getByText("Ada"));
+
+    expect(screen.getByRole("link", { name: "Profile" })).toHaveAttribute(
+      "href",
+      "/dashboard/profile",
+    );
+  });
 });

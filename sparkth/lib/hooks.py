@@ -85,6 +85,10 @@ class KeyedClassHook(Generic[T]):
         """Return the class stored under ``key``, or ``None`` if the key is free."""
         return self._classes.get(key)
 
+    def iter_keys(self) -> Iterator[str]:
+        """Yield every key a class is stored under, in registration order."""
+        yield from self._classes
+
 
 class SingleNamedItemHook(Generic[N]):
     """A flat hook holding items identified by a unique ``name``.

@@ -239,21 +239,22 @@ With more than one worker the failure is silent. Each learner's actions succeed,
 their own events, and neither sees the other's, and no error appears at either end. Sharing the
 bus across processes (Redis pub/sub) is the way out and is not built.
 
-### The socket URL's scheme follows the request's, trusted or not
+### The socket URL's scheme follows the forwarded scheme
 
-`request.url_for` derives `ws` versus `wss` from the scheme of the incoming request, and
-nothing in this application trusts a forwarded-proto header: there is no
-`ProxyHeadersMiddleware` and no `X-Forwarded-Proto` handling anywhere in `sparkth/`, the
-Dockerfile, or the Makefile. Behind a TLS-terminating proxy or ingress whose address is not in
-uvicorn's trusted `forwarded_allow_ips` (default `127.0.0.1`), an HTTPS learner is seen as
-`http`, so the inline configuration's `ws_url` comes back `ws://` and the browser refuses it as
-mixed content.
+`request.url_for` derives `ws` versus `wss` from the scheme of the incoming request. The app
+runs under `fastapi run`, whose uvicorn server takes that scheme from `X-Forwarded-Proto` when
+the request comes from an address in `FORWARDED_ALLOW_IPS` (default `127.0.0.1`), and only when
+the header holds a single scheme. `docker-compose.dev.yml` sets `FORWARDED_ALLOW_IPS` to `*`,
+and its bundled nginx forwards the first scheme a TLS-terminating proxy in front of it reports,
+else its own.
 
-Configure the proxy-header trust for any TLS deployment (uvicorn's `--forwarded-allow-ips`, or
-an equivalent middleware). This is not unique to the socket: `ui_url`, `asset_base_url` and
-`action_base_url` are all built from `request.url_for` and share the same dependency. It
-matters more here, because a blocked WebSocket kills the activity outright rather than one
-asset.
+Any other deployment behind a TLS-terminating proxy or ingress must set `FORWARDED_ALLOW_IPS`
+to the proxy's address, and the proxy must send `X-Forwarded-Proto`. Otherwise an HTTPS
+learner is seen as `http`, the inline configuration's `ws_url` comes back `ws://`, and the
+browser refuses it as mixed content. This is not unique to the socket: `ui_url`,
+`asset_base_url` and `action_base_url` are all built from `request.url_for` and share the same
+dependency. It matters more here, because a blocked WebSocket kills the activity outright
+rather than one asset.
 
 ### A socket that drops after the token expires cannot be restored without a reload
 
