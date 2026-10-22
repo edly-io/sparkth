@@ -27,10 +27,12 @@ from sparkth.plugins.chat.analytics.events import (
     ChatDocumentsSkipped,
     ChatMessageSent,
     ChatRagSearchClassified,
+    ChatRagSearchCompleted,
     ChatScopeClassified,
     ChatToolInvoked,
     ChatTurnFailed,
     ScopeVerdict,
+    SearchResult,
     StopPoint,
     ToolOutcome,
     TurnFailureCause,
@@ -120,6 +122,25 @@ async def _emit(build: AnalyticsEventBuilder, actor_id: str, occurred_at: dateti
 def as_utc(value: datetime) -> datetime:
     """Read a stored timestamp as UTC-aware; SQLite returns a ``timezone=True`` column naive."""
     return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+
+def rag_search_event(
+    conversation_id: str, provider: str, *, chunks_found: int, document_count: int, streamed: bool
+) -> ChatRagSearchCompleted:
+    """Build ``chat.rag_search_completed``; ``result`` follows from ``chunks_found``."""
+    return ChatRagSearchCompleted(
+        conversation_id=conversation_id,
+        provider=provider,
+        result=SearchResult.EMPTY if chunks_found == 0 else SearchResult.FOUND,
+        chunks_found=chunks_found,
+        document_count=document_count,
+        streamed=streamed,
+    )
+
+
+async def emit_rag_search_completed(event: ChatRagSearchCompleted, actor_id: str, occurred_at: datetime) -> None:
+    """Emit a search the streaming seam recorded. Await it outside every guard."""
+    await _emit(lambda: event, actor_id, occurred_at)
 
 
 async def emit_documents_detached(
@@ -267,6 +288,21 @@ class ChatTurnAnalytics:
             streamed=streamed,
             executed_tools=executed_tools,
             occurred_at=occurred_at,
+        )
+
+    def schedule_rag_search_completed(self, *, chunks_found: int, document_count: int, occurred_at: datetime) -> None:
+        """Queue ``chat.rag_search_completed`` for a non-streamed search that returned."""
+        self.background_tasks.add_task(
+            _emit,
+            lambda: rag_search_event(
+                self.conversation_id,
+                self.provider,
+                chunks_found=chunks_found,
+                document_count=document_count,
+                streamed=False,
+            ),
+            self.actor_id,
+            occurred_at,
         )
 
     @property

@@ -204,6 +204,33 @@ class ChatRagSearchClassified(AnalyticsEventSchema):
     documents_with_unreadable_structure: NonNegativeInt
 
 
+class SearchResult(StrEnum):
+    """Whether a document search returned anything. A closed set, never the query."""
+
+    FOUND = "found"
+    EMPTY = "empty"
+
+
+class ChatRagSearchCompleted(AnalyticsEventSchema):
+    """A turn searched its attached documents and the search returned.
+
+    ``result`` is ``empty`` exactly when ``chunks_found`` is 0. On a streamed turn that is the turn
+    that replies asking the author to rephrase; a non-streamed turn goes on to the model. A search
+    that errors is ``chat.turn_failed`` instead.
+    ``document_count`` counts the documents searched.
+    """
+
+    event_type = "chat.rag_search_completed"
+    version = 1
+
+    conversation_id: str
+    provider: str
+    result: SearchResult
+    chunks_found: NonNegativeInt
+    document_count: NonNegativeInt
+    streamed: bool
+
+
 class StopPoint(StrEnum):
     """Where in a turn the author's stop landed.
 

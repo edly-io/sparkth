@@ -1,12 +1,13 @@
 """The PXC plugin's tables: one row per activity an author generated, and its preview's recent failed actions.
 
 A row is written once, after a successful build. Placement sets ``placed_at`` once, and an update
-changes the title and description. The id never changes, so activity instances placed in courses
-keep launching the same activity. The files live on disk in the activity's revision directories, behind
+changes the title and description. The author's delete removes the row, its failure rows (by
+cascade) and its files. The id never changes, so activity instances placed in courses keep
+launching the same activity until then. The files live on disk in the activity's revision directories, behind
 ``generated_activity_dir(id)``; the row is what ties them to their owner.
 
 A failure row is written only for an author's preview, and an activity keeps only its newest
-``PXC_ACTION_FAILURE_LIMIT`` rows.
+``PXC_ACTION_FAILURE_LIMIT`` rows. An activity's failure rows are deleted with it.
 """
 
 from datetime import datetime
@@ -54,7 +55,7 @@ class PxcActionFailure(SQLModel, table=True):
     __tablename__ = "pxc_action_failures"
 
     id: UUID = Field(default_factory=uuid7, primary_key=True)
-    activity_id: UUID = Field(foreign_key="pxc_activities.id", index=True, nullable=False)
+    activity_id: UUID = Field(foreign_key="pxc_activities.id", ondelete="CASCADE", index=True, nullable=False)
     # The revision the preview was pinned to, or None for an activity not yet kept in revisions.
     revision: str | None = Field(default=None, max_length=36, nullable=True)
     kind: PxcFailureKind = Field(
