@@ -37,7 +37,7 @@ export default function SlackConnectionCard({
   };
 
   const handleDisconnect = async () => {
-    if (!token) return;
+    if (!token) throw new Error("not signed in");
     await disconnectSlack(token);
     setConfirmOpen(false);
     onStatusChange();

@@ -26,7 +26,7 @@ export function DeleteActivityDialog({
   const { token } = useAuth();
 
   async function handleDelete() {
-    if (!token) return;
+    if (!token) throw new Error("not signed in");
     try {
       await deleteActivity(token, activity.id);
     } catch (error) {

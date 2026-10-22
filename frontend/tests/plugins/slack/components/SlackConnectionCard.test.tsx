@@ -5,8 +5,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { disconnectSlack } from "@/lib/slack";
 import SlackConnectionCard from "@/plugins/slack/components/SlackConnectionCard";
 
+const auth = vi.hoisted(() => ({ token: "test-token" as string | null }));
 vi.mock("@/lib/auth-context", () => ({
-  useAuth: () => ({ token: "test-token" }),
+  useAuth: () => ({ token: auth.token }),
 }));
 
 vi.mock("@/lib/slack", () => ({
@@ -32,6 +33,7 @@ async function confirmDisconnect() {
 describe("SlackConnectionCard disconnect", () => {
   beforeEach(() => {
     vi.mocked(disconnectSlack).mockReset();
+    auth.token = "test-token";
   });
 
   it("disconnects after confirming", async () => {
@@ -52,6 +54,17 @@ describe("SlackConnectionCard disconnect", () => {
 
     expect(await screen.findByText("Failed to disconnect Slack.")).toBeInTheDocument();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(onStatusChange).not.toHaveBeenCalled();
+  });
+
+  it("keeps the dialog open with an error when signed out", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    auth.token = null;
+
+    const { onStatusChange } = await confirmDisconnect();
+
+    expect(await screen.findByText("Failed to disconnect Slack.")).toBeInTheDocument();
+    expect(disconnectSlack).not.toHaveBeenCalled();
     expect(onStatusChange).not.toHaveBeenCalled();
   });
 });

@@ -135,7 +135,7 @@ export default function WhitelistPage() {
   };
 
   const handleDelete = async () => {
-    if (!token || !state.deleteTarget) return;
+    if (!token || !state.deleteTarget) throw new Error("not signed in");
     await removeWhitelistEntry(token, state.deleteTarget.id);
     dispatch({ type: "SET_DELETE_TARGET", target: null });
     await fetchEntries();
