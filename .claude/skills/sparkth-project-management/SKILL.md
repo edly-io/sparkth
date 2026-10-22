@@ -77,6 +77,8 @@ PROD environments.
     behaviour around it still works.
   - **enhancement** — each capability the issue asks for works as described.
   - **refactoring** — the affected features behave exactly as before.
+  - **documentation / tooling** — the doc or check reads or behaves as described;
+    when nothing ships to the deployed app, the first item alone is enough.
 - Items state the expected outcome, never an implementation step or code change.
   Developer-only checks such as "unit tests pass" are covered by the first item.
 
