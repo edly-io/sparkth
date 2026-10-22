@@ -8,9 +8,10 @@ It has three views:
   compared with the period before, and an **Activity** chart of logins and messages sent. A
   figure that has its own view links to it.
 - **Logins**: sign-ins over time and by sign-in method.
-- **Course authoring**: conversations, messages and the assistant's tool use. If you use an
-  online drive, it also shows how many documents were processed, the share that became ready
-  to use in chat and how long that took on average, and why the rest weren't usable.
+- **Course authoring**: conversations, messages, the assistant's tool use, and how many document
+  searches ran and the share that found nothing. If you use an online drive, it also shows how many
+  documents were processed, the share that became ready to use in chat and how long that took on
+  average, and why the rest weren't usable.
 
 Pick a period at the top, or a custom range, and how to group the charts.
 

@@ -29,6 +29,8 @@
       "failedTurns": "Mensajes fallidos",
       "failedHint": "{rate} de los mensajes · {change}",
       "documentsAttached": "Documentos adjuntados",
+      "searches": "Búsquedas en documentos",
+      "searchesHint": "{rate} sin resultados · {change}",
       "detachedHint": "{count} retirados · {change}",
       "messagesCaption": "Mensajes enviados, {range}",
       "conversationsCaption": "Conversaciones iniciadas, {range}",
@@ -159,6 +161,74 @@
       "outcome": "Resultado",
       "target": "Objetivo",
       "source": "Origen"
+    }
+  },
+  "profile": {
+    "title": "Perfil",
+    "subtitle": "Los datos de tu cuenta, tu nombre y tu contraseña.",
+    "loading": "Cargando tu perfil…",
+    "details": {
+      "heading": "Cuenta",
+      "username": "Nombre de usuario",
+      "email": "Correo electrónico",
+      "emailStatus": "Estado del correo",
+      "verified": "Verificado",
+      "unverified": "Sin verificar",
+      "signInMethod": "Método de inicio de sesión",
+      "methods": {
+        "password": "Correo y contraseña",
+        "google": "Google"
+      }
+    },
+    "name": {
+      "heading": "Nombre",
+      "label": "Nombre",
+      "save": "Guardar",
+      "saving": "Guardando",
+      "saved": "Tu nombre se ha actualizado.",
+      "error": "No pudimos actualizar tu nombre. Inténtalo de nuevo."
+    },
+    "password": {
+      "heading": "Contraseña",
+      "current": "Contraseña actual",
+      "submit": "Cambiar contraseña",
+      "submitting": "Cambiando",
+      "changed": "Tu contraseña se ha cambiado.",
+      "error": "No pudimos cambiar tu contraseña. Inténtalo de nuevo.",
+      "sso": "Inicias sesión con Google, así que no hay ninguna contraseña de Sparkth que cambiar."
+    }
+  },
+  "newPassword": {
+    "label": "Nueva contraseña",
+    "confirm": "Confirma la nueva contraseña",
+    "hint": "Al menos 8 caracteres, con una mayúscula, un número y un carácter especial.",
+    "mismatch": "Las nuevas contraseñas no coinciden."
+  },
+  "passwordReset": {
+    "forgot": {
+      "title": "¿Olvidaste tu contraseña?",
+      "subtitle": "Introduce el correo electrónico de tu cuenta y te enviaremos un enlace para restablecer tu contraseña.",
+      "email": "Correo electrónico",
+      "submit": "Enviar enlace de restablecimiento",
+      "submitting": "Enviando",
+      "sentTitle": "Revisa tu correo",
+      "sent": "Si una cuenta con contraseña usa {email}, le hemos enviado un enlace para restablecer la contraseña.",
+      "rateLimited": "Acabamos de enviar un enlace de restablecimiento. Espera un minuto antes de volver a solicitarlo.",
+      "error": "No pudimos enviar el enlace de restablecimiento. Inténtalo de nuevo.",
+      "back": "Volver a iniciar sesión"
+    },
+    "reset": {
+      "title": "Elige una nueva contraseña",
+      "subtitle": "Introduce tu nueva contraseña dos veces.",
+      "submit": "Restablecer contraseña",
+      "submitting": "Restableciendo",
+      "doneTitle": "Contraseña restablecida",
+      "done": "Tu contraseña se ha cambiado. Ya puedes iniciar sesión con ella.",
+      "signIn": "Ir a iniciar sesión",
+      "invalidTitle": "Este enlace no se puede usar",
+      "missingToken": "Este enlace para restablecer la contraseña está incompleto.",
+      "requestNew": "Solicitar un nuevo enlace",
+      "error": "No pudimos restablecer tu contraseña. Inténtalo de nuevo."
     }
   }
 }

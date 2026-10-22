@@ -13,6 +13,17 @@ Signed-in users can also change their own password with `POST /api/v1/user/me/pa
 needs their current password. Every attempt records `auth.password_changed`: a success, a wrong
 current password (`failure`), or an account that signs in with Google only (`denied`).
 
+Users who forgot their password reset it themselves from the sign-in page. `POST
+/api/v1/auth/password-reset` emails a single-use link (valid for
+`PASSWORD_RESET_TOKEN_TTL_MINUTES`) to an account that has a password; it always answers
+`202`, so it never reveals whether an email is registered, and allows one request per email
+per `PASSWORD_RESET_COOLDOWN_SECONDS`. A request for a known account records
+`auth.password_reset_requested`: a sent link (`success`), or an account that signs in with
+Google only (`denied`). `POST /api/v1/auth/password-reset/confirm` redeems the link, sets
+the new password and marks the email verified, recording `auth.password_reset` with the
+`email` method. An unknown, used or expired link records an anonymous `failure`. Neither
+record carries the link's token or the password.
+
 ## Create a user
 
 ```bash

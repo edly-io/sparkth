@@ -8,10 +8,13 @@ A contributor may also offer *options*, the choices an author picks between, suc
 activity to place. The publisher lists them and hands the chosen option's id back to the
 builder.
 
-A plugin registers from its ``SparkthPlugin.__init__``::
+The hook is keyed by plugin, so a plugin switched off for a user stops contributing: a
+publishing plugin resolves contributors through :func:`enabled_content_contributors`, which
+leaves out those of a disabled plugin. A plugin registers one contributor from its
+``SparkthPlugin.__init__``::
 
     register_content_contributor(
-        ContentContributor("pxc", "...", {"open-edx": build_pxc_block}, list_pxc_options)
+        self, ContentContributor("pxc", "...", {"open-edx": build_pxc_block}, list_pxc_options)
     )
 """
 
@@ -19,9 +22,19 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from sparkth.lib.content.exceptions import DuplicateContentContributorError
-from sparkth.lib.hooks import SingleNamedItemHook
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from sparkth.lib.auth import current_user_id
+from sparkth.lib.content.exceptions import (
+    ContentContributorUnavailableError,
+    DuplicateContentContributorError,
+    UnknownContentContributorError,
+)
+from sparkth.lib.db import session_scope
+from sparkth.lib.exceptions.auth import NoAuthenticatedUser
+from sparkth.lib.hooks import PluginHook
 from sparkth.lib.log import get_logger
+from sparkth.lib.plugins import SparkthPlugin, disabled_plugin_names
 
 logger = get_logger(__name__)
 
@@ -72,9 +85,9 @@ class ContentContributor:
     may write its attributes again with another tool. ``on_placed`` reports a failure by raising
     :class:`~sparkth.lib.content.exceptions.ContentPlacementError`.
 
-    ``list_options``, ``on_placed`` and the builders must be module-level functions.
-    Re-registering an equal contributor is a no-op only if they compare equal across
-    constructions, and a closure or bound method would not.
+    ``list_options``, ``on_placed`` and the builders must be module-level functions. Each
+    construction of a plugin registers its contributor again, which is accepted only if the
+    copies compare equal, and a closure or bound method would not.
     """
 
     name: str
@@ -84,34 +97,83 @@ class ContentContributor:
     on_placed: Callable[[str | None], Awaitable[None]] | None = None
 
 
-# Content contributors, keyed by name. Consumed by LMS-publishing plugins.
-LMS_CONTENT_CONTRIBUTORS: SingleNamedItemHook[ContentContributor] = SingleNamedItemHook()
+# One content contributor per plugin, consumed by LMS-publishing plugins. Keyed by plugin
+# instance, so constructing a plugin again registers it harmlessly. Register through
+# register_content_contributor, which refuses a name another contributor already claims.
+LMS_CONTENT_CONTRIBUTORS: PluginHook[ContentContributor] = PluginHook()
 
 
-def register_content_contributor(contributor: ContentContributor) -> None:
-    """Register ``contributor`` on the ``LMS_CONTENT_CONTRIBUTORS`` hook.
+def register_content_contributor(plugin: SparkthPlugin, contributor: ContentContributor) -> None:
+    """Register ``plugin``'s ``contributor`` on the ``LMS_CONTENT_CONTRIBUTORS`` hook.
 
-    Call this from a plugin's ``__init__``. Registration happens as the plugin is
-    constructed, straight into the hook a publishing tool resolves against.
+    Call this from a plugin's ``__init__``, passing ``self``. The hook records the plugin, so
+    that plugin's switches decide whether the contributor is offered. A plugin has one
+    contributor: registering one under another name from the same instance replaces the first.
 
-    A plugin is constructed more than once in a single process — the loader builds it, and
-    its own tests build their own instances — so each construction re-registers the same
-    contributor. Re-registering an *equal* one is therefore a no-op, and the first
-    registration is the one kept. Only a *different* contributor claiming a registered name
-    raises :class:`~sparkth.lib.content.exceptions.DuplicateContentContributorError`.
+    A plugin is constructed more than once in a single process — the loader builds it, and its
+    own tests build their own instances — so each construction registers the same contributor
+    again. An *equal* contributor from a plugin of the same name is accepted, and the copies fold
+    into one when read. A contributor claiming a registered name with a different value, or
+    from a different plugin, raises
+    :class:`~sparkth.lib.content.exceptions.DuplicateContentContributorError`.
 
     Equality is what separates the two cases, so a contributor must stay a value with
     field-wise equality — that is why ``ContentContributor`` is a frozen dataclass rather
     than a class with identity semantics.
     """
-    registered = LMS_CONTENT_CONTRIBUTORS.get(contributor.name)
-    if registered == contributor:
-        return
-    if registered is not None:
+    if any(
+        registered.name == contributor.name and (owner.name != plugin.name or registered != contributor)
+        for owner, registered in LMS_CONTENT_CONTRIBUTORS.iter_items()
+    ):
         logger.error(
             "Content contributor '%s' collides with a different contributor already registered",
             contributor.name,
         )
         raise DuplicateContentContributorError(contributor.name)
-    LMS_CONTENT_CONTRIBUTORS.add_item(contributor)
-    logger.info("Registered content contributor '%s'", contributor.name)
+    LMS_CONTENT_CONTRIBUTORS.add_item(plugin, contributor)
+    logger.info("Registered content contributor '%s' for plugin '%s'", contributor.name, plugin.name)
+
+
+async def _caller_disabled_plugins(session: AsyncSession) -> set[str]:
+    """Plugin names switched off for the current caller.
+
+    With no authenticated user bound, only the system-wide switch can apply.
+    """
+    user_id: int | None
+    try:
+        user_id = current_user_id()
+    except NoAuthenticatedUser:
+        logger.info("No authenticated user; applying only the system-wide plugin switch")
+        user_id = None
+    return await disabled_plugin_names(user_id, session)
+
+
+async def enabled_content_contributors() -> dict[str, ContentContributor]:
+    """The registered contributors the current caller may use, by name.
+
+    Leaves out every contributor whose owning plugin is switched off for the caller, system-wide
+    or by their own preference. A database error propagates.
+    """
+    async with session_scope() as session:
+        disabled = await _caller_disabled_plugins(session)
+    return {c.name: c for owner, c in LMS_CONTENT_CONTRIBUTORS.iter_items() if owner.name not in disabled}
+
+
+async def enabled_content_contributor(name: str) -> ContentContributor:
+    """The contributor registered as ``name``, if its plugin is switched on for the current caller.
+
+    The switches are read only once the name is found. A database error propagates.
+
+    Raises:
+        UnknownContentContributorError: No contributor is registered as ``name``.
+        ContentContributorUnavailableError: Its plugin is switched off for the caller.
+    """
+    owned = next(((owner, c) for owner, c in LMS_CONTENT_CONTRIBUTORS.iter_items() if c.name == name), None)
+    if owned is None:
+        raise UnknownContentContributorError(name)
+    owner, contributor = owned
+    async with session_scope() as session:
+        disabled = await _caller_disabled_plugins(session)
+    if owner.name in disabled:
+        raise ContentContributorUnavailableError(name)
+    return contributor

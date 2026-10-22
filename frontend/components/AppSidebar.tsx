@@ -297,7 +297,7 @@ export default function AppSidebar({
           </PopoverTrigger>
           <PopoverContent side="top" align="start" sideOffset={20} className="w-52 p-2">
             <Link
-              href="/profile"
+              href="/dashboard/profile"
               className="flex items-center gap-3 px-3 py-2 min-h-[40px] text-sm text-foreground hover:bg-surface-variant rounded-lg"
               onClick={handleNavClick}
             >

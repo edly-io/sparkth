@@ -13,6 +13,8 @@ from sparkth.plugins.pxc.activities import (
     parse_activity_id,
     preview_url,
     state_file,
+    state_file_path,
+    storage_dir,
 )
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound, PxcDuplicateActivityName
 
@@ -108,6 +110,16 @@ def test_a_generated_activity_has_its_own_state_file(tmp_path: Path) -> None:
     _write_generated_activity(activity_id)
 
     assert state_file(activity_id) == tmp_path / f"{activity_id}.sqlite3"
+
+
+def test_the_state_file_path_needs_no_activity(tmp_path: Path) -> None:
+    activity_id = str(uuid7())
+
+    assert state_file_path(activity_id) == tmp_path / f"{activity_id}.sqlite3"
+
+
+def test_the_storage_dir_is_named_after_the_activity(tmp_path: Path) -> None:
+    assert storage_dir("mcq") == tmp_path / "storage" / "mcq"
 
 
 def test_the_preview_url_opens_the_activities_page_on_the_activity() -> None:

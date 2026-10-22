@@ -5,10 +5,14 @@ public plugin-authoring boundary, never the plugin framework internals behind it
 core import is the object a lazy export must resolve to.
 """
 
+from typing import cast
+
 import pytest
 from pydantic import ValidationError
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 import sparkth.lib.plugins as plugins_api
+from sparkth.core.models.user import User
 from sparkth.core.plugins.middleware import PluginAccessMiddleware
 from sparkth.lib.plugins import PluginConfig, SparkthPlugin
 
@@ -28,6 +32,8 @@ class TestPluginsPublicApi:
             "InternalServerError",
             "PluginDisabledError",
             "UserPluginResponse",
+            "disabled_plugin_names",
+            "get_disabled_plugins",
         }
 
 
@@ -45,6 +51,9 @@ class TestPluginsImportSafety:
 
     def test_resolves_plugin_service_lazily(self) -> None:
         assert isinstance(plugins_api.get_plugin_service(), plugins_api.PluginService)
+
+    async def test_resolves_disabled_plugin_names_lazily(self, session: AsyncSession, current_user: User) -> None:
+        assert await plugins_api.disabled_plugin_names(cast(int, current_user.id), session) == set()
 
     def test_unknown_attribute_raises_attribute_error(self) -> None:
         with pytest.raises(AttributeError):

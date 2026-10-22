@@ -1,7 +1,6 @@
 """Connecting and disconnecting Google Drive leaves an audit row that never
 carries token material."""
 
-from collections.abc import AsyncGenerator
 from datetime import timedelta
 from typing import cast
 from unittest.mock import AsyncMock, patch
@@ -13,10 +12,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.audit.hooks import AUDIT_EVENTS
-from sparkth.lib.auth import bind_request_user, get_current_user
 from sparkth.lib.models import User, utc_now
 from sparkth.lib.testing import AuditEventsFetcher
-from sparkth.main import app
 from sparkth.plugins.googledrive.audit import GoogleDriveConnectedAuditEvent, GoogleDriveDisconnectedAuditEvent
 from sparkth.plugins.googledrive.models import DriveOAuthToken
 from sparkth.plugins.googledrive.oauth import get_token_record, get_valid_access_token
@@ -26,18 +23,6 @@ DISCONNECT_URL = "/api/v1/google-drive/oauth/disconnect"
 SCOPES = "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly"
 ACCESS = "ya29.access-secret-value"
 REFRESH = "1//refresh-secret-value"
-
-
-@pytest.fixture
-async def authed_client(drive_client: AsyncClient, test_user: User) -> AsyncGenerator[AsyncClient, None]:
-    """``drive_client`` whose auth override binds the audit actor, as ``get_current_user`` does."""
-
-    async def get_user_override() -> User:
-        bind_request_user(test_user)
-        return test_user
-
-    app.dependency_overrides[get_current_user] = get_user_override
-    yield drive_client
 
 
 def _assert_no_token_material(canonical: bytes, *secrets: str) -> None:
@@ -131,7 +116,7 @@ async def test_failed_code_exchange_records_nothing(
 
 @pytest.mark.asyncio
 async def test_disconnect_records_disconnected(
-    authed_client: AsyncClient,
+    drive_client: AsyncClient,
     test_user: User,
     test_oauth_token: DriveOAuthToken,
     audit_events: AuditEventsFetcher,
@@ -139,7 +124,7 @@ async def test_disconnect_records_disconnected(
     token_id = test_oauth_token.id
     encrypted = (test_oauth_token.access_token_encrypted, test_oauth_token.refresh_token_encrypted)
     with patch("sparkth.plugins.googledrive.routes.oauth.revoke_token", new_callable=AsyncMock, return_value=True):
-        response = await authed_client.delete(DISCONNECT_URL)
+        response = await drive_client.delete(DISCONNECT_URL)
 
     assert response.status_code == status.HTTP_200_OK
     (event,) = await audit_events()
