@@ -1,3 +1,4 @@
+import { ExternalLink } from "lucide-react";
 import Link from "next/link";
 import type { ComponentType } from "react";
 
@@ -38,7 +39,20 @@ export function NavItem({
         title={isCollapsed ? label : undefined}
       >
         <Icon className="w-5 h-5 flex-shrink-0" />
-        {!isCollapsed && <span className="font-medium">{label}</span>}
+        {!isCollapsed && (
+          <>
+            <span className="font-medium">
+              {label}
+              {external && (
+                <>
+                  {" "}
+                  <span className="sr-only">(opens in a new tab)</span>
+                </>
+              )}
+            </span>
+            {external && <ExternalLink className="w-4 h-4 ml-auto" aria-hidden="true" />}
+          </>
+        )}
       </Link>
     </div>
   );
