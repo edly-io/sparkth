@@ -1,38 +1,19 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense } from "react";
 import { ChartColumn } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/lib/auth-context";
-import { checkPermission } from "@/lib/permissions";
+import { usePermissionCheck } from "@/lib/permissions";
 import { Forbidden } from "@/components/Forbidden";
 import { Spinner } from "@/components/Spinner";
 import { AnalyticsNav } from "./AnalyticsNav";
 import { PeriodSelector } from "./PeriodSelector";
 
-type Access = "checking" | "allowed" | "denied";
-
 export default function AnalyticsLayout({ children }: { children: React.ReactNode }) {
   const { token } = useAuth();
   const t = useTranslations("analytics");
-  const [access, setAccess] = useState<Access>("checking");
-
-  useEffect(() => {
-    if (!token) return;
-    let active = true;
-    setAccess("checking");
-    checkPermission(token, "analytics.read")
-      .then((allowed) => {
-        if (active) setAccess(allowed ? "allowed" : "denied");
-      })
-      .catch((error: unknown) => {
-        console.error("Analytics permission check failed:", error);
-        if (active) setAccess("denied");
-      });
-    return () => {
-      active = false;
-    };
-  }, [token]);
+  const access = usePermissionCheck(token, "analytics.read");
 
   return (
     <div className="min-h-screen bg-background transition-colors">

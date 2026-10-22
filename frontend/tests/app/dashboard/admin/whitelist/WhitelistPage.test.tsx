@@ -5,14 +5,14 @@ const auth = vi.hoisted(() => ({ token: "test-token" }));
 vi.mock("@/lib/auth-context", () => ({
   useAuth: () => ({ token: auth.token, user: { name: "A" } }),
 }));
-vi.mock("@/lib/permissions", () => ({ checkPermission: vi.fn() }));
+vi.mock("@/lib/permissions/client", () => ({ checkPermission: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("@/lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api")>();
   return { ...actual, getWhitelist: vi.fn().mockResolvedValue([]) };
 });
 
-import { checkPermission } from "@/lib/permissions";
+import { checkPermission } from "@/lib/permissions/client";
 import { getWhitelist } from "@/lib/api";
 import { redirect } from "next/navigation";
 import WhitelistPage from "@/app/dashboard/admin/whitelist/WhitelistPage";
