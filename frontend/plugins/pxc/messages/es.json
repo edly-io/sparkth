@@ -19,6 +19,15 @@
     "launchFailed": "No se pudo cargar la actividad.",
     "frameTitle": "Vista previa de la actividad",
     "loadingActivity": "Cargando la actividad",
-    "retry": "Reintentar"
+    "retry": "Reintentar",
+    "placed": "Colocada",
+    "deleteActivity": "Eliminar {title}",
+    "deleteTitle": "¿Eliminar {title}?",
+    "deleteDraftBody": "Esto elimina de forma permanente la actividad y sus datos de vista previa. No se puede deshacer.",
+    "deletePlacedBody": "Esta actividad se colocó en un curso. Sparkth no puede saber si sigue ahí. Si es así, los estudiantes verán un error en su lugar y perderán sus respuestas. No se puede deshacer.",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "deleting": "Eliminando",
+    "deleteFailed": "No se pudo eliminar la actividad."
   }
 }

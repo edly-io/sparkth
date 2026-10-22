@@ -104,6 +104,7 @@ class PxcPlugin(SparkthPlugin):
             ],
         )
         register_content_contributor(
+            self,
             ContentContributor(
                 "pxc",
                 "A portable, sandboxed PXC learning activity hosted by Sparkth: a bundled sample "
@@ -113,5 +114,5 @@ class PxcPlugin(SparkthPlugin):
                 {"open-edx": build_pxc_block},
                 list_pxc_options,
                 record_pxc_placement,
-            )
+            ),
         )

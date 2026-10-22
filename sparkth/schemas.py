@@ -79,3 +79,26 @@ class VerifyEmailRequest(BaseModel):
 
 class ResendVerificationRequest(BaseModel):
     email: EmailStr
+
+
+class PasswordResetRequest(BaseModel):
+    """Body of ``POST /auth/password-reset``: the email to send a reset link to."""
+
+    email: EmailStr
+
+
+class PasswordResetConfirm(BaseModel):
+    """Body of ``POST /auth/password-reset/confirm``.
+
+    ``new_password`` must meet the same complexity rules as registration, so a weak
+    one is a 422 before the link is checked, and the link stays usable.
+    """
+
+    token: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def _check_new_password(cls, new_password: str) -> str:
+        validate_password_complexity(new_password)
+        return new_password

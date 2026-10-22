@@ -28,3 +28,13 @@ export async function getActivityEmbedUrl(
   );
   return launch.embed_url;
 }
+
+/** Permanently deletes the caller's activity; rejects with `ApiRequestError` (404 if not theirs). */
+export async function deleteActivity(token: string, activityId: string): Promise<void> {
+  await call(() =>
+    api.DELETE("/api/v1/pxc/activities/{activity_id}", {
+      params: { path: { activity_id: activityId } },
+      headers: bearer(token),
+    }),
+  );
+}

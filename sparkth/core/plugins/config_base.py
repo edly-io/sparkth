@@ -18,7 +18,8 @@ class PluginConfig(BaseModel):
 
         Used to detect whether any active tools belong to this LMS so that the
         credential injection can short-circuit the database call when no LMS tools
-        are present.  Override in each LMS config class.
+        are present.  It also decides which LMS's saved credentials chat sends: only an LMS
+        with at least one bound tool carrying its prefix.  Override in each LMS config class.
         """
         return None
 
