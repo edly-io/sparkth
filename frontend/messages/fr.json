@@ -254,8 +254,8 @@
     "disableError": "Échec de la désactivation du plugin.",
     "enabled": "Activé",
     "disabled": "Désactivé",
-    "title": "Mes plugins",
-    "subtitle": "Consultez tous vos plugins installés au même endroit.",
+    "title": "Paramètres",
+    "subtitle": "Activez ou désactivez vos plugins et configurez-les.",
     "loading": "Chargement des plugins...",
     "loadError": "Échec du chargement des plugins : {error}",
     "empty": "Aucun plugin trouvé"

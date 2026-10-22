@@ -1,4 +1,4 @@
-# My Plugins
+# Settings
 
 A plugin is one feature you can turn on: Compose (the course assistant), an LMS, an online
 drive, a team-chat bot, or interactive activities. See
@@ -7,7 +7,7 @@ Plugins are per user: turning one on or configuring it affects only your account
 
 ## Turn a plugin on
 
-1. Open **My Plugins** from the sidebar.
+1. Open **Settings** from the sidebar.
 2. Flip the switch next to the plugin.
 
 ## Configure a plugin
