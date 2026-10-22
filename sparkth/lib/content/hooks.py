@@ -79,10 +79,10 @@ class ContentContributor:
     and a publishing tool requires one of them: nothing is built by default. Leave it ``None``
     for a contributor that builds one kind of block; a publishing tool then refuses any option id.
 
-    ``callback``, when set, is awaited by a publishing tool after it calls the builder, with the
-    option id the builder was given. The tool awaits it once it has created the block in the
-    course and before it writes the block's attributes. A block whose attribute write then fails
-    still counts as placed, since the caller may write its attributes again with another tool.
+    ``callback``, when set, is awaited by a publishing tool with the option id the builder was
+    given. The tool awaits it once it has created the block in the course and before it writes
+    the block's attributes. A block whose attribute write then fails still counts as placed,
+    since the caller may write its attributes again with another tool.
     ``callback`` reports a failure by raising
     :class:`~sparkth.lib.content.exceptions.ContentPlacementError`.
 

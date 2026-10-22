@@ -599,10 +599,10 @@ letting some other exception escape. A publishing tool catches it and reports th
 through its own error contract instead of letting it propagate unguarded.
 
 `callback` is an optional async function a contributor passes after `list_options`. A publishing
-tool awaits it after it calls the builder, with the chosen option's id, for example so the
-contributor can record that its content landed in a course. The tool awaits it once the LMS has
-created the block and before it writes the block's attributes, so a block the LMS refuses is never
-reported. A block whose attribute write then fails still counts as placed. If `callback` cannot
+tool awaits it with the chosen option's id, for example so the contributor can record that its
+content landed in a course. The tool awaits it once the LMS has created the block and before it
+writes the block's attributes, so a block the LMS refuses is never reported. A block whose
+attribute write then fails still counts as placed. If `callback` cannot
 record the placement, it raises
 `sparkth.lib.content.exceptions.ContentPlacementError`. The publishing tool then leaves the
 block's attributes unwritten and reports the block's locator, so the block points at nothing and
