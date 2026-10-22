@@ -151,9 +151,9 @@ It auto-populates on GitHub; fill in every section:
 - **Changes** — bullet list of `<type>(<scope>): short description`.
 - **How to Test** — numbered, reproducible verification steps.
 - **Environment Variables** — every environment variable the PR adds, updates or
-  removes, one line each (format below). The PR's `.env` diff lists them, since
-  `.env` references every variable. Leave the list empty when the PR changes no
-  variable. The list tracks every variable change between DEV and PROD releases.
+  removes, one line each (format below). The PR's `.env` and `docker-compose*.yml`
+  diffs list them. Leave the list empty when the PR changes no variable. The list
+  tracks every variable change between DEV and PROD releases.
 - **Notes** — migrations, breaking changes, dependency bumps (or "none").
 
 ```markdown
