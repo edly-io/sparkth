@@ -208,7 +208,10 @@ unused until TLS is set up: once a domain points at the server, follow
 [`docker/nginx/sparkth-ssl.conf.example`](docker/nginx/sparkth-ssl.conf.example) to issue a
 Let's Encrypt certificate and switch nginx to HTTPS (certificates live in the git-ignored
 `docker/nginx/certbot/`). If another load balancer sits in front of nginx, raise
-`TRUSTED_PROXY_HOPS` to match. Email is not part of the stack: point `SMTP_*` at a real
+`TRUSTED_PROXY_HOPS` to match. When that load balancer terminates TLS, it must send
+`X-Forwarded-Proto` (nginx passes it to the app, which builds its HTTPS URLs from it) and
+forward WebSocket upgrades (the `Upgrade` and `Connection` headers over HTTP/1.1), which
+PXC activities need. Email is not part of the stack: point `SMTP_*` at a real
 provider such as AWS SES. Production runs the same image, published to GHCR by CI, under
 Kubernetes.
 
