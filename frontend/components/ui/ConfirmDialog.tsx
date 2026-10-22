@@ -48,7 +48,7 @@ export function ConfirmDialog({
     try {
       await onConfirm();
     } catch (error) {
-      console.error(`${title}: action failed`, error);
+      console.error("ConfirmDialog: action failed", error);
       setFailed(true);
     } finally {
       setLoading(false);

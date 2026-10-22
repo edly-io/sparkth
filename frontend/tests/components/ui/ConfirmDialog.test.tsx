@@ -48,7 +48,7 @@ describe("ConfirmDialog", () => {
 
     expect(await screen.findByText("Could not remove the entry.")).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
-    expect(logged).toHaveBeenCalledWith("Remove entry?: action failed", failure);
+    expect(logged).toHaveBeenCalledWith("ConfirmDialog: action failed", failure);
   });
 
   it("cannot be dismissed while the action runs", async () => {
