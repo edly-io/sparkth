@@ -161,8 +161,8 @@ It auto-populates on GitHub; fill in every section:
 ```markdown
 ## Environment Variables
 - Added: `SLACK_SIGNING_SECRET` (sensitive) — verifies Slack request signatures
-- Updated: `CHAT_MAX_TOKENS` (non-sensitive) — default raised from 2048 to 4096
-- Removed: `LEGACY_RAG_URL` (non-sensitive) — no longer read
+- Updated: `PXC_MAX_SOURCE_CHARS` (non-sensitive) — default lowered from 200000 to 20000
+- Removed: `PXC_DEFAULT_ACTIVITY` (non-sensitive) — no longer read
 ```
 
 When creating a PR with `gh`, pass a body built from the template so the
