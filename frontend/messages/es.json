@@ -125,5 +125,44 @@
     "title": "No tienes acceso a esta página",
     "message": "Pide acceso a un administrador si lo necesitas.",
     "back": "Volver al panel"
+  },
+  "profile": {
+    "title": "Perfil",
+    "subtitle": "Los datos de tu cuenta, tu nombre y tu contraseña.",
+    "loading": "Cargando tu perfil…",
+    "details": {
+      "heading": "Cuenta",
+      "username": "Nombre de usuario",
+      "email": "Correo electrónico",
+      "emailStatus": "Estado del correo",
+      "verified": "Verificado",
+      "unverified": "Sin verificar",
+      "signInMethod": "Método de inicio de sesión",
+      "methods": {
+        "password": "Correo y contraseña",
+        "google": "Google"
+      }
+    },
+    "name": {
+      "heading": "Nombre",
+      "label": "Nombre",
+      "save": "Guardar",
+      "saving": "Guardando",
+      "saved": "Tu nombre se ha actualizado.",
+      "error": "No pudimos actualizar tu nombre. Inténtalo de nuevo."
+    },
+    "password": {
+      "heading": "Contraseña",
+      "current": "Contraseña actual",
+      "new": "Nueva contraseña",
+      "confirm": "Confirma la nueva contraseña",
+      "hint": "Al menos 8 caracteres, con una mayúscula, un número y un carácter especial.",
+      "mismatch": "Las nuevas contraseñas no coinciden.",
+      "submit": "Cambiar contraseña",
+      "submitting": "Cambiando",
+      "changed": "Tu contraseña se ha cambiado.",
+      "error": "No pudimos cambiar tu contraseña. Inténtalo de nuevo.",
+      "sso": "Inicias sesión con Google, así que no hay ninguna contraseña de Sparkth que cambiar."
+    }
   }
 }
