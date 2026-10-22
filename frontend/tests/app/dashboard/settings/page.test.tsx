@@ -21,16 +21,16 @@ beforeEach(() => {
   ctx.value = { ...base };
 });
 
-describe("My Plugins page", () => {
+describe("Settings page", () => {
   it("shows the page heading", () => {
     renderWithIntl(<PluginsSettings />);
-    expect(screen.getByRole("heading", { name: "My Plugins" })).toBeDefined();
+    expect(screen.getByRole("heading", { name: "Settings" })).toBeDefined();
   });
 
   it("shows a load failure in an alert under the heading", () => {
     ctx.value = { ...base, error: "boom" };
     renderWithIntl(<PluginsSettings />);
-    expect(screen.getByRole("heading", { name: "My Plugins" })).toBeDefined();
+    expect(screen.getByRole("heading", { name: "Settings" })).toBeDefined();
     expect(screen.getByRole("alert").textContent).toContain("Failed to load plugins: boom");
   });
 
