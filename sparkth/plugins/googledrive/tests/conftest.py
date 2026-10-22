@@ -16,7 +16,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.lib.auth import get_current_user
+from sparkth.lib.auth import bind_request_user, get_current_user
 from sparkth.lib.models import User
 from sparkth.main import app
 from sparkth.plugins.googledrive.config import GoogleDriveSettings
@@ -152,6 +152,7 @@ async def drive_client(
     )
 
     async def get_user_override() -> User:
+        bind_request_user(auth_user)
         return auth_user
 
     app.dependency_overrides[get_current_user] = get_user_override

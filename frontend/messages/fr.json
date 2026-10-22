@@ -29,6 +29,8 @@
       "failedTurns": "Messages en échec",
       "failedHint": "{rate} des messages · {change}",
       "documentsAttached": "Documents joints",
+      "searches": "Recherches dans les documents",
+      "searchesHint": "{rate} sans résultat · {change}",
       "detachedHint": "{count} retirés · {change}",
       "messagesCaption": "Messages envoyés, {range}",
       "conversationsCaption": "Conversations démarrées, {range}",
@@ -123,5 +125,73 @@
     "title": "Vous n'avez pas accès à cette page",
     "message": "Demandez l'accès à un administrateur si nécessaire.",
     "back": "Retour au tableau de bord"
+  },
+  "profile": {
+    "title": "Profil",
+    "subtitle": "Les informations de votre compte, votre nom et votre mot de passe.",
+    "loading": "Chargement de votre profil…",
+    "details": {
+      "heading": "Compte",
+      "username": "Nom d'utilisateur",
+      "email": "E-mail",
+      "emailStatus": "Statut de l'e-mail",
+      "verified": "Vérifié",
+      "unverified": "Non vérifié",
+      "signInMethod": "Méthode de connexion",
+      "methods": {
+        "password": "E-mail et mot de passe",
+        "google": "Google"
+      }
+    },
+    "name": {
+      "heading": "Nom",
+      "label": "Nom",
+      "save": "Enregistrer",
+      "saving": "Enregistrement",
+      "saved": "Votre nom a été mis à jour.",
+      "error": "Impossible de mettre à jour votre nom. Veuillez réessayer."
+    },
+    "password": {
+      "heading": "Mot de passe",
+      "current": "Mot de passe actuel",
+      "submit": "Changer le mot de passe",
+      "submitting": "Modification",
+      "changed": "Votre mot de passe a été changé.",
+      "error": "Impossible de changer votre mot de passe. Veuillez réessayer.",
+      "sso": "Vous vous connectez avec Google, il n'y a donc pas de mot de passe Sparkth à changer."
+    }
+  },
+  "newPassword": {
+    "label": "Nouveau mot de passe",
+    "confirm": "Confirmez le nouveau mot de passe",
+    "hint": "Au moins 8 caractères, avec une majuscule, un chiffre et un caractère spécial.",
+    "mismatch": "Les nouveaux mots de passe ne correspondent pas."
+  },
+  "passwordReset": {
+    "forgot": {
+      "title": "Mot de passe oublié ?",
+      "subtitle": "Saisissez l'e-mail de votre compte et nous vous enverrons un lien pour réinitialiser votre mot de passe.",
+      "email": "E-mail",
+      "submit": "Envoyer le lien de réinitialisation",
+      "submitting": "Envoi",
+      "sentTitle": "Consultez vos e-mails",
+      "sent": "Si un compte avec mot de passe utilise {email}, nous lui avons envoyé un lien pour réinitialiser le mot de passe.",
+      "rateLimited": "Un lien de réinitialisation vient d'être envoyé. Veuillez patienter une minute avant d'en demander un autre.",
+      "error": "Impossible d'envoyer le lien de réinitialisation. Veuillez réessayer.",
+      "back": "Retour à la connexion"
+    },
+    "reset": {
+      "title": "Choisissez un nouveau mot de passe",
+      "subtitle": "Saisissez deux fois votre nouveau mot de passe.",
+      "submit": "Réinitialiser le mot de passe",
+      "submitting": "Réinitialisation",
+      "doneTitle": "Mot de passe réinitialisé",
+      "done": "Votre mot de passe a été changé. Vous pouvez maintenant vous connecter avec.",
+      "signIn": "Aller à la connexion",
+      "invalidTitle": "Ce lien ne peut pas être utilisé",
+      "missingToken": "Ce lien de réinitialisation du mot de passe est incomplet.",
+      "requestNew": "Demander un nouveau lien",
+      "error": "Impossible de réinitialiser votre mot de passe. Veuillez réessayer."
+    }
   }
 }

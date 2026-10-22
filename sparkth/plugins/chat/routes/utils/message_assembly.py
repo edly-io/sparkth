@@ -9,6 +9,7 @@ from typing import Any
 
 from sparkth.lib.documents import Document
 from sparkth.lib.llm import BaseChatProvider
+from sparkth.plugins.chat.analytics import ChatTurnAnalytics
 from sparkth.plugins.chat.models import Message
 from sparkth.plugins.chat.routes.utils.rag_search import resolve_document_blocks
 from sparkth.plugins.chat.schemas import ChatCompletionRequest, ChatMessage
@@ -37,13 +38,16 @@ async def assemble_provider_messages(
     query_text: str,
     rag_search_required: bool,
     provider: BaseChatProvider,
+    *,
+    analytics: ChatTurnAnalytics,
 ) -> tuple[list[dict[str, Any]], list[ChatMessage] | None]:
     """Return the provider's messages, and the turn left for the stream to resolve.
 
     The second value is the synthetic retrieval turn when there is one, which the streaming path
     hands to the processor so it can replace the references with retrieved passages as it goes. It
     is ``None`` whenever retrieval is not running, and on the non-streaming path the references are
-    already resolved here — there is no stream to do it in.
+    already resolved here — there is no stream to do it in. ``analytics`` records the non-streamed
+    search when it returns.
     """
     current_count = len(request.messages)
     history: list[dict[str, Any]] = (
@@ -61,6 +65,8 @@ async def assemble_provider_messages(
     elif request.stream:
         current = _as_provider_turns(retrieval_turn)
     else:
-        current = _as_provider_turns(await resolve_document_blocks(messages=retrieval_turn, llm=provider.create_llm()))
+        current = _as_provider_turns(
+            await resolve_document_blocks(messages=retrieval_turn, llm=provider.create_llm(), analytics=analytics)
+        )
 
     return history + current, retrieval_turn

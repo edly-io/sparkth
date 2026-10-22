@@ -349,7 +349,7 @@ async def build_activity(source: ActivitySource, owner_user_id: int) -> PxcActiv
             await insert_activity(session, activity)
     except SQLAlchemyError, asyncio.CancelledError:
         logger.warning("Recording PXC activity %s failed; removing its built files", activity_id)
-        remove_activity_files(activity_id)
+        remove_activity_files(activity.id)
         raise
     logger.info("Built PXC activity %s for user %s", activity_id, owner_user_id)
     return activity

@@ -6,8 +6,18 @@ from urllib.parse import quote
 
 import aiohttp
 
-from sparkth.lib.content.exceptions import ContentBuildError, ContentPlacementError
-from sparkth.lib.content.hooks import LMS_CONTENT_CONTRIBUTORS, ContentBlock, ContentContributor
+from sparkth.lib.content.exceptions import (
+    ContentBuildError,
+    ContentContributorUnavailableError,
+    ContentPlacementError,
+    UnknownContentContributorError,
+)
+from sparkth.lib.content.hooks import (
+    ContentBlock,
+    ContentContributor,
+    enabled_content_contributor,
+    enabled_content_contributors,
+)
 from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
 from sparkth.lib.log import get_logger
@@ -853,7 +863,8 @@ async def openedx_list_content_contributors() -> dict[str, dict[str, list[dict[s
 
     A contributor is a named producer of one course content block, contributed by another
     plugin. Only contributors that build a block for Open edX are listed; one targeting
-    another LMS is not offered here. Pass a name from this list as the `contributor` argument of
+    another LMS is not offered here, and neither is one whose plugin is switched off for the
+    caller. Pass a name from this list as the `contributor` argument of
     `openedx_add_plugin_content`.
 
     A contributor that offers choices lists them as `options`, for example the activities the
@@ -866,7 +877,7 @@ async def openedx_list_content_contributors() -> dict[str, dict[str, list[dict[s
         contributor that offers choices.
     """
     contributors: list[dict[str, object]] = []
-    for contributor in LMS_CONTENT_CONTRIBUTORS.iter_values():
+    for contributor in (await enabled_content_contributors()).values():
         if OPENEDX_PLUGIN_NAME not in contributor.builders:
             continue
         entry: dict[str, object] = {"name": contributor.name, "description": contributor.description}
@@ -874,6 +885,24 @@ async def openedx_list_content_contributors() -> dict[str, dict[str, list[dict[s
             entry["options"] = [asdict(option) for option in await contributor.list_options()]
         contributors.append(entry)
     return {"response": {"contributors": contributors}}
+
+
+def _refuse_misused_option(payload: AddPluginContentArgs, contributor: ContentContributor) -> dict[str, Any] | None:
+    """Return the tool's error dict when ``option_id`` does not fit the contributor's options, else None."""
+    if payload.option_id is not None and contributor.list_options is None:
+        return {"error": {"message": f"Content contributor {payload.contributor!r} offers no options"}}
+
+    if payload.option_id is None and contributor.list_options is not None:
+        logger.info("Refused content contributor %r with no option chosen", payload.contributor)
+        return {
+            "error": {
+                "message": (
+                    f"Content contributor {payload.contributor!r} needs an option_id: ask the author "
+                    "which of its options to place, and place nothing if they decline"
+                )
+            }
+        }
+    return None
 
 
 async def openedx_add_plugin_content(payload: AddPluginContentArgs) -> dict[str, Any]:
@@ -908,7 +937,8 @@ async def openedx_add_plugin_content(payload: AddPluginContentArgs) -> dict[str,
 
     Returns:
         dict[str, Any]: `{"response": {"locator": <str>, "category": <str>}}`, or
-            `{"error": {...}}` when the contributor is unknown, does not target Open edX, is given an
+            `{"error": {...}}` when the contributor is unknown, is unavailable because its plugin is
+            switched off for the caller, does not target Open edX, is given an
             `option_id` it offers no options for, is given none when it offers options, or fails
             to build its block, or Studio rejects the request. An error carries `locator` when
             the block was created and only the attribute patch failed: that block exists, is
@@ -916,27 +946,20 @@ async def openedx_add_plugin_content(payload: AddPluginContentArgs) -> dict[str,
             `locator` when the contributor could not record the placement: that block has no
             attributes and is the caller's to delete before placing the content again.
     """
-    contributor = LMS_CONTENT_CONTRIBUTORS.get(payload.contributor)
-    if contributor is None:
-        return {"error": {"message": f"Unknown content contributor: {payload.contributor}"}}
+    try:
+        contributor = await enabled_content_contributor(payload.contributor)
+    except UnknownContentContributorError as err:
+        return {"error": {"message": str(err)}}
+    except ContentContributorUnavailableError as err:
+        logger.info("Refused content contributor %r: its plugin is switched off", payload.contributor)
+        return {"error": {"message": str(err)}}
 
     builder = contributor.builders.get(OPENEDX_PLUGIN_NAME)
     if builder is None:
         return {"error": {"message": f"Content contributor {payload.contributor!r} does not target Open edX"}}
 
-    if payload.option_id is not None and contributor.list_options is None:
-        return {"error": {"message": f"Content contributor {payload.contributor!r} offers no options"}}
-
-    if payload.option_id is None and contributor.list_options is not None:
-        logger.info("Refused content contributor %r with no option chosen", payload.contributor)
-        return {
-            "error": {
-                "message": (
-                    f"Content contributor {payload.contributor!r} needs an option_id: ask the author "
-                    "which of its options to place, and place nothing if they decline"
-                )
-            }
-        }
+    if (refusal := _refuse_misused_option(payload, contributor)) is not None:
+        return refusal
 
     try:
         block = await builder(payload.course_id, payload.option_id)

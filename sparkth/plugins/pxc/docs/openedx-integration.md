@@ -28,4 +28,5 @@ lapsed token, over HTTP and over the socket alike.
 An authoring agent calls the `openedx` plugin's `openedx_add_plugin_content` tool with
 `contributor: "pxc"`. The `pxc` content contributor mints an activity instance and returns a
 block of category `pxc`, which Studio creates on the draft branch. The unit must be published
-before a learner sees it.
+before a learner sees it. The `pxc` contributor is unavailable while the PXC plugin is switched
+off for the caller.

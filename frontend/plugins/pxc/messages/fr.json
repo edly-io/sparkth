@@ -19,6 +19,15 @@
     "launchFailed": "Impossible de charger l'activité.",
     "frameTitle": "Aperçu de l'activité",
     "loadingActivity": "Chargement de l'activité",
-    "retry": "Réessayer"
+    "retry": "Réessayer",
+    "placed": "Placée",
+    "deleteActivity": "Supprimer {title}",
+    "deleteTitle": "Supprimer {title} ?",
+    "deleteDraftBody": "Cette action supprime définitivement l'activité et ses données d'aperçu. Vous ne pouvez pas l'annuler.",
+    "deletePlacedBody": "Cette activité a été placée dans un cours. Sparkth ne peut pas savoir si elle s'y trouve toujours. Si c'est le cas, les apprenants verront une erreur à sa place et perdront leurs réponses. Vous ne pouvez pas l'annuler.",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "deleting": "Suppression",
+    "deleteFailed": "Impossible de supprimer l'activité."
   }
 }

@@ -19,7 +19,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.lib.auth import get_current_user
+from sparkth.lib.auth import bind_request_user, get_current_user
 from sparkth.lib.models import User
 from sparkth.lib.settings import get_settings
 from sparkth.main import app
@@ -91,6 +91,7 @@ async def slack_client(
     # No get_async_session override: handlers open their own engine-backed session on
     # the same in-memory StaticPool DB as the `session` fixture. Only auth is faked.
     async def get_user_override() -> User:
+        bind_request_user(test_user)
         return test_user
 
     app.dependency_overrides[get_current_user] = get_user_override
