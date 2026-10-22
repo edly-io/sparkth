@@ -49,8 +49,7 @@ Valid `llm_model_override` values must be a legal model for the linked `LLMConfi
 
 ### LMS Plugins: Tools Without Credentials
 
-An LMS tool never takes credentials as arguments, and nothing puts them in the chat model's prompt.
-The tool reads the caller's saved settings itself with `load_user_plugin_config`, described in
+An LMS tool reads the caller's saved settings itself with `load_user_plugin_config`, described in
 [Reading the caller's stored settings](#reading-the-callers-stored-settings), and raises
 `PluginNotConfiguredError` when there are none.
 
