@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 
 import en from "@/messages/en.json";
-import { renderWithIntl } from "../../../../intl-test-utils";
+import { renderWithIntl } from "@/tests/intl-test-utils";
 
 import { ApiRequestError } from "@/lib/api";
 

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import en from "@/messages/en.json";
-import { renderWithIntl } from "../../../intl-test-utils";
+import { renderWithIntl } from "@/tests/intl-test-utils";
 
 vi.mock("@/lib/auth-context", () => ({ useAuth: () => ({ token: "test-token" }) }));
 const nav = vi.hoisted(() => ({ search: "" }));
