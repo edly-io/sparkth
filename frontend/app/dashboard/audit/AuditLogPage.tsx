@@ -11,8 +11,10 @@ import {
   AUDIT_SOURCES,
   exportAuditEvents,
   fetchAuditCategories,
+  fetchAuditEvent,
   fetchAuditEvents,
   type AuditEventRecord,
+  type AuditEventSummary,
   type AuditExportFormat,
   type AuditFilters,
   type AuditOutcome,
@@ -71,12 +73,14 @@ export default function AuditLogPage() {
   const [form, setForm] = useState<FilterForm>(EMPTY_FORM);
   const [categories, setCategories] = useState<string[]>([]);
   const [filters, setFilters] = useState<AuditFilters>({});
-  const [events, setEvents] = useState<AuditEventRecord[]>([]);
+  const [events, setEvents] = useState<AuditEventSummary[]>([]);
   const [nextBeforeId, setNextBeforeId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<AuditExportFormat | null>(null);
   const [error, setError] = useState("");
   const [expanded, setExpanded] = useState<number | null>(null);
+  const [records, setRecords] = useState<Record<number, AuditEventRecord>>({});
+  const [recordError, setRecordError] = useState<number | null>(null);
   const latestRequest = useRef(0);
 
   useEffect(() => {
@@ -117,6 +121,23 @@ export default function AuditLogPage() {
     e.preventDefault();
     setExpanded(null);
     setFilters(toFilters(form));
+  };
+
+  const toggleDetails = async (eventId: number) => {
+    if (expanded === eventId) {
+      setExpanded(null);
+      return;
+    }
+    setExpanded(eventId);
+    setRecordError(null);
+    if (!token || records[eventId]) return;
+    try {
+      const record = await fetchAuditEvent(token, eventId);
+      setRecords((current) => ({ ...current, [eventId]: record }));
+    } catch (err) {
+      console.error(`Audit event ${eventId} failed to load:`, err);
+      setRecordError(eventId);
+    }
   };
 
   const handleExport = async (exportFormat: AuditExportFormat) => {
@@ -267,7 +288,7 @@ export default function AuditLogPage() {
                               aria-label={
                                 expanded === event.id ? t("hideDetails") : t("showDetails")
                               }
-                              onClick={() => setExpanded(expanded === event.id ? null : event.id)}
+                              onClick={() => toggleDetails(event.id)}
                             >
                               {expanded === event.id ? (
                                 <ChevronDown className="w-4 h-4" />
@@ -303,9 +324,15 @@ export default function AuditLogPage() {
                         {expanded === event.id && (
                           <tr className="border-b border-border bg-surface-variant/30">
                             <td colSpan={7} className="px-4 py-3">
-                              <pre className="overflow-x-auto whitespace-pre-wrap break-all text-xs text-foreground">
-                                {JSON.stringify(details(event), null, 2)}
-                              </pre>
+                              {records[event.id] ? (
+                                <pre className="overflow-x-auto whitespace-pre-wrap break-all text-xs text-foreground">
+                                  {JSON.stringify(details(records[event.id]), null, 2)}
+                                </pre>
+                              ) : recordError === event.id ? (
+                                <p className="text-sm text-error-600">{t("detailsError")}</p>
+                              ) : (
+                                <Spinner size="sm" />
+                              )}
                             </td>
                           </tr>
                         )}

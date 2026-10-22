@@ -24,7 +24,14 @@ from sparkth.lib.log import get_logger
 from sparkth.lib.models import AuditEvent
 from sparkth.services.audit.constants import EXPORT_BATCH_SIZE, FORMULA_PREFIXES
 from sparkth.services.audit.enums import ExportFormat
-from sparkth.services.audit.schemas import AuditEventExportQuery, AuditEventPage, AuditEventQuery, AuditEventRecord
+from sparkth.services.audit.exceptions import AuditEventNotFound
+from sparkth.services.audit.schemas import (
+    AuditEventExportQuery,
+    AuditEventPage,
+    AuditEventQuery,
+    AuditEventRecord,
+    AuditEventSummary,
+)
 
 logger = get_logger(__name__)
 
@@ -59,30 +66,47 @@ def _csv_cell(value: Any) -> Any:
     return value
 
 
-def _render(page: AuditEventPage, export_format: ExportFormat) -> str:
+def _render(records: list[AuditEventRecord], export_format: ExportFormat) -> str:
     if export_format is ExportFormat.JSONL:
-        return "".join(record.model_dump_json() + "\n" for record in page.items)
+        return "".join(record.model_dump_json() + "\n" for record in records)
     buffer = io.StringIO()
     writer = csv.writer(buffer)
-    for record in page.items:
+    for record in records:
         writer.writerow(_csv_cell(value) for value in record.model_dump(mode="json").values())
     return buffer.getvalue()
+
+
+async def _read_rows(
+    session: AsyncSession, query: AuditEventQuery, *, limit: int, before_id: int | None
+) -> tuple[list[AuditEvent], int | None]:
+    """Return up to ``limit`` rows older than ``before_id``, newest id first, and the next cursor."""
+    statement = _select(query)
+    if before_id is not None:
+        statement = statement.where(col(AuditEvent.id) < before_id)
+    rows = list((await session.exec(statement.order_by(col(AuditEvent.id).desc()).limit(limit + 1))).all())
+    page = rows[:limit]
+    return page, page[-1].id if len(rows) > limit else None
 
 
 async def list_events(
     session: AsyncSession, query: AuditEventQuery, *, limit: int, before_id: int | None = None
 ) -> AuditEventPage:
-    """Return up to ``limit`` events matching ``query``, most recently recorded first.
+    """Return up to ``limit`` event summaries matching ``query``, most recently recorded first.
 
     Orders and pages by row id (keyset) rather than offset, so a page stays stable while
-    new events are appended. ``next_before_id`` is ``None`` on the last page.
+    new events are appended. ``next_before_id`` is ``None`` on the last page. Read one
+    event in full with :func:`get_event`.
     """
-    statement = _select(query)
-    if before_id is not None:
-        statement = statement.where(col(AuditEvent.id) < before_id)
-    rows = (await session.exec(statement.order_by(col(AuditEvent.id).desc()).limit(limit + 1))).all()
-    items = [AuditEventRecord.model_validate(row) for row in rows[:limit]]
-    return AuditEventPage(items=items, next_before_id=items[-1].id if len(rows) > limit else None)
+    rows, next_before_id = await _read_rows(session, query, limit=limit, before_id=before_id)
+    return AuditEventPage(items=[AuditEventSummary.model_validate(row) for row in rows], next_before_id=next_before_id)
+
+
+async def get_event(session: AsyncSession, event_id: int) -> AuditEventRecord:
+    """Return the event with ``event_id`` in full; raise ``AuditEventNotFound`` if there is none."""
+    row = await session.get(AuditEvent, event_id)
+    if row is None:
+        raise AuditEventNotFound(f"Audit event {event_id} not found")
+    return AuditEventRecord.model_validate(row)
 
 
 def list_categories() -> list[str]:
@@ -130,12 +154,13 @@ async def export_lines(actor: UserActor, query: AuditEventExportQuery) -> AsyncI
     while True:
         try:
             async with session_scope() as session:
-                page = await list_events(session, query, limit=EXPORT_BATCH_SIZE, before_id=before_id)
+                rows, next_before_id = await _read_rows(session, query, limit=EXPORT_BATCH_SIZE, before_id=before_id)
+                records = [AuditEventRecord.model_validate(row) for row in rows]
         except SQLAlchemyError as exc:
             logger.exception("Audit export by user %s failed before id %s", actor.id, before_id)
             await record_event_now(_export_event(actor, query, AuditOutcome.FAILURE, scrub_error_detail(exc)))
             raise
-        yield _render(page, query.export_format)
-        if page.next_before_id is None:
+        yield _render(records, query.export_format)
+        if next_before_id is None:
             return
-        before_id = page.next_before_id
+        before_id = next_before_id

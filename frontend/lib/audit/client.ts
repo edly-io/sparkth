@@ -1,6 +1,7 @@
 import { api, bearer, call } from "@/lib/api";
 import type {
   AuditEventPage,
+  AuditEventRecord,
   AuditExport,
   AuditExportFormat,
   AuditFilters,
@@ -18,7 +19,7 @@ function attachmentFilename(response: Response): string | null {
   return /filename="([^"]+)"/.exec(disposition)?.[1] ?? null;
 }
 
-/** One page of audit events, newest first; pass `next_before_id` back as `beforeId` for the next. */
+/** One page of audit event summaries, most recently recorded first; pass `next_before_id` back as `beforeId` for the next. */
 export async function fetchAuditEvents(
   token: string,
   filters: AuditFilters,
@@ -27,6 +28,16 @@ export async function fetchAuditEvents(
   return call<AuditEventPage>(() =>
     api.GET("/api/v1/audit/events", {
       params: { query: { ...activeFilters(filters), before_id: beforeId } },
+      headers: bearer(token),
+    }),
+  );
+}
+
+/** One audit event in full (request metadata, changed values, tool and model details). */
+export async function fetchAuditEvent(token: string, eventId: number): Promise<AuditEventRecord> {
+  return call<AuditEventRecord>(() =>
+    api.GET("/api/v1/audit/events/{event_id}", {
+      params: { path: { event_id: eventId } },
       headers: bearer(token),
     }),
   );

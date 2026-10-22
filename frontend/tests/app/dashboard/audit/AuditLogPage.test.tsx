@@ -9,6 +9,7 @@ const checkPermission = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/permissions/client", () => ({ checkPermission }));
 const audit = vi.hoisted(() => ({
   fetchAuditEvents: vi.fn(),
+  fetchAuditEvent: vi.fn(),
   fetchAuditCategories: vi.fn(),
   exportAuditEvents: vi.fn(),
 }));
@@ -31,13 +32,20 @@ function event(id: number, overrides: Record<string, unknown> = {}) {
     actor_type: "user",
     actor_id: "7",
     actor_label: "alice",
+    outcome: "success",
+    target_type: null,
+    target_id: null,
+    ...overrides,
+  };
+}
+
+function record(id: number, overrides: Record<string, unknown> = {}) {
+  return {
+    ...event(id),
     request_ip: "10.0.0.1",
     user_agent: null,
     request_id: null,
-    outcome: "success",
     error_detail: null,
-    target_type: null,
-    target_id: null,
     old_values: null,
     new_values: { value: "@example.com" },
     tool_name: null,
@@ -107,9 +115,32 @@ describe("AuditLogPage", () => {
         undefined,
       ),
     );
+  });
+
+  it("fetches a row's full details when it is expanded", async () => {
+    audit.fetchAuditEvents.mockResolvedValue({ items: [event(2)], next_before_id: null });
+    audit.fetchAuditEvent.mockResolvedValue(record(2));
+    renderWithIntl(<AuditLogPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Show details" }));
-    expect(screen.getByText(/@example\.com/)).toBeInTheDocument();
+
+    expect(await screen.findByText(/@example\.com/)).toBeInTheDocument();
+    expect(audit.fetchAuditEvent).toHaveBeenCalledWith("test-token", 2);
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide details" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show details" }));
+    expect(await screen.findByText(/@example\.com/)).toBeInTheDocument();
+    expect(audit.fetchAuditEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it("says so when a row's details fail to load", async () => {
+    audit.fetchAuditEvents.mockResolvedValue({ items: [event(2)], next_before_id: null });
+    audit.fetchAuditEvent.mockRejectedValue(new Error("boom"));
+    renderWithIntl(<AuditLogPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Show details" }));
+
+    expect(await screen.findByText("We couldn't load this event's details.")).toBeInTheDocument();
   });
 
   it("loads older events with the cursor", async () => {
