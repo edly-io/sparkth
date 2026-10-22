@@ -30,7 +30,7 @@ from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 from fastmcp.tools import Tool, ToolResult
 from sqlalchemy.exc import DatabaseError, OperationalError
 
-from sparkth.core.plugins.service import system_disabled_plugin_names
+from sparkth.core.plugins.service import disabled_plugin_names
 from sparkth.lib.db import session_scope
 from sparkth.lib.log import get_logger
 
@@ -71,7 +71,8 @@ async def disabled_plugins() -> set[str]:
         OperationalError: If the database could not be reached.
     """
     async with session_scope() as session:
-        return await system_disabled_plugin_names(session)
+        # No user, so only the system-wide switch applies.
+        return await disabled_plugin_names(None, session)
 
 
 class PluginToolAccessMiddleware(Middleware):

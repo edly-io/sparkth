@@ -187,6 +187,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/password-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Password Reset Email
+         * @description Email a password reset link to the account with this address, if it has a password.
+         *
+         *     Always answers 202, whether or not an account exists, so the endpoint cannot be
+         *     used to discover registered emails. A second request for the same email within
+         *     the cooldown is a 429.
+         */
+        post: operations["request_password_reset_email_api_v1_auth_password_reset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password-reset/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Password Reset
+         * @description Set a new password with a reset link's token. An invalid, used or expired link is a 400.
+         */
+        post: operations["confirm_password_reset_api_v1_auth_password_reset_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/register": {
         parameters: {
             query?: never;
@@ -1076,6 +1120,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/pxc/activities/{activity_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Owned Activity
+         * @description Delete one of this user's activities: its row, failure rows, files and learner data.
+         *
+         *     Deletes the row and its ``pxc.activity_deleted`` audit event in one commit, then removes the
+         *     files. A file that cannot be removed is logged and left behind.
+         *
+         *     Raises:
+         *         PxcActivityNotFound: if the activity does not exist or another user owns it.
+         *         SQLAlchemyError: if the delete or its audit record cannot be committed; nothing is removed.
+         */
+        delete: operations["delete_owned_activity_api_v1_pxc_activities__activity_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/pxc/activities/{activity_id}/launch": {
         parameters: {
             query?: never;
@@ -1561,7 +1632,7 @@ export interface components {
         };
         /**
          * ActivitySummary
-         * @description One of an author's activities, as the Activities page lists it.
+         * @description One of an author's activities, as the Activities page lists it, and whether it was placed in a course.
          */
         ActivitySummary: {
             /**
@@ -1576,6 +1647,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Placed */
+            placed: boolean;
             /** Preview Url */
             preview_url: string;
             /** Title */
@@ -1795,7 +1868,7 @@ export interface components {
             tool_choice: string | null;
             /**
              * Tools
-             * @description Automatically includes all tools. Use 'none' or empty list to disable.
+             * @description Includes every tool of the plugins switched on for the requesting user. Use 'none' or empty list to disable.
              * @default *
              */
             tools: string[] | string | null;
@@ -2383,6 +2456,30 @@ export interface components {
             current_password: string;
             /** New Password */
             new_password: string;
+        };
+        /**
+         * PasswordResetConfirm
+         * @description Body of ``POST /auth/password-reset/confirm``.
+         *
+         *     ``new_password`` must meet the same complexity rules as registration, so a weak
+         *     one is a 422 before the link is checked, and the link stays usable.
+         */
+        PasswordResetConfirm: {
+            /** New Password */
+            new_password: string;
+            /** Token */
+            token: string;
+        };
+        /**
+         * PasswordResetRequest
+         * @description Body of ``POST /auth/password-reset``: the email to send a reset link to.
+         */
+        PasswordResetRequest: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
         };
         /** PermissionCheckResponse */
         PermissionCheckResponse: {
@@ -3018,6 +3115,72 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Token"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    request_password_reset_email_api_v1_auth_password_reset_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_password_reset_api_v1_auth_password_reset_confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetConfirm"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -4772,6 +4935,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ActivitySummary"][];
+                };
+            };
+        };
+    };
+    delete_owned_activity_api_v1_pxc_activities__activity_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                activity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

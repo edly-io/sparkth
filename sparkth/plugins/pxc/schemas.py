@@ -67,13 +67,14 @@ class ActivityConfig(BaseModel):
 
 
 class ActivitySummary(BaseModel):
-    """One of an author's activities, as the Activities page lists it."""
+    """One of an author's activities, as the Activities page lists it, and whether it was placed in a course."""
 
     id: UUID
     title: str
     description: str
     created_at: datetime
     preview_url: str
+    placed: bool
 
 
 class ActivityLaunch(BaseModel):

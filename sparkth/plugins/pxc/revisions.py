@@ -24,7 +24,13 @@ from uuid import UUID
 from uuid6 import uuid7
 
 from sparkth.lib.log import get_logger
-from sparkth.plugins.pxc.activities import activity_dir, generated_activity_dir, parse_activity_id
+from sparkth.plugins.pxc.activities import (
+    activity_dir,
+    generated_activity_dir,
+    parse_activity_id,
+    state_file_path,
+    storage_dir,
+)
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound
 
@@ -120,16 +126,34 @@ def _is_revision(entry: Path) -> bool:
     return True
 
 
-def remove_activity_files(activity_id: str) -> None:
-    """Remove a generated activity's link and every revision of it.
+def _remove_path(path: Path) -> None:
+    """Remove a real directory with its contents, or any other entry, a symlink included. A missing path is skipped."""
+    if path.is_dir() and not path.is_symlink():
+        shutil.rmtree(path)
+    else:
+        path.unlink(missing_ok=True)
 
-    A failure is logged as a warning and the files it could not remove are left in place. It is
-    not raised, so the caller's own error still propagates.
+
+def remove_activity_files(activity_id: UUID) -> None:
+    """Remove everything a generated activity keeps on disk.
+
+    That is the link (or a plain directory where it belongs), every revision, the learner state
+    file with its ``-wal`` and ``-shm`` sidecars, and the learner file storage. The build's failure
+    path and the activity's deletion both call it. It builds the paths itself, so it works whether
+    or not the link still exists. Each path is removed on its own: a missing one is skipped, and a
+    failure is logged as a warning naming the path and does not stop the rest. Nothing is raised,
+    so the caller's own error still propagates.
     """
-    revisions = revisions_dir(activity_id)
-    try:
-        generated_activity_dir(activity_id).unlink(missing_ok=True)
-        if revisions.exists():
-            shutil.rmtree(revisions)
-    except OSError as err:
-        logger.warning("Could not remove the files of PXC activity %s: %s", activity_id, err)
+    name = str(activity_id)
+    state = state_file_path(name)
+    paths = [
+        generated_activity_dir(name),
+        revisions_dir(name),
+        storage_dir(name),
+        *(state.with_name(state.name + suffix) for suffix in ("", "-wal", "-shm")),
+    ]
+    for path in paths:
+        try:
+            _remove_path(path)
+        except OSError as err:
+            logger.warning("Could not remove %s of PXC activity %s: %s", path, name, err)

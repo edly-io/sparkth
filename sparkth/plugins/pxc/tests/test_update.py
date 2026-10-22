@@ -140,7 +140,7 @@ async def test_an_activity_whose_files_are_gone_cannot_be_updated(
     draft: PxcActivity, owner_id: int, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr("sparkth.plugins.pxc.builder.stage_activity", _failing_stage)
-    remove_activity_files(str(draft.id))
+    remove_activity_files(draft.id)
 
     with pytest.raises(PxcActivityNotFound):
         await update_activity(draft.id, _source({"question": QUESTION}), owner_id)
