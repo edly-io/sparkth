@@ -34,7 +34,7 @@ async def build_lms_credentials_message(
     - If credentials are configured: includes them so the LLM uses them
       automatically without asking the user.
     - If credentials are missing: returns the rules block directing the LLM
-      to send the user to the 'My Plugins' page instead of asking in chat.
+      to send the user to the 'Settings' page instead of asking in chat.
 
     Adding support for a new LMS requires only implementing
     ``lms_tool_prefix()`` and ``to_lms_credentials_hint()`` on its

@@ -201,11 +201,11 @@ export default function AppSidebar({
                       : "text-foreground hover:bg-surface-variant"
                   }
                 `}
-                title={isCollapsed ? "My Plugins" : undefined}
+                title={isCollapsed ? "Settings" : undefined}
               >
                 <Puzzle className="w-5 h-5 flex-shrink-0" />
                 {!(isCollapsed && variant === "desktop") && (
-                  <span className="font-medium">My Plugins</span>
+                  <span className="font-medium">Settings</span>
                 )}
               </Link>
             </div>

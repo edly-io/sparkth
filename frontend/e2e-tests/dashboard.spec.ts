@@ -14,7 +14,7 @@ test.describe("dashboard", () => {
   test("navigates to plugin settings", async ({ page }) => {
     await page.goto("/dashboard");
     await page.goto("/dashboard/settings");
-    await expect(page.getByRole("heading", { name: /my plugins/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
   });
 
   test("redirects to login when the token is cleared", async ({ page }) => {
