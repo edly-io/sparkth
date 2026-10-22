@@ -154,15 +154,44 @@
     "password": {
       "heading": "Password",
       "current": "Current password",
-      "new": "New password",
-      "confirm": "Confirm new password",
-      "hint": "At least 8 characters, with an uppercase letter, a number and a special character.",
-      "mismatch": "The new passwords don't match.",
       "submit": "Change password",
       "submitting": "Changing",
       "changed": "Your password has been changed.",
       "error": "We couldn't change your password. Please try again.",
       "sso": "You sign in with Google, so there is no Sparkth password to change."
+    }
+  },
+  "newPassword": {
+    "label": "New password",
+    "confirm": "Confirm new password",
+    "hint": "At least 8 characters, with an uppercase letter, a number and a special character.",
+    "mismatch": "The new passwords don't match."
+  },
+  "passwordReset": {
+    "forgot": {
+      "title": "Forgot your password?",
+      "subtitle": "Enter the email for your account and we'll send you a link to reset your password.",
+      "email": "Email",
+      "submit": "Send reset link",
+      "submitting": "Sending",
+      "sentTitle": "Check your email",
+      "sent": "If an account with a password uses {email}, we have sent it a link to reset the password.",
+      "rateLimited": "A reset link was just sent. Please wait a minute before asking again.",
+      "error": "We couldn't send the reset link. Please try again.",
+      "back": "Back to sign in"
+    },
+    "reset": {
+      "title": "Choose a new password",
+      "subtitle": "Enter your new password twice.",
+      "submit": "Reset password",
+      "submitting": "Resetting",
+      "doneTitle": "Password reset",
+      "done": "Your password has been changed. You can now sign in with it.",
+      "signIn": "Go to sign in",
+      "invalidTitle": "This link can't be used",
+      "missingToken": "This password reset link is incomplete.",
+      "requestNew": "Request a new link",
+      "error": "We couldn't reset your password. Please try again."
     }
   }
 }

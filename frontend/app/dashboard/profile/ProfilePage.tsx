@@ -9,6 +9,11 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Spinner } from "@/components/Spinner";
+import {
+  emptyNewPassword,
+  NewPasswordFields,
+  useNewPasswordMismatch,
+} from "@/components/NewPasswordFields";
 
 /** Mirrors the backend's `user.name` limit. */
 const NAME_MAX_LENGTH = 30;
@@ -137,7 +142,7 @@ function NameForm({ name }: { name: string }) {
   );
 }
 
-const emptyPasswords = { current: "", next: "", confirm: "" };
+const emptyPasswords = { current: "", ...emptyNewPassword };
 
 function PasswordSection({ hasPassword }: { hasPassword: boolean }) {
   const t = useTranslations("profile.password");
@@ -156,9 +161,10 @@ function PasswordForm() {
   const [errors, setErrors] = useState<Partial<typeof emptyPasswords> & { form?: string }>({});
   const [submitting, setSubmitting] = useState(false);
   const [changed, setChanged] = useState(false);
+  const mismatch = useNewPasswordMismatch();
 
-  const update = (field: keyof typeof emptyPasswords) => (e: { target: { value: string } }) => {
-    setValues((v) => ({ ...v, [field]: e.target.value }));
+  const update = (field: keyof typeof emptyPasswords, value: string) => {
+    setValues((v) => ({ ...v, [field]: value }));
     setChanged(false);
     setErrors((prev) => ({ ...prev, [field]: undefined, form: undefined }));
   };
@@ -167,8 +173,9 @@ function PasswordForm() {
     e.preventDefault();
     if (!token) return;
     setChanged(false);
-    if (values.next !== values.confirm) {
-      setErrors({ confirm: t("mismatch") });
+    const mismatchError = mismatch(values);
+    if (mismatchError) {
+      setErrors({ confirm: mismatchError });
       return;
     }
     setSubmitting(true);
@@ -207,28 +214,10 @@ function PasswordForm() {
         autoComplete="current-password"
         label={t("current")}
         value={values.current}
-        onChange={update("current")}
+        onChange={(e) => update("current", e.target.value)}
         error={errors.current}
       />
-      <Input
-        name="new_password"
-        type="password"
-        autoComplete="new-password"
-        label={t("new")}
-        value={values.next}
-        onChange={update("next")}
-        error={errors.next}
-        helperText={t("hint")}
-      />
-      <Input
-        name="confirm_password"
-        type="password"
-        autoComplete="new-password"
-        label={t("confirm")}
-        value={values.confirm}
-        onChange={update("confirm")}
-        error={errors.confirm}
-      />
+      <NewPasswordFields values={values} errors={errors} onChange={update} />
       <Button type="submit" loading={submitting} disabled={!filled} spinnerLabel={t("submitting")}>
         {t("submit")}
       </Button>
