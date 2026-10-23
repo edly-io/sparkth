@@ -22,7 +22,7 @@ import { resolvePluginIcon } from "@/lib/plugins/icons";
 import { GATED_NAV, NavItem } from "@/components/NavItem";
 import Image from "next/image";
 import { Spinner } from "@/components/Spinner";
-import { SparkthLogo } from "./SparkthLogo";
+import { SparkthLogo } from "@/components/SparkthLogo";
 import { Button } from "@/core/components/ui/Button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/core/components/ui/Tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/Popover";

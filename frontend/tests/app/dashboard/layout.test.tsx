@@ -21,7 +21,7 @@ vi.mock("@/lib/plugins/context", () => ({
   PluginProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 vi.mock("@/components/MobileSidebar", () => ({ default: () => null }));
-vi.mock("@/components/AppSidebar", () => ({
+vi.mock("@/core/components/layout/AppSidebar", () => ({
   default: ({ navPermissions }: { navPermissions?: Record<string, boolean> }) => (
     <div data-testid="nav-permissions">{JSON.stringify(navPermissions ?? null)}</div>
   ),
