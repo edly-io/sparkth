@@ -57,5 +57,6 @@ example to create the course in your LMS, the reply shows how many tool calls it
 
 ## Your conversations
 
-Every conversation is saved and listed in the sidebar under **Create Course**, with a title
-written for you. Open one to pick up where you left off.
+Every conversation is saved, with a title written for you, and listed under **Recent chats**
+beside **Compose**. You can collapse the list to a thin strip; on a phone, open it with the
+history button at the top of the chat. Open a conversation to pick up where you left off.

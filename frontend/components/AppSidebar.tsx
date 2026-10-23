@@ -26,7 +26,6 @@ import { SparkthLogo } from "./SparkthLogo";
 import { Button } from "@/core/components/ui/Button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/core/components/ui/Tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/Popover";
-import { ChatHistorySection } from "../plugins/chat/components/ChatHistorySection";
 
 interface AppSidebarProps {
   user?: {
@@ -58,8 +57,6 @@ export default function AppSidebar({
   const { userPlugins, loading } = usePluginContext();
   const sidebarItems = sidebarItemsFrom(userPlugins);
 
-  const isOnChatPlugin =
-    pathname === `${basePath}/chat` || pathname?.startsWith(`${basePath}/chat/`);
   const isCollapsedDesktop = isCollapsed && variant === "desktop";
 
   const isActiveRoute = (pluginName: string) => {
@@ -257,13 +254,6 @@ export default function AppSidebar({
           </>
         )}
       </div>
-
-      {isOnChatPlugin && (
-        <ChatHistorySection
-          isCollapsed={isCollapsed && variant === "desktop"}
-          onNavigate={onNavigate}
-        />
-      )}
 
       {/* User menu */}
       <div
