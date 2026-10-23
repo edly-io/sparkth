@@ -10,6 +10,9 @@ from sparkth.plugins.pxc.schemas import TrialStep
 from sparkth.plugins.pxc.tests.conftest import CASE_STUDY_MANIFEST, CASE_STUDY_SANDBOX_JS, compiled_activity
 from sparkth.plugins.pxc.trial import run_trial
 
+# Builds here repeat the same sources, so a source compiles once per session.
+pytestmark = pytest.mark.usefixtures("reused_compiles")
+
 SUBMIT = TrialStep(action="answer.submit", value=[1], permission=PreviewPermission.PLAY)
 
 
