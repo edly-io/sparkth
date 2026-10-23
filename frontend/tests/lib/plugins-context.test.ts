@@ -4,7 +4,7 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 
 import { PluginProvider, usePluginContext } from "@/lib/plugins/context";
 
-vi.mock("@/lib/auth-tokens", () => ({
+vi.mock("@/core/auth/tokens", () => ({
   getStoredToken: vi.fn().mockReturnValue(null),
 }));
 

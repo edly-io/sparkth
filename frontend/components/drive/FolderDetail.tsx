@@ -5,7 +5,7 @@ import { useRagStatusPolling } from "@/lib/useRagStatusPolling";
 import { Folder, FileText, RefreshCw, Upload } from "lucide-react";
 import { FileTable } from "./FileTable";
 import { Spinner } from "@/components/Spinner";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/core/auth/hooks";
 import { downloadBlob } from "@/lib/download";
 import { Button } from "@/core/components/ui/Button";
 import {

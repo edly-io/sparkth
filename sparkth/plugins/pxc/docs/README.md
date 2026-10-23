@@ -282,7 +282,7 @@ have, so any real fix has to change where the socket's authorization comes from.
 An activity's `ui.js` is third-party code. `pxc.js`'s `_loadScript` loads it with
 `await import(url)` into the embed document, so it runs in the same JavaScript realm as the
 embed shell; a closed shadow root isolates markup, not script. The embed therefore must not run
-on Sparkth's origin, where `frontend/lib/auth-tokens.ts` keeps the signed-in user's bearer token
+on Sparkth's origin, where `frontend/core/auth/tokens.ts` keeps the signed-in user's bearer token
 in `localStorage`.
 
 Two independent layers force an opaque origin:

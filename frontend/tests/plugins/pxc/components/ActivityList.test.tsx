@@ -7,7 +7,7 @@ import { deleteActivity, listActivities } from "@/plugins/pxc/client";
 import pxcEn from "@/plugins/pxc/messages/en.json";
 import { renderWithIntl } from "@/tests/intl-test-utils";
 
-vi.mock("@/lib/auth-context", () => ({
+vi.mock("@/lib/auth/hooks", () => ({
   useAuth: () => ({ token: "test-token" }),
 }));
 

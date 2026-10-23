@@ -17,7 +17,7 @@ import {
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Switch } from "@/components/ui/Switch";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/core/auth/hooks";
 import { validateLLMConfigName } from "@/lib/llm-validation";
 import {
   createLLMConfig,

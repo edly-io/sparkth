@@ -3,7 +3,7 @@
 import { Suspense } from "react";
 import { ChartColumn } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/core/auth/hooks";
 import { usePermissionCheck } from "@/lib/permissions";
 import { Forbidden } from "@/components/Forbidden";
 import { Spinner } from "@/components/Spinner";

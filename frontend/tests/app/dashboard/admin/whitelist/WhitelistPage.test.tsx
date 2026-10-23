@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 
 const auth = vi.hoisted(() => ({ token: "test-token" }));
-vi.mock("@/lib/auth-context", () => ({
+vi.mock("@/core/auth/hooks", () => ({
   useAuth: () => ({ token: auth.token, user: { name: "A" } }),
 }));
 vi.mock("@/lib/permissions/client", () => ({ checkPermission: vi.fn() }));

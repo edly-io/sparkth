@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Folder, RefreshCw, Trash2 } from "lucide-react";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/core/auth/hooks";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/core/components/ui/Button";
 import { DriveFolder, removeFolder, refreshFolder, formatDate } from "@/lib/drive";

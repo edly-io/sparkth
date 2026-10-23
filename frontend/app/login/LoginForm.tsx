@@ -10,7 +10,7 @@ import {
   resendVerificationEmail,
   ApiRequestError,
 } from "@/lib/api";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/core/auth/hooks";
 import { SparkthLogo } from "@/components/SparkthLogo";
 import { Button } from "@/core/components/ui/Button";
 import { Input } from "@/components/ui/Input";

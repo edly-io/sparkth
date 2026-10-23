@@ -7,7 +7,7 @@ import { UploadMenu } from "./UploadMenu";
 import { TextAttachment } from "../../types";
 import { PersistedFilesInfo } from "../attachment/PersistedFilesInfo";
 import { Button } from "@/lib/components/ui/Button";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/lib/auth/hooks";
 import { useIsPluginEnabled } from "@/lib/plugins/usePlugins";
 import DriveFilePicker from "@/components/drive/DriveFilePicker";
 import { useChatInput } from "../../hooks/useChatInput";

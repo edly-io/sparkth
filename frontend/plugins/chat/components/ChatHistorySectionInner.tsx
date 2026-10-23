@@ -3,7 +3,7 @@
 import { MessageSquare, Plus } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
 import Link from "next/link";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/lib/auth/hooks";
 import { Button } from "@/lib/components/ui/Button";
 import { Alert } from "@/components/ui/Alert";
 import { useConversations } from "../hooks/useConversations";

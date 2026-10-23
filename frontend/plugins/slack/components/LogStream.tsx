@@ -3,7 +3,7 @@
 import { useEffect, useReducer, useRef, useCallback } from "react";
 import { RefreshCw, Plug } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/lib/auth/hooks";
 import {
   fetchLogs,
   type BotResponseLogItem,

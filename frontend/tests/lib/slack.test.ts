@@ -8,7 +8,7 @@ import {
   getConnectionStatus,
 } from "@/lib/slack";
 
-vi.mock("@/lib/auth-tokens", () => ({
+vi.mock("@/core/auth/tokens", () => ({
   getStoredToken: vi.fn().mockReturnValue(null),
 }));
 

@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useRef, useState, type SubmitEvent } from "react";
 import { ChevronDown, ChevronRight, Download, ScrollText } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/core/auth/hooks";
 import { usePermissionCheck } from "@/lib/permissions";
 import { ApiRequestError } from "@/lib/api";
 import {

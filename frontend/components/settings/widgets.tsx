@@ -23,7 +23,7 @@ import { Select } from "@/components/ui/Select";
 import { Switch } from "@/components/ui/Switch";
 import { Label } from "@/components/ui/Label";
 import { LLMConfigSelect } from "@/components/LLMConfigSelect";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/core/auth/hooks";
 import {
   fetchLLMConfigs,
   fetchProviderCatalog,

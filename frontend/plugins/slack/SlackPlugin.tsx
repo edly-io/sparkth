@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Alert } from "@/components/ui/Alert";
 import { Spinner } from "@/components/Spinner";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/lib/auth/hooks";
 import { getConnectionStatus, type ConnectionStatus } from "@/lib/slack";
 import SlackConnectionCard from "./components/SlackConnectionCard";
 import LogStream from "./components/LogStream";

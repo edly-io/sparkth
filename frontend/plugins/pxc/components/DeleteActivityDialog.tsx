@@ -14,7 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/Dialog";
 import { ApiRequestError } from "@/lib/api";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/lib/auth/hooks";
 import { deleteActivity, type ActivitySummary } from "@/plugins/pxc/client";
 
 /**

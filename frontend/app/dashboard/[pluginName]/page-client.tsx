@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, redirect } from "next/navigation";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/core/auth/hooks";
 import { Spinner } from "@/components/Spinner";
 import { usePlugin, usePluginContext } from "@/lib/plugins/context";
 import { displayNameOf, getPlugin } from "@/lib/plugins";
