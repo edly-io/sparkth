@@ -2,7 +2,7 @@ import { afterEach, describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import AppSidebar from "@/components/AppSidebar";
+import AppSidebar from "@/core/components/layout/AppSidebar";
 
 const nav = vi.hoisted(() => ({ pathname: "/dashboard" }));
 
