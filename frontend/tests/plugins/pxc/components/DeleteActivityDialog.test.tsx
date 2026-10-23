@@ -80,16 +80,16 @@ describe("DeleteActivityDialog", () => {
     expect(onDeleted).toHaveBeenCalledWith(ACTIVITY.id);
   });
 
-  it("keeps the dialog open with an error when the delete fails", async () => {
+  it("keeps the dialog open with the server's reason when the delete fails", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(deleteActivity).mockRejectedValue(
-      new ApiRequestError({ message: "boom", fieldErrors: {} }, 500),
+      new ApiRequestError({ message: "Permission denied", fieldErrors: {} }, 403),
     );
     const { onDeleted } = renderDialog();
 
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
 
-    expect(await screen.findByText("Could not delete the activity.")).toBeInTheDocument();
+    expect(await screen.findByText("Permission denied")).toBeInTheDocument();
     expect(onDeleted).not.toHaveBeenCalled();
   });
 

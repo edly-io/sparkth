@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
 
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { ApiRequestError } from "@/lib/api";
 
 function renderDialog(onConfirm: () => Promise<void>) {
   const onClose = vi.fn();
@@ -49,6 +50,21 @@ describe("ConfirmDialog", () => {
     expect(await screen.findByText("Could not remove the entry.")).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
     expect(logged).toHaveBeenCalledWith("ConfirmDialog: action failed", failure);
+  });
+
+  it("shows the server's reason when the action fails with an API error", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    renderDialog(
+      vi
+        .fn()
+        .mockRejectedValue(
+          new ApiRequestError({ message: "Permission denied", fieldErrors: {} }, 403),
+        ),
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove" }));
+
+    expect(await screen.findByText("Permission denied")).toBeInTheDocument();
   });
 
   it("cannot be dismissed while the action runs", async () => {

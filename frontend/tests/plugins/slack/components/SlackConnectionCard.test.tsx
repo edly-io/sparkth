@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+import { ApiRequestError } from "@/lib/api";
 import { disconnectSlack } from "@/lib/slack";
 import SlackConnectionCard from "@/plugins/slack/components/SlackConnectionCard";
 
@@ -46,13 +47,15 @@ describe("SlackConnectionCard disconnect", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("keeps the dialog open with an error when disconnecting fails", async () => {
+  it("keeps the dialog open with the reason when disconnecting fails", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.mocked(disconnectSlack).mockRejectedValue(new Error("boom"));
+    vi.mocked(disconnectSlack).mockRejectedValue(
+      new ApiRequestError({ message: "Slack workspace not connected", fieldErrors: {} }, 404),
+    );
 
     const { onStatusChange } = await confirmDisconnect();
 
-    expect(await screen.findByText("Failed to disconnect Slack.")).toBeInTheDocument();
+    expect(await screen.findByText("Slack workspace not connected")).toBeInTheDocument();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(onStatusChange).not.toHaveBeenCalled();
   });

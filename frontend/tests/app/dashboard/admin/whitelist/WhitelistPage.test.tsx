@@ -14,7 +14,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
 });
 
 import { checkPermission } from "@/lib/permissions/client";
-import { getWhitelist, removeWhitelistEntry } from "@/lib/api";
+import { ApiRequestError, getWhitelist, removeWhitelistEntry } from "@/lib/api";
 import { redirect } from "next/navigation";
 import WhitelistPage from "@/app/dashboard/admin/whitelist/WhitelistPage";
 
@@ -106,5 +106,16 @@ describe("WhitelistPage removal", () => {
 
     expect(await screen.findByText("Failed to remove the entry.")).toBeInTheDocument();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("shows the backend's reason when removal is rejected", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(removeWhitelistEntry).mockRejectedValue(
+      new ApiRequestError({ message: "Whitelist entry not found", fieldErrors: {} }, 404),
+    );
+
+    await confirmRemoval();
+
+    expect(await screen.findByText("Whitelist entry not found")).toBeInTheDocument();
   });
 });

@@ -12,13 +12,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/Dialog";
+import { ApiRequestError } from "@/lib/api";
 
 /**
  * A dialog that asks before running an action, such as a delete.
  *
  * While `onConfirm` runs, both buttons are disabled and the dialog cannot be dismissed. If it
- * rejects, the error is logged and the dialog stays open showing `errorMessage`. On success the
- * caller closes the dialog, usually by unmounting it.
+ * rejects, the error is logged and the dialog stays open showing the message of an
+ * `ApiRequestError`, or `errorMessage` for any other error. On success the caller closes the
+ * dialog, usually by unmounting it.
  */
 export function ConfirmDialog({
   title,
@@ -40,16 +42,16 @@ export function ConfirmDialog({
   onClose: () => void;
 }): React.JSX.Element {
   const [loading, setLoading] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [shownError, setShownError] = useState<string | null>(null);
 
   async function handleConfirm() {
     setLoading(true);
-    setFailed(false);
+    setShownError(null);
     try {
       await onConfirm();
     } catch (error) {
       console.error("ConfirmDialog: action failed", error);
-      setFailed(true);
+      setShownError(error instanceof ApiRequestError ? error.message : errorMessage);
     } finally {
       setLoading(false);
     }
@@ -63,7 +65,7 @@ export function ConfirmDialog({
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
-        {failed && <Alert severity="error">{errorMessage}</Alert>}
+        {shownError && <Alert severity="error">{shownError}</Alert>}
 
         <DialogFooter className="gap-2">
           <Button variant="outline" size="sm" onClick={onClose} disabled={loading}>
