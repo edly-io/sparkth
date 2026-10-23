@@ -356,23 +356,25 @@ async def slack_events(
     service: WorkspaceService = Depends(get_workspace_service),
     session: AsyncSession = Depends(get_async_session),
 ) -> dict[str, str]:
-    """Receive Slack Events API payloads. Returns 200 immediately."""
+    """Receive Slack Events API payloads.
+
+    Returns 403 unless the request signature verifies against `SLACK_SIGNING_SECRET`, and
+    returns 403 for every request while that secret is unset. Once a payload is accepted,
+    returns 200 immediately.
+    """
     raw_body = await request.body()
     timestamp = request.headers.get("X-Slack-Request-Timestamp", "")
     slack_sig = request.headers.get("X-Slack-Signature", "")
 
     system_cfg = get_slack_settings()
-    if system_cfg.signing_secret:
-        try:
-            SlackClient.verify_signature(system_cfg.signing_secret, timestamp, raw_body, slack_sig)
-        except SlackSignatureError as exc:
-            logger.warning("Slack signature verification failed: %s", exc)
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Slack signature verification failed.",  # i18n-exempt: webhook response to Slack
-            ) from exc
-    else:
-        logger.warning("SLACK_SIGNING_SECRET is empty — skipping signature verification")
+    try:
+        SlackClient.verify_signature(system_cfg.signing_secret, timestamp, raw_body, slack_sig)
+    except SlackSignatureError as exc:
+        logger.warning("Slack signature verification failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Slack signature verification failed.",  # i18n-exempt: webhook response to Slack
+        ) from exc
 
     try:
         payload: dict[str, Any] = _json.loads(raw_body)
