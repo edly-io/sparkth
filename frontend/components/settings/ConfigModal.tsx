@@ -98,7 +98,7 @@ export function PluginConfigModal({
       onRefresh();
       onOpenChange(false);
     } catch (err) {
-      setSubmitError(t("saveError"));
+      setSubmitError(err instanceof Error && err.message ? err.message : t("saveError"));
       console.error(String(err));
     } finally {
       setIsSaving(false);
