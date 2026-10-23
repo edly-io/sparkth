@@ -11,7 +11,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/Dialog";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/lib/auth/hooks";
 import SlackIcon from "../SlackIcon";
 import { getAuthorizationUrl, disconnectSlack, type ConnectionStatus } from "@/lib/slack";
 

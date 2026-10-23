@@ -1,7 +1,7 @@
 "use client";
 
 import { File as DefaultFileIcon } from "lucide-react";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/core/auth/hooks";
 import { useIsPluginEnabled } from "@/lib/plugins/usePlugins";
 import { Spinner } from "@/components/Spinner";
 import GoogleDrive from "@/plugins/google-drive/GoogleDrive";

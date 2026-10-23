@@ -5,7 +5,7 @@ import Link from "next/link";
 
 import { Select } from "@/components/ui/Select";
 import { Alert } from "@/components/ui/Alert";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/core/auth/hooks";
 import { fetchLLMConfigs, type LLMConfig } from "@/lib/llm";
 
 interface LLMConfigSelectProps {

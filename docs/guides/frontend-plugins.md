@@ -59,6 +59,7 @@ export default function ExamplePlugin() {
 - Takes shared UI components from `@/lib/components/ui/<Name>`, for example
   `import { Button } from "@/lib/components/ui/Button";`. Core UI lives in `@/core`,
   and `make lint.frontend` rejects any plugin import from it.
+- Reads the signed-in user and their token with `useAuth` from `@/lib/auth/hooks`.
 
 ## 3. Define the Plugin (index.ts)
 

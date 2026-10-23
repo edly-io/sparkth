@@ -15,7 +15,7 @@ const auth = {
 };
 
 vi.mock("@/lib/plugins", () => ({}));
-vi.mock("@/lib/auth-context", () => ({ useAuth: () => auth }));
+vi.mock("@/core/auth/hooks", () => ({ useAuth: () => auth }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn(), usePathname: () => "/dashboard" }));
 vi.mock("@/lib/plugins/context", () => ({
   PluginProvider: ({ children }: { children: React.ReactNode }) => children,

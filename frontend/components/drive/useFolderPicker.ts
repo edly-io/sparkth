@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/core/auth/hooks";
 import { browseDrive, syncFolder, listFolders, fetchAllPages, DriveBrowseItem } from "@/lib/drive";
 
 interface BreadcrumbItem {

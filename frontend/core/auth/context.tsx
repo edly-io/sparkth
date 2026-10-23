@@ -1,10 +1,10 @@
 "use client";
 
-import { createContext, use, useState, useEffect, useMemo, ReactNode, useCallback } from "react";
-import { setAuthTokens, clearAuthTokens, getStoredToken } from "@/lib/auth-tokens";
+import { createContext, useState, useEffect, useMemo, ReactNode, useCallback } from "react";
+import { setAuthTokens, clearAuthTokens, getStoredToken } from "@/core/auth/tokens";
 import { ApiRequestError, getCurrentUser, type CurrentUser } from "@/lib/api";
 
-interface AuthContextType {
+export interface AuthContextType {
   token: string | null;
   user: CurrentUser | null;
   isAuthenticated: boolean;
@@ -14,7 +14,7 @@ interface AuthContextType {
   refreshUser: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   // Start with no token and loading=true ("still checking"). localStorage can't be
@@ -92,12 +92,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function useAuth() {
-  const context = use(AuthContext);
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
 }

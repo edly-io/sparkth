@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import "@/lib/plugins";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/core/auth/hooks";
 import { resolveNavPermissions } from "@/components/NavItem";
 import { PluginProvider } from "@/lib/plugins/context";
 import AppSidebar from "@/components/AppSidebar";

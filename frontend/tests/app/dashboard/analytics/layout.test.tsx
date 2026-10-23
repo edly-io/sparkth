@@ -4,7 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import en from "@/messages/en.json";
 import { renderWithIntl } from "@/tests/intl-test-utils";
 
-vi.mock("@/lib/auth-context", () => ({ useAuth: () => ({ token: "test-token" }) }));
+vi.mock("@/core/auth/hooks", () => ({ useAuth: () => ({ token: "test-token" }) }));
 const nav = vi.hoisted(() => ({ search: "" }));
 vi.mock("next/navigation", () => ({
   usePathname: () => "/dashboard/analytics/logins",

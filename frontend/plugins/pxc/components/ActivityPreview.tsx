@@ -8,7 +8,7 @@ import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/lib/components/ui/Button";
 import { Spinner } from "@/components/Spinner";
 import { ApiRequestError } from "@/lib/api";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/lib/auth/hooks";
 import { getActivityEmbedUrl, type LaunchPermission } from "@/plugins/pxc/client";
 import { RetryAlert } from "@/plugins/pxc/components/RetryAlert";
 
