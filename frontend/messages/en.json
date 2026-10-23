@@ -230,5 +230,18 @@
       "requestNew": "Request a new link",
       "error": "We couldn't reset your password. Please try again."
     }
+  },
+  "plugins": {
+    "config": {
+      "title": "Configure {name}",
+      "empty": "No configuration options available",
+      "cancel": "Cancel",
+      "save": "Save Changes",
+      "saving": "Saving",
+      "saveError": "Failed to save configuration.",
+      "stored": "Stored",
+      "replace": "Replace",
+      "replaceField": "Replace {field}"
+    }
   }
 }
