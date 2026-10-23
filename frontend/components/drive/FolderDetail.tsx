@@ -7,7 +7,7 @@ import { FileTable } from "./FileTable";
 import { Spinner } from "@/components/Spinner";
 import { useAuth } from "@/lib/auth-context";
 import { downloadBlob } from "@/lib/download";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/core/components/ui/Button";
 import {
   Dialog,
   DialogContent,

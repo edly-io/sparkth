@@ -20,7 +20,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
 import { useAuth } from "@/lib/auth-context";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/lib/components/ui/Button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/Tooltip";
 import ConnectionStatus from "@/components/drive/ConnectionStatus";
 import FolderPicker from "@/components/drive/FolderPicker";

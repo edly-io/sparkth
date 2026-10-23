@@ -5,7 +5,7 @@ import { KeyRound, Pencil, Plus, RotateCw, Save, Trash2 } from "lucide-react";
 
 import { Spinner } from "@/components/Spinner";
 import { Alert } from "@/components/ui/Alert";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/core/components/ui/Button";
 import {
   Dialog,
   DialogContent,

@@ -12,7 +12,7 @@ import {
   WhitelistEntry,
   ApiRequestError,
 } from "@/lib/api";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/core/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Alert } from "@/components/ui/Alert";
 import { Spinner } from "@/components/Spinner";

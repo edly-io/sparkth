@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/auth-context";
 import { previousPeriod, type Bucket, type IsoDate } from "@/lib/analytics";
 import { ApiRequestError } from "@/lib/api";
 import { Alert } from "@/components/ui/Alert";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/core/components/ui/Button";
 import { Forbidden } from "@/components/Forbidden";
 import { Spinner } from "@/components/Spinner";
 import { usePeriod } from "./usePeriod";

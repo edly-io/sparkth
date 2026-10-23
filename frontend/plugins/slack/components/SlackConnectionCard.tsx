@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Unplug } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/lib/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import {
   Dialog,

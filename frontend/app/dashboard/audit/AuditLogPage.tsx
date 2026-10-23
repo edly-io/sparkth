@@ -23,7 +23,7 @@ import { downloadBlob } from "@/lib/download";
 import { Forbidden } from "@/components/Forbidden";
 import { Spinner } from "@/components/Spinner";
 import { Alert } from "@/components/ui/Alert";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/core/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 

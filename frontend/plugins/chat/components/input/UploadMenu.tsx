@@ -1,6 +1,6 @@
 import { FileText } from "lucide-react";
 import { useRef } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/lib/components/ui/Button";
 import GoogleDriveIcon from "@/plugins/google-drive/GoogleDriveIcon";
 
 interface UploadMenuProps {

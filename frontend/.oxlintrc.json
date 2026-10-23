@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "overrides": [
+    {
+      "files": ["plugins/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@/core/**"],
+                "message": "Plugins import core code through @/lib, never from @/core."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

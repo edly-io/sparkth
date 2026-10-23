@@ -2,7 +2,7 @@
 
 import { Folder, ChevronRight } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/core/components/ui/Button";
 import {
   Dialog,
   DialogContent,

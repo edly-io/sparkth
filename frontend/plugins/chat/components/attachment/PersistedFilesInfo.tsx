@@ -2,7 +2,7 @@
 
 import { X } from "lucide-react";
 import { TextAttachment } from "../../types";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/lib/components/ui/Button";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/Popover";
 import { truncate, RAG_DISPLAY_NAME_MAX_CHARS } from "@/lib/utils";
 

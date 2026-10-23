@@ -12,7 +12,7 @@ import {
   type NewPasswordValues,
 } from "@/components/NewPasswordFields";
 import { Alert } from "@/components/ui/Alert";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/core/components/ui/Button";
 import { ApiRequestError, confirmPasswordReset } from "@/lib/api";
 
 /**
