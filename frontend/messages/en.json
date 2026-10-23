@@ -230,5 +230,8 @@
       "requestNew": "Request a new link",
       "error": "We couldn't reset your password. Please try again."
     }
+  },
+  "api": {
+    "connectionFailed": "Unable to connect to server: {detail}"
   }
 }
