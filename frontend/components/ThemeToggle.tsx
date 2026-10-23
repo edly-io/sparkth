@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { useTheme } from "@/lib/ThemeContext";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/core/components/ui/Button";
 import { Moon, Sun } from "lucide-react";
 
 const emptySubscribe = () => () => {};

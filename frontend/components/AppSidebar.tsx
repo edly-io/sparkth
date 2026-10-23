@@ -23,7 +23,7 @@ import { GATED_NAV, NavItem } from "@/components/NavItem";
 import Image from "next/image";
 import { Spinner } from "@/components/Spinner";
 import { SparkthLogo } from "./SparkthLogo";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/core/components/ui/Button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/Tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/Popover";
 import { ChatHistorySection } from "../plugins/chat/components/ChatHistorySection";

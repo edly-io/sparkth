@@ -12,7 +12,7 @@ import {
   validateFields,
 } from "@/lib/plugins/schema";
 import { getConfigWidget } from "./widgets";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/core/components/ui/Button";
 import { Alert } from "@/components/ui/Alert";
 import {
   Dialog,

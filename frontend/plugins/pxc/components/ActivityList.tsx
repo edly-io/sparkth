@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/lib/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Spinner } from "@/components/Spinner";
 import { useAuth } from "@/lib/auth-context";

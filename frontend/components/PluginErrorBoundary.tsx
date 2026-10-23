@@ -1,6 +1,6 @@
 import { Component, ReactNode } from "react";
 import { emitPluginEvent } from "@/lib/plugins";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/core/components/ui/Button";
 
 interface Props {
   children: ReactNode;

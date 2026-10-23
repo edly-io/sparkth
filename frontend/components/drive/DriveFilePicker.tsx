@@ -4,7 +4,7 @@ import { useCallback, useEffect, useReducer } from "react";
 import { Folder, FileText, ChevronRight } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
 import { useAuth } from "@/lib/auth-context";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/core/components/ui/Button";
 import {
   Dialog,
   DialogContent,

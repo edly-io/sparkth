@@ -6,7 +6,7 @@ import { Paperclip, ArrowUp, Square, X } from "lucide-react";
 import { UploadMenu } from "./UploadMenu";
 import { TextAttachment } from "../../types";
 import { PersistedFilesInfo } from "../attachment/PersistedFilesInfo";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/lib/components/ui/Button";
 import { useAuth } from "@/lib/auth-context";
 import { useIsPluginEnabled } from "@/lib/plugins/usePlugins";
 import DriveFilePicker from "@/components/drive/DriveFilePicker";

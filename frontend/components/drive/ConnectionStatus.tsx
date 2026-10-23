@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { FolderSync, RefreshCw, Unplug } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/core/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import GoogleDriveIcon from "@/plugins/google-drive/GoogleDriveIcon";
 import {

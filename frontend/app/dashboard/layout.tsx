@@ -11,7 +11,7 @@ import { SidebarProvider, useSidebar } from "@/lib/sidebar-context";
 import { redirect } from "next/navigation";
 import { Menu } from "lucide-react";
 import { Spinner } from "@/components/Spinner";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/core/components/ui/Button";
 import { SparkthLogo } from "@/components/SparkthLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 

@@ -56,6 +56,9 @@ export default function ExamplePlugin() {
 - Must be a client component
 - Can use plugin context via `usePlugins()` or `createPluginContext`
 - This component is lazy-loaded
+- Takes shared UI components from `@/lib/components/ui/<Name>`, for example
+  `import { Button } from "@/lib/components/ui/Button";`. Core UI lives in `@/core`,
+  and `make lint.frontend` rejects any plugin import from it.
 
 ## 3. Define the Plugin (index.ts)
 
