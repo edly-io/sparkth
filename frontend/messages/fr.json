@@ -230,5 +230,8 @@
       "requestNew": "Demander un nouveau lien",
       "error": "Impossible de réinitialiser votre mot de passe. Veuillez réessayer."
     }
+  },
+  "api": {
+    "connectionFailed": "Impossible de se connecter au serveur : {detail}"
   }
 }

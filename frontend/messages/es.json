@@ -230,5 +230,8 @@
       "requestNew": "Solicitar un nuevo enlace",
       "error": "No pudimos restablecer tu contraseña. Inténtalo de nuevo."
     }
+  },
+  "api": {
+    "connectionFailed": "No se pudo conectar con el servidor: {detail}"
   }
 }

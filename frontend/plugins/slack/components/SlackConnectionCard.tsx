@@ -4,13 +4,7 @@ import { useState } from "react";
 import { Unplug } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/Dialog";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useAuth } from "@/lib/auth-context";
 import SlackIcon from "../SlackIcon";
 import { getAuthorizationUrl, disconnectSlack, type ConnectionStatus } from "@/lib/slack";
@@ -42,18 +36,11 @@ export default function SlackConnectionCard({
     }
   };
 
-  const handleDisconnectConfirmed = async () => {
-    if (!token) return;
+  const handleDisconnect = async () => {
+    if (!token) throw new Error("not signed in");
+    await disconnectSlack(token);
     setConfirmOpen(false);
-    setLoading(true);
-    try {
-      await disconnectSlack(token);
-      onStatusChange();
-    } catch (error) {
-      onError(`Failed to disconnect: ${error instanceof Error ? error.message : String(error)}`);
-    } finally {
-      setLoading(false);
-    }
+    onStatusChange();
   };
 
   return (
@@ -77,7 +64,6 @@ export default function SlackConnectionCard({
               variant="outline"
               size="sm"
               onClick={() => setConfirmOpen(true)}
-              loading={loading}
               className="border-error-300 text-error-600 hover:bg-error-50 dark:border-error-700 dark:text-error-400 dark:hover:bg-error-900/20"
             >
               <Unplug className="w-4 h-4 mr-1" aria-hidden="true" />
@@ -91,24 +77,18 @@ export default function SlackConnectionCard({
         </div>
       </Card>
 
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Disconnect Slack workspace?</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Students will stop receiving bot replies until you reconnect.
-          </p>
-          <DialogFooter className="gap-2 pt-2">
-            <Button variant="outline" size="sm" onClick={() => setConfirmOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="error" size="sm" onClick={handleDisconnectConfirmed}>
-              Disconnect
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {confirmOpen && (
+        <ConfirmDialog
+          title="Disconnect Slack workspace?"
+          description="Students will stop receiving bot replies until you reconnect."
+          confirmLabel="Disconnect"
+          pendingLabel="Disconnecting"
+          cancelLabel="Cancel"
+          errorMessage="Failed to disconnect Slack."
+          onConfirm={handleDisconnect}
+          onClose={() => setConfirmOpen(false)}
+        />
+      )}
     </>
   );
 }

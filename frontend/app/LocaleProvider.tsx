@@ -4,7 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { useEffect, useState } from "react";
 
 import en from "@/messages/en.json";
-import { setActiveLocale } from "@/lib/i18n/active-locale";
+import { setActiveLocale, setActiveMessages } from "@/lib/i18n/active-locale";
 import { defaultLocale, readLocaleCookie, type Locale } from "@/lib/i18n/config";
 import { loadMessages, type LoadedMessages } from "@/lib/i18n/messages";
 
@@ -29,6 +29,7 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
         if (cancelled) return;
         document.documentElement.lang = locale;
         setActiveLocale(locale);
+        setActiveMessages(messages);
         setState({ locale, messages });
       })
       .catch((error: unknown) => {

@@ -96,6 +96,15 @@ describe("disconnectSlack", () => {
     expect(new URL(request.url).pathname).toBe("/api/v1/slack/oauth/disconnect");
     expect(request.method).toBe("DELETE");
   });
+
+  it("rejects with the server's error as is", async () => {
+    mockFetch({ detail: "Slack workspace not connected" }, 404);
+
+    await expect(disconnectSlack("test-token")).rejects.toMatchObject({
+      message: "Slack workspace not connected",
+      status: 404,
+    });
+  });
 });
 
 describe("fetchLogs", () => {

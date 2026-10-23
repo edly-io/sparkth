@@ -236,7 +236,7 @@ no locale URL prefix. The locale is resolved on the client.
    catalog (for a non-default locale, the brief English flash before that is
    inherent to client-side locale resolution). A chunk that fails to load
    logs and falls back to its English counterpart.
-3. The provider records the locale it actually renders in
+3. The provider records the locale it actually renders, and its catalog, in
    `frontend/lib/i18n/active-locale.ts`. The cookie stores the *preference*;
    the active locale tracks what is on screen, and the two diverge when the
    catalog load fails outright and the UI stays on English.
@@ -260,6 +260,12 @@ const t = useTranslations("home");
 <p>{t("tagline")}</p>
 <h1>{t.rich("title", { brand: (chunks) => <span className="text-primary-500">{chunks}</span> })}</h1>
 ```
+
+Code outside React, such as the API client's network error, translates with next-intl's
+`createTranslator` over the active catalog (`getActiveLocale()` and `getActiveMessages()`).
+The catalog drift guard below only finds keys used through `useTranslations` or
+`getTranslations`, so declare each such key with an `// i18n-check t("<namespace>.<key>")`
+comment next to the call.
 
 Messages use ICU syntax for interpolation and plurals
 (`"lastDays": "last {days} days"`). Keys are written by hand into
