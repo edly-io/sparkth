@@ -217,6 +217,10 @@ test.backend.analytics: services.up ## Run the TimescaleDB test lane (starts bac
 	ANALYTICS_TEST_PG_URL="$${ANALYTICS_TEST_PG_URL:-postgresql://sparkth:sparkth_password@localhost:5432/sparkth_analytics_test}" \
 		uv run pytest -m pg $(ARGS)
 
+.PHONY: test.backend.wasm
+test.backend.wasm: pxc.activities.build ## Run the tests that need the built PXC sample activity (the `wasm` marker)
+	uv run pytest -m wasm $(ARGS)
+
 # `sparkth-pxc-xblock` is a separate Python distribution (see conftest.py's collect_ignore) with
 # its own pyproject.toml, so it is not covered by `make test.backend` — everything it needs
 # (pytest, mypy, ruff) is run explicitly here instead, on the same footing as the main package.
