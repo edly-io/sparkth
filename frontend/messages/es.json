@@ -249,7 +249,7 @@
     "disableError": "No se pudo desactivar el plugin.",
     "enabled": "Habilitado",
     "disabled": "Deshabilitado",
-    "title": "Mis plugins",
+    "title": "Configuración",
     "subtitle": "Consulta todos tus plugins instalados en un solo lugar.",
     "loading": "Cargando plugins...",
     "loadError": "No se pudieron cargar los plugins: {error}",

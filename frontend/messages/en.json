@@ -249,7 +249,7 @@
     "disableError": "Failed to disable the plugin.",
     "enabled": "Enabled",
     "disabled": "Disabled",
-    "title": "My Plugins",
+    "title": "Settings",
     "subtitle": "View all your installed plugins in one place.",
     "loading": "Loading plugins...",
     "loadError": "Failed to load plugins: {error}",

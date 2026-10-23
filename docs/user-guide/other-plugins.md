@@ -1,7 +1,7 @@
 # Activities and team chat
 
 Two plugins need setup on the server before you can use them. If either does nothing after you
-turn it on in [My Plugins](plugins.md), ask your administrator.
+turn it on in [Settings](plugins.md), ask your administrator.
 
 ## Activities
 
@@ -25,7 +25,7 @@ connects to.
 
 1. Open the bot's page from the sidebar (for example **Slack TA Bot**) and click its connect
    button (for example **Connect Slack**) to connect your workspace.
-2. In [My Plugins](plugins.md), configure the bot: its name, its greeting, the message it sends
+2. In [Settings](plugins.md), configure the bot: its name, its greeting, the message it sends
    when it finds no answer, the documents it may search, and an [AI key](ai-keys.md). Without a
    key it cannot write answers.
 3. Watch **Response logs** to see the questions it gets and what it answered.
