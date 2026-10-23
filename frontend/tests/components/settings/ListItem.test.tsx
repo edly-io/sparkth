@@ -12,7 +12,6 @@ function renderItem(plugin: UserPluginState) {
   return renderWithIntl(
     <PluginListItem
       plugin={plugin}
-      isLast
       onEnable={noop}
       onDisable={noop}
       onConfigChange={noop}
@@ -57,5 +56,41 @@ describe("PluginListItem", () => {
     });
 
     expect(screen.getByRole("heading", { name: "mystery" })).toBeDefined();
+  });
+
+  it("drops the hardcoded Sparkth line and labels its controls", () => {
+    renderItem({
+      plugin_name: "canvas",
+      enabled: true,
+      config: {},
+      config_schema: {},
+      is_core: true,
+      display: { display_name: "Canvas", description: "d", icon: null },
+      sidebar: null,
+      has_frontend: false,
+      secrets_set: [],
+    });
+
+    expect(screen.queryByText("Sparkth")).toBeNull();
+    expect(screen.getByRole("switch", { name: "Turn Canvas on or off" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Configure Canvas" })).toBeDefined();
+  });
+  it.each([
+    [true, "Enabled"],
+    [false, "Disabled"],
+  ])("says whether the plugin is enabled (%s)", (enabled, label) => {
+    renderItem({
+      plugin_name: "canvas",
+      enabled,
+      config: {},
+      config_schema: {},
+      is_core: true,
+      display: { display_name: "Canvas", description: "d", icon: null },
+      sidebar: null,
+      has_frontend: false,
+      secrets_set: [],
+    });
+
+    expect(screen.getByText(label)).toBeDefined();
   });
 });

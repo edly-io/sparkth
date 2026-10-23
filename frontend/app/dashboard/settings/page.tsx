@@ -46,11 +46,10 @@ export default function PluginsSettings() {
 
         {plugins.length > 0 ? (
           <div className="bg-card rounded-lg shadow-sm overflow-hidden border border-border">
-            {plugins.map((plugin, index) => (
+            {plugins.map((plugin) => (
               <PluginListItem
                 key={plugin.plugin_name}
                 plugin={plugin}
-                isLast={index === plugins.length - 1}
                 onEnable={() => enablePlugin(plugin.plugin_name)}
                 onDisable={() => disablePlugin(plugin.plugin_name)}
                 onConfigChange={(config) => updatePluginConfig(plugin.plugin_name, config)}

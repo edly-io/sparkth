@@ -242,6 +242,12 @@
       "stored": "Enregistré",
       "replace": "Remplacer",
       "replaceField": "Remplacer {field}"
-    }
+    },
+    "toggle": "Activer ou désactiver {name}",
+    "configure": "Configurer {name}",
+    "enableError": "Échec de l'activation du plugin.",
+    "disableError": "Échec de la désactivation du plugin.",
+    "enabled": "Activé",
+    "disabled": "Désactivé"
   }
 }
