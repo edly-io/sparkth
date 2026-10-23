@@ -12,7 +12,7 @@ After you sign in, the sidebar on the left takes you everywhere:
 
 | Sidebar entry | What it opens |
 |---|---|
-| **Create Course** | The AI assistant that writes your course. Shown once Compose is turned on in **My Plugins**. |
+| **Compose** | The AI assistant that writes your course. Shown once Compose is turned on in **My Plugins**. |
 | **Resources** | Files you have imported from an online drive for the assistant to use. |
 | **My Plugins** | Turn features on and configure them. The **Settings** link in your user menu opens the same page. |
 | **AI Keys** | The keys Sparkth uses to call your AI provider. |
@@ -30,7 +30,7 @@ assistant.
 2. [Add an AI key](ai-keys.md) for your AI provider.
 3. In [My Plugins](plugins.md), turn on Compose and select that key in its configuration.
 4. Turn on and [configure the plugin for your LMS](publish-to-lms.md).
-5. Open **Create Course** and [describe the course you want](create-course.md).
+5. Open **Compose** and [describe the course you want](create-course.md).
 
 ## Supported integrations
 

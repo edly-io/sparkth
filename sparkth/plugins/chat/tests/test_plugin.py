@@ -19,12 +19,12 @@ def test_declares_frontend_metadata() -> None:
 
     display = get_plugin_display_info("chat")
     assert display is not None
-    assert display.display_name == "Compose (Create Course)"
+    assert display.display_name == "Compose"
     assert display.description == "Transform your resources into courses with AI"
 
     sidebar = get_plugin_sidebar_entry("chat")
     assert sidebar is not None
-    assert sidebar.label == "Create Course"
+    assert sidebar.label == "Compose"
     assert sidebar.order == 1
 
     assert plugin_has_frontend("chat") is True
