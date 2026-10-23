@@ -33,6 +33,7 @@ def _plugin_entry(plugin_name: str, enabled: bool, config: dict[str, str], is_co
         "display": None,
         "sidebar": None,
         "has_frontend": False,
+        "secrets_set": [],
     }
 
 
@@ -177,3 +178,20 @@ async def test_list_user_plugins_reports_an_empty_schema_for_a_plugin_without_on
 
     entry = next(item for item in response.json() if item["plugin_name"] == "plugin_a")
     assert entry["config_schema"] == {}
+
+
+async def test_list_user_plugins_never_returns_secrets(
+    client: AsyncClient, current_user: User, session: AsyncSession
+) -> None:
+    schema = {"properties": {"api_url": {"type": "string"}, "api_key": {"type": "string", "widget": "password"}}}
+    plugin = Plugin(name="secret_plugin", is_core=True, enabled=True, config_schema=schema)
+    session.add(plugin)
+    await session.flush()
+    await add_user_plugin(session, current_user, plugin, {"api_url": "https://lms.example.com", "api_key": "s3cret"})
+
+    response = await client.get("/api/v1/user-plugins/")
+
+    entry = next(p for p in response.json() if p["plugin_name"] == "secret_plugin")
+    assert "s3cret" not in response.text
+    assert entry["config"] == {"api_url": "https://lms.example.com"}
+    assert entry["secrets_set"] == ["api_key"]

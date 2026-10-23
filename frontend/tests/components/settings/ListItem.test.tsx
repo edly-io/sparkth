@@ -34,6 +34,7 @@ describe("PluginListItem", () => {
       },
       sidebar: null,
       has_frontend: false,
+      secrets_set: [],
     });
 
     expect(screen.getByRole("heading", { name: "Canvas" })).toBeDefined();
@@ -50,6 +51,7 @@ describe("PluginListItem", () => {
       display: null,
       sidebar: null,
       has_frontend: false,
+      secrets_set: [],
     });
 
     expect(screen.getByRole("heading", { name: "mystery" })).toBeDefined();

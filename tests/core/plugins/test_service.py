@@ -2,13 +2,21 @@
 
 from datetime import datetime, timezone
 from typing import cast
+from unittest.mock import patch
 
+import pytest
 from fastapi import Request
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.core.models.user import User
-from sparkth.core.plugins.service import disabled_plugin_names, get_disabled_plugins
+from sparkth.core.plugins.config_base import PluginConfig
+from sparkth.core.plugins.service import (
+    ConfigValidationError,
+    PluginService,
+    disabled_plugin_names,
+    get_disabled_plugins,
+)
 
 
 async def _seed_plugin(session: AsyncSession, name: str, enabled: bool, deleted: bool = False) -> Plugin:
@@ -116,3 +124,15 @@ async def test_the_dependency_reads_the_switches_when_the_gate_left_none(
     request = Request({"type": "http"})
 
     assert await get_disabled_plugins(request, current_user, session) == {"stub"}
+
+
+def test_validation_error_never_echoes_stored_values() -> None:
+    class LmsConfig(PluginConfig):
+        api_url: str
+        api_key: str
+
+    with patch("sparkth.core.plugins.service.get_plugin_config_schema", return_value=LmsConfig):
+        with pytest.raises(ConfigValidationError) as raised:
+            PluginService.validate_user_config(Plugin(name="lms"), {"api_key": "s3cret"})
+
+    assert "s3cret" not in str(raised.value)
