@@ -93,6 +93,30 @@ describe("HistoryList", () => {
     expect(screen.getByText("Oct 1")).toBeInTheDocument();
   });
 
+  it("labels a chat stamped slightly ahead of the browser clock as Today", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-24T12:00:00Z"));
+    stubConversations([conversation("c-1", "A", "2026-10-24T12:00:05Z")]);
+
+    renderList();
+
+    expect(screen.getByText("Today")).toBeInTheDocument();
+  });
+
+  it("counts calendar days, not 24-hour spans", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 9, 24, 8, 0));
+    stubConversations([
+      conversation("c-1", "A", new Date(2026, 9, 23, 23, 0).toISOString()),
+      conversation("c-2", "B", new Date(2026, 9, 21, 23, 0).toISOString()),
+    ]);
+
+    renderList();
+
+    expect(screen.getByText("Yesterday")).toBeInTheDocument();
+    expect(screen.getByText("3 days ago")).toBeInTheDocument();
+  });
+
   it("shows the empty state", () => {
     stubConversations([]);
 

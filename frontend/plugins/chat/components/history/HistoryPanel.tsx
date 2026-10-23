@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactElement } from "react";
+import { useRef, useState, type ReactElement } from "react";
 import Link from "next/link";
 import { History, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -15,14 +15,18 @@ import HistoryList from "@/plugins/chat/components/history/HistoryList";
 export default function HistoryPanel(): ReactElement {
   const t = useTranslations("chat");
   const [open, setOpen] = useState(false);
+  const historyButtonRef = useRef<HTMLButtonElement>(null);
 
   return (
     <div className="flex items-center gap-1 lg:hidden">
       <Button
+        ref={historyButtonRef}
         variant="ghost"
         size="icon"
         className="h-9 w-9"
         aria-label={t("historyShow")}
+        aria-haspopup="dialog"
+        aria-expanded={open}
         onClick={() => setOpen(true)}
       >
         <History className="w-5 h-5" />
@@ -34,7 +38,16 @@ export default function HistoryPanel(): ReactElement {
       </Button>
 
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="left" className="p-0 w-72 flex flex-col" aria-describedby={undefined}>
+        <SheetContent
+          side="left"
+          className="p-0 w-72 flex flex-col"
+          aria-describedby={undefined}
+          // The button opens the panel without being a SheetTrigger, so return focus to it here.
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            historyButtonRef.current?.focus();
+          }}
+        >
           <SheetTitle className="px-4 pt-4 pb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             {t("historyTitle")}
           </SheetTitle>

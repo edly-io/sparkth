@@ -49,6 +49,19 @@ describe("HistoryPanel", () => {
     expect(screen.getByText("Intro to Python")).toBeInTheDocument();
   });
 
+  it("returns focus to the history button when the panel closes", async () => {
+    renderWithIntl(<HistoryPanel />, chatEn);
+    const button = screen.getByRole("button", { name: "Show chat history" });
+    button.focus();
+    fireEvent.click(button);
+    expect(button).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Recent chats" })).toBeNull());
+    expect(document.activeElement).toBe(button);
+  });
+
   it("closes the panel when a chat is picked", async () => {
     openPanel();
 
