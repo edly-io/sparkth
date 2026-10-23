@@ -1,6 +1,6 @@
 "use client";
 
-import { Sheet, SheetContent } from "@/components/ui/Sheet";
+import { Sheet, SheetContent } from "@/core/components/ui/Sheet";
 import { useSidebar } from "@/lib/sidebar-context";
 import AppSidebar from "./AppSidebar";
 
