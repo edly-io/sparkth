@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { screen } from "@testing-library/react";
 
 import HomeClient from "@/app/page-client";
-import { renderWithIntl } from "../intl-test-utils";
+import { renderWithIntl } from "@/tests/intl-test-utils";
 
 vi.mock("@/lib/auth-context", () => ({
   useAuth: () => ({ isAuthenticated: false, logout: vi.fn() }),
