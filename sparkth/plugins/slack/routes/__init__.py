@@ -367,12 +367,6 @@ async def slack_events(
     slack_sig = request.headers.get("X-Slack-Signature", "")
 
     system_cfg = get_slack_settings()
-    if not system_cfg.signing_secret:
-        logger.error("SLACK_SIGNING_SECRET is empty; rejecting Slack event request")
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Slack signature verification failed.",  # i18n-exempt: webhook response to Slack
-        )
     try:
         SlackClient.verify_signature(system_cfg.signing_secret, timestamp, raw_body, slack_sig)
     except SlackSignatureError as exc:

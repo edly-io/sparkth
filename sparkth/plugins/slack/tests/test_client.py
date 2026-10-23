@@ -39,6 +39,13 @@ class TestVerifySignature:
         with pytest.raises(SlackSignatureError, match="timestamp"):
             SlackClient.verify_signature("secret", "not_a_number", b"{}", "v0=hash")
 
+    def test_empty_secret_raises_for_a_signature_made_with_the_empty_key(self) -> None:
+        ts = str(int(time.time()))
+        body = b'{"type":"event_callback"}'
+        sig = make_slack_signature("", ts, body)
+        with pytest.raises(SlackSignatureError):
+            SlackClient.verify_signature("", ts, body, sig)
+
 
 class TestSlackClientWithoutContextManager:
     @pytest.mark.asyncio
