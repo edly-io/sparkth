@@ -349,7 +349,7 @@ class TestSlackEventsEmptySecret:
         self, slack_client: AsyncClient, caplog: pytest.LogCaptureFixture
     ) -> None:
         body = b"not json"
-        with caplog.at_level(logging.ERROR, logger="sparkth.plugins.slack.routes"):
+        with caplog.at_level(logging.ERROR, logger="sparkth.plugins.slack.client"):
             await _post_event_with_empty_secret(slack_client, body, signed_event_headers("", body))
         assert any(
             record.levelno == logging.ERROR and "SLACK_SIGNING_SECRET" in record.getMessage()
