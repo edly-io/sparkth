@@ -1,6 +1,6 @@
 # Create a course
 
-**Create Course** opens Compose, the AI assistant that designs your course with you and builds
+**Compose** is the AI assistant that designs your course with you and builds
 it in your LMS.
 
 ## Before you start
@@ -14,7 +14,7 @@ You need:
 
 ## If Compose asks for an AI key
 
-If your key isn't set up, sending a message shows a warning at the top of **Create Course** that
+If your key isn't set up, sending a message shows a warning at the top of **Compose** that
 tells you what is missing:
 
 | Message | What to do |
@@ -26,7 +26,7 @@ tells you what is missing:
 
 ## Ask for a course
 
-1. Open **Create Course** from the sidebar.
+1. Open **Compose** from the sidebar.
 2. Describe the course in the message box ("Describe the course you want to create...") and
    send it.
 3. Answer the assistant's questions. It may offer clickable options; you can always type your
