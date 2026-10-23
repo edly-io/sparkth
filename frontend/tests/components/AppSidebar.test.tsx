@@ -1,12 +1,14 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import AppSidebar from "@/components/AppSidebar";
 
+const nav = vi.hoisted(() => ({ pathname: "/dashboard" }));
+
 // AppSidebar reads the current path and the plugin context; stub both so the
-// component renders in isolation on a non-chat, non-plugin route.
-vi.mock("next/navigation", () => ({ usePathname: () => "/dashboard" }));
+// component renders in isolation.
+vi.mock("next/navigation", () => ({ usePathname: () => nav.pathname }));
 vi.mock("@/lib/plugins/context", () => ({
   usePluginContext: () => ({ userPlugins: [], loading: false }),
 }));
@@ -71,5 +73,19 @@ describe("AppSidebar user menu", () => {
       "href",
       "/dashboard/profile",
     );
+  });
+});
+
+describe("AppSidebar on a plugin page", () => {
+  afterEach(() => {
+    nav.pathname = "/dashboard";
+  });
+
+  it("renders no chat history on the chat page", () => {
+    nav.pathname = "/dashboard/chat";
+
+    render(<AppSidebar user={{ name: "A" }} />);
+
+    expect(screen.queryByText("Recent chats")).toBeNull();
   });
 });
