@@ -24,12 +24,25 @@ interface ConversationLinkProps {
   onNavigate?: () => void;
 }
 
+function startOfLocalDay(date: Date): number {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
+
+/**
+ * Whole calendar days from `created` to today in the browser's timezone. Rounding absorbs
+ * 23- and 25-hour DST days, and a timestamp slightly ahead of the browser clock counts as today.
+ */
+function calendarDaysAgo(created: Date): number {
+  const days = Math.round((startOfLocalDay(new Date()) - startOfLocalDay(created)) / DAY_MS);
+  return Math.max(0, days);
+}
+
 /** A conversation's creation time: today, yesterday, N days ago, then a short localized date. */
 function ConversationDate({ iso }: { iso: string }): string {
   const t = useTranslations("chat");
   const format = useFormatter();
   const created = new Date(iso);
-  const days = Math.floor((Date.now() - created.getTime()) / DAY_MS);
+  const days = calendarDaysAgo(created);
 
   if (days === 0) return t("historyToday");
   if (days === 1) return t("historyYesterday");

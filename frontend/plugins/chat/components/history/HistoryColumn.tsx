@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactElement } from "react";
+import { useEffect, useRef, type ReactElement, type Ref } from "react";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/lib/components/ui/Button";
@@ -12,13 +12,21 @@ import { useHistoryCollapsed } from "@/plugins/chat/hooks/useHistoryCollapsed";
 interface ToggleProps {
   label: string;
   onClick: () => void;
+  buttonRef: Ref<HTMLButtonElement>;
   children: ReactElement;
 }
 
-function HistoryToggle({ label, onClick, children }: ToggleProps): ReactElement {
+function HistoryToggle({ label, onClick, buttonRef, children }: ToggleProps): ReactElement {
   return (
     <ActionTooltip label={label}>
-      <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={label} onClick={onClick}>
+      <Button
+        ref={buttonRef}
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8"
+        aria-label={label}
+        onClick={onClick}
+      >
         {children}
       </Button>
     </ActionTooltip>
@@ -32,6 +40,15 @@ function HistoryToggle({ label, onClick, children }: ToggleProps): ReactElement 
 export default function HistoryColumn(): ReactElement {
   const t = useTranslations("chat");
   const [collapsed, setCollapsed] = useHistoryCollapsed();
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const refocusToggle = useRef(false);
+
+  // Each state renders its own toggle; focus the new one so keyboard users keep their place.
+  useEffect(() => {
+    if (!refocusToggle.current) return;
+    refocusToggle.current = false;
+    toggleRef.current?.focus();
+  }, [collapsed]);
 
   if (collapsed) {
     return (
@@ -39,7 +56,14 @@ export default function HistoryColumn(): ReactElement {
         aria-label={t("historyTitle")}
         className="hidden lg:flex flex-col items-center gap-1 w-12 shrink-0 py-3 border-r border-border"
       >
-        <HistoryToggle label={t("historyShow")} onClick={() => setCollapsed(false)}>
+        <HistoryToggle
+          label={t("historyShow")}
+          buttonRef={toggleRef}
+          onClick={() => {
+            refocusToggle.current = true;
+            setCollapsed(false);
+          }}
+        >
           <PanelLeftOpen className="w-4 h-4" />
         </HistoryToggle>
         <NewChatLink />
@@ -58,7 +82,14 @@ export default function HistoryColumn(): ReactElement {
         </span>
         <div className="flex items-center gap-1">
           <NewChatLink />
-          <HistoryToggle label={t("historyHide")} onClick={() => setCollapsed(true)}>
+          <HistoryToggle
+            label={t("historyHide")}
+            buttonRef={toggleRef}
+            onClick={() => {
+              refocusToggle.current = true;
+              setCollapsed(true);
+            }}
+          >
             <PanelLeftClose className="w-4 h-4" />
           </HistoryToggle>
         </div>

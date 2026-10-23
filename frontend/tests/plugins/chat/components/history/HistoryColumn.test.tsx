@@ -4,6 +4,7 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { TooltipProvider } from "@/core/components/ui/Tooltip";
 import HistoryColumn from "@/plugins/chat/components/history/HistoryColumn";
 import { useConversations } from "@/plugins/chat/hooks/useConversations";
+import { HISTORY_COLLAPSED_KEY } from "@/plugins/chat/hooks/useHistoryCollapsed";
 import type { ConversationSummary } from "@/lib/chat";
 import chatEn from "@/plugins/chat/messages/en.json";
 import { renderWithIntl } from "../../../../intl-test-utils";
@@ -60,6 +61,32 @@ describe("HistoryColumn", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show chat history" }));
 
     expect(screen.getByText("Intro to Python")).toBeInTheDocument();
+  });
+
+  it("keeps keyboard focus on the toggle when collapsing and expanding", () => {
+    renderColumn();
+    const hide = screen.getByRole("button", { name: "Hide chat history" });
+    hide.focus();
+
+    fireEvent.click(hide);
+    const show = screen.getByRole("button", { name: "Show chat history" });
+    expect(document.activeElement).toBe(show);
+
+    fireEvent.click(show);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Hide chat history" }));
+  });
+
+  it("shows a tooltip on each rail action", async () => {
+    localStorage.setItem(HISTORY_COLLAPSED_KEY, "true");
+    renderColumn();
+    const show = await screen.findByRole("button", { name: "Show chat history" });
+
+    fireEvent.focus(show);
+    expect((await screen.findAllByText("Show chat history")).length).toBeGreaterThan(0);
+
+    fireEvent.blur(show);
+    fireEvent.focus(screen.getByRole("link", { name: "New chat" }));
+    expect((await screen.findAllByText("New chat")).length).toBeGreaterThan(0);
   });
 
   it("remembers the collapsed state across a remount", async () => {
