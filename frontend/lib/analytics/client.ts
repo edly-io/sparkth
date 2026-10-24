@@ -1,8 +1,12 @@
 import { api, bearer, call } from "@/lib/api";
 import type { IsoDate } from "@/lib/analytics/dates";
+import type { ExploreConfig } from "@/lib/analytics/explore";
+import type { Bucket } from "@/lib/analytics/series";
 import type {
   ChatActivityPoint,
   DriveDocumentsPoint,
+  EventCatalogEntry,
+  ExploreResult,
   LoginsPoint,
   SummaryCount,
 } from "@/lib/analytics/types";
@@ -53,6 +57,38 @@ export async function fetchSummary(
   return call<SummaryCount[]>(() =>
     api.GET("/api/v1/analytics/summary", {
       params: { query: { from, to } },
+      headers: bearer(token),
+    }),
+  );
+}
+
+/** Every recorded event type and its payload fields, for Explore's pickers. */
+export async function fetchEventCatalog(token: string): Promise<EventCatalogEntry[]> {
+  return call<EventCatalogEntry[]>(() =>
+    api.GET("/api/v1/analytics/events", { headers: bearer(token) }),
+  );
+}
+
+/** An Explore config's measure per bucket and group for the period; unset parts are not sent. */
+export async function fetchExplore(
+  token: string,
+  { from, to, bucket }: { from: IsoDate; to: IsoDate; bucket: Bucket },
+  config: ExploreConfig,
+): Promise<ExploreResult> {
+  return call<ExploreResult>(() =>
+    api.GET("/api/v1/analytics/query", {
+      params: {
+        query: {
+          from,
+          to,
+          bucket,
+          event_type: config.event ?? "",
+          measure: config.measure,
+          actor_id: config.actor ?? undefined,
+          filter: config.filters.map((f) => `${f.field}:${f.value}`),
+          group_by: config.groupBy ?? undefined,
+        },
+      },
       headers: bearer(token),
     }),
   );

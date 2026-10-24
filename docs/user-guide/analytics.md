@@ -2,7 +2,7 @@
 
 If your account has the [required permission](#required-permissions), **Analytics** in the
 sidebar shows how Sparkth is used.
-It has three views:
+It has these views:
 
 - **Overview**: the period's headline figures, such as logins, active users and signups, each
   compared with the period before, and an **Activity** chart of logins and messages sent. A
@@ -12,6 +12,12 @@ It has three views:
   searches ran and the share that found nothing. If you use an online drive, it also shows how many
   documents were processed, the share that became ready to use in chat and how long that took on
   average, and why the rest weren't usable.
+- **Explore**: a chart built from any recorded event. Pick an event, filter by actor ID and by
+  its fields' values, count events or distinct actors, break the count down by a field or by
+  actor, and show it as a line, bars or a table. The page's address keeps the whole setup, so
+  you can bookmark it or share the link. Events, fields and values show as recorded, by their
+  raw identifiers. A link naming an event, field or value that no longer exists still opens, without
+  that part, and says so.
 
 Pick a period at the top, or a custom range, and how to group the charts.
 
@@ -25,5 +31,6 @@ Pick a period at the top, or a custom range, and how to group the charts.
 | Permission | Lets you |
 |---|---|
 | `analytics.read` | See **Analytics** and all its views. |
+| `user.read` | See usernames instead of IDs when **Explore** breaks a count down by actor. |
 
-The admin role has it.
+The admin role has both.
