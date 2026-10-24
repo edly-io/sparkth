@@ -10,7 +10,7 @@ import MobileSidebar from "@/core/components/layout/MobileSidebar";
 import { SidebarProvider, useSidebar } from "@/lib/sidebar-context";
 import { redirect } from "next/navigation";
 import { Menu } from "lucide-react";
-import { Spinner } from "@/components/Spinner";
+import { Spinner } from "@/core/components/ui/Spinner";
 import { Button } from "@/core/components/ui/Button";
 import { SparkthLogo } from "@/components/SparkthLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";

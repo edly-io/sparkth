@@ -2,7 +2,7 @@
 
 import { useParams, redirect } from "next/navigation";
 import { useAuth } from "@/core/auth/hooks";
-import { Spinner } from "@/components/Spinner";
+import { Spinner } from "@/core/components/ui/Spinner";
 import { usePlugin, usePluginContext } from "@/lib/plugins/context";
 import { displayNameOf, getPlugin } from "@/lib/plugins";
 import PluginRenderer from "@/components/PluginRenderer";

@@ -2,7 +2,7 @@
 
 import PluginListItem from "@/components/settings/ListItem";
 import { usePluginContext } from "@/lib/plugins/context";
-import { Spinner } from "@/components/Spinner";
+import { Spinner } from "@/core/components/ui/Spinner";
 
 export default function PluginsSettings() {
   const {

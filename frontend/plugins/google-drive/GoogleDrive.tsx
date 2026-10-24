@@ -18,7 +18,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { Spinner } from "@/components/Spinner";
+import { Spinner } from "@/lib/components/ui/Spinner";
 import { useAuth } from "@/lib/auth/hooks";
 import { Button } from "@/lib/components/ui/Button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/Tooltip";

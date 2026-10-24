@@ -4,7 +4,7 @@ import type { ReactElement } from "react";
 import Link from "next/link";
 import { MessageSquare } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
-import { Spinner } from "@/components/Spinner";
+import { Spinner } from "@/lib/components/ui/Spinner";
 import { Alert } from "@/components/ui/Alert";
 import { useAuth } from "@/lib/auth/hooks";
 import type { ConversationSummary } from "@/lib/chat";
