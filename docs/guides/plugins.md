@@ -47,41 +47,26 @@ the linked provider?) requires a config adapter, described in the
 Valid `llm_model_override` values must be a legal model for the linked `LLMConfig`'s provider. The single source of truth is `PROVIDER_MODELS` in `sparkth/llm/providers.py`.
 
 
-### LMS Plugins: Automatic Credential Injection
+### LMS Plugins: Tools Without Credentials
 
-If your plugin is an LMS (i.e. it has tools that require stored credentials), override two methods on the config class. The chat system will then automatically inject the user's stored credentials into the LLM system prompt — no manual wiring needed.
+An LMS tool reads the caller's saved settings itself with `load_user_plugin_config`, described in
+[Reading the caller's stored settings](#reading-the-callers-stored-settings), and raises
+`PluginNotConfiguredError` when there are none.
 
-```python
-class MyLmsConfig(PluginConfig):
-    api_url: str = Field(..., description="LMS API URL")
-    api_key: str = Field(..., description="LMS API key")
-
-    @classmethod
-    def lms_tool_prefix(cls) -> str:
-        """
-        Prefix shared by all tool names for this LMS (e.g. "mylms_").
-        Used to detect whether any active tools belong to this LMS before
-        hitting the database, and to send chat only the credentials of an LMS
-        with at least one bound tool carrying this prefix.
-        """
-        return "mylms_"
-
-    def to_lms_credentials_hint(self) -> str:
-        """
-        Human-readable credential block included in the LLM system prompt.
-        Return None (or omit the override) for non-LMS plugins.
-        """
-        return f"My <LMS> credentials:\n  api_url: {self.api_url}\n  api_key: {self.api_key}"
-```
-
-Both methods default to `None` on the base class, so non-LMS plugins require no changes. The injection is fully automatic once the config class is contributed to the `CONFIG_SCHEMAS` hook (see below).
+An LMS plugin ships a zero-argument settings-check tool (`canvas_authenticate`, `moodle_authenticate`,
+`openedx_get_user_info`). Its docstring, which is the tool description the model reads, says to call it
+to learn whether the LMS is set up. The chat system prompt names no LMS tool: it tells the model to call
+an LMS's settings-check tool, never to ask for credentials, and to send the author to the My Plugins page
+when a tool reports that the LMS is not set up.
 
 An LMS plugin should also ship a zero-argument `<prefix>about` tool (e.g. `mylms_about`) returning `{"about": <text>}` that explains the LMS's course structure, its vocabulary, and what "publish" means there, with the text kept in the plugin's `assets/about.txt`. LMSs use the same words for different things (Canvas "publish" makes content visible; Moodle has no publish step), so the chat LLM reads this before acting. See `canvas_about`, `openedx_about` and `moodle_about`.
 
 
 ## Register the plugin configuration class
 
-Register a Pydantic configuration class when your plugin has user-configurable settings that the system should validate and normalize — and always for LMS plugins that rely on credential injection. Plugins with no user-facing configuration can skip this entirely.
+Register a Pydantic configuration class when your plugin has user-configurable settings that the system
+should validate and normalize, and always for LMS plugins, whose tools load it with
+`load_user_plugin_config`. Plugins with no user-facing configuration can skip this entirely.
 
 When you do register one, contribute your config class to the `CONFIG_SCHEMAS` hook from your plugin's `__init__`, right after calling `super().__init__(...)`. The system resolves config classes by the plugin's _declared_ name (the value you pass to `super().__init__()`, see [Plugin Names](#plugin-names) below), so no name string is needed at the call site.
 
@@ -365,7 +350,7 @@ only an administrator disabling the plugin outright stops them.
 
 MCP is not the only tool door. Chat applies both switches for the requesting user on every
 turn: a plugin switched off system-wide or by that user has none of its tools bound, no
-capability section or scope offered, and no LMS credentials sent. Only `/ai/mcp` stays
+capability section or scope offered. Only `/ai/mcp` stays
 system-wide.
 
 Because `/ai/mcp` has no per-user switch, a tool that must not run for a particular caller
@@ -702,7 +687,7 @@ construction and skips that plugin.
 
 On every request chat reads the capabilities of the plugins enabled for the requesting user, in
 plugin-name order. Chat contributes its own, course design. A plugin switched off system-wide or
-by the user contributes no section, no scope, no tools and no LMS credentials.
+by the user contributes no section, no scope and no tools.
 
 - **Scope gate.** Each message is judged against every enabled scope. A message that fits none
   is refused with a fixed sentence before the model runs. A refused first message writes nothing; a refused later message is stored in the
@@ -717,7 +702,7 @@ by the user contributes no section, no scope, no tools and no LMS credentials.
   plugin.
 
 Plugin-specific knowledge belongs in a `<prefix>about` tool, not in a capability's `prompt`;
-see the LMS `about` tool [above](#lms-plugins-automatic-credential-injection) for the convention.
+see the LMS `about` tool [above](#lms-plugins-tools-without-credentials) for the convention.
 
 ## Reacting to a deleted document
 

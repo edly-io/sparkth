@@ -11,7 +11,3 @@ class MoodleConfig(PluginConfig):
         min_length=1,
         json_schema_extra=widget(ConfigWidget.PASSWORD),
     )
-
-    @classmethod
-    def lms_tool_prefix(cls) -> str:
-        return "moodle_"
