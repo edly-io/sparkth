@@ -22,6 +22,7 @@ class TestPluginsPublicApi:
         assert set(plugins_api.__all__) == {
             "SparkthPlugin",
             "PluginConfig",
+            "ConfigAdapter",
             "ConfigWidget",
             "widget",
             "PluginAccessMiddleware",
