@@ -209,6 +209,10 @@ class MyAppPluginConfigAdapter(LLMConfigAdapter):
 **Cache invalidation** — clear a Redis key when config is updated:
 
 ```python
+from sparkth.lib.cache import get_cache_service
+from sparkth.lib.settings import get_settings
+
+
 class MyAppPluginConfigAdapter(LLMConfigAdapter):
     async def sync_cache(
         self,
@@ -217,7 +221,9 @@ class MyAppPluginConfigAdapter(LLMConfigAdapter):
         user_id: int,
         stored_config: dict[str, Any],
     ) -> None:
-        await cache.delete(f"myappplugin:{user_id}")
+        settings = get_settings()
+        cache = get_cache_service(settings.REDIS_URL, settings.REDIS_KEY_TTL)
+        await cache.delete(cache.make_key("myappplugin", str(user_id)))
 ```
 
 

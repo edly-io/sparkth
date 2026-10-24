@@ -426,11 +426,11 @@ class TestPluginSwitches:
         assert "https://lms.example.com" not in provider.system_prompt
         assert "token-abc123" not in provider.system_prompt
 
-    async def test_an_enabled_plugin_contributes_its_tools_section_and_credentials(
+    async def test_an_enabled_plugin_contributes_its_tools_section_and_no_credentials(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
     ) -> None:
         provider, get_provider = await self._lms_turn(client, session, current_user.id or 1, True, True)
 
         assert _bound_tool_names(provider) == ["openedx_create_xblock", "canvas_create_course", "stub_build"]
         assert _section(stub_capability) in _system_prompt(get_provider)
-        assert "https://lms.example.com" in provider.system_prompt
+        assert "https://lms.example.com" not in provider.system_prompt

@@ -17,12 +17,3 @@ class OpenEdxConfig(PluginConfig):
     @classmethod
     def lms_tool_prefix(cls) -> str:
         return "openedx_"
-
-    def to_lms_credentials_hint(self) -> str:
-        return (
-            "Open edX credentials:\n"
-            f"  lms_url: {self.lms_url}\n"
-            f"  studio_url: {self.studio_url}\n"
-            f"  username: {self.lms_username}\n"
-            f"  password: {self.lms_password}"
-        )

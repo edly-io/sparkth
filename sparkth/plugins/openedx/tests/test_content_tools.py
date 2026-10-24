@@ -18,11 +18,10 @@ from sparkth.lib.content.hooks import (
 from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import LMSRequestError
 from sparkth.lib.models import User
-from sparkth.lib.plugins import SparkthPlugin
-from sparkth.plugins.openedx.schemas import AccessTokenPayload, AddPluginContentArgs
+from sparkth.lib.plugins import PluginNotConfiguredError, SparkthPlugin
+from sparkth.plugins.openedx.schemas import AddPluginContentArgs
+from sparkth.plugins.openedx.tests.conftest import OPENEDX_CONFIG
 from sparkth.plugins.openedx.tools import openedx_add_plugin_content, openedx_list_content_contributors
-
-AUTH = AccessTokenPayload(access_token="t", lms_url="https://lms", studio_url="https://studio")
 
 
 async def build_fake(course_id: str, option_id: str | None) -> ContentBlock:
@@ -62,7 +61,6 @@ def fake_contributor(owners: list[SparkthPlugin]) -> ContentContributor:
 
 def add_args(contributor: str = "fake", option_id: str | None = None) -> AddPluginContentArgs:
     return AddPluginContentArgs(
-        auth=AUTH,
         course_id="course-v1:X+Y+Z",
         unit_locator="block-v1:X+Y+Z+type@vertical+block@u1",
         contributor=contributor,
@@ -91,10 +89,10 @@ async def test_creates_the_block_the_contributor_declares(fake_contributor: Cont
 
     cast(AsyncMock, fake_contributor.builders["open-edx"]).assert_awaited_once_with("course-v1:X+Y+Z", None)
     create.assert_awaited_once_with(
-        AUTH, "course-v1:X+Y+Z", "block-v1:X+Y+Z+type@vertical+block@u1", "fake", "Fake Activity"
+        OPENEDX_CONFIG, "course-v1:X+Y+Z", "block-v1:X+Y+Z+type@vertical+block@u1", "fake", "Fake Activity"
     )
     update.assert_awaited_once_with(
-        AUTH,
+        OPENEDX_CONFIG,
         "course-v1:X+Y+Z",
         "block-v1:X+Y+Z+type@fake+block@b1",
         None,
@@ -102,6 +100,15 @@ async def test_creates_the_block_the_contributor_declares(fake_contributor: Cont
     )
     assert result["response"]["locator"] == "block-v1:X+Y+Z+type@fake+block@b1"
     assert result["response"]["category"] == "fake"
+
+
+async def test_an_unconfigured_user_places_no_plugin_content(fake_contributor: ContentContributor) -> None:
+    unconfigured = AsyncMock(side_effect=PluginNotConfiguredError("Open edX"))
+    with patch("sparkth.plugins.openedx.tools.load_user_plugin_config", unconfigured):
+        with pytest.raises(PluginNotConfiguredError):
+            await openedx_add_plugin_content(add_args())
+
+    cast(AsyncMock, fake_contributor.builders["open-edx"]).assert_not_awaited()
 
 
 async def test_unknown_contributor_is_an_error_and_creates_nothing() -> None:

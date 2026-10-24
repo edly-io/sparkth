@@ -13,30 +13,6 @@ class TokenResponse(BaseModel):
     scope: str | None = None
 
 
-class AccessTokenPayload(BaseModel):
-    access_token: str
-    lms_url: str
-    studio_url: str
-
-
-class Auth(BaseModel):
-    lms_url: str
-    studio_url: str
-    username: str
-    password: str
-
-
-class RefreshTokenPayload(BaseModel):
-    lms_url: str
-    studio_url: str
-    refresh_token: str
-
-
-class LMSAccess(BaseModel):
-    access_token: str
-    lms_url: str
-
-
 class CourseArgs(BaseModel):
     org: str
     number: str
@@ -46,7 +22,6 @@ class CourseArgs(BaseModel):
 
 
 class CreateCourseArgs(BaseModel):
-    auth: AccessTokenPayload
     org: str
     number: str
     run: str
@@ -64,7 +39,6 @@ class CreateCourseArgs(BaseModel):
 
 
 class ListCourseRunsArgs(BaseModel):
-    auth: AccessTokenPayload
     page: int | None = None
     page_size: int | None = None
 
@@ -76,7 +50,6 @@ class XBlock(BaseModel):
 
 
 class XBlockPayload(BaseModel):
-    auth: AccessTokenPayload
     course_id: str
     parent_locator: str
     category: str
@@ -84,7 +57,6 @@ class XBlockPayload(BaseModel):
 
 
 class ProblemOrHtmlArgs(BaseModel):
-    auth: AccessTokenPayload
     course_id: str
     unit_locator: str
     kind: Component | None = None
@@ -95,7 +67,6 @@ class ProblemOrHtmlArgs(BaseModel):
 
 
 class UpdateXBlockPayload(BaseModel):
-    auth: AccessTokenPayload
     course_id: str
     locator: str
     data: str | None = None
@@ -103,24 +74,20 @@ class UpdateXBlockPayload(BaseModel):
 
 
 class PublishContentArgs(BaseModel):
-    auth: AccessTokenPayload
     course_id: str
     locator: str
 
 
 class CourseTreeRequest(BaseModel):
-    auth: AccessTokenPayload
     course_id: str
 
 
 class BlockContentArgs(BaseModel):
-    auth: AccessTokenPayload
     course_id: str
     locator: str
 
 
 class AddPluginContentArgs(BaseModel):
-    auth: AccessTokenPayload
     course_id: str
     unit_locator: str
     contributor: str = Field(

@@ -1,12 +1,13 @@
 from collections.abc import Callable
 from typing import Any
 
-from sparkth.lib.config.hooks import CONFIG_SCHEMAS
+from sparkth.lib.config.hooks import CONFIG_ADAPTERS, CONFIG_SCHEMAS
 from sparkth.lib.frontend.hooks import DISPLAY_INFO, DisplayInfo
 from sparkth.lib.i18n import gettext_noop
 from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.plugins.openedx import tools as openedx_tools
+from sparkth.plugins.openedx.adapter import OpenEdxConfigAdapter
 from sparkth.plugins.openedx.config import OpenEdxConfig
 from sparkth.plugins.openedx.constants import OPENEDX_PLUGIN_NAME
 
@@ -17,7 +18,7 @@ class OpenEdxPlugin(SparkthPlugin):
 
     Provides comprehensive Open edX API integration with MCP tools for:
     - Open edX vocabulary, structure and publish semantics (``openedx_about``)
-    - Authentication and credential validation
+    - Checking the user's stored Open edX settings
     - Course CRUD operations
     - Section and subsection management
     - Unit, Problem and HTML Component Management
@@ -30,6 +31,7 @@ class OpenEdxPlugin(SparkthPlugin):
     def __init__(self) -> None:
         super().__init__(OPENEDX_PLUGIN_NAME)
         CONFIG_SCHEMAS.add_item(self, OpenEdxConfig)
+        CONFIG_ADAPTERS.add_item(self, OpenEdxConfigAdapter())
         DISPLAY_INFO.add_item(
             self,
             DisplayInfo(
@@ -39,13 +41,6 @@ class OpenEdxPlugin(SparkthPlugin):
         )
         tools_per_category: list[tuple[str, list[Callable[..., Any]]]] = [
             ("openedx-about", [openedx_tools.openedx_about]),
-            (
-                "openedx-auth",
-                [
-                    openedx_tools.openedx_authenticate,
-                    openedx_tools.openedx_refresh_access_token,
-                ],
-            ),
             (
                 "openedx-user",
                 [
