@@ -62,6 +62,7 @@ export interface paths {
          *
          *     Sparse. Grouped results keep the top 20 groups by range total and set `truncated` when more
          *     existed. An unknown event type or field, or a value that does not fit its field, is a 422.
+         *     Grouped by actor, `actor_names` maps user ids to usernames for holders of `user.read`.
          */
         get: operations["query_events_api_v1_analytics_query_get"];
         put?: never;
