@@ -12,7 +12,15 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sparkth.lib.analytics import LoginsPoint, RangeQuery, SummaryCount, get_logins, summarize
+from sparkth.lib.analytics import (
+    EventCatalogEntry,
+    LoginsPoint,
+    RangeQuery,
+    SummaryCount,
+    event_catalog,
+    get_logins,
+    summarize,
+)
 from sparkth.lib.db import get_analytics_session
 from sparkth.lib.permissions import ANALYTICS_READ
 
@@ -53,3 +61,13 @@ async def summary(
     ignored.
     """
     return await summarize(session, query.from_, query.to)
+
+
+@router.get(
+    "/events",
+    response_model=list[EventCatalogEntry],
+    dependencies=[Depends(ANALYTICS_READ.require_in_global_scope())],
+)
+async def events() -> list[EventCatalogEntry]:
+    """Return every registered event type with its payload fields, sorted by type."""
+    return event_catalog()
