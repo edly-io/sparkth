@@ -171,7 +171,7 @@ async def _read_tail(stream: asyncio.StreamReader, tail: bytearray) -> None:
         del tail[:-limit]
 
 
-def _timed_out_message(step: str, timeout: int, stdout: bytearray, stderr: bytearray) -> str:
+def _timed_out_message(step: str, timeout: float, stdout: bytearray, stderr: bytearray) -> str:
     """Name the step that timed out, the last step it named on stdout and what it wrote to stderr."""
     named = [
         line.removeprefix(PXC_STEP_PREFIX)
@@ -179,7 +179,7 @@ def _timed_out_message(step: str, timeout: int, stdout: bytearray, stderr: bytea
         if line.startswith(PXC_STEP_PREFIX)
     ]
     running = f" while running {named[-1]}" if named else ""
-    message = f"{step} did not finish within {timeout} seconds{running}. Look for a loop that never ends."
+    message = f"{step} did not finish within {timeout:g} seconds{running}. Look for a loop that never ends."
     reported = stderr.decode("utf-8", "replace").strip()
     if reported:
         message += f"\nBefore that, it reported:\n{reported}"
