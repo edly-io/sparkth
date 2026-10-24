@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
 import { Alert } from "@/components/ui/Alert";
-import { Spinner } from "@/components/Spinner";
+import { Spinner } from "@/lib/components/ui/Spinner";
 import { useAuth } from "@/lib/auth/hooks";
 import { fetchRagSources } from "@/lib/slack";
 

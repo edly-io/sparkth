@@ -21,7 +21,7 @@ import { sidebarItemsFrom, type SidebarItem } from "@/lib/plugins/metadata";
 import { resolvePluginIcon } from "@/lib/plugins/icons";
 import { GATED_NAV, NavItem } from "@/components/NavItem";
 import Image from "next/image";
-import { Spinner } from "@/components/Spinner";
+import { Spinner } from "@/core/components/ui/Spinner";
 import { SparkthLogo } from "@/components/SparkthLogo";
 import { Button } from "@/core/components/ui/Button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/core/components/ui/Tooltip";

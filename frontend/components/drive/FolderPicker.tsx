@@ -1,7 +1,7 @@
 "use client";
 
 import { Folder, ChevronRight } from "lucide-react";
-import { Spinner } from "@/components/Spinner";
+import { Spinner } from "@/core/components/ui/Spinner";
 import { Button } from "@/core/components/ui/Button";
 import {
   Dialog,

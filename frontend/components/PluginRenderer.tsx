@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, lazy, useMemo, useEffect, useState } from "react";
-import { Spinner } from "@/components/Spinner";
+import { Spinner } from "@/core/components/ui/Spinner";
 import { PluginDefinition, displayNameOf, emitPluginEvent } from "@/lib/plugins";
 import { usePlugin, usePluginContext } from "@/lib/plugins/context";
 import { PluginErrorBoundary } from "./PluginErrorBoundary";

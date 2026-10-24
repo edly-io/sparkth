@@ -4,7 +4,7 @@ import { usePluginContext } from "@/lib/plugins/context";
 import { displayNameOf, resolvePluginIcon } from "@/lib/plugins";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { Spinner } from "@/components/Spinner";
+import { Spinner } from "@/core/components/ui/Spinner";
 
 export default function DashboardPage() {
   const { userPlugins, loading } = usePluginContext();

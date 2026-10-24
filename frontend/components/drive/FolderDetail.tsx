@@ -4,7 +4,7 @@ import { useCallback, useEffect, useReducer, useRef } from "react";
 import { useRagStatusPolling } from "@/lib/useRagStatusPolling";
 import { Folder, FileText, RefreshCw, Upload } from "lucide-react";
 import { FileTable } from "./FileTable";
-import { Spinner } from "@/components/Spinner";
+import { Spinner } from "@/core/components/ui/Spinner";
 import { useAuth } from "@/core/auth/hooks";
 import { downloadBlob } from "@/lib/download";
 import { Button } from "@/core/components/ui/Button";

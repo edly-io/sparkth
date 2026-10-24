@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { Button } from "@/lib/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { Spinner } from "@/components/Spinner";
+import { Spinner } from "@/lib/components/ui/Spinner";
 import { useAuth } from "@/lib/auth/hooks";
 import { listActivities, type ActivitySummary } from "@/plugins/pxc/client";
 import { DeleteActivityDialog } from "@/plugins/pxc/components/DeleteActivityDialog";

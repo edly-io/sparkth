@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Alert } from "@/components/ui/Alert";
-import { Spinner } from "@/components/Spinner";
+import { Spinner } from "@/lib/components/ui/Spinner";
 import { useAuth } from "@/lib/auth/hooks";
 import { getConnectionStatus, type ConnectionStatus } from "@/lib/slack";
 import SlackConnectionCard from "./components/SlackConnectionCard";
