@@ -4,6 +4,7 @@ import pytest
 
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
 from sparkth.plugins.moodle.client import MoodleClient, flatten_ws_params
+from sparkth.plugins.moodle.config import MoodleConfig
 
 
 class TestFlattenWsParams:
@@ -40,6 +41,10 @@ class TestFlattenWsParams:
         assert flatten_ws_params({}) == {}
 
 
+def _config(key: str) -> MoodleConfig:
+    return MoodleConfig.model_validate({"api_url": "https://moodle.example.com", "api_key": key})
+
+
 def _mock_session(body: str, status: int = 200) -> MagicMock:
     response = AsyncMock()
     response.status = status
@@ -59,7 +64,7 @@ class TestMoodleClientEnvelope:
     async def test_successful_call_returns_the_parsed_body(self) -> None:
         session = _mock_session('{"sitename": "Sparkth Moodle Dev"}')
         with patch("sparkth.lib.http.ClientSession", return_value=session):
-            async with MoodleClient("https://moodle.example.com", "tok") as client:
+            async with MoodleClient(_config("tok")) as client:
                 result = await client.call_dict("core_webservice_get_site_info")
         assert result == {"sitename": "Sparkth Moodle Dev"}
 
@@ -69,7 +74,7 @@ class TestMoodleClientEnvelope:
         session = _mock_session(body)
         with patch("sparkth.lib.http.ClientSession", return_value=session):
             with pytest.raises(AuthenticationError) as exc_info:
-                async with MoodleClient("https://moodle.example.com", "bad") as client:
+                async with MoodleClient(_config("bad")) as client:
                     await client.call_dict("core_webservice_get_site_info")
         assert "Invalid token" in exc_info.value.message
 
@@ -82,7 +87,7 @@ class TestMoodleClientEnvelope:
         session = _mock_session(body)
         with patch("sparkth.lib.http.ClientSession", return_value=session):
             with pytest.raises(AuthenticationError) as exc_info:
-                async with MoodleClient("https://moodle.example.com", "tok") as client:
+                async with MoodleClient(_config("tok")) as client:
                     await client.call_dict("local_sparkth_create_page", {"courseid": 1})
 
         assert exc_info.value.message.startswith("Access control exception")
@@ -94,7 +99,7 @@ class TestMoodleClientEnvelope:
         session = _mock_session(body)
         with patch("sparkth.lib.http.ClientSession", return_value=session):
             with pytest.raises(LMSRequestError) as exc_info:
-                async with MoodleClient("https://moodle.example.com", "tok") as client:
+                async with MoodleClient(_config("tok")) as client:
                     await client.call_dict("local_sparkth_create_section", {"courseid": 1})
         assert "No permission" in exc_info.value.message
 
@@ -102,7 +107,7 @@ class TestMoodleClientEnvelope:
     async def test_a_body_without_an_exception_key_is_not_an_error(self) -> None:
         session = _mock_session('{"errorcode": "unused", "id": 7}')
         with patch("sparkth.lib.http.ClientSession", return_value=session):
-            async with MoodleClient("https://moodle.example.com", "tok") as client:
+            async with MoodleClient(_config("tok")) as client:
                 result = await client.call_dict("local_sparkth_create_section")
         assert result == {"errorcode": "unused", "id": 7}
 
@@ -112,7 +117,7 @@ class TestMoodleClientTypedAccessors:
     async def test_call_list_returns_the_parsed_array(self) -> None:
         session = _mock_session('[{"id": 1}, {"id": 2}]')
         with patch("sparkth.lib.http.ClientSession", return_value=session):
-            async with MoodleClient("https://moodle.example.com", "tok") as client:
+            async with MoodleClient(_config("tok")) as client:
                 result = await client.call_list("core_course_get_courses")
         assert result == [{"id": 1}, {"id": 2}]
 
@@ -121,7 +126,7 @@ class TestMoodleClientTypedAccessors:
         session = _mock_session('[{"id": 1}]')
         with patch("sparkth.lib.http.ClientSession", return_value=session):
             with pytest.raises(ValueError, match="core_webservice_get_site_info"):
-                async with MoodleClient("https://moodle.example.com", "tok") as client:
+                async with MoodleClient(_config("tok")) as client:
                     await client.call_dict("core_webservice_get_site_info")
 
     @pytest.mark.asyncio
@@ -129,5 +134,5 @@ class TestMoodleClientTypedAccessors:
         session = _mock_session('{"id": 1}')
         with patch("sparkth.lib.http.ClientSession", return_value=session):
             with pytest.raises(ValueError, match="core_course_get_courses"):
-                async with MoodleClient("https://moodle.example.com", "tok") as client:
+                async with MoodleClient(_config("tok")) as client:
                     await client.call_list("core_course_get_courses")

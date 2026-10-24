@@ -4,14 +4,15 @@ from urllib.parse import urljoin
 from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import AuthenticationError
 from sparkth.lib.http import BaseHttpClient
+from sparkth.plugins.canvas.config import CanvasConfig
 
 
 class CanvasClient(BaseHttpClient):
     """HTTP client for the Canvas LMS REST API."""
 
-    def __init__(self, api_url: str, api_token: str) -> None:
-        super().__init__(api_url)
-        self.api_token = api_token
+    def __init__(self, config: CanvasConfig) -> None:
+        super().__init__(str(config.api_url))
+        self.api_token = config.api_key
 
     @property
     def token(self) -> str | None:

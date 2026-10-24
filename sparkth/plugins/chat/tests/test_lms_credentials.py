@@ -91,7 +91,7 @@ class TestBuildLmsCredentialsMessage:
         assert "admin" in result
         assert "secret" in result
 
-    async def test_canvas_credentials_included(self, mock_session: AsyncMock) -> None:
+    async def test_canvas_settings_never_reach_the_message(self, mock_session: AsyncMock) -> None:
         tools = [_make_tool("canvas_get_courses")]
         with patch(
             "sparkth.lib.plugins.PluginService.get_user_plugin_map",
@@ -99,9 +99,8 @@ class TestBuildLmsCredentialsMessage:
         ):
             result = await build_lms_credentials_message(session=mock_session, user_id=1, tools=tools)
         assert result is not None
-        assert "https://canvas.example.com" in result
-        assert "token-abc123" in result
-        assert "api_token" in result
+        assert "token-abc123" not in result
+        assert "https://canvas.example.com" not in result
 
     async def test_both_lms_credentials_included(self, mock_session: AsyncMock) -> None:
         tools = [_make_tool("openedx_create_course_run"), _make_tool("canvas_create_course")]
@@ -112,7 +111,6 @@ class TestBuildLmsCredentialsMessage:
             result = await build_lms_credentials_message(session=mock_session, user_id=1, tools=tools)
         assert result is not None
         assert "https://lms.example.com" in result
-        assert "https://canvas.example.com" in result
 
     async def test_rule_5_absent_when_no_credentials(self, mock_session: AsyncMock) -> None:
         """Rule 5 (use credentials automatically) must not appear when no credentials are configured."""
@@ -167,7 +165,6 @@ class TestBuildLmsCredentialsMessage:
             result = await build_lms_credentials_message(mock_session, 1, tools)
 
         assert result is not None
-        assert "https://canvas.example.com" in result
         assert "https://lms.example.com" not in result
 
     async def test_no_message_when_only_non_lms_tools_remain(self, mock_session: AsyncMock) -> None:

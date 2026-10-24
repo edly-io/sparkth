@@ -15,6 +15,3 @@ class CanvasConfig(PluginConfig):
     @classmethod
     def lms_tool_prefix(cls) -> str:
         return "canvas_"
-
-    def to_lms_credentials_hint(self) -> str:
-        return f"Canvas credentials:\n  api_url: {self.api_url}\n  api_token: {self.api_key}"

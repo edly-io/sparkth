@@ -295,3 +295,14 @@ def translation_catalog(tmp_path: Path) -> Generator[AddTranslation]:
 
     for locale_dir in registered:
         LOCALE_DIRS.remove(locale_dir)
+
+
+def schema_property_names(schema: dict[str, Any]) -> set[str]:
+    """Return every property name anywhere in a JSON schema, including ``$defs`` and nested objects."""
+    names: set[str] = set()
+    for key, value in schema.items():
+        if key == "properties" and isinstance(value, dict):
+            names |= set(value)
+        children = value.values() if isinstance(value, dict) else value if isinstance(value, list) else []
+        names |= set().union(*(schema_property_names(c) for c in children if isinstance(c, dict)))
+    return names

@@ -1,0 +1,1 @@
+CANVAS_PLUGIN_NAME = "canvas"
