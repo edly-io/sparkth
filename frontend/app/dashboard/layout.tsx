@@ -6,7 +6,7 @@ import { useAuth } from "@/core/auth/hooks";
 import { resolveNavPermissions } from "@/components/NavItem";
 import { PluginProvider } from "@/lib/plugins/context";
 import AppSidebar from "@/core/components/layout/AppSidebar";
-import MobileSidebar from "@/components/MobileSidebar";
+import MobileSidebar from "@/core/components/layout/MobileSidebar";
 import { SidebarProvider, useSidebar } from "@/lib/sidebar-context";
 import { redirect } from "next/navigation";
 import { Menu } from "lucide-react";
