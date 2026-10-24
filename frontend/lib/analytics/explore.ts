@@ -5,15 +5,18 @@ export type Measure = "count" | "distinct_actors";
 /** How an Explore result is drawn. */
 export type ChartKind = "line" | "bar" | "table";
 
-/** An Explore view's settings, as kept in the URL. `groupBy` is a field name or `"actor"`. */
-export interface ExploreConfig {
+/**
+ * An Explore view's settings, as kept in the URL and in a saved view. `groupBy` is a field name
+ * or `"actor"`.
+ */
+export type ExploreConfig = {
   event: string | null;
   actor: string | null;
   filters: { field: string; value: string }[];
   measure: Measure;
   groupBy: string | null;
   chart: ChartKind;
-}
+};
 
 type EventField = EventCatalogEntry["fields"][number];
 

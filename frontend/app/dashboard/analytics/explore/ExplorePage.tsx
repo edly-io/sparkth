@@ -7,13 +7,18 @@ import { ChartColumn, X } from "lucide-react";
 import {
   PERIOD_KEYS,
   buildSeries,
+  createView,
+  deleteView,
   exploreParams,
   fetchEventCatalog,
   fetchExplore,
+  fetchView,
   filterChoices,
   isFilterValueValid,
   parseExploreConfig,
   pruneConfig,
+  updateView,
+  type AnalyticsView,
   type ChartKind,
   type EventCatalogEntry,
   type ExploreConfig,
@@ -32,18 +37,34 @@ import { RankedBar } from "@/components/ui/RankedBar";
 import { Select } from "@/components/ui/Select";
 import { Forbidden } from "@/components/Forbidden";
 import { Spinner } from "@/components/Spinner";
+import { VIEWS_CHANGED } from "../AnalyticsNav";
 import { PeriodView, useComparison, type PeriodRange } from "../PeriodView";
+import { SaveViewDialog } from "./SaveViewDialog";
 import { usePeriod } from "../usePeriod";
 
 const MEASURES: Measure[] = ["count", "distinct_actors"];
 const CHARTS: ChartKind[] = ["line", "bar", "table"];
+// Explore's URL keys that outlive a config change: the period and the open saved view.
+const KEPT_KEYS = [...PERIOD_KEYS, "view"];
 const VISIBLE_TABLE =
   "w-full text-left text-sm [&_caption]:mb-2 [&_caption]:text-left [&_td]:py-1 [&_th]:py-1";
 
+/** The URL query showing saved `view`, keeping the period from `current`. */
+function viewQuery(current: string, view: AnalyticsView): URLSearchParams {
+  const saved = { ...parseExploreConfig(new URLSearchParams()), ...view.config };
+  const kept = [...new URLSearchParams(current)].filter(([k]) => PERIOD_KEYS.includes(k));
+  return new URLSearchParams([
+    ...kept,
+    ["view", view.id],
+    ...exploreParams(saved as ExploreConfig),
+  ]);
+}
+
 /**
  * Builds a chart from any recorded event: pick an event, filter, measure, break down and chart
- * type. The settings live in the URL, so a configured view can be bookmarked or shared. Event
- * types, field names and values show as recorded.
+ * type. The settings live in the URL, so a configured view can be bookmarked or shared, and can
+ * be saved as a view private to the viewer; `?view=<id>` opens one. Event types, field names and
+ * values show as recorded.
  */
 export default function ExplorePage() {
   const t = useTranslations("analytics.explore");
@@ -54,6 +75,14 @@ export default function ExplorePage() {
   const pathname = usePathname();
   const { period } = usePeriod();
   const [catalog, setCatalog] = useState<EventCatalogEntry[] | "forbidden" | "error" | null>(null);
+  const viewId = params.get("view");
+  // The last saved view fetched or written, by id; "missing" when it 404'd or 422'd, "error" otherwise.
+  const [loaded, setLoaded] = useState<{
+    id: string;
+    view: AnalyticsView | "missing" | "error";
+  } | null>(null);
+  const [dialog, setDialog] = useState<"create" | "rename" | null>(null);
+  const [notice, setNotice] = useState<"saved" | "error" | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -74,6 +103,44 @@ export default function ExplorePage() {
   }, [token]);
 
   const query = params.toString();
+  const latestQuery = useRef(query);
+  useEffect(() => {
+    latestQuery.current = query;
+  }, [query]);
+
+  // Opening a saved view writes its config into the URL, keeping the period.
+  useEffect(() => {
+    if (!token || !viewId) return;
+    let active = true;
+    fetchView(token, viewId)
+      .then((view) => {
+        if (!active) return;
+        setLoaded({ id: viewId, view });
+        router.replace(`${pathname}?${viewQuery(latestQuery.current, view)}`);
+      })
+      .catch((err: unknown) => {
+        console.error("Saved analytics view failed to load:", err);
+        if (active) {
+          // 422: the id isn't a UUID, so no view can have it.
+          const missing =
+            err instanceof ApiRequestError && (err.status === 404 || err.status === 422);
+          setLoaded({ id: viewId, view: missing ? "missing" : "error" });
+        }
+      });
+    return () => {
+      active = false;
+    };
+    // Fetched once per opened id; the router and path are stable.
+  }, [token, viewId]);
+  // A URL naming the open view but none of its settings (its rail link) shows the view again.
+  const shown = viewId && loaded?.id === viewId ? loaded.view : null;
+  useEffect(() => {
+    if (typeof shown !== "object" || !shown) return;
+    if ([...new URLSearchParams(query).keys()].every((k) => KEPT_KEYS.includes(k))) {
+      router.replace(`${pathname}?${viewQuery(query, shown)}`);
+    }
+    // The router and path are stable.
+  }, [shown, query]);
   const pruned = useMemo(
     () =>
       Array.isArray(catalog)
@@ -99,24 +166,112 @@ export default function ExplorePage() {
   }
 
   const { config, dropped } = pruned;
-  // Keeps the period, replaces Explore's own settings.
+  // Keeps the period and the open view, replaces Explore's own settings.
   const update = (change: (current: ExploreConfig) => ExploreConfig) => {
     const latest = new URLSearchParams(pending.current ?? query);
     const current = pruneConfig(parseExploreConfig(latest), catalog).config;
-    const kept = [...latest].filter(([k]) => PERIOD_KEYS.includes(k));
+    const kept = [...latest].filter(([k]) => KEPT_KEYS.includes(k));
     const q = new URLSearchParams([...kept, ...exploreParams(change(current))]).toString();
     if (q === latest.toString()) return;
     pending.current = q;
+    setNotice(null);
     router.replace(q ? `${pathname}?${q}` : pathname);
   };
   const entry = catalog.find((e) => e.event_type === config.event);
+  const view = typeof shown === "object" ? shown : null;
+
+  // Shows `id` (or no view) with the current config and period.
+  const open = (id: string | null) => {
+    const kept = [...new URLSearchParams(query)].filter(([k]) => PERIOD_KEYS.includes(k));
+    const q = new URLSearchParams([
+      ...kept,
+      ...(id ? [["view", id]] : []),
+      ...exploreParams(config),
+    ]).toString();
+    router.replace(q ? `${pathname}?${q}` : pathname);
+  };
+  const changed = (saved: AnalyticsView) => {
+    setLoaded({ id: saved.id, view: saved });
+    window.dispatchEvent(new Event(VIEWS_CHANGED));
+  };
+  const saveNew = async (name: string) => {
+    if (!token) return;
+    const saved = await createView(token, name, config);
+    changed(saved);
+    open(saved.id);
+  };
+  const rename = async (name: string) => {
+    if (!token || !view) return;
+    changed(await updateView(token, view.id, { name }));
+  };
+  // Saving or deleting from the toolbar reports failure inline; the dialog reports its own.
+  const act = async (action: () => Promise<void>, done: "saved" | null) => {
+    try {
+      await action();
+      setNotice(done);
+    } catch (err) {
+      console.error("Saved analytics view action failed:", err);
+      setNotice("error");
+    }
+  };
+  const save = () =>
+    act(async () => {
+      if (token && view) changed(await updateView(token, view.id, { config }));
+    }, "saved");
+  const remove = () => {
+    if (!token || !view || !confirm(t("confirmDelete", { name: view.name }))) return;
+    void act(async () => {
+      await deleteView(token, view.id);
+      window.dispatchEvent(new Event(VIEWS_CHANGED));
+      open(null);
+    }, null);
+  };
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold text-foreground">{t("title")}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">{t("description")}</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-semibold text-foreground">{view?.name ?? t("title")}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{t("description")}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {view ? (
+            <>
+              <Button size="sm" onClick={save}>
+                {t("save")}
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => setDialog("create")}>
+                {t("saveAsNew")}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setDialog("rename")}>
+                {t("rename")}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={remove}>
+                {t("delete")}
+              </Button>
+            </>
+          ) : (
+            <Button size="sm" onClick={() => setDialog("create")}>
+              {t("saveView")}
+            </Button>
+          )}
+        </div>
       </div>
+      <SaveViewDialog
+        open={dialog !== null}
+        title={dialog === "rename" ? t("renameView") : t("saveView")}
+        initialName={dialog === "rename" ? view?.name : ""}
+        onSave={dialog === "rename" ? rename : saveNew}
+        onClose={() => setDialog(null)}
+      />
+      {notice === "saved" && (
+        <p role="status" className="text-sm text-muted-foreground">
+          {t("saved")}
+        </p>
+      )}
+      {notice === "error" && <Alert severity="error">{t("saveError")}</Alert>}
+      {shown === "missing" && <Alert severity="warning">{t("viewMissing")}</Alert>}
+      {shown === "error" && <Alert severity="error">{tAnalytics("loadError")}</Alert>}
       {dropped && <Alert severity="warning">{t("stale")}</Alert>}
       {/* Keyed by event, so a half-built filter doesn't outlive its event's fields. */}
       <Controls

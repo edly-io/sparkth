@@ -26,6 +26,23 @@ Pick a period at the top, or a custom range, and how to group the charts.
 - Course authoring counts are lower bounds: now and then an event is not recorded, so read them
   as "at least".
 
+## Saved views
+
+In **Explore**, **Save view** names the current setup and saves it. Saved views are private to
+you: nobody else sees them or can open them, even with the link. They're listed under
+**Saved views** in the analytics menu. A view doesn't store a period, so opening one shows its
+setup for the period you have selected.
+
+With a saved view open:
+
+- **Save** stores your changes to it.
+- **Save as new** saves the current setup under a new name and leaves the original as it was.
+- **Rename** gives it a new name. Each of your views needs a different name.
+- **Delete** removes it. The chart stays on screen, no longer saved.
+
+A saved view naming an event, field or value that no longer exists still opens, without that
+part, and says so.
+
 ## Required permissions
 
 | Permission | Lets you |

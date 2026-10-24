@@ -79,7 +79,8 @@
       "overview": "Overview",
       "logins": "Logins",
       "authoring": "Course authoring",
-      "explore": "Explore"
+      "explore": "Explore",
+      "savedViews": "Saved views"
     },
     "period": {
       "range": "Period",
@@ -147,7 +148,19 @@
       "truncated": "Showing the top 20 groups; there are more.",
       "none": "(none)",
       "chartCaption": "{event}, {range}",
-      "groupCaption": "{event} by {group}, {range}"
+      "groupCaption": "{event} by {group}, {range}",
+      "saveView": "Save view",
+      "save": "Save",
+      "saveAsNew": "Save as new",
+      "rename": "Rename",
+      "delete": "Delete",
+      "renameView": "Rename view",
+      "viewName": "Name",
+      "nameTaken": "You already have a view with this name.",
+      "saveError": "We couldn't save your changes to the view. Please try again.",
+      "saved": "View saved.",
+      "confirmDelete": "Delete the view “{name}”?",
+      "viewMissing": "This saved view doesn't exist or isn't yours."
     }
   },
   "home": {
