@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 import json
 from typing import Any
 
@@ -19,20 +21,27 @@ from sparkth.plugins.openedx.schemas import TokenResponse
 logger = get_logger(__name__)
 
 
-def access_token_cache(user_id: int) -> tuple[CacheService, str]:
-    """Return the shared cache and the cache key of ``user_id``'s Open edX access token."""
+def access_token_cache(user_id: int, config: OpenEdxConfig) -> tuple[CacheService, str]:
+    """Return the shared cache and the key of the Open edX access token for ``user_id`` and ``config``.
+
+    The key carries an HMAC of the LMS URL, username and password, so saving new settings moves the
+    user to a new key and the old token just expires. The HMAC uses the server secret, so the key
+    reveals nothing about the settings.
+    """
     settings = get_settings()
     cache = get_cache_service(settings.REDIS_URL, settings.REDIS_KEY_TTL)
-    return cache, cache.make_key(OPENEDX_ACCESS_TOKEN_CACHE_PREFIX, str(user_id))
+    material = "\n".join((str(config.lms_url), config.lms_username, config.lms_password))
+    digest = hmac.new(settings.SECRET_KEY.encode(), material.encode(), hashlib.sha256).hexdigest()
+    return cache, cache.make_key(OPENEDX_ACCESS_TOKEN_CACHE_PREFIX, str(user_id), digest)
 
 
 class OpenEdxClient(BaseHttpClient):
     """HTTP client for the Open edX LMS and Studio REST APIs.
 
     Built from the user's stored ``OpenEdxConfig``. It grants its own access token with the
-    configured credentials on first use and caches it under ``user_id``, the Sparkth user the client
-    acts for, so the token is shared by that user's later calls and never reaches the model. A 401
-    drops the cached token and the request is retried once with a fresh one.
+    configured credentials on first use and caches it for ``user_id``, the Sparkth user the client
+    acts for, and those settings, so the token is shared by that user's later calls and never
+    reaches the model. A 401 drops the cached token and the request is retried once with a fresh one.
     """
 
     def __init__(self, config: OpenEdxConfig, user_id: int) -> None:
@@ -93,7 +102,7 @@ class OpenEdxClient(BaseHttpClient):
         The cache entry expires a margin before the token does, or after the cache default TTL
         when Open edX reports no expiry.
         """
-        cache, key = access_token_cache(self.user_id)
+        cache, key = access_token_cache(self.user_id, self.config)
         cached = await cache.get(key)
         if cached:
             self.access_token = cached
@@ -129,7 +138,7 @@ class OpenEdxClient(BaseHttpClient):
             logger.warning(
                 f"Open edX rejected the token for {method} {endpoint} (user {self.user_id}); granting a new one"
             )
-            cache, key = access_token_cache(self.user_id)
+            cache, key = access_token_cache(self.user_id, self.config)
             await cache.delete(key)
             await self._load_token()
             result = await self._request(method, endpoint, base_url=base_url, params=params, payload=payload)

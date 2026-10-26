@@ -39,10 +39,7 @@ class MyAppPluginConfig(PluginConfig):
     )
 ```
 
-On its own, these are plain optional integers and strings — Pydantic only checks the types. Cross-field
-validation (does `llm_config_id` actually belong to this user? is `llm_model_override` a valid model for
-the linked provider?) requires a config adapter, described in the
-[Plugin Config Adapters](#plugin-config-adapters) section below.
+On its own, these are plain optional integers and strings — Pydantic only checks the types. Cross-field validation (does `llm_config_id` actually belong to this user? is `llm_model_override` a valid model for the linked provider?) requires a config adapter, described in the [Plugin Config Adapters](#plugin-config-adapters-llm-aware-plugins) section below.
 
 Valid `llm_model_override` values must be a legal model for the linked `LLMConfig`'s provider. The single source of truth is `PROVIDER_MODELS` in `sparkth/llm/providers.py`.
 
@@ -100,35 +97,22 @@ class MyAppPlugin(SparkthPlugin):
 ```
 
 
-## Plugin Config Adapters
+## Plugin Config Adapters (LLM-Aware Plugins)
 
-Any plugin may register a config adapter to hook into saving and reading its config. Subclass
-`ConfigAdapter` (import from `sparkth.lib.plugins`), override only the steps you need, and
-register an instance on `CONFIG_ADAPTERS` next to the config schema. A plugin without an adapter
-stores and returns its config as is.
+If your plugin config includes `llm_config_id` and `llm_model_override`, register a config adapter so the system validates them at write time and resolves them for the frontend at read time. Without an adapter the fields are stored as plain values with no cross-field checks.
 
 ### What the adapter does
 
-`ConfigAdapter` hooks into the config pipeline via three async, keyword-only methods. Each
-defaults to a no-op, so a subclass overrides only the steps it needs:
-
-- `preprocess_config` runs before a save and returns the config to store (default: the incoming
-  config unchanged). Raise `ValueError` to reject the save.
-- `postprocess_config` runs when the config is read and returns what the frontend receives
-  (default: the stored config unchanged).
-- `sync_cache` runs after a user updates an existing config, not on the first save, so the plugin can
-  drop state cached from the old config (default: does nothing).
-
-`LLMConfigAdapter` (import from `sparkth.lib.llm`) is the subclass for plugins whose config holds
-`llm_config_id` and `llm_model_override`: `preprocess_config` validates them on save and
-`postprocess_config` resolves read-only fields for the frontend. Without it those fields are stored
-as plain values with no cross-field checks. See the
-[`LLMConfigAdapter` reference](../reference/lib.md#llm) for the exact signatures and behaviour.
+`LLMConfigAdapter` (import from `sparkth.lib.llm`) hooks into the config pipeline via three
+methods — `preprocess_config` (validates on save), `postprocess_config` (resolves read-only
+fields for the frontend), and `sync_cache` (a no-op override point for cache invalidation).
+See the [`LLMConfigAdapter` reference](../reference/lib.md#llm) for the exact signatures and
+behaviour.
 
 ### Adding an adapter for your plugin
 
-For the default behaviour of an LLM-aware plugin — LLM config ownership check plus model override
-validation — register `LLMConfigAdapter` itself in your plugin's `__init__`, alongside the config schema.
+For the default behaviour — LLM config ownership check plus model override validation —
+register `LLMConfigAdapter` itself in your plugin's `__init__`, alongside the config schema.
 There is no adapter class to write:
 
 ```python
@@ -156,8 +140,7 @@ config pipeline calls either way.
 
 ### Overriding adapter methods
 
-Override a method when the default behaviour isn't enough. When subclassing `LLMConfigAdapter`, call
-`super()` first in `preprocess_config` and `postprocess_config` so the base LLM validation still runs.
+Override a method when the default behaviour isn't enough. Always call `super()` first in `preprocess_config` and `postprocess_config` so the base LLM validation still runs.
 
 **Custom preprocessing** — validate an extra field before saving:
 
