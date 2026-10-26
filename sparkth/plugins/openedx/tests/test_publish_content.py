@@ -12,7 +12,7 @@ from sparkth.plugins.openedx.tests.conftest import OPENEDX_CONFIG
 from sparkth.plugins.openedx.tools import (
     openedx_create_course_run,
     openedx_publish_content,
-    openedx_update_xblock_content,
+    update_xblock_content,
 )
 
 STUDIO = str(OPENEDX_CONFIG.studio_url).rstrip("/")
@@ -72,7 +72,7 @@ async def test_a_refused_publish_is_reported_as_a_failure(studio_client: AsyncMo
 async def test_an_update_that_changes_nothing_is_still_refused(studio_client: AsyncMock) -> None:
     """Publishing is the only reason to send a body with no content, so the guard still holds."""
     with pytest.raises(LMSRequestError):
-        await openedx_update_xblock_content(studio_client, COURSE_ID, UNIT, None, None)
+        await update_xblock_content(studio_client, COURSE_ID, UNIT, None, None)
 
     studio_client.patch.assert_not_awaited()
 

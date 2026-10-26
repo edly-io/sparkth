@@ -70,7 +70,7 @@ async def _open_client() -> OpenEdxClient:
     return OpenEdxClient(config, current_user_id())
 
 
-async def openedx_create_basic_component(
+async def create_basic_component(
     client: OpenEdxClient,
     course_id: str,
     unit_locator: str,
@@ -109,7 +109,7 @@ def _xblock_endpoint(course_id: str, locator: str) -> str:
     return f"api/contentstore/v0/xblock/{course_id}/{urllib.parse.quote(locator, safe='')}"
 
 
-async def openedx_update_xblock_content(
+async def update_xblock_content(
     client: OpenEdxClient,
     course_id: str,
     locator: str,
@@ -494,9 +494,7 @@ async def openedx_create_problem_or_html(payload: ProblemOrHtmlArgs) -> dict[str
             name = "New Problem" if component == Component.PROBLEM else "New HTML"
 
         try:
-            locator = await openedx_create_basic_component(
-                client, payload.course_id, payload.unit_locator, component, name
-            )
+            locator = await create_basic_component(client, payload.course_id, payload.unit_locator, component, name)
         except LMSRequestError as err:
             return _lms_error(err, method=err.method, endpoint=err.url)
         except ValueError as err:
@@ -519,7 +517,7 @@ async def openedx_create_problem_or_html(payload: ProblemOrHtmlArgs) -> dict[str
 
         if final_data is not None or payload.metadata is not None:
             try:
-                updated = await openedx_update_xblock_content(
+                updated = await update_xblock_content(
                     client,
                     payload.course_id,
                     locator,
@@ -572,7 +570,7 @@ async def openedx_update_xblock(payload: UpdateXBlockPayload) -> dict[str, Any]:
     """
     async with await _open_client() as client:
         try:
-            response = await openedx_update_xblock_content(
+            response = await update_xblock_content(
                 client,
                 payload.course_id,
                 payload.locator,
@@ -644,7 +642,7 @@ async def openedx_publish_content(payload: PublishContentArgs) -> dict[str, Any]
         # course that is open but empty.
         gate = {"visible_to_staff_only": False} if releases_the_course else None
         try:
-            await openedx_update_xblock_content(client, payload.course_id, payload.locator, None, gate, "make_public")
+            await update_xblock_content(client, payload.course_id, payload.locator, None, gate, "make_public")
         except (LMSRequestError, AuthenticationError) as err:
             return _lms_error(err, prefix="Publishing failed", locator=payload.locator)
         except ValueError as err:
@@ -880,13 +878,11 @@ async def _create_contributed_block(
     """
     locator = ""
     try:
-        locator = await openedx_create_basic_component(
-            client, payload.course_id, payload.unit_locator, block.kind, block.title
-        )
+        locator = await create_basic_component(client, payload.course_id, payload.unit_locator, block.kind, block.title)
         if contributor.on_placed is not None:
             await contributor.on_placed(payload.option_id)
         if block.attributes:
-            await openedx_update_xblock_content(client, payload.course_id, locator, None, block.attributes)
+            await update_xblock_content(client, payload.course_id, locator, None, block.attributes)
     except ContentPlacementError as err:
         logger.error("Content contributor %r could not record placing block %s: %s", contributor.name, locator, err)
         message = (
