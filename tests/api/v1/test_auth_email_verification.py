@@ -11,6 +11,7 @@ from sparkth.core.config import get_settings
 from sparkth.core.models.email_verification import EmailVerificationToken
 from sparkth.core.models.user import User
 from sparkth.core.models.whitelist import WhitelistedEmail
+from sparkth.lib.testing import FakeRedis
 
 
 def _uniq(prefix: str) -> str:
@@ -226,24 +227,11 @@ class TestResendEndpoint:
 
         from sparkth.api.v1 import auth as auth_module
 
-        store: dict[str, str] = {}
-
-        class FakeRedis:
-            async def set(
-                self,
-                key: str,
-                value: str,
-                ex: int | None = None,
-                nx: bool = False,
-            ) -> bool | None:
-                if nx and key in store:
-                    return None
-                store[key] = value
-                return True
+        fake = FakeRedis()
 
         @asynccontextmanager
         async def get_fake_redis() -> AsyncIterator[FakeRedis]:
-            yield FakeRedis()
+            yield fake
 
         monkeypatch.setattr(auth_module, "_get_resend_redis", get_fake_redis)
 

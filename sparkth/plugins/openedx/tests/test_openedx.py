@@ -8,7 +8,7 @@ import sparkth.plugins.openedx.tools as openedx_tools
 from sparkth.lib.auth import bind_current_user_id
 from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
-from sparkth.lib.testing import seed_plugin_settings, tool_input_property_names
+from sparkth.lib.testing import FakeRedis, seed_plugin_settings, tool_input_property_names
 from sparkth.plugins.openedx.client import OpenEdxClient
 from sparkth.plugins.openedx.constants import OPENEDX_PLUGIN_NAME
 from sparkth.plugins.openedx.enums import Component
@@ -40,7 +40,9 @@ def mock_openedx_client() -> Generator[tuple[MagicMock, AsyncMock], None, None]:
         yield mock_cls, client
 
 
-async def test_a_tool_calls_open_edx_with_the_callers_stored_settings(session: AsyncSession) -> None:
+async def test_a_tool_calls_open_edx_with_the_callers_stored_settings(
+    session: AsyncSession, fake_redis: FakeRedis
+) -> None:
     stored = {
         "lms_url": "https://stored-lms.example.com",
         "studio_url": "https://stored-studio.example.com",

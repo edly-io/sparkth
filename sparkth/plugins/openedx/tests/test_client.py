@@ -6,9 +6,10 @@ from redis.exceptions import ConnectionError as RedisConnectionError
 from sparkth.lib.cache import get_cache_service
 from sparkth.lib.exceptions import LMSRequestError
 from sparkth.lib.settings import get_settings
+from sparkth.lib.testing import FakeRedis
 from sparkth.plugins.openedx.client import OpenEdxClient, access_token_cache
 from sparkth.plugins.openedx.config import OpenEdxConfig
-from sparkth.plugins.openedx.tests.conftest import OPENEDX_CONFIG, FakeRedis, http_response, http_session
+from sparkth.plugins.openedx.tests.conftest import OPENEDX_CONFIG, http_response, http_session
 
 PROFILE = '{"username": "u"}'
 
