@@ -49,6 +49,7 @@ from sparkth.lib.auth import bind_request_user, get_current_user
 from sparkth.lib.i18n import LOCALE_DIRS
 from sparkth.lib.mcp.hooks import MCP_TOOLS
 from sparkth.lib.plugins import SparkthPlugin
+from sparkth.lib.settings import get_settings
 from sparkth.main import app
 
 
@@ -352,3 +353,34 @@ async def seed_plugin_settings(
     if config is not None:
         session.add(UserPlugin(user_id=user_id, plugin_id=cast(int, plugin.id), config=config))
         await session.commit()
+
+
+class FakeRedis:
+    """In-memory stand-in for the Redis client, recording values and the TTLs they were set with."""
+
+    def __init__(self) -> None:
+        self.store: dict[str, str] = {}
+        self.ttls: dict[str, int | None] = {}
+
+    async def get(self, key: str) -> str | None:
+        return self.store.get(key)
+
+    async def set(self, key: str, value: str, ex: int | None = None, nx: bool = False) -> bool | None:
+        if nx and key in self.store:
+            return None
+        self.store[key] = value
+        self.ttls[key] = ex
+        return True
+
+    async def delete(self, key: str) -> int:
+        self.ttls.pop(key, None)
+        return 1 if self.store.pop(key, None) is not None else 0
+
+
+@pytest.fixture
+def fake_redis(monkeypatch: pytest.MonkeyPatch) -> FakeRedis:
+    """Route the shared ``CacheService`` to an in-memory ``FakeRedis`` for this test."""
+    settings = get_settings()
+    fake = FakeRedis()
+    monkeypatch.setattr(get_cache_service(settings.REDIS_URL, settings.REDIS_KEY_TTL), "_redis", fake)
+    return fake

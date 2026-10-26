@@ -78,19 +78,6 @@ class TestBuildLmsCredentialsMessage:
         assert result == LMS_RULES
         assert "Settings" in result
 
-    async def test_openedx_credentials_included(self, mock_session: AsyncMock) -> None:
-        tools = [_make_tool("openedx_authenticate")]
-        with patch(
-            "sparkth.lib.plugins.PluginService.get_user_plugin_map",
-            new=AsyncMock(return_value=_OPENEDX_PLUGIN_MAP),
-        ):
-            result = await build_lms_credentials_message(session=mock_session, user_id=1, tools=tools)
-        assert result is not None
-        assert "https://lms.example.com" in result
-        assert "https://studio.example.com" in result
-        assert "admin" in result
-        assert "secret" in result
-
     async def test_canvas_settings_never_reach_the_message(self, mock_session: AsyncMock) -> None:
         tools = [_make_tool("canvas_get_courses")]
         with patch(
@@ -102,7 +89,7 @@ class TestBuildLmsCredentialsMessage:
         assert "token-abc123" not in result
         assert "https://canvas.example.com" not in result
 
-    async def test_both_lms_credentials_included(self, mock_session: AsyncMock) -> None:
+    async def test_no_lms_settings_reach_the_message(self, mock_session: AsyncMock) -> None:
         tools = [_make_tool("openedx_create_course_run"), _make_tool("canvas_create_course")]
         with patch(
             "sparkth.lib.plugins.PluginService.get_user_plugin_map",
@@ -110,7 +97,9 @@ class TestBuildLmsCredentialsMessage:
         ):
             result = await build_lms_credentials_message(session=mock_session, user_id=1, tools=tools)
         assert result is not None
-        assert "https://lms.example.com" in result
+        assert "https://lms.example.com" not in result
+        assert "https://canvas.example.com" not in result
+        assert "secret" not in result
 
     async def test_rule_5_absent_when_no_credentials(self, mock_session: AsyncMock) -> None:
         """Rule 5 (use credentials automatically) must not appear when no credentials are configured."""
@@ -122,18 +111,6 @@ class TestBuildLmsCredentialsMessage:
             result = await build_lms_credentials_message(session=mock_session, user_id=1, tools=tools)
         assert result == LMS_RULES
         assert "5." not in result
-
-    async def test_rule_5_present_when_credentials_configured(self, mock_session: AsyncMock) -> None:
-        """Rule 5 must appear and credentials must follow it when configured."""
-        tools = [_make_tool("openedx_authenticate")]
-        with patch(
-            "sparkth.lib.plugins.PluginService.get_user_plugin_map",
-            new=AsyncMock(return_value=_OPENEDX_PLUGIN_MAP),
-        ):
-            result = await build_lms_credentials_message(session=mock_session, user_id=1, tools=tools)
-        assert result is not None
-        assert "5." in result
-        assert "https://lms.example.com" in result
 
     async def test_invalid_config_falls_back_to_hint(self, mock_session: AsyncMock) -> None:
         """A corrupt/incomplete stored config should not crash — returns the unconfigured hint."""

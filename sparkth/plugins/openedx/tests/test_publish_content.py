@@ -7,14 +7,15 @@ import pytest
 
 from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import LMSRequestError
-from sparkth.plugins.openedx.schemas import AccessTokenPayload, CreateCourseArgs, PublishContentArgs
+from sparkth.plugins.openedx.schemas import CreateCourseArgs, PublishContentArgs
+from sparkth.plugins.openedx.tests.conftest import OPENEDX_CONFIG
 from sparkth.plugins.openedx.tools import (
     openedx_create_course_run,
     openedx_publish_content,
-    openedx_update_xblock_content,
+    update_xblock_content,
 )
 
-AUTH = AccessTokenPayload(access_token="t", lms_url="https://lms", studio_url="https://studio")
+STUDIO = str(OPENEDX_CONFIG.studio_url).rstrip("/")
 COURSE_ID = "course-v1:Org+101+2026"
 UNIT = "block-v1:Org+101+2026+type@vertical+block@u1"
 UNIT_ENDPOINT = f"api/contentstore/v0/xblock/{COURSE_ID}/block-v1%3AOrg%2B101%2B2026%2Btype%40vertical%2Bblock%40u1"
@@ -24,17 +25,21 @@ COURSE_BLOCK_ENDPOINT = (
 )
 
 
+pytestmark = pytest.mark.usefixtures("stored_config")
+
+
 @pytest.fixture
 def studio_client() -> Iterator[AsyncMock]:
     with patch("sparkth.plugins.openedx.tools.OpenEdxClient") as mock_cls:
         client = AsyncMock()
+        client.studio_url = STUDIO
         mock_cls.return_value.__aenter__.return_value = client
         mock_cls.return_value.__aexit__.return_value = None
         yield client
 
 
 def publish_args(locator: str = UNIT) -> PublishContentArgs:
-    return PublishContentArgs(auth=AUTH, course_id=COURSE_ID, locator=locator)
+    return PublishContentArgs(course_id=COURSE_ID, locator=locator)
 
 
 async def test_publishing_asks_studio_to_make_the_block_public(studio_client: AsyncMock) -> None:
@@ -42,7 +47,7 @@ async def test_publishing_asks_studio_to_make_the_block_public(studio_client: As
 
     await openedx_publish_content(publish_args())
 
-    assert studio_client.patch.await_args == call("https://studio", UNIT_ENDPOINT, {"publish": "make_public"})
+    assert studio_client.patch.await_args == call(STUDIO, UNIT_ENDPOINT, {"publish": "make_public"})
 
 
 async def test_the_author_is_told_which_block_was_published(studio_client: AsyncMock) -> None:
@@ -67,13 +72,13 @@ async def test_a_refused_publish_is_reported_as_a_failure(studio_client: AsyncMo
 async def test_an_update_that_changes_nothing_is_still_refused(studio_client: AsyncMock) -> None:
     """Publishing is the only reason to send a body with no content, so the guard still holds."""
     with pytest.raises(LMSRequestError):
-        await openedx_update_xblock_content(AUTH, COURSE_ID, UNIT, None, None)
+        await update_xblock_content(studio_client, COURSE_ID, UNIT, None, None)
 
     studio_client.patch.assert_not_awaited()
 
 
 def course_args() -> CreateCourseArgs:
-    return CreateCourseArgs(auth=AUTH, org="Org", number="101", run="2026", title="A course", pacing_type="self_paced")
+    return CreateCourseArgs(org="Org", number="101", run="2026", title="A course", pacing_type="self_paced")
 
 
 async def test_a_new_course_is_hidden_from_learners(studio_client: AsyncMock) -> None:
@@ -85,7 +90,7 @@ async def test_a_new_course_is_hidden_from_learners(studio_client: AsyncMock) ->
     result = await openedx_create_course_run(course_args())
 
     assert studio_client.patch.await_args == call(
-        "https://studio", COURSE_BLOCK_ENDPOINT, {"metadata": {"visible_to_staff_only": True}}
+        STUDIO, COURSE_BLOCK_ENDPOINT, {"metadata": {"visible_to_staff_only": True}}
     )
     assert result["hidden_from_learners"] is True
 
@@ -110,7 +115,7 @@ async def test_publishing_the_course_opens_it_to_learners(studio_client: AsyncMo
     await openedx_publish_content(publish_args(COURSE_BLOCK))
 
     assert studio_client.patch.await_args == call(
-        "https://studio",
+        STUDIO,
         COURSE_BLOCK_ENDPOINT,
         {"metadata": {"visible_to_staff_only": False}, "publish": "make_public"},
     )
@@ -122,4 +127,4 @@ async def test_publishing_one_unit_leaves_the_course_gate_closed(studio_client: 
 
     await openedx_publish_content(publish_args())
 
-    assert studio_client.patch.await_args == call("https://studio", UNIT_ENDPOINT, {"publish": "make_public"})
+    assert studio_client.patch.await_args == call(STUDIO, UNIT_ENDPOINT, {"publish": "make_public"})
