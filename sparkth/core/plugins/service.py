@@ -11,6 +11,7 @@ from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.core.models.user import User
 from sparkth.core.plugins import get_plugin_loader
 from sparkth.core.plugins.config_base import PluginConfig
+from sparkth.core.plugins.exceptions import PluginConfigInvalidError, PluginNotConfiguredError
 from sparkth.lib.audit import record_event
 from sparkth.lib.audit.events import (
     AuditChange,
@@ -20,7 +21,7 @@ from sparkth.lib.audit.events import (
     UserPluginConfigUpdatedAuditEvent,
     UserPluginEnabledChangedAuditEvent,
 )
-from sparkth.lib.auth import get_current_user
+from sparkth.lib.auth import current_user_id, get_current_user
 from sparkth.lib.config import get_plugin_adapter, get_plugin_config_schema
 from sparkth.lib.db import get_async_session, session_scope
 from sparkth.lib.frontend import get_plugin_display_info, get_plugin_sidebar_entry, plugin_has_frontend
@@ -70,6 +71,50 @@ async def disabled_plugin_names(user_id: int | None, session: AsyncSession) -> s
     )
     result = await session.exec(statement)
     return set(result.all())
+
+
+async def load_user_plugin_config[ConfigT: PluginConfig](plugin_name: str, config_class: type[ConfigT]) -> ConfigT:
+    """Load the calling user's stored settings for a plugin as ``config_class``.
+
+    The caller is the user bound to this request (``current_user_id``), never an argument,
+    so a tool cannot be steered into reading someone else's settings.
+
+    Args:
+        plugin_name: The registered name of the plugin whose settings to read.
+        config_class: The plugin's config model the stored settings are validated into.
+
+    Returns:
+        The validated config.
+
+    Raises:
+        NoAuthenticatedUser: no user is bound, checked before any database work.
+        PluginNotConfiguredError: the user has no row or an empty config.
+        PluginConfigInvalidError: the saved config fails validation. Only the failing field
+            names are logged, never their values.
+    """
+    user_id = current_user_id()
+    statement = (
+        select(UserPlugin)
+        .join(Plugin)
+        .where(
+            Plugin.name == plugin_name,
+            UserPlugin.user_id == user_id,
+            UserPlugin.deleted_at == None,
+            Plugin.deleted_at == None,
+        )
+    )
+    async with session_scope() as session:
+        row = (await session.exec(statement)).one_or_none()
+    info = get_plugin_display_info(plugin_name)
+    display_name = info.display_name if info else plugin_name
+    if row is None or not row.config:
+        raise PluginNotConfiguredError(display_name)
+    try:
+        return config_class.model_validate(row.config)
+    except pydantic.ValidationError as exc:
+        fields = [".".join(str(part) for part in error["loc"]) for error in exc.errors()]
+        logger.warning("Stored %s settings for user %s are invalid: fields %s", plugin_name, user_id, fields)
+        raise PluginConfigInvalidError(display_name) from None
 
 
 async def get_disabled_plugins(

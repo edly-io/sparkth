@@ -526,6 +526,26 @@ The id is bound for every REST request that resolves `get_current_user`, includi
 and the tools they run. On `/ai/mcp` nothing is bound, so the call raises
 `NoAuthenticatedUser` (`sparkth.lib.exceptions.auth`) and the MCP client sees a tool error.
 
+### Reading the caller's stored settings
+
+A tool that needs the caller's stored plugin settings calls `load_user_plugin_config` from
+`sparkth.lib.plugins` with its plugin name and config class:
+
+```python
+config = await load_user_plugin_config("canvas", CanvasConfig)
+```
+
+It never takes those settings as arguments, because the model writes tool arguments and could
+send anything. The settings come from the row the bound user saved on the Settings page.
+
+It raises `PluginNotConfiguredError` (`sparkth.lib.plugins`) when the user has saved no settings
+(no row, or an empty config), and `PluginConfigInvalidError` when the saved settings no longer
+validate. A tool lets either propagate, and the model sees its message, which tells the user to add
+or to update their settings on the Settings page. For invalid settings, only the names of the
+failing fields are logged, never their values.
+
+It raises `NoAuthenticatedUser` where no user is bound, before any database work.
+
 ## Content contributors
 
 A *content contributor* lets a plugin that owns content (e.g. a course-generation plugin)
