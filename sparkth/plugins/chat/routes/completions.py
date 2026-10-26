@@ -37,7 +37,6 @@ from sparkth.plugins.chat.config import ChatSettings, get_chat_settings
 from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, REFUSAL_MESSAGE
 from sparkth.plugins.chat.conversation_title import extract_title_from_messages, schedule_title_generation
 from sparkth.plugins.chat.exceptions import RAGSearchError, ScopeCheckError
-from sparkth.plugins.chat.lms_credentials import build_lms_credentials_message
 from sparkth.plugins.chat.messages import get_last_user_text
 from sparkth.plugins.chat.prompt import render_system_prompt
 from sparkth.plugins.chat.routes.utils import resolve_tools
@@ -361,14 +360,6 @@ async def chat_completion(
             tool_descriptions = [f"- {tool.name}: {tool.description}" for tool in tools]
             tool_list_message = "You have access to the following tools:\n" + "\n".join(tool_descriptions)
             messages.insert(0, {"role": "system", "content": tool_list_message})
-
-        lms_credentials_message = await build_lms_credentials_message(
-            session=session,
-            user_id=user_id,
-            tools=tools,
-        )
-        if lms_credentials_message:
-            provider.system_prompt += f"\n\n{lms_credentials_message}"
 
         if request.stream:
             # Gated together so no LLM is built for a turn that will not retrieve.

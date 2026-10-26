@@ -99,11 +99,3 @@ class TestPluginConfig:
 
         with pytest.raises(ValidationError):
             DemoConfig(**{"value": 1, "unexpected": "x"})  # type: ignore[arg-type]
-
-    def test_subclass_is_not_an_lms_by_default(self) -> None:
-        class DemoConfig(PluginConfig):
-            value: int
-
-        config = DemoConfig(value=1)
-        assert config.lms_tool_prefix() is None
-        assert config.to_lms_credentials_hint() is None

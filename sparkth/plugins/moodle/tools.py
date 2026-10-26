@@ -54,8 +54,9 @@ async def _single_call(wsfunction: str, params: dict[str, Any]) -> dict[str, Any
 async def moodle_check_settings() -> dict[str, Any]:
     """Check that the user's stored Moodle settings work.
 
-    Call this to learn whether Moodle is set up for the user. Returns the site name
-    plus the token user's username and ``userid``.
+    Call this to learn whether Moodle is set up for the user. Never ask the user for their Moodle
+    credentials, and never accept them in the chat. Returns the site name plus the token user's
+    username and ``userid``.
     """
     wsfunction = "core_webservice_get_site_info"
     config = await load_user_plugin_config(MOODLE_PLUGIN_NAME, MoodleConfig)

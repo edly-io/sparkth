@@ -22,8 +22,8 @@ GOOGLE_OVERLOADED = "Google API error (503). Please try again."
 OPENEDX_CONFIG = {
     "lms_url": "https://lms.example.com",
     "studio_url": "https://studio.example.com",
-    "lms_username": "admin",
-    "lms_password": "secret",
+    "lms_username": "edx-author-7731",
+    "lms_password": "edx-pass-9d4c",
 }
 CANVAS_CONFIG = {"api_url": "https://canvas.example.com", "api_key": "token-abc123"}
 

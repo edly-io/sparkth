@@ -153,7 +153,8 @@ async def openedx_check_settings() -> dict[str, Any]:
     """
     Check that the user's stored Open edX settings work, and return the Open edX account they sign in as.
 
-    Call this to learn whether Open edX is set up for the user.
+    Call this to learn whether Open edX is set up for the user. Never ask the user for their Open edX
+    credentials, and never accept them in the chat.
 
     Returns:
         dict[str, Any]:

@@ -390,12 +390,11 @@ class TestPluginSwitches:
             await _turn(client, config_id, conversation_uuid, "*")
         return provider, get_provider
 
-    async def test_an_lms_switched_off_system_wide_sends_no_credentials(
+    async def test_an_lms_switched_off_system_wide_binds_none_of_its_tools(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
     ) -> None:
         provider, _ = await self._lms_turn(client, session, current_user.id or 1, True, True, False)
 
-        assert "https://lms.example.com" not in provider.system_prompt
         assert "openedx_create_xblock" not in _bound_tool_names(provider)
 
     async def test_a_plugin_the_user_switched_off_offers_no_scope(
@@ -418,18 +417,19 @@ class TestPluginSwitches:
         assert stub_capability not in offered
         assert COURSE_DESIGN in offered
 
-    async def test_an_lms_the_user_switched_off_sends_no_credentials(
-        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
-    ) -> None:
-        provider, _ = await self._lms_turn(client, session, current_user.id or 1, False, True)
-
-        assert "https://lms.example.com" not in provider.system_prompt
-
-    async def test_an_enabled_plugin_contributes_its_tools_section_and_no_credentials(
+    async def test_an_enabled_plugin_contributes_its_tools_and_section(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
     ) -> None:
         provider, get_provider = await self._lms_turn(client, session, current_user.id or 1, True, True)
 
         assert _bound_tool_names(provider) == ["openedx_create_xblock", "canvas_create_course", "stub_build"]
         assert _section(stub_capability) in _system_prompt(get_provider)
-        assert "https://lms.example.com" not in provider.system_prompt
+
+    async def test_no_turn_sends_lms_settings_to_the_model(
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
+    ) -> None:
+        provider, get_provider = await self._lms_turn(client, session, current_user.id or 1, True, True)
+
+        prompt = _system_prompt(get_provider) + provider.system_prompt
+        for value in (*OPENEDX_CONFIG.values(), *CANVAS_CONFIG.values()):
+            assert value not in prompt
