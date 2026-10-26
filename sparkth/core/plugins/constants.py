@@ -11,6 +11,9 @@ import re
 # and its frontend counterpart.
 PLUGIN_NAME_PATTERN = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
 
+# The name of the page where users manage their plugin settings, as the plugin errors name it.
+PLUGIN_SETTINGS_PAGE_NAME = "Settings"
+
 # The Authorization scheme the plugin access gate reads the caller's token from, compared
 # against the header's scheme lowercased (RFC 7235 makes it case-insensitive).
 BEARER_SCHEME = "bearer"
