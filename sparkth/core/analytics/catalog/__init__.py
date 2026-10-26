@@ -7,7 +7,8 @@ from typing import Annotated, Literal, Union, get_args, get_origin
 from pydantic.fields import FieldInfo
 
 from sparkth.core.analytics import ANALYTICS_EVENTS
-from sparkth.core.analytics.schemas.reads import EventCatalogEntry, EventField, FilterFieldType
+from sparkth.core.analytics.catalog.enums import FilterFieldType
+from sparkth.core.analytics.catalog.schemas import EventCatalogEntry, EventField
 
 
 def _field(name: str, info: FieldInfo) -> EventField | None:
@@ -55,3 +56,6 @@ def event_catalog() -> list[EventCatalogEntry]:
 def catalog_entry(event_type: str) -> EventCatalogEntry | None:
     """The catalog entry for ``event_type``, or ``None`` when it is not registered."""
     return next((e for e in event_catalog() if e.event_type == event_type), None)
+
+
+__all__ = ["EventCatalogEntry", "EventField", "FilterFieldType", "catalog_entry", "event_catalog"]
