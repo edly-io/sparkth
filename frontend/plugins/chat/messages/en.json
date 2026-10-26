@@ -15,6 +15,17 @@
     "aiKeyMissing": "You have not added an AI key to Sparkth yet. Add one, then select it in Compose's configuration.",
     "aiKeyMissingAction": "Add an AI key",
     "aiKeyNotSelected": "Select your AI key in Compose's configuration to start creating.",
-    "aiKeyNotSelectedAction": "Open plugin settings"
+    "aiKeyNotSelectedAction": "Open plugin settings",
+    "historyTitle": "Recent chats",
+    "historyNewChat": "New chat",
+    "historyShow": "Show chat history",
+    "historyHide": "Hide chat history",
+    "historyEmpty": "No previous chats",
+    "historyUntitled": "Untitled",
+    "historyErrorTitle": "Something went wrong",
+    "historyLoadError": "Failed to load conversations. Please try again.",
+    "historyToday": "Today",
+    "historyYesterday": "Yesterday",
+    "historyDaysAgo": "{count, plural, one {# day ago} other {# days ago}}"
   }
 }

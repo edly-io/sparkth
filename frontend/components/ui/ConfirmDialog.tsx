@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { Alert } from "@/components/ui/Alert";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/core/components/ui/Button";
 import {
   Dialog,
   DialogContent,

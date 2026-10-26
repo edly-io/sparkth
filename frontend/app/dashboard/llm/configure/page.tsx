@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { KeyRound, Pencil, Plus, RotateCw, Save, Trash2 } from "lucide-react";
 
-import { Spinner } from "@/components/Spinner";
+import { Spinner } from "@/core/components/ui/Spinner";
 import { Alert } from "@/components/ui/Alert";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/core/components/ui/Button";
 import {
   Dialog,
   DialogContent,
@@ -17,7 +17,7 @@ import {
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Switch } from "@/components/ui/Switch";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/core/auth/hooks";
 import { validateLLMConfigName } from "@/lib/llm-validation";
 import {
   createLLMConfig,

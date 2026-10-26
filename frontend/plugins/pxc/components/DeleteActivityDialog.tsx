@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ApiRequestError } from "@/lib/api";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/lib/auth/hooks";
 import { deleteActivity, type ActivitySummary } from "@/plugins/pxc/client";
 
 /**

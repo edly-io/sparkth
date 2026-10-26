@@ -5,7 +5,7 @@ turn it on in [My Plugins](plugins.md), ask your administrator.
 
 ## Activities
 
-**Activities** lists the interactive learning activities you have built in **Create Course**,
+**Activities** lists the interactive learning activities you have built in **Compose**,
 each with a preview. The assistant can place them in a course in your LMS for you.
 
 An activity shows **Placed** once it has been put in a course, and the mark stays even if the

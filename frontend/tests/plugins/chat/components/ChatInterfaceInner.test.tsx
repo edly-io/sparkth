@@ -12,7 +12,7 @@ import type { LLMConfigListResponse } from "@/lib/llm/types";
 // usePlugin is mocked to read this directly, so a test sets it before rendering.
 let pluginConfig: Record<string, unknown> = {};
 
-vi.mock("@/lib/auth-context", () => ({
+vi.mock("@/lib/auth/hooks", () => ({
   useAuth: () => ({ token: "test-token" }),
 }));
 

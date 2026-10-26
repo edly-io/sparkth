@@ -1,6 +1,6 @@
 import { X } from "lucide-react";
 import { TextAttachment } from "../../types";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/lib/components/ui/Button";
 
 export function Preview({
   attachment,

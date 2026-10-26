@@ -1,13 +1,15 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import AppSidebar from "@/components/AppSidebar";
+import AppSidebar from "@/core/components/layout/AppSidebar";
+
+const nav = vi.hoisted(() => ({ pathname: "/dashboard" }));
 
 // AppSidebar reads the current path and the plugin context; stub both so the
-// component renders in isolation on a non-chat, non-plugin route.
-vi.mock("next/navigation", () => ({ usePathname: () => "/dashboard" }));
-vi.mock("@/lib/plugins/context", () => ({
+// component renders in isolation.
+vi.mock("next/navigation", () => ({ usePathname: () => nav.pathname }));
+vi.mock("@/core/plugins/context", () => ({
   usePluginContext: () => ({ userPlugins: [], loading: false }),
 }));
 
@@ -39,6 +41,17 @@ describe("AppSidebar permission-gated nav", () => {
   });
 });
 
+describe("AppSidebar documentation link", () => {
+  it("opens the documentation home page in a new tab", () => {
+    render(<AppSidebar user={{ name: "A" }} />);
+
+    const link = screen.getByRole("link", { name: "Documentation (opens in a new tab)" });
+    expect(link).toHaveAttribute("href", "https://edly-io.github.io/sparkth/");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+});
+
 describe("AppSidebar user menu", () => {
   it("links to the privacy policy", async () => {
     render(<AppSidebar user={{ name: "Ada" }} />);
@@ -60,5 +73,19 @@ describe("AppSidebar user menu", () => {
       "href",
       "/dashboard/profile",
     );
+  });
+});
+
+describe("AppSidebar on a plugin page", () => {
+  afterEach(() => {
+    nav.pathname = "/dashboard";
+  });
+
+  it("renders no chat history on the chat page", () => {
+    nav.pathname = "/dashboard/chat";
+
+    render(<AppSidebar user={{ name: "A" }} />);
+
+    expect(screen.queryByText("Recent chats")).toBeNull();
   });
 });

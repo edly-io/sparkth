@@ -11,7 +11,7 @@ class ContentBuildError(Exception):
 
 
 class ContentPlacementError(Exception):
-    """Raised by a :class:`ContentContributor`'s ``on_placed`` when it cannot record a placement.
+    """Raised by a :class:`ContentContributor`'s ``callback`` when it cannot record a placement.
 
     The block already exists in the course by then. A publishing tool reports the failure with
     the block's locator through its own error contract, and leaves the block's attributes

@@ -2,13 +2,13 @@
 
 import { useState, type ReactNode, type SubmitEvent } from "react";
 import { useTranslations } from "next-intl";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/core/auth/hooks";
 import { ApiRequestError, changePassword, updateCurrentUser, type CurrentUser } from "@/lib/api";
 import { Alert } from "@/components/ui/Alert";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/core/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
-import { Spinner } from "@/components/Spinner";
+import { Spinner } from "@/core/components/ui/Spinner";
 import {
   emptyNewPassword,
   NewPasswordFields,

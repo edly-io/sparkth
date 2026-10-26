@@ -3,7 +3,7 @@
 import { useReducer, useEffect, useCallback, type SubmitEvent } from "react";
 import { redirect } from "next/navigation";
 import { Plus, Trash2, Mail, Globe } from "lucide-react";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/core/auth/hooks";
 import { usePermissionCheck } from "@/lib/permissions";
 import {
   getWhitelist,
@@ -12,10 +12,10 @@ import {
   WhitelistEntry,
   ApiRequestError,
 } from "@/lib/api";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/core/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Alert } from "@/components/ui/Alert";
-import { Spinner } from "@/components/Spinner";
+import { Spinner } from "@/core/components/ui/Spinner";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 interface WhitelistState {

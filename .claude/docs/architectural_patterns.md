@@ -207,14 +207,15 @@ Plugin code raises typed exceptions; FastAPI translates them to `HTTPException` 
   is in scope for any enabled chat capability (`MessageScopeClassifier`) and whether answering it needs
   the attached documents (`RAGSearchClassifier`). Both are one structured-output call on the
   cheapest model of the user's provider, sharing `BaseClassifier` for everything but the judgement
-- Stored LLM API keys are encrypted at rest with Fernet via `EncryptionService` (`sparkth/core/encryption.py`); key from `LLM_ENCRYPTION_KEY`. Conversation contents themselves are not encrypted
+- Stored LLM API keys are encrypted at rest with Fernet via `EncryptionService` (`sparkth/core/encryption.py`); key from `ENCRYPTION_KEY`. Conversation contents themselves are not encrypted
 - Redis (`sparkth/core/cache.py`) backs the rate limiting enforced in `chat/middleware.py` — per-minute request/chat limits and a concurrent-stream cap, configured in `chat/config.py`
 
 ---
 
 ## 10. Frontend: Lazy-Loaded Plugin Routes
 
-**Files:** `frontend/lib/plugins/`, `frontend/app/dashboard/[pluginName]/page.tsx`, `frontend/plugins/index.ts`
+**Files:** `frontend/core/plugins/`, `frontend/app/plugins.ts`, `frontend/app/dashboard/[pluginName]/page.tsx`,
+`frontend/plugins/index.ts`
 
 Each frontend plugin exports a `PluginDefinition` with `loadComponent: () => import("./Plugin")`. The dashboard's dynamic route `[pluginName]` resolves the plugin from the registry and renders it via `next/dynamic`. `generateStaticParams()` returns the known plugin names so Next.js can pre-generate routes at build time.
 

@@ -7,7 +7,7 @@ import { disconnectSlack } from "@/lib/slack";
 import SlackConnectionCard from "@/plugins/slack/components/SlackConnectionCard";
 
 const auth = vi.hoisted(() => ({ token: "test-token" as string | null }));
-vi.mock("@/lib/auth-context", () => ({
+vi.mock("@/lib/auth/hooks", () => ({
   useAuth: () => ({ token: auth.token }),
 }));
 

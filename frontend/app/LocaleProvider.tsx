@@ -4,6 +4,8 @@ import { NextIntlClientProvider } from "next-intl";
 import { useEffect, useState } from "react";
 
 import en from "@/messages/en.json";
+// Registers the plugins whose catalogs loadMessages merges in.
+import "@/app/plugins";
 import { setActiveLocale, setActiveMessages } from "@/lib/i18n/active-locale";
 import { defaultLocale, readLocaleCookie, type Locale } from "@/lib/i18n/config";
 import { loadMessages, type LoadedMessages } from "@/lib/i18n/messages";

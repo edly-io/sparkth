@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import { useLocale, useTimeZone } from "next-intl";
+import { useLocale, useTimeZone, useTranslations } from "next-intl";
 import { renderToString } from "react-dom/server";
 
 import { LocaleProvider } from "@/app/LocaleProvider";
@@ -23,6 +23,10 @@ vi.mock("@/lib/i18n/messages", async (importOriginal) => {
 
 function LocaleProbe() {
   return <span data-testid="locale">{useLocale()}</span>;
+}
+
+function ChatCatalogProbe() {
+  return <span data-testid="chat-placeholder">{useTranslations("chat")("inputPlaceholder")}</span>;
 }
 
 function TimeZoneProbe() {
@@ -94,6 +98,20 @@ describe("LocaleProvider", () => {
 
     expect(() => rethrowOrWrapConnectionError(new TypeError("Failed to fetch"))).toThrow(
       "No se pudo conectar con el servidor: Failed to fetch",
+    );
+  });
+
+  it("loads the plugin catalogs for the cookie locale", async () => {
+    document.cookie = `${LOCALE_COOKIE}=es`;
+    render(
+      <LocaleProvider>
+        <ChatCatalogProbe />
+      </LocaleProvider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("chat-placeholder")).toHaveTextContent(
+        "Describe el curso que quieres crear...",
+      ),
     );
   });
 

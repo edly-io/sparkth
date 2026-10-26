@@ -17,6 +17,7 @@ from fastapi.routing import RouteContext, iter_route_contexts
 from httpx import AsyncClient
 from sqlalchemy import event, inspect
 from sqlalchemy.exc import OperationalError
+from sqlalchemy.ext.asyncio import AsyncSession as SQLAlchemyAsyncSession
 from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.routing import BaseRoute
 
@@ -24,11 +25,18 @@ from sparkth.core.db import get_engine
 from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.core.models.user import User
 from sparkth.core.plugins.middleware import PluginAccessMiddleware
+from sparkth.core.routes import get_route_plugin_name
 from sparkth.core.security import create_access_token
+from sparkth.lib.testing import grant_global_permission
 from sparkth.main import assemble_app
 
 CHAT_COMPLETIONS_PATH = "/api/v1/chat/completions"
 SLACK_CALLBACK_PATH = "/api/v1/slack/oauth/callback"
+ANALYTICS_READS = [
+    ("chat", "/api/v1/chat/analytics/activity"),
+    ("google-drive", "/api/v1/google-drive/analytics/documents"),
+]
+ANALYTICS_RANGE = {"from": "2026-03-01", "to": "2026-03-31"}
 
 
 class _CountingFlattener:
@@ -95,6 +103,12 @@ def _request(app: FastAPI, method: str, path: str) -> Request:
     )
 
 
+def _owner(middleware: PluginAccessMiddleware, request: Request) -> str | None:
+    """Name of the plugin owning the route the request matches, or None."""
+    route = middleware._match_route(request)
+    return get_route_plugin_name(route) if route is not None else None
+
+
 def _auth_headers(username: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {create_access_token({'sub': username})}"}
 
@@ -147,19 +161,19 @@ class TestRoutePluginResolution:
         app = assemble_app()
         middleware = PluginAccessMiddleware(app)
 
-        assert middleware._get_route_plugin_name(_request(app, method, path)) == plugin_name
+        assert _owner(middleware, _request(app, method, path)) == plugin_name
 
     def test_returns_none_for_a_core_route(self) -> None:
         app = assemble_app()
         middleware = PluginAccessMiddleware(app)
 
-        assert middleware._get_route_plugin_name(_request(app, "GET", "/api/v1/user/me")) is None
+        assert _owner(middleware, _request(app, "GET", "/api/v1/user/me")) is None
 
     def test_returns_none_for_an_unknown_path(self) -> None:
         app = assemble_app()
         middleware = PluginAccessMiddleware(app)
 
-        assert middleware._get_route_plugin_name(_request(app, "GET", "/api/v1/nothing-here")) is None
+        assert _owner(middleware, _request(app, "GET", "/api/v1/nothing-here")) is None
 
     def test_flattens_the_route_table_once_and_reuses_it(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """The table is fixed once the app is assembled, so flattening it per request is
@@ -170,8 +184,8 @@ class TestRoutePluginResolution:
         flattener = _CountingFlattener()
         monkeypatch.setattr("sparkth.core.plugins.middleware.iter_route_contexts", flattener)
 
-        first = middleware._get_route_plugin_name(_request(app, "POST", CHAT_COMPLETIONS_PATH))
-        second = middleware._get_route_plugin_name(_request(app, "GET", "/api/v1/slack/oauth/status"))
+        first = _owner(middleware, _request(app, "POST", CHAT_COMPLETIONS_PATH))
+        second = _owner(middleware, _request(app, "GET", "/api/v1/slack/oauth/status"))
 
         assert (first, second) == ("chat", "slack")
         assert flattener.calls == 1
@@ -223,6 +237,48 @@ class TestPluginAccessGate:
 
         assert response.status_code == 403
         assert "chat" in response.json()["detail"]
+
+    @pytest.mark.parametrize("plugin_name, path", ANALYTICS_READS)
+    @pytest.mark.parametrize("system_enabled, user_enabled", [(True, False), (False, True), (False, False)])
+    async def test_lets_an_analytics_read_through_whatever_the_plugin_switches_say(
+        self,
+        client: AsyncClient,
+        session: AsyncSession,
+        analytics_session: SQLAlchemyAsyncSession,
+        plugin_name: str,
+        path: str,
+        system_enabled: bool,
+        user_enabled: bool,
+    ) -> None:
+        # Analytics describe the whole platform: a viewer with analytics.read sees them even when
+        # the plugin is off for them, or off for everyone, today.
+        user = await _seed_user(session, "analytics-reader")
+        plugin = await _seed_plugin(session, plugin_name, system_enabled)
+        await _seed_user_plugin(session, user, plugin, user_enabled)
+        await grant_global_permission(session, cast(int, user.id), "analytics.read")
+        await session.commit()
+
+        response = await client.get(path, params=ANALYTICS_RANGE, headers=_auth_headers(user.username))
+
+        assert response.status_code == 200
+
+    @pytest.mark.parametrize("plugin_name, path", ANALYTICS_READS)
+    async def test_still_requires_analytics_read_on_a_platform_wide_route(
+        self,
+        client: AsyncClient,
+        session: AsyncSession,
+        analytics_session: SQLAlchemyAsyncSession,
+        plugin_name: str,
+        path: str,
+    ) -> None:
+        user = await _seed_user(session, "analytics-outsider")
+        await _seed_plugin(session, plugin_name, True)
+
+        response = await client.get(path, params=ANALYTICS_RANGE, headers=_auth_headers(user.username))
+
+        assert response.status_code == 403
+        # The permission's refusal, not the plugin gate's.
+        assert plugin_name not in response.json()["detail"]
 
     async def test_lets_through_a_plugin_the_user_enabled(self, client: AsyncClient, session: AsyncSession) -> None:
         # The inverse of the block: without it, a gate that rejects everything would pass the

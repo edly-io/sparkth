@@ -3,11 +3,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fetchChatActivity, fetchLogins, fetchSummary } from "@/lib/analytics";
 import { ApiRequestError } from "@/lib/api";
 
-import { mockFetch, sentRequest } from "../test-utils";
+import { mockFetch, sentRequest } from "@/tests/lib/test-utils";
 
 // authMiddleware reads the stored token; stub it to null so the explicit bearer
 // header from the client is what we assert on (mirrors lib/tests/llm.test.ts).
-vi.mock("@/lib/auth-tokens", () => ({
+vi.mock("@/core/auth/tokens", () => ({
   getStoredToken: vi.fn().mockReturnValue(null),
 }));
 

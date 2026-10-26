@@ -10,7 +10,7 @@ const auth = vi.hoisted(() => ({
   user: null as CurrentUser | null,
   refreshUser: vi.fn(),
 }));
-vi.mock("@/lib/auth-context", () => ({
+vi.mock("@/core/auth/hooks", () => ({
   useAuth: () => ({ token: "test-token", user: auth.user, refreshUser: auth.refreshUser }),
 }));
 vi.mock("@/lib/api", async (importOriginal) => {

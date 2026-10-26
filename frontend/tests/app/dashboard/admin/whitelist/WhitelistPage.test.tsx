@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const auth = vi.hoisted(() => ({ token: "test-token" }));
-vi.mock("@/lib/auth-context", () => ({
+vi.mock("@/core/auth/hooks", () => ({
   useAuth: () => ({ token: auth.token, user: { name: "A" } }),
 }));
 vi.mock("@/lib/permissions/client", () => ({ checkPermission: vi.fn() }));

@@ -1,4 +1,4 @@
-import { PluginDefinition } from "@/lib/plugins";
+import { PluginDefinition } from "@/lib/plugins/types";
 
 // Display name and description are declared by the backend GoogleDrivePlugin
 // and arrive via the user-plugins API.

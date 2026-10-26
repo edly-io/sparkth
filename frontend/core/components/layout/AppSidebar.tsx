@@ -14,18 +14,18 @@ import {
   PanelLeft,
   Key,
   ShieldCheck,
+  BookOpen,
 } from "lucide-react";
-import { usePluginContext } from "@/lib/plugins/context";
-import { sidebarItemsFrom, type SidebarItem } from "@/lib/plugins/metadata";
-import { resolvePluginIcon } from "@/lib/plugins/icons";
+import { usePluginContext } from "@/core/plugins/context";
+import { sidebarItemsFrom, type SidebarItem } from "@/core/plugins/metadata";
+import { resolvePluginIcon } from "@/core/plugins/icons";
 import { GATED_NAV, NavItem } from "@/components/NavItem";
 import Image from "next/image";
-import { Spinner } from "@/components/Spinner";
-import { SparkthLogo } from "./SparkthLogo";
-import { Button } from "@/components/ui/Button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/Tooltip";
+import { Spinner } from "@/core/components/ui/Spinner";
+import { SparkthLogo } from "@/components/SparkthLogo";
+import { Button } from "@/core/components/ui/Button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/core/components/ui/Tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/Popover";
-import { ChatHistorySection } from "../plugins/chat/components/ChatHistorySection";
 
 interface AppSidebarProps {
   user?: {
@@ -57,8 +57,6 @@ export default function AppSidebar({
   const { userPlugins, loading } = usePluginContext();
   const sidebarItems = sidebarItemsFrom(userPlugins);
 
-  const isOnChatPlugin =
-    pathname === `${basePath}/chat` || pathname?.startsWith(`${basePath}/chat/`);
   const isCollapsedDesktop = isCollapsed && variant === "desktop";
 
   const isActiveRoute = (pluginName: string) => {
@@ -243,16 +241,19 @@ export default function AppSidebar({
                 onClick={handleNavClick}
               />
             ))}
+
+            <NavItem
+              href="https://edly-io.github.io/sparkth/"
+              label="Documentation"
+              icon={BookOpen}
+              isActive={false}
+              isCollapsed={isCollapsed && variant === "desktop"}
+              onClick={handleNavClick}
+              external
+            />
           </>
         )}
       </div>
-
-      {isOnChatPlugin && (
-        <ChatHistorySection
-          isCollapsed={isCollapsed && variant === "desktop"}
-          onNavigate={onNavigate}
-        />
-      )}
 
       {/* User menu */}
       <div

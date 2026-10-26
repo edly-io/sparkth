@@ -12,7 +12,7 @@ import {
 } from "@/lib/chat";
 import type { ChatCompletionRequestBody } from "@/lib/chat/types";
 
-vi.mock("@/lib/auth-tokens", () => ({
+vi.mock("@/core/auth/tokens", () => ({
   getStoredToken: vi.fn().mockReturnValue(null),
 }));
 

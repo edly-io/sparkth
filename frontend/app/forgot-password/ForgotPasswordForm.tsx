@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { AuthCard, AuthHeading, AuthLink } from "@/components/AuthCard";
 import { Alert } from "@/components/ui/Alert";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/core/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { ApiRequestError, requestPasswordReset } from "@/lib/api";
 
