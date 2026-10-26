@@ -1,14 +1,15 @@
-"""Moodle MCP tools, including authentication, course, section, page and quiz management."""
+"""Moodle MCP tools, including the settings check, LMS vocabulary, course, section, page and quiz management."""
 
 import logging
 from pathlib import Path
 from typing import Any
 
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
+from sparkth.lib.plugins import load_user_plugin_config
 from sparkth.plugins.moodle.client import MoodleClient
-from sparkth.plugins.moodle.constants import MOODLE_MALFORMED_RESPONSE_STATUS_CODE
+from sparkth.plugins.moodle.config import MoodleConfig
+from sparkth.plugins.moodle.constants import MOODLE_MALFORMED_RESPONSE_STATUS_CODE, MOODLE_PLUGIN_NAME
 from sparkth.plugins.moodle.schemas import (
-    Auth,
     CoursePayload,
     PagePayload,
     QuizPayload,
@@ -33,15 +34,16 @@ def _malformed_response_error(e: ValueError | KeyError | IndexError, operation: 
     return {"error": {"status_code": MOODLE_MALFORMED_RESPONSE_STATUS_CODE, "message": str(e)}}
 
 
-async def _single_call(auth: Auth, wsfunction: str, params: dict[str, Any]) -> dict[str, Any]:
+async def _single_call(wsfunction: str, params: dict[str, Any]) -> dict[str, Any]:
     """Run a tool that is one web service call, mapping both failure modes to an error dict.
 
     The tools whose whole body is a single ``call_dict`` share this; the ones that chain
     calls keep their own bodies, because the operation an error is reported under changes
     partway through.
     """
+    config = await load_user_plugin_config(MOODLE_PLUGIN_NAME, MoodleConfig)
     try:
-        async with MoodleClient(auth.api_url, auth.api_token) as client:
+        async with MoodleClient(config) as client:
             return await client.call_dict(wsfunction, params)
     except (LMSRequestError, AuthenticationError) as e:
         return _lms_error(e, wsfunction)
@@ -49,14 +51,16 @@ async def _single_call(auth: Auth, wsfunction: str, params: dict[str, Any]) -> d
         return _malformed_response_error(e, wsfunction)
 
 
-async def moodle_authenticate(auth: Auth) -> dict[str, Any]:
-    """Verify the provided Moodle site URL and web service token.
+async def moodle_check_settings() -> dict[str, Any]:
+    """Check that the user's stored Moodle settings work.
 
-    Returns the site name plus the token user's username and ``userid``.
+    Call this to learn whether Moodle is set up for the user. Returns the site name
+    plus the token user's username and ``userid``.
     """
     wsfunction = "core_webservice_get_site_info"
+    config = await load_user_plugin_config(MOODLE_PLUGIN_NAME, MoodleConfig)
     try:
-        async with MoodleClient(auth.api_url, auth.api_token) as client:
+        async with MoodleClient(config) as client:
             info = await client.call_dict(wsfunction)
         return {
             "sitename": info.get("sitename"),
@@ -69,7 +73,7 @@ async def moodle_authenticate(auth: Auth) -> dict[str, Any]:
         return _malformed_response_error(e, wsfunction)
 
 
-async def moodle_list_courses(auth: Auth) -> dict[str, Any]:
+async def moodle_list_courses() -> dict[str, Any]:
     """List the courses the token's user is enrolled in, to pick an existing one to add to.
 
     ``moodle_create_course`` enrols its caller as the new course's creator, so a course
@@ -78,8 +82,9 @@ async def moodle_list_courses(auth: Auth) -> dict[str, Any]:
     looking it up with this tool.
     """
     wsfunction = "core_webservice_get_site_info"
+    config = await load_user_plugin_config(MOODLE_PLUGIN_NAME, MoodleConfig)
     try:
-        async with MoodleClient(auth.api_url, auth.api_token) as client:
+        async with MoodleClient(config) as client:
             info = await client.call_dict(wsfunction)
             userid = info["userid"]
             wsfunction = "core_enrol_get_users_courses"
@@ -129,8 +134,9 @@ async def moodle_create_course(payload: CoursePayload) -> dict[str, Any]:
         "format": "topics",
         "lang": payload.lang or None,
     }
+    config = await load_user_plugin_config(MOODLE_PLUGIN_NAME, MoodleConfig)
     try:
-        async with MoodleClient(payload.auth.api_url, payload.auth.api_token) as client:
+        async with MoodleClient(config) as client:
             created = await client.call_list(wsfunction, {"courses": [course]})
             course_data = created[0]
             wsfunction = "local_sparkth_enrol_creator"
@@ -152,7 +158,7 @@ async def moodle_create_section(payload: SectionPayload) -> dict[str, Any]:
         "name": payload.name,
         "summary": payload.summary,
     }
-    return await _single_call(payload.auth, "local_sparkth_create_section", params)
+    return await _single_call("local_sparkth_create_section", params)
 
 
 async def moodle_create_page(payload: PagePayload) -> dict[str, Any]:
@@ -167,7 +173,7 @@ async def moodle_create_page(payload: PagePayload) -> dict[str, Any]:
         "content": payload.content,
         "intro": payload.intro,
     }
-    return await _single_call(payload.auth, "local_sparkth_create_page", params)
+    return await _single_call("local_sparkth_create_page", params)
 
 
 async def moodle_create_quiz(payload: QuizPayload) -> dict[str, Any]:
@@ -183,7 +189,7 @@ async def moodle_create_quiz(payload: QuizPayload) -> dict[str, Any]:
         "intro": payload.intro,
         "questions": [question.model_dump(mode="json") for question in payload.questions],
     }
-    return await _single_call(payload.auth, "local_sparkth_create_quiz", params)
+    return await _single_call("local_sparkth_create_quiz", params)
 
 
 async def moodle_about() -> dict[str, Any]:

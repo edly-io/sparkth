@@ -1,3 +1,5 @@
+MOODLE_PLUGIN_NAME = "moodle"
+
 # Path of Moodle's REST web service entry point, relative to the site base URL. Fixed by
 # Moodle itself, not site-configurable.
 MOODLE_WS_ENDPOINT = "webservice/rest/server.php"

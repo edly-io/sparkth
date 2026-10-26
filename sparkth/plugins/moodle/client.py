@@ -3,6 +3,7 @@ from typing import Any
 from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
 from sparkth.lib.http import BaseHttpClient
+from sparkth.plugins.moodle.config import MoodleConfig
 from sparkth.plugins.moodle.constants import (
     MOODLE_ACCESS_EXCEPTION_CODE,
     MOODLE_ACCESS_EXCEPTION_HINT,
@@ -72,9 +73,9 @@ class MoodleClient(BaseHttpClient):
     operation with ``wsfunction``, rather than addressing REST resources by path.
     """
 
-    def __init__(self, api_url: str, api_token: str) -> None:
-        super().__init__(api_url)
-        self.api_token = api_token
+    def __init__(self, config: MoodleConfig) -> None:
+        super().__init__(str(config.api_url))
+        self.api_token = config.api_key
 
     @property
     def token(self) -> str | None:

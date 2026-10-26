@@ -13,14 +13,8 @@ from sparkth.plugins.canvas.enums import (
 )
 
 
-class AuthenticationPayload(BaseModel):
-    api_url: str
-    api_token: str
-
-
 class CourseParams(BaseModel):
     course_id: int
-    auth: AuthenticationPayload
 
 
 class PaginationParams(CourseParams):
@@ -44,11 +38,9 @@ class CoursePayload(BaseModel):
     offer: bool | None = None
     enable_sis_reactivation: bool | None = None
     account_id: int
-    auth: AuthenticationPayload
 
 
 class ModuleParams(BaseModel):
-    auth: AuthenticationPayload
     course_id: int
     module_id: int
     page: int
@@ -66,7 +58,6 @@ class Module(BaseModel):
 class ModulePayload(BaseModel):
     module: Module
     course_id: int
-    auth: AuthenticationPayload
 
 
 class UpdatedModule(BaseModel):
@@ -83,11 +74,9 @@ class UpdateModulePayload(BaseModel):
     module: UpdatedModule
     course_id: int
     module_id: int
-    auth: AuthenticationPayload
 
 
 class ModuleItemParams(BaseModel):
-    auth: AuthenticationPayload
     course_id: int
     module_id: int
     module_item_id: int
@@ -118,7 +107,6 @@ class ModuleItemPayload(BaseModel):
     module_id: int
     course_id: int
     module_item: ModuleItem
-    auth: AuthenticationPayload
 
 
 class UpdatedModuleItem(BaseModel):
@@ -137,11 +125,9 @@ class UpdateModuleItemPayload(BaseModel):
     course_id: int
     item_id: int
     module_item: UpdatedModuleItem
-    auth: AuthenticationPayload
 
 
 class PageRequest(BaseModel):
-    auth: AuthenticationPayload
     course_id: int
     page_url: str
 
@@ -157,7 +143,6 @@ class Page(BaseModel):
 
 
 class PagePayload(BaseModel):
-    auth: AuthenticationPayload
     course_id: int
     wiki_page: Page
 
@@ -173,14 +158,12 @@ class UpdatedPage(BaseModel):
 
 
 class UpdatePagePayload(BaseModel):
-    auth: AuthenticationPayload
     course_id: int
     url_or_id: str
     wiki_page: UpdatedPage
 
 
 class QuizParams(BaseModel):
-    auth: AuthenticationPayload
     course_id: int
     quiz_id: int
     page: int
@@ -206,7 +189,6 @@ class Quiz(BaseModel):
 
 
 class QuizPayload(BaseModel):
-    auth: AuthenticationPayload
     course_id: int
     quiz: Quiz
 
@@ -231,14 +213,12 @@ class UpdatedQuiz(BaseModel):
 
 
 class UpdateQuizPayload(BaseModel):
-    auth: AuthenticationPayload
     course_id: int
     quiz_id: int
     quiz: UpdatedQuiz
 
 
 class QuestionParams(BaseModel):
-    auth: AuthenticationPayload
     course_id: int
     quiz_id: int
     question_id: int
@@ -268,7 +248,6 @@ class QuestionPayload(BaseModel):
     question: Question
     course_id: int
     quiz_id: int
-    auth: AuthenticationPayload
 
 
 class UpdatedQuestion(BaseModel):
@@ -290,4 +269,3 @@ class UpdateQuestionPayload(BaseModel):
     course_id: int
     quiz_id: int
     question_id: int
-    auth: AuthenticationPayload

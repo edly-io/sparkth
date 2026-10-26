@@ -4,23 +4,22 @@ from urllib.parse import urljoin
 from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import AuthenticationError
 from sparkth.lib.http import BaseHttpClient
+from sparkth.plugins.canvas.config import CanvasConfig
 
 
 class CanvasClient(BaseHttpClient):
     """HTTP client for the Canvas LMS REST API."""
 
-    def __init__(self, api_url: str, api_token: str) -> None:
-        super().__init__(api_url)
-        self.api_token = api_token
+    def __init__(self, config: CanvasConfig) -> None:
+        super().__init__(str(config.api_url))
+        self.api_token = config.api_key
 
     @property
     def token(self) -> str | None:
         return self.api_token or None
 
-    async def _request_dict(
-        self, method: Method, endpoint: str, payload: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
-        """Call ``_request`` and assert the response is a JSON object."""
+    async def request(self, method: Method, endpoint: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Send a request, with ``payload`` as its JSON body if given, and return the JSON object it answers."""
         result = await self._request(method, endpoint, payload=payload)
         if not isinstance(result, dict):
             raise ValueError(f"Expected JSON object from {method} {endpoint}, got {type(result).__name__}")
@@ -46,25 +45,9 @@ class CanvasClient(BaseHttpClient):
                 raise AuthenticationError(response.status, err.message)
             return response.status
 
-    async def get(self, endpoint: str) -> dict[str, Any]:
-        """Send a GET request and return the response as a JSON object."""
-        return await self._request_dict(Method.GET, endpoint)
-
     async def get_all(self, endpoint: str) -> list[Any]:
         """Send a GET request and return the response as a JSON array."""
         result = await self._request(Method.GET, endpoint)
         if not isinstance(result, list):
             raise ValueError(f"Expected JSON array from GET {endpoint}, got {type(result).__name__}")
         return result
-
-    async def post(self, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
-        """Send a POST request with a JSON body and return the response as a JSON object."""
-        return await self._request_dict(Method.POST, endpoint, payload)
-
-    async def put(self, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
-        """Send a PUT request with a JSON body and return the response as a JSON object."""
-        return await self._request_dict(Method.PUT, endpoint, payload)
-
-    async def delete(self, endpoint: str) -> dict[str, Any]:
-        """Send a DELETE request and return the response as a JSON object."""
-        return await self._request_dict(Method.DELETE, endpoint)
