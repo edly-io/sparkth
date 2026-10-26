@@ -94,8 +94,18 @@ async def load_user_plugin_config(plugin_name: str, config_class: type[C]) -> C:
             fails validation. Only the failing field names are logged, never their values.
     """
     user_id = current_user_id()
+    statement = (
+        select(UserPlugin)
+        .join(Plugin)
+        .where(
+            Plugin.name == plugin_name,
+            UserPlugin.user_id == user_id,
+            UserPlugin.deleted_at == None,
+            Plugin.deleted_at == None,
+        )
+    )
     async with session_scope() as session:
-        row = (await PluginService().get_user_plugin_map(session, user_id)).get(plugin_name)
+        row = (await session.exec(statement)).one_or_none()
     if row is not None and row.config:
         try:
             return config_class(**row.config)
