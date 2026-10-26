@@ -28,6 +28,9 @@ async def build_fake(course_id: str, option_id: str | None) -> ContentBlock:
     return ContentBlock("Fake Activity", "fake", {"activity_instance": "p-1", "activity": "mcq"})
 
 
+pytestmark = pytest.mark.usefixtures("stored_config")
+
+
 @pytest.fixture
 def owners() -> Iterator[list[SparkthPlugin]]:
     """The plugins owning this test's contributors.

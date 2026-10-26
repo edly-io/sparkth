@@ -144,7 +144,7 @@ async def openedx_update_xblock_content(
         return response
 
 
-async def openedx_get_user_info() -> dict[str, Any]:
+async def openedx_check_settings() -> dict[str, Any]:
     """
     Check that the user's stored Open edX settings work, and return the Open edX account they sign in as.
 

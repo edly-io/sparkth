@@ -1,19 +1,14 @@
 from collections.abc import Generator
-from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 import sparkth.plugins.openedx.tools as openedx_tools
-from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.lib.auth import bind_current_user_id
 from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
-from sparkth.lib.mcp.hooks import MCP_TOOLS
-from sparkth.lib.models import User
-from sparkth.lib.plugins import load_user_plugin_config
-from sparkth.lib.testing import schema_property_names
+from sparkth.lib.testing import seed_plugin_settings, tool_input_property_names
 from sparkth.plugins.openedx.client import OpenEdxClient
 from sparkth.plugins.openedx.constants import OPENEDX_PLUGIN_NAME
 from sparkth.plugins.openedx.enums import Component
@@ -44,25 +39,17 @@ def mock_openedx_client() -> Generator[tuple[MagicMock, AsyncMock], None, None]:
 
 
 async def test_a_tool_calls_open_edx_with_the_callers_stored_settings(session: AsyncSession) -> None:
-    plugin = Plugin(name=OPENEDX_PLUGIN_NAME, enabled=True)
-    user = User(id=1, name="U", username="u1", email="u1@example.com", hashed_password="x")
-    session.add_all([plugin, user])
-    await session.commit()
     stored = {
         "lms_url": "https://stored-lms.example.com",
         "studio_url": "https://stored-studio.example.com",
         "lms_username": "stored-user",
         "lms_password": "stored-pass",
     }
-    session.add(UserPlugin(user_id=1, plugin_id=cast(int, plugin.id), config=stored))
-    await session.commit()
+    await seed_plugin_settings(session, OPENEDX_PLUGIN_NAME, stored)
     bind_current_user_id(1)
     http = http_session('{"access_token": "granted"}', http_response(200, '{"blocks": {}}'))
 
-    with (
-        patch("sparkth.plugins.openedx.tools.load_user_plugin_config", load_user_plugin_config),
-        patch("sparkth.lib.http.ClientSession", return_value=http),
-    ):
+    with patch("sparkth.lib.http.ClientSession", return_value=http):
         result = await openedx_tools.openedx_get_course_tree_raw(CourseTreeRequest(course_id="course-v1:Org+101+2024"))
 
     assert result == {"response": {"blocks": {}}}
@@ -75,37 +62,38 @@ async def test_a_tool_calls_open_edx_with_the_callers_stored_settings(session: A
 
 def test_no_open_edx_tool_takes_a_credential() -> None:
     plugin = OpenEdxPlugin()
-    schemas = [tool.input_schema for owner, tool in MCP_TOOLS.iter_items() if owner is plugin]
-    names: set[str] = set()
-    for schema in schemas:
-        names |= schema_property_names(schema)
+    names = tool_input_property_names(plugin)
 
     assert "course_id" in names
     assert not names & {"auth", "lms_url", "studio_url", "username", "password", "access_token", "refresh_token"}
 
 
 @pytest.mark.asyncio
-class TestOpenEdxPluginGetUserInfo:
-    async def test_get_user_info_success(self, mock_openedx_client: tuple[MagicMock, AsyncMock]) -> None:
+@pytest.mark.usefixtures("stored_config")
+class TestOpenEdxCheckSettings:
+    async def test_returns_the_signed_in_account(self, mock_openedx_client: tuple[MagicMock, AsyncMock]) -> None:
         mock_cls, client = mock_openedx_client
         client.authenticate.return_value = {"username": "admin"}
 
-        result = await openedx_tools.openedx_get_user_info()
+        result = await openedx_tools.openedx_check_settings()
 
         mock_cls.assert_called_once_with(OPENEDX_CONFIG)
         assert result["response"] == {"username": "admin"}
 
-    async def test_get_user_info_failure(self, mock_openedx_client: tuple[MagicMock, AsyncMock]) -> None:
+    async def test_rejected_settings_become_an_error_dict(
+        self, mock_openedx_client: tuple[MagicMock, AsyncMock]
+    ) -> None:
         _, client = mock_openedx_client
         client.authenticate.side_effect = AuthenticationError(401, "Unauthorized")
 
-        result = await openedx_tools.openedx_get_user_info()
+        result = await openedx_tools.openedx_check_settings()
 
         assert "error" in result
         assert result["error"]["status_code"] == 401
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("stored_config")
 class TestOpenEdxPluginCreateCourseRun:
     async def test_create_course_run_success(self, mock_openedx_client: tuple[MagicMock, AsyncMock]) -> None:
         mock_cls, client = mock_openedx_client
@@ -137,6 +125,7 @@ class TestOpenEdxPluginCreateCourseRun:
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("stored_config")
 class TestOpenEdxPluginListCourseRuns:
     async def test_list_course_runs_success(self, mock_openedx_client: tuple[MagicMock, AsyncMock]) -> None:
         mock_cls, client = mock_openedx_client
@@ -164,6 +153,7 @@ def _xblock_payload() -> XBlockPayload:
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("stored_config")
 class TestOpenEdxPluginCreateXBlock:
     async def test_create_xblock_success(self, mock_openedx_client: tuple[MagicMock, AsyncMock]) -> None:
         mock_cls, client = mock_openedx_client
@@ -189,6 +179,7 @@ def _update_payload() -> UpdateXBlockPayload:
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("stored_config")
 class TestOpenEdxPluginUpdateXBlock:
     async def test_update_xblock_success(self, mock_openedx_client: tuple[MagicMock, AsyncMock]) -> None:
         mock_cls, client = mock_openedx_client
@@ -210,6 +201,7 @@ class TestOpenEdxPluginUpdateXBlock:
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("stored_config")
 class TestOpenEdxPluginGetCourseTree:
     async def test_get_course_tree_success(self, mock_openedx_client: tuple[MagicMock, AsyncMock]) -> None:
         mock_cls, client = mock_openedx_client
@@ -231,6 +223,7 @@ class TestOpenEdxPluginGetCourseTree:
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("stored_config")
 class TestOpenEdxPluginGetBlockContentstore:
     async def test_get_block_contentstore_success(self, mock_openedx_client: tuple[MagicMock, AsyncMock]) -> None:
         mock_cls, client = mock_openedx_client
@@ -256,6 +249,7 @@ class TestOpenEdxPluginGetBlockContentstore:
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("stored_config")
 class TestOpenEdxPluginCreateProblemOrHtml:
     async def test_create_problem_with_data(self, mock_openedx_client: tuple[MagicMock, AsyncMock]) -> None:
         _, client = mock_openedx_client
