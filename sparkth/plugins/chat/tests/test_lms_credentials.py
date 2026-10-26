@@ -76,7 +76,7 @@ class TestBuildLmsCredentialsMessage:
         ):
             result = await build_lms_credentials_message(session=mock_session, user_id=1, tools=tools)
         assert result == LMS_RULES
-        assert "My Plugins" in result
+        assert "Settings" in result
 
     async def test_openedx_credentials_included(self, mock_session: AsyncMock) -> None:
         tools = [_make_tool("openedx_authenticate")]
