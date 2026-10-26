@@ -18,6 +18,11 @@ Numbered steps to verify the change works.
 1. Step one
 2. Step two
 
+## Environment Variables
+<!-- One line per environment variable this PR adds, updates or removes, e.g.:
+- Added: `VAR_NAME` (sensitive|non-sensitive) — what it controls or what changed
+Leave this section empty if no variable changes. -->
+
 ## Notes
-Migration required? Breaking change? Env var added? Dependency bumped?
+Migration required? Breaking change? Dependency bumped?
 Leave blank if none.

@@ -233,7 +233,7 @@ class TestResendEndpoint:
         async def get_fake_redis() -> AsyncIterator[FakeRedis]:
             yield fake
 
-        monkeypatch.setattr(auth_module, "_get_resend_redis", get_fake_redis)
+        monkeypatch.setattr(auth_module, "_get_rate_limit_redis", get_fake_redis)
 
     async def test_unknown_email_returns_202(self, client: AsyncClient) -> None:
         with patch(

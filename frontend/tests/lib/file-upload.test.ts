@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { uploadFile } from "@/lib/file-upload";
 
-vi.mock("@/lib/auth-tokens", () => ({
+vi.mock("@/core/auth/tokens", () => ({
   getStoredToken: vi.fn().mockReturnValue(null),
 }));
 

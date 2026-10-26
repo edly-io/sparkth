@@ -1,10 +1,11 @@
 "use client";
 
 import { useParams, redirect } from "next/navigation";
-import { useAuth } from "@/lib/auth-context";
-import { Spinner } from "@/components/Spinner";
-import { usePlugin, usePluginContext } from "@/lib/plugins/context";
-import { displayNameOf, getPlugin } from "@/lib/plugins";
+import { useAuth } from "@/core/auth/hooks";
+import { Spinner } from "@/core/components/ui/Spinner";
+import { usePlugin, usePluginContext } from "@/core/plugins/context";
+import { displayNameOf } from "@/core/plugins/metadata";
+import { getPlugin } from "@/core/plugins/registry";
 import PluginRenderer from "@/components/PluginRenderer";
 import Link from "next/link";
 

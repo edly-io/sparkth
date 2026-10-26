@@ -1,10 +1,10 @@
 "use client";
 
-import { useReducer, useEffect, useState, useCallback, type SubmitEvent } from "react";
+import { useReducer, useEffect, useCallback, type SubmitEvent } from "react";
 import { redirect } from "next/navigation";
 import { Plus, Trash2, Mail, Globe } from "lucide-react";
-import { useAuth } from "@/lib/auth-context";
-import { checkPermission } from "@/lib/permissions";
+import { useAuth } from "@/core/auth/hooks";
+import { usePermissionCheck } from "@/lib/permissions";
 import {
   getWhitelist,
   addWhitelistEntry,
@@ -12,18 +12,11 @@ import {
   WhitelistEntry,
   ApiRequestError,
 } from "@/lib/api";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/core/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Alert } from "@/components/ui/Alert";
-import { Spinner } from "@/components/Spinner";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/Dialog";
+import { Spinner } from "@/core/components/ui/Spinner";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 interface WhitelistState {
   entries: WhitelistEntry[];
@@ -33,7 +26,6 @@ interface WhitelistState {
   addError: string;
   adding: boolean;
   deleteTarget: WhitelistEntry | null;
-  deleting: boolean;
 }
 
 type WhitelistAction =
@@ -43,8 +35,7 @@ type WhitelistAction =
   | { type: "SET_NEW_VALUE"; value: string }
   | { type: "SET_ADD_ERROR"; error: string }
   | { type: "SET_ADDING"; adding: boolean }
-  | { type: "SET_DELETE_TARGET"; target: WhitelistEntry | null }
-  | { type: "SET_DELETING"; deleting: boolean };
+  | { type: "SET_DELETE_TARGET"; target: WhitelistEntry | null };
 
 function reducer(state: WhitelistState, action: WhitelistAction): WhitelistState {
   switch (action.type) {
@@ -62,8 +53,6 @@ function reducer(state: WhitelistState, action: WhitelistAction): WhitelistState
       return { ...state, adding: action.adding };
     case "SET_DELETE_TARGET":
       return { ...state, deleteTarget: action.target };
-    case "SET_DELETING":
-      return { ...state, deleting: action.deleting };
   }
 }
 
@@ -75,32 +64,13 @@ const initialState: WhitelistState = {
   addError: "",
   adding: false,
   deleteTarget: null,
-  deleting: false,
 };
 
 export default function WhitelistPage() {
   const { token } = useAuth();
   const [state, dispatch] = useReducer(reducer, initialState);
 
-  const [access, setAccess] = useState<"checking" | "allowed" | "denied">("checking");
-
-  useEffect(() => {
-    // Reset on every token change so a re-login can't briefly show the previous user's page
-    // while the new user's check is still in flight (fail closed to the checking state).
-    setAccess("checking");
-    if (!token) return;
-    let active = true;
-    checkPermission(token, "email.whitelist.read", { scope: "whitelist" })
-      .then((allowed) => {
-        if (active) setAccess(allowed ? "allowed" : "denied");
-      })
-      .catch(() => {
-        if (active) setAccess("denied"); // fail closed
-      });
-    return () => {
-      active = false;
-    };
-  }, [token]);
+  const access = usePermissionCheck(token, "email.whitelist.read", { scope: "whitelist" });
 
   if (access === "denied") {
     redirect("/dashboard");
@@ -147,22 +117,10 @@ export default function WhitelistPage() {
   };
 
   const handleDelete = async () => {
-    if (!token || !state.deleteTarget) return;
-
-    dispatch({ type: "SET_DELETING", deleting: true });
-    try {
-      await removeWhitelistEntry(token, state.deleteTarget.id);
-      dispatch({ type: "SET_DELETE_TARGET", target: null });
-      await fetchEntries();
-    } catch (err) {
-      dispatch({
-        type: "SET_ERROR",
-        error: err instanceof ApiRequestError ? err.message : "Failed to remove entry",
-      });
-      dispatch({ type: "SET_DELETE_TARGET", target: null });
-    } finally {
-      dispatch({ type: "SET_DELETING", deleting: false });
-    }
+    if (!token || !state.deleteTarget) throw new Error("not signed in");
+    await removeWhitelistEntry(token, state.deleteTarget.id);
+    dispatch({ type: "SET_DELETE_TARGET", target: null });
+    await fetchEntries();
   };
 
   if (access === "checking") {
@@ -292,43 +250,29 @@ export default function WhitelistPage() {
         )}
       </div>
 
-      <Dialog
-        open={!!state.deleteTarget}
-        onOpenChange={() => dispatch({ type: "SET_DELETE_TARGET", target: null })}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Remove whitelist entry</DialogTitle>
-            <DialogDescription>
+      {state.deleteTarget && (
+        <ConfirmDialog
+          title="Remove whitelist entry"
+          description={
+            <>
               Are you sure you want to remove{" "}
               <span className="font-mono font-medium text-foreground">
-                {state.deleteTarget?.value}
+                {state.deleteTarget.value}
               </span>
               ?
-              {state.deleteTarget?.entry_type === "domain"
+              {state.deleteTarget.entry_type === "domain"
                 ? " Users from this domain will no longer be able to register."
                 : " This email will no longer be able to register."}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => dispatch({ type: "SET_DELETE_TARGET", target: null })}
-              disabled={state.deleting}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="error"
-              onClick={handleDelete}
-              loading={state.deleting}
-              spinnerLabel="Removing"
-            >
-              Remove
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </>
+          }
+          confirmLabel="Remove"
+          pendingLabel="Removing"
+          cancelLabel="Cancel"
+          errorMessage="Failed to remove the entry."
+          onConfirm={handleDelete}
+          onClose={() => dispatch({ type: "SET_DELETE_TARGET", target: null })}
+        />
+      )}
     </div>
   );
 }

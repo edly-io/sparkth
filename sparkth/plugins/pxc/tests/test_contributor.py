@@ -238,8 +238,8 @@ async def test_an_option_that_is_neither_bundled_nor_a_uuid_is_refused(authors: 
 async def record_registered_placement(option_id: str) -> None:
     """Record a placement through the contributor the plugin registered, as a publishing tool does."""
     contributor = next(c for _owner, c in LMS_CONTENT_CONTRIBUTORS.iter_items() if c.name == "pxc")
-    assert contributor.on_placed is not None
-    await contributor.on_placed(option_id)
+    assert contributor.callback is not None
+    await contributor.callback(option_id)
 
 
 async def test_building_a_block_records_no_placement(

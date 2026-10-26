@@ -2,7 +2,8 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 
 import { loadMessages } from "@/lib/i18n/messages";
 import { locales } from "@/lib/i18n/config";
-import { getAllPlugins, registerPlugin, unregisterPlugin } from "@/lib/plugins";
+import "@/app/plugins";
+import { getAllPlugins, registerPlugin, unregisterPlugin } from "@/core/plugins/registry";
 import coreEn from "@/messages/en.json";
 import coreEs from "@/messages/es.json";
 import coreFr from "@/messages/fr.json";
@@ -59,6 +60,8 @@ describe("core catalog failure", () => {
     vi.doMock("@/messages/es.json", () => {
       throw new Error("core chunk load failed");
     });
+    // The module reset empties the registry, so register the plugins again.
+    await import("@/app/plugins");
     const { loadMessages: loadWithBrokenCore } = await import("@/lib/i18n/messages");
 
     const messages = await loadWithBrokenCore("es");

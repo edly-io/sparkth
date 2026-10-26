@@ -9,6 +9,8 @@ __all__ = [
     "AccountError",
     "IncorrectPassword",
     "PasswordNotSet",
+    "ResetLinkExpired",
+    "ResetLinkInvalid",
 ]
 
 
@@ -22,3 +24,11 @@ class IncorrectPassword(AccountError):
 
 class PasswordNotSet(AccountError):
     """The account has no password to change: the user signs in with SSO only."""
+
+
+class ResetLinkInvalid(AccountError):
+    """The password reset link is unknown, or was already used or replaced."""
+
+
+class ResetLinkExpired(AccountError):
+    """The password reset link is past its expiry."""

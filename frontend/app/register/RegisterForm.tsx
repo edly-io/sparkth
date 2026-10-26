@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useForm } from "@tanstack/react-form";
 import { register as registerApi, ApiRequestError } from "@/lib/api";
 import { SparkthLogo } from "@/components/SparkthLogo";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/core/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Alert } from "@/components/ui/Alert";
 import { Card } from "@/components/ui/Card";

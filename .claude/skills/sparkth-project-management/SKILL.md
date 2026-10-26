@@ -43,16 +43,17 @@ must still focus on the *need*, not the implementation approach.
 - ✅ `Course dashboard needs a progress summary widget`
 - ❌ `Add a ProgressWidget component to the dashboard page`
 
-## Issue descriptions state the problem only — solutions go in a comment
+## Issue descriptions state the problem and acceptance criteria — solutions go in a comment
 
-The issue **description** (body) must contain only the problem: a summary,
-where it happens (file paths and line numbers), why it matters, and how to
-observe or reproduce it. It MUST NOT contain a proposed fix.
+The issue **description** (body) must contain only the problem and its
+acceptance criteria: a summary, where it happens (file paths and line numbers),
+why it matters, how to observe or reproduce it, and the **Acceptance Criteria**
+checklist described below. It MUST NOT contain a proposed fix.
 
 Propose the solution in a **separate comment** on the issue:
 
 ```bash
-# 1. Create the issue with the problem description only
+# 1. Create the issue with the problem description and acceptance criteria
 gh issue create --title "chat_router is registered twice at /api/v1/chat" \
   --body-file problem.md
 
@@ -62,6 +63,34 @@ gh issue comment <number> --body-file proposed-fix.md
 
 This keeps the problem statement stable and reviewable while letting proposed
 solutions be discussed, revised, or replaced independently.
+
+## Every issue description carries Acceptance Criteria
+
+Every issue body MUST include an `## Acceptance Criteria` checklist after the
+problem description. QA follows it to verify the fix or feature on the QA and
+PROD environments.
+
+- The first item is always `- [ ] Test locally by the developer`, verbatim.
+- Every other item is an outcome QA can check in the deployed app (UI or API
+  behaviour), derived from the nature of the issue:
+  - **bug** — the reproduction steps no longer reproduce the problem, and the
+    behaviour around it still works.
+  - **enhancement** — each capability the issue asks for works as described.
+  - **refactoring** — the affected features behave exactly as before.
+  - **documentation / tooling** — the doc or check reads or behaves as described;
+    when nothing ships to the deployed app, the first item alone is enough.
+- Items state the expected outcome, never an implementation step or code change.
+  Developer-only checks such as "unit tests pass" are covered by the first item.
+
+```markdown
+<problem: summary, where it happens, why it matters, how to reproduce>
+
+## Acceptance Criteria
+- [ ] Test locally by the developer
+- [ ] <outcome QA verifies on the QA and PROD environments>
+
+_This description was written with the assistance of an LLM (Claude)._
+```
 
 ## Every issue must carry a supported label
 
@@ -123,8 +152,18 @@ It auto-populates on GitHub; fill in every section:
 - **What** — one sentence: what changed and why.
 - **Changes** — bullet list of `<type>(<scope>): short description`.
 - **How to Test** — numbered, reproducible verification steps.
-- **Notes** — migrations, breaking changes, new env vars, dependency bumps (or
-  "none").
+- **Environment Variables** — every environment variable the PR adds, updates or
+  removes, one line each (format below). The PR's `.env` and `docker-compose*.yml`
+  diffs list them. Leave the list empty when the PR changes no variable. The list
+  tracks every variable change between DEV and PROD releases.
+- **Notes** — migrations, breaking changes, dependency bumps (or "none").
+
+```markdown
+## Environment Variables
+- Added: `SLACK_SIGNING_SECRET` (sensitive) — verifies Slack request signatures
+- Updated: `PXC_MAX_SOURCE_CHARS` (non-sensitive) — default lowered from 200000 to 20000
+- Removed: `PXC_DEFAULT_ACTIVITY` (non-sensitive) — no longer read
+```
 
 When creating a PR with `gh`, pass a body built from the template so the
 sections are present:

@@ -30,7 +30,7 @@ CANVAS_CONFIG = {"api_url": "https://canvas.example.com", "api_key": "token-abc1
 
 async def seed_llm_config(session: AsyncSession, user_id: int) -> int:
     """An active OpenAI key for ``user_id``, committed, returning its id."""
-    enc = get_encryption_service(get_settings().LLM_ENCRYPTION_KEY)
+    enc = get_encryption_service(get_settings().ENCRYPTION_KEY)
     config = LLMConfig(
         user_id=user_id,
         name="test-cfg",

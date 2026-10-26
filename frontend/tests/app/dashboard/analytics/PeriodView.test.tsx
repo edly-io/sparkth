@@ -9,7 +9,7 @@ import { renderWithIntl } from "@/tests/intl-test-utils";
 import { ApiRequestError } from "@/lib/api";
 
 const auth = vi.hoisted(() => ({ token: "test-token" }));
-vi.mock("@/lib/auth-context", () => ({
+vi.mock("@/core/auth/hooks", () => ({
   useAuth: () => ({ token: auth.token }),
 }));
 

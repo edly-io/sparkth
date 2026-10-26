@@ -4,9 +4,10 @@ import { useCallback, useEffect, useReducer, useRef } from "react";
 import { useRagStatusPolling } from "@/lib/useRagStatusPolling";
 import { Folder, FileText, RefreshCw, Upload } from "lucide-react";
 import { FileTable } from "./FileTable";
-import { Spinner } from "@/components/Spinner";
-import { useAuth } from "@/lib/auth-context";
-import { Button } from "@/components/ui/Button";
+import { Spinner } from "@/core/components/ui/Spinner";
+import { useAuth } from "@/core/auth/hooks";
+import { downloadBlob } from "@/lib/download";
+import { Button } from "@/core/components/ui/Button";
 import {
   Dialog,
   DialogContent,
@@ -129,15 +130,7 @@ export default function FolderDetail({ folder, onClose, onFolderChange }: Folder
 
     dispatch({ type: "SET_ACTION_FILE", id: file.id });
     try {
-      const blob = await downloadFile(file.id, token);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = file.name;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      downloadBlob(await downloadFile(file.id, token), file.name);
     } catch (error) {
       alert(`Download failed: ${error}`);
     } finally {

@@ -11,6 +11,9 @@ os.environ.setdefault("SLACK_CLIENT_SECRET", "test-slack-client-secret")
 os.environ.setdefault("SLACK_SIGNING_SECRET", "test-slack-signing-secret")
 os.environ.setdefault("SLACK_REDIRECT_URI", "http://localhost:7727/api/v1/slack/callback")
 
+import hashlib
+import hmac
+import time
 from collections.abc import AsyncGenerator, Generator
 from typing import Any, cast
 from unittest.mock import patch
@@ -26,6 +29,22 @@ from sparkth.main import app
 from sparkth.plugins.slack.config import SlackSettings
 from sparkth.plugins.slack.models import SlackWorkspace
 from sparkth.plugins.slack.service import encrypt_token
+
+
+def make_slack_signature(secret: str, timestamp: str, body: bytes) -> str:
+    """Return the Slack v0 request signature for ``body`` at ``timestamp``."""
+    base = f"v0:{timestamp}:{body.decode()}"
+    return "v0=" + hmac.new(secret.encode(), base.encode(), hashlib.sha256).hexdigest()
+
+
+def signed_event_headers(secret: str, body: bytes) -> dict[str, str]:
+    """Return JSON headers carrying a current timestamp and a valid signature for ``body``."""
+    timestamp = str(int(time.time()))
+    return {
+        "Content-Type": "application/json",
+        "X-Slack-Request-Timestamp": timestamp,
+        "X-Slack-Signature": make_slack_signature(secret, timestamp, body),
+    }
 
 
 @pytest.fixture(autouse=True)

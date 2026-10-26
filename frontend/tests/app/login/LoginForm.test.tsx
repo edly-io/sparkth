@@ -7,7 +7,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
 }));
-vi.mock("@/lib/auth-context", () => ({ useAuth: () => ({ login: vi.fn() }) }));
+vi.mock("@/core/auth/hooks", () => ({ useAuth: () => ({ login: vi.fn() }) }));
 
 describe("LoginForm", () => {
   it("links to the privacy policy", () => {

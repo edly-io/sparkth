@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import { useLocale, useTimeZone } from "next-intl";
+import { useLocale, useTimeZone, useTranslations } from "next-intl";
 import { renderToString } from "react-dom/server";
 
 import { LocaleProvider } from "@/app/LocaleProvider";
-import { getActiveLocale, setActiveLocale } from "@/lib/i18n/active-locale";
+import { rethrowOrWrapConnectionError } from "@/lib/api";
+import { getActiveLocale, setActiveLocale, setActiveMessages } from "@/lib/i18n/active-locale";
 import { defaultLocale, LOCALE_COOKIE, type Locale } from "@/lib/i18n/config";
+import en from "@/messages/en.json";
 
 // Lets the failure test make the catalog import reject while every other test
 // exercises the real loader.
@@ -21,6 +23,10 @@ vi.mock("@/lib/i18n/messages", async (importOriginal) => {
 
 function LocaleProbe() {
   return <span data-testid="locale">{useLocale()}</span>;
+}
+
+function ChatCatalogProbe() {
+  return <span data-testid="chat-placeholder">{useTranslations("chat")("inputPlaceholder")}</span>;
 }
 
 function TimeZoneProbe() {
@@ -44,6 +50,7 @@ describe("LocaleProvider", () => {
     document.cookie = `${LOCALE_COOKIE}=; path=/; max-age=0`;
     document.documentElement.lang = "en";
     setActiveLocale(defaultLocale);
+    setActiveMessages(en);
   });
 
   afterEach(() => {
@@ -78,6 +85,34 @@ describe("LocaleProvider", () => {
     await waitFor(() => expect(screen.getByTestId("locale")).toHaveTextContent("es"));
     expect(document.documentElement.lang).toBe("es");
     expect(getActiveLocale()).toBe("es");
+  });
+
+  it("describes network failures in the loaded locale", async () => {
+    document.cookie = `${LOCALE_COOKIE}=es`;
+    render(
+      <LocaleProvider>
+        <LocaleProbe />
+      </LocaleProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("locale")).toHaveTextContent("es"));
+
+    expect(() => rethrowOrWrapConnectionError(new TypeError("Failed to fetch"))).toThrow(
+      "No se pudo conectar con el servidor: Failed to fetch",
+    );
+  });
+
+  it("loads the plugin catalogs for the cookie locale", async () => {
+    document.cookie = `${LOCALE_COOKIE}=es`;
+    render(
+      <LocaleProvider>
+        <ChatCatalogProbe />
+      </LocaleProvider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("chat-placeholder")).toHaveTextContent(
+        "Describe el curso que quieres crear...",
+      ),
+    );
   });
 
   it("falls back to the default locale for an unsupported cookie value", async () => {

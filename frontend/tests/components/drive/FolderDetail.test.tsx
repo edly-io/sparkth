@@ -5,7 +5,7 @@ import FolderDetail from "@/components/drive/FolderDetail";
 import type { DriveFolder } from "@/lib/drive";
 
 // Mock auth context
-vi.mock("@/lib/auth-context", () => ({
+vi.mock("@/core/auth/hooks", () => ({
   useAuth: () => ({ token: "test-token" }),
 }));
 

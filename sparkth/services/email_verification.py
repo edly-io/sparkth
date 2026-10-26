@@ -1,4 +1,3 @@
-import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
 from html import escape as html_escape
@@ -11,6 +10,7 @@ from sparkth.core.config import get_settings
 from sparkth.core.email import send_email
 from sparkth.core.models.email_verification import EmailVerificationToken
 from sparkth.core.models.user import User
+from sparkth.core.security import hash_token
 from sparkth.lib.audit import record_event
 from sparkth.lib.audit.context import UserActor
 from sparkth.lib.audit.events import AuditOutcome, AuditTarget, EmailVerifiedAuditEvent
@@ -27,10 +27,6 @@ class TokenInvalidError(Exception):
 
 class TokenExpiredError(Exception):
     pass
-
-
-def _hash_token(raw: str) -> str:
-    return hashlib.sha256(raw.encode()).hexdigest()
 
 
 def _as_utc(dt: datetime) -> datetime:
@@ -63,7 +59,7 @@ class EmailVerificationService:
         raw = secrets.token_urlsafe(32)
         token = EmailVerificationToken(
             user_id=user_id,
-            token_hash=_hash_token(raw),
+            token_hash=hash_token(raw),
             expires_at=now + timedelta(hours=settings.EMAIL_VERIFICATION_TOKEN_TTL_HOURS),
         )
         session.add(token)
@@ -77,7 +73,7 @@ class EmailVerificationService:
         Records an ``auth.email_verified`` success event in the caller's
         transaction; rejections raise before anything is recorded.
         """
-        token_hash = _hash_token(raw_token)
+        token_hash = hash_token(raw_token)
         result = await session.exec(
             select(EmailVerificationToken).where(EmailVerificationToken.token_hash == token_hash)
         )

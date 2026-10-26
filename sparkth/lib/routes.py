@@ -1,3 +1,3 @@
-from sparkth.core.routes import register_router
+from sparkth.core.routes import platform_wide, register_router
 
-__all__ = ["register_router"]
+__all__ = ["platform_wide", "register_router"]

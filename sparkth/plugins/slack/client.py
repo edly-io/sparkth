@@ -101,6 +101,14 @@ class SlackClient:
         raw_body: bytes,
         slack_signature: str,
     ) -> None:
+        """Raise `SlackSignatureError` unless `slack_signature` is Slack's signature of `raw_body`.
+
+        An empty `signing_secret` never verifies, since anyone can compute an HMAC keyed with it.
+        """
+        if not signing_secret:
+            logger.error("SLACK_SIGNING_SECRET is empty; rejecting Slack request")
+            raise SlackSignatureError("SLACK_SIGNING_SECRET is not set")
+
         try:
             ts = int(timestamp)
         except ValueError as exc:
