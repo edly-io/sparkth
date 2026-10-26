@@ -8,19 +8,20 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 import sparkth.plugins.canvas.tools as canvas_tools
 from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.lib.auth import bind_current_user_id
+from sparkth.lib.enums import Method
 from sparkth.lib.mcp.hooks import generate_input_schema
 from sparkth.lib.models import User
 from sparkth.lib.plugins import PluginNotConfiguredError
 from sparkth.lib.testing import schema_property_names
-from sparkth.plugins.canvas.schemas import CourseParams
-from sparkth.plugins.canvas.tools import canvas_get_course, canvas_get_courses
+from sparkth.plugins.canvas.schemas import CourseParams, Module, ModulePayload
+from sparkth.plugins.canvas.tools import canvas_create_module, canvas_get_course, canvas_get_courses, canvas_list_pages
 
 _STORED = {"api_url": "https://canvas.example.com/api/v1/", "api_key": "stored-key"}
 
 
-def _mock_http(body: str) -> MagicMock:
+def _mock_http(body: str, status: int = 200) -> MagicMock:
     response = AsyncMock()
-    response.status = 200
+    response.status = status
     response.text = AsyncMock(return_value=body)
     response.__aenter__.return_value = response
     response.__aexit__.return_value = None
@@ -53,6 +54,40 @@ async def test_a_tool_calls_canvas_with_the_callers_stored_settings(session: Asy
     assert result == {"id": 5}
     assert http.request.call_args.args[1] == "https://canvas.example.com/api/v1/courses/5"
     assert http.request.call_args.kwargs["headers"]["Authorization"] == "Bearer stored-key"
+
+
+async def test_a_list_tool_returns_its_items_under_its_key(session: AsyncSession) -> None:
+    await _seed_user(session, _STORED)
+    http = _mock_http('[{"url": "intro"}]')
+
+    with patch("sparkth.lib.http.ClientSession", return_value=http):
+        result = await canvas_list_pages(CourseParams(course_id=5))
+
+    assert result == {"pages": [{"url": "intro"}]}
+    assert http.request.call_args.args[1] == "https://canvas.example.com/api/v1/courses/5/pages?page=1"
+
+
+async def test_a_write_tool_sends_its_payload_with_its_method(session: AsyncSession) -> None:
+    await _seed_user(session, _STORED)
+    http = _mock_http('{"id": 9}')
+
+    with patch("sparkth.lib.http.ClientSession", return_value=http):
+        result = await canvas_create_module(ModulePayload(module=Module(name="Week 1"), course_id=5))
+
+    assert result == {"id": 9}
+    assert http.request.call_args.args[0] == Method.POST
+    assert http.request.call_args.args[1] == "https://canvas.example.com/api/v1/courses/5/modules"
+    assert http.request.call_args.kwargs["json"]["module"]["name"] == "Week 1"
+
+
+async def test_a_canvas_error_comes_back_as_an_error_dict(session: AsyncSession) -> None:
+    await _seed_user(session, _STORED)
+    http = _mock_http('{"message": "The specified resource does not exist."}', 404)
+
+    with patch("sparkth.lib.http.ClientSession", return_value=http):
+        result = await canvas_get_course(CourseParams(course_id=5))
+
+    assert result == {"error": {"status_code": 404, "message": "The specified resource does not exist."}}
 
 
 async def test_an_unconfigured_user_is_told_to_use_my_plugins(session: AsyncSession) -> None:
