@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from typing import Any, TypeVar, cast
+from typing import Any, cast
 
 import pydantic
 from fastapi import Depends, Request
@@ -31,8 +31,6 @@ from sparkth.lib.i18n import gettext as translate
 from sparkth.lib.log import get_logger
 
 logger = get_logger(__name__)
-
-C = TypeVar("C", bound=PluginConfig)
 
 
 async def disabled_plugin_names(user_id: int | None, session: AsyncSession) -> set[str]:
@@ -75,7 +73,7 @@ async def disabled_plugin_names(user_id: int | None, session: AsyncSession) -> s
     return set(result.all())
 
 
-async def load_user_plugin_config(plugin_name: str, config_class: type[C]) -> C:
+async def load_user_plugin_config[ConfigT: PluginConfig](plugin_name: str, config_class: type[ConfigT]) -> ConfigT:
     """Load the calling user's stored settings for a plugin as ``config_class``.
 
     The caller is the user bound to this request (``current_user_id``), never an argument,
