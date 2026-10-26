@@ -8,7 +8,7 @@ import { renderWithIntl } from "@/tests/intl-test-utils";
 
 const handleSend = vi.fn();
 
-vi.mock("@/lib/auth-context", () => ({
+vi.mock("@/lib/auth/hooks", () => ({
   useAuth: () => ({ token: "test-token" }),
 }));
 

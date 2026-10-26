@@ -1,5 +1,5 @@
 import type { Middleware } from "openapi-fetch";
-import { getStoredToken } from "@/lib/auth-tokens";
+import { getStoredToken } from "@/core/auth/tokens";
 import { getActiveLocale } from "@/lib/i18n/active-locale";
 import {
   ApiRequestError,

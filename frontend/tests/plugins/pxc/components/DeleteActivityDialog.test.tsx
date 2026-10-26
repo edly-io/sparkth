@@ -8,8 +8,9 @@ import { DeleteActivityDialog } from "@/plugins/pxc/components/DeleteActivityDia
 import pxcEn from "@/plugins/pxc/messages/en.json";
 import { renderWithIntl } from "@/tests/intl-test-utils";
 
-vi.mock("@/lib/auth-context", () => ({
-  useAuth: () => ({ token: "test-token" }),
+const auth = vi.hoisted(() => ({ token: "test-token" as string | null }));
+vi.mock("@/lib/auth/hooks", () => ({
+  useAuth: () => ({ token: auth.token }),
 }));
 
 vi.mock("@/plugins/pxc/client", () => ({
@@ -41,6 +42,7 @@ function renderDialog(activity = ACTIVITY) {
 describe("DeleteActivityDialog", () => {
   beforeEach(() => {
     vi.mocked(deleteActivity).mockReset();
+    auth.token = "test-token";
   });
 
   it("warns that a placed activity may still be in a course", () => {
@@ -78,16 +80,28 @@ describe("DeleteActivityDialog", () => {
     expect(onDeleted).toHaveBeenCalledWith(ACTIVITY.id);
   });
 
-  it("keeps the dialog open with an error when the delete fails", async () => {
+  it("keeps the dialog open with the server's reason when the delete fails", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(deleteActivity).mockRejectedValue(
-      new ApiRequestError({ message: "boom", fieldErrors: {} }, 500),
+      new ApiRequestError({ message: "Permission denied", fieldErrors: {} }, 403),
     );
     const { onDeleted } = renderDialog();
 
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
 
+    expect(await screen.findByText("Permission denied")).toBeInTheDocument();
+    expect(onDeleted).not.toHaveBeenCalled();
+  });
+
+  it("keeps the dialog open with an error when signed out", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    auth.token = null;
+    const { onDeleted } = renderDialog();
+
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+
     expect(await screen.findByText("Could not delete the activity.")).toBeInTheDocument();
+    expect(deleteActivity).not.toHaveBeenCalled();
     expect(onDeleted).not.toHaveBeenCalled();
   });
 

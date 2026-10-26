@@ -125,5 +125,113 @@
     "title": "You don't have access to this page",
     "message": "Ask an administrator if you need access.",
     "back": "Back to dashboard"
+  },
+  "audit": {
+    "title": "Audit log",
+    "subtitle": "Who did what, when, and with what result, newest first.",
+    "loadError": "We couldn't load the audit log. Please try again.",
+    "exportError": "We couldn't export the audit log. Please try again.",
+    "from": "From",
+    "to": "To",
+    "actorId": "Actor user ID",
+    "actorIdPlaceholder": "e.g. 42",
+    "category": "Category",
+    "outcome": "Outcome",
+    "source": "Source",
+    "any": "Any",
+    "apply": "Apply",
+    "reset": "Reset",
+    "exportCsv": "Export CSV",
+    "exportJsonl": "Export JSON Lines",
+    "exporting": "Exporting",
+    "showDetails": "Show details",
+    "hideDetails": "Hide details",
+    "detailsError": "We couldn't load this event's details.",
+    "loadMore": "Load more",
+    "empty": "No audit events match these filters.",
+    "outcomes": {
+      "success": "Success",
+      "failure": "Failure",
+      "denied": "Denied"
+    },
+    "columns": {
+      "time": "Time",
+      "event": "Event",
+      "actor": "Actor",
+      "outcome": "Outcome",
+      "target": "Target",
+      "source": "Source"
+    }
+  },
+  "profile": {
+    "title": "Profile",
+    "subtitle": "Your account details, name and password.",
+    "loading": "Loading your profile…",
+    "details": {
+      "heading": "Account",
+      "username": "Username",
+      "email": "Email",
+      "emailStatus": "Email status",
+      "verified": "Verified",
+      "unverified": "Not verified",
+      "signInMethod": "Sign-in method",
+      "methods": {
+        "password": "Email and password",
+        "google": "Google"
+      }
+    },
+    "name": {
+      "heading": "Name",
+      "label": "Name",
+      "save": "Save",
+      "saving": "Saving",
+      "saved": "Your name has been updated.",
+      "error": "We couldn't update your name. Please try again."
+    },
+    "password": {
+      "heading": "Password",
+      "current": "Current password",
+      "submit": "Change password",
+      "submitting": "Changing",
+      "changed": "Your password has been changed.",
+      "error": "We couldn't change your password. Please try again.",
+      "sso": "You sign in with Google, so there is no Sparkth password to change."
+    }
+  },
+  "newPassword": {
+    "label": "New password",
+    "confirm": "Confirm new password",
+    "hint": "At least 8 characters, with an uppercase letter, a number and a special character.",
+    "mismatch": "The new passwords don't match."
+  },
+  "passwordReset": {
+    "forgot": {
+      "title": "Forgot your password?",
+      "subtitle": "Enter the email for your account and we'll send you a link to reset your password.",
+      "email": "Email",
+      "submit": "Send reset link",
+      "submitting": "Sending",
+      "sentTitle": "Check your email",
+      "sent": "If an account with a password uses {email}, we have sent it a link to reset the password.",
+      "rateLimited": "A reset link was just sent. Please wait a minute before asking again.",
+      "error": "We couldn't send the reset link. Please try again.",
+      "back": "Back to sign in"
+    },
+    "reset": {
+      "title": "Choose a new password",
+      "subtitle": "Enter your new password twice.",
+      "submit": "Reset password",
+      "submitting": "Resetting",
+      "doneTitle": "Password reset",
+      "done": "Your password has been changed. You can now sign in with it.",
+      "signIn": "Go to sign in",
+      "invalidTitle": "This link can't be used",
+      "missingToken": "This password reset link is incomplete.",
+      "requestNew": "Request a new link",
+      "error": "We couldn't reset your password. Please try again."
+    }
+  },
+  "api": {
+    "connectionFailed": "Unable to connect to server: {detail}"
   }
 }

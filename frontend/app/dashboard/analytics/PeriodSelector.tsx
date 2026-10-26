@@ -13,7 +13,7 @@ import {
   type Preset,
   type RangeError,
 } from "@/lib/analytics";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/core/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { usePeriod } from "./usePeriod";

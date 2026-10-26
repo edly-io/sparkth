@@ -34,9 +34,12 @@ from sparkth.lib.audit.events import (
     RegisteredAuditEvent,
 )
 from sparkth.lib.db import get_async_session
+from sparkth.lib.exceptions.handlers import register_exception_handler
 from sparkth.lib.i18n import _
 from sparkth.schemas import (
     GoogleAuthUrl,
+    PasswordResetConfirm,
+    PasswordResetRequest,
     ResendVerificationRequest,
     Token,
     UserCreate,
@@ -44,6 +47,13 @@ from sparkth.schemas import (
     VerifyEmailRequest,
 )
 from sparkth.schemas import User as UserSchema
+from sparkth.services.account import (
+    ResetLinkExpired,
+    ResetLinkInvalid,
+    request_password_reset,
+    reset_password,
+    send_password_reset_email,
+)
 from sparkth.services.email_verification import (
     EmailVerificationService,
     TokenExpiredError,
@@ -55,6 +65,9 @@ from sparkth.services.whitelist import WhitelistService
 settings = get_settings()
 
 router = APIRouter()
+
+register_exception_handler(ResetLinkInvalid, status.HTTP_400_BAD_REQUEST)
+register_exception_handler(ResetLinkExpired, status.HTTP_400_BAD_REQUEST)
 
 
 @router.post("/register", response_model=UserSchema)
@@ -407,13 +420,14 @@ async def verify_email(
 
 
 @asynccontextmanager
-async def _get_resend_redis() -> AsyncIterator[Any]:
-    """Yield a Redis client for the resend cooldown; close on exit.
+async def _get_rate_limit_redis() -> AsyncIterator[Any]:
+    """Yield a Redis client for the per-email cooldowns; close on exit.
 
-    The endpoint is rate-limited to roughly one request per email per
-    cooldown window, so per-request client + pool setup is acceptable
-    and avoids any shared mutable state. Not routed through `CacheService` —
-    that wraps a different API (string get/set with default ttl).
+    The verification resend and password reset endpoints are each rate-limited
+    to roughly one request per email per cooldown window, so per-request client
+    + pool setup is acceptable and avoids any shared mutable state. Not routed
+    through `CacheService` — that wraps a different API (string get/set with
+    default ttl).
 
     Tests override this with a fake context manager.
     """
@@ -436,7 +450,7 @@ async def resend_verification_email(
 ) -> dict[str, str]:
     email_lower = body.email.strip().lower()
     key = f"email_verify_resend:{hashlib.sha256(email_lower.encode()).hexdigest()}"
-    async with _get_resend_redis() as redis:
+    async with _get_rate_limit_redis() as redis:
         accepted = await redis.set(
             key,
             "1",
@@ -460,3 +474,37 @@ async def resend_verification_email(
         raw_token=raw_token,
     )
     return {}
+
+
+@router.post("/password-reset", status_code=status.HTTP_202_ACCEPTED)
+async def request_password_reset_email(
+    body: PasswordResetRequest,
+    background_tasks: BackgroundTasks,
+    session: AsyncSession = Depends(get_async_session),
+) -> dict[str, str]:
+    """Email a password reset link to the account with this address, if it has a password.
+
+    Always answers 202, whether or not an account exists, so the endpoint cannot be
+    used to discover registered emails. A second request for the same email within
+    the cooldown is a 429.
+    """
+    email_lower = body.email.strip().lower()
+    key = f"password_reset:{hashlib.sha256(email_lower.encode()).hexdigest()}"
+    async with _get_rate_limit_redis() as redis:
+        accepted = await redis.set(key, "1", ex=settings.PASSWORD_RESET_COOLDOWN_SECONDS, nx=True)
+    if not accepted:
+        raise HTTPException(status_code=429, detail="rate_limited")  # i18n-exempt: machine-read code
+
+    reset = await request_password_reset(session, email_lower)
+    if reset is not None:
+        background_tasks.add_task(send_password_reset_email, reset)
+    return {}
+
+
+@router.post("/password-reset/confirm", status_code=status.HTTP_204_NO_CONTENT)
+async def confirm_password_reset(
+    body: PasswordResetConfirm,
+    session: AsyncSession = Depends(get_async_session),
+) -> None:
+    """Set a new password with a reset link's token. An invalid, used or expired link is a 400."""
+    await reset_password(session, body.token, body.new_password)

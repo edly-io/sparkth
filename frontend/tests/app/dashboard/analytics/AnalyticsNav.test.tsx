@@ -8,10 +8,13 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(nav.search),
 }));
 
-// The viewer's enabled plugins, as the dashboard's PluginProvider reports them.
-const plugins = vi.hoisted(() => ({ enabled: new Set(["chat"]) }));
-vi.mock("@/lib/plugins/context", () => ({
-  usePluginContext: () => ({ isPluginEnabled: (name: string) => plugins.enabled.has(name) }),
+// The plugins installed in the backend build. No PluginProvider is mounted: analytics must not
+// depend on the viewer's own plugin switches.
+const plugins = vi.hoisted(() => ({ installed: ["chat"] }));
+vi.mock("@/core/plugins/generated", () => ({
+  get FRONTEND_PLUGIN_NAMES() {
+    return plugins.installed;
+  },
 }));
 
 import { AnalyticsNav } from "@/app/dashboard/analytics/AnalyticsNav";
@@ -20,7 +23,7 @@ describe("AnalyticsNav", () => {
   beforeEach(() => {
     nav.pathname = "/dashboard/analytics/logins";
     nav.search = "";
-    plugins.enabled = new Set(["chat"]);
+    plugins.installed = ["chat"];
   });
 
   it("is a labelled navigation landmark with a link per view", () => {
@@ -73,7 +76,7 @@ describe("AnalyticsNav", () => {
     );
   });
 
-  it("shows Course authoring when the chat plugin is enabled", () => {
+  it("lists Course authoring while chat is installed", () => {
     renderWithIntl(<AnalyticsNav />);
     expect(screen.getByRole("link", { name: "Course authoring" })).toHaveAttribute(
       "href",
@@ -81,8 +84,8 @@ describe("AnalyticsNav", () => {
     );
   });
 
-  it("hides Course authoring when the viewer has the chat plugin disabled", () => {
-    plugins.enabled = new Set();
+  it("hides Course authoring when chat is not installed", () => {
+    plugins.installed = [];
     renderWithIntl(<AnalyticsNav />);
     expect(screen.queryByRole("link", { name: "Course authoring" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Logins" })).toBeInTheDocument();

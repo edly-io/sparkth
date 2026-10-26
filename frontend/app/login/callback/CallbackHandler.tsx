@@ -1,9 +1,9 @@
 "use client";
 
 import { Suspense, useEffect, useRef } from "react";
-import { setAuthTokens } from "@/lib/auth-tokens";
+import { setAuthTokens } from "@/core/auth/tokens";
 import { SparkthLogo } from "@/components/SparkthLogo";
-import { Spinner } from "@/components/Spinner";
+import { Spinner } from "@/core/components/ui/Spinner";
 import Link from "next/link";
 import { useCallbackParams } from "./useCallbackParams";
 

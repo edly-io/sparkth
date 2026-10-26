@@ -52,6 +52,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/audit/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Categories
+         * @description Return every category an audit event can carry, sorted, to filter the listing by.
+         */
+        get: operations["list_categories_api_v1_audit_categories_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/audit/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Events
+         * @description Return audit events matching every given filter, most recently recorded first.
+         *
+         *     Pass the response's `next_before_id` as `before_id` to fetch the next page; it is
+         *     null on the last page.
+         */
+        get: operations["list_events_api_v1_audit_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/audit/events/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Events
+         * @description Download every audit event matching the filters as CSV or JSON Lines, most recently recorded first.
+         *
+         *     The export itself is recorded as an `audit.exported` event naming the filters, and
+         *     again as a failure if the stream is cut short.
+         */
+        get: operations["export_events_api_v1_audit_events_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/audit/events/{event_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Event
+         * @description Return one audit event in full: request metadata, changed values, tool and model details.
+         */
+        get: operations["get_event_api_v1_audit_events__event_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/google/authorize": {
         parameters: {
             query?: never;
@@ -121,6 +207,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/password-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Password Reset Email
+         * @description Email a password reset link to the account with this address, if it has a password.
+         *
+         *     Always answers 202, whether or not an account exists, so the endpoint cannot be
+         *     used to discover registered emails. A second request for the same email within
+         *     the cooldown is a 429.
+         */
+        post: operations["request_password_reset_email_api_v1_auth_password_reset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password-reset/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Password Reset
+         * @description Set a new password with a reset link's token. An invalid, used or expired link is a 400.
+         */
+        post: operations["confirm_password_reset_api_v1_auth_password_reset_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/register": {
         parameters: {
             query?: never;
@@ -184,8 +314,8 @@ export interface paths {
          * @description Return chat authoring event counts per bucket, event type, dimension and outcome.
          *
          *     Sparse: combinations with no events are omitted; consumers zero-fill. Counts are lower
-         *     bounds: events queued on background tasks are lost when a route raises. Like every chat
-         *     route, answers 403 when the caller has the chat plugin disabled.
+         *     bounds: events queued on background tasks are lost when a route raises. Answers whatever
+         *     the plugin switches say.
          */
         get: operations["chat_activity_api_v1_chat_analytics_activity_get"];
         put?: never;
@@ -330,8 +460,7 @@ export interface paths {
          * Drive Documents
          * @description Return processed Drive documents per bucket and outcome, with summed seconds to final.
          *
-         *     Sparse: consumers zero-fill. Like every Google Drive route, answers 403 when the caller has
-         *     the plugin disabled.
+         *     Sparse: consumers zero-fill. Answers whatever the plugin switches say.
          */
         get: operations["drive_documents_api_v1_google_drive_analytics_documents_get"];
         put?: never;
@@ -1152,7 +1281,11 @@ export interface paths {
         put?: never;
         /**
          * Slack Events
-         * @description Receive Slack Events API payloads. Returns 200 immediately.
+         * @description Receive Slack Events API payloads.
+         *
+         *     Returns 403 unless the request signature verifies against `SLACK_SIGNING_SECRET`, and
+         *     returns 403 for every request while that secret is unset. Once a payload is accepted,
+         *     returns 200 immediately.
          */
         post: operations["slack_events_api_v1_slack_events_post"];
         delete?: never;
@@ -1563,6 +1696,125 @@ export interface components {
             /** Size */
             size: number;
         };
+        /**
+         * AuditEventPage
+         * @description A page of events, most recently recorded first.
+         *
+         *     Pass ``next_before_id`` back as ``before_id`` for the next one.
+         */
+        AuditEventPage: {
+            /** Items */
+            items: components["schemas"]["AuditEventSummary"][];
+            /** Next Before Id */
+            next_before_id: number | null;
+        };
+        /**
+         * AuditEventRecord
+         * @description One audit row in full: every column but the sealed canonical bytes.
+         */
+        AuditEventRecord: {
+            /** Action */
+            action: string;
+            /** Actor Id */
+            actor_id: string | null;
+            /** Actor Label */
+            actor_label: string | null;
+            /** Actor Type */
+            actor_type: string;
+            /** Category */
+            category: string;
+            /** Error Detail */
+            error_detail: string | null;
+            /** Id */
+            id: number;
+            /** Model Name */
+            model_name: string | null;
+            /** Model Provider */
+            model_provider: string | null;
+            /** Model Version */
+            model_version: string | null;
+            /** New Values */
+            new_values: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Old Values */
+            old_values: {
+                [key: string]: unknown;
+            } | null;
+            /** Outcome */
+            outcome: string;
+            /** Purpose */
+            purpose: string | null;
+            /** Request Id */
+            request_id: string | null;
+            /** Request Ip */
+            request_ip: string | null;
+            /** Source */
+            source: string;
+            /** Target Id */
+            target_id: string | null;
+            /** Target Type */
+            target_type: string | null;
+            /** Tool Args */
+            tool_args: {
+                [key: string]: unknown;
+            } | null;
+            /** Tool Name */
+            tool_name: string | null;
+            /** User Agent */
+            user_agent: string | null;
+        };
+        /**
+         * AuditEventSummary
+         * @description One audit row as the listing shows it: when, what, who, outcome and target.
+         *
+         *     The rest of the row (request metadata, changed values, tool and model details) is
+         *     read on demand as an :class:`AuditEventRecord`.
+         */
+        AuditEventSummary: {
+            /** Action */
+            action: string;
+            /** Actor Id */
+            actor_id: string | null;
+            /** Actor Label */
+            actor_label: string | null;
+            /** Actor Type */
+            actor_type: string;
+            /** Category */
+            category: string;
+            /** Id */
+            id: number;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Outcome */
+            outcome: string;
+            /** Source */
+            source: string;
+            /** Target Id */
+            target_id: string | null;
+            /** Target Type */
+            target_type: string | null;
+        };
+        /**
+         * AuditOutcome
+         * @description How the audited action ended (the NIST AU-3 outcome field).
+         * @enum {string}
+         */
+        AuditOutcome: "success" | "failure" | "denied";
+        /**
+         * AuditSource
+         * @description Which surface produced the event (the NIST AU-3 where/source field).
+         * @enum {string}
+         */
+        AuditSource: "rest" | "mcp" | "chat" | "rag" | "cli" | "system";
         /** Body_upload_file_api_v1_google_drive_folders__folder_id__files_post */
         Body_upload_file_api_v1_google_drive_folders__folder_id__files_post: {
             /** File */
@@ -1986,6 +2238,12 @@ export interface components {
             sync_status: string;
         };
         /**
+         * ExportFormat
+         * @description Machine-readable shapes an export can stream as.
+         * @enum {string}
+         */
+        ExportFormat: "csv" | "jsonl";
+        /**
          * FileRagStatusResponse
          * @description RAG processing status for a single file.
          */
@@ -2255,6 +2513,30 @@ export interface components {
             current_password: string;
             /** New Password */
             new_password: string;
+        };
+        /**
+         * PasswordResetConfirm
+         * @description Body of ``POST /auth/password-reset/confirm``.
+         *
+         *     ``new_password`` must meet the same complexity rules as registration, so a weak
+         *     one is a 422 before the link is checked, and the link stays usable.
+         */
+        PasswordResetConfirm: {
+            /** New Password */
+            new_password: string;
+            /** Token */
+            token: string;
+        };
+        /**
+         * PasswordResetRequest
+         * @description Body of ``POST /auth/password-reset``: the email to send a reset link to.
+         */
+        PasswordResetRequest: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
         };
         /** PermissionCheckResponse */
         PermissionCheckResponse: {
@@ -2716,6 +2998,138 @@ export interface operations {
             };
         };
     };
+    list_categories_api_v1_audit_categories_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
+        };
+    };
+    list_events_api_v1_audit_events_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                actor_id?: string | null;
+                category?: string | null;
+                action?: string | null;
+                outcome?: components["schemas"]["AuditOutcome"] | null;
+                source?: components["schemas"]["AuditSource"] | null;
+                target_type?: string | null;
+                target_id?: string | null;
+                request_id?: string | null;
+                limit?: number;
+                before_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditEventPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_events_api_v1_audit_events_export_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                actor_id?: string | null;
+                category?: string | null;
+                action?: string | null;
+                outcome?: components["schemas"]["AuditOutcome"] | null;
+                source?: components["schemas"]["AuditSource"] | null;
+                target_type?: string | null;
+                target_id?: string | null;
+                request_id?: string | null;
+                format?: components["schemas"]["ExportFormat"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_event_api_v1_audit_events__event_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                event_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditEventRecord"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     google_authorize_api_v1_auth_google_authorize_get: {
         parameters: {
             query?: never;
@@ -2789,6 +3203,72 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Token"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    request_password_reset_email_api_v1_auth_password_reset_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_password_reset_api_v1_auth_password_reset_confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetConfirm"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

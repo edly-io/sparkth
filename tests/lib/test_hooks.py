@@ -3,6 +3,7 @@ import gc
 import pytest
 
 from sparkth.lib.hooks import (
+    KeyedClassHook,
     KeyedItemHook,
     PluginCollectionHook,
     PluginHook,
@@ -233,3 +234,11 @@ def test_keyed_item_hook_iter_values_is_empty_when_unused() -> None:
     hook = _keyed_hook()
 
     assert list(hook.iter_values()) == []
+
+
+def test_keyed_class_hook_iter_keys_yields_every_stored_key() -> None:
+    hook: KeyedClassHook[object] = KeyedClassHook()
+    hook.add_class("b.key", int)
+    hook.add_class("a.key", str)
+
+    assert sorted(hook.iter_keys()) == ["a.key", "b.key"]

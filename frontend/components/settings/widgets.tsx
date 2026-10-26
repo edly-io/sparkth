@@ -23,14 +23,14 @@ import { Select } from "@/components/ui/Select";
 import { Switch } from "@/components/ui/Switch";
 import { Label } from "@/components/ui/Label";
 import { LLMConfigSelect } from "@/components/LLMConfigSelect";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/core/auth/hooks";
 import {
   fetchLLMConfigs,
   fetchProviderCatalog,
   type LLMConfig,
   type ProviderInfo,
 } from "@/lib/llm";
-import type { ConfigFieldDescriptor } from "@/lib/plugins/schema";
+import type { ConfigFieldDescriptor } from "@/core/plugins/schema";
 
 export interface ConfigWidgetProps {
   field: ConfigFieldDescriptor;

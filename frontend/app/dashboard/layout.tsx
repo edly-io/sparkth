@@ -1,17 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import "@/lib/plugins";
-import { useAuth } from "@/lib/auth-context";
+import "@/app/plugins";
+import { useAuth } from "@/core/auth/hooks";
 import { resolveNavPermissions } from "@/components/NavItem";
-import { PluginProvider } from "@/lib/plugins/context";
-import AppSidebar from "@/components/AppSidebar";
-import MobileSidebar from "@/components/MobileSidebar";
+import { PluginProvider } from "@/core/plugins/context";
+import AppSidebar from "@/core/components/layout/AppSidebar";
+import MobileSidebar from "@/core/components/layout/MobileSidebar";
 import { SidebarProvider, useSidebar } from "@/lib/sidebar-context";
 import { redirect } from "next/navigation";
 import { Menu } from "lucide-react";
-import { Spinner } from "@/components/Spinner";
-import { Button } from "@/components/ui/Button";
+import { Spinner } from "@/core/components/ui/Spinner";
+import { Button } from "@/core/components/ui/Button";
 import { SparkthLogo } from "@/components/SparkthLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 

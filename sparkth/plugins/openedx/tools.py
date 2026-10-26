@@ -982,8 +982,8 @@ async def _create_contributed_block(
         locator = await openedx_create_basic_component(
             payload.auth, payload.course_id, payload.unit_locator, block.kind, block.title
         )
-        if contributor.on_placed is not None:
-            await contributor.on_placed(payload.option_id)
+        if contributor.callback is not None:
+            await contributor.callback(payload.option_id)
         if block.attributes:
             await openedx_update_xblock_content(payload.auth, payload.course_id, locator, None, block.attributes)
     except ContentPlacementError as err:

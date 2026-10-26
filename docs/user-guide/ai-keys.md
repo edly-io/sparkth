@@ -27,5 +27,5 @@ Each key in the list has a toggle, a pencil and a trash icon:
     Adding a key is not enough. Open [My Plugins](plugins.md), configure Compose, and select
     the key. You can also override the key's model there.
 
-Until you do, sending a message in **Create Course** shows "Select your AI key in Compose's
+Until you do, sending a message in **Compose** shows "Select your AI key in Compose's
 configuration to start creating." with a link to the plugin settings.

@@ -1,4 +1,5 @@
-import { getAllPlugins, type PluginDefinition } from "@/lib/plugins";
+import { getAllPlugins } from "@/core/plugins/registry";
+import type { PluginDefinition } from "@/core/plugins/types";
 
 import { defaultLocale, type Locale } from "./config";
 
