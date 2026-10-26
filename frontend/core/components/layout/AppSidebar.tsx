@@ -16,9 +16,9 @@ import {
   ShieldCheck,
   BookOpen,
 } from "lucide-react";
-import { usePluginContext } from "@/lib/plugins/context";
-import { sidebarItemsFrom, type SidebarItem } from "@/lib/plugins/metadata";
-import { resolvePluginIcon } from "@/lib/plugins/icons";
+import { usePluginContext } from "@/core/plugins/context";
+import { sidebarItemsFrom, type SidebarItem } from "@/core/plugins/metadata";
+import { resolvePluginIcon } from "@/core/plugins/icons";
 import { GATED_NAV, NavItem } from "@/components/NavItem";
 import Image from "next/image";
 import { Spinner } from "@/core/components/ui/Spinner";

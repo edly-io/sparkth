@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 import { PluginConfigModal } from "@/components/settings/ConfigModal";
-import type { UserPluginState } from "@/lib/plugins";
+import type { UserPluginState } from "@/core/plugins/types";
 
 const OPENEDX_SCHEMA = {
   title: "OpenEdxConfig",

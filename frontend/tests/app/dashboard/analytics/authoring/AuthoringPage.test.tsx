@@ -19,7 +19,7 @@ vi.mock("@/lib/analytics", async (importOriginal) => {
 // The plugins installed in the backend build. No PluginProvider is mounted: analytics must not
 // depend on the viewer's own plugin switches.
 const plugins = vi.hoisted(() => ({ installed: ["chat"] }));
-vi.mock("@/lib/plugins/generated", () => ({
+vi.mock("@/core/plugins/generated", () => ({
   get FRONTEND_PLUGIN_NAMES() {
     return plugins.installed;
   },

@@ -30,7 +30,7 @@ import {
   type LLMConfig,
   type ProviderInfo,
 } from "@/lib/llm";
-import type { ConfigFieldDescriptor } from "@/lib/plugins/schema";
+import type { ConfigFieldDescriptor } from "@/core/plugins/schema";
 
 export interface ConfigWidgetProps {
   field: ConfigFieldDescriptor;

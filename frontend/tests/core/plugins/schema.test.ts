@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 
-import { configFieldsOf, initialValuesOf, validateField, payloadOf } from "@/lib/plugins/schema";
+import { configFieldsOf, initialValuesOf, validateField, payloadOf } from "@/core/plugins/schema";
 
 // The shape Pydantic's model_json_schema() emits, as the user-plugins API ships it.
 const SLACK_SCHEMA = {

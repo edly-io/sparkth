@@ -2,7 +2,7 @@ import React, { type ReactNode } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 
-import { PluginProvider, usePluginContext } from "@/lib/plugins/context";
+import { PluginProvider, usePluginContext } from "@/core/plugins/context";
 
 vi.mock("@/core/auth/tokens", () => ({
   getStoredToken: vi.fn().mockReturnValue(null),
