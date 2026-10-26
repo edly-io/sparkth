@@ -55,7 +55,7 @@ async def test_no_settings_raise_with_the_my_plugins_message(session: AsyncSessi
         await load_user_plugin_config("sample", _SampleConfig)
 
     assert str(exc.value) == (
-        "sample is not set up for this user. Tell them to add their sample settings on the My Plugins page."
+        "sample is not set up for this user. Tell them to add their sample settings on the Settings page."
     )
 
 
@@ -78,7 +78,7 @@ async def test_settings_that_fail_validation_raise_and_log_no_values(
 
     assert str(exc.value) == (
         "The saved sample settings for this user are no longer valid. "
-        "Tell them to update their sample settings on the My Plugins page."
+        "Tell them to update their sample settings on the Settings page."
     )
     assert "secret-value" not in caplog.text
     assert "not-a-url" not in caplog.text

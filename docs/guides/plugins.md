@@ -528,12 +528,12 @@ config = await load_user_plugin_config("canvas", CanvasConfig)
 ```
 
 It never takes those settings as arguments, because the model writes tool arguments and could
-send anything. The settings come from the row the bound user saved on the My Plugins page.
+send anything. The settings come from the row the bound user saved on the Settings page.
 
 It raises `PluginNotConfiguredError` (`sparkth.lib.plugins`) when the user has saved no settings
 (no row, or an empty config), and `PluginConfigInvalidError` when the saved settings no longer
 validate. A tool lets either propagate, and the model sees its message, which tells the user to add
-or to update their settings on the My Plugins page. For invalid settings, only the names of the
+or to update their settings on the Settings page. For invalid settings, only the names of the
 failing fields are logged, never their values.
 
 It raises `NoAuthenticatedUser` where no user is bound, before any database work.
