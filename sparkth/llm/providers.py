@@ -20,6 +20,7 @@ from sparkth.lib.audit.context import AuditSource, ai_audit_context
 from sparkth.lib.audit.events import AuditModelInfo
 from sparkth.lib.audit.exceptions import AuditCaptureError
 from sparkth.lib.log import get_logger
+from sparkth.lib.plugins import PluginConfigInvalidError, PluginNotConfiguredError
 
 logger = get_logger(__name__)
 
@@ -348,6 +349,11 @@ class BaseChatProvider(ABC):
                 except AuditCaptureError:
                     logger.exception(f"Audit capture failed for tool '{tool_name}'")
                     raise
+
+                # A user with no usable plugin settings is an expected outcome, not a tool fault.
+                except (PluginNotConfiguredError, PluginConfigInvalidError) as e:
+                    logger.warning(f"Tool '{tool_name}' cannot run for this user: {e}")
+                    return f"Error executing tool '{tool_name}': {str(e)}", ToolFailureKind.UNKNOWN
 
                 # NOTE: Kept broad here intentionally — tool handlers are user-supplied
                 # plugins that can raise anything. Narrowing would silently swallow

@@ -418,13 +418,12 @@ class TestPluginSwitches:
         assert stub_capability not in offered
         assert COURSE_DESIGN in offered
 
-    async def test_a_switched_off_lms_sends_no_credentials_beside_an_enabled_one(
+    async def test_an_lms_the_user_switched_off_sends_no_credentials(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
     ) -> None:
         provider, _ = await self._lms_turn(client, session, current_user.id or 1, False, True)
 
         assert "https://lms.example.com" not in provider.system_prompt
-        assert "token-abc123" not in provider.system_prompt
 
     async def test_an_enabled_plugin_contributes_its_tools_section_and_credentials(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability

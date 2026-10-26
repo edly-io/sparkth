@@ -1,4 +1,4 @@
-"""Shared pytest fixtures and test environment for the backend test suite.
+"""Shared pytest fixtures, test helpers and test environment for the backend test suite.
 
 This module lives under ``sparkth/lib/`` (rather than in a conftest) so that it
 travels with the public library: a plugin extracted into its own repository can
@@ -25,7 +25,7 @@ from collections.abc import AsyncGenerator, Awaitable, Callable, Generator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Protocol, cast
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from babel.messages.catalog import Catalog
@@ -42,10 +42,13 @@ import sparkth.lib.db as db
 from sparkth.core.audit.models import AuditEvent
 from sparkth.core.cache import get_cache_service
 from sparkth.core.db import dispose_engine, get_engine
+from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.core.models.user import User
 from sparkth.core.permissions.models import Role, RoleAssignment, RolePermission
 from sparkth.lib.auth import bind_request_user, get_current_user
 from sparkth.lib.i18n import LOCALE_DIRS
+from sparkth.lib.mcp.hooks import MCP_TOOLS
+from sparkth.lib.plugins import SparkthPlugin
 from sparkth.main import app
 
 
@@ -306,3 +309,46 @@ def schema_property_names(schema: dict[str, Any]) -> set[str]:
         children = value.values() if isinstance(value, dict) else value if isinstance(value, list) else []
         names |= set().union(*(schema_property_names(c) for c in children if isinstance(c, dict)))
     return names
+
+
+def tool_input_property_names(plugin: SparkthPlugin) -> set[str]:
+    """Return every property name in the input schemas of the MCP tools ``plugin`` registered."""
+    schemas = [tool.input_schema for owner, tool in MCP_TOOLS.iter_items() if owner is plugin]
+    return set().union(*(schema_property_names(schema) for schema in schemas))
+
+
+def mock_http_session(body: str, status: int = 200) -> MagicMock:
+    """An aiohttp ``ClientSession`` stand-in whose ``request`` answers ``status`` with ``body``.
+
+    Install it with ``patch("sparkth.lib.http.ClientSession", return_value=mock_http_session(...))``.
+    """
+    response = AsyncMock()
+    response.status = status
+    response.text = AsyncMock(return_value=body)
+    response.__aenter__.return_value = response
+    response.__aexit__.return_value = None
+
+    session = MagicMock()
+    session.request.return_value = response
+    session.closed = False
+    session.close = AsyncMock()
+    return session
+
+
+async def seed_plugin_settings(
+    session: AsyncSession, plugin_name: str, config: dict[str, Any] | None, user_id: int = 1
+) -> None:
+    """Commit a plugin row, a user with ``user_id`` and, unless ``config`` is None, that user's settings."""
+    plugin = Plugin(name=plugin_name, enabled=True)
+    user = User(
+        id=user_id,
+        name="U",
+        username=f"user{user_id}",
+        email=f"user{user_id}@example.com",
+        hashed_password="x",
+    )
+    session.add_all([plugin, user])
+    await session.commit()
+    if config is not None:
+        session.add(UserPlugin(user_id=user_id, plugin_id=cast(int, plugin.id), config=config))
+        await session.commit()

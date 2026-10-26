@@ -51,7 +51,7 @@ async def _single_call(wsfunction: str, params: dict[str, Any]) -> dict[str, Any
         return _malformed_response_error(e, wsfunction)
 
 
-async def moodle_authenticate() -> dict[str, Any]:
+async def moodle_check_settings() -> dict[str, Any]:
     """Check that the user's stored Moodle settings work.
 
     Call this to learn whether Moodle is set up for the user. Returns the site name
