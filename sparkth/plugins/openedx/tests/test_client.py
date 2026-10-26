@@ -3,7 +3,6 @@ from unittest.mock import patch
 import pytest
 from redis.exceptions import ConnectionError as RedisConnectionError
 
-from sparkth.lib.auth import bind_current_user_id
 from sparkth.lib.cache import get_cache_service
 from sparkth.lib.exceptions import LMSRequestError
 from sparkth.lib.settings import get_settings
@@ -17,13 +16,12 @@ def _token(value: str = "tok-1", extra: str = "") -> str:
     return f'{{"access_token": "{value}"{extra}}}'
 
 
-async def _authenticate() -> dict[str, str]:
-    async with OpenEdxClient(OPENEDX_CONFIG) as client:
+async def _authenticate(user_id: int = 1) -> dict[str, str]:
+    async with OpenEdxClient(OPENEDX_CONFIG, user_id) as client:
         return await client.authenticate()
 
 
 async def test_a_token_is_granted_once_and_reused_by_the_next_client(fake_redis: FakeRedis) -> None:
-    bind_current_user_id(1)
     session = http_session(_token(), http_response(200, PROFILE), http_response(200, PROFILE))
     with patch("sparkth.lib.http.ClientSession", return_value=session):
         await _authenticate()
@@ -36,17 +34,14 @@ async def test_a_token_is_granted_once_and_reused_by_the_next_client(fake_redis:
 async def test_tokens_are_never_shared_between_users(fake_redis: FakeRedis) -> None:
     session = http_session(_token(), http_response(200, PROFILE), http_response(200, PROFILE))
     with patch("sparkth.lib.http.ClientSession", return_value=session):
-        bind_current_user_id(1)
-        await _authenticate()
-        bind_current_user_id(2)
-        await _authenticate()
+        await _authenticate(1)
+        await _authenticate(2)
 
     assert session.post.call_count == 2
     assert set(fake_redis.store) == {"openedx:access-token:1", "openedx:access-token:2"}
 
 
 async def test_a_401_drops_the_token_grants_a_new_one_and_retries_once(fake_redis: FakeRedis) -> None:
-    bind_current_user_id(1)
     fake_redis.store["openedx:access-token:1"] = "stale"
     session = http_session(_token(), http_response(401, "expired"), http_response(200, PROFILE))
     with patch("sparkth.lib.http.ClientSession", return_value=session):
@@ -60,7 +55,6 @@ async def test_a_401_drops_the_token_grants_a_new_one_and_retries_once(fake_redi
 
 
 async def test_a_second_401_is_reported_not_retried_again(fake_redis: FakeRedis) -> None:
-    bind_current_user_id(1)
     session = http_session(
         _token(), http_response(401, "expired"), http_response(401, "expired"), http_response(401, "expired")
     )
@@ -79,7 +73,6 @@ async def test_a_second_401_is_reported_not_retried_again(fake_redis: FakeRedis)
 async def test_the_cached_token_never_outlives_open_edx_s_expiry(
     fake_redis: FakeRedis, extra: str, expected_ttl: int
 ) -> None:
-    bind_current_user_id(1)
     session = http_session(_token(extra=extra), http_response(200, PROFILE))
     with patch("sparkth.lib.http.ClientSession", return_value=session):
         await _authenticate()
@@ -88,7 +81,6 @@ async def test_the_cached_token_never_outlives_open_edx_s_expiry(
 
 
 async def test_a_token_without_expiry_uses_the_cache_default_ttl(fake_redis: FakeRedis) -> None:
-    bind_current_user_id(1)
     session = http_session(_token(), http_response(200, PROFILE))
     with patch("sparkth.lib.http.ClientSession", return_value=session):
         await _authenticate()
@@ -110,7 +102,6 @@ class UnreachableRedis:
 async def test_an_unreachable_cache_still_lets_the_call_run(monkeypatch: pytest.MonkeyPatch) -> None:
     settings = get_settings()
     monkeypatch.setattr(get_cache_service(settings.REDIS_URL, settings.REDIS_KEY_TTL), "_redis", UnreachableRedis())
-    bind_current_user_id(1)
     session = http_session(_token(), http_response(200, PROFILE))
     with patch("sparkth.lib.http.ClientSession", return_value=session):
         result = await _authenticate()
@@ -125,7 +116,6 @@ async def test_an_unreachable_cache_still_lets_the_call_run(monkeypatch: pytest.
 async def test_a_malformed_token_response_never_leaks_its_body(
     fake_redis: FakeRedis, caplog: pytest.LogCaptureFixture, body: str
 ) -> None:
-    bind_current_user_id(1)
     session = http_session(body)
     with patch("sparkth.lib.http.ClientSession", return_value=session):
         with pytest.raises(LMSRequestError) as exc:
@@ -137,7 +127,6 @@ async def test_a_malformed_token_response_never_leaks_its_body(
 
 
 async def test_a_non_json_token_response_never_echoes_its_body(fake_redis: FakeRedis) -> None:
-    bind_current_user_id(1)
     session = http_session("token=leak-me")
     with patch("sparkth.lib.http.ClientSession", return_value=session):
         with pytest.raises(LMSRequestError) as exc:

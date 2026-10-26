@@ -3,7 +3,6 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from sparkth.lib.auth import current_user_id
 from sparkth.lib.cache import CacheService, get_cache_service
 from sparkth.lib.enums import Auth, Method
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
@@ -31,15 +30,15 @@ class OpenEdxClient(BaseHttpClient):
     """HTTP client for the Open edX LMS and Studio REST APIs.
 
     Built from the user's stored ``OpenEdxConfig``. It grants its own access token with the
-    configured credentials on first use and caches it per Sparkth user, so the token is shared
-    by that user's later calls and never reaches the model. A 401 drops the cached token and the
-    request is retried once with a fresh one. The cache key comes from ``current_user_id()``, so
-    the client is only used inside tool calls, where a user is already bound.
+    configured credentials on first use and caches it under ``user_id``, the Sparkth user the client
+    acts for, so the token is shared by that user's later calls and never reaches the model. A 401
+    drops the cached token and the request is retried once with a fresh one.
     """
 
-    def __init__(self, config: OpenEdxConfig) -> None:
+    def __init__(self, config: OpenEdxConfig, user_id: int) -> None:
         super().__init__(str(config.lms_url), Auth.JWT)
         self.config = config
+        self.user_id = user_id
         self.client_id = "login-service-client-id"
         self.access_token: str | None = None
 
@@ -94,7 +93,7 @@ class OpenEdxClient(BaseHttpClient):
         The cache entry expires a margin before the token does, or after the cache default TTL
         when Open edX reports no expiry.
         """
-        cache, key = access_token_cache(current_user_id())
+        cache, key = access_token_cache(self.user_id)
         cached = await cache.get(key)
         if cached:
             self.access_token = cached
@@ -127,9 +126,10 @@ class OpenEdxClient(BaseHttpClient):
         except LMSRequestError as e:
             if e.status_code != 401:
                 raise
-            user_id = current_user_id()
-            logger.warning(f"Open edX rejected the token for {method} {endpoint} (user {user_id}); granting a new one")
-            cache, key = access_token_cache(user_id)
+            logger.warning(
+                f"Open edX rejected the token for {method} {endpoint} (user {self.user_id}); granting a new one"
+            )
+            cache, key = access_token_cache(self.user_id)
             await cache.delete(key)
             await self._load_token()
             result = await self._request(method, endpoint, base_url=base_url, params=params, payload=payload)

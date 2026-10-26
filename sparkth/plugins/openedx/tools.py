@@ -6,6 +6,7 @@ from urllib.parse import quote
 
 import aiohttp
 
+from sparkth.lib.auth import current_user_id
 from sparkth.lib.content.exceptions import (
     ContentBuildError,
     ContentContributorUnavailableError,
@@ -60,8 +61,17 @@ def _lms_error(
     return {"error": error}
 
 
+async def _open_client() -> OpenEdxClient:
+    """Build a client for the calling user from their stored Open edX settings.
+
+    The one place the tools read the caller: the settings and the cached access token are theirs.
+    """
+    config = await load_user_plugin_config(OPENEDX_PLUGIN_NAME, OpenEdxConfig)
+    return OpenEdxClient(config, current_user_id())
+
+
 async def openedx_create_basic_component(
-    config: OpenEdxConfig,
+    client: OpenEdxClient,
     course_id: str,
     unit_locator: str,
     kind: str,
@@ -75,24 +85,23 @@ async def openedx_create_basic_component(
         "display_name": display_name,
     }
 
-    async with OpenEdxClient(config) as client:
-        try:
-            created = await client.post(client.studio_url, create_url, payload)
-        except AuthenticationError as e:
-            raise LMSRequestError(Method.POST, create_url, e.status_code, e.message) from e
+    try:
+        created = await client.post(client.studio_url, create_url, payload)
+    except AuthenticationError as e:
+        raise LMSRequestError(Method.POST, create_url, e.status_code, e.message) from e
 
-        if isinstance(created, dict):
-            locator = created.get("locator") or created.get("usage_key") or created.get("id")
-            if isinstance(locator, str):
-                return locator
+    if isinstance(created, dict):
+        locator = created.get("locator") or created.get("usage_key") or created.get("id")
+        if isinstance(locator, str):
+            return locator
 
-        if isinstance(created, list) and created:
-            first = created[0]
-            locator = first.get("locator") or first.get("usage_key") or first.get("id")
-            if isinstance(locator, str):
-                return locator
+    if isinstance(created, list) and created:
+        first = created[0]
+        locator = first.get("locator") or first.get("usage_key") or first.get("id")
+        if isinstance(locator, str):
+            return locator
 
-        raise LMSRequestError(Method.POST, create_url, 500, "Invalid response format: missing locator")
+    raise LMSRequestError(Method.POST, create_url, 500, "Invalid response format: missing locator")
 
 
 def _xblock_endpoint(course_id: str, locator: str) -> str:
@@ -101,7 +110,7 @@ def _xblock_endpoint(course_id: str, locator: str) -> str:
 
 
 async def openedx_update_xblock_content(
-    config: OpenEdxConfig,
+    client: OpenEdxClient,
     course_id: str,
     locator: str,
     data: str | None,
@@ -127,18 +136,17 @@ async def openedx_update_xblock_content(
     if publish is not None:
         body["publish"] = publish
 
-    async with OpenEdxClient(config) as client:
-        try:
-            response = await client.patch(client.studio_url, endpoint, body)
-        except AuthenticationError as err:
-            raise LMSRequestError(
-                Method.PATCH,
-                endpoint,
-                err.status_code,
-                f"Updating XBlock {locator} for course ({course_id}) failed: {err.message}",
-            ) from err
+    try:
+        response = await client.patch(client.studio_url, endpoint, body)
+    except AuthenticationError as err:
+        raise LMSRequestError(
+            Method.PATCH,
+            endpoint,
+            err.status_code,
+            f"Updating XBlock {locator} for course ({course_id}) failed: {err.message}",
+        ) from err
 
-        return response
+    return response
 
 
 async def openedx_check_settings() -> dict[str, Any]:
@@ -164,8 +172,7 @@ async def openedx_check_settings() -> dict[str, Any]:
                 }
             }
     """
-    config = await load_user_plugin_config(OPENEDX_PLUGIN_NAME, OpenEdxConfig)
-    async with OpenEdxClient(config) as client:
+    async with await _open_client() as client:
         try:
             res = await client.authenticate()
             return {"response": res}
@@ -302,7 +309,6 @@ async def openedx_create_course_run(payload: CreateCourseArgs) -> dict[str, Any]
                 }
             }
     """
-    config = await load_user_plugin_config(OPENEDX_PLUGIN_NAME, OpenEdxConfig)
     course_data = {
         "org": payload.org,
         "number": payload.number,
@@ -312,7 +318,7 @@ async def openedx_create_course_run(payload: CreateCourseArgs) -> dict[str, Any]
     }
     endpoint = "api/v1/course_runs/"
 
-    async with OpenEdxClient(config) as client:
+    async with await _open_client() as client:
         try:
             res = await client.post(client.studio_url, endpoint, course_data)
             if payload.language:
@@ -356,12 +362,11 @@ async def openedx_list_course_runs(payload: ListCourseRunsArgs) -> dict[str, Any
                 }
             }
     """
-    config = await load_user_plugin_config(OPENEDX_PLUGIN_NAME, OpenEdxConfig)
     page = payload.page or 1
     page_size = payload.page_size or 20
     endpoint = f"api/v1/course_runs/?page={page}&page_size={page_size}"
 
-    async with OpenEdxClient(config) as client:
+    async with await _open_client() as client:
         try:
             res = await client.get(client.studio_url, endpoint)
             return {"courses": res}
@@ -403,7 +408,6 @@ async def openedx_create_xblock(payload: XBlockPayload) -> dict[str, Any]:
                 }
             }
     """
-    config = await load_user_plugin_config(OPENEDX_PLUGIN_NAME, OpenEdxConfig)
     xblock_data = {
         "parent_locator": payload.parent_locator,
         "category": payload.category,
@@ -411,7 +415,7 @@ async def openedx_create_xblock(payload: XBlockPayload) -> dict[str, Any]:
     }
     endpoint = f"api/contentstore/v0/xblock/{payload.course_id}"
 
-    async with OpenEdxClient(config) as client:
+    async with await _open_client() as client:
         try:
             res = await client.post(client.studio_url, endpoint, xblock_data)
 
@@ -481,58 +485,60 @@ async def openedx_create_problem_or_html(payload: ProblemOrHtmlArgs) -> dict[str
             }`
 
     """
-    config = await load_user_plugin_config(OPENEDX_PLUGIN_NAME, OpenEdxConfig)
-    component = payload.kind or Component.PROBLEM
+    async with await _open_client() as client:
+        component = payload.kind or Component.PROBLEM
 
-    if payload.display_name:
-        name = payload.display_name
-    else:
-        name = "New Problem" if component == Component.PROBLEM else "New HTML"
+        if payload.display_name:
+            name = payload.display_name
+        else:
+            name = "New Problem" if component == Component.PROBLEM else "New HTML"
 
-    try:
-        locator = await openedx_create_basic_component(config, payload.course_id, payload.unit_locator, component, name)
-    except LMSRequestError as err:
-        return _lms_error(err, method=err.method, endpoint=err.url)
-    except ValueError as err:
-        return {"error": {"message": str(err)}}
-
-    if payload.data is not None:
-        final_data = payload.data
-    elif component == Component.PROBLEM and payload.mcq_boilerplate:
-        final_data = """<problem>
-                <p>Your question here</p>
-                <multiplechoiceresponse>
-                    <choicegroup type="MultipleChoice" shuffle="true">
-                    <choice correct="true">Correct</choice>
-                    <choice correct="false">Incorrect</choice>
-                    </choicegroup>
-                </multiplechoiceresponse>
-            </problem>"""
-    else:
-        final_data = None
-
-    if final_data is not None or payload.metadata is not None:
         try:
-            updated = await openedx_update_xblock_content(
-                config,
-                payload.course_id,
-                locator,
-                final_data,
-                payload.metadata,
+            locator = await openedx_create_basic_component(
+                client, payload.course_id, payload.unit_locator, component, name
             )
         except LMSRequestError as err:
             return _lms_error(err, method=err.method, endpoint=err.url)
         except ValueError as err:
             return {"error": {"message": str(err)}}
 
-        result_value = updated
+        if payload.data is not None:
+            final_data = payload.data
+        elif component == Component.PROBLEM and payload.mcq_boilerplate:
+            final_data = """<problem>
+                    <p>Your question here</p>
+                    <multiplechoiceresponse>
+                        <choicegroup type="MultipleChoice" shuffle="true">
+                        <choice correct="true">Correct</choice>
+                        <choice correct="false">Incorrect</choice>
+                        </choicegroup>
+                    </multiplechoiceresponse>
+                </problem>"""
+        else:
+            final_data = None
 
-    else:
-        result_value = {"detail": "Component created; no content/metadata to update"}
+        if final_data is not None or payload.metadata is not None:
+            try:
+                updated = await openedx_update_xblock_content(
+                    client,
+                    payload.course_id,
+                    locator,
+                    final_data,
+                    payload.metadata,
+                )
+            except LMSRequestError as err:
+                return _lms_error(err, method=err.method, endpoint=err.url)
+            except ValueError as err:
+                return {"error": {"message": str(err)}}
 
-    out = {"locator": locator, "result": result_value}
+            result_value = updated
 
-    return {"response": out}
+        else:
+            result_value = {"detail": "Component created; no content/metadata to update"}
+
+        out = {"locator": locator, "result": result_value}
+
+        return {"response": out}
 
 
 async def openedx_update_xblock(payload: UpdateXBlockPayload) -> dict[str, Any]:
@@ -564,21 +570,21 @@ async def openedx_update_xblock(payload: UpdateXBlockPayload) -> dict[str, Any]:
     dict[str, Any]: A dictionary containing the XBlock update result
 
     """
-    config = await load_user_plugin_config(OPENEDX_PLUGIN_NAME, OpenEdxConfig)
-    try:
-        response = await openedx_update_xblock_content(
-            config,
-            payload.course_id,
-            payload.locator,
-            payload.data,
-            payload.metadata,
-        )
-        return {"response": response}
+    async with await _open_client() as client:
+        try:
+            response = await openedx_update_xblock_content(
+                client,
+                payload.course_id,
+                payload.locator,
+                payload.data,
+                payload.metadata,
+            )
+            return {"response": response}
 
-    except (LMSRequestError, AuthenticationError) as err:
-        return _lms_error(err)
-    except ValueError as err:
-        return {"error": {"message": str(err)}}
+        except (LMSRequestError, AuthenticationError) as err:
+            return _lms_error(err)
+        except ValueError as err:
+            return {"error": {"message": str(err)}}
 
 
 async def openedx_publish_content(payload: PublishContentArgs) -> dict[str, Any]:
@@ -632,29 +638,29 @@ async def openedx_publish_content(payload: PublishContentArgs) -> dict[str, Any]
                 }
             }
     """
-    config = await load_user_plugin_config(OPENEDX_PLUGIN_NAME, OpenEdxConfig)
-    releases_the_course = payload.locator == _course_block_locator(payload.course_id)
-    # Lifting the gate and releasing the drafts travel in one request, so learners never meet a
-    # course that is open but empty.
-    gate = {"visible_to_staff_only": False} if releases_the_course else None
-    try:
-        await openedx_update_xblock_content(config, payload.course_id, payload.locator, None, gate, "make_public")
-    except (LMSRequestError, AuthenticationError) as err:
-        return _lms_error(err, prefix="Publishing failed", locator=payload.locator)
-    except ValueError as err:
-        return {"error": {"message": str(err), "locator": payload.locator}}
+    async with await _open_client() as client:
+        releases_the_course = payload.locator == _course_block_locator(payload.course_id)
+        # Lifting the gate and releasing the drafts travel in one request, so learners never meet a
+        # course that is open but empty.
+        gate = {"visible_to_staff_only": False} if releases_the_course else None
+        try:
+            await openedx_update_xblock_content(client, payload.course_id, payload.locator, None, gate, "make_public")
+        except (LMSRequestError, AuthenticationError) as err:
+            return _lms_error(err, prefix="Publishing failed", locator=payload.locator)
+        except ValueError as err:
+            return {"error": {"message": str(err), "locator": payload.locator}}
 
-    if releases_the_course:
-        message = (
-            "Published: the course and everything inside it are now open to learners. "
-            "The learner view can take a moment to catch up."
-        )
-    else:
-        message = (
-            "Published: this block and everything inside it are released. Learners see it if the "
-            "course itself has already been published; the learner view can take a moment to catch up."
-        )
-    return {"response": {"locator": payload.locator, "message": message}}
+        if releases_the_course:
+            message = (
+                "Published: the course and everything inside it are now open to learners. "
+                "The learner view can take a moment to catch up."
+            )
+        else:
+            message = (
+                "Published: this block and everything inside it are released. Learners see it if the "
+                "course itself has already been published; the learner view can take a moment to catch up."
+            )
+        return {"response": {"locator": payload.locator, "message": message}}
 
 
 async def openedx_get_course_tree_raw(payload: CourseTreeRequest) -> dict[str, Any]:
@@ -683,7 +689,6 @@ async def openedx_get_course_tree_raw(payload: CourseTreeRequest) -> dict[str, A
         or on error:
             {"error": "<message>"}
     """
-    config = await load_user_plugin_config(OPENEDX_PLUGIN_NAME, OpenEdxConfig)
     params = {
         "course_id": payload.course_id,
         "depth": "all",
@@ -691,7 +696,7 @@ async def openedx_get_course_tree_raw(payload: CourseTreeRequest) -> dict[str, A
         "requested_fields": ("children,display_name,type,graded,student_view_url,block_id,due,start,format"),
     }
 
-    async with OpenEdxClient(config) as client:
+    async with await _open_client() as client:
         try:
             response = await client.get(client.base_url, "api/courses/v1/blocks/", params)
 
@@ -735,12 +740,11 @@ async def openedx_get_block_contentstore(payload: BlockContentArgs) -> dict[str,
         OR
             {"error": "<details>"} when an LMS error occurs.
     """
-    config = await load_user_plugin_config(OPENEDX_PLUGIN_NAME, OpenEdxConfig)
     encoded_locator = quote(payload.locator, safe="")
 
     endpoint = f"api/contentstore/v0/xblock/{payload.course_id}/{encoded_locator}"
 
-    async with OpenEdxClient(config) as client:
+    async with await _open_client() as client:
         try:
             response = await client.get(client.studio_url, endpoint)
 
@@ -840,33 +844,35 @@ async def openedx_add_plugin_content(payload: AddPluginContentArgs) -> dict[str,
             `locator` when the contributor could not record the placement: that block has no
             attributes and is the caller's to delete before placing the content again.
     """
-    config = await load_user_plugin_config(OPENEDX_PLUGIN_NAME, OpenEdxConfig)
-    try:
-        contributor = await enabled_content_contributor(payload.contributor)
-    except UnknownContentContributorError as err:
-        return {"error": {"message": str(err)}}
-    except ContentContributorUnavailableError as err:
-        logger.info("Refused content contributor %r: its plugin is switched off", payload.contributor)
-        return {"error": {"message": str(err)}}
+    async with await _open_client() as client:
+        try:
+            contributor = await enabled_content_contributor(payload.contributor)
+        except UnknownContentContributorError as err:
+            return {"error": {"message": str(err)}}
+        except ContentContributorUnavailableError as err:
+            logger.info("Refused content contributor %r: its plugin is switched off", payload.contributor)
+            return {"error": {"message": str(err)}}
 
-    builder = contributor.builders.get(OPENEDX_PLUGIN_NAME)
-    if builder is None:
-        return {"error": {"message": f"Content contributor {payload.contributor!r} does not target Open edX"}}
+        builder = contributor.builders.get(OPENEDX_PLUGIN_NAME)
+        if builder is None:
+            return {"error": {"message": f"Content contributor {payload.contributor!r} does not target Open edX"}}
 
-    if (refusal := _refuse_misused_option(payload, contributor)) is not None:
-        return refusal
+        if (refusal := _refuse_misused_option(payload, contributor)) is not None:
+            return refusal
 
-    try:
-        block = await builder(payload.course_id, payload.option_id)
-    except ContentBuildError as err:
-        logger.error("Content contributor %r failed to build its block: %s", payload.contributor, err)
-        return {"error": {"message": f"Content contributor {payload.contributor!r} failed to build its block: {err}"}}
+        try:
+            block = await builder(payload.course_id, payload.option_id)
+        except ContentBuildError as err:
+            logger.error("Content contributor %r failed to build its block: %s", payload.contributor, err)
+            return {
+                "error": {"message": f"Content contributor {payload.contributor!r} failed to build its block: {err}"}
+            }
 
-    return await _create_contributed_block(payload, contributor, block, config)
+        return await _create_contributed_block(payload, contributor, block, client)
 
 
 async def _create_contributed_block(
-    payload: AddPluginContentArgs, contributor: ContentContributor, block: ContentBlock, config: OpenEdxConfig
+    payload: AddPluginContentArgs, contributor: ContentContributor, block: ContentBlock, client: OpenEdxClient
 ) -> dict[str, Any]:
     """Create ``block`` in the payload's unit, record its placement, then write its attributes.
 
@@ -875,12 +881,12 @@ async def _create_contributed_block(
     locator = ""
     try:
         locator = await openedx_create_basic_component(
-            config, payload.course_id, payload.unit_locator, block.kind, block.title
+            client, payload.course_id, payload.unit_locator, block.kind, block.title
         )
         if contributor.on_placed is not None:
             await contributor.on_placed(payload.option_id)
         if block.attributes:
-            await openedx_update_xblock_content(config, payload.course_id, locator, None, block.attributes)
+            await openedx_update_xblock_content(client, payload.course_id, locator, None, block.attributes)
     except ContentPlacementError as err:
         logger.error("Content contributor %r could not record placing block %s: %s", contributor.name, locator, err)
         message = (

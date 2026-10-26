@@ -91,11 +91,14 @@ async def test_creates_the_block_the_contributor_declares(fake_contributor: Cont
         result = await openedx_add_plugin_content(add_args())
 
     cast(AsyncMock, fake_contributor.builders["open-edx"]).assert_awaited_once_with("course-v1:X+Y+Z", None)
+    assert create.await_args is not None
+    client = create.await_args.args[0]
+    assert (client.config, client.user_id) == (OPENEDX_CONFIG, 1)
     create.assert_awaited_once_with(
-        OPENEDX_CONFIG, "course-v1:X+Y+Z", "block-v1:X+Y+Z+type@vertical+block@u1", "fake", "Fake Activity"
+        client, "course-v1:X+Y+Z", "block-v1:X+Y+Z+type@vertical+block@u1", "fake", "Fake Activity"
     )
     update.assert_awaited_once_with(
-        OPENEDX_CONFIG,
+        client,
         "course-v1:X+Y+Z",
         "block-v1:X+Y+Z+type@fake+block@b1",
         None,
