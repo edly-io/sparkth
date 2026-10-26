@@ -108,12 +108,10 @@ async def load_user_plugin_config(plugin_name: str, config_class: type[C]) -> C:
         row = (await session.exec(statement)).one_or_none()
     if row is not None and row.config:
         try:
-            return config_class(**row.config)
+            return config_class.model_validate(row.config)
         except pydantic.ValidationError as exc:
             fields = [".".join(str(part) for part in error["loc"]) for error in exc.errors()]
             logger.warning("Stored %s settings for user %s are invalid: fields %s", plugin_name, user_id, fields)
-        except TypeError:
-            logger.warning("Stored %s settings for user %s do not fit their config class", plugin_name, user_id)
     info = get_plugin_display_info(plugin_name)
     raise PluginNotConfiguredError(info.display_name if info else plugin_name)
 
