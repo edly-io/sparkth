@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { Alert } from "@/components/ui/Alert";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/lib/components/ui/Button";
 
 // An error alert for a failure that a retry can fix, with the button that runs it.
 export function RetryAlert({

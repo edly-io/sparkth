@@ -1,5 +1,7 @@
 """Integration tests for Slack OAuth routes."""
 
+import json
+import logging
 import time
 from datetime import datetime, timedelta, timezone
 from typing import cast
@@ -7,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import status
-from httpx import ASGITransport, AsyncClient
+from httpx import ASGITransport, AsyncClient, Response
 from itsdangerous import SignatureExpired
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -30,6 +32,9 @@ from sparkth.plugins.slack.models import (
 from sparkth.plugins.slack.oauth import generate_state
 from sparkth.plugins.slack.routes import _dispatch_event
 from sparkth.plugins.slack.service import WorkspaceService
+from sparkth.plugins.slack.tests.conftest import signed_event_headers
+
+SIGNING_SECRET = "test-signing-secret"
 
 
 class TestGetAuthorizationUrl:
@@ -199,12 +204,13 @@ class TestSlackEvents:
     @pytest.mark.asyncio
     async def test_url_verification_returns_challenge(self, slack_client: AsyncClient) -> None:
         payload = {"type": "url_verification", "challenge": "3eZbrw1aBm"}
+        body = json.dumps(payload).encode()
         with patch("sparkth.plugins.slack.routes.get_slack_settings") as mock_settings:
-            mock_settings.return_value.signing_secret = ""
+            mock_settings.return_value.signing_secret = SIGNING_SECRET
             response = await slack_client.post(
                 "/api/v1/slack/events",
-                json=payload,
-                headers={"X-Slack-Request-Timestamp": "0", "X-Slack-Signature": "v0=skip"},
+                content=body,
+                headers=signed_event_headers(SIGNING_SECRET, body),
             )
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["challenge"] == "3eZbrw1aBm"
@@ -231,12 +237,13 @@ class TestSlackEvents:
             "team_id": "T_UNKNOWN",
             "event": {"type": "app_mention", "text": "<@BOT> hi", "user": "U1", "channel": "C1"},
         }
+        body = json.dumps(payload).encode()
         with patch("sparkth.plugins.slack.routes.get_slack_settings") as mock_settings:
-            mock_settings.return_value.signing_secret = ""
+            mock_settings.return_value.signing_secret = SIGNING_SECRET
             response = await slack_client.post(
                 "/api/v1/slack/events",
-                json=payload,
-                headers={"X-Slack-Request-Timestamp": "0", "X-Slack-Signature": "v0=skip"},
+                content=body,
+                headers=signed_event_headers(SIGNING_SECRET, body),
             )
         assert response.status_code == status.HTTP_200_OK
         assert response.json() == {"ok": "true"}
@@ -258,15 +265,16 @@ class TestSlackEvents:
                 "ts": "1234567890.000001",
             },
         }
+        body = json.dumps(payload).encode()
         with (
             patch("sparkth.plugins.slack.routes.get_slack_settings") as mock_settings,
             patch("sparkth.plugins.slack.routes._dispatch_event", new_callable=AsyncMock) as mock_dispatch,
         ):
-            mock_settings.return_value.signing_secret = ""
+            mock_settings.return_value.signing_secret = SIGNING_SECRET
             response = await slack_client.post(
                 "/api/v1/slack/events",
-                json=payload,
-                headers={"X-Slack-Request-Timestamp": "0", "X-Slack-Signature": "v0=skip"},
+                content=body,
+                headers=signed_event_headers(SIGNING_SECRET, body),
             )
 
         assert response.status_code == status.HTTP_200_OK
@@ -276,6 +284,77 @@ class TestSlackEvents:
         assert kwargs["user_id"] == test_workspace.user_id
         assert kwargs["event"]["type"] == "app_mention"
         assert "what is a loop?" in kwargs["event"]["text"]
+
+
+def _app_mention_body(team_id: str) -> bytes:
+    payload = {
+        "type": "event_callback",
+        "team_id": team_id,
+        "event": {"type": "app_mention", "text": "<@BOT> hi", "user": "U1", "channel": "C1", "ts": "1.1"},
+    }
+    return json.dumps(payload).encode()
+
+
+async def _post_event_with_empty_secret(
+    slack_client: AsyncClient, body: bytes, headers: dict[str, str]
+) -> tuple[Response, AsyncMock]:
+    with (
+        patch("sparkth.plugins.slack.routes.get_slack_settings") as mock_settings,
+        patch("sparkth.plugins.slack.routes._dispatch_event", new_callable=AsyncMock) as mock_dispatch,
+    ):
+        mock_settings.return_value.signing_secret = ""
+        response = await slack_client.post("/api/v1/slack/events", content=body, headers=headers)
+    return response, mock_dispatch
+
+
+class TestSlackEventsEmptySecret:
+    @pytest.mark.asyncio
+    async def test_empty_secret_rejects_signature_made_with_empty_key(
+        self, slack_client: AsyncClient, test_workspace: SlackWorkspace
+    ) -> None:
+        body = _app_mention_body(test_workspace.team_id)
+        response, mock_dispatch = await _post_event_with_empty_secret(
+            slack_client, body, signed_event_headers("", body)
+        )
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        mock_dispatch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_empty_secret_rejects_unsigned_event(
+        self, slack_client: AsyncClient, test_workspace: SlackWorkspace
+    ) -> None:
+        body = _app_mention_body(test_workspace.team_id)
+        response, mock_dispatch = await _post_event_with_empty_secret(
+            slack_client, body, {"Content-Type": "application/json"}
+        )
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert response.json() == {"detail": "Slack signature verification failed."}
+        mock_dispatch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_empty_secret_rejects_url_verification(self, slack_client: AsyncClient) -> None:
+        body = json.dumps({"type": "url_verification", "challenge": "3eZbrw1aBm"}).encode()
+        response, _ = await _post_event_with_empty_secret(slack_client, body, signed_event_headers("", body))
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert "challenge" not in response.json()
+
+    @pytest.mark.asyncio
+    async def test_empty_secret_rejects_before_parsing_body(self, slack_client: AsyncClient) -> None:
+        body = b"not json"
+        response, _ = await _post_event_with_empty_secret(slack_client, body, signed_event_headers("", body))
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    @pytest.mark.asyncio
+    async def test_empty_secret_logs_an_error(
+        self, slack_client: AsyncClient, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        body = b"not json"
+        with caplog.at_level(logging.ERROR, logger="sparkth.plugins.slack.client"):
+            await _post_event_with_empty_secret(slack_client, body, signed_event_headers("", body))
+        assert any(
+            record.levelno == logging.ERROR and "SLACK_SIGNING_SECRET" in record.getMessage()
+            for record in caplog.records
+        )
 
 
 class TestDispatchEventGreeting:
@@ -296,15 +375,16 @@ class TestDispatchEventGreeting:
                 "ts": "1234567890.000001",
             },
         }
+        body = json.dumps(payload).encode()
         with (
             patch("sparkth.plugins.slack.routes.get_slack_settings") as mock_settings,
             patch("sparkth.plugins.slack.routes._dispatch_event", new_callable=AsyncMock) as mock_dispatch,
         ):
-            mock_settings.return_value.signing_secret = ""
+            mock_settings.return_value.signing_secret = SIGNING_SECRET
             response = await slack_client.post(
                 "/api/v1/slack/events",
-                json=payload,
-                headers={"X-Slack-Request-Timestamp": "0", "X-Slack-Signature": "v0=skip"},
+                content=body,
+                headers=signed_event_headers(SIGNING_SECRET, body),
             )
 
         assert response.status_code == status.HTTP_200_OK

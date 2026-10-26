@@ -4,13 +4,13 @@ import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 
 import en from "@/messages/en.json";
-import { renderWithIntl } from "../../../../intl-test-utils";
+import { renderWithIntl } from "@/tests/intl-test-utils";
 
 import { ApiRequestError } from "@/lib/api";
 
 // Auth: a mutable token holder so a test can change identity mid-fetch (stale-response guard).
 const auth = vi.hoisted(() => ({ token: "test-token" }));
-vi.mock("@/lib/auth-context", () => ({
+vi.mock("@/core/auth/hooks", () => ({
   useAuth: () => ({ token: auth.token }),
 }));
 

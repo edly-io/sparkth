@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/core/auth/hooks";
 import SparkthHeader from "@/components/SparkthHeader";
 import { SparkthLogo } from "@/components/SparkthLogo";
 

@@ -115,13 +115,14 @@ named for what they hold, so which one a new test belongs in is never a guess:
 Always import the code under test via the `@/` alias, never a relative path — the mirror makes
 relative paths point at the wrong place. The only correct relative imports inside
 `frontend/tests/` are to helpers that live in the mirror beside their callers (e.g.
-`./test-utils`).
+`./test-utils`). Any other helper under `frontend/tests/` is imported through the alias, never with `../`:
+`@/tests/intl-test-utils`, not `../../intl-test-utils`.
 
 How the suite is wired:
 
 - Discovery is plain `pytest` recursion from the repo root — any new `…/tests/` directory is picked up automatically. **Do not add `testpaths` to `pyproject.toml`**: it risks silently dropping a test dir.
 - Shared fixtures (`session`, `client`, `current_user`, `audit_events`, `analytics_session`, …) and the generic test environment live in [`sparkth/lib/testing.py`](sparkth/lib/testing.py), registered globally as a pytest plugin by the root [`conftest.py`](conftest.py) (`pytest_plugins = ["sparkth.lib.testing"]`). No per-conftest fixture imports are needed — just use the fixtures by name.
-- The three required-and-defaultless `Settings` fields (`DATABASE_URL`, `SECRET_KEY`, `LLM_ENCRYPTION_KEY`) are set by `sparkth/lib/testing.py`; tests must not redefine them. Plugin-specific test env (e.g. `SLACK_*`) belongs in that plugin's own conftest.
+- The three required-and-defaultless `Settings` fields (`DATABASE_URL`, `SECRET_KEY`, `ENCRYPTION_KEY`) are set by `sparkth/lib/testing.py`; tests must not redefine them. Plugin-specific test env (e.g. `SLACK_*`) belongs in that plugin's own conftest.
 - A file named `tests.py` inside a package is **not** collected — pytest only collects `test_*.py`.
 
 **TimescaleDB test lane.** The suite runs on in-memory SQLite by default. Tests that need a

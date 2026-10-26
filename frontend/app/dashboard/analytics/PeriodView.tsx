@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { RefreshCw } from "lucide-react";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth } from "@/core/auth/hooks";
 import { previousPeriod, type Bucket, type IsoDate } from "@/lib/analytics";
 import { ApiRequestError } from "@/lib/api";
 import { Alert } from "@/components/ui/Alert";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/core/components/ui/Button";
 import { Forbidden } from "@/components/Forbidden";
-import { Spinner } from "@/components/Spinner";
+import { Spinner } from "@/core/components/ui/Spinner";
 import { usePeriod } from "./usePeriod";
 
 /** The selected period. */

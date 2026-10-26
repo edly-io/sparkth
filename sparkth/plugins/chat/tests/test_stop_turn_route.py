@@ -48,7 +48,7 @@ async def test_stopping_another_users_turn_returns_404(client: AsyncClient, curr
 async def _seed_llm_config_and_conversation(session: AsyncSession, user_id: int) -> tuple[int, str]:
     """Seed a usable LLM config and an existing conversation for a streaming completion request."""
     settings = get_settings()
-    enc = get_encryption_service(settings.LLM_ENCRYPTION_KEY)
+    enc = get_encryption_service(settings.ENCRYPTION_KEY)
     llm_config = LLMConfig(
         user_id=user_id,
         name="test-cfg",

@@ -15,6 +15,17 @@
     "aiKeyMissing": "Todavía no has añadido una clave de IA a Sparkth. Añade una y luego selecciónala en la configuración de Componer.",
     "aiKeyMissingAction": "Añadir una clave de IA",
     "aiKeyNotSelected": "Selecciona tu clave de IA en la configuración de Componer para empezar a crear.",
-    "aiKeyNotSelectedAction": "Abrir la configuración del plugin"
+    "aiKeyNotSelectedAction": "Abrir la configuración del plugin",
+    "historyTitle": "Chats recientes",
+    "historyNewChat": "Nuevo chat",
+    "historyShow": "Mostrar historial de chats",
+    "historyHide": "Ocultar historial de chats",
+    "historyEmpty": "No hay chats anteriores",
+    "historyUntitled": "Sin título",
+    "historyErrorTitle": "Algo salió mal",
+    "historyLoadError": "No se pudieron cargar las conversaciones. Inténtalo de nuevo.",
+    "historyToday": "Hoy",
+    "historyYesterday": "Ayer",
+    "historyDaysAgo": "{count, plural, one {hace # día} other {hace # días}}"
   }
 }

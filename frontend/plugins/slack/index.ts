@@ -1,6 +1,4 @@
-import { PluginDefinition } from "@/lib/plugins";
-// Imported from the leaf module (not the @/lib/plugins barrel) to avoid a
-// runtime import cycle: the barrel imports @/plugins, which imports this file.
+import { PluginDefinition } from "@/lib/plugins/types";
 import { registerPluginIcon } from "@/lib/plugins/icons";
 import { registerConfigWidget } from "@/components/settings/widgets";
 import SlackIcon from "./SlackIcon";

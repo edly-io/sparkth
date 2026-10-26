@@ -323,7 +323,7 @@ async def test_the_placement_is_recorded_once_the_block_exists(placing_contribut
     ):
         await openedx_add_plugin_content(add_args("placing", "first"))
 
-    cast(AsyncMock, placing_contributor.on_placed).assert_awaited_once_with("first")
+    cast(AsyncMock, placing_contributor.callback).assert_awaited_once_with("first")
 
 
 async def test_a_failed_create_records_no_placement(placing_contributor: ContentContributor) -> None:
@@ -331,7 +331,7 @@ async def test_a_failed_create_records_no_placement(placing_contributor: Content
     with patch("sparkth.plugins.openedx.tools.openedx_create_basic_component", new=AsyncMock(side_effect=failure)):
         await openedx_add_plugin_content(add_args("placing", "first"))
 
-    cast(AsyncMock, placing_contributor.on_placed).assert_not_awaited()
+    cast(AsyncMock, placing_contributor.callback).assert_not_awaited()
 
 
 async def test_a_failed_attribute_patch_still_records_the_placement(placing_contributor: ContentContributor) -> None:
@@ -343,13 +343,13 @@ async def test_a_failed_attribute_patch_still_records_the_placement(placing_cont
     ):
         await openedx_add_plugin_content(add_args("placing", "first"))
 
-    cast(AsyncMock, placing_contributor.on_placed).assert_awaited_once_with("first")
+    cast(AsyncMock, placing_contributor.callback).assert_awaited_once_with("first")
 
 
 async def test_an_unrecorded_placement_leaves_the_block_without_attributes_and_reports_it(
     placing_contributor: ContentContributor,
 ) -> None:
-    cast(AsyncMock, placing_contributor.on_placed).side_effect = ContentPlacementError("database unavailable")
+    cast(AsyncMock, placing_contributor.callback).side_effect = ContentPlacementError("database unavailable")
     with (
         patch("sparkth.plugins.openedx.tools.openedx_create_basic_component", new=AsyncMock(return_value=LOCATOR)),
         patch("sparkth.plugins.openedx.tools.openedx_update_xblock_content", new=AsyncMock()) as update,
@@ -398,7 +398,7 @@ async def test_a_contributor_whose_plugin_is_off_is_refused_and_creates_nothing(
     assert result == {"error": {"message": "Content contributor 'off' is unavailable: its plugin is switched off"}}
     create.assert_not_awaited()
     cast(AsyncMock, switched_off_contributor.builders["open-edx"]).assert_not_awaited()
-    cast(AsyncMock, switched_off_contributor.on_placed).assert_not_awaited()
+    cast(AsyncMock, switched_off_contributor.callback).assert_not_awaited()
 
 
 @pytest.fixture
@@ -438,4 +438,4 @@ async def test_a_contributor_whose_plugin_the_user_switched_off_is_refused_and_c
     assert result == {"error": {"message": "Content contributor 'user-off' is unavailable: its plugin is switched off"}}
     create.assert_not_awaited()
     cast(AsyncMock, user_switched_off_contributor.builders["open-edx"]).assert_not_awaited()
-    cast(AsyncMock, user_switched_off_contributor.on_placed).assert_not_awaited()
+    cast(AsyncMock, user_switched_off_contributor.callback).assert_not_awaited()

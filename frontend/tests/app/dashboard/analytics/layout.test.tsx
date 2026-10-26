@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import en from "@/messages/en.json";
-import { renderWithIntl } from "../../../intl-test-utils";
+import { renderWithIntl } from "@/tests/intl-test-utils";
 
-vi.mock("@/lib/auth-context", () => ({ useAuth: () => ({ token: "test-token" }) }));
+vi.mock("@/core/auth/hooks", () => ({ useAuth: () => ({ token: "test-token" }) }));
 const nav = vi.hoisted(() => ({ search: "" }));
 vi.mock("next/navigation", () => ({
   usePathname: () => "/dashboard/analytics/logins",
@@ -12,10 +12,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn() }),
 }));
 const checkPermission = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/permissions", () => ({ checkPermission }));
-vi.mock("@/lib/plugins/context", () => ({
-  usePluginContext: () => ({ isPluginEnabled: () => true }),
-}));
+vi.mock("@/lib/permissions/client", () => ({ checkPermission }));
 
 import AnalyticsLayout from "@/app/dashboard/analytics/layout";
 
@@ -35,7 +32,7 @@ describe("AnalyticsLayout", () => {
     );
     expect(await screen.findByText("view body")).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Analytics views" })).toBeInTheDocument();
-    expect(checkPermission).toHaveBeenCalledWith("test-token", "analytics.read");
+    expect(checkPermission).toHaveBeenCalledWith("test-token", "analytics.read", {});
   });
 
   it("renders no view content while the check is pending", () => {

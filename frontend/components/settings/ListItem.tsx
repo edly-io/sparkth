@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { Sliders } from "lucide-react";
-import { displayNameOf, UserPluginState } from "@/lib/plugins";
+import { displayNameOf } from "@/core/plugins/metadata";
+import { UserPluginState } from "@/core/plugins/types";
 import { PluginConfigModal } from "./ConfigModal";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/core/components/ui/Button";
 import { Switch } from "@/components/ui/Switch";
 
 interface PluginListItemProps {

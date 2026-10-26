@@ -48,12 +48,12 @@ class ChatPlugin(SparkthPlugin):
         DISPLAY_INFO.add_item(
             self,
             DisplayInfo(
-                gettext_noop("Compose (Create Course)"),
+                gettext_noop("Compose"),
                 gettext_noop("Transform your resources into courses with AI"),
                 icon="plus",
             ),
         )
-        SIDEBAR_ENTRIES.add_item(self, SidebarEntry(gettext_noop("Create Course"), icon="plus", order=1))
+        SIDEBAR_ENTRIES.add_item(self, SidebarEntry(gettext_noop("Compose"), icon="plus", order=1))
         FRONTEND_APPS.add_item(self, FrontendApp())
         register_chat_capability(self, COURSE_DESIGN)
 

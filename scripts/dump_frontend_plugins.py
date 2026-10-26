@@ -11,7 +11,7 @@ atomic (temp file in the target's directory, then replaced), so a failed dump
 leaves the previous file intact rather than truncating it the way ``> file``
 redirection does.
 
-The generated module is committed as ``frontend/lib/plugins/generated.ts``
+The generated module is committed as ``frontend/core/plugins/generated.ts``
 (regenerate with ``make frontend.build.plugins``); tests on both tiers fail
 when the committed file drifts from the declarations.
 """

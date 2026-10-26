@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 
 import ConnectionStatus from "@/components/drive/ConnectionStatus";
 
-vi.mock("@/lib/auth-context", () => ({ useAuth: () => ({ token: "t" }) }));
+vi.mock("@/core/auth/hooks", () => ({ useAuth: () => ({ token: "t" }) }));
 
 describe("ConnectionStatus", () => {
   it("links to the privacy policy before Drive is connected", () => {

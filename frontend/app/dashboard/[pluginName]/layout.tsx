@@ -1,8 +1,8 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { getPlugin } from "@/lib/plugins";
-import { usePlugin } from "@/lib/plugins/context";
+import { getPlugin } from "@/core/plugins/registry";
+import { usePlugin } from "@/core/plugins/context";
 
 export default function PluginLayout({ children }: { children: React.ReactNode }) {
   const params = useParams();
