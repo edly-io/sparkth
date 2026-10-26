@@ -4,26 +4,23 @@ A mock answers exactly as these tests specify, so a payload a real Moodle would 
 passes here — target-side validation and web service configuration errors are out of reach.
 """
 
-import inspect
 import logging
 from collections.abc import Iterator
-from typing import Any, cast
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import Any
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from pydantic import ValidationError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-import sparkth.plugins.moodle.tools as moodle_tools
-from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.lib.auth import bind_current_user_id
 from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
-from sparkth.lib.mcp.hooks import generate_input_schema
-from sparkth.lib.models import User
-from sparkth.lib.testing import schema_property_names
+from sparkth.lib.testing import mock_http_session, seed_plugin_settings, tool_input_property_names
 from sparkth.plugins.moodle.config import MoodleConfig
+from sparkth.plugins.moodle.constants import MOODLE_PLUGIN_NAME
 from sparkth.plugins.moodle.enums import QuestionType
+from sparkth.plugins.moodle.plugin import MoodlePlugin
 from sparkth.plugins.moodle.schemas import (
     CoursePayload,
     PagePayload,
@@ -406,23 +403,10 @@ class TestMoodleCreateQuiz:
 
 
 async def test_a_tool_calls_moodle_with_the_callers_stored_settings(session: AsyncSession) -> None:
-    plugin = Plugin(name="moodle", enabled=True)
-    user = User(id=1, name="U", username="u1", email="u1@example.com", hashed_password="x")
-    session.add_all([plugin, user])
-    await session.commit()
     stored = {"api_url": "https://stored.example.com", "api_key": "stored-key"}
-    session.add(UserPlugin(user_id=1, plugin_id=cast(int, plugin.id), config=stored))
-    await session.commit()
+    await seed_plugin_settings(session, MOODLE_PLUGIN_NAME, stored)
     bind_current_user_id(1)
-    response = AsyncMock()
-    response.status = 200
-    response.text = AsyncMock(return_value='{"sitename": "S", "username": "u", "userid": 3}')
-    response.__aenter__.return_value = response
-    response.__aexit__.return_value = None
-    http = MagicMock()
-    http.request.return_value = response
-    http.closed = False
-    http.close = AsyncMock()
+    http = mock_http_session('{"sitename": "S", "username": "u", "userid": 3}')
 
     with patch("sparkth.lib.http.ClientSession", return_value=http):
         result = await moodle_check_settings()
@@ -433,12 +417,8 @@ async def test_a_tool_calls_moodle_with_the_callers_stored_settings(session: Asy
 
 
 def test_no_moodle_tool_takes_a_credential() -> None:
-    tools = [
-        fn for name, fn in inspect.getmembers(moodle_tools, inspect.iscoroutinefunction) if name.startswith("moodle_")
-    ]
-    names: set[str] = set()
-    for tool in tools:
-        names |= schema_property_names(generate_input_schema(tool))
+    plugin = MoodlePlugin()
+    names = tool_input_property_names(plugin)
 
-    assert tools
+    assert "courseid" in names
     assert not names & {"auth", "api_url", "api_token", "api_key"}
