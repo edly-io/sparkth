@@ -53,11 +53,11 @@ An LMS tool reads the caller's saved settings itself with `load_user_plugin_conf
 [Reading the caller's stored settings](#reading-the-callers-stored-settings), and raises
 `PluginNotConfiguredError` when there are none.
 
-An LMS plugin ships a zero-argument settings-check tool (`canvas_authenticate`, `moodle_authenticate`,
-`openedx_get_user_info`). Its docstring, which is the tool description the model reads, says to call it
-to learn whether the LMS is set up. The chat system prompt names no LMS tool: it tells the model to call
-an LMS's settings-check tool, never to ask for credentials, and to send the author to the Settings page
-when a tool reports that the LMS is not set up.
+An LMS plugin ships a zero-argument `<prefix>check_settings` tool (`canvas_check_settings`,
+`moodle_check_settings`, `openedx_check_settings`) that calls the LMS with the stored settings. The chat
+system prompt names no single LMS tool: it tells the model to call an LMS's `<lms>_check_settings` tool to
+learn whether the LMS is set up, never to ask for credentials, and to send the author to the Settings
+page when a tool reports that the LMS is not set up. A new LMS uses the same name so the model finds it.
 
 An LMS plugin should also ship a zero-argument `<prefix>about` tool (e.g. `mylms_about`) returning `{"about": <text>}` that explains the LMS's course structure, its vocabulary, and what "publish" means there, with the text kept in the plugin's `assets/about.txt`. LMSs use the same words for different things (Canvas "publish" makes content visible; Moodle has no publish step), so the chat LLM reads this before acting. See `canvas_about`, `openedx_about` and `moodle_about`.
 
