@@ -101,9 +101,8 @@ defaults to a no-op, so a subclass overrides only the steps it needs:
   config unchanged). Raise `ValueError` to reject the save.
 - `postprocess_config` runs when the config is read and returns what the frontend receives
   (default: the stored config unchanged).
-- `sync_cache` runs only after `PUT /api/v1/user-plugins/{plugin_name}/config` updates the config,
-  not after `POST /api/v1/user-plugins/{plugin_name}/configure`, so the plugin can drop state cached
-  from the old config (default: does nothing).
+- `sync_cache` runs after a user updates an existing config, not on the first save, so the plugin can
+  drop state cached from the old config (default: does nothing).
 
 `LLMConfigAdapter` (import from `sparkth.lib.llm`) is the subclass for plugins whose config holds
 `llm_config_id` and `llm_model_override`: `preprocess_config` validates them on save and
