@@ -100,7 +100,9 @@ class OpenEdxClient(BaseHttpClient):
         """Use the user's cached token, or grant one and cache it.
 
         The cache entry expires a margin before the token does, or after the cache default TTL
-        when Open edX reports no expiry.
+        when Open edX reports no expiry. The token is stored in Redis as plain text. That is
+        acceptable because it is a short-lived access token and the cache entry expires with it,
+        while the password itself is never cached.
         """
         cache, key = access_token_cache(self.user_id, self.config)
         cached = await cache.get(key)
