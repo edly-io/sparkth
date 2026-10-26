@@ -1,3 +1,7 @@
+import { createTranslator } from "next-intl";
+
+import { getActiveLocale, getActiveMessages } from "@/lib/i18n/active-locale";
+
 export interface ValidationError {
   loc: (string | number)[];
   msg: string;
@@ -85,9 +89,14 @@ export class ApiRequestError extends Error {
 export function rethrowOrWrapConnectionError(error: unknown): never {
   if (error instanceof ApiRequestError) throw error;
   if (error instanceof DOMException && error.name === "AbortError") throw error;
-  const message = error instanceof Error ? error.message : "Unknown error";
-  throw new ApiRequestError({
-    message: `Unable to connect to server: ${message}`,
-    fieldErrors: {},
+  const detail = error instanceof Error ? error.message : "Unknown error";
+  const t = createTranslator({
+    locale: getActiveLocale(),
+    messages: getActiveMessages(),
+    namespace: "api",
   });
+  // i18n-check only finds keys used through React's translation hooks, so this key is declared
+  // with the marker below.
+  // i18n-check t("api.connectionFailed")
+  throw new ApiRequestError({ message: t("connectionFailed", { detail }), fieldErrors: {} });
 }

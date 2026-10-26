@@ -12,7 +12,8 @@ function bearer(token: string): { Authorization: string } {
 }
 
 // This module's public contract is plain Error objects with action-prefixed
-// messages; network failures propagate untouched.
+// messages, except disconnectSlack, which rejects with the ApiRequestError itself;
+// network failures propagate untouched.
 function toError(prefix: string, error: unknown): never {
   if (error instanceof ApiRequestError) throw new Error(`${prefix}: ${error.message}`);
   throw error;
@@ -37,11 +38,7 @@ export async function getAuthorizationUrl(token: string): Promise<string> {
 }
 
 export async function disconnectSlack(token: string): Promise<void> {
-  try {
-    await api.DELETE("/api/v1/slack/oauth/disconnect", { headers: bearer(token) });
-  } catch (error) {
-    toError("Failed to disconnect Slack", error);
-  }
+  await api.DELETE("/api/v1/slack/oauth/disconnect", { headers: bearer(token) });
 }
 
 export async function fetchLogs(token: string, opts: FetchLogsOptions): Promise<LogsResponse> {

@@ -14,14 +14,14 @@ const auth = {
   logout: vi.fn(),
 };
 
-vi.mock("@/lib/plugins", () => ({}));
-vi.mock("@/lib/auth-context", () => ({ useAuth: () => auth }));
+vi.mock("@/app/plugins", () => ({}));
+vi.mock("@/core/auth/hooks", () => ({ useAuth: () => auth }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn(), usePathname: () => "/dashboard" }));
-vi.mock("@/lib/plugins/context", () => ({
+vi.mock("@/core/plugins/context", () => ({
   PluginProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
-vi.mock("@/components/MobileSidebar", () => ({ default: () => null }));
-vi.mock("@/components/AppSidebar", () => ({
+vi.mock("@/core/components/layout/MobileSidebar", () => ({ default: () => null }));
+vi.mock("@/core/components/layout/AppSidebar", () => ({
   default: ({ navPermissions }: { navPermissions?: Record<string, boolean> }) => (
     <div data-testid="nav-permissions">{JSON.stringify(navPermissions ?? null)}</div>
   ),

@@ -15,6 +15,7 @@ scope), never in the plugin class's ``__init__``, which runs more than once::
 
 from sparkth.core.permissions import (
     ANALYTICS_READ,
+    AUDIT_READ,
     EMAIL_WHITELIST_CREATE,
     EMAIL_WHITELIST_DELETE,
     EMAIL_WHITELIST_READ,
@@ -69,4 +70,5 @@ __all__ = [
     "GROUP_DELETE",
     "PERMISSION_READ",
     "ANALYTICS_READ",
+    "AUDIT_READ",
 ]

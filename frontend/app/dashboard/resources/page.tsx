@@ -1,9 +1,9 @@
 "use client";
 
 import { File as DefaultFileIcon } from "lucide-react";
-import { useAuth } from "@/lib/auth-context";
-import { useIsPluginEnabled } from "@/lib/plugins/usePlugins";
-import { Spinner } from "@/components/Spinner";
+import { useAuth } from "@/core/auth/hooks";
+import { useIsPluginEnabled } from "@/core/plugins/usePlugins";
+import { Spinner } from "@/core/components/ui/Spinner";
 import GoogleDrive from "@/plugins/google-drive/GoogleDrive";
 
 export default function ResourcesPage() {

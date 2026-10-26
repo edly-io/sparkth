@@ -181,8 +181,10 @@ analytics databases), and Redis. Every service loads `.env` and then `.env.local
    `FRONTEND_BASE_URL` and the `*_REDIRECT_URI` values at the public address nginx serves
    (e.g. `http://<server-ip>` until a domain and certificate exist).
 
-2. Build the image with `make docker.build`, or let compose pull
-   `ghcr.io/edly-io/sparkth:latest` from GHCR (set `SPARKTH_TAG` to pin a release).
+2. Let compose pull `ghcr.io/edly-io/sparkth:main` from GHCR, the image built from the
+   `main` branch, or set `SPARKTH_TAG` to a release tag (e.g. `v0.2.0`) to pin a release.
+   To run a local build instead, build it with `make docker.build`, which tags it `latest`,
+   and set `SPARKTH_TAG=latest`.
 3. Start the stack:
 
    ```bash
@@ -206,7 +208,10 @@ unused until TLS is set up: once a domain points at the server, follow
 [`docker/nginx/sparkth-ssl.conf.example`](docker/nginx/sparkth-ssl.conf.example) to issue a
 Let's Encrypt certificate and switch nginx to HTTPS (certificates live in the git-ignored
 `docker/nginx/certbot/`). If another load balancer sits in front of nginx, raise
-`TRUSTED_PROXY_HOPS` to match. Email is not part of the stack: point `SMTP_*` at a real
+`TRUSTED_PROXY_HOPS` to match. When that load balancer terminates TLS, it must send
+`X-Forwarded-Proto` (nginx passes it to the app, which builds its HTTPS URLs from it) and
+forward WebSocket upgrades (the `Upgrade` and `Connection` headers over HTTP/1.1), which
+PXC activities need. Email is not part of the stack: point `SMTP_*` at a real
 provider such as AWS SES. Production runs the same image, published to GHCR by CI, under
 Kubernetes.
 
@@ -284,6 +289,13 @@ The table is append-only at the database level too: triggers installed with the 
 a migration on existing databases) reject `UPDATE`, `DELETE`, and `TRUNCATE` on
 `audit_events`, so corrections are new events and no code path holding the application's database
 credentials can rewrite history.
+
+Administrators holding `audit.read` read the trail at `/dashboard/audit` or through
+`/api/v1/audit/events` (filtered by time range, actor, category, action, outcome, source and target,
+most recently recorded first, a summary per row); `/api/v1/audit/events/{id}` reads one event in full and
+`/api/v1/audit/categories` lists the categories to filter by.
+`/api/v1/audit/events/export` streams the same filters as CSV or JSON Lines and records an
+`audit.exported` event naming them before the first row leaves.
 
 Two maintenance operations are allowed past that guard, each inside its own transaction and each
 leaving an audit event of its own behind (`make cli -- audit --help`):

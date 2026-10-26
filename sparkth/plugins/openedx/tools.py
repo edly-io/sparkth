@@ -879,8 +879,8 @@ async def _create_contributed_block(
     locator = ""
     try:
         locator = await create_basic_component(client, payload.course_id, payload.unit_locator, block.kind, block.title)
-        if contributor.on_placed is not None:
-            await contributor.on_placed(payload.option_id)
+        if contributor.callback is not None:
+            await contributor.callback(payload.option_id)
         if block.attributes:
             await update_xblock_content(client, payload.course_id, locator, None, block.attributes)
     except ContentPlacementError as err:

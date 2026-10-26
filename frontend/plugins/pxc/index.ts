@@ -1,4 +1,4 @@
-import { PluginDefinition } from "@/lib/plugins";
+import { PluginDefinition } from "@/lib/plugins/types";
 import type { Locale } from "@/lib/i18n/config";
 
 // Dynamic imports so each locale becomes its own chunk, mirroring the core

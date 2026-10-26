@@ -186,13 +186,30 @@ class EmailVerifiedAuditEvent(BaseAuditEvent):
 @AUDIT_EVENTS.register
 @dataclass(frozen=True, slots=True, kw_only=True)
 class PasswordResetAuditEvent(MutationAuditEvent):
-    """A user's password was replaced by an operator (``users reset-password``).
+    """A user's password was replaced without the current one, or a reset link was refused.
 
-    ``target`` is the user; ``change.new`` carries only the ``method``
-    (``cli``), never the password or its hash.
+    ``target`` is the user; ``change.new`` carries only the ``method``, never the
+    password or its hash. ``cli`` is an operator reset (``users reset-password``,
+    with the CLI system actor); ``email`` is a user redeeming an emailed reset link,
+    with the user as actor. A refused link is an anonymous ``failure`` with no
+    target and a fixed ``error_detail``; the token itself is never recorded.
     """
 
     event_type: ClassVar[str] = "auth.password_reset"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class PasswordResetRequestedAuditEvent(BaseAuditEvent):
+    """Someone asked for a password reset link for an existing account.
+
+    The actor is anonymous (the requester has not proved who they are) and
+    ``target`` is the account. ``success`` means a link was emailed; ``denied``
+    means the account has no password (SSO only) so nothing was sent. A request
+    for an unknown email, or one refused by the rate limit, records nothing.
+    """
+
+    event_type: ClassVar[str] = "auth.password_reset_requested"
 
 
 @AUDIT_EVENTS.register
@@ -525,3 +542,17 @@ class ActorErasedAuditEvent(MutationAuditEvent):
     """
 
     event_type: ClassVar[str] = "audit.actor_erased"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class AuditExportedAuditEvent(MutationAuditEvent):
+    """An administrator exported audit events through the REST API.
+
+    Recorded before the export streams, so reading the trail out of the system
+    leaves its own trace (NIST AU-9). ``change.new`` carries the export format
+    and the filters applied, which together say exactly what was pulled. A second,
+    ``failure`` event follows when a batch cannot be read and the file is cut short.
+    """
+
+    event_type: ClassVar[str] = "audit.exported"

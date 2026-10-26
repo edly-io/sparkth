@@ -10,7 +10,7 @@
 
 services:
   sparkth:
-    image: ghcr.io/edly-io/sparkth:${SPARKTH_TAG:-latest}
+    image: ghcr.io/edly-io/sparkth:${SPARKTH_TAG:-main}
     restart: unless-stopped
     init: true
     security_opt:

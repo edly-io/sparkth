@@ -15,6 +15,17 @@
     "aiKeyMissing": "Vous n'avez pas encore ajouté de clé d'IA à Sparkth. Ajoutez-en une, puis sélectionnez-la dans la configuration de Composer.",
     "aiKeyMissingAction": "Ajouter une clé d'IA",
     "aiKeyNotSelected": "Sélectionnez votre clé d'IA dans la configuration de Composer pour commencer à créer.",
-    "aiKeyNotSelectedAction": "Ouvrir les paramètres du plugin"
+    "aiKeyNotSelectedAction": "Ouvrir les paramètres du plugin",
+    "historyTitle": "Discussions récentes",
+    "historyNewChat": "Nouvelle discussion",
+    "historyShow": "Afficher l'historique des discussions",
+    "historyHide": "Masquer l'historique des discussions",
+    "historyEmpty": "Aucune discussion précédente",
+    "historyUntitled": "Sans titre",
+    "historyErrorTitle": "Une erreur s'est produite",
+    "historyLoadError": "Impossible de charger les discussions. Veuillez réessayer.",
+    "historyToday": "Aujourd'hui",
+    "historyYesterday": "Hier",
+    "historyDaysAgo": "{count, plural, one {il y a # jour} other {il y a # jours}}"
   }
 }

@@ -1,0 +1,383 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  Settings,
+  Puzzle,
+  Folder,
+  ChevronDown,
+  LogOut,
+  User as UserIcon,
+  X,
+  PanelLeftClose,
+  PanelLeft,
+  Key,
+  ShieldCheck,
+  BookOpen,
+} from "lucide-react";
+import { usePluginContext } from "@/core/plugins/context";
+import { sidebarItemsFrom, type SidebarItem } from "@/core/plugins/metadata";
+import { resolvePluginIcon } from "@/core/plugins/icons";
+import { GATED_NAV, NavItem } from "@/components/NavItem";
+import Image from "next/image";
+import { Spinner } from "@/core/components/ui/Spinner";
+import { SparkthLogo } from "@/components/SparkthLogo";
+import { Button } from "@/core/components/ui/Button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/core/components/ui/Tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/Popover";
+
+interface AppSidebarProps {
+  user?: {
+    name?: string;
+    email?: string;
+    avatar?: string;
+    plan?: string;
+  };
+  navPermissions?: Record<string, boolean>;
+  basePath?: string;
+  onLogout?: () => void;
+  variant?: "desktop" | "mobile";
+  onNavigate?: () => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
+}
+
+export default function AppSidebar({
+  user,
+  navPermissions,
+  basePath = "/dashboard",
+  onLogout,
+  variant = "desktop",
+  onNavigate,
+  isCollapsed = false,
+  onToggleCollapse,
+}: AppSidebarProps) {
+  const pathname = usePathname();
+  const { userPlugins, loading } = usePluginContext();
+  const sidebarItems = sidebarItemsFrom(userPlugins);
+
+  const isCollapsedDesktop = isCollapsed && variant === "desktop";
+
+  const isActiveRoute = (pluginName: string) => {
+    const pluginPath = `${basePath}/${pluginName}`;
+    return pathname === pluginPath || pathname?.startsWith(`${pluginPath}/`);
+  };
+
+  const handleNavClick = () => {
+    if (onNavigate) onNavigate();
+  };
+
+  const sidebarWidth = variant === "mobile" ? "w-full" : isCollapsed ? "w-16" : "w-64";
+
+  const handleSidebarClick = (e: React.MouseEvent) => {
+    if (isCollapsedDesktop && onToggleCollapse) {
+      const target = e.target as HTMLElement;
+      if (target.closest("a, button")) return;
+      onToggleCollapse();
+    }
+  };
+
+  return (
+    <nav
+      aria-label={isCollapsedDesktop ? "Sidebar (click to expand)" : "Sidebar"}
+      tabIndex={isCollapsedDesktop ? 0 : undefined}
+      onKeyDown={
+        isCollapsedDesktop
+          ? (e: React.KeyboardEvent) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onToggleCollapse?.();
+              }
+            }
+          : undefined
+      }
+      className={`${sidebarWidth} bg-card border-r border-border flex flex-col h-screen transition-all duration-300 ${isCollapsedDesktop ? "cursor-e-resize" : ""}`}
+      onClick={handleSidebarClick}
+    >
+      {/* Header */}
+      <div
+        className={`flex mb-4 items-center min-h-[57px] border-border overflow-hidden ${variant === "mobile" ? "px-2 justify-between" : "px-2 justify-between"}`}
+      >
+        {variant === "mobile" ? (
+          <>
+            <SparkthLogo size={32} iconOnly />
+            <Button variant="ghost" size="icon" onClick={onNavigate} aria-label="Close sidebar">
+              <X className="h-5 w-5" />
+            </Button>
+          </>
+        ) : (
+          <div className="relative w-full flex items-center justify-center group">
+            <div
+              className={isCollapsed ? "transition-opacity duration-200 group-hover:opacity-0" : ""}
+            >
+              <SparkthLogo size={isCollapsed ? 22 : 36} iconOnly={isCollapsed} />
+            </div>
+            {onToggleCollapse && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={onToggleCollapse}
+                    aria-label={isCollapsed ? "Open sidebar" : "Close sidebar"}
+                    className={
+                      isCollapsed
+                        ? "absolute inset-0 w-full h-full flex-shrink-0"
+                        : "absolute right-0 h-9 w-9 flex-shrink-0"
+                    }
+                  >
+                    {isCollapsed ? (
+                      <PanelLeft className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                    ) : (
+                      <PanelLeftClose className="h-5 w-5" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right" sideOffset={8}>
+                  {isCollapsed ? "Open sidebar" : "Close sidebar"}
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Navigation */}
+      <div className="flex-1 px-3 py-2 overflow-y-auto space-y-1">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
+            <Spinner size="md" className="text-muted mb-2" />
+            {!isCollapsed && <p className="text-sm text-muted-foreground">Loading plugins...</p>}
+          </div>
+        ) : (
+          <>
+            {sidebarItems.map((item) => (
+              <PluginNavItem
+                key={item.name}
+                item={item}
+                basePath={basePath}
+                isActive={isActiveRoute(item.name)}
+                onClick={handleNavClick}
+                isCollapsed={isCollapsed && variant === "desktop"}
+              />
+            ))}
+
+            <div>
+              <Link
+                href={`${basePath}/resources`}
+                onClick={handleNavClick}
+                className={`
+                  flex items-center gap-3 px-3 py-2 min-h-[40px] rounded-lg transition-colors
+                  ${isCollapsed && variant === "desktop" ? "justify-center" : ""}
+                  ${
+                    isActiveRoute("resources")
+                      ? "bg-primary-500/15 text-primary-600 dark:text-primary-400 border-l-3 border-primary-500"
+                      : "text-foreground hover:bg-surface-variant"
+                  }
+                `}
+                title={isCollapsed ? "Resources" : undefined}
+              >
+                <Folder className="w-5 h-5 flex-shrink-0" />
+                {!(isCollapsed && variant === "desktop") && (
+                  <span className="font-medium">Resources</span>
+                )}
+              </Link>
+            </div>
+
+            <div>
+              <Link
+                href={`${basePath}/settings`}
+                onClick={handleNavClick}
+                className={`
+                  flex items-center gap-3 px-3 py-2 min-h-[40px] rounded-lg transition-colors
+                  ${isCollapsed && variant === "desktop" ? "justify-center" : ""}
+                  ${
+                    isActiveRoute("settings")
+                      ? "bg-primary-500/15 text-primary-600 dark:text-primary-400 border-l-3 border-primary-500"
+                      : "text-foreground hover:bg-surface-variant"
+                  }
+                `}
+                title={isCollapsed ? "My Plugins" : undefined}
+              >
+                <Puzzle className="w-5 h-5 flex-shrink-0" />
+                {!(isCollapsed && variant === "desktop") && (
+                  <span className="font-medium">My Plugins</span>
+                )}
+              </Link>
+            </div>
+
+            <div>
+              <Link
+                href={`${basePath}/llm/configure`}
+                onClick={handleNavClick}
+                aria-label="AI Keys"
+                className={`
+                  flex items-center gap-3 px-3 py-2 min-h-[40px] rounded-lg transition-colors
+                  ${isCollapsed && variant === "desktop" ? "justify-center" : ""}
+                  ${
+                    isActiveRoute("llm")
+                      ? "bg-primary-500/15 text-primary-600 dark:text-primary-400 border-l-3 border-primary-500"
+                      : "text-foreground hover:bg-surface-variant"
+                  }
+                `}
+                title={isCollapsed ? "AI Keys" : undefined}
+              >
+                <Key className="w-5 h-5 flex-shrink-0" />
+                {!(isCollapsed && variant === "desktop") && (
+                  <span className="font-medium">AI Keys</span>
+                )}
+              </Link>
+            </div>
+
+            {GATED_NAV.filter((item) => navPermissions?.[item.key]).map((item) => (
+              <NavItem
+                key={item.key}
+                href={`${basePath}/${item.route}`}
+                label={item.label}
+                icon={item.icon}
+                isActive={isActiveRoute(item.activeKey ?? item.route)}
+                isCollapsed={isCollapsed && variant === "desktop"}
+                onClick={handleNavClick}
+              />
+            ))}
+
+            <NavItem
+              href="https://edly-io.github.io/sparkth/"
+              label="Documentation"
+              icon={BookOpen}
+              isActive={false}
+              isCollapsed={isCollapsed && variant === "desktop"}
+              onClick={handleNavClick}
+              external
+            />
+          </>
+        )}
+      </div>
+
+      {/* User menu */}
+      <div
+        className={`p-3 border-t border-border ${isCollapsed && variant === "desktop" ? "flex justify-center" : ""}`}
+      >
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              className={`flex items-center gap-3 hover:bg-neutral-200 dark:hover:bg-neutral-700 min-h-[44px] ${isCollapsed && variant === "desktop" ? "w-auto p-2" : "w-full p-2"}`}
+              title={isCollapsed ? user?.name || "User" : undefined}
+            >
+              {user?.avatar ? (
+                <Image
+                  src={user.avatar}
+                  alt={user.name || "User"}
+                  width={32}
+                  height={32}
+                  className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-error-400 to-error-600 flex items-center justify-center flex-shrink-0">
+                  <span className="text-sm text-white font-semibold">
+                    {user?.name?.charAt(0).toUpperCase() || "👤"}
+                  </span>
+                </div>
+              )}
+              {!(isCollapsed && variant === "desktop") && (
+                <>
+                  <div className="flex-1 min-w-0 text-left">
+                    <p className="text-sm font-medium text-foreground truncate">
+                      {user?.name || "User"}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {user?.plan || "Free Plan"}
+                    </p>
+                  </div>
+                  <ChevronDown className="w-4 h-4 text-muted flex-shrink-0" />
+                </>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent side="top" align="start" sideOffset={20} className="w-52 p-2">
+            <Link
+              href="/dashboard/profile"
+              className="flex items-center gap-3 px-3 py-2 min-h-[40px] text-sm text-foreground hover:bg-surface-variant rounded-lg"
+              onClick={handleNavClick}
+            >
+              <UserIcon className="w-4 h-4 flex-shrink-0" />
+              <span className="truncate">Profile</span>
+            </Link>
+            <Link
+              href="/dashboard/settings"
+              className="flex items-center gap-3 px-3 py-2 min-h-[40px] text-sm text-foreground hover:bg-surface-variant rounded-lg"
+              onClick={handleNavClick}
+            >
+              <Settings className="w-4 h-4 flex-shrink-0" />
+              <span className="truncate">Settings</span>
+            </Link>
+            <Link
+              href="/privacy"
+              className="flex items-center gap-3 px-3 py-2 min-h-[40px] text-sm text-foreground hover:bg-surface-variant rounded-lg"
+              onClick={handleNavClick}
+            >
+              <ShieldCheck className="w-4 h-4 flex-shrink-0" />
+              <span className="truncate">Privacy Policy</span>
+            </Link>
+            {onLogout && (
+              <>
+                <div className="border-t border-border my-2" />
+                <Button
+                  variant="ghost"
+                  onClick={onLogout}
+                  className="w-full flex items-center justify-start gap-3 px-3 py-2 min-h-[40px] text-sm text-error-600 dark:text-error-400 hover:bg-error-50 dark:hover:bg-error-900/30 rounded-lg"
+                >
+                  <LogOut className="w-4 h-4 flex-shrink-0" />
+                  <span className="truncate">Logout</span>
+                </Button>
+              </>
+            )}
+          </PopoverContent>
+        </Popover>
+      </div>
+    </nav>
+  );
+}
+
+function PluginNavItem({
+  item,
+  basePath,
+  isActive,
+  onClick,
+  isCollapsed,
+}: {
+  item: SidebarItem;
+  basePath: string;
+  isActive: boolean;
+  onClick?: () => void;
+  isCollapsed?: boolean;
+}) {
+  const label = item.label;
+  const Icon = resolvePluginIcon(item.icon);
+
+  return (
+    <Link
+      href={`${basePath}/${item.name}`}
+      onClick={onClick}
+      className={`
+        flex items-center gap-3 px-3 py-2 min-h-[40px] rounded-lg transition-colors
+        ${isCollapsed ? "justify-center" : ""}
+        ${isActive ? "bg-primary-500/15 text-primary-600 dark:text-primary-400 border-l-3 border-primary-500" : "text-foreground hover:bg-surface-variant"}
+      `}
+      title={isCollapsed ? label : (item.description ?? undefined)}
+    >
+      {Icon ? (
+        <Icon className="w-5 h-5 flex-shrink-0" />
+      ) : (
+        <div className="w-5 h-5 flex-shrink-0 rounded bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center">
+          <span className="text-xs font-semibold text-muted-foreground">
+            {label.charAt(0).toUpperCase()}
+          </span>
+        </div>
+      )}
+      {!isCollapsed && <span className="font-medium truncate">{label}</span>}
+    </Link>
+  );
+}

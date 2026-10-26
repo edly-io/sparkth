@@ -79,7 +79,7 @@ jobs:
       ANALYTICS_DATABASE_URL: postgresql://sparkth:sparkth_password@localhost:5432/sparkth_analytics
       REDIS_URL: redis://localhost:6379
       SECRET_KEY: secret-key-for-ci
-      LLM_ENCRYPTION_KEY: 8HwUaoTLinOIFkWmQubN5KvtZYEP_PoE5CTVonz23A0=
+      ENCRYPTION_KEY: 8HwUaoTLinOIFkWmQubN5KvtZYEP_PoE5CTVonz23A0=
       # Default is False; sign-up specs and the "prompts unverified users"
       # login spec hit /api/v1/auth/register, which 403s when disabled.
       REGISTRATION_ENABLED: "true"

@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { ChartColumn, Shield } from "lucide-react";
+import { ChartColumn, ScrollText, Shield } from "lucide-react";
 import { checkPermission, type PermissionName } from "@/lib/permissions";
 
 export interface GatedNavItem {
@@ -28,6 +28,13 @@ export const GATED_NAV: GatedNavItem[] = [
     activeKey: "admin",
     permission: "email.whitelist.read",
     scope: "whitelist",
+  },
+  {
+    key: "audit",
+    label: "Audit log",
+    icon: ScrollText,
+    route: "audit",
+    permission: "audit.read",
   },
 ];
 

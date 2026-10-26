@@ -9,6 +9,7 @@ export type PermissionCheckResponse = Schema<"PermissionCheckResponse">;
 // closed and silently (the gated UI just never appears) — into a compile error.
 export type PermissionName =
   | "analytics.read"
+  | "audit.read"
   | "email.whitelist.read"
   | "email.whitelist.create"
   | "email.whitelist.delete"

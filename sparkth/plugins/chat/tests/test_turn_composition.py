@@ -24,7 +24,7 @@ COMPLETIONS_URL = "/api/v1/chat/completions"
 
 
 async def _seed_llm_config(session: AsyncSession, user_id: int) -> int:
-    enc = get_encryption_service(get_settings().LLM_ENCRYPTION_KEY)
+    enc = get_encryption_service(get_settings().ENCRYPTION_KEY)
     config = LLMConfig(
         user_id=user_id,
         name="test-cfg-routing",

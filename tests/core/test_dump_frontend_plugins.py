@@ -14,7 +14,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "dump_frontend_plugins.py"
-GENERATED = REPO_ROOT / "frontend" / "lib" / "plugins" / "generated.ts"
+GENERATED = REPO_ROOT / "frontend" / "core" / "plugins" / "generated.ts"
 
 
 def _run_dump(*args: str) -> str:
@@ -74,7 +74,7 @@ def test_output_option_leaves_the_target_untouched_when_the_dump_fails(
 
 
 def test_committed_generated_file_is_current() -> None:
-    """The drift gate: frontend/lib/plugins/generated.ts must match the dump.
+    """The drift gate: frontend/core/plugins/generated.ts must match the dump.
 
     Fails when a plugin's FRONTEND_APPS declaration changed without running
     `make frontend.build.plugins`.

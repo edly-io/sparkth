@@ -1,7 +1,5 @@
 """Unit tests for SlackClient."""
 
-import hashlib
-import hmac
 import time
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -11,11 +9,7 @@ import pytest
 
 from sparkth.plugins.slack.client import SlackClient
 from sparkth.plugins.slack.exceptions import SlackSignatureError
-
-
-def _make_signature(secret: str, timestamp: str, body: bytes) -> str:
-    base = f"v0:{timestamp}:{body.decode()}"
-    return "v0=" + hmac.new(secret.encode(), base.encode(), hashlib.sha256).hexdigest()
+from sparkth.plugins.slack.tests.conftest import make_slack_signature
 
 
 class TestVerifySignature:
@@ -23,7 +17,7 @@ class TestVerifySignature:
         secret = "test_signing_secret"
         body = b'{"type":"event_callback"}'
         ts = str(int(time.time()))
-        sig = _make_signature(secret, ts, body)
+        sig = make_slack_signature(secret, ts, body)
         SlackClient.verify_signature(secret, ts, body, sig)  # should not raise
 
     def test_wrong_signature_raises(self) -> None:
@@ -37,13 +31,20 @@ class TestVerifySignature:
         secret = "signing_secret"
         stale_ts = str(int(time.time()) - 400)
         body = b"{}"
-        sig = _make_signature(secret, stale_ts, body)
+        sig = make_slack_signature(secret, stale_ts, body)
         with pytest.raises(SlackSignatureError, match="old"):
             SlackClient.verify_signature(secret, stale_ts, body, sig)
 
     def test_non_numeric_timestamp_raises(self) -> None:
         with pytest.raises(SlackSignatureError, match="timestamp"):
             SlackClient.verify_signature("secret", "not_a_number", b"{}", "v0=hash")
+
+    def test_empty_secret_raises_for_a_signature_made_with_the_empty_key(self) -> None:
+        ts = str(int(time.time()))
+        body = b'{"type":"event_callback"}'
+        sig = make_slack_signature("", ts, body)
+        with pytest.raises(SlackSignatureError):
+            SlackClient.verify_signature("", ts, body, sig)
 
 
 class TestSlackClientWithoutContextManager:

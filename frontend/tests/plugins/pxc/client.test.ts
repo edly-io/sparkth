@@ -4,7 +4,7 @@ import { ApiRequestError } from "@/lib/api";
 import { deleteActivity, getActivityEmbedUrl, listActivities } from "@/plugins/pxc/client";
 import { mockFetch, sentRequest } from "@/tests/lib/test-utils";
 
-vi.mock("@/lib/auth-tokens", () => ({
+vi.mock("@/core/auth/tokens", () => ({
   getStoredToken: vi.fn().mockReturnValue(null),
 }));
 

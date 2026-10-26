@@ -1,3 +1,4 @@
+import { ExternalLink } from "lucide-react";
 import Link from "next/link";
 import type { ComponentType } from "react";
 
@@ -8,6 +9,7 @@ interface NavItemProps {
   isActive: boolean;
   isCollapsed?: boolean;
   onClick?: () => void;
+  external?: boolean; // open in a new tab
 }
 
 export function NavItem({
@@ -17,12 +19,14 @@ export function NavItem({
   isActive,
   isCollapsed = false,
   onClick,
+  external = false,
 }: NavItemProps) {
   return (
     <div>
       <Link
         href={href}
         onClick={onClick}
+        {...(external && { target: "_blank", rel: "noopener noreferrer" })}
         className={`
           flex items-center gap-3 px-3 py-2 min-h-[40px] rounded-lg transition-colors
           ${isCollapsed ? "justify-center" : ""}
@@ -35,7 +39,20 @@ export function NavItem({
         title={isCollapsed ? label : undefined}
       >
         <Icon className="w-5 h-5 flex-shrink-0" />
-        {!isCollapsed && <span className="font-medium">{label}</span>}
+        {!isCollapsed && (
+          <>
+            <span className="font-medium">
+              {label}
+              {external && (
+                <>
+                  {" "}
+                  <span className="sr-only">(opens in a new tab)</span>
+                </>
+              )}
+            </span>
+            {external && <ExternalLink className="w-4 h-4 ml-auto" aria-hidden="true" />}
+          </>
+        )}
       </Link>
     </div>
   );

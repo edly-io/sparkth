@@ -1,9 +1,11 @@
 "use client";
 
 import { Suspense, lazy, useMemo, useEffect, useState } from "react";
-import { Spinner } from "@/components/Spinner";
-import { PluginDefinition, displayNameOf, emitPluginEvent } from "@/lib/plugins";
-import { usePlugin, usePluginContext } from "@/lib/plugins/context";
+import { Spinner } from "@/core/components/ui/Spinner";
+import { PluginDefinition } from "@/core/plugins/types";
+import { displayNameOf } from "@/core/plugins/metadata";
+import { emitPluginEvent } from "@/core/plugins/registry";
+import { usePlugin, usePluginContext } from "@/core/plugins/context";
 import { PluginErrorBoundary } from "./PluginErrorBoundary";
 
 interface PluginRendererProps {
@@ -40,7 +42,7 @@ export default function PluginRenderer({
       return;
     }
 
-    import("@/lib/plugins/registry").then(({ getPlugin }) => {
+    import("@/core/plugins/registry").then(({ getPlugin }) => {
       const def = getPlugin(pluginName);
       if (def) {
         setPluginDef(def);

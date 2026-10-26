@@ -294,8 +294,10 @@ migration lineage (`sparkth/migrations/analytics/`). The chat plugin's `analytic
 worked example. To put a headline figure on the analytics Overview, build a `SummaryFigure` at
 module level (a plugin-prefixed `key`, a `gettext_noop` label, an async `count(session, from_, to)`
 and the `view` it links to) and register it from `__init__` with
-`register_summary_figure(self, figure)`. The Overview shows it to viewers who have the plugin
-enabled.
+`register_summary_figure(self, figure)`. The Overview shows it to every viewer with
+`analytics.read` while the plugin is installed, whatever the plugin switches say. Mark the plugin's
+analytics read routes `@platform_wide` (see [Who can reach plugin routes?](#who-can-reach-plugin-routes))
+so they answer the same way.
 
 ### Where do plugin routes get mounted?
 
@@ -309,6 +311,10 @@ Every route you register is gated by `PluginAccessMiddleware`. A request from a 
 has turned your plugin off in their settings — or a request to a plugin disabled
 system-wide — is answered with `403` before it reaches your handler, so a handler never has
 to check plugin access itself.
+
+A route that serves platform-wide data, such as an analytics read, opts out with
+`@platform_wide` from `sparkth.lib.routes`, placed below the route decorator. The gate lets it
+through whatever either switch says; its own dependencies, such as a permission, still apply.
 
 The gate identifies the caller from the request's bearer token. A request carrying no
 readable token passes straight through it: a per-user preference is meaningless without a
@@ -372,7 +378,9 @@ class MyAppPlugin(SparkthPlugin):
 
 What each hook carries, which of them are optional, and how the declarations reach the frontend live in the [frontend metadata hooks reference](../reference/plugins.md#frontend-metadata-hooks), generated from the module docstrings.
 
-After adding or removing a `FRONTEND_APPS` declaration, regenerate the frontend's static route list with `make frontend.build.plugins` (it rewrites `frontend/lib/plugins/generated.ts` from the declarations); tests on both tiers fail while the committed list is stale.
+After adding or removing a `FRONTEND_APPS` declaration, regenerate the frontend's static route list with
+`make frontend.build.plugins` (it rewrites `frontend/core/plugins/generated.ts` from the declarations); tests on
+both tiers fail while the committed list is stale.
 
 ### Rendering plugin exceptions as HTTP responses
 
@@ -624,14 +632,15 @@ If a builder cannot produce its block, it reports that by raising
 letting some other exception escape. A publishing tool catches it and reports the failure
 through its own error contract instead of letting it propagate unguarded.
 
-`on_placed` is an optional async function a contributor passes after `list_options`, for content
-that must know when it lands in a course. A publishing tool awaits it with the chosen option's id
-once the LMS has created the block and before it writes the block's attributes, so a block the LMS
-refuses is never reported. A block whose attribute write then fails still counts as placed. If
-`on_placed` cannot record the placement, it raises
+`callback` is an optional async function a contributor passes after `list_options`. A publishing
+tool awaits it with the chosen option's id, for example so the contributor can record that its
+content landed in a course. The tool awaits it once the LMS has created the block and before it
+writes the block's attributes, so a block the LMS refuses is never reported. A block whose
+attribute write then fails still counts as placed. If `callback` cannot
+record the placement, it raises
 `sparkth.lib.content.exceptions.ContentPlacementError`. The publishing tool then leaves the
 block's attributes unwritten and reports the block's locator, so the block points at nothing and
-the caller can delete it. Like the builders, `on_placed` must be a module-level function.
+the caller can delete it. Like the builders, `callback` must be a module-level function.
 
 ## Chat capabilities
 

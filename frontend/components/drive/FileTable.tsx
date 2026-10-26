@@ -2,7 +2,7 @@
 
 import { FileText, Download, Pencil, Trash2 } from "lucide-react";
 import { RagStatusIndicator } from "./RagStatusIndicator";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/core/components/ui/Button";
 import { DriveFile, formatFileSize, formatDate } from "@/lib/drive";
 import type { FolderDetailAction } from "./FolderDetail";
 import type { RagStatusMap } from "@/lib/useRagStatusPolling";

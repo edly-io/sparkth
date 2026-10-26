@@ -5,11 +5,11 @@ import { api } from "@/lib/api/client";
 import { setActiveLocale } from "@/lib/i18n/active-locale";
 import { defaultLocale, LOCALE_COOKIE } from "@/lib/i18n/config";
 
-vi.mock("@/lib/auth-tokens", () => ({
+vi.mock("@/core/auth/tokens", () => ({
   getStoredToken: vi.fn(),
 }));
 
-import { getStoredToken } from "@/lib/auth-tokens";
+import { getStoredToken } from "@/core/auth/tokens";
 
 describe("api client", () => {
   beforeEach(() => {
