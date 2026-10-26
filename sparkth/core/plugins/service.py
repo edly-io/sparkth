@@ -11,7 +11,7 @@ from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.core.models.user import User
 from sparkth.core.plugins import get_plugin_loader
 from sparkth.core.plugins.config_base import PluginConfig
-from sparkth.core.plugins.exceptions import PluginNotConfiguredError
+from sparkth.core.plugins.exceptions import PluginConfigInvalidError, PluginNotConfiguredError
 from sparkth.lib.audit import record_event
 from sparkth.lib.audit.events import (
     AuditChange,
@@ -88,8 +88,9 @@ async def load_user_plugin_config[ConfigT: PluginConfig](plugin_name: str, confi
 
     Raises:
         NoAuthenticatedUser: no user is bound, checked before any database work.
-        PluginNotConfiguredError: the user has no row, an empty config, or a config that
-            fails validation. Only the failing field names are logged, never their values.
+        PluginNotConfiguredError: the user has no row or an empty config.
+        PluginConfigInvalidError: the saved config fails validation. Only the failing field
+            names are logged, never their values.
     """
     user_id = current_user_id()
     statement = (
@@ -104,14 +105,16 @@ async def load_user_plugin_config[ConfigT: PluginConfig](plugin_name: str, confi
     )
     async with session_scope() as session:
         row = (await session.exec(statement)).one_or_none()
-    if row is not None and row.config:
-        try:
-            return config_class.model_validate(row.config)
-        except pydantic.ValidationError as exc:
-            fields = [".".join(str(part) for part in error["loc"]) for error in exc.errors()]
-            logger.warning("Stored %s settings for user %s are invalid: fields %s", plugin_name, user_id, fields)
     info = get_plugin_display_info(plugin_name)
-    raise PluginNotConfiguredError(info.display_name if info else plugin_name)
+    display_name = info.display_name if info else plugin_name
+    if row is None or not row.config:
+        raise PluginNotConfiguredError(display_name)
+    try:
+        return config_class.model_validate(row.config)
+    except pydantic.ValidationError as exc:
+        fields = [".".join(str(part) for part in error["loc"]) for error in exc.errors()]
+        logger.warning("Stored %s settings for user %s are invalid: fields %s", plugin_name, user_id, fields)
+        raise PluginConfigInvalidError(display_name) from None
 
 
 async def get_disabled_plugins(
