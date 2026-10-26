@@ -73,7 +73,7 @@ async def _canvas_list(path: str, key: str) -> dict[str, Any]:
         return _lms_error(e)
 
 
-async def canvas_authenticate() -> dict[str, Any]:
+async def canvas_check_settings() -> dict[str, Any]:
     """Check that the user's stored Canvas settings work.
 
     Call this to learn whether Canvas is set up for the user.

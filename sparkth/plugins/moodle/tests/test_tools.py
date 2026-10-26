@@ -33,7 +33,7 @@ from sparkth.plugins.moodle.schemas import (
     SectionPayload,
 )
 from sparkth.plugins.moodle.tools import (
-    moodle_authenticate,
+    moodle_check_settings,
     moodle_create_course,
     moodle_create_page,
     moodle_create_quiz,
@@ -61,12 +61,12 @@ def _client_returning(value: Any) -> AsyncMock:
     return client
 
 
-class TestMoodleAuthenticate:
+class TestMoodleCheckSettings:
     @pytest.mark.asyncio
     async def test_returns_the_site_and_user(self) -> None:
         client = _client_returning({"sitename": "Sparkth Moodle Dev", "username": "author", "userid": 3})
         with patch("sparkth.plugins.moodle.tools.MoodleClient", return_value=client) as client_cls:
-            result = await moodle_authenticate()
+            result = await moodle_check_settings()
 
         assert result == {"sitename": "Sparkth Moodle Dev", "username": "author", "userid": 3}
         assert client_cls.call_args.args[0] == MOODLE_CONFIG
@@ -77,7 +77,7 @@ class TestMoodleAuthenticate:
         client = _client_returning(None)
         client.call_dict = AsyncMock(side_effect=AuthenticationError(401, "Invalid token"))
         with patch("sparkth.plugins.moodle.tools.MoodleClient", return_value=client):
-            result = await moodle_authenticate()
+            result = await moodle_check_settings()
 
         assert result["error"]["status_code"] == 401
         assert result["error"]["message"] == "Invalid token"
@@ -89,7 +89,7 @@ class TestMoodleAuthenticate:
             side_effect=ValueError("Expected JSON object from core_webservice_get_site_info, got list")
         )
         with patch("sparkth.plugins.moodle.tools.MoodleClient", return_value=client):
-            result = await moodle_authenticate()
+            result = await moodle_check_settings()
 
         assert result["error"]["status_code"] == 502
         assert "core_webservice_get_site_info" in result["error"]["message"]
@@ -422,7 +422,7 @@ async def test_a_tool_calls_moodle_with_the_callers_stored_settings(session: Asy
         patch("sparkth.plugins.moodle.tools.load_user_plugin_config", load_user_plugin_config),
         patch("sparkth.lib.http.ClientSession", return_value=http),
     ):
-        result = await moodle_authenticate()
+        result = await moodle_check_settings()
 
     assert result["sitename"] == "S"
     assert http.request.call_args.args[1] == "https://stored.example.com/webservice/rest/server.php"
