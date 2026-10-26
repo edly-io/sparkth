@@ -21,7 +21,6 @@ from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
 from sparkth.lib.mcp.hooks import generate_input_schema
 from sparkth.lib.models import User
-from sparkth.lib.plugins import load_user_plugin_config
 from sparkth.lib.testing import schema_property_names
 from sparkth.plugins.moodle.config import MoodleConfig
 from sparkth.plugins.moodle.enums import QuestionType
@@ -46,8 +45,9 @@ _LOGGER = "sparkth.plugins.moodle.tools"
 MOODLE_CONFIG = MoodleConfig.model_validate({"api_url": "https://moodle.example.com", "api_key": "tok"})
 
 
-@pytest.fixture(autouse=True)
-def _stored_config() -> Iterator[None]:
+@pytest.fixture
+def stored_config() -> Iterator[None]:
+    """Make the tools load ``MOODLE_CONFIG`` as the caller's stored settings."""
     with patch("sparkth.plugins.moodle.tools.load_user_plugin_config", AsyncMock(return_value=MOODLE_CONFIG)):
         yield
 
@@ -61,6 +61,7 @@ def _client_returning(value: Any) -> AsyncMock:
     return client
 
 
+@pytest.mark.usefixtures("stored_config")
 class TestMoodleCheckSettings:
     @pytest.mark.asyncio
     async def test_returns_the_site_and_user(self) -> None:
@@ -101,6 +102,7 @@ def _course_client(course: dict[str, Any], enrol_result: dict[str, Any]) -> Asyn
     return client
 
 
+@pytest.mark.usefixtures("stored_config")
 class TestMoodleCreateCourse:
     @pytest.mark.asyncio
     async def test_returns_the_created_course(self) -> None:
@@ -229,6 +231,7 @@ class TestMoodleCreateCourse:
         assert "local_sparkth_enrol_creator" in caplog.text
 
 
+@pytest.mark.usefixtures("stored_config")
 class TestMoodleListCourses:
     @pytest.mark.asyncio
     async def test_returns_only_the_users_own_courses(self) -> None:
@@ -275,6 +278,7 @@ class TestMoodleListCourses:
         assert "core_enrol_get_users_courses" not in caplog.text
 
 
+@pytest.mark.usefixtures("stored_config")
 class TestMoodleCreateSection:
     @pytest.mark.asyncio
     async def test_returns_the_new_section_number(self) -> None:
@@ -303,6 +307,7 @@ class TestMoodleCreateSection:
         assert "local_sparkth_create_section" in result["error"]["message"]
 
 
+@pytest.mark.usefixtures("stored_config")
 class TestMoodleCreatePage:
     @pytest.mark.asyncio
     async def test_returns_the_created_module_ids(self) -> None:
@@ -372,6 +377,7 @@ def _quiz_payload() -> QuizPayload:
     )
 
 
+@pytest.mark.usefixtures("stored_config")
 class TestMoodleCreateQuiz:
     @pytest.mark.asyncio
     async def test_returns_the_created_quiz(self) -> None:
@@ -418,10 +424,7 @@ async def test_a_tool_calls_moodle_with_the_callers_stored_settings(session: Asy
     http.closed = False
     http.close = AsyncMock()
 
-    with (
-        patch("sparkth.plugins.moodle.tools.load_user_plugin_config", load_user_plugin_config),
-        patch("sparkth.lib.http.ClientSession", return_value=http),
-    ):
+    with patch("sparkth.lib.http.ClientSession", return_value=http):
         result = await moodle_check_settings()
 
     assert result["sitename"] == "S"
