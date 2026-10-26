@@ -79,4 +79,4 @@ class ConfigAdapter:
         user_id: int,
         stored_config: dict[str, Any],
     ) -> None:
-        """Does nothing unless a subclass overrides it."""
+        pass
