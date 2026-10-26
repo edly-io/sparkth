@@ -36,7 +36,7 @@ class MoodlePlugin(SparkthPlugin):
         )
         tools_per_category: list[tuple[str, list[Callable[..., Any]]]] = [
             ("moodle-about", [moodle_tools.moodle_about]),
-            ("moodle-auth", [moodle_tools.moodle_authenticate]),
+            ("moodle-settings", [moodle_tools.moodle_check_settings]),
             (
                 "moodle-courses",
                 [

@@ -4,27 +4,23 @@ A mock answers exactly as these tests specify, so a payload a real Moodle would 
 passes here — target-side validation and web service configuration errors are out of reach.
 """
 
-import inspect
 import logging
 from collections.abc import Iterator
-from typing import Any, cast
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import Any
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from pydantic import ValidationError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-import sparkth.plugins.moodle.tools as moodle_tools
-from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.lib.auth import bind_current_user_id
 from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
-from sparkth.lib.mcp.hooks import generate_input_schema
-from sparkth.lib.models import User
-from sparkth.lib.plugins import load_user_plugin_config
-from sparkth.lib.testing import schema_property_names
+from sparkth.lib.testing import mock_http_session, seed_plugin_settings, tool_input_property_names
 from sparkth.plugins.moodle.config import MoodleConfig
+from sparkth.plugins.moodle.constants import MOODLE_PLUGIN_NAME
 from sparkth.plugins.moodle.enums import QuestionType
+from sparkth.plugins.moodle.plugin import MoodlePlugin
 from sparkth.plugins.moodle.schemas import (
     CoursePayload,
     PagePayload,
@@ -33,7 +29,7 @@ from sparkth.plugins.moodle.schemas import (
     SectionPayload,
 )
 from sparkth.plugins.moodle.tools import (
-    moodle_authenticate,
+    moodle_check_settings,
     moodle_create_course,
     moodle_create_page,
     moodle_create_quiz,
@@ -46,8 +42,9 @@ _LOGGER = "sparkth.plugins.moodle.tools"
 MOODLE_CONFIG = MoodleConfig.model_validate({"api_url": "https://moodle.example.com", "api_key": "tok"})
 
 
-@pytest.fixture(autouse=True)
-def _stored_config() -> Iterator[None]:
+@pytest.fixture
+def stored_config() -> Iterator[None]:
+    """Make the tools load ``MOODLE_CONFIG`` as the caller's stored settings."""
     with patch("sparkth.plugins.moodle.tools.load_user_plugin_config", AsyncMock(return_value=MOODLE_CONFIG)):
         yield
 
@@ -61,12 +58,13 @@ def _client_returning(value: Any) -> AsyncMock:
     return client
 
 
-class TestMoodleAuthenticate:
+@pytest.mark.usefixtures("stored_config")
+class TestMoodleCheckSettings:
     @pytest.mark.asyncio
     async def test_returns_the_site_and_user(self) -> None:
         client = _client_returning({"sitename": "Sparkth Moodle Dev", "username": "author", "userid": 3})
         with patch("sparkth.plugins.moodle.tools.MoodleClient", return_value=client) as client_cls:
-            result = await moodle_authenticate()
+            result = await moodle_check_settings()
 
         assert result == {"sitename": "Sparkth Moodle Dev", "username": "author", "userid": 3}
         assert client_cls.call_args.args[0] == MOODLE_CONFIG
@@ -77,7 +75,7 @@ class TestMoodleAuthenticate:
         client = _client_returning(None)
         client.call_dict = AsyncMock(side_effect=AuthenticationError(401, "Invalid token"))
         with patch("sparkth.plugins.moodle.tools.MoodleClient", return_value=client):
-            result = await moodle_authenticate()
+            result = await moodle_check_settings()
 
         assert result["error"]["status_code"] == 401
         assert result["error"]["message"] == "Invalid token"
@@ -89,7 +87,7 @@ class TestMoodleAuthenticate:
             side_effect=ValueError("Expected JSON object from core_webservice_get_site_info, got list")
         )
         with patch("sparkth.plugins.moodle.tools.MoodleClient", return_value=client):
-            result = await moodle_authenticate()
+            result = await moodle_check_settings()
 
         assert result["error"]["status_code"] == 502
         assert "core_webservice_get_site_info" in result["error"]["message"]
@@ -101,6 +99,7 @@ def _course_client(course: dict[str, Any], enrol_result: dict[str, Any]) -> Asyn
     return client
 
 
+@pytest.mark.usefixtures("stored_config")
 class TestMoodleCreateCourse:
     @pytest.mark.asyncio
     async def test_returns_the_created_course(self) -> None:
@@ -229,6 +228,7 @@ class TestMoodleCreateCourse:
         assert "local_sparkth_enrol_creator" in caplog.text
 
 
+@pytest.mark.usefixtures("stored_config")
 class TestMoodleListCourses:
     @pytest.mark.asyncio
     async def test_returns_only_the_users_own_courses(self) -> None:
@@ -275,6 +275,7 @@ class TestMoodleListCourses:
         assert "core_enrol_get_users_courses" not in caplog.text
 
 
+@pytest.mark.usefixtures("stored_config")
 class TestMoodleCreateSection:
     @pytest.mark.asyncio
     async def test_returns_the_new_section_number(self) -> None:
@@ -303,6 +304,7 @@ class TestMoodleCreateSection:
         assert "local_sparkth_create_section" in result["error"]["message"]
 
 
+@pytest.mark.usefixtures("stored_config")
 class TestMoodleCreatePage:
     @pytest.mark.asyncio
     async def test_returns_the_created_module_ids(self) -> None:
@@ -372,6 +374,7 @@ def _quiz_payload() -> QuizPayload:
     )
 
 
+@pytest.mark.usefixtures("stored_config")
 class TestMoodleCreateQuiz:
     @pytest.mark.asyncio
     async def test_returns_the_created_quiz(self) -> None:
@@ -400,29 +403,13 @@ class TestMoodleCreateQuiz:
 
 
 async def test_a_tool_calls_moodle_with_the_callers_stored_settings(session: AsyncSession) -> None:
-    plugin = Plugin(name="moodle", enabled=True)
-    user = User(id=1, name="U", username="u1", email="u1@example.com", hashed_password="x")
-    session.add_all([plugin, user])
-    await session.commit()
     stored = {"api_url": "https://stored.example.com", "api_key": "stored-key"}
-    session.add(UserPlugin(user_id=1, plugin_id=cast(int, plugin.id), config=stored))
-    await session.commit()
+    await seed_plugin_settings(session, MOODLE_PLUGIN_NAME, stored)
     bind_current_user_id(1)
-    response = AsyncMock()
-    response.status = 200
-    response.text = AsyncMock(return_value='{"sitename": "S", "username": "u", "userid": 3}')
-    response.__aenter__.return_value = response
-    response.__aexit__.return_value = None
-    http = MagicMock()
-    http.request.return_value = response
-    http.closed = False
-    http.close = AsyncMock()
+    http = mock_http_session('{"sitename": "S", "username": "u", "userid": 3}')
 
-    with (
-        patch("sparkth.plugins.moodle.tools.load_user_plugin_config", load_user_plugin_config),
-        patch("sparkth.lib.http.ClientSession", return_value=http),
-    ):
-        result = await moodle_authenticate()
+    with patch("sparkth.lib.http.ClientSession", return_value=http):
+        result = await moodle_check_settings()
 
     assert result["sitename"] == "S"
     assert http.request.call_args.args[1] == "https://stored.example.com/webservice/rest/server.php"
@@ -430,12 +417,8 @@ async def test_a_tool_calls_moodle_with_the_callers_stored_settings(session: Asy
 
 
 def test_no_moodle_tool_takes_a_credential() -> None:
-    tools = [
-        fn for name, fn in inspect.getmembers(moodle_tools, inspect.iscoroutinefunction) if name.startswith("moodle_")
-    ]
-    names: set[str] = set()
-    for tool in tools:
-        names |= schema_property_names(generate_input_schema(tool))
+    plugin = MoodlePlugin()
+    names = tool_input_property_names(plugin)
 
-    assert tools
+    assert "courseid" in names
     assert not names & {"auth", "api_url", "api_token", "api_key"}

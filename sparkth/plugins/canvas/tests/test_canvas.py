@@ -6,7 +6,7 @@ from sparkth.lib.audit import ToolFailureKind, tool_failure
 from sparkth.lib.exceptions import AuthenticationError
 from sparkth.plugins.canvas.client import CanvasClient
 from sparkth.plugins.canvas.config import CanvasConfig
-from sparkth.plugins.canvas.tools import canvas_authenticate
+from sparkth.plugins.canvas.tools import canvas_check_settings
 
 
 class TestCanvasClientAuthenticate:
@@ -62,7 +62,7 @@ class TestCanvasClientAuthenticate:
         assert exc_info.value.args[0] == "Invalid access token (status_code=401)"
 
 
-class TestCanvasAuthenticateTool:
+class TestCanvasCheckSettingsTool:
     CONFIG = CanvasConfig.model_validate({"api_url": "https://canvas.example.com", "api_key": "token"})
 
     @pytest.mark.asyncio
@@ -71,7 +71,7 @@ class TestCanvasAuthenticateTool:
             patch("sparkth.plugins.canvas.tools.load_user_plugin_config", AsyncMock(return_value=self.CONFIG)),
             patch.object(CanvasClient, "authenticate", AsyncMock(return_value=200)),
         ):
-            assert await canvas_authenticate() == {"status": 200}
+            assert await canvas_check_settings() == {"status": 200}
 
     @pytest.mark.asyncio
     async def test_failure_returns_the_standard_error_shape(self) -> None:
@@ -80,7 +80,7 @@ class TestCanvasAuthenticateTool:
             patch("sparkth.plugins.canvas.tools.load_user_plugin_config", AsyncMock(return_value=self.CONFIG)),
             patch.object(CanvasClient, "authenticate", AsyncMock(side_effect=error)),
         ):
-            result = await canvas_authenticate()
+            result = await canvas_check_settings()
 
         assert result == {"error": {"status_code": 401, "message": "Invalid access token"}}
         assert tool_failure(result) == ToolFailureKind.AUTH
