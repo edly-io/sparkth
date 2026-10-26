@@ -43,7 +43,7 @@ class CanvasPlugin(SparkthPlugin):
         )
         tools_per_category: list[tuple[str, list[Callable[..., Any]]]] = [
             ("canvas-about", [canvas_tools.canvas_about]),
-            ("canvas-auth", [canvas_tools.canvas_authenticate]),
+            ("canvas-settings", [canvas_tools.canvas_check_settings]),
             (
                 "canvas-courses",
                 [

@@ -66,13 +66,8 @@ def fake_redis(monkeypatch: pytest.MonkeyPatch) -> Generator[FakeRedis, None, No
     yield fake
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def stored_config() -> Generator[None, None, None]:
-    """Make every Open edX tool load ``OPENEDX_CONFIG`` as the caller's stored settings.
-
-    A test that needs the real loader patches it back inside the test:
-    ``patch("sparkth.plugins.openedx.tools.load_user_plugin_config", load_user_plugin_config)``,
-    with ``load_user_plugin_config`` imported from ``sparkth.lib.plugins``.
-    """
+    """Make the Open edX tools load ``OPENEDX_CONFIG`` as the caller's stored settings."""
     with patch("sparkth.plugins.openedx.tools.load_user_plugin_config", AsyncMock(return_value=OPENEDX_CONFIG)):
         yield

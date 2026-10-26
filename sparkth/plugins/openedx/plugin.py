@@ -42,9 +42,9 @@ class OpenEdxPlugin(SparkthPlugin):
         tools_per_category: list[tuple[str, list[Callable[..., Any]]]] = [
             ("openedx-about", [openedx_tools.openedx_about]),
             (
-                "openedx-user",
+                "openedx-settings",
                 [
-                    openedx_tools.openedx_get_user_info,
+                    openedx_tools.openedx_check_settings,
                 ],
             ),
             (

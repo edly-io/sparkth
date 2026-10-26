@@ -25,6 +25,9 @@ COURSE_BLOCK_ENDPOINT = (
 )
 
 
+pytestmark = pytest.mark.usefixtures("stored_config")
+
+
 @pytest.fixture
 def studio_client() -> Iterator[AsyncMock]:
     with patch("sparkth.plugins.openedx.tools.OpenEdxClient") as mock_cls:

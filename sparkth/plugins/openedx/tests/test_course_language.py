@@ -71,6 +71,7 @@ class TestSetCourseLanguage:
         assert client.put.call_args[0][2]["language"] == "pt-br"
 
 
+@pytest.mark.usefixtures("stored_config")
 class TestCreateCourseRunWithLanguage:
     async def test_the_language_write_reuses_the_creation_session(
         self, mock_openedx_client: tuple[MagicMock, AsyncMock]
