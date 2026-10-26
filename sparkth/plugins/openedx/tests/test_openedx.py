@@ -33,6 +33,8 @@ def mock_openedx_client() -> Generator[tuple[MagicMock, AsyncMock], None, None]:
     """Patch OpenEdxClient and yield (mock_cls, mock_client) for tests to configure."""
     with patch("sparkth.plugins.openedx.tools.OpenEdxClient") as mock_cls:
         client = AsyncMock(spec=OpenEdxClient)
+        client.studio_url = STUDIO
+        client.base_url = LMS
         mock_cls.return_value.__aenter__.return_value = client
         mock_cls.return_value.__aexit__.return_value = None
         yield mock_cls, client

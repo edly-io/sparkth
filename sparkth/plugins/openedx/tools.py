@@ -67,7 +67,6 @@ async def openedx_create_basic_component(
     kind: str,
     display_name: str,
 ) -> str:
-    studio = str(config.studio_url).rstrip("/")
     create_url = f"api/contentstore/v0/xblock/{course_id}"
 
     payload = {
@@ -78,7 +77,7 @@ async def openedx_create_basic_component(
 
     async with OpenEdxClient(config) as client:
         try:
-            created = await client.post(studio, create_url, payload)
+            created = await client.post(client.studio_url, create_url, payload)
         except AuthenticationError as e:
             raise LMSRequestError(Method.POST, create_url, e.status_code, e.message) from e
 
@@ -120,8 +119,6 @@ async def openedx_update_xblock_content(
     if data is None and metadata is None and publish is None:
         raise LMSRequestError(Method.PATCH, endpoint, 400, "Nothing to update: provide `data` and/or `metadata`")
 
-    studio = str(config.studio_url).rstrip("/")
-
     body: dict[str, Any] = {}
     if data is not None:
         body["data"] = data
@@ -132,7 +129,7 @@ async def openedx_update_xblock_content(
 
     async with OpenEdxClient(config) as client:
         try:
-            response = await client.patch(studio, endpoint, body)
+            response = await client.patch(client.studio_url, endpoint, body)
         except AuthenticationError as err:
             raise LMSRequestError(
                 Method.PATCH,
@@ -179,7 +176,7 @@ async def openedx_check_settings() -> dict[str, Any]:
             return {"error": {"message": str(err)}}
 
 
-async def set_course_language(course_id: str, language: str, client: OpenEdxClient, studio_url: str) -> None:
+async def set_course_language(course_id: str, language: str, client: OpenEdxClient) -> None:
     """Set ``language`` as an existing course's Open edX language.
 
     The course-run creation endpoint has no language field, so this is a second call. The
@@ -190,21 +187,19 @@ async def set_course_language(course_id: str, language: str, client: OpenEdxClie
     Runs on the caller's open ``client`` instead of opening its own, because it is called
     from inside the course-creation session against the same host and token — a second
     client would only mean a second connection pool. The verb methods take a base URL per
-    call, so a client built against the LMS serves ``studio_url`` too.
+    call, so the client's ``studio_url`` sends these calls to Studio.
 
     ``language`` is a BCP 47 tag; Open edX language codes are lowercase, so ``pt-BR`` is
     sent as ``pt-br``. Raises on a failed request: the caller decides whether a missing
     metadata tag is worth failing over.
     """
     endpoint = f"api/contentstore/v1/course_details/{course_id}"
-    details = await client.get(studio_url, endpoint)
+    details = await client.get(client.studio_url, endpoint)
     details["language"] = language.lower()
-    await client.put(studio_url, endpoint, details)
+    await client.put(client.studio_url, endpoint, details)
 
 
-async def _apply_course_language(
-    payload: CreateCourseArgs, created: dict[str, Any], config: OpenEdxConfig, client: OpenEdxClient
-) -> None:
+async def _apply_course_language(payload: CreateCourseArgs, created: dict[str, Any], client: OpenEdxClient) -> None:
     """Best-effort language tagging for a course that has just been created.
 
     Only called with a truthy ``payload.language`` (the caller gates on it).
@@ -221,7 +216,7 @@ async def _apply_course_language(
         return
     assert payload.language
     try:
-        await set_course_language(str(course_id), payload.language, client, str(config.studio_url).rstrip("/"))
+        await set_course_language(str(course_id), payload.language, client)
     except (LMSRequestError, AuthenticationError, ValueError, aiohttp.ClientError, TimeoutError) as err:
         logger.warning(
             "Course %s created but language %r not set (request or transport failure): %s",
@@ -236,7 +231,7 @@ def _course_block_locator(course_id: str) -> str:
     return f"block-v1:{course_id.removeprefix('course-v1:')}+type@course+block@course"
 
 
-async def _hide_course_from_learners(created: dict[str, Any], config: OpenEdxConfig, client: OpenEdxClient) -> bool:
+async def _hide_course_from_learners(created: dict[str, Any], client: OpenEdxClient) -> bool:
     """Staff-lock a newly created course, and report whether the lock is on.
 
     Sections and subsections are published the moment they are created, so without this gate the
@@ -257,7 +252,7 @@ async def _hide_course_from_learners(created: dict[str, Any], config: OpenEdxCon
         return False
     endpoint = _xblock_endpoint(str(course_id), _course_block_locator(str(course_id)))
     try:
-        await client.patch(str(config.studio_url).rstrip("/"), endpoint, {"metadata": {"visible_to_staff_only": True}})
+        await client.patch(client.studio_url, endpoint, {"metadata": {"visible_to_staff_only": True}})
     except (LMSRequestError, AuthenticationError, ValueError, aiohttp.ClientError, TimeoutError) as err:
         logger.error("Course %s created but not hidden from learners: %s", course_id, err)
         return False
@@ -319,12 +314,12 @@ async def openedx_create_course_run(payload: CreateCourseArgs) -> dict[str, Any]
 
     async with OpenEdxClient(config) as client:
         try:
-            res = await client.post(str(config.studio_url).rstrip("/"), endpoint, course_data)
+            res = await client.post(client.studio_url, endpoint, course_data)
             if payload.language:
-                await _apply_course_language(payload, res, config, client)
+                await _apply_course_language(payload, res, client)
             return {
                 "response": res,
-                "hidden_from_learners": await _hide_course_from_learners(res, config, client),
+                "hidden_from_learners": await _hide_course_from_learners(res, client),
             }
         except (LMSRequestError, AuthenticationError) as err:
             return _lms_error(err, method="POST", endpoint=endpoint, prefix="Course runs creation failed")
@@ -362,14 +357,13 @@ async def openedx_list_course_runs(payload: ListCourseRunsArgs) -> dict[str, Any
             }
     """
     config = await load_user_plugin_config(OPENEDX_PLUGIN_NAME, OpenEdxConfig)
-    base_url = str(config.studio_url).rstrip("/")
     page = payload.page or 1
     page_size = payload.page_size or 20
     endpoint = f"api/v1/course_runs/?page={page}&page_size={page_size}"
 
     async with OpenEdxClient(config) as client:
         try:
-            res = await client.get(base_url, endpoint)
+            res = await client.get(client.studio_url, endpoint)
             return {"courses": res}
 
         except (LMSRequestError, AuthenticationError) as err:
@@ -419,11 +413,7 @@ async def openedx_create_xblock(payload: XBlockPayload) -> dict[str, Any]:
 
     async with OpenEdxClient(config) as client:
         try:
-            res = await client.post(
-                str(config.studio_url).rstrip("/"),
-                endpoint,
-                xblock_data,
-            )
+            res = await client.post(client.studio_url, endpoint, xblock_data)
 
             return {"response": res}
 
@@ -703,11 +693,7 @@ async def openedx_get_course_tree_raw(payload: CourseTreeRequest) -> dict[str, A
 
     async with OpenEdxClient(config) as client:
         try:
-            response = await client.get(
-                str(config.lms_url).rstrip("/"),
-                "api/courses/v1/blocks/",
-                params,
-            )
+            response = await client.get(client.base_url, "api/courses/v1/blocks/", params)
 
             return {"response": response}
 
@@ -756,7 +742,7 @@ async def openedx_get_block_contentstore(payload: BlockContentArgs) -> dict[str,
 
     async with OpenEdxClient(config) as client:
         try:
-            response = await client.get(str(config.studio_url).rstrip("/"), endpoint)
+            response = await client.get(client.studio_url, endpoint)
 
             return {"response": response}
 

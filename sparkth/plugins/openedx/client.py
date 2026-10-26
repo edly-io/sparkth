@@ -44,6 +44,11 @@ class OpenEdxClient(BaseHttpClient):
         self.access_token: str | None = None
 
     @property
+    def studio_url(self) -> str:
+        """The Studio base URL from the stored settings, without a trailing slash."""
+        return str(self.config.studio_url).rstrip("/")
+
+    @property
     def token(self) -> str | None:
         return self.access_token
 

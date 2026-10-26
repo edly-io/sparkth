@@ -28,6 +28,7 @@ def mock_openedx_client() -> Generator[tuple[MagicMock, AsyncMock], None, None]:
     """
     with patch("sparkth.plugins.openedx.tools.OpenEdxClient") as mock_cls:
         client = AsyncMock(spec=OpenEdxClient)
+        client.studio_url = STUDIO_URL
         mock_cls.return_value.__aenter__.return_value = client
         mock_cls.return_value.__aexit__.return_value = None
         yield mock_cls, client
@@ -40,22 +41,24 @@ class TestSetCourseLanguage:
     async def test_reads_the_details_then_writes_them_back_with_the_language(self) -> None:
         """The endpoint is a PUT, so a partial body would wipe the other fields."""
         client = AsyncMock(spec=OpenEdxClient)
+        client.studio_url = STUDIO_URL
         client.get.return_value = {"language": None, "short_description": "keep me"}
         client.put.return_value = {}
 
-        await set_course_language("course-v1:X+Y+Z", "es", client, STUDIO_URL)
+        await set_course_language("course-v1:X+Y+Z", "es", client)
 
         body = client.put.call_args[0][2]
         assert body["language"] == "es"
         assert body["short_description"] == "keep me"
 
     async def test_writes_to_studio_not_the_lms(self) -> None:
-        """Course details live in Studio; the client is built against the LMS base URL."""
+        """Course details live in Studio, not at the LMS base URL the client is built against."""
         client = AsyncMock(spec=OpenEdxClient)
+        client.studio_url = STUDIO_URL
         client.get.return_value = {"language": None}
         client.put.return_value = {}
 
-        await set_course_language("course-v1:X+Y+Z", "es", client, STUDIO_URL)
+        await set_course_language("course-v1:X+Y+Z", "es", client)
 
         assert client.get.call_args[0][0] == STUDIO_URL
         assert client.put.call_args[0][0] == STUDIO_URL
@@ -63,10 +66,11 @@ class TestSetCourseLanguage:
     async def test_lowercases_the_tag(self) -> None:
         """Open edX language codes are lowercase — pt-BR is pt-br there."""
         client = AsyncMock(spec=OpenEdxClient)
+        client.studio_url = STUDIO_URL
         client.get.return_value = {"language": None}
         client.put.return_value = {}
 
-        await set_course_language("course-v1:X+Y+Z", "pt-BR", client, STUDIO_URL)
+        await set_course_language("course-v1:X+Y+Z", "pt-BR", client)
 
         assert client.put.call_args[0][2]["language"] == "pt-br"
 

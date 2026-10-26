@@ -32,6 +32,7 @@ pytestmark = pytest.mark.usefixtures("stored_config")
 def studio_client() -> Iterator[AsyncMock]:
     with patch("sparkth.plugins.openedx.tools.OpenEdxClient") as mock_cls:
         client = AsyncMock()
+        client.studio_url = STUDIO
         mock_cls.return_value.__aenter__.return_value = client
         mock_cls.return_value.__aexit__.return_value = None
         yield client
