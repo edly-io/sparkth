@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 
-import { displayNameOf, sidebarItemsFrom } from "@/lib/plugins/metadata";
-import type { UserPluginState } from "@/lib/plugins/types";
+import { displayNameOf, sidebarItemsFrom } from "@/core/plugins/metadata";
+import type { UserPluginState } from "@/core/plugins/types";
 
 function state(overrides: Partial<UserPluginState> & { plugin_name: string }): UserPluginState {
   return {

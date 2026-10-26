@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 
-import { registerPluginIcon, resolvePluginIcon } from "@/lib/plugins/icons";
+import { registerPluginIcon, resolvePluginIcon } from "@/core/plugins/icons";
 
 describe("resolvePluginIcon", () => {
   afterEach(() => {

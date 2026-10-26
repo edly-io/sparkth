@@ -14,10 +14,10 @@ const auth = {
   logout: vi.fn(),
 };
 
-vi.mock("@/lib/plugins", () => ({}));
+vi.mock("@/app/plugins", () => ({}));
 vi.mock("@/core/auth/hooks", () => ({ useAuth: () => auth }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn(), usePathname: () => "/dashboard" }));
-vi.mock("@/lib/plugins/context", () => ({
+vi.mock("@/core/plugins/context", () => ({
   PluginProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 vi.mock("@/core/components/layout/MobileSidebar", () => ({ default: () => null }));

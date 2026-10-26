@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import "@/lib/plugins";
+import "@/app/plugins";
 import { useAuth } from "@/core/auth/hooks";
 import { resolveNavPermissions } from "@/components/NavItem";
-import { PluginProvider } from "@/lib/plugins/context";
+import { PluginProvider } from "@/core/plugins/context";
 import AppSidebar from "@/core/components/layout/AppSidebar";
 import MobileSidebar from "@/core/components/layout/MobileSidebar";
 import { SidebarProvider, useSidebar } from "@/lib/sidebar-context";

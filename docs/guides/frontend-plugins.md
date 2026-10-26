@@ -54,7 +54,7 @@ export default function ExamplePlugin() {
 **Notes**
 
 - Must be a client component
-- Can use plugin context via `usePlugins()` or `createPluginContext`
+- Reads its own state and config with `usePlugin` from `@/lib/plugins/context`
 - This component is lazy-loaded
 - Takes shared UI components from `@/lib/components/ui/<Name>`, for example
   `import { Button } from "@/lib/components/ui/Button";`. Core UI lives in `@/core`,
@@ -81,7 +81,7 @@ plugins/
 **Example**
 
 ```ts
-import { PluginDefinition } from "@/lib/plugins";
+import { PluginDefinition } from "@/lib/plugins/types";
 
 export const examplePlugin: PluginDefinition = {
   name: "example-plugin",
@@ -108,16 +108,13 @@ frontend-side copy to keep in sync.
 (`Schema<"UserPluginResponse">`), not a hand-written mirror of it, so the shape
 cannot drift from the API. One consequence for settings UIs: `config` values are
 typed `unknown`, because the backend stores config as JSONB and a field declared
-as a string can still arrive as an array or a number. Narrow at the read site
-with the helpers in `@/lib/plugins/config` — `configString(config, key)` for a
-single text field (non-strings fall back to `undefined` rather than coercing),
-and `stringConfigOf(config)` for an editor that renders every field as an input.
+as a string can still arrive as an array or a number. Narrow at the read site.
 
 Icons cross the wire as [lucide](https://lucide.dev/icons/) icon names. The
-resolver in `@/lib/plugins/icons` maps names to components, and only the lucide
+resolver in `core/plugins/icons.ts` maps names to components, and only the lucide
 names already in that map resolve (icons are mapped explicitly to keep the
 bundle tree-shakeable). A backend plugin declaring a new lucide name must also
-add it to the map in `frontend/lib/plugins/icons.ts`, or the UI silently falls
+add it to the map in `core/plugins/icons.ts`, or the UI silently falls
 back to an icon-less rendering (the resolver logs a `console.warn` outside
 production to surface the gap). A plugin that ships a custom (non-lucide) icon
 registers it under its declared name:
@@ -130,7 +127,7 @@ registerPluginIcon("example-brand", ExampleBrandIcon);
 ```
 
 For more details, see the `PluginDefinition` type in
-[`frontend/lib/plugins/types.ts`](https://github.com/edly-io/sparkth/blob/main/frontend/lib/plugins/types.ts).
+[`frontend/core/plugins/types.ts`](https://github.com/edly-io/sparkth/blob/main/frontend/core/plugins/types.ts).
 
 ## 4. Publicly Export the Plugin
 
@@ -155,24 +152,20 @@ Register the plugin with the plugin registry.
 
 **File**
 
-    @/lib/plugins/index.ts
+    app/plugins.ts
 
 ```ts
-import { registerPlugin } from "./registry";
+import { registerPlugin } from "@/core/plugins/registry";
 import { chatPlugin, examplePlugin } from "@/plugins";
 
 registerPlugin(chatPlugin); // already existing
 
 // your plugin registration goes here
 registerPlugin(examplePlugin);
-
-export * from "./registry";
-export * from "./types";
-export * from "./usePlugins";
-export * from "./metadata";
-export * from "./config";
-export * from "./icons";
 ```
+
+`app/LocaleProvider.tsx` and the dashboard layout import this module, so the plugins are
+registered on every page before their catalogs load.
 
 > ⚠️ If a plugin is not registered here, it will not load, not render, and not appear in the sidebar.
 
@@ -185,7 +178,7 @@ Each plugin is rendered under:
 The static routes are **generated from the backend declarations**, not
 hand-maintained: `generateStaticParams` in
 `app/dashboard/[pluginName]/page.tsx` reads `FRONTEND_PLUGIN_NAMES` from
-`lib/plugins/generated.ts`, which lists every backend plugin that registered
+`core/plugins/generated.ts`, which lists every backend plugin that registered
 the `FRONTEND_APPS` hook. After declaring (or removing) a frontend app on the
 backend plugin, regenerate the list:
 
@@ -195,18 +188,18 @@ make frontend.build.plugins
 
 **Notes**
 
-- Do not edit `lib/plugins/generated.ts` by hand. The dump script is its sole
+- Do not edit `core/plugins/generated.ts` by hand. The dump script is its sole
   formatter, so the file is listed in `.oxfmtrc.json` `ignorePatterns` (as
   `lib/api/generated.ts` already is) — otherwise `make format` would rewrite it
   and break the byte-exact backend gate
 - To inspect the dump without touching the committed file, run the script with
   no arguments and it prints to stdout:
   `uv run python scripts/dump_frontend_plugins.py`. The make target passes
-  `-o frontend/lib/plugins/generated.ts`, which writes atomically, so a failed
+  `-o frontend/core/plugins/generated.ts`, which writes atomically, so a failed
   dump leaves the committed file intact
 - Tests on both tiers fail when the committed list drifts from the backend
   declarations (`tests/core/test_dump_frontend_plugins.py`) or when the
-  frontend registry does not match it (`lib/tests/plugin-registry-drift.test.ts`)
+  frontend registry does not match it (`frontend/tests/app/plugins.test.ts`)
 - `PluginPageClient` handles loading the correct plugin dynamically
 
 ## Translations (Optional)
@@ -305,7 +298,7 @@ Rendered plugin UI
 **Plugin not showing?**
 
 - Ensure it’s exported from `plugins/index.ts`
-- Ensure it’s registered in `lib/plugins/index.ts`
+- Ensure it’s registered in `app/plugins.ts`
 
 **Plugin page blank?**
 

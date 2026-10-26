@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import { useLocale, useTimeZone } from "next-intl";
+import { useLocale, useTimeZone, useTranslations } from "next-intl";
 import { renderToString } from "react-dom/server";
 
 import { LocaleProvider } from "@/app/LocaleProvider";
@@ -21,6 +21,10 @@ vi.mock("@/lib/i18n/messages", async (importOriginal) => {
 
 function LocaleProbe() {
   return <span data-testid="locale">{useLocale()}</span>;
+}
+
+function ChatCatalogProbe() {
+  return <span data-testid="chat-placeholder">{useTranslations("chat")("inputPlaceholder")}</span>;
 }
 
 function TimeZoneProbe() {
@@ -78,6 +82,20 @@ describe("LocaleProvider", () => {
     await waitFor(() => expect(screen.getByTestId("locale")).toHaveTextContent("es"));
     expect(document.documentElement.lang).toBe("es");
     expect(getActiveLocale()).toBe("es");
+  });
+
+  it("loads the plugin catalogs for the cookie locale", async () => {
+    document.cookie = `${LOCALE_COOKIE}=es`;
+    render(
+      <LocaleProvider>
+        <ChatCatalogProbe />
+      </LocaleProvider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("chat-placeholder")).toHaveTextContent(
+        "Describe el curso que quieres crear...",
+      ),
+    );
   });
 
   it("falls back to the default locale for an unsupported cookie value", async () => {

@@ -1,7 +1,8 @@
 "use client";
 
-import { usePluginContext } from "@/lib/plugins/context";
-import { displayNameOf, resolvePluginIcon } from "@/lib/plugins";
+import { usePluginContext } from "@/core/plugins/context";
+import { displayNameOf } from "@/core/plugins/metadata";
+import { resolvePluginIcon } from "@/core/plugins/icons";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Spinner } from "@/core/components/ui/Spinner";

@@ -9,7 +9,7 @@ const nav = vi.hoisted(() => ({ pathname: "/dashboard" }));
 // AppSidebar reads the current path and the plugin context; stub both so the
 // component renders in isolation.
 vi.mock("next/navigation", () => ({ usePathname: () => nav.pathname }));
-vi.mock("@/lib/plugins/context", () => ({
+vi.mock("@/core/plugins/context", () => ({
   usePluginContext: () => ({ userPlugins: [], loading: false }),
 }));
 

@@ -3,14 +3,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Save } from "lucide-react";
 
-import { displayNameOf, type UserPluginState } from "@/lib/plugins";
+import { displayNameOf } from "@/core/plugins/metadata";
+import type { UserPluginState } from "@/core/plugins/types";
 import {
   configFieldsOf,
   initialValuesOf,
   payloadOf,
   validateField,
   validateFields,
-} from "@/lib/plugins/schema";
+} from "@/core/plugins/schema";
 import { getConfigWidget } from "./widgets";
 import { Button } from "@/core/components/ui/Button";
 import { Alert } from "@/components/ui/Alert";

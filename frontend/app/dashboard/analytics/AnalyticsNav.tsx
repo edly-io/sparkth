@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { LayoutDashboard, LogIn, PenLine } from "lucide-react";
-import { isInstalled } from "@/lib/plugins";
+import { isInstalled } from "@/core/plugins/installed";
 import { cn } from "@/lib/utils";
 
 // The Insights-style rail: one entry per view. A view's entry lands with the view. A view read
