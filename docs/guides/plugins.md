@@ -50,13 +50,12 @@ An LMS tool reads the caller's saved settings itself with `load_user_plugin_conf
 [Reading the caller's stored settings](#reading-the-callers-stored-settings), and raises
 `PluginNotConfiguredError` when there are none.
 
-An LMS plugin ships a zero-argument `<prefix>check_settings` tool (`canvas_check_settings`,
-`moodle_check_settings`, `openedx_check_settings`) that calls the LMS with the stored settings. Its
-docstring is the tool description the model reads, so it carries the LMS's rules: call the tool to learn
-whether the LMS is set up, and never ask the user for credentials or accept them in the chat. The chat
-system prompt holds no LMS rules, so the model reads them only while that LMS's tools are bound. When
-there are no settings, the `PluginNotConfiguredError` message tells the model to send the user to the
-Settings page.
+An LMS plugin ships a zero-argument `<prefix>check_settings` tool (e.g. `mylms_check_settings`) that
+calls the LMS with the stored settings. Its docstring is the tool description the model reads, so it
+carries the LMS's rules: call the tool to learn whether the LMS is set up, and never ask the user for
+credentials or accept them in the chat. The chat system prompt holds no LMS rules, so the model reads
+them only while that LMS's tools are bound. When there are no settings, the `PluginNotConfiguredError`
+message tells the model to send the user to the Settings page.
 
 An LMS plugin should also ship a zero-argument `<prefix>about` tool (e.g. `mylms_about`) returning `{"about": <text>}` that explains the LMS's course structure, its vocabulary, and what "publish" means there, with the text kept in the plugin's `assets/about.txt`. LMSs use the same words for different things (Canvas "publish" makes content visible; Moodle has no publish step), so the chat LLM reads this before acting. See `canvas_about`, `openedx_about` and `moodle_about`.
 
