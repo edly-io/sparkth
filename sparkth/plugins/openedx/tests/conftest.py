@@ -3,8 +3,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from sparkth.lib.cache import get_cache_service
-from sparkth.lib.settings import get_settings
 from sparkth.plugins.openedx.config import OpenEdxConfig
 
 OPENEDX_CONFIG = OpenEdxConfig.model_validate(
@@ -37,37 +35,11 @@ def http_session(token_body: str, *api_responses: AsyncMock) -> MagicMock:
     return session
 
 
-class FakeRedis:
-    """In-memory stand-in for the Redis client, recording values and the TTLs they were set with."""
-
-    def __init__(self) -> None:
-        self.store: dict[str, str] = {}
-        self.ttls: dict[str, int | None] = {}
-
-    async def get(self, key: str) -> str | None:
-        return self.store.get(key)
-
-    async def set(self, key: str, value: str, ex: int | None = None) -> bool:
-        self.store[key] = value
-        self.ttls[key] = ex
-        return True
-
-    async def delete(self, key: str) -> int:
-        self.ttls.pop(key, None)
-        return 1 if self.store.pop(key, None) is not None else 0
-
-
-@pytest.fixture(autouse=True)
-def fake_redis(monkeypatch: pytest.MonkeyPatch) -> Generator[FakeRedis, None, None]:
-    """Route the shared cache to an in-memory Redis so no test touches a real one."""
-    settings = get_settings()
-    fake = FakeRedis()
-    monkeypatch.setattr(get_cache_service(settings.REDIS_URL, settings.REDIS_KEY_TTL), "_redis", fake)
-    yield fake
-
-
 @pytest.fixture
 def stored_config() -> Generator[None, None, None]:
-    """Make the Open edX tools load ``OPENEDX_CONFIG`` as the caller's stored settings."""
-    with patch("sparkth.plugins.openedx.tools.load_user_plugin_config", AsyncMock(return_value=OPENEDX_CONFIG)):
+    """Make the Open edX tools act for user 1, with ``OPENEDX_CONFIG`` as that user's stored settings."""
+    with (
+        patch("sparkth.plugins.openedx.tools.current_user_id", return_value=1),
+        patch("sparkth.plugins.openedx.tools.load_user_plugin_config", AsyncMock(return_value=OPENEDX_CONFIG)),
+    ):
         yield

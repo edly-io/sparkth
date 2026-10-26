@@ -8,7 +8,7 @@ import sparkth.plugins.openedx.tools as openedx_tools
 from sparkth.lib.auth import bind_current_user_id
 from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
-from sparkth.lib.testing import seed_plugin_settings, tool_input_property_names
+from sparkth.lib.testing import FakeRedis, seed_plugin_settings, tool_input_property_names
 from sparkth.plugins.openedx.client import OpenEdxClient
 from sparkth.plugins.openedx.constants import OPENEDX_PLUGIN_NAME
 from sparkth.plugins.openedx.enums import Component
@@ -33,12 +33,16 @@ def mock_openedx_client() -> Generator[tuple[MagicMock, AsyncMock], None, None]:
     """Patch OpenEdxClient and yield (mock_cls, mock_client) for tests to configure."""
     with patch("sparkth.plugins.openedx.tools.OpenEdxClient") as mock_cls:
         client = AsyncMock(spec=OpenEdxClient)
+        client.studio_url = STUDIO
+        client.base_url = LMS
         mock_cls.return_value.__aenter__.return_value = client
         mock_cls.return_value.__aexit__.return_value = None
         yield mock_cls, client
 
 
-async def test_a_tool_calls_open_edx_with_the_callers_stored_settings(session: AsyncSession) -> None:
+async def test_a_tool_calls_open_edx_with_the_callers_stored_settings(
+    session: AsyncSession, fake_redis: FakeRedis
+) -> None:
     stored = {
         "lms_url": "https://stored-lms.example.com",
         "studio_url": "https://stored-studio.example.com",
@@ -77,7 +81,7 @@ class TestOpenEdxCheckSettings:
 
         result = await openedx_tools.openedx_check_settings()
 
-        mock_cls.assert_called_once_with(OPENEDX_CONFIG)
+        mock_cls.assert_called_once_with(OPENEDX_CONFIG, 1)
         assert result["response"] == {"username": "admin"}
 
     async def test_rejected_settings_become_an_error_dict(
@@ -104,7 +108,7 @@ class TestOpenEdxPluginCreateCourseRun:
         )
         result = await openedx_tools.openedx_create_course_run(payload)
 
-        mock_cls.assert_called_once_with(OPENEDX_CONFIG)
+        mock_cls.assert_called_once_with(OPENEDX_CONFIG, 1)
         client.post.assert_called_once_with(
             STUDIO,
             "api/v1/course_runs/",
@@ -133,7 +137,7 @@ class TestOpenEdxPluginListCourseRuns:
 
         result = await openedx_tools.openedx_list_course_runs(ListCourseRunsArgs(page=1, page_size=10))
 
-        mock_cls.assert_called_once_with(OPENEDX_CONFIG)
+        mock_cls.assert_called_once_with(OPENEDX_CONFIG, 1)
         client.get.assert_called_once_with(STUDIO, "api/v1/course_runs/?page=1&page_size=10")
         assert result["courses"] == {"results": [{"id": "course-v1:Org+101+2024"}]}
 
@@ -161,7 +165,7 @@ class TestOpenEdxPluginCreateXBlock:
 
         result = await openedx_tools.openedx_create_xblock(_xblock_payload())
 
-        mock_cls.assert_called_once_with(OPENEDX_CONFIG)
+        mock_cls.assert_called_once_with(OPENEDX_CONFIG, 1)
         assert client.post.call_args.args[0] == STUDIO
         assert result["response"] == {"locator": "block-v1:new"}
 
@@ -187,7 +191,7 @@ class TestOpenEdxPluginUpdateXBlock:
 
         result = await openedx_tools.openedx_update_xblock(_update_payload())
 
-        mock_cls.assert_called_once_with(OPENEDX_CONFIG)
+        mock_cls.assert_called_once_with(OPENEDX_CONFIG, 1)
         assert client.patch.call_args.args[0] == STUDIO
         assert result["response"] == {"status": "ok"}
 
@@ -209,7 +213,7 @@ class TestOpenEdxPluginGetCourseTree:
 
         result = await openedx_tools.openedx_get_course_tree_raw(CourseTreeRequest(course_id="course-v1:Org+101+2024"))
 
-        mock_cls.assert_called_once_with(OPENEDX_CONFIG)
+        mock_cls.assert_called_once_with(OPENEDX_CONFIG, 1)
         assert client.get.call_args.args[0] == LMS
         assert result["response"] == {"blocks": {"root": {}}}
 
@@ -234,7 +238,7 @@ class TestOpenEdxPluginGetBlockContentstore:
         )
         result = await openedx_tools.openedx_get_block_contentstore(payload)
 
-        mock_cls.assert_called_once_with(OPENEDX_CONFIG)
+        mock_cls.assert_called_once_with(OPENEDX_CONFIG, 1)
         assert client.get.call_args.args[0] == STUDIO
         assert result["response"] == {"data": "<p>Hello</p>"}
 

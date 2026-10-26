@@ -80,22 +80,25 @@ async def test_lists_the_registered_contributors(fake_contributor: ContentContri
 async def test_creates_the_block_the_contributor_declares(fake_contributor: ContentContributor) -> None:
     with (
         patch(
-            "sparkth.plugins.openedx.tools.openedx_create_basic_component",
+            "sparkth.plugins.openedx.tools.create_basic_component",
             new=AsyncMock(return_value="block-v1:X+Y+Z+type@fake+block@b1"),
         ) as create,
         patch(
-            "sparkth.plugins.openedx.tools.openedx_update_xblock_content",
+            "sparkth.plugins.openedx.tools.update_xblock_content",
             new=AsyncMock(return_value={"ok": True}),
         ) as update,
     ):
         result = await openedx_add_plugin_content(add_args())
 
     cast(AsyncMock, fake_contributor.builders["open-edx"]).assert_awaited_once_with("course-v1:X+Y+Z", None)
+    assert create.await_args is not None
+    client = create.await_args.args[0]
+    assert (client.config, client.user_id) == (OPENEDX_CONFIG, 1)
     create.assert_awaited_once_with(
-        OPENEDX_CONFIG, "course-v1:X+Y+Z", "block-v1:X+Y+Z+type@vertical+block@u1", "fake", "Fake Activity"
+        client, "course-v1:X+Y+Z", "block-v1:X+Y+Z+type@vertical+block@u1", "fake", "Fake Activity"
     )
     update.assert_awaited_once_with(
-        OPENEDX_CONFIG,
+        client,
         "course-v1:X+Y+Z",
         "block-v1:X+Y+Z+type@fake+block@b1",
         None,
@@ -115,7 +118,7 @@ async def test_an_unconfigured_user_places_no_plugin_content(fake_contributor: C
 
 
 async def test_unknown_contributor_is_an_error_and_creates_nothing() -> None:
-    with patch("sparkth.plugins.openedx.tools.openedx_create_basic_component", new=AsyncMock()) as create:
+    with patch("sparkth.plugins.openedx.tools.create_basic_component", new=AsyncMock()) as create:
         result = await openedx_add_plugin_content(add_args("absent"))
 
     create.assert_not_awaited()
@@ -125,7 +128,7 @@ async def test_unknown_contributor_is_an_error_and_creates_nothing() -> None:
 async def test_a_studio_failure_is_reported_as_an_error_dict(fake_contributor: ContentContributor) -> None:
     failure = LMSRequestError(Method.POST, "api/contentstore/v0/xblock/course-v1:X+Y+Z", 403, "Forbidden")
     with patch(
-        "sparkth.plugins.openedx.tools.openedx_create_basic_component",
+        "sparkth.plugins.openedx.tools.create_basic_component",
         new=AsyncMock(side_effect=failure),
     ):
         result = await openedx_add_plugin_content(add_args())
@@ -140,7 +143,7 @@ async def build_broken(course_id: str, option_id: str | None) -> ContentBlock:
 async def test_a_build_failure_is_reported_as_an_error_dict_and_creates_nothing(owners: list[SparkthPlugin]) -> None:
     _register(owners, ContentContributor("broken", "A contributor that cannot build", {"open-edx": build_broken}))
 
-    with patch("sparkth.plugins.openedx.tools.openedx_create_basic_component", new=AsyncMock()) as create:
+    with patch("sparkth.plugins.openedx.tools.create_basic_component", new=AsyncMock()) as create:
         result = await openedx_add_plugin_content(add_args("broken"))
 
     create.assert_not_awaited()
@@ -160,11 +163,11 @@ async def test_a_block_with_no_attributes_skips_the_update_call(owners: list[Spa
 
     with (
         patch(
-            "sparkth.plugins.openedx.tools.openedx_create_basic_component",
+            "sparkth.plugins.openedx.tools.create_basic_component",
             new=AsyncMock(return_value="block-v1:X+Y+Z+type@fake+block@b1"),
         ) as create,
         patch(
-            "sparkth.plugins.openedx.tools.openedx_update_xblock_content",
+            "sparkth.plugins.openedx.tools.update_xblock_content",
             new=AsyncMock(),
         ) as update,
     ):
@@ -203,7 +206,7 @@ async def test_a_contributor_with_no_openedx_builder_is_refused_and_creates_noth
     """Listing is not the only entry point: the name can be passed to this tool directly."""
     _register_canvas_only(owners)
 
-    with patch("sparkth.plugins.openedx.tools.openedx_create_basic_component", new=AsyncMock()) as create:
+    with patch("sparkth.plugins.openedx.tools.create_basic_component", new=AsyncMock()) as create:
         result = await openedx_add_plugin_content(add_args("canvas-only"))
 
     create.assert_not_awaited()
@@ -216,7 +219,7 @@ async def test_a_contributor_that_targets_nothing_is_refused_and_creates_nothing
     """An empty builders map registers cleanly, so this tool is what has to refuse it."""
     _register(owners, ContentContributor("no-targets", "A contributor with no builders", {}))
 
-    with patch("sparkth.plugins.openedx.tools.openedx_create_basic_component", new=AsyncMock()) as create:
+    with patch("sparkth.plugins.openedx.tools.create_basic_component", new=AsyncMock()) as create:
         result = await openedx_add_plugin_content(add_args("no-targets"))
 
     create.assert_not_awaited()
@@ -228,10 +231,10 @@ async def test_a_failed_attribute_patch_reports_the_locator_it_created(fake_cont
     failure = LMSRequestError(Method.PATCH, "api/contentstore/v0/xblock/course-v1:X+Y+Z", 500, "Boom")
     with (
         patch(
-            "sparkth.plugins.openedx.tools.openedx_create_basic_component",
+            "sparkth.plugins.openedx.tools.create_basic_component",
             new=AsyncMock(return_value="block-v1:X+Y+Z+type@fake+block@b1"),
         ),
-        patch("sparkth.plugins.openedx.tools.openedx_update_xblock_content", new=AsyncMock(side_effect=failure)),
+        patch("sparkth.plugins.openedx.tools.update_xblock_content", new=AsyncMock(side_effect=failure)),
     ):
         result = await openedx_add_plugin_content(add_args())
 
@@ -242,7 +245,7 @@ async def test_a_failed_attribute_patch_reports_the_locator_it_created(fake_cont
 async def test_a_failed_create_reports_no_locator(fake_contributor: ContentContributor) -> None:
     """Nothing was created, so there is nothing for the caller to clean up."""
     failure = LMSRequestError(Method.POST, "api/contentstore/v0/xblock/course-v1:X+Y+Z", 403, "Forbidden")
-    with patch("sparkth.plugins.openedx.tools.openedx_create_basic_component", new=AsyncMock(side_effect=failure)):
+    with patch("sparkth.plugins.openedx.tools.create_basic_component", new=AsyncMock(side_effect=failure)):
         result = await openedx_add_plugin_content(add_args())
 
     assert "locator" not in result["error"]
@@ -275,10 +278,10 @@ async def test_a_contributor_with_options_lists_them(optioned_contributor: Conte
 async def test_the_chosen_option_reaches_the_builder(optioned_contributor: ContentContributor) -> None:
     with (
         patch(
-            "sparkth.plugins.openedx.tools.openedx_create_basic_component",
+            "sparkth.plugins.openedx.tools.create_basic_component",
             new=AsyncMock(return_value="block-v1:X+Y+Z+type@fake+block@b1"),
         ),
-        patch("sparkth.plugins.openedx.tools.openedx_update_xblock_content", new=AsyncMock()),
+        patch("sparkth.plugins.openedx.tools.update_xblock_content", new=AsyncMock()),
     ):
         result = await openedx_add_plugin_content(add_args("optioned", "second"))
 
@@ -289,7 +292,7 @@ async def test_the_chosen_option_reaches_the_builder(optioned_contributor: Conte
 async def test_an_option_for_a_contributor_without_options_is_refused_and_creates_nothing(
     fake_contributor: ContentContributor,
 ) -> None:
-    with patch("sparkth.plugins.openedx.tools.openedx_create_basic_component", new=AsyncMock()) as create:
+    with patch("sparkth.plugins.openedx.tools.create_basic_component", new=AsyncMock()) as create:
         result = await openedx_add_plugin_content(add_args("fake", "first"))
 
     create.assert_not_awaited()
@@ -301,7 +304,7 @@ async def test_a_contributor_with_options_and_none_chosen_is_refused_and_creates
     optioned_contributor: ContentContributor,
 ) -> None:
     # Nothing is placed by default: the author must have chosen what to place.
-    with patch("sparkth.plugins.openedx.tools.openedx_create_basic_component", new=AsyncMock()) as create:
+    with patch("sparkth.plugins.openedx.tools.create_basic_component", new=AsyncMock()) as create:
         result = await openedx_add_plugin_content(add_args("optioned"))
 
     create.assert_not_awaited()
@@ -328,8 +331,8 @@ def placing_contributor(owners: list[SparkthPlugin]) -> ContentContributor:
 
 async def test_the_placement_is_recorded_once_the_block_exists(placing_contributor: ContentContributor) -> None:
     with (
-        patch("sparkth.plugins.openedx.tools.openedx_create_basic_component", new=AsyncMock(return_value=LOCATOR)),
-        patch("sparkth.plugins.openedx.tools.openedx_update_xblock_content", new=AsyncMock()),
+        patch("sparkth.plugins.openedx.tools.create_basic_component", new=AsyncMock(return_value=LOCATOR)),
+        patch("sparkth.plugins.openedx.tools.update_xblock_content", new=AsyncMock()),
     ):
         await openedx_add_plugin_content(add_args("placing", "first"))
 
@@ -338,7 +341,7 @@ async def test_the_placement_is_recorded_once_the_block_exists(placing_contribut
 
 async def test_a_failed_create_records_no_placement(placing_contributor: ContentContributor) -> None:
     failure = LMSRequestError(Method.POST, "api/contentstore/v0/xblock/course-v1:X+Y+Z", 403, "Forbidden")
-    with patch("sparkth.plugins.openedx.tools.openedx_create_basic_component", new=AsyncMock(side_effect=failure)):
+    with patch("sparkth.plugins.openedx.tools.create_basic_component", new=AsyncMock(side_effect=failure)):
         await openedx_add_plugin_content(add_args("placing", "first"))
 
     cast(AsyncMock, placing_contributor.on_placed).assert_not_awaited()
@@ -348,8 +351,8 @@ async def test_a_failed_attribute_patch_still_records_the_placement(placing_cont
     # The block exists, and the caller may patch its attributes again with another tool.
     failure = LMSRequestError(Method.PATCH, "api/contentstore/v0/xblock/course-v1:X+Y+Z", 500, "Boom")
     with (
-        patch("sparkth.plugins.openedx.tools.openedx_create_basic_component", new=AsyncMock(return_value=LOCATOR)),
-        patch("sparkth.plugins.openedx.tools.openedx_update_xblock_content", new=AsyncMock(side_effect=failure)),
+        patch("sparkth.plugins.openedx.tools.create_basic_component", new=AsyncMock(return_value=LOCATOR)),
+        patch("sparkth.plugins.openedx.tools.update_xblock_content", new=AsyncMock(side_effect=failure)),
     ):
         await openedx_add_plugin_content(add_args("placing", "first"))
 
@@ -361,8 +364,8 @@ async def test_an_unrecorded_placement_leaves_the_block_without_attributes_and_r
 ) -> None:
     cast(AsyncMock, placing_contributor.on_placed).side_effect = ContentPlacementError("database unavailable")
     with (
-        patch("sparkth.plugins.openedx.tools.openedx_create_basic_component", new=AsyncMock(return_value=LOCATOR)),
-        patch("sparkth.plugins.openedx.tools.openedx_update_xblock_content", new=AsyncMock()) as update,
+        patch("sparkth.plugins.openedx.tools.create_basic_component", new=AsyncMock(return_value=LOCATOR)),
+        patch("sparkth.plugins.openedx.tools.update_xblock_content", new=AsyncMock()) as update,
     ):
         result = await openedx_add_plugin_content(add_args("placing", "first"))
 
@@ -402,7 +405,7 @@ async def test_a_contributor_whose_plugin_is_off_is_not_listed(
 async def test_a_contributor_whose_plugin_is_off_is_refused_and_creates_nothing(
     switched_off_contributor: ContentContributor,
 ) -> None:
-    with patch("sparkth.plugins.openedx.tools.openedx_create_basic_component", new=AsyncMock()) as create:
+    with patch("sparkth.plugins.openedx.tools.create_basic_component", new=AsyncMock()) as create:
         result = await openedx_add_plugin_content(add_args("off", "first"))
 
     assert result == {"error": {"message": "Content contributor 'off' is unavailable: its plugin is switched off"}}
@@ -442,7 +445,7 @@ async def test_a_contributor_whose_plugin_the_user_switched_off_is_not_listed(
 async def test_a_contributor_whose_plugin_the_user_switched_off_is_refused_and_creates_nothing(
     user_switched_off_contributor: ContentContributor,
 ) -> None:
-    with patch("sparkth.plugins.openedx.tools.openedx_create_basic_component", new=AsyncMock()) as create:
+    with patch("sparkth.plugins.openedx.tools.create_basic_component", new=AsyncMock()) as create:
         result = await openedx_add_plugin_content(add_args("user-off", "first"))
 
     assert result == {"error": {"message": "Content contributor 'user-off' is unavailable: its plugin is switched off"}}

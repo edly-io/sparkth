@@ -40,11 +40,9 @@ mounts plugin routes.
 
 Every plugin also declares a `PluginConfig` (Pydantic model) that drives per-user configuration stored in the DB. See `sparkth/core/plugins/config_base.py` for the base class.
 
-A plugin may also contribute a `CONFIG_ADAPTERS` entry (`sparkth/lib/config/hooks.py`): any
-`ConfigAdapter` (from `sparkth.lib.plugins`), which may override only the steps it needs —
-preprocessing the config on save, postprocessing it on read, or syncing a cache after an update.
-`PluginService` resolves it by plugin name via `get_plugin_adapter` (`sparkth/lib/config`), so the
-framework never names a concrete plugin.
+A plugin may also contribute a `CONFIG_ADAPTERS` entry (`sparkth/lib/config/hooks.py`): an
+`LLMConfigAdapter` that pre/post-processes its stored config. `PluginService` resolves it by
+plugin name via `get_plugin_adapter` (`sparkth/lib/config`), so the framework never names a concrete plugin.
 
 A plugin may also register analytics event schemas via `register_event_schema(self, MyEvent)`
 (`sparkth/lib/analytics`): self-describing `AnalyticsEventSchema` subclasses that declare their own
