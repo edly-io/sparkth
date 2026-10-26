@@ -76,7 +76,7 @@ class TestBuildLmsCredentialsMessage:
         ):
             result = await build_lms_credentials_message(session=mock_session, user_id=1, tools=tools)
         assert result == LMS_RULES
-        assert "My Plugins" in result
+        assert "Settings" in result
 
     async def test_canvas_settings_never_reach_the_message(self, mock_session: AsyncMock) -> None:
         tools = [_make_tool("canvas_get_courses")]

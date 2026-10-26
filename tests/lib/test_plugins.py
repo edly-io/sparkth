@@ -37,6 +37,7 @@ class TestPluginsPublicApi:
             "get_disabled_plugins",
             "load_user_plugin_config",
             "PluginNotConfiguredError",
+            "PluginConfigInvalidError",
         }
 
 
