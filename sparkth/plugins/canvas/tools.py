@@ -76,7 +76,8 @@ async def _canvas_list(path: str, key: str) -> dict[str, Any]:
 async def canvas_check_settings() -> dict[str, Any]:
     """Check that the user's stored Canvas settings work.
 
-    Call this to learn whether Canvas is set up for the user.
+    Call this to learn whether Canvas is set up for the user. Never ask the user for their Canvas
+    credentials, and never accept them in the chat.
     """
     config = await load_user_plugin_config(CANVAS_PLUGIN_NAME, CanvasConfig)
     try:
