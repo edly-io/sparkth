@@ -33,3 +33,14 @@ def widget(control: ConfigWidget) -> dict[str, Any]:
     ```
     """
     return {"widget": control.value}
+
+
+def secret(control: ConfigWidget = ConfigWidget.PASSWORD) -> dict[str, Any]:
+    """``json_schema_extra`` marking a config field as a secret the API never returns.
+
+    ```python
+    api_key: str = Field(..., json_schema_extra=secret())
+    private_key: str = Field(..., json_schema_extra=secret(ConfigWidget.TEXTAREA))
+    ```
+    """
+    return {**widget(control), "secret": True}

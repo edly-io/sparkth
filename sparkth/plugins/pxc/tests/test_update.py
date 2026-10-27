@@ -23,6 +23,9 @@ from sparkth.plugins.pxc.store import get_owned_activity, mark_placed
 from sparkth.plugins.pxc.tests.conftest import AUTHORED_SANDBOX_JS, stage_without_compiling
 from sparkth.plugins.pxc.tokens import LaunchClaims
 
+# Builds here repeat the same sources, so a source compiles once per session.
+pytestmark = pytest.mark.usefixtures("reused_compiles")
+
 QUESTION: dict[str, object] = {"type": "string", "scope": "activity", "default": "What is 2 + 2?"}
 RETYPED: dict[str, object] = {"question": {**QUESTION, "type": "integer", "default": 4}}
 UI_JS = "export function setup(activity) {}\n"

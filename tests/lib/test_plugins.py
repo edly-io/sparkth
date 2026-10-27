@@ -24,6 +24,7 @@ class TestPluginsPublicApi:
             "PluginConfig",
             "ConfigWidget",
             "widget",
+            "secret",
             "PluginAccessMiddleware",
             "get_plugin_loader",
             "PluginService",
