@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
 
+import { renderWithIntl } from "@/tests/intl-test-utils";
 import { PluginConfigModal } from "@/core/components/settings/ConfigModal";
 import type { UserPluginState } from "@/core/plugins/types";
 import type { ConfigWidgetProps } from "@/lib/settings/slots";
@@ -23,7 +24,7 @@ function renderModal(
   onSave = vi.fn(async () => {}),
   controls?: Record<string, ComponentType<ConfigWidgetProps>>,
 ) {
-  render(
+  renderWithIntl(
     <PluginConfigModal
       plugin={{
         plugin_name: "open-edx",
@@ -34,6 +35,7 @@ function renderModal(
         display: null,
         sidebar: null,
         has_frontend: false,
+        secrets_set: [],
         ...plugin,
       }}
       open
@@ -89,23 +91,33 @@ describe("PluginConfigModal", () => {
     expect(screen.queryByLabelText(/Llm Provider/)).toBeNull();
   });
 
-  it("reports an invalid url and refuses to save", async () => {
-    const onSave = renderModal({});
-
-    fireEvent.change(screen.getByLabelText(/Lms Url/), { target: { value: "not-a-url" } });
-    fireEvent.click(screen.getByRole("button", { name: /Save/ }));
-
+  it("checks a field as it is typed", async () => {
+    renderModal({});
+    fireEvent.change(screen.getByLabelText(/Lms Url/), { target: { value: "not a url" } });
     expect(await screen.findByText("Input should be a valid URL")).toBeDefined();
-    expect(onSave).not.toHaveBeenCalled();
   });
 
-  it("refuses to save while a required field is empty", async () => {
+  it("shows every field's error when Save is clicked on an incomplete form", async () => {
     const onSave = renderModal({ config: { lms_url: "https://lms.example.com" } });
 
     fireEvent.click(screen.getByRole("button", { name: /Save/ }));
 
     expect(await screen.findAllByText("This field is required")).toHaveLength(2);
     expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("shows the server's reason when a save fails", async () => {
+    const onSave = vi.fn(async () => {
+      throw new Error("Canvas rejected the key");
+    });
+    renderModal(
+      { config: { lms_url: "https://l.example.com", lms_username: "s", lms_password: "p" } },
+      onSave,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Save/ }));
+
+    expect(await screen.findByText("Canvas rejected the key")).toBeDefined();
   });
 
   it("saves the declared fields once every value is valid", async () => {
@@ -173,7 +185,7 @@ describe("PluginConfigModal", () => {
 
   it("surfaces a failed save", async () => {
     const onSave = vi.fn(async () => {
-      throw new Error("boom");
+      throw new Error("");
     });
     renderModal(
       { config: { lms_url: "https://l.example.com", lms_username: "s", lms_password: "p" } },
@@ -183,6 +195,88 @@ describe("PluginConfigModal", () => {
     fireEvent.click(screen.getByRole("button", { name: /Save/ }));
 
     expect(await screen.findByText(/Failed to save configuration/)).toBeDefined();
+  });
+
+  it("shows a stored secret as dots, never as a value", () => {
+    renderModal({
+      config: { lms_url: "https://l.example.com", lms_username: "s" },
+      secrets_set: ["lms_password"],
+    });
+
+    expect(screen.getByText("••••••••")).toBeDefined();
+    // The selector skips the Replace button, whose aria-label also mentions the field.
+    expect(screen.queryByLabelText(/Lms Password/, { selector: "input" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Replace Lms Password" })).toBeDefined();
+  });
+
+  it("keeps a stored secret it was not asked to replace", async () => {
+    const onSave = renderModal({
+      config: { lms_url: "https://l.example.com", lms_username: "s" },
+      secrets_set: ["lms_password"],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Save/ }));
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({
+        lms_url: "https://l.example.com",
+        lms_username: "s",
+        note: "",
+      }),
+    );
+  });
+
+  it("sends a replaced secret", async () => {
+    const onSave = renderModal({
+      config: { lms_url: "https://l.example.com", lms_username: "s" },
+      secrets_set: ["lms_password"],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Replace Lms Password" }));
+    fireEvent.change(screen.getByLabelText(/Lms Password/, { selector: "input" }), {
+      target: { value: "n3w" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Save/ }));
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ lms_password: "n3w" })),
+    );
+  });
+
+  it("refuses to save a replaced secret left empty", async () => {
+    const onSave = renderModal({
+      config: { lms_url: "https://l.example.com", lms_username: "s" },
+      secrets_set: ["lms_password"],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Replace Lms Password" }));
+    fireEvent.click(screen.getByRole("button", { name: /Save/ }));
+
+    expect(await screen.findByText("This field is required")).toBeDefined();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("keeps the stored secret again after a replace is undone", async () => {
+    const onSave = renderModal({
+      config: { lms_url: "https://l.example.com", lms_username: "s" },
+      secrets_set: ["lms_password"],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Replace Lms Password" }));
+    fireEvent.change(screen.getByLabelText(/Lms Password/, { selector: "input" }), {
+      target: { value: "typo" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Keep stored Lms Password" }));
+    fireEvent.click(screen.getByRole("button", { name: /Save/ }));
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({
+        lms_url: "https://l.example.com",
+        lms_username: "s",
+        note: "",
+      }),
+    );
+    expect(screen.getByText("••••••••")).toBeDefined();
   });
 });
 
