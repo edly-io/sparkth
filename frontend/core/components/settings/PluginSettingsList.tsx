@@ -1,14 +1,16 @@
 "use client";
 
 import { lazy, Suspense, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 
 import { usePluginContext } from "@/core/plugins/context";
 import type { UserPluginState } from "@/core/plugins/types";
 import { SETTINGS_ITEMS, type SettingsItem } from "@/lib/settings/slots";
 import { slotItems } from "@/lib/slots";
 import { configFieldsOf } from "./schema";
+import { SettingsList } from "./SettingsPage";
 
-interface SettingsRowProps {
+interface PluginSettingsRowProps {
   plugin: UserPluginState;
   item: SettingsItem;
 }
@@ -17,7 +19,7 @@ interface SettingsRowProps {
  * One plugin's row and, once the user first opens it, the config modal the plugin supplied. The row
  * offers the modal only while the plugin's backend config declares fields.
  */
-function SettingsRow({ plugin, item }: SettingsRowProps) {
+function PluginSettingsRow({ plugin, item }: PluginSettingsRowProps) {
   const { enablePlugin, disablePlugin, updatePluginConfig, refreshPlugins } = usePluginContext();
   const [open, setOpen] = useState(false);
   const [opened, setOpened] = useState(false);
@@ -61,26 +63,19 @@ function SettingsRow({ plugin, item }: SettingsRowProps) {
  * The settings page's plugin list: the row each plugin set in `SETTINGS_ITEMS`, for every
  * plugin the API returned, in plugin-name order.
  */
-export function SettingsList() {
+export function PluginSettingsList() {
+  const t = useTranslations("plugins");
   const { userPlugins } = usePluginContext();
   const rows = slotItems(SETTINGS_ITEMS).flatMap(([name, item]) => {
     const plugin = userPlugins.find((candidate) => candidate.plugin_name === name);
     return plugin ? [{ plugin, item }] : [];
   });
 
-  if (rows.length === 0) {
-    return (
-      <div className="bg-card rounded-lg shadow-sm p-12 text-center border border-border">
-        <p className="text-muted-foreground">No plugins found</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="bg-card rounded-lg shadow-sm overflow-hidden border border-border divide-y divide-border">
+    <SettingsList empty={<p className="text-muted-foreground">{t("empty")}</p>}>
       {rows.map(({ plugin, item }, index) => (
-        <SettingsRow key={`${plugin.plugin_name}-${index}`} plugin={plugin} item={item} />
+        <PluginSettingsRow key={`${plugin.plugin_name}-${index}`} plugin={plugin} item={item} />
       ))}
-    </div>
+    </SettingsList>
   );
 }

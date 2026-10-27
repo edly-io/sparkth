@@ -2,7 +2,7 @@
 
 Sparkth builds courses in your LMS. LMS plugins have no page of their own:
 
-1. Turn on your LMS's plugin in [My Plugins](plugins.md) and configure it with the details
+1. Turn on your LMS's plugin in [Settings](plugins.md) and configure it with the details
    listed for it below.
 2. In **Compose**, ask the assistant to create the course there, for example
    "create this course in my LMS".

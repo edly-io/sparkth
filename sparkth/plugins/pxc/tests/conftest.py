@@ -9,12 +9,14 @@ need along with the binary.
 """
 
 import json
+import shutil
 import tempfile
 from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from pxc.lib import sandbox
 from pxc.lib.runtime import ActivityRuntime
 from pxc.lib.sandbox import SandboxRuntimeError
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -23,8 +25,8 @@ from uuid6 import uuid7
 from sparkth.core.models.user import User
 from sparkth.lib.auth import bind_current_user_id
 from sparkth.main import assemble_app
+from sparkth.plugins.pxc import builder
 from sparkth.plugins.pxc.activities import activity_dir, generated_activity_dir
-from sparkth.plugins.pxc.builder import compile_sandbox
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.event_bus import EVENT_BUS
 from sparkth.plugins.pxc.models import PxcActivity
@@ -52,6 +54,40 @@ def inline_config(html: str) -> ActivityConfig:
 def pytest_runtest_setup(item: pytest.Item) -> None:
     if "wasm" in item.keywords and not (SANDBOX_WASM.exists() and COMPONENTIZE_JS.exists()):
         pytest.skip("the PXC activity toolchain is not installed; run `make pxc.activities.build`")
+
+
+@pytest.fixture(scope="session")
+def compile_store(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, dict[tuple[str, Path], Path]]:
+    """Where ``reused_compiles`` keeps each successful compile, by source and toolchain."""
+    return tmp_path_factory.mktemp("compiles"), {}
+
+
+@pytest.fixture
+def reused_compiles(monkeypatch: pytest.MonkeyPatch, compile_store: tuple[Path, dict[tuple[str, Path], Path]]) -> None:
+    """Compile each distinct sandbox source once per session, with its wasmtime ``.bin``.
+
+    Opt-in, for tests that build the same sources over and over (the bundled sample, the shared fixture sources).
+    The first compile of a source runs for real and is stored; a repeat copies it with its ``.bin``, skipping the
+    toolchain. ``copy2`` keeps the ``.bin`` newer than its ``.wasm``, so pxc-lib trusts it. Failed compiles are
+    never stored.
+    """
+    store, stored = compile_store
+    real = builder.compile_sandbox
+
+    async def compile_once(sandbox_js: str, compile_dir: Path, output: Path) -> None:
+        key = (sandbox_js, get_pxc_settings().toolchain_dir.resolve())
+        wasm = stored.get(key)
+        if wasm is None:
+            await real(sandbox_js, compile_dir, output)
+            wasm = store / str(len(stored)) / "sandbox.wasm"
+            wasm.parent.mkdir()
+            shutil.copy2(output, wasm)
+            sandbox.load_component(sandbox.create_engine(), wasm)  # writes sandbox.wasm.bin beside it
+            stored[key] = wasm
+        shutil.copy2(wasm, output)
+        shutil.copy2(wasm.with_name("sandbox.wasm.bin"), output.with_name(output.name + ".bin"))
+
+    monkeypatch.setattr(builder, "compile_sandbox", compile_once)
 
 
 @pytest.fixture(autouse=True)
@@ -257,7 +293,7 @@ async def compiled_activity(sandbox_js: str, manifest: dict[str, object]) -> str
     staged = get_pxc_settings().data_dir / "builds" / activity_id
     staged.mkdir(parents=True)
     with tempfile.TemporaryDirectory(dir=staged.parent) as compile_dir:
-        await compile_sandbox(sandbox_js, Path(compile_dir), staged / "sandbox.wasm")
+        await builder.compile_sandbox(sandbox_js, Path(compile_dir), staged / "sandbox.wasm")
     (staged / "manifest.json").write_text(json.dumps({**manifest, "name": activity_id}), encoding="utf-8")
     (staged / "ui.js").write_text(AUTHORED_UI_JS, encoding="utf-8")
     publish_revision(staged, activity_id)
