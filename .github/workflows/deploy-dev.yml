@@ -43,6 +43,18 @@ jobs:
           git fetch origin main
           git reset --hard ${{ github.event.workflow_run.head_sha || 'origin/main' }}
 
+      # Every compose command below needs .env.local, so it is rendered first.
+      - name: Write .env.local from the dev environment
+        env:
+          SECRETS_JSON: ${{ toJSON(secrets) }}
+          VARS_JSON: ${{ toJSON(vars) }}
+        run: |
+          umask 077
+          mkdir -p backups
+          python3 scripts/render_env_local.py > .env.local.new
+          if [ -f .env.local ]; then mv .env.local backups/env.local.bak; fi
+          mv .env.local.new .env.local
+
       - name: Log into GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
