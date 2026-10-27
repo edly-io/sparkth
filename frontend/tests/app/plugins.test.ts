@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
 
 import "@/app/plugins";
+import { resolvePluginIcon } from "@/core/components/ui/icons";
 import { getAllPlugins } from "@/core/plugins/registry";
-import { FRONTEND_PLUGIN_NAMES } from "@/core/plugins/generated";
+import { FRONTEND_PLUGIN_NAMES } from "@/lib/plugins/generated";
 import { SETTINGS_ITEMS } from "@/lib/settings/slots";
 
 describe("frontend plugin registry vs backend declarations", () => {
@@ -11,6 +12,12 @@ describe("frontend plugin registry vs backend declarations", () => {
       .map((plugin) => plugin.name)
       .sort();
     expect(registered).toEqual([...FRONTEND_PLUGIN_NAMES].sort());
+  });
+
+  it("resolves every icon the backend plugins declare", () => {
+    expect(resolvePluginIcon("plus")).toBeDefined();
+    expect(resolvePluginIcon("blocks")).toBeDefined();
+    expect(resolvePluginIcon("slack")).toBeDefined();
   });
 
   it("sets a settings row for every plugin", () => {

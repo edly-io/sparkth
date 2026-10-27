@@ -1,14 +1,12 @@
 "use client";
 
 import { File as DefaultFileIcon } from "lucide-react";
-import { useAuth } from "@/core/auth/hooks";
-import { useIsPluginEnabled } from "@/core/plugins/usePlugins";
+import { usePlugin } from "@/core/plugins/context";
 import { Spinner } from "@/core/components/ui/Spinner";
 import GoogleDrive from "@/plugins/google-drive/GoogleDrive";
 
 export default function ResourcesPage() {
-  const { token } = useAuth();
-  const { isEnabled: isDriveEnabled, loading } = useIsPluginEnabled(token, "google-drive");
+  const { isEnabled: isDriveEnabled, loading } = usePlugin("google-drive");
 
   if (loading) {
     return (
