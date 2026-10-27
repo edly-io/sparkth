@@ -215,7 +215,7 @@ Plugin code raises typed exceptions; FastAPI translates them to `HTTPException` 
 ## 10. Frontend: Lazy-Loaded Plugin Routes
 
 **Files:** `frontend/core/plugins/`, `frontend/app/plugins.ts`, `frontend/app/dashboard/[pluginName]/page.tsx`,
-`frontend/plugins/index.ts`
+`frontend/plugins/<name>/index.ts`
 
 Each frontend plugin exports a `PluginDefinition` with `loadComponent: () => import("./Plugin")`. The dashboard's dynamic route `[pluginName]` resolves the plugin from the registry and renders it via `next/dynamic`. `generateStaticParams()` returns the known plugin names so Next.js can pre-generate routes at build time.
 
