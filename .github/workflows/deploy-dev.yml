@@ -54,6 +54,7 @@ jobs:
           jq -rn --argjson s "$SECRETS_JSON" --argjson v "$VARS_JSON" \
             '$s + $v | to_entries[] | select(.key | startswith("ENV_")) | "\(.key[4:])=\(.value | @sh)"' \
             > .env.local.new
+          [ -s .env.local.new ] || { echo "::error::No ENV_ secrets or variables found"; exit 1; }
           if [ -f .env.local ]; then mv .env.local backups/env.local.bak; fi
           mv .env.local.new .env.local
 
