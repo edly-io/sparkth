@@ -262,16 +262,16 @@ To set up the VM, starting from a working stack as described above:
 The deploy rewrites `.env.local` from every `dev` environment secret and variable named
 `ENV_<NAME>`, writing each as `<NAME>`; the prefix keeps CI tokens and organization secrets
 off the VM. Keep sensitive values in secrets and readable ones (`FRONTEND_BASE_URL`,
-`TRUSTED_PROXY_HOPS`, the `*_REDIRECT_URI` values) in variables, and never set one name as
-both. The deploy aborts, leaving the running stack untouched, when one of `SECRET_KEY`,
-`ENCRYPTION_KEY`, `POSTGRES_PASSWORD`, `DATABASE_URL`, `ANALYTICS_DATABASE_URL` or
-`REDIS_URL` is missing, or when a value holds a single quote or a newline. The previous file
-is kept as `backups/env.local.bak`.
+`TRUSTED_PROXY_HOPS`, the `*_REDIRECT_URI` values) in variables; a name set as both takes
+the variable's value. Values are written single-quoted, so compose reads `$` and `#`
+literally, and must not contain a single quote. Nothing checks for missing entries: a name
+left out falls back to its `.env` default. The previous file is kept as
+`backups/env.local.bak`.
 
 Editing an entry takes effect on the next deploy, so start one by hand after a change. Edits
 made on the VM, to `.env.local` or to tracked files in the checkout, are discarded by the
 next deploy. Changing `POSTGRES_PASSWORD` does not change the password of an existing
-database. The VM needs `python3` (3.9 or later) to render the file. Only this workflow
+database. The VM needs `jq` to render the file. Only this workflow
 targets the `sparkth-dev` label; keep it that way, and keep approval required for outside
 contributors' workflow runs, because this repository is public.
 
