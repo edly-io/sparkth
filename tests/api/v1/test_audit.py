@@ -3,6 +3,7 @@ listing, the categories it can be filtered by, and a streamed CSV / JSON Lines e
 all gated by ``audit.read``.
 Authored with LLM (Claude) assistance."""
 
+import codecs
 import csv
 import io
 import json
@@ -123,6 +124,20 @@ async def test_rejects_a_range_that_ends_before_it_starts(
     )
 
     assert response.status_code == 422
+    (error,) = response.json()["detail"]
+    assert (error["type"], error["msg"]) == ("range_reversed", "'from' must not be after 'to'")
+
+
+@pytest.mark.parametrize("path", ["/api/v1/audit/events", "/api/v1/audit/events/export"])
+@pytest.mark.parametrize("actor_id", ["abc", "0", "-7", "7.5", "07"])
+async def test_rejects_an_actor_id_that_is_not_a_user_id(
+    client: AsyncClient, session: AsyncSession, current_user: User, path: str, actor_id: str
+) -> None:
+    await _grant(session, current_user)
+
+    response = await client.get(path, params={"actor_id": actor_id})
+
+    assert response.status_code == 422
 
 
 async def test_an_event_shows_every_column_but_the_sealed_bytes(
@@ -159,7 +174,7 @@ async def test_exports_csv_and_records_the_export(
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/csv")
     assert "attachment" in response.headers["content-disposition"]
-    rows = list(csv.DictReader(io.StringIO(response.text)))
+    rows = list(csv.DictReader(io.StringIO(response.content.decode("utf-8-sig"))))
     assert [r["actor_label"] for r in rows] == ["bob", "alice"]
 
     exported = (await audit_events())[-1]
@@ -178,8 +193,24 @@ async def test_csv_export_neutralizes_formula_cells(
 
     response = await client.get("/api/v1/audit/events/export", params={"action": "login"})
 
-    rows = list(csv.DictReader(io.StringIO(response.text, newline="")))
+    rows = list(csv.DictReader(io.StringIO(response.content.decode("utf-8-sig"), newline="")))
     assert [r["actor_label"] for r in rows] == ["'" + label]
+
+
+async def test_csv_export_starts_with_a_utf8_bom(
+    client: AsyncClient, session: AsyncSession, current_user: User
+) -> None:
+    await _grant(session, current_user)
+    await record_event(session, LoginAuditEvent(outcome=AuditOutcome.SUCCESS, actor=UserActor(id="9", label="José")))
+    await session.commit()
+
+    response = await client.get("/api/v1/audit/events/export", params={"action": "login"})
+
+    assert response.headers["content-type"] == "text/csv; charset=utf-8"
+    assert response.content.startswith(codecs.BOM_UTF8)
+    rows = list(csv.DictReader(io.StringIO(response.content.decode("utf-8-sig"))))
+    assert list(rows[0])[0] == "id"
+    assert [r["actor_label"] for r in rows] == ["José"]
 
 
 async def test_exports_json_lines(client: AsyncClient, session: AsyncSession, current_user: User) -> None:
@@ -189,6 +220,7 @@ async def test_exports_json_lines(client: AsyncClient, session: AsyncSession, cu
     response = await client.get("/api/v1/audit/events/export", params={"format": "jsonl", "actor_id": "7"})
 
     assert response.status_code == 200
+    assert not response.content.startswith(codecs.BOM_UTF8)
     lines = [json.loads(line) for line in response.text.splitlines()]
     assert [line["action"] for line in lines] == ["entry_added", "login"]
 
