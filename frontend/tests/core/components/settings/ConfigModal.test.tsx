@@ -1,8 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
-import { PluginConfigModal } from "@/components/settings/ConfigModal";
+import { PluginConfigModal } from "@/core/components/settings/ConfigModal";
 import type { UserPluginState } from "@/core/plugins/types";
+import type { ConfigWidgetProps } from "@/lib/settings/slots";
+import type { ComponentType } from "react";
 
 const OPENEDX_SCHEMA = {
   title: "OpenEdxConfig",
@@ -16,7 +18,11 @@ const OPENEDX_SCHEMA = {
   required: ["lms_url", "lms_username", "lms_password"],
 };
 
-function renderModal(plugin: Partial<UserPluginState>, onSave = vi.fn(async () => {})) {
+function renderModal(
+  plugin: Partial<UserPluginState>,
+  onSave = vi.fn(async () => {}),
+  controls?: Record<string, ComponentType<ConfigWidgetProps>>,
+) {
   render(
     <PluginConfigModal
       plugin={{
@@ -34,6 +40,7 @@ function renderModal(plugin: Partial<UserPluginState>, onSave = vi.fn(async () =
       onOpenChange={vi.fn()}
       onSave={onSave}
       onRefresh={vi.fn()}
+      controls={controls}
     />,
   );
   return onSave;
@@ -176,5 +183,34 @@ describe("PluginConfigModal", () => {
     fireEvent.click(screen.getByRole("button", { name: /Save/ }));
 
     expect(await screen.findByText(/Failed to save configuration/)).toBeDefined();
+  });
+});
+
+const PICKER_SCHEMA = {
+  type: "object",
+  properties: { picks: { title: "Picks", type: "string", widget: "example-picker" } },
+};
+
+function ExamplePicker({ field }: ConfigWidgetProps) {
+  return <p>Example picker for {field.label}</p>;
+}
+
+describe("PluginConfigModal field controls", () => {
+  it("renders the control passed for a field that names it", () => {
+    renderModal(
+      { config_schema: PICKER_SCHEMA },
+      vi.fn(async () => {}),
+      {
+        "example-picker": ExamplePicker,
+      },
+    );
+
+    expect(screen.getByText("Example picker for Picks")).toBeDefined();
+  });
+
+  it("renders a text input for a control nobody passed", () => {
+    renderModal({ config_schema: PICKER_SCHEMA });
+
+    expect(screen.getByLabelText("Picks").getAttribute("type")).toBe("text");
   });
 });

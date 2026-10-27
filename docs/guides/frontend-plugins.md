@@ -95,7 +95,6 @@ A `PluginDefinition` holds only what the frontend alone can own:
 
 - `name` – unique plugin identifier (must match folder and route, **and** the backend plugin's declared name (see "Plugin Names" in the [backend plugin development guide](plugins.md)), so the UI resolves to the right backend plugin)
 - `loadComponent` – lazy-loaded UI component
-- `loadSettingsComponent` (optional) – custom settings modal
 
 The display name, description, icon, and sidebar entry are **declared by the
 backend plugin** through the frontend metadata hooks (`DISPLAY_INFO`,
@@ -346,6 +345,53 @@ export const EXAMPLE_ICONS: NamedSlot<{ name: string; component: ComponentType }
 setNamedSlotItems(EXAMPLE_ICONS, "example-plugin", [{ name: "example-brand", component: ExampleBrandIcon }]);
 const Icon = namedSlotItem(EXAMPLE_ICONS, "example-brand")?.component;
 ```
+
+## Settings
+
+The **Settings** page lists the row each plugin sets in the `SETTINGS_ITEMS` slot
+(`@/lib/settings/slots`), in plugin-name order, for every plugin the user-plugins API returns. The page passes each row
+its plugin's state and the actions to turn it on or off, and knows nothing about any plugin. A backend plugin whose
+frontend part sets no row does not appear on the page, so every backend plugin needs a frontend part that sets one.
+
+A row is a `listItem` component and, when the plugin has config, a `loadConfigModal` that loads the modal editing it.
+Core ships both: `SettingsListItem` (`@/lib/components/settings/SettingsListItem`) shows the plugin's name,
+description and on/off switch, and the config modal (`@/lib/components/settings/ConfigModal`) builds its form from the
+config class the backend plugin declares. Set the row from the plugin's `settings.ts`, under the backend plugin's
+name, and import that file from the plugin's `index.ts` (`import "./settings";`):
+
+```ts
+// plugins/example-plugin/settings.ts
+import { SettingsListItem } from "@/lib/components/settings/SettingsListItem";
+import { SETTINGS_ITEMS } from "@/lib/settings/slots";
+
+SETTINGS_ITEMS.set("example-plugin", [
+  { listItem: SettingsListItem, loadConfigModal: () => import("@/lib/components/settings/ConfigModal") },
+]);
+```
+
+The row shows its configure button only while the plugin's backend config declares fields, so pass the shared modal
+even when the config has no fields yet: adding or removing fields on the backend then needs no frontend change.
+
+**Field controls.** A backend field picks its control with a `widget` hint (`sparkth/core/plugins/widgets.py`), and a
+field with no hint gets a control from its type. Core ships controls for text, URLs, passwords, numbers, text areas,
+checkboxes and LLM configs. When a field needs a control core doesn't ship, the plugin ships its own config modal that
+passes the control to core's modal under the hint's name. The control receives `ConfigWidgetProps`
+(`@/lib/settings/slots`):
+
+```tsx
+import PluginConfigModal from "@/lib/components/settings/ConfigModal";
+import type { ConfigModalProps } from "@/lib/settings/slots";
+import ExamplePicker from "./components/ExamplePicker";
+
+const CONTROLS = { "example-picker": ExamplePicker };
+
+export default function ExampleConfigModal(props: ConfigModalProps) {
+  return <PluginConfigModal {...props} controls={CONTROLS} />;
+}
+```
+
+The plugin's row then loads that modal: `loadConfigModal: () => import("./ExampleConfigModal")`. Core's modal renders a
+field with the plugin's control for its hint, then with a built-in control, and falls back to a text input.
 
 ## Plugin Loading Flow (Summary)
 

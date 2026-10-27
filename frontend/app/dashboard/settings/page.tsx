@@ -1,19 +1,11 @@
 "use client";
 
-import PluginListItem from "@/components/settings/ListItem";
+import { SettingsList } from "@/core/components/settings/SettingsList";
 import { usePluginContext } from "@/core/plugins/context";
 import { Spinner } from "@/core/components/ui/Spinner";
 
 export default function PluginsSettings() {
-  const {
-    userPlugins: plugins,
-    loading,
-    error,
-    refreshPlugins,
-    enablePlugin,
-    disablePlugin,
-    updatePluginConfig,
-  } = usePluginContext();
+  const { loading, error } = usePluginContext();
 
   if (loading) {
     return (
@@ -44,25 +36,7 @@ export default function PluginsSettings() {
           </p>
         </div>
 
-        {plugins.length > 0 ? (
-          <div className="bg-card rounded-lg shadow-sm overflow-hidden border border-border">
-            {plugins.map((plugin, index) => (
-              <PluginListItem
-                key={plugin.plugin_name}
-                plugin={plugin}
-                isLast={index === plugins.length - 1}
-                onEnable={() => enablePlugin(plugin.plugin_name)}
-                onDisable={() => disablePlugin(plugin.plugin_name)}
-                onConfigChange={(config) => updatePluginConfig(plugin.plugin_name, config)}
-                onRefresh={refreshPlugins}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="bg-card rounded-lg shadow-sm p-12 text-center border border-border">
-            <p className="text-muted-foreground">No plugins found</p>
-          </div>
-        )}
+        <SettingsList />
       </div>
     </div>
   );

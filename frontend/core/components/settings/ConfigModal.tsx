@@ -1,18 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { ComponentType, useCallback, useEffect, useMemo, useState } from "react";
 import { Save } from "lucide-react";
 
 import { displayNameOf } from "@/core/plugins/metadata";
-import type { UserPluginState } from "@/core/plugins/types";
+import type { ConfigModalProps, ConfigWidgetProps } from "@/lib/settings/slots";
 import {
   configFieldsOf,
   initialValuesOf,
   payloadOf,
   validateField,
   validateFields,
-} from "@/core/plugins/schema";
-import { getConfigWidget } from "./widgets";
+} from "./schema";
+import { configWidgetFor } from "./widgets";
 import { Button } from "@/core/components/ui/Button";
 import { Alert } from "@/components/ui/Alert";
 import {
@@ -23,19 +23,17 @@ import {
   DialogFooter,
 } from "@/components/ui/Dialog";
 
-interface PluginConfigModalProps {
-  plugin: UserPluginState;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSave: (config: Record<string, unknown>) => Promise<void>;
-  onRefresh: () => void;
+interface PluginConfigModalProps extends ConfigModalProps {
+  /** The plugin's own controls, by the `widget` hint name a backend field uses. */
+  controls?: Record<string, ComponentType<ConfigWidgetProps>>;
 }
 
 /**
  * The settings form for any plugin, built from the config schema it declared.
  *
  * Every field, its control, its validation and the types it saves come from the
- * backend's `config_schema`, so a plugin needs no frontend code to be configurable.
+ * backend's `config_schema`. A plugin passes `controls` only for a field whose control
+ * core doesn't ship.
  */
 export function PluginConfigModal({
   plugin,
@@ -43,6 +41,7 @@ export function PluginConfigModal({
   onOpenChange,
   onSave,
   onRefresh,
+  controls,
 }: PluginConfigModalProps) {
   const fields = useMemo(() => configFieldsOf(plugin.config_schema), [plugin.config_schema]);
 
@@ -110,7 +109,7 @@ export function PluginConfigModal({
           {fields.length > 0 ? (
             <div className="space-y-5">
               {fields.map((field) => {
-                const Widget = getConfigWidget(field.widget);
+                const Widget = configWidgetFor(field.widget, controls);
                 return (
                   <Widget
                     key={field.name}
