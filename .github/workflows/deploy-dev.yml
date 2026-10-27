@@ -51,9 +51,11 @@ jobs:
         run: |
           umask 077
           mkdir -p backups
-          jq -rn --argjson s "$SECRETS_JSON" --argjson v "$VARS_JSON" \
-            '$s + $v | to_entries[] | select(.key | startswith("ENV_")) | "\(.key[4:])=\(.value | @sh)"' \
-            > .env.local.new
+          jq -rn --argjson s "$SECRETS_JSON" --argjson v "$VARS_JSON" '
+            $s + $v | to_entries[] | select(.key | startswith("ENV_"))
+            | if (.value | contains("\u0027")) then error("\(.key) contains a single quote")
+              else "\(.key[4:])=\(.value | @sh)" end
+          ' > .env.local.new
           [ -s .env.local.new ] || { echo "::error::No ENV_ secrets or variables found"; exit 1; }
           if [ -f .env.local ]; then mv .env.local backups/env.local.bak; fi
           mv .env.local.new .env.local
