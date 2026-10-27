@@ -275,6 +275,78 @@ In component tests, pass the plugin catalog to the intl helper:
 `renderWithIntl(<ExamplePlugin />, exampleEn)`. See the
 [translations guide](translations.md#plugin-catalogs) for the full picture.
 
+## Slots (Optional)
+
+A plugin contributes to a core screen, or to another plugin, through a **slot**. A slot is the frontend counterpart
+of a backend hook, such as the one behind [chat capabilities](plugins.md#chat-capabilities). It is called a slot
+so it is not confused with a React hook.
+
+A slot keeps each plugin's items under the plugin's name. The code that reads the slot decides which plugins'
+items to show, for example only the plugins the user has turned on. Slots are defined in `lib`, the way
+backend hooks are defined in `sparkth/lib/`, so core and plugins import a slot from the same path and no plugin
+imports another.
+
+**1. Declare the slot** in `lib/<area>/slots.ts`, with the type of item it holds:
+
+```ts
+import type { ComponentType } from "react";
+import type { Slot } from "@/lib/slots";
+
+export interface ExampleSection {
+  title: string;
+  loadComponent: () => Promise<{ default: ComponentType }>;
+}
+
+export const EXAMPLE_SECTIONS: Slot<ExampleSection> = new Map();
+```
+
+**2. Set the plugin's items** from a file of the plugin's own, named for what it contributes, all in one call under
+the plugin's name. Setting them again replaces them, so the dev server's hot reload, which runs the file again, adds
+nothing twice:
+
+```ts
+// plugins/example-plugin/sections.ts
+import { EXAMPLE_SECTIONS } from "@/lib/example/slots";
+
+EXAMPLE_SECTIONS.set("example-plugin", [
+  { title: "Example", loadComponent: () => import("./ExampleSection") },
+]);
+```
+
+A file runs only when something imports it, so the plugin's `index.ts` imports it, and the file runs when
+`app/plugins.ts` imports the plugin:
+
+```ts
+// plugins/example-plugin/index.ts
+import "./sections";
+```
+
+**3. Core reads the slot** where its items are rendered. `slotItems` returns each item with the plugin that set
+it, ordered by plugin name, and leaves the filtering to the reader:
+
+```ts
+import { slotItems } from "@/lib/slots";
+import { usePluginContext } from "@/core/plugins/context";
+
+const { isPluginEnabled } = usePluginContext();
+const sections = slotItems(EXAMPLE_SECTIONS)
+  .filter(([plugin]) => isPluginEnabled(plugin))
+  .map(([, section]) => section);
+```
+
+**Named slots.** When readers look up one item by name, such as an icon, declare a `NamedSlot` instead. A plugin
+sets its items with `setNamedSlotItems`, which throws when another plugin already set an item of the same name, so
+two plugins cannot claim one name. Readers find an item with `namedSlotItem`:
+
+```ts
+import { namedSlotItem, setNamedSlotItems, type NamedSlot } from "@/lib/slots";
+
+export const EXAMPLE_ICONS: NamedSlot<{ name: string; component: ComponentType }> = new Map();
+
+setNamedSlotItems(EXAMPLE_ICONS, "example-plugin", [{ name: "example-brand", component: ExampleBrandIcon }]);
+const Icon = namedSlotItem(EXAMPLE_ICONS, "example-brand")?.component;
+```
+
 ## Plugin Loading Flow (Summary)
 
 ```
