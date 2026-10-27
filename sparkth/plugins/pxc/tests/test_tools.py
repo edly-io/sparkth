@@ -51,6 +51,9 @@ from sparkth.plugins.pxc.tools import (
     pxc_update_activity,
 )
 
+# Builds here repeat the same sources, so a source compiles once per session.
+pytestmark = pytest.mark.usefixtures("reused_compiles")
+
 
 async def test_about_carries_the_contract_rules() -> None:
     about = (await pxc_about())["about"]

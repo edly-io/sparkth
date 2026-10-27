@@ -8,7 +8,7 @@ it in your LMS.
 You need:
 
 - an [AI key](ai-keys.md);
-- Compose turned on in [My Plugins](plugins.md), with that key selected in its configuration;
+- Compose turned on in [Settings](plugins.md), with that key selected in its configuration;
 - to build the course in an LMS, that LMS's plugin configured: see
   [Publish to your LMS](publish-to-lms.md).
 
