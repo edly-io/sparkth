@@ -64,6 +64,34 @@ jobs:
       - name: Install the project
         run: make backend.install.dev.requirements
 
+      # Single high-level target so a CI failure reproduces locally with
+      # exactly `make test.backend` (lint + mypy + pytest + format check).
+      # The default suite runs on SQLite; TimescaleDB-only tests (the `pg` marker)
+      # are skipped here and covered by the analytics-timescale job below, and the
+      # tests that need the built PXC sample (the `wasm` marker) run in the
+      # pxc-sandbox job, in parallel with this one.
+      - name: Run backend tests
+        run: make test.backend ARGS='-m "not wasm"'
+
+  # The tests that compile and run PXC sandboxes: the slowest part of the suite,
+  # split out so they run alongside the backend job instead of after it.
+  pxc-sandbox:
+    name: PXC Sandbox Tests
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+
+      - name: Install the project
+        run: make backend.install.dev.requirements
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -71,15 +99,9 @@ jobs:
           cache: 'npm'
           cache-dependency-path: sparkth/plugins/pxc/builder/toolchain/package-lock.json
 
-      - name: Build the PXC sample activity
-        run: make pxc.activities.build
-
-      # Single high-level target so a CI failure reproduces locally with
-      # exactly `make test.backend` (lint + mypy + pytest + format check).
-      # The default suite runs on SQLite; TimescaleDB-only tests (the `pg` marker)
-      # are skipped here and covered by the analytics-timescale job below.
-      - name: Run backend tests
-        run: make test.backend
+      # Builds the PXC sample activity first, then runs the `wasm` tests.
+      - name: Run PXC sandbox tests
+        run: make test.backend.wasm
 
   # Always run the TimescaleDB lane.
   analytics-timescale:

@@ -1,6 +1,6 @@
 from pydantic import Field, HttpUrl
 
-from sparkth.lib.plugins import ConfigWidget, PluginConfig, widget
+from sparkth.lib.plugins import PluginConfig, secret
 
 
 class OpenEdxConfig(PluginConfig):
@@ -11,5 +11,5 @@ class OpenEdxConfig(PluginConfig):
         ...,
         description="Password for the Open edX instance",
         min_length=1,
-        json_schema_extra=widget(ConfigWidget.PASSWORD),
+        json_schema_extra=secret(),
     )

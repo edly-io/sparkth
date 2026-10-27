@@ -18,6 +18,9 @@ from sparkth.plugins.pxc.scratch.schemas import ScratchStep
 from sparkth.plugins.pxc.scratch.steps import read_scratch_state, run_scratch, run_step
 from sparkth.plugins.pxc.tests.conftest import AUTHORED_MANIFEST, THROWN_TEXT, compiled_activity, unrunnable_activity
 
+# Builds here repeat the same sources, so a source compiles once per session.
+pytestmark = pytest.mark.usefixtures("reused_compiles")
+
 MCQ = activity_dir("mcq")
 SAVE = ScratchStep(
     action="config.save",

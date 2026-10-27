@@ -44,8 +44,8 @@ class PxcSettings(BaseSettings):
     # The directory holding compile.mjs and the node_modules it compiles an author's activity with.
     toolchain_dir: Path = Path("./sparkth/plugins/pxc/builder/toolchain")
 
-    # How long each step of an activity build (the compile, then the smoke test) may run.
-    build_timeout_seconds: int = 120
+    # How long each step of an activity build (the compile, then the smoke test) may run, in seconds.
+    build_timeout_seconds: float = 120
 
     # How many activity builds may run at once in this process. Each compile peaks near 600 MB.
     # TODO: move activity builds to a dedicated worker container to make this scale.
