@@ -59,6 +59,12 @@ message tells the model to send the user to the Settings page.
 
 An LMS plugin should also ship a zero-argument `<prefix>about` tool (e.g. `mylms_about`) returning `{"about": <text>}` that explains the LMS's course structure, its vocabulary, and what "publish" means there, with the text kept in the plugin's `assets/about.txt`. LMSs use the same words for different things (Canvas "publish" makes content visible; Moodle has no publish step), so the chat LLM reads this before acting. See `canvas_about`, `openedx_about` and `moodle_about`.
 
+### Secret fields
+
+Mark a credential with `json_schema_extra=secret()`, or `secret(ConfigWidget.TEXTAREA)` for a multi-line one.
+Sparkth stores every user's plugin config encrypted, and the `user-plugins` API never returns a secret field: it
+lists the stored ones in `secrets_set` instead. The settings form shows a stored secret as dots with a **Replace**
+action, and a save that leaves it out keeps the stored value.
 
 ## Register the plugin configuration class
 

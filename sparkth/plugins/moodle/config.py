@@ -1,6 +1,6 @@
 from pydantic import Field, HttpUrl
 
-from sparkth.lib.plugins import ConfigWidget, PluginConfig, widget
+from sparkth.lib.plugins import PluginConfig, secret
 
 
 class MoodleConfig(PluginConfig):
@@ -9,5 +9,5 @@ class MoodleConfig(PluginConfig):
         ...,
         description="Moodle API key",
         min_length=1,
-        json_schema_extra=widget(ConfigWidget.PASSWORD),
+        json_schema_extra=secret(),
     )
