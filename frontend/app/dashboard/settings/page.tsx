@@ -1,10 +1,12 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import PluginListItem from "@/components/settings/ListItem";
+import { SettingsList, SettingsPage } from "@/components/settings/SettingsPage";
 import { usePluginContext } from "@/core/plugins/context";
-import { Spinner } from "@/core/components/ui/Spinner";
 
 export default function PluginsSettings() {
+  const t = useTranslations("plugins");
   const {
     userPlugins: plugins,
     loading,
@@ -15,55 +17,26 @@ export default function PluginsSettings() {
     updatePluginConfig,
   } = usePluginContext();
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <div className="text-center">
-          <Spinner className="mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading plugins...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-8 text-center text-error-600 dark:text-error-400 bg-background min-h-screen">
-        Failed to load plugins: {error}
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-background transition-colors">
-      <div className="mx-auto px-4 py-4 sm:py-8 sm:px-6 lg:px-8">
-        <div className="mb-6 sm:mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">My Plugins</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            View all your installed plugins in one place.
-          </p>
-        </div>
-
-        {plugins.length > 0 ? (
-          <div className="bg-card rounded-lg shadow-sm overflow-hidden border border-border">
-            {plugins.map((plugin, index) => (
-              <PluginListItem
-                key={plugin.plugin_name}
-                plugin={plugin}
-                isLast={index === plugins.length - 1}
-                onEnable={() => enablePlugin(plugin.plugin_name)}
-                onDisable={() => disablePlugin(plugin.plugin_name)}
-                onConfigChange={(config) => updatePluginConfig(plugin.plugin_name, config)}
-                onRefresh={refreshPlugins}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="bg-card rounded-lg shadow-sm p-12 text-center border border-border">
-            <p className="text-muted-foreground">No plugins found</p>
-          </div>
-        )}
-      </div>
-    </div>
+    <SettingsPage
+      title={t("title")}
+      subtitle={t("subtitle")}
+      loading={loading}
+      loadingLabel={t("loading")}
+      error={error ? t("loadError", { error }) : null}
+    >
+      <SettingsList empty={<p className="text-muted-foreground">{t("empty")}</p>}>
+        {plugins.map((plugin) => (
+          <PluginListItem
+            key={plugin.plugin_name}
+            plugin={plugin}
+            onEnable={() => enablePlugin(plugin.plugin_name)}
+            onDisable={() => disablePlugin(plugin.plugin_name)}
+            onConfigChange={(config) => updatePluginConfig(plugin.plugin_name, config)}
+            onRefresh={refreshPlugins}
+          />
+        ))}
+      </SettingsList>
+    </SettingsPage>
   );
 }

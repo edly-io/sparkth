@@ -140,6 +140,11 @@ isolation because `refresh_continuous_aggregate` cannot run inside a transaction
 migrating they pause the aggregates' refresh policies (whose first run would otherwise overlap a
 test's refresh and fail it with `LockNotAvailableError`), so the tests are the only refresher.
 
+**PXC sandbox lane.** Tests that compile or run a PXC sandbox carry the `wasm` marker. They need the built
+sample activity and its toolchain, so they skip on a clean checkout. Run them with `make test.backend.wasm` (it
+builds the sample first). In CI they run in the `pxc-sandbox` job, in parallel with the backend job, which runs
+everything else with `-m "not wasm"`.
+
 ## Database Migrations
 
 **Never edit an existing migration file. No exceptions.**

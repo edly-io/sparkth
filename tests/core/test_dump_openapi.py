@@ -5,6 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "dump_openapi.py"
 
@@ -26,15 +28,20 @@ def _run_dump() -> str:
     return result.stdout
 
 
-def test_dump_outputs_full_schema_offline() -> None:
-    schema = json.loads(_run_dump())
+@pytest.fixture(scope="module")
+def dumps() -> tuple[str, str]:
+    """The script's stdout from two separate processes: one to check, one to compare it with."""
+    return _run_dump(), _run_dump()
+
+
+def test_dump_outputs_full_schema_offline(dumps: tuple[str, str]) -> None:
+    schema = json.loads(dumps[0])
     assert schema["openapi"].startswith("3.")
     for path in PLUGIN_SENTINEL_PATHS:
         assert path in schema["paths"]
 
 
-def test_dump_output_is_deterministic_and_sorted() -> None:
-    out = _run_dump()
-    assert out == _run_dump()
-    schema = json.loads(out)
-    assert out == json.dumps(schema, indent=2, sort_keys=True) + "\n"
+def test_dump_output_is_deterministic_and_sorted(dumps: tuple[str, str]) -> None:
+    out, again = dumps
+    assert out == again
+    assert out == json.dumps(json.loads(out), indent=2, sort_keys=True) + "\n"

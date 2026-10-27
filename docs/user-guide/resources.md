@@ -4,7 +4,7 @@
 them as source material. See [Supported integrations](index.md#supported-integrations) for the
 drives Sparkth connects to.
 
-Until you turn on a drive plugin in [My Plugins](plugins.md), the page shows
+Until you turn on a drive plugin in [Settings](plugins.md), the page shows
 "No plugins connected".
 
 ## Connect your drive

@@ -27,6 +27,9 @@ from sparkth.plugins.pxc.tests.conftest import (
 )
 from sparkth.plugins.pxc.tokens import LaunchClaims
 
+# Builds here repeat the same sources, so a source compiles once per session.
+pytestmark = pytest.mark.usefixtures("reused_compiles")
+
 CLAIMS = LaunchClaims("mcq", "instance-1", "course-1", "learner-7", Permission.play)
 EDIT_CLAIMS = LaunchClaims("mcq", "instance-1", "course-1", "learner-7", Permission.edit)
 
