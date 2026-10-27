@@ -22,7 +22,7 @@ describe("frontend plugin registry vs backend declarations", () => {
 
   it("sets a settings row for every plugin", () => {
     expect([...SETTINGS_ITEMS.keys()]).toEqual(
-      expect.arrayContaining(["chat", "google-drive", "pxc", "slack"]),
+      expect.arrayContaining(["canvas", "chat", "google-drive", "pxc", "slack"]),
     );
   });
 });
