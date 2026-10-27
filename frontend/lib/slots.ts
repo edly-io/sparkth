@@ -9,15 +9,18 @@
 export type Slot<T> = Map<string, T[]>;
 
 /** Every item in `slot` with the plugin that set it, ordered by plugin name. */
-export function slotItems<T>(slot: Slot<T>): [plugin: string, item: T][] {
+export function slotItems<T>(slot: ReadonlyMap<string, T[]>): [plugin: string, item: T][] {
   const plugins = [...slot.keys()].sort();
   return plugins.flatMap((plugin) =>
     (slot.get(plugin) ?? []).map((item): [string, T] => [plugin, item]),
   );
 }
 
-/** A slot whose readers look one item up by its `name`, such as an icon. */
-export type NamedSlot<T extends { name: string }> = Slot<T>;
+/**
+ * A slot whose readers look one item up by its `name`, such as an icon. Declare one as `new Map()`.
+ * It is read-only, so a plugin sets its items only through `setNamedSlotItems`, which checks their names.
+ */
+export type NamedSlot<T extends { name: string }> = ReadonlyMap<string, T[]>;
 
 /** Set `plugin`'s items in `slot`. Throws when another plugin already set an item of one of their names. */
 export function setNamedSlotItems<T extends { name: string }>(
@@ -28,7 +31,7 @@ export function setNamedSlotItems<T extends { name: string }>(
   const names = new Set(items.map((item) => item.name));
   const clash = slotItems(slot).find(([owner, item]) => owner !== plugin && names.has(item.name));
   if (clash) throw new Error(`The slot item "${clash[1].name}" is already set by "${clash[0]}"`);
-  slot.set(plugin, items);
+  (slot as Slot<T>).set(plugin, items);
 }
 
 /**
