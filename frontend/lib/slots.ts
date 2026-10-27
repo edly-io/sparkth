@@ -31,7 +31,10 @@ export function setNamedSlotItems<T extends { name: string }>(
   slot.set(plugin, items);
 }
 
-/** The item named `name` in `slot`, whichever plugin set it. */
+/**
+ * The item named `name` in `slot`, whichever plugin set it and whether or not that plugin is enabled.
+ * The reader decides which plugins to show before it looks an item up.
+ */
 export function namedSlotItem<T extends { name: string }>(
   slot: NamedSlot<T>,
   name: string,

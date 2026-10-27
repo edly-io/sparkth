@@ -336,7 +336,8 @@ const sections = slotItems(EXAMPLE_SECTIONS)
 
 **Named slots.** When readers look up one item by name, such as an icon, declare a `NamedSlot` instead. A plugin
 sets its items with `setNamedSlotItems`, which throws when another plugin already set an item of the same name, so
-two plugins cannot claim one name. Readers find an item with `namedSlotItem`:
+two plugins cannot claim one name. Readers find an item with `namedSlotItem`, which returns it whether or not the
+plugin that set it is enabled, so a reader looks up items only for the plugins it already chose to show:
 
 ```ts
 import { namedSlotItem, setNamedSlotItems, type NamedSlot } from "@/lib/slots";
