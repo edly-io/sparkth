@@ -1,13 +1,14 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 
-import { SettingsList } from "@/core/components/settings/SettingsList";
+import { PluginSettingsList } from "@/core/components/settings/PluginSettingsList";
 import type { UserPluginState } from "@/core/plugins/types";
 import {
   SETTINGS_ITEMS,
   type ConfigModalProps,
   type SettingsListItemProps,
 } from "@/lib/settings/slots";
+import { renderWithIntl } from "@/tests/intl-test-utils";
 
 const context = vi.hoisted(() => ({
   userPlugins: [] as UserPluginState[],
@@ -31,6 +32,7 @@ function state(pluginName: string): UserPluginState {
     display: null,
     sidebar: null,
     has_frontend: false,
+    secrets_set: [],
   };
 }
 
@@ -56,7 +58,7 @@ function ExampleModal({ plugin, open }: ConfigModalProps) {
   return open ? <p>Modal for {plugin.plugin_name}</p> : null;
 }
 
-describe("SettingsList", () => {
+describe("PluginSettingsList", () => {
   afterEach(() => {
     SETTINGS_ITEMS.clear();
     context.userPlugins = [];
@@ -67,7 +69,7 @@ describe("SettingsList", () => {
     SETTINGS_ITEMS.set("example", [{ listItem: ExampleRow }]);
     context.userPlugins = [state("example")];
 
-    render(<SettingsList />);
+    renderWithIntl(<PluginSettingsList />);
 
     expect(screen.getByText("Row for example")).toBeDefined();
   });
@@ -75,7 +77,7 @@ describe("SettingsList", () => {
   it("leaves out a row whose plugin the API did not return", () => {
     SETTINGS_ITEMS.set("missing", [{ listItem: ExampleRow }]);
 
-    render(<SettingsList />);
+    renderWithIntl(<PluginSettingsList />);
 
     expect(screen.queryByText("Row for missing")).toBeNull();
     expect(screen.getByText("No plugins found")).toBeDefined();
@@ -85,7 +87,7 @@ describe("SettingsList", () => {
     SETTINGS_ITEMS.set("example", [{ listItem: ExampleRow }]);
     context.userPlugins = [state("example")];
 
-    render(<SettingsList />);
+    renderWithIntl(<PluginSettingsList />);
     fireEvent.click(screen.getByRole("button", { name: "Enable" }));
 
     expect(context.enablePlugin).toHaveBeenCalledWith("example");
@@ -95,7 +97,7 @@ describe("SettingsList", () => {
     SETTINGS_ITEMS.set("example", [{ listItem: ExampleRow }]);
     context.userPlugins = [state("example")];
 
-    render(<SettingsList />);
+    renderWithIntl(<PluginSettingsList />);
 
     expect(screen.getByText("No configure")).toBeDefined();
   });
@@ -106,7 +108,7 @@ describe("SettingsList", () => {
     ]);
     context.userPlugins = [state("example")];
 
-    render(<SettingsList />);
+    renderWithIntl(<PluginSettingsList />);
 
     expect(screen.getByText("No configure")).toBeDefined();
   });
@@ -117,7 +119,7 @@ describe("SettingsList", () => {
     ]);
     context.userPlugins = [configurable("example")];
 
-    render(<SettingsList />);
+    renderWithIntl(<PluginSettingsList />);
     fireEvent.click(screen.getByRole("button", { name: "Configure" }));
 
     expect(await screen.findByText("Modal for example")).toBeDefined();

@@ -1,8 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 
 import SlackConfigModal from "@/plugins/slack/SlackConfigModal";
 import type { UserPluginState } from "@/core/plugins/types";
+import { renderWithIntl } from "@/tests/intl-test-utils";
 
 vi.mock("@/lib/auth/hooks", () => ({
   useAuth: () => ({ token: "test-token" }),
@@ -26,11 +27,12 @@ const SLACK: UserPluginState = {
   display: null,
   sidebar: null,
   has_frontend: true,
+  secrets_set: [],
 };
 
 describe("SlackConfigModal", () => {
   it("renders the documentation sources control for the field that hints it", async () => {
-    render(
+    renderWithIntl(
       <SlackConfigModal
         plugin={SLACK}
         open
