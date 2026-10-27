@@ -247,33 +247,13 @@ To set up the VM, starting from a working stack as described above:
 3. Create a `dev` environment under **Settings → Environments**, limited to `main`. If
    the checkout is not at `/app/sparkth`, set the `DEV_DEPLOY_DIR` repository variable.
 
-4. Load the stack's `.env.local` into the `dev` environment, each name prefixed with
-   `ENV_`, before the first deploy. From a machine where `gh` is logged in:
+4. Add the app's environment variables to the `dev` environment, as secrets or variables,
+   each name prefixed with `ENV_` (e.g. `ENV_SECRET_KEY`). The next deploy writes them to
+   `.env.local` without the prefix. The VM needs `jq`.
 
-   ```bash
-   scp <vm>:/app/sparkth/.env.local vm.env.local
-   grep -E '^[A-Za-z_][A-Za-z0-9_]*=' vm.env.local | sed 's/^/ENV_/' > dev.env
-   gh secret set --env dev -f dev.env && rm dev.env vm.env.local
-   ```
-
-   Any value the stack takes from the committed `.env` instead, such as `ENCRYPTION_KEY`,
-   must be added as `ENV_<NAME>` with that same value.
-
-The deploy rewrites `.env.local` from every `dev` environment secret and variable named
-`ENV_<NAME>`, writing each as `<NAME>`; the prefix keeps CI tokens and organization secrets
-off the VM. Keep sensitive values in secrets and readable ones (`FRONTEND_BASE_URL`,
-`TRUSTED_PROXY_HOPS`, the `*_REDIRECT_URI` values) in variables; a name set as both takes
-the variable's value. Values are written single-quoted, so compose reads `$` and `#`
-literally, and must not contain a single quote. Nothing checks for missing entries: a name
-left out falls back to its `.env` default. The previous file is kept as
-`backups/env.local.bak`.
-
-Editing an entry takes effect on the next deploy, so start one by hand after a change. Edits
-made on the VM, to `.env.local` or to tracked files in the checkout, are discarded by the
-next deploy. Changing `POSTGRES_PASSWORD` does not change the password of an existing
-database. The VM needs `jq` to render the file. Only this workflow
-targets the `sparkth-dev` label; keep it that way, and keep approval required for outside
-contributors' workflow runs, because this repository is public.
+The deploy discards edits made on the VM, to `.env.local` or to tracked files in the
+checkout. Only this workflow targets the `sparkth-dev` label; keep it that way, and keep
+approval required for outside contributors' workflow runs, because this repository is public.
 
 ## Configuration
 
