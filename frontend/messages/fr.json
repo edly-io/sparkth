@@ -149,6 +149,10 @@
     "detailsError": "Impossible de charger les détails de cet événement.",
     "loadMore": "Charger plus",
     "empty": "Aucun événement d'audit ne correspond à ces filtres.",
+    "errors": {
+      "actorIdInvalid": "L'ID utilisateur de l'acteur doit être un nombre.",
+      "rangeReversed": "L'heure de début doit être antérieure ou égale à l'heure de fin."
+    },
     "outcomes": {
       "success": "Réussite",
       "failure": "Échec",

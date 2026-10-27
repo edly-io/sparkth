@@ -149,6 +149,10 @@
     "detailsError": "No pudimos cargar los detalles de este evento.",
     "loadMore": "Cargar más",
     "empty": "Ningún evento de auditoría coincide con estos filtros.",
+    "errors": {
+      "actorIdInvalid": "El ID de usuario del actor debe ser un número.",
+      "rangeReversed": "La hora de inicio debe ser anterior o igual a la hora de fin."
+    },
     "outcomes": {
       "success": "Éxito",
       "failure": "Fallo",

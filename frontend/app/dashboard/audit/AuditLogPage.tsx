@@ -58,6 +58,18 @@ function toFilters(form: FilterForm): AuditFilters {
   return filters;
 }
 
+type FilterError = "actorIdInvalid" | "rangeReversed";
+
+// The message key for each field the API would reject, so the form can't be applied until it's fixed.
+function formErrors(form: FilterForm): Partial<Record<keyof FilterForm, FilterError>> {
+  const errors: Partial<Record<keyof FilterForm, FilterError>> = {};
+  const actorId = form.actor_id.trim();
+  if (actorId && !/^[1-9]\d*$/.test(actorId)) errors.actor_id = "actorIdInvalid";
+  // datetime-local values share one fixed format, so they order correctly as strings.
+  if (form.from && form.to && form.from > form.to) errors.to = "rangeReversed";
+  return errors;
+}
+
 function details(event: AuditEventRecord): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries(event).filter(([key, value]) => value !== null && key !== "id"),
@@ -76,12 +88,15 @@ export default function AuditLogPage() {
   const [events, setEvents] = useState<AuditEventSummary[]>([]);
   const [nextBeforeId, setNextBeforeId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [exporting, setExporting] = useState<AuditExportFormat | null>(null);
   const [error, setError] = useState("");
   const [expanded, setExpanded] = useState<number | null>(null);
   const [records, setRecords] = useState<Record<number, AuditEventRecord>>({});
   const [recordError, setRecordError] = useState<number | null>(null);
   const latestRequest = useRef(0);
+  const errors = formErrors(form);
+  const invalid = Object.keys(errors).length > 0;
 
   useEffect(() => {
     if (access !== "allowed" || !token) return;
@@ -97,6 +112,7 @@ export default function AuditLogPage() {
       // can't land on top of the current ones.
       const request = ++latestRequest.current;
       setLoading(true);
+      setLoadFailed(false);
       setError("");
       try {
         const page = await fetchAuditEvents(token, filters, beforeId);
@@ -105,6 +121,12 @@ export default function AuditLogPage() {
         setNextBeforeId(page.next_before_id ?? null);
       } catch (err) {
         if (request !== latestRequest.current) return;
+        // A failed first page drops the previous filters' rows and cursor; a failed "Load more" keeps them.
+        if (beforeId === undefined) {
+          setEvents([]);
+          setNextBeforeId(null);
+          setLoadFailed(true);
+        }
         setError(err instanceof ApiRequestError ? err.message : t("loadError"));
       } finally {
         if (request === latestRequest.current) setLoading(false);
@@ -119,6 +141,7 @@ export default function AuditLogPage() {
 
   const handleApply = (e: SubmitEvent) => {
     e.preventDefault();
+    if (invalid) return;
     setExpanded(null);
     setFilters(toFilters(form));
   };
@@ -184,11 +207,19 @@ export default function AuditLogPage() {
               className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 items-end"
             >
               <Input id="audit-from" type="datetime-local" label={t("from")} {...field("from")} />
-              <Input id="audit-to" type="datetime-local" label={t("to")} {...field("to")} />
+              <Input
+                id="audit-to"
+                type="datetime-local"
+                label={t("to")}
+                error={errors.to && t(`errors.${errors.to}`)}
+                {...field("to")}
+              />
               <Input
                 id="audit-actor"
                 label={t("actorId")}
                 placeholder={t("actorIdPlaceholder")}
+                inputMode="numeric"
+                error={errors.actor_id && t(`errors.${errors.actor_id}`)}
                 {...field("actor_id")}
               />
               <Select
@@ -222,7 +253,9 @@ export default function AuditLogPage() {
                 {...field("source")}
               />
               <div className="flex flex-wrap gap-2 sm:col-span-2 lg:col-span-3 xl:col-span-6">
-                <Button type="submit">{t("apply")}</Button>
+                <Button type="submit" disabled={invalid}>
+                  {t("apply")}
+                </Button>
                 <Button
                   type="button"
                   variant="outline"
@@ -342,7 +375,8 @@ export default function AuditLogPage() {
                 </table>
               </div>
             ) : (
-              !loading && (
+              !loading &&
+              !loadFailed && (
                 <div className="bg-card rounded-lg shadow-sm p-12 text-center border border-border">
                   <ScrollText className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
                   <p className="text-muted-foreground">{t("empty")}</p>
