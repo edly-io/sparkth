@@ -200,8 +200,8 @@ def convert_mcp_to_langchain_tool(mcp_tool: Tool) -> BaseTool:
     async def tool_func(**kwargs: Any) -> str:
         """Async wrapper for MCP tool handler.
 
-        A handler's exception propagates: the chat provider loop turns it into the
-        model-visible error and records the call as failed.
+        A handler's exception propagates: the chat agent's tool-call middleware turns it
+        into the model-visible error and records the call as failed.
         """
         logger.debug("Tool '%s' received raw args: %s", name, kwargs)
 

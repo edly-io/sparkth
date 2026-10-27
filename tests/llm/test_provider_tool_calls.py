@@ -1,6 +1,7 @@
 """How a chat turn runs the tools the model asks for: their order, a stop, the call limit and the answer."""
 
 import asyncio
+import logging
 from collections.abc import Iterator
 from functools import partial
 from typing import Any
@@ -171,3 +172,57 @@ async def test_a_provider_error_leaves_with_its_own_type(stream: bool, monkeypat
             await _events(provider, tools)
         else:
             await provider.send_message(TURN, tools=tools)
+
+
+async def test_a_streamed_turn_at_the_limit_ends_with_the_models_answer(monkeypatch: pytest.MonkeyPatch) -> None:
+    runs: list[str] = []
+    model = ScriptedChatModel(messages=iter([_calls(1, 2, 3), AIMessage("answer")]))
+    provider = _provider(model, monkeypatch, 2)
+
+    events = await _events(provider, [_record_tool(runs)])
+
+    assert events == [TOOL_START, TOOL_END, TOOL_START, TOOL_END, {"type": "token", "content": "answer"}]
+    assert runs == ["start 1", "end 1", "start 2", "end 2"]
+
+
+async def test_a_model_that_ignores_the_block_stops_at_the_model_call_cap(monkeypatch: pytest.MonkeyPatch) -> None:
+    model = ScriptedChatModel(messages=iter([_calls(1), _calls(2), _calls(3), AIMessage("never")]))
+    provider = _provider(model, monkeypatch, 1)
+
+    response = await provider.send_message(TURN, tools=[_record_tool([])])
+
+    assert response["content"] == ""
+    # One call within the limit plus two more: the fourth reply is never asked for.
+    assert next(model.messages) == AIMessage("never")
+
+
+def _provider_warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == "sparkth.llm.providers" and record.levelno == logging.WARNING
+    ]
+
+
+async def test_blocked_calls_log_that_the_tool_call_limit_was_reached(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    model = ScriptedChatModel(messages=iter([_calls(1, 2, 3), AIMessage("answer")]))
+    provider = _provider(model, monkeypatch, 2)
+
+    with caplog.at_level(logging.WARNING):
+        await provider.send_message(TURN, tools=[_record_tool([])])
+
+    assert _provider_warnings(caplog) == ["Tool call limit (2) reached; blocked 1 call(s)"]
+
+
+async def test_a_turn_ended_by_the_model_call_cap_logs_a_warning(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    model = ScriptedChatModel(messages=iter([_calls(1), _calls(2), _calls(3), AIMessage("never")]))
+    provider = _provider(model, monkeypatch, 1)
+
+    with caplog.at_level(logging.WARNING):
+        await provider.send_message(TURN, tools=[_record_tool([])])
+
+    assert _provider_warnings(caplog)[-1] == "Model call limit (3) reached; the turn ends without an answer"

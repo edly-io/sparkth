@@ -2,21 +2,54 @@ import asyncio
 import json
 import uuid
 from collections.abc import AsyncGenerator
+from functools import partial
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from langchain_core.messages import AIMessage
+from langchain_core.tools import BaseTool, StructuredTool
+from pydantic import BaseModel
 
+from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG
+from sparkth.lib.llm import get_provider
 from sparkth.lib.rag import (
     DocumentNotFoundError,
     RAGNotReadyError,
     RAGRetrievalError,
     RetrievedChunk,
 )
+from sparkth.lib.testing import ScriptedChatModel
 from sparkth.plugins.chat.analytics import StopPoint
 from sparkth.plugins.chat.routes.utils.live_turns import request_stop
 from sparkth.plugins.chat.routes.utils.stream_processor import ChatStreamProcessor
 from sparkth.plugins.chat.schemas import ChatMessage
+
+
+async def _stopping_tool(executed: list[str]) -> str:
+    """Runs, then asks for the turn to stop, as an instructor pressing Stop mid-tool would."""
+    executed.append("first")
+    request_stop("turn-7", 1)
+    return "ok"
+
+
+async def _next_tool(executed: list[str]) -> str:
+    executed.append("second")
+    return "ok"
+
+
+class _NoArguments(BaseModel):
+    pass
+
+
+def _no_argument_tool(name: str, handler: partial[Any]) -> StructuredTool:
+    return StructuredTool(
+        name=name,
+        description=f"The {name} tool.",
+        coroutine=handler,
+        args_schema=_NoArguments,
+        tags=[AUDIT_AT_HANDLER_TAG],
+    )
 
 
 def _make_processor(
@@ -24,6 +57,7 @@ def _make_processor(
     provider: Any = None,
     turn_id: str | None = None,
     user_id: int | None = None,
+    tools: list[BaseTool] | None = None,
 ) -> ChatStreamProcessor:
     conversation = MagicMock()
     conversation.id = 1
@@ -35,6 +69,7 @@ def _make_processor(
         messages=messages if messages is not None else [],
         conversation=conversation,
         service=service,
+        tools=tools,
         user_id=user_id,
         turn_id=turn_id,
     )
@@ -443,6 +478,33 @@ class TestPersistAndEmitDone:
 
 class TestStopHonoured:
     @pytest.mark.asyncio
+    async def test_a_stop_while_a_tool_runs_keeps_the_next_tool_from_running(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The real provider, not a fake: a stop pressed while the first tool runs means the
+        second tool the model asked for never starts."""
+        executed: list[str] = []
+        provider = get_provider("anthropic", "test-key", "claude-sonnet-5")
+        calls = AIMessage(
+            content="",
+            tool_calls=[{"name": "first", "args": {}, "id": "call_1"}, {"name": "second", "args": {}, "id": "call_2"}],
+        )
+        model = ScriptedChatModel(messages=iter([calls, AIMessage("never")]))
+        monkeypatch.setattr(provider, "_create_llm", lambda streaming=False, callbacks=None: model)
+        tools: list[BaseTool] = [
+            _no_argument_tool("first", partial(_stopping_tool, executed)),
+            _no_argument_tool("second", partial(_next_tool, executed)),
+        ]
+        processor = _make_processor(provider=provider, turn_id="turn-7", user_id=1, tools=tools)
+
+        payloads = [json.loads(chunk.removeprefix("data: ")) async for chunk in processor.stream()]
+
+        assert executed == ["first"]
+        done = payloads[-1]
+        assert done["stopped"] is True
+        assert done["message"]["tool_calls"] == [{"name": "first"}]
+
+    @pytest.mark.asyncio
     async def test_a_stopped_turn_runs_no_further_tools(self) -> None:
         """The stop lands between events, so the first tool completes and the second never starts."""
         executed: list[str] = []
@@ -486,7 +548,7 @@ class TestStopHonoured:
             ) -> AsyncGenerator[dict[str, Any], None]:
                 yield {"type": "tool_start", "name": "first_tool"}
                 # The stop lands here — inside the window where the real provider is
-                # awaiting `_execute_tool`, between yielding tool_start and tool_end.
+                # running the tool, between yielding tool_start and tool_end.
                 request_stop("turn-6", 1)
                 executed.append("first_tool")
                 yield {"type": "tool_end", "name": "first_tool"}

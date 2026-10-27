@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 from langchain_core.messages import AIMessage
 from langchain_core.tools import StructuredTool
+from pydantic import TypeAdapter
 
 from sparkth.lib.audit import ToolFailureKind
 from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG
@@ -23,6 +24,11 @@ async def lookup_course(course_id: int) -> dict[str, Any]:
 async def unconfigured_lms() -> dict[str, Any]:
     """Call an LMS the user has not set up."""
     raise PluginNotConfiguredError("Canvas")
+
+
+async def convert_course_id(course_id: str) -> dict[str, Any]:
+    """Look up a course whose id the handler converts itself."""
+    return {"course_id": TypeAdapter(int).validate_python(course_id)}
 
 
 def _tool(handler: Callable[..., Awaitable[dict[str, Any]]], description: str) -> StructuredTool:
@@ -52,6 +58,22 @@ async def test_invalid_arguments_are_a_validation_failure(monkeypatch: pytest.Mo
     assert execution["failure"] is ToolFailureKind.VALIDATION
 
 
+async def test_a_refused_call_logs_a_warning_naming_the_tool(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    tool = _tool(lookup_course, "Look up a course.")
+
+    with caplog.at_level(logging.DEBUG):
+        await _first_execution(tool, "lookup_course", {"course_id": "abc"}, monkeypatch)
+
+    reports = [
+        record
+        for record in caplog.records
+        if record.levelno >= logging.WARNING and "lookup_course" in record.getMessage()
+    ]
+    assert [record.levelno for record in reports] == [logging.WARNING]
+
+
 async def test_a_tool_name_that_is_not_bound_is_a_validation_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     tool = _tool(lookup_course, "Look up a course.")
 
@@ -78,3 +100,13 @@ async def test_missing_plugin_settings_log_a_warning_without_a_traceback(
     assert [record.levelno for record in reports] == [logging.WARNING]
     assert reports[0].exc_info is None
     assert all(record.levelno < logging.ERROR for record in caplog.records)
+
+
+async def test_a_validation_error_raised_inside_a_handler_is_a_validation_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = _tool(convert_course_id, "Look up a course by its id.")
+
+    execution = await _first_execution(tool, "convert_course_id", {"course_id": "abc"}, monkeypatch)
+
+    assert execution["failure"] is ToolFailureKind.VALIDATION
