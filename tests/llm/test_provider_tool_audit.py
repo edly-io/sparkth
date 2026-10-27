@@ -1,7 +1,5 @@
-"""The chat LangChain loop is an audited seam: tool calls executed inside
-``_send_message_with_tools`` / ``_stream_message_with_tools`` are recorded
-with source ``chat`` and the model identity that drove them (ADR-0002 seam
-table row two)."""
+"""Chat turns are an audited seam: each tool call is recorded with source ``chat`` and the
+model that requested it."""
 
 from typing import Any
 
@@ -11,49 +9,38 @@ from langchain_core.tools import StructuredTool
 from sqlalchemy.exc import OperationalError
 
 from sparkth.lib.audit import audited_tool
+from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG
 from sparkth.lib.audit.exceptions import AuditCaptureError
-from sparkth.lib.testing import AuditEventsFetcher
+from sparkth.lib.testing import AuditEventsFetcher, ScriptedChatModel
 from sparkth.llm.providers import AnthropicProvider, GoogleProvider, OpenAIProvider, _reported_failure
 
+MODEL_METADATA = {"model": "claude-sonnet-5-20250929"}
 
-class FakeToolCallingLLM:
-    """First call returns a tool call, second call returns a plain answer."""
 
-    def __init__(self, response_metadata: dict[str, Any] | None = None) -> None:
-        self.calls = 0
-        self.response_metadata = response_metadata or {}
-
-    def bind_tools(self, tools: list[Any]) -> "FakeToolCallingLLM":
-        return self
-
-    async def ainvoke(self, messages: list[Any]) -> AIMessage:
-        self.calls += 1
-        if self.calls == 1:
-            return AIMessage(
-                content="",
-                tool_calls=[{"name": "lookup_course", "args": {"course_id": 5}, "id": "call_1"}],
-                response_metadata=self.response_metadata,
-            )
-        return AIMessage(content="done", response_metadata=self.response_metadata)
+async def lookup_course(course_id: int) -> dict[str, Any]:
+    """Look up a course."""
+    return {"course_id": course_id}
 
 
 def _lookup_course_tool() -> StructuredTool:
-    async def lookup_course(course_id: int) -> dict[str, Any]:
-        """Look up a course."""
-        return {"course_id": course_id}
-
     return StructuredTool.from_function(
         coroutine=audited_tool(lookup_course),
         name="lookup_course",
         description="Look up a course.",
+        tags=[AUDIT_AT_HANDLER_TAG],
     )
 
 
 @pytest.fixture
 def provider(monkeypatch: pytest.MonkeyPatch) -> AnthropicProvider:
-    provider = AnthropicProvider(api_key="test-key", model="claude-sonnet-5")
-    fake_llm = FakeToolCallingLLM(response_metadata={"model": "claude-sonnet-5-20250929"})
-    monkeypatch.setattr(provider, "_create_llm", lambda streaming=False, callbacks=None: fake_llm)
+    provider = AnthropicProvider("test-key", "claude-sonnet-5")
+    call = AIMessage(
+        content="",
+        tool_calls=[{"name": "lookup_course", "args": {"course_id": 5}, "id": "call_1"}],
+        response_metadata=MODEL_METADATA,
+    )
+    model = ScriptedChatModel(messages=iter([call, AIMessage(content="done", response_metadata=MODEL_METADATA)]))
+    monkeypatch.setattr(provider, "_create_llm", lambda streaming=False, callbacks=None: model)
     return provider
 
 
@@ -98,7 +85,7 @@ async def test_stream_message_tool_calls_are_audited(
 async def test_audit_capture_outage_is_a_hard_failure_not_a_tool_error_string(
     provider: AnthropicProvider, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A fail-closed capture refusal must surface past the chat loop's broad
+    """A fail-closed capture refusal must surface past the chat turn's broad
     tool-error handling instead of degrading into a model-visible error string
     that leaves no record and no surfaced failure."""
 
