@@ -39,8 +39,10 @@ from sparkth.plugins.chat.analytics import (
     rag_search_event,
     record_turn_failed,
 )
+from sparkth.plugins.chat.config import get_chat_settings
 from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, RAG_CONTEXT_PROMPT, REFUSAL_MESSAGE
 from sparkth.plugins.chat.detached import detach
+from sparkth.plugins.chat.llm import stream_turn
 from sparkth.plugins.chat.messages import get_last_user_text
 from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.routes.utils.live_turns import register_turn, release_turn
@@ -408,18 +410,19 @@ class ChatStreamProcessor:
         """Returns None when a streaming error is handled; the error SSE and DB write are already done.
 
         The stop check reads the event *before* deciding whether to act on it. A ``tool_start``
-        is not yet in flight — the provider is suspended at that very ``yield``, before it awaits
-        the execution — so a stop pending there breaks before the event is processed at all,
+        is not yet in flight — ``stream_turn`` is suspended at that very ``yield``, before the
+        tool runs — so a stop pending there breaks before the event is processed at all,
         which is what keeps the next tool from ever starting. A ``tool_end`` or ``token``, by
-        contrast, already happened: the provider awaited (and the tool's writes already landed,
-        for a ``tool_end``) before yielding it, so that event is still recorded before breaking.
-        Either way, the loop never calls the generator again after this iteration.
+        contrast, already happened: the tool ran (and its writes already landed, for a
+        ``tool_end``) before the event was yielded, so that event is still recorded before
+        breaking. Either way, the loop never calls the generator again after this iteration.
         """
         full_response = ""
         completed_tool_calls: list[dict[str, Any]] = []
         stopped = False
+        max_tool_executions = get_chat_settings().max_tool_executions
         try:
-            async for event in self.provider.stream_message(self.messages, tools=self.tools):
+            async for event in stream_turn(self.messages, self.tools or [], self.provider, max_tool_executions):
                 stopping = self._stop_is_requested()
                 if stopping and event["type"] == "tool_start":
                     stopped = True

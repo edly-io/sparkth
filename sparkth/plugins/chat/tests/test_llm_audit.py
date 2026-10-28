@@ -11,15 +11,22 @@ from sqlalchemy.exc import OperationalError
 from sparkth.lib.audit import audited_tool
 from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG
 from sparkth.lib.audit.exceptions import AuditCaptureError
+from sparkth.lib.llm import BaseChatProvider, get_provider
 from sparkth.lib.testing import AuditEventsFetcher, ScriptedChatModel
-from sparkth.llm.providers import AnthropicProvider, GoogleProvider, OpenAIProvider, _reported_failure
+from sparkth.plugins.chat.llm import _reported_failure, complete_turn, stream_turn
 
 MODEL_METADATA = {"model": "claude-sonnet-5-20250929"}
+TURN = [{"role": "user", "content": "look up course 5"}]
 
 
 async def lookup_course(course_id: int) -> dict[str, Any]:
     """Look up a course."""
     return {"course_id": course_id}
+
+
+async def broken_write(event: Any) -> Any:
+    """An audit store that refuses every write."""
+    raise OperationalError("INSERT", {}, Exception("audit db down"))
 
 
 def _lookup_course_tool() -> StructuredTool:
@@ -32,8 +39,8 @@ def _lookup_course_tool() -> StructuredTool:
 
 
 @pytest.fixture
-def provider(monkeypatch: pytest.MonkeyPatch) -> AnthropicProvider:
-    provider = AnthropicProvider("test-key", "claude-sonnet-5")
+def provider(monkeypatch: pytest.MonkeyPatch) -> BaseChatProvider:
+    provider = get_provider("anthropic", "test-key", "claude-sonnet-5")
     call = AIMessage(
         content="",
         tool_calls=[{"name": "lookup_course", "args": {"course_id": 5}, "id": "call_1"}],
@@ -44,13 +51,10 @@ def provider(monkeypatch: pytest.MonkeyPatch) -> AnthropicProvider:
     return provider
 
 
-async def test_send_message_tool_calls_carry_chat_source_and_model_identity(
-    audit_events: AuditEventsFetcher, provider: AnthropicProvider
+async def test_a_completed_turn_records_its_tool_calls_with_chat_source_and_model_identity(
+    audit_events: AuditEventsFetcher, provider: BaseChatProvider
 ) -> None:
-    response = await provider.send_message(
-        messages=[{"role": "user", "content": "look up course 5"}],
-        tools=[_lookup_course_tool()],
-    )
+    response = await complete_turn(TURN, [_lookup_course_tool()], provider, 50)
 
     assert response["content"] == "done"
     invoked, completed = await audit_events()
@@ -63,16 +67,10 @@ async def test_send_message_tool_calls_carry_chat_source_and_model_identity(
     assert invoked.tool_args == {"course_id": 5}
 
 
-async def test_stream_message_tool_calls_are_audited(
-    audit_events: AuditEventsFetcher, provider: AnthropicProvider
+async def test_a_streamed_turn_records_its_tool_calls(
+    audit_events: AuditEventsFetcher, provider: BaseChatProvider
 ) -> None:
-    events = [
-        event
-        async for event in provider.stream_message(
-            messages=[{"role": "user", "content": "look up course 5"}],
-            tools=[_lookup_course_tool()],
-        )
-    ]
+    events = [event async for event in stream_turn(TURN, [_lookup_course_tool()], provider, 50)]
 
     assert {"type": "tool_start", "name": "lookup_course"} in events
     invoked, completed = await audit_events()
@@ -83,28 +81,15 @@ async def test_stream_message_tool_calls_are_audited(
 
 
 async def test_audit_capture_outage_is_a_hard_failure_not_a_tool_error_string(
-    provider: AnthropicProvider, monkeypatch: pytest.MonkeyPatch
+    provider: BaseChatProvider, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A fail-closed capture refusal must surface past the chat turn's broad
     tool-error handling instead of degrading into a model-visible error string
     that leaves no record and no surfaced failure."""
-
-    async def broken_write(event: Any) -> Any:
-        raise OperationalError("INSERT", {}, Exception("audit db down"))
-
     monkeypatch.setattr("sparkth.core.audit.execution.record_event_now", broken_write)
 
     with pytest.raises(AuditCaptureError):
-        await provider.send_message(
-            messages=[{"role": "user", "content": "look up course 5"}],
-            tools=[_lookup_course_tool()],
-        )
-
-
-def test_every_provider_declares_its_provider_name() -> None:
-    assert OpenAIProvider.provider_name == "openai"
-    assert AnthropicProvider.provider_name == "anthropic"
-    assert GoogleProvider.provider_name == "google"
+        await complete_turn(TURN, [_lookup_course_tool()], provider, 50)
 
 
 def test_deeply_nested_json_result_is_not_classified_as_a_failure() -> None:

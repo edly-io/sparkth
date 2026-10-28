@@ -1,142 +1,21 @@
 import asyncio
-import json
 from abc import ABC, abstractmethod
-from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
-from contextlib import aclosing
-from dataclasses import replace
-from typing import Any, AsyncIterator, ClassVar, TypedDict, cast
+from typing import Any, AsyncIterator, ClassVar, TypedDict
 from uuid import UUID
 
 import httpx
-from langchain.agents import create_agent
-from langchain.agents.middleware import (
-    AgentMiddleware,
-    ModelCallLimitMiddleware,
-    ToolCallLimitMiddleware,
-    ToolCallRequest,
-    wrap_tool_call,
-)
 from langchain_anthropic import ChatAnthropic
 from langchain_core.callbacks.base import AsyncCallbackHandler
 from langchain_core.exceptions import LangChainException
-from langchain_core.messages import AIMessage, AnyMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, AnyMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_core.outputs import ChatGenerationChunk, GenerationChunk, LLMResult
-from langchain_core.tools import BaseTool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
-from langgraph.types import Command
 from pydantic import ValidationError
 
-from sparkth.lib.audit import ToolFailureKind, tool_failure
-from sparkth.lib.audit.context import AuditSource, ai_audit_context
-from sparkth.lib.audit.events import AuditModelInfo
-from sparkth.lib.audit.exceptions import AuditCaptureError
 from sparkth.lib.log import get_logger
-from sparkth.lib.plugins import PluginConfigInvalidError, PluginNotConfiguredError
 
 logger = get_logger(__name__)
-
-ToolCallHandler = Callable[[ToolCallRequest], Awaitable[ToolMessage | Command[Any]]]
-
-
-def _reported_failure(result: Any) -> ToolFailureKind | None:
-    """Classify a tool's result, decoding the JSON text the chat tool wrappers return."""
-    if isinstance(result, str):
-        try:
-            result = json.loads(result)
-        except ValueError, RecursionError:
-            logger.debug("Tool result is not JSON; reading it as a success")
-            return None
-    return tool_failure(result)
-
-
-def _text_blocks(content: str | list[str | dict[str, Any]]) -> list[str]:
-    """The non-empty text of a model reply, one entry per text block."""
-    blocks = [content] if isinstance(content, str) else content
-    texts = (
-        block if isinstance(block, str) else block.get("text", "")
-        for block in blocks
-        if isinstance(block, str) or block.get("type") == "text"
-    )
-    return [text for text in texts if text]
-
-
-def _audit_model_info(turn_model: AuditModelInfo, messages: Sequence[BaseMessage]) -> AuditModelInfo:
-    """Model identity recorded as audit provenance on a tool execution.
-
-    ``turn_model`` carries the provider and the model as configured. ``version`` is the exact
-    model the provider reported on the reply that requested the call (OpenAI exposes
-    ``model_name``, Anthropic ``model``).
-    """
-    reply = next((message for message in reversed(messages) if isinstance(message, AIMessage)), None)
-    metadata = reply.response_metadata if reply is not None else {}
-    return replace(turn_model, version=metadata.get("model_name") or metadata.get("model"))
-
-
-def _failed_call(request: ToolCallRequest, error: Exception) -> ToolMessage:
-    """The model-visible result of a call whose tool raised."""
-    name = request.tool_call["name"]
-    return ToolMessage(
-        f"Error executing tool '{name}': {error}", tool_call_id=request.tool_call["id"], name=name, status="error"
-    )
-
-
-async def _classified_tool_call(
-    request: ToolCallRequest, handler: ToolCallHandler
-) -> tuple[ToolMessage | Command[Any], ToolFailureKind | None]:
-    """Run one tool call and say how it failed (None on success).
-
-    Invalid arguments and a tool name that is not bound come back from the handler as an
-    error result, so they are a validation failure; a tool that raised is an unknown one.
-    """
-    name = request.tool_call["name"]
-    try:
-        result = await handler(request)
-    # A fail-closed capture refusal is the audit infrastructure failing, not the tool: it must
-    # surface as a hard failure, never degrade into a model-visible error string.
-    except AuditCaptureError:
-        logger.exception("Audit capture failed for tool '%s'", name)
-        raise
-    # A user with no usable plugin settings is an expected outcome, not a tool fault.
-    except (PluginNotConfiguredError, PluginConfigInvalidError) as e:
-        logger.warning("Tool '%s' cannot run for this user: %s", name, e)
-        return _failed_call(request, e), ToolFailureKind.UNKNOWN
-    # NOTE: Kept broad here intentionally — tool handlers are user-supplied plugins that can
-    # raise anything. Narrowing would silently swallow legitimate errors from arbitrary
-    # third-party tool implementations.
-    except Exception as e:
-        logger.error("Error executing tool '%s': %s", name, e, exc_info=True)
-        return _failed_call(request, e), ToolFailureKind.UNKNOWN
-    if not isinstance(result, ToolMessage):
-        return result, None
-    if result.status == "error":
-        logger.warning("Tool '%s' call was refused: %s", name, result.text)
-        return result, ToolFailureKind.VALIDATION
-    return result, _reported_failure(result.content)
-
-
-@wrap_tool_call
-async def _chat_tool_call(request: ToolCallRequest, handler: ToolCallHandler) -> ToolMessage | Command[Any]:
-    """Run one of a chat turn's tool calls, reporting its start and end on the agent's stream.
-
-    The call waits after reporting its start until the reader of the stream asks for the next
-    event, so a reader that stops there keeps the tool from ever running. It runs inside an
-    ``ai_audit_context`` so the audited tool wrapper attributes it to the chat surface and to
-    the model reply that requested it.
-    """
-    name = request.tool_call["name"]
-    go = asyncio.Event()
-    request.runtime.stream_writer({"type": "tool_start", "name": name, "go": go})
-    await go.wait()
-    model = _audit_model_info(cast(AuditModelInfo, request.runtime.context), request.state["messages"])
-    with ai_audit_context(AuditSource.CHAT, model):
-        result, failure = await _classified_tool_call(request, handler)
-    output = result.text if isinstance(result, ToolMessage) else ""
-    arguments = request.tool_call["args"]
-    request.runtime.stream_writer(
-        {"type": "tool_end", "name": name, "failure": failure, "tool_input": arguments, "output": output}
-    )
-    return result
 
 
 class StreamingCallbackHandler(AsyncCallbackHandler):
@@ -227,7 +106,7 @@ class BaseChatProvider(ABC):
         """Public interface for creating a configured LangChain LLM instance."""
         return self._create_llm(streaming=streaming, callbacks=callbacks)
 
-    def _convert_messages(self, messages: list[dict[str, Any]]) -> list[AnyMessage]:
+    def convert_messages(self, messages: list[dict[str, Any]]) -> list[AnyMessage]:
         """Convert dict messages to LangChain message objects."""
         langchain_messages: list[AnyMessage] = []
 
@@ -244,19 +123,10 @@ class BaseChatProvider(ABC):
 
         return langchain_messages
 
-    async def send_message(
-        self, messages: list[dict[str, Any]], max_tokens: int | None = None, tools: list[Any] | None = None
-    ) -> dict[str, Any]:
-        """Send a message and get a response, with optional tool usage.
-
-        A turn with tools runs on the same agent as :meth:`stream_message` (see
-        :meth:`_agent_events`); its ``metadata`` lists every tool call made.
-        """
+    async def send_message(self, messages: list[dict[str, Any]], max_tokens: int | None = None) -> dict[str, Any]:
+        """Send a message and get the model's reply, without tools."""
         try:
-            if tools:
-                return await self._send_message_with_tools(messages, tools)
-            else:
-                return await self._send_message_simple(self._create_llm(streaming=False), messages)
+            return await self._send_message_simple(self._create_llm(streaming=False), messages)
         except (LangChainException, ValidationError, ValueError, RuntimeError, httpx.RemoteProtocolError) as e:
             logger.error(f"Error in send_message: {e}")
             raise
@@ -264,7 +134,7 @@ class BaseChatProvider(ABC):
     async def _send_message_simple(self, llm: Any, messages: list[dict[str, Any]]) -> dict[str, Any]:
         """Send a message without tools."""
         langchain_messages: list[BaseMessage] = [SystemMessage(content=self.system_prompt)]
-        langchain_messages.extend(self._convert_messages(messages))
+        langchain_messages.extend(self.convert_messages(messages))
 
         response = await llm.ainvoke(langchain_messages)
 
@@ -279,105 +149,12 @@ class BaseChatProvider(ABC):
             },
         }
 
-    async def _send_message_with_tools(self, messages: list[dict[str, Any]], tools: list[BaseTool]) -> dict[str, Any]:
-        """Run a turn with tools to its end, returning the model's answer and every call it made."""
-        tool_executions: list[dict[str, Any]] = []
-        limit_reached = False
-        final: AIMessage | None = None
-        async for event in self._agent_events(messages, tools):
-            if event["type"] == "tool_end":
-                tool_executions.append(
-                    {
-                        "tool": event["name"],
-                        "tool_input": event["tool_input"],
-                        "output": event["output"][:500],
-                        "failure": event["failure"],
-                    }
-                )
-            elif event["type"] == "limit_reached":
-                limit_reached = True
-            elif event["type"] == "final":
-                final = event["message"]
-
-        return {
-            "content": "".join(_text_blocks(final.content)) if final else "",
-            "role": "assistant",
-            "model": self.model,
-            "tool_calls": None,
-            "metadata": {
-                "tool_executions": tool_executions,
-                "num_executions": len(tool_executions),
-                "limit_reached": limit_reached,
-                "response_metadata": final.response_metadata if final else {},
-                "usage_metadata": final.usage_metadata if final else {},
-            },
-        }
-
-    async def _agent_events(
-        self, messages: list[dict[str, Any]], tools: list[BaseTool]
-    ) -> AsyncGenerator[dict[str, Any], None]:
-        """Run a turn with tools on a LangChain agent, yielding what happens as it happens.
-
-        Yields ``tool_start`` and ``tool_end`` for each call, ``limit_reached`` when calls past
-        ``max_tool_executions`` were blocked, and ``final`` with the model's closing reply.
-        Calls run one at a time, in the order the model listed them, and a call reported as
-        started runs only once this generator is asked for its next event. A blocked call
-        tells the model to stop calling tools so it answers instead; the model gets two calls
-        beyond one per allowed tool call, so a model that keeps calling tools still ends.
-        """
-        limiter = ToolCallLimitMiddleware(run_limit=self.max_tool_executions, exit_behavior="continue")
-        cap = ModelCallLimitMiddleware(run_limit=self.max_tool_executions + 2, exit_behavior="end")
-        # The run context carries the audit identity; the library middlewares never read it.
-        middleware: list[AgentMiddleware[Any, Any, Any]] = [_chat_tool_call, limiter, cap]
-        agent = create_agent(
-            self._create_llm(streaming=False), tools, middleware=middleware, context_schema=AuditModelInfo
-        )
-        # With several stream modes, each item is a (mode, chunk) pair.
-        stream = cast(
-            AsyncGenerator[tuple[str, Any], None],
-            agent.astream(
-                {"messages": [SystemMessage(content=self.system_prompt), *self._convert_messages(messages)]},
-                {"max_concurrency": 1},
-                context=AuditModelInfo(self.provider_name, self.model),
-                stream_mode=["custom", "updates"],
-            ),
-        )
-        async with aclosing(stream):
-            async for mode, chunk in stream:
-                if mode == "custom":
-                    go = chunk.pop("go", None)
-                    yield chunk
-                    # The tool reported as started runs only now, once the next event is asked for.
-                    if go is not None:
-                        go.set()
-                    continue
-                for node, update in chunk.items():
-                    for event in _update_events(node, update, limiter, cap):
-                        yield event
-
     async def stream_message(
-        self, messages: list[dict[str, Any]], max_tokens: int | None = None, tools: list[Any] | None = None
+        self, messages: list[dict[str, Any]], max_tokens: int | None = None
     ) -> AsyncIterator[dict[str, Any]]:
-        """Stream a message response, with optional tool usage.
-
-        Yields typed event dicts:
-          {"type": "token",     "content": str}   — text to display
-          {"type": "tool_start","name": str}       — tool execution beginning
-          {"type": "tool_end",  "name": str, "failure": ToolFailureKind | None}
-                                                   — tool execution finished, and how it failed
-
-        A turn with tools runs on the agent described in :meth:`_agent_events`: its tool events
-        arrive one call at a time, the next call starts only once the event before it has been
-        read, and the model's closing reply arrives as one token per text block.
-        """
-        if tools:
-            async with aclosing(self._agent_events(messages, tools)) as events:
-                async for event in events:
-                    for streamed in _streamed_events(event):
-                        yield streamed
-        else:
-            async for token in self._stream_message_simple(messages):
-                yield {"type": "token", "content": token}
+        """Stream the model's reply to a message, without tools, as ``{"type": "token", "content": str}`` events."""
+        async for token in self._stream_message_simple(messages):
+            yield {"type": "token", "content": token}
 
     async def _stream_message_simple(self, messages: list[dict[str, Any]]) -> AsyncIterator[str]:
         """Stream a message without tools."""
@@ -385,7 +162,7 @@ class BaseChatProvider(ABC):
         llm = self._create_llm(streaming=True, callbacks=[callback])
 
         langchain_messages: list[BaseMessage] = [SystemMessage(content=self.system_prompt)]
-        langchain_messages.extend(self._convert_messages(messages))
+        langchain_messages.extend(self.convert_messages(messages))
 
         task = asyncio.create_task(llm.ainvoke(langchain_messages))
 
@@ -397,46 +174,6 @@ class BaseChatProvider(ABC):
             logger.error(f"Error in stream_message_simple: {e}")
             task.cancel()
             raise
-
-
-def _update_events(
-    node: str,
-    update: dict[str, Any] | None,
-    limiter: ToolCallLimitMiddleware[Any, Any],
-    cap: ModelCallLimitMiddleware[Any, Any],
-) -> list[dict[str, Any]]:
-    """The agent events one graph node's update stands for: blocked calls, or the closing reply.
-
-    The tool-call ``limiter`` and the model-call ``cap`` add messages only when they act, and
-    each time they do it is logged.
-    """
-    messages = (update or {}).get("messages", [])
-    if node == f"{limiter.name}.after_model" and messages:
-        logger.warning("Tool call limit (%s) reached; blocked %d call(s)", limiter.run_limit, len(messages))
-        return [{"type": "limit_reached"}]
-    if node == f"{cap.name}.before_model" and messages:
-        logger.warning("Model call limit (%s) reached; the turn ends without an answer", cap.run_limit)
-        return []
-    if node == "model":
-        return [
-            {"type": "final", "message": message}
-            for message in messages
-            if isinstance(message, AIMessage) and not message.tool_calls
-        ]
-    return []
-
-
-def _streamed_events(event: dict[str, Any]) -> list[dict[str, Any]]:
-    """What :meth:`BaseChatProvider.stream_message` yields for one agent event."""
-    match event["type"]:
-        case "tool_start":
-            return [event]
-        case "tool_end":
-            return [{"type": "tool_end", "name": event["name"], "failure": event["failure"]}]
-        case "final":
-            return [{"type": "token", "content": text} for text in _text_blocks(event["message"].content)]
-        case _:
-            return []
 
 
 class OpenAIProvider(BaseChatProvider):
