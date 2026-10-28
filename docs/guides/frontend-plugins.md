@@ -371,7 +371,7 @@ const Icon = namedSlotItem(EXAMPLE_ICONS, "example-brand")?.component;
 The **Settings** page lists the one row each plugin sets in the `SETTINGS_ITEMS` slot
 (`@/lib/settings/slots`), in plugin-name order, for every plugin the user-plugins API returns. The page passes each row
 its plugin's state and the actions to turn it on or off, and knows nothing about any plugin. A backend plugin whose
-frontend part sets no row does not appear on the page, so every backend plugin needs a frontend part that sets one.
+frontend part sets no row does not appear on the page.
 
 A row is a `listItem` component and, when the plugin has config, a `loadConfigModal` that loads the modal editing it.
 Core ships both: `SettingsListItem` (`@/lib/components/settings/SettingsListItem`) shows the plugin's name,
