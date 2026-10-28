@@ -15,12 +15,9 @@ from sparkth.plugins.googledrive.client import GoogleDriveClient
 from sparkth.plugins.googledrive.models import DriveFile, DriveFolder
 from sparkth.plugins.googledrive.oauth import get_valid_access_token
 from sparkth.plugins.googledrive.routes.dependencies import require_user_id
-from sparkth.plugins.googledrive.routes.route_utils import batch_fetch_documents, get_drive_credentials
+from sparkth.plugins.googledrive.routes.route_utils import get_drive_credentials
 from sparkth.plugins.googledrive.schemas import (
-    CreateFolderRequest,
-    DriveFileResponse,
     DriveFolderResponse,
-    DriveFolderWithFilesResponse,
     PaginatedResponse,
     SyncFolderRequest,
     SyncStatusResponse,
@@ -138,134 +135,6 @@ async def sync_folder(
         last_synced_at=folder.last_synced_at,
         sync_status=folder.sync_status,
     )
-
-
-@router.post("/folders", response_model=DriveFolderResponse)
-async def create_folder(
-    request: CreateFolderRequest,
-    user_id: int = Depends(require_user_id),
-    session: AsyncSession = Depends(get_async_session),
-) -> DriveFolderResponse:
-    """Create a new folder in Google Drive and sync it."""
-    client_id, client_secret, _redirect_uri = get_drive_credentials()
-    access_token = await get_valid_access_token(session, user_id, client_id, client_secret)
-
-    async with GoogleDriveClient(access_token) as client:
-        folder_metadata = await client.create_folder(request.name, request.parent_id)
-
-    now = datetime.now(timezone.utc)
-    folder = DriveFolder(
-        user_id=user_id,
-        drive_folder_id=folder_metadata["id"],
-        drive_folder_name=folder_metadata["name"],
-        drive_parent_id=request.parent_id,
-        last_synced_at=now,
-        sync_status="synced",
-    )
-    session.add(folder)
-    await session.commit()
-    await session.refresh(folder)
-
-    return DriveFolderResponse(
-        id=cast(int, folder.id),
-        drive_folder_id=folder.drive_folder_id,
-        name=folder.drive_folder_name,
-        parent_id=folder.drive_parent_id,
-        file_count=0,
-        last_synced_at=folder.last_synced_at,
-        sync_status=folder.sync_status,
-    )
-
-
-@router.get("/folders/{folder_id}", response_model=DriveFolderWithFilesResponse)
-async def get_folder(
-    folder_id: int,
-    user_id: int = Depends(require_user_id),
-    session: AsyncSession = Depends(get_async_session),
-) -> DriveFolderWithFilesResponse:
-    """Get a synced folder with its files."""
-    folder_result = await session.exec(
-        select(DriveFolder).where(
-            DriveFolder.id == folder_id,
-            DriveFolder.user_id == user_id,
-            DriveFolder.is_deleted == False,  # noqa: E712
-        )
-    )
-    folder = folder_result.first()
-    if not folder:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("Folder not found"))
-
-    files_result = await session.exec(
-        select(DriveFile).where(
-            DriveFile.folder_id == folder.id,
-            DriveFile.is_deleted == False,  # noqa: E712
-        )
-    )
-    folder_files = files_result.all()
-
-    folder_document_ids = [f.document_id for f in folder_files if f.document_id is not None]
-    folder_docs = await batch_fetch_documents(session, folder_document_ids)
-
-    files = [
-        DriveFileResponse(
-            id=cast(int, f.id),
-            drive_file_id=f.drive_file_id,
-            document_id=f.document_id,
-            name=f.name,
-            mime_type=f.mime_type,
-            size=f.size,
-            modified_time=f.modified_time,
-            last_synced_at=f.last_synced_at,
-            rag_status=folder_docs[f.document_id].status if f.document_id and f.document_id in folder_docs else None,
-            rag_error=folder_docs[f.document_id].error if f.document_id and f.document_id in folder_docs else None,
-        )
-        for f in folder_files
-    ]
-
-    return DriveFolderWithFilesResponse(
-        id=cast(int, folder.id),
-        drive_folder_id=folder.drive_folder_id,
-        name=folder.drive_folder_name,
-        parent_id=folder.drive_parent_id,
-        file_count=len(files),
-        last_synced_at=folder.last_synced_at,
-        sync_status=folder.sync_status,
-        files=files,
-    )
-
-
-@router.delete("/folders/{folder_id}")
-async def delete_folder(
-    folder_id: int,
-    user_id: int = Depends(require_user_id),
-    session: AsyncSession = Depends(get_async_session),
-) -> dict[str, str]:
-    """Remove a folder and all its files from Sparkth tracking."""
-    folder_result = await session.exec(
-        select(DriveFolder).where(
-            DriveFolder.id == folder_id,
-            DriveFolder.user_id == user_id,
-            DriveFolder.is_deleted == False,  # noqa: E712
-        )
-    )
-    folder = folder_result.first()
-    if not folder:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("Folder not found"))
-
-    files_result = await session.exec(
-        select(DriveFile).where(
-            DriveFile.folder_id == folder.id,
-            DriveFile.is_deleted == False,  # noqa: E712
-        )
-    )
-    for f in files_result.all():
-        await soft_delete_drive_file(session, f)
-
-    folder.soft_delete()
-    session.add(folder)
-    await session.commit()
-
-    return {"detail": "Folder removed from Sparkth successfully"}
 
 
 @router.post("/folders/{folder_id}/refresh", response_model=SyncStatusResponse)

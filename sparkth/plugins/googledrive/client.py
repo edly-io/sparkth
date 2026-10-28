@@ -7,7 +7,6 @@ from types import TracebackType
 from typing import Any, Optional, Type
 
 import aiohttp
-from aiohttp import MultipartWriter
 
 from sparkth.plugins.googledrive.exceptions import GoogleDriveAPIError
 
@@ -185,60 +184,6 @@ class GoogleDriveClient:
         """Get folder metadata."""
         return await self.get_file(folder_id)
 
-    async def create_folder(self, name: str, parent_id: Optional[str] = None) -> dict[str, Any]:
-        """Create a new folder in Google Drive."""
-        metadata: dict[str, Any] = {
-            "name": name,
-            "mimeType": self.FOLDER_MIME_TYPE,
-        }
-        if parent_id:
-            self._validate_id(parent_id)
-            metadata["parents"] = [parent_id]
-
-        return await self._request(
-            "POST",
-            f"{self.BASE_URL}/files",
-            json=metadata,
-            headers={"Content-Type": "application/json"},
-        )
-
-    async def upload_file(
-        self,
-        name: str,
-        content: bytes,
-        mime_type: str,
-        folder_id: Optional[str] = None,
-    ) -> dict[str, Any]:
-        """Upload a file to Google Drive using multipart upload."""
-        if not self.session:
-            raise RuntimeError("Client session not initialized.")
-
-        metadata: dict[str, Any] = {"name": name}
-        if folder_id:
-            self._validate_id(folder_id)
-            metadata["parents"] = [folder_id]
-
-        writer = MultipartWriter("related")
-        metadata_payload = json.dumps(metadata).encode("utf-8")
-        metadata_part = writer.append(metadata_payload)
-        metadata_part.headers[aiohttp.hdrs.CONTENT_TYPE] = "application/json; charset=UTF-8"
-        file_part = writer.append(content)
-        file_part.headers[aiohttp.hdrs.CONTENT_TYPE] = mime_type
-
-        headers = {
-            **self._headers(),
-            "Content-Type": f"multipart/related; boundary={writer.boundary}",
-        }
-
-        url = f"{self.UPLOAD_URL}/files?uploadType=multipart&fields=id,name,mimeType,size,md5Checksum,modifiedTime"
-
-        async with self.session.post(url, data=writer, headers=headers) as response:
-            if response.status >= 400:
-                error_message = await self._parse_error(response)
-                raise GoogleDriveAPIError(response.status, error_message)
-            result: dict[str, Any] = await response.json()
-            return result
-
     async def update_file(self, file_id: str, content: bytes, mime_type: str) -> dict[str, Any]:
         """Update file content."""
         self._validate_id(file_id)
@@ -259,16 +204,6 @@ class GoogleDriveClient:
                 raise GoogleDriveAPIError(response.status, error_message)
             result: dict[str, Any] = await response.json()
             return result
-
-    async def rename_file(self, file_id: str, new_name: str) -> dict[str, Any]:
-        """Rename a file or folder."""
-        self._validate_id(file_id)
-        return await self._request(
-            "PATCH",
-            f"{self.BASE_URL}/files/{file_id}",
-            json={"name": new_name},
-            headers={"Content-Type": "application/json"},
-        )
 
     async def delete_file(self, file_id: str) -> bool:
         """Delete a file or folder (moves to trash)."""

@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/api/v1/analytics/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Events
+         * @description Return every registered event type with its payload fields, sorted by type.
+         */
+        get: operations["events_api_v1_analytics_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/analytics/logins": {
         parameters: {
             query?: never;
@@ -21,6 +41,30 @@ export interface paths {
          *     floor `from` to the bucket start.
          */
         get: operations["logins_api_v1_analytics_logins_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Query Events
+         * @description Measure one event type's raw events per bucket, filtered and grouped by payload fields.
+         *
+         *     Sparse. Grouped results keep the top 20 groups by range total and set `truncated` when more
+         *     existed. An unknown event type or field, or a value that does not fit its field, is a 422.
+         *     Grouped by actor, `actor_names` maps user ids to usernames. Needs `analytics.read` and `user.read`.
+         */
+        get: operations["query_events_api_v1_analytics_query_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -512,11 +556,7 @@ export interface paths {
         delete: operations["delete_file_api_v1_google_drive_files__file_id__delete"];
         options?: never;
         head?: never;
-        /**
-         * Rename File
-         * @description Rename a file in Google Drive.
-         */
-        patch: operations["rename_file_api_v1_google_drive_files__file_id__patch"];
+        patch?: never;
         trace?: never;
     };
     "/api/v1/google-drive/files/{file_id}/download": {
@@ -572,11 +612,7 @@ export interface paths {
          */
         get: operations["list_folders_api_v1_google_drive_folders_get"];
         put?: never;
-        /**
-         * Create Folder
-         * @description Create a new folder in Google Drive and sync it.
-         */
-        post: operations["create_folder_api_v1_google_drive_folders_post"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -603,30 +639,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/google-drive/folders/{folder_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Folder
-         * @description Get a synced folder with its files.
-         */
-        get: operations["get_folder_api_v1_google_drive_folders__folder_id__get"];
-        put?: never;
-        post?: never;
-        /**
-         * Delete Folder
-         * @description Remove a folder and all its files from Sparkth tracking.
-         */
-        delete: operations["delete_folder_api_v1_google_drive_folders__folder_id__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/google-drive/folders/{folder_id}/files": {
         parameters: {
             query?: never;
@@ -640,11 +652,7 @@ export interface paths {
          */
         get: operations["list_files_api_v1_google_drive_folders__folder_id__files_get"];
         put?: never;
-        /**
-         * Upload File
-         * @description Upload a file to a Google Drive folder.
-         */
-        post: operations["upload_file_api_v1_google_drive_folders__folder_id__files_post"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1815,11 +1823,6 @@ export interface components {
          * @enum {string}
          */
         AuditSource: "rest" | "mcp" | "chat" | "rag" | "cli" | "system";
-        /** Body_upload_file_api_v1_google_drive_folders__folder_id__files_post */
-        Body_upload_file_api_v1_google_drive_folders__folder_id__files_post: {
-            /** File */
-            file: string;
-        };
         /** Body_upload_text_api_v1_parser_upload_post */
         Body_upload_text_api_v1_parser_upload_post: {
             /** File */
@@ -2082,22 +2085,6 @@ export interface components {
             updated_at: string;
         };
         /**
-         * CreateFolderRequest
-         * @description Request to create a new folder in Google Drive.
-         */
-        CreateFolderRequest: {
-            /**
-             * Name
-             * @description Name of the folder to create
-             */
-            name: string;
-            /**
-             * Parent Id
-             * @description Parent folder ID in Google Drive
-             */
-            parent_id?: string | null;
-        };
-        /**
          * DisplayInfo
          * @description The human-facing identity of a plugin, shown in settings and catalogs.
          */
@@ -2210,32 +2197,71 @@ export interface components {
             sync_status: string;
         };
         /**
-         * DriveFolderWithFilesResponse
-         * @description Folder with its files.
+         * EventCatalogEntry
+         * @description An event type and its payload fields, merged across versions.
          */
-        DriveFolderWithFilesResponse: {
-            /** Drive Folder Id */
-            drive_folder_id: string;
-            /**
-             * File Count
-             * @default 0
-             */
-            file_count: number;
-            /**
-             * Files
-             * @default []
-             */
-            files: components["schemas"]["DriveFileResponse"][];
-            /** Id */
-            id: number;
-            /** Last Synced At */
-            last_synced_at?: string | null;
+        EventCatalogEntry: {
+            /** Event Type */
+            event_type: string;
+            /** Fields */
+            fields: components["schemas"]["EventField"][];
+        };
+        /**
+         * EventField
+         * @description One payload field of an event type. ``values`` lists the choices of an ``enum``.
+         */
+        EventField: {
+            kind: components["schemas"]["FilterFieldType"];
             /** Name */
             name: string;
-            /** Parent Id */
-            parent_id?: string | null;
-            /** Sync Status */
-            sync_status: string;
+            /**
+             * Nullable
+             * @default false
+             */
+            nullable: boolean;
+            /** Values */
+            values?: string[] | null;
+        };
+        /**
+         * ExplorePoint
+         * @description A measure for one bucket and group. ``bucket`` is the UTC start, ``YYYY-MM-DD``.
+         */
+        ExplorePoint: {
+            /** Bucket */
+            bucket: string;
+            /** Group */
+            group: string | null;
+            /** Value */
+            value: number;
+        };
+        /**
+         * ExploreResult
+         * @description Explore points and totals; ``truncated`` when groups beyond the cap were dropped.
+         */
+        ExploreResult: {
+            /**
+             * Actor Names
+             * @default {}
+             */
+            actor_names: {
+                [key: string]: string;
+            };
+            /** Points */
+            points: components["schemas"]["ExplorePoint"][];
+            /** Totals */
+            totals: components["schemas"]["ExploreTotal"][];
+            /** Truncated */
+            truncated: boolean;
+        };
+        /**
+         * ExploreTotal
+         * @description A group's measure over the whole range.
+         */
+        ExploreTotal: {
+            /** Group */
+            group: string | null;
+            /** Value */
+            value: number;
         };
         /**
          * ExportFormat
@@ -2256,6 +2282,15 @@ export interface components {
             rag_error?: string | null;
             rag_status?: components["schemas"]["DocumentStatus"] | null;
         };
+        /**
+         * FilterFieldType
+         * @description How an event payload field is filtered: it picks the filter control and how a value is parsed.
+         *
+         *     ``string`` is free text, ``enum`` one of the field's listed ``values``, ``boolean`` ``true`` or
+         *     ``false``, and ``integer`` a whole number.
+         * @enum {string}
+         */
+        FilterFieldType: "string" | "enum" | "boolean" | "integer";
         /**
          * FolderRagStatusResponse
          * @description RAG processing status for all files in a folder.
@@ -2411,6 +2446,12 @@ export interface components {
             /** Total */
             total: number;
         };
+        /**
+         * Measure
+         * @description What an explore query counts per bucket.
+         * @enum {string}
+         */
+        Measure: "count" | "distinct_actors";
         /** MessageResponse */
         MessageResponse: {
             /** Attachment Name */
@@ -2585,17 +2626,6 @@ export interface components {
         RagSourcesResponse: {
             /** Sources */
             sources: string[];
-        };
-        /**
-         * RenameFileRequest
-         * @description Request to rename a file.
-         */
-        RenameFileRequest: {
-            /**
-             * Name
-             * @description New name for the file
-             */
-            name: string;
         };
         /** ResendVerificationRequest */
         ResendVerificationRequest: {
@@ -2939,6 +2969,26 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    events_api_v1_analytics_events_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventCatalogEntry"][];
+                };
+            };
+        };
+    };
     logins_api_v1_analytics_logins_get: {
         parameters: {
             query: {
@@ -2959,6 +3009,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LoginsPoint"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    query_events_api_v1_analytics_query_get: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                bucket?: components["schemas"]["Bucket"];
+                event_type: string;
+                actor_id?: string | null;
+                filter?: string[];
+                measure?: components["schemas"]["Measure"];
+                group_by?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExploreResult"];
                 };
             };
             /** @description Validation Error */
@@ -3807,41 +3895,6 @@ export interface operations {
             };
         };
     };
-    rename_file_api_v1_google_drive_files__file_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                file_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RenameFileRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DriveFileResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     download_file_api_v1_google_drive_files__file_id__download_get: {
         parameters: {
             query?: never;
@@ -3938,39 +3991,6 @@ export interface operations {
             };
         };
     };
-    create_folder_api_v1_google_drive_folders_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateFolderRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DriveFolderResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     sync_folder_api_v1_google_drive_folders_sync_post: {
         parameters: {
             query?: never;
@@ -3991,70 +4011,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DriveFolderResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_folder_api_v1_google_drive_folders__folder_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                folder_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DriveFolderWithFilesResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_folder_api_v1_google_drive_folders__folder_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                folder_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: string;
-                    };
                 };
             };
             /** @description Validation Error */
@@ -4091,41 +4047,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaginatedResponse_DriveFileResponse_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    upload_file_api_v1_google_drive_folders__folder_id__files_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                folder_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "multipart/form-data": components["schemas"]["Body_upload_file_api_v1_google_drive_folders__folder_id__files_post"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DriveFileResponse"];
                 };
             };
             /** @description Validation Error */
