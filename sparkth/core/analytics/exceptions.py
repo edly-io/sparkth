@@ -42,3 +42,42 @@ class ContinuousAggregateNotFound(Exception):
     def __init__(self, name: str) -> None:
         self.name = name
         super().__init__(f"No continuous aggregate named '{name}' exists in the analytics database")
+
+
+class ExploreQueryError(Exception):
+    """Raised when an explore query names something it cannot query."""
+
+
+class UnknownExploreEvent(ExploreQueryError):
+    """Raised when an explore query names an unregistered event type."""
+
+    def __init__(self, event_type: str) -> None:
+        self.event_type = event_type
+        super().__init__(f"Unknown event type '{event_type}'")
+
+
+class UnknownExploreField(ExploreQueryError):
+    """Raised when an explore query names a field the event type does not have."""
+
+    def __init__(self, event_type: str, field: str) -> None:
+        self.event_type = event_type
+        self.field = field
+        super().__init__(f"Event type '{event_type}' has no field '{field}'")
+
+
+class InvalidFilterValue(ExploreQueryError):
+    """Raised when a filter value does not fit its field's kind."""
+
+    def __init__(self, field: str, value: str) -> None:
+        self.field = field
+        self.value = value
+        super().__init__(f"Invalid value '{value}' for field '{field}'")
+
+
+class UngroupableExploreField(ExploreQueryError):
+    """Raised when an explore query groups by a field whose kind cannot be grouped (an integer)."""
+
+    def __init__(self, event_type: str, field: str) -> None:
+        self.event_type = event_type
+        self.field = field
+        super().__init__(f"Cannot group event type '{event_type}' by integer field '{field}'")

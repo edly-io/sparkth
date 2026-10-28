@@ -5,7 +5,7 @@ from typing import Self
 
 from pydantic import BaseModel, Field, model_validator
 
-from sparkth.core.analytics.enums import Bucket
+from sparkth.core.analytics.reads.enums import Bucket
 
 # Inclusive day count; a leap year fits.
 MAX_RANGE_DAYS = 366
