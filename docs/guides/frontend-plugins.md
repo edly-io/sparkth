@@ -385,7 +385,7 @@ const Icon = namedSlotItem(EXAMPLE_ICONS, "example-brand")?.component;
 
 ## Settings
 
-The **Settings** page lists the row each plugin sets in the `SETTINGS_ITEMS` slot
+The **Settings** page lists the one row each plugin sets in the `SETTINGS_ITEMS` slot
 (`@/lib/settings/slots`), in plugin-name order, for every plugin the user-plugins API returns. The page passes each row
 its plugin's state and the actions to turn it on or off, and knows nothing about any plugin. A backend plugin whose
 frontend part sets no row does not appear on the page, so every backend plugin needs a frontend part that sets one.
@@ -401,9 +401,10 @@ name, and import that file from the plugin's `index.ts` (`import "./settings";`)
 import { SettingsListItem } from "@/lib/components/settings/SettingsListItem";
 import { SETTINGS_ITEMS } from "@/lib/settings/slots";
 
-SETTINGS_ITEMS.set("example-plugin", [
-  { listItem: SettingsListItem, loadConfigModal: () => import("@/lib/components/settings/ConfigModal") },
-]);
+SETTINGS_ITEMS.set("example-plugin", {
+  listItem: SettingsListItem,
+  loadConfigModal: () => import("@/lib/components/settings/ConfigModal"),
+});
 ```
 
 The row shows its configure button only while the plugin's backend config declares fields, so pass the shared modal

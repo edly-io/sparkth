@@ -8,7 +8,6 @@ import { Spinner } from "@/core/components/ui/Spinner";
 import { usePluginContext } from "@/core/plugins/context";
 import type { UserPluginState } from "@/core/plugins/types";
 import { SETTINGS_ITEMS, type SettingsItem } from "@/lib/settings/slots";
-import { slotItems } from "@/lib/slots";
 import { configFieldsOf } from "./schema";
 import { SettingsList } from "./SettingsPage";
 
@@ -71,15 +70,17 @@ function PluginSettingsRow({ plugin, item }: PluginSettingsRowProps) {
 export function PluginSettingsList() {
   const t = useTranslations("plugins");
   const { userPlugins } = usePluginContext();
-  const rows = slotItems(SETTINGS_ITEMS).flatMap(([name, item]) => {
-    const plugin = userPlugins.find((candidate) => candidate.plugin_name === name);
-    return plugin ? [{ plugin, item }] : [];
-  });
+  const rows = [...SETTINGS_ITEMS]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .flatMap(([name, item]) => {
+      const plugin = userPlugins.find((candidate) => candidate.plugin_name === name);
+      return plugin ? [{ plugin, item }] : [];
+    });
 
   return (
     <SettingsList empty={<p className="text-muted-foreground">{t("empty")}</p>}>
-      {rows.map(({ plugin, item }, index) => (
-        <PluginSettingsRow key={`${plugin.plugin_name}-${index}`} plugin={plugin} item={item} />
+      {rows.map(({ plugin, item }) => (
+        <PluginSettingsRow key={plugin.plugin_name} plugin={plugin} item={item} />
       ))}
     </SettingsList>
   );
