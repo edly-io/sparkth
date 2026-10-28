@@ -109,20 +109,19 @@ cannot drift from the API. One consequence for settings UIs: `config` values are
 typed `unknown`, because the backend stores config as JSONB and a field declared
 as a string can still arrive as an array or a number. Narrow at the read site.
 
-Icons cross the wire as [lucide](https://lucide.dev/icons/) icon names. The
-resolver in `core/plugins/icons.ts` maps names to components, and only the lucide
-names already in that map resolve (icons are mapped explicitly to keep the
-bundle tree-shakeable). A backend plugin declaring a new lucide name must also
-add it to the map in `core/plugins/icons.ts`, or the UI silently falls
-back to an icon-less rendering (the resolver logs a `console.warn` outside
-production to surface the gap). A plugin that ships a custom (non-lucide) icon
-registers it under its declared name:
+Icons cross the wire as names, such as a [lucide](https://lucide.dev/icons/) icon name or a brand name. Each plugin
+sets the component for every icon name its backend declares in the `PLUGIN_ICONS` slot (see
+[Slots](#slots-optional)), from its `icons.ts`, which its `index.ts` imports. A name is looked up only among the
+icons of the plugin that declares it, so two plugins can both declare `plus`. Core keeps no icon map of its own, so
+an icon name its plugin did not set renders without an icon, and the resolver logs a `console.warn` outside
+production to surface the gap:
 
 ```ts
-import { registerPluginIcon } from "@/lib/plugins/icons";
-import ExampleBrandIcon from "./ExampleBrandIcon";
+// plugins/example-plugin/icons.ts
+import { Plus } from "lucide-react";
+import { PLUGIN_ICONS } from "@/lib/icons/slots";
 
-registerPluginIcon("example-brand", ExampleBrandIcon);
+PLUGIN_ICONS.set("example-plugin", [{ name: "plus", component: Plus }]);
 ```
 
 For more details, see the `PluginDefinition` type in
@@ -160,7 +159,7 @@ Each plugin is rendered under:
 The static routes are **generated from the backend declarations**, not
 hand-maintained: `generateStaticParams` in
 `app/dashboard/[pluginName]/page.tsx` reads `FRONTEND_PLUGIN_NAMES` from
-`core/plugins/generated.ts`, which lists every backend plugin that registered
+`lib/plugins/generated.ts`, which lists every backend plugin that registered
 the `FRONTEND_APPS` hook. After declaring (or removing) a frontend app on the
 backend plugin, regenerate the list:
 
@@ -170,14 +169,14 @@ make frontend.build.plugins
 
 **Notes**
 
-- Do not edit `core/plugins/generated.ts` by hand. The dump script is its sole
+- Do not edit `lib/plugins/generated.ts` by hand. The dump script is its sole
   formatter, so the file is listed in `.oxfmtrc.json` `ignorePatterns` (as
   `lib/api/generated.ts` already is) — otherwise `make format` would rewrite it
   and break the byte-exact backend gate
 - To inspect the dump without touching the committed file, run the script with
   no arguments and it prints to stdout:
   `uv run python scripts/dump_frontend_plugins.py`. The make target passes
-  `-o frontend/core/plugins/generated.ts`, which writes atomically, so a failed
+  `-o frontend/lib/plugins/generated.ts`, which writes atomically, so a failed
   dump leaves the committed file intact
 - Tests on both tiers fail when the committed list drifts from the backend
   declarations (`tests/core/test_dump_frontend_plugins.py`) or when the

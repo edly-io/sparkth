@@ -17,8 +17,8 @@ import {
   BookOpen,
 } from "lucide-react";
 import { usePluginContext } from "@/core/plugins/context";
-import { sidebarItemsFrom, type SidebarItem } from "@/core/plugins/metadata";
-import { resolvePluginIcon } from "@/core/plugins/icons";
+import { sidebarItemsFrom, type SidebarItem } from "./sidebarItems";
+import { resolvePluginIcon } from "@/core/components/ui/icons";
 import { GATED_NAV, NavItem } from "@/components/NavItem";
 import Image from "next/image";
 import { Spinner } from "@/core/components/ui/Spinner";
@@ -355,7 +355,7 @@ function PluginNavItem({
   isCollapsed?: boolean;
 }) {
   const label = item.label;
-  const Icon = resolvePluginIcon(item.icon);
+  const Icon = resolvePluginIcon(item.name, item.icon);
 
   return (
     <Link

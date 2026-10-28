@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
 
 import "@/app/plugins";
+import { resolvePluginIcon } from "@/core/components/ui/icons";
 import { getAllPlugins } from "@/core/plugins/registry";
-import { FRONTEND_PLUGIN_NAMES } from "@/core/plugins/generated";
+import { FRONTEND_PLUGIN_NAMES } from "@/lib/plugins/generated";
 
 describe("frontend plugin registry vs backend declarations", () => {
   it("registers a PluginDefinition for exactly the backend-declared frontend plugins", () => {
@@ -10,5 +11,11 @@ describe("frontend plugin registry vs backend declarations", () => {
       .map((plugin) => plugin.name)
       .sort();
     expect(registered).toEqual([...FRONTEND_PLUGIN_NAMES].sort());
+  });
+
+  it("resolves every icon the backend plugins declare", () => {
+    expect(resolvePluginIcon("chat", "plus")).toBeDefined();
+    expect(resolvePluginIcon("pxc", "blocks")).toBeDefined();
+    expect(resolvePluginIcon("slack", "slack")).toBeDefined();
   });
 });

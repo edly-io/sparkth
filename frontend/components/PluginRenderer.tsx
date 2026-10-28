@@ -4,7 +4,6 @@ import { Suspense, lazy, useMemo, useEffect, useState } from "react";
 import { Spinner } from "@/core/components/ui/Spinner";
 import { PluginDefinition } from "@/core/plugins/types";
 import { displayNameOf } from "@/core/plugins/metadata";
-import { emitPluginEvent } from "@/core/plugins/registry";
 import { usePlugin, usePluginContext } from "@/core/plugins/context";
 import { PluginErrorBoundary } from "./PluginErrorBoundary";
 
@@ -59,13 +58,6 @@ export default function PluginRenderer({
           await pluginDef.onInit?.(context);
         } catch (error) {
           console.error(`Plugin "${pluginName}" initialization error:`, error);
-          emitPluginEvent({
-            type: "plugin:error",
-            pluginName,
-            payload: {
-              error: error instanceof Error ? error.message : "Init failed",
-            },
-          });
         }
       };
       init();
