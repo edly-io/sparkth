@@ -160,8 +160,10 @@ The static routes are **generated from the backend declarations**, not
 hand-maintained: `generateStaticParams` in
 `app/dashboard/[pluginName]/page.tsx` reads `FRONTEND_PLUGIN_NAMES` from
 `lib/plugins/generated.ts`, which lists every backend plugin that registered
-the `FRONTEND_APPS` hook. After declaring (or removing) a frontend app on the
-backend plugin, regenerate the list:
+the `FRONTEND_APPS` hook. The same file lists, as `PLUGIN_ICON_NAMES`, the icon
+names each plugin declares in `DISPLAY_INFO` and `SIDEBAR_ENTRIES`. After
+declaring (or removing) a frontend app, or changing a declared icon, on the
+backend plugin, regenerate the file:
 
 ```bash
 make frontend.build.plugins

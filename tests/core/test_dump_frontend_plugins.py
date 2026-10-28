@@ -1,7 +1,7 @@
 """Tests for scripts/dump_frontend_plugins.py (offline frontend plugin list dump).
 
-The script is the drift gate between the backend's FRONTEND_APPS declarations
-and the generated frontend module: the committed file must always match the
+The script is the drift gate between the backend's FRONTEND_APPS and icon
+declarations and the generated frontend module: the committed file must always match the
 script's output, so a declaration change without regeneration is a red build.
 Without ``-o`` the dump goes to stdout, which is how it is inspected by hand.
 """
@@ -38,6 +38,18 @@ def dumps() -> tuple[str, str]:
 
 def test_dump_lists_frontend_declaring_plugins_sorted_offline(dumps: tuple[str, str]) -> None:
     assert 'export const FRONTEND_PLUGIN_NAMES = ["chat", "google-drive", "pxc", "slack"] as const;' in dumps[0]
+
+
+def test_dump_lists_each_plugins_declared_icon_names_once(dumps: tuple[str, str]) -> None:
+    """Chat declares "plus" for both its display info and its sidebar entry, and it is listed once."""
+    expected = (
+        "export const PLUGIN_ICON_NAMES = {\n"
+        '  "chat": ["plus"],\n'
+        '  "pxc": ["blocks"],\n'
+        '  "slack": ["slack"],\n'
+        "} as const;\n"
+    )
+    assert expected in dumps[0]
 
 
 def test_dump_marks_output_as_generated(dumps: tuple[str, str]) -> None:
@@ -87,7 +99,7 @@ def test_output_option_leaves_the_target_untouched_when_the_dump_fails(
 def test_committed_generated_file_is_current(dumps: tuple[str, str]) -> None:
     """The drift gate: frontend/lib/plugins/generated.ts must match the dump.
 
-    Fails when a plugin's FRONTEND_APPS declaration changed without running
-    `make frontend.build.plugins`.
+    Fails when a plugin's FRONTEND_APPS declaration or a declared icon changed
+    without running `make frontend.build.plugins`.
     """
     assert GENERATED.read_text() == dumps[0]
