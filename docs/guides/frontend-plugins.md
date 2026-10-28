@@ -131,7 +131,7 @@ For more details, see the `PluginDefinition` type in
 ## 4. Register the Plugin
 
 Import the plugin's `index.ts` in `app/plugins.ts`, once, and register its `PluginDefinition` with the plugin
-registry. Importing the `index.ts` also runs the plugin's contributions to core's slots, which its `index.ts` imports.
+registry. Importing the `index.ts` also runs any slot files it imports, such as `settings.ts`.
 
 **File**
 
