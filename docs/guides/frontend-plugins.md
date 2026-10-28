@@ -110,18 +110,18 @@ typed `unknown`, because the backend stores config as JSONB and a field declared
 as a string can still arrive as an array or a number. Narrow at the read site.
 
 Icons cross the wire as names, such as a [lucide](https://lucide.dev/icons/) icon name or a brand name. Each plugin
-sets the component for every icon name its backend declares in the `PLUGIN_ICONS` named slot (see
-[Slots](#slots-optional)), from its `icons.ts`, which its `index.ts` imports. Core keeps no icon map of its own, so
-an icon name no plugin set renders without an icon, and the resolver logs a `console.warn` outside production to
-surface the gap:
+sets the component for every icon name its backend declares in the `PLUGIN_ICONS` slot (see
+[Slots](#slots-optional)), from its `icons.ts`, which its `index.ts` imports. A name is looked up only among the
+icons of the plugin that declares it, so two plugins can both declare `plus`. Core keeps no icon map of its own, so
+an icon name its plugin did not set renders without an icon, and the resolver logs a `console.warn` outside
+production to surface the gap:
 
 ```ts
 // plugins/example-plugin/icons.ts
 import { Plus } from "lucide-react";
 import { PLUGIN_ICONS } from "@/lib/icons/slots";
-import { setNamedSlotItems } from "@/lib/slots";
 
-setNamedSlotItems(PLUGIN_ICONS, "example-plugin", [{ name: "plus", component: Plus }]);
+PLUGIN_ICONS.set("example-plugin", [{ name: "plus", component: Plus }]);
 ```
 
 For more details, see the `PluginDefinition` type in

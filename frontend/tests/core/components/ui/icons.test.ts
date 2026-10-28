@@ -2,37 +2,54 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 
 import { resolvePluginIcon } from "@/core/components/ui/icons";
 import { PLUGIN_ICONS } from "@/lib/icons/slots";
-import { setNamedSlotItems } from "@/lib/slots";
 
-function ExampleBrandIcon() {
+function ExampleIcon() {
+  return null;
+}
+
+function OtherIcon() {
   return null;
 }
 
 describe("resolvePluginIcon", () => {
   afterEach(() => {
     vi.restoreAllMocks();
-    setNamedSlotItems(PLUGIN_ICONS, "example", []);
+    PLUGIN_ICONS.clear();
   });
 
   it("resolves the icon a plugin set, by its name", () => {
-    setNamedSlotItems(PLUGIN_ICONS, "example", [
-      { name: "example-brand", component: ExampleBrandIcon },
-    ]);
+    PLUGIN_ICONS.set("example", [{ name: "example-brand", component: ExampleIcon }]);
 
-    expect(resolvePluginIcon("example-brand")).toBe(ExampleBrandIcon);
+    expect(resolvePluginIcon("example", "example-brand")).toBe(ExampleIcon);
+  });
+
+  it("resolves a name from the declaring plugin's own icons when another plugin uses it too", () => {
+    PLUGIN_ICONS.set("example", [{ name: "plus", component: ExampleIcon }]);
+    PLUGIN_ICONS.set("other", [{ name: "plus", component: OtherIcon }]);
+
+    expect(resolvePluginIcon("example", "plus")).toBe(ExampleIcon);
+    expect(resolvePluginIcon("other", "plus")).toBe(OtherIcon);
+  });
+
+  it("does not resolve a name only another plugin set", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    PLUGIN_ICONS.set("other", [{ name: "plus", component: OtherIcon }]);
+
+    expect(resolvePluginIcon("example", "plus")).toBeUndefined();
   });
 
   it("returns undefined for unknown or missing names", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
-    expect(resolvePluginIcon("no-such-icon")).toBeUndefined();
-    expect(resolvePluginIcon(null)).toBeUndefined();
-    expect(resolvePluginIcon(undefined)).toBeUndefined();
+    expect(resolvePluginIcon("example", "no-such-icon")).toBeUndefined();
+    expect(resolvePluginIcon("example", null)).toBeUndefined();
+    expect(resolvePluginIcon("example", undefined)).toBeUndefined();
   });
 
-  it("warns about a name no plugin set outside production so the gap is visible", () => {
+  it("warns about a name its plugin did not set outside production so the gap is visible", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    resolvePluginIcon("no-such-icon");
+    resolvePluginIcon("example", "no-such-icon");
     expect(warn).toHaveBeenCalledOnce();
     expect(warn.mock.calls[0][0]).toContain("no-such-icon");
+    expect(warn.mock.calls[0][0]).toContain("example");
   });
 });
