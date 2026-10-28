@@ -19,7 +19,7 @@ function StatusBadge({ active, label }: { active: boolean; label: string }) {
 }
 
 /**
- * One settings row: what it is, its status, a labelled on/off switch and its actions.
+ * One settings row: what it is, its status, its actions and a labelled on/off switch.
  *
  * The row runs the toggle itself: the switch is disabled until `onToggle` settles, and a
  * rejection shows `toggleErrorMessage` inside the row.
@@ -82,13 +82,14 @@ export function SettingsRow({
         {error && <p className="mt-2 text-sm text-error-600 dark:text-error-400">{error}</p>}
       </div>
       <div className="flex items-center gap-2 shrink-0">
+        {actions}
+        {/* The switch comes last, so every row's switch lines up whatever actions it has. */}
         <Switch
           checked={active}
           onCheckedChange={handleToggle}
           disabled={toggling}
           aria-label={toggleLabel}
         />
-        {actions}
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 
-import { SettingsRow } from "@/components/settings/SettingsRow";
+import { SettingsRow } from "@/core/components/settings/SettingsRow";
 import { renderWithIntl } from "@/tests/intl-test-utils";
 
 function renderRow(props: Partial<Parameters<typeof SettingsRow>[0]> = {}) {
@@ -26,6 +26,14 @@ describe("SettingsRow", () => {
     renderRow();
     expect(screen.getByRole("switch", { name: "Turn Canvas on or off" })).toBeDefined();
     expect(screen.getByRole("button", { name: "Configure Canvas" })).toBeDefined();
+  });
+
+  it("puts its switch after its actions, so every row's switch lines up", () => {
+    renderRow();
+    const action = screen.getByRole("button", { name: "Configure Canvas" });
+    const toggle = screen.getByRole("switch");
+
+    expect(action.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("says whether the row is active", () => {

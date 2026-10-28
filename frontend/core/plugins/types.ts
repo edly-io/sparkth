@@ -10,7 +10,7 @@ import type { Locale } from "@/lib/i18n/config";
  * A plugin's stored configuration values.
  *
  * The fields themselves are declared by the backend config class and reach the
- * frontend as the JSON schema on {@link UserPluginState}; `core/plugins/schema.ts`
+ * frontend as the JSON schema on {@link UserPluginState}; `core/components/settings/schema.ts`
  * turns that into the settings form.
  */
 export interface PluginConfig {

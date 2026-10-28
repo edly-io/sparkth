@@ -4,11 +4,11 @@
  * The controls the generic settings modal renders config fields with.
  *
  * A field names its control through the `widget` hint on its Pydantic field
- * (`sparkth/core/plugins/widgets.py`); the modal looks that name up here. The plain
- * controls below cover every field whose JSON-schema type says enough on its own.
- * A widget that needs data the frontend must fetch — the user's LLM configs, their
- * RAG sources — is registered by the plugin that owns it, the way plugin icons are
- * (see `registerPluginIcon`), so core carries no plugin-specific fetching.
+ * (`sparkth/core/plugins/widgets.py`); the modal looks that name up with
+ * `configWidgetFor`. The built-in controls below cover every field whose JSON-schema
+ * type says enough on its own. A control that needs data only a plugin knows how to
+ * fetch, such as the user's RAG sources, is passed into the modal by that plugin's own
+ * config modal, so core carries no plugin-specific fetching.
  *
  * An unknown widget name falls back to a text input rather than rendering nothing:
  * a backend that declares a hint this frontend has not shipped yet still gets a
@@ -30,31 +30,17 @@ import {
   type LLMConfig,
   type ProviderInfo,
 } from "@/lib/llm";
-import type { ConfigFieldDescriptor } from "@/core/plugins/schema";
+import type { ConfigWidgetProps } from "@/lib/settings/slots";
 
-export interface ConfigWidgetProps {
-  field: ConfigFieldDescriptor;
-  value: unknown;
-  /** Every field's current value, for a widget that depends on a sibling. */
-  values: Record<string, unknown>;
-  /** Every field, so a dependent widget can find its sibling by widget name. */
-  fields: ConfigFieldDescriptor[];
-  error?: string;
-  disabled?: boolean;
-  onChange: (name: string, value: unknown) => void;
-}
-
-export type ConfigWidgetComponent = ComponentType<ConfigWidgetProps>;
-
-const registry = new Map<string, ConfigWidgetComponent>();
-
-/** Register the control that renders fields hinting `name`. */
-export function registerConfigWidget(name: string, component: ConfigWidgetComponent): void {
-  registry.set(name, component);
-}
-
-export function getConfigWidget(name: string): ConfigWidgetComponent {
-  return registry.get(name) ?? TextWidget;
+/**
+ * The control for fields hinting `name`: one of the plugin's own `controls`, then a built-in
+ * one, then a text input.
+ */
+export function configWidgetFor(
+  name: string,
+  controls?: Record<string, ComponentType<ConfigWidgetProps>>,
+): ComponentType<ConfigWidgetProps> {
+  return controls?.[name] ?? BUILT_IN_WIDGETS.get(name) ?? TextWidget;
 }
 
 /** The value of the sibling field rendered by `widget`, for dependent widgets. */
@@ -141,13 +127,6 @@ function CheckboxWidget({ field, value, disabled, onChange }: ConfigWidgetProps)
   );
 }
 
-registerConfigWidget("text", TextWidget);
-registerConfigWidget("url", TextWidget);
-registerConfigWidget("password", TextWidget);
-registerConfigWidget("number", NumberWidget);
-registerConfigWidget("textarea", TextareaWidget);
-registerConfigWidget("checkbox", CheckboxWidget);
-
 // ─── LLM widgets ─────────────────────────────────────────────────────────────
 // Core rather than plugin-owned: an `llm_config_id` reference is a shared plugin
 // pattern (see LLMConfigAdapter), and both controls are built from core modules.
@@ -228,5 +207,14 @@ function LLMModelWidget(props: ConfigWidgetProps) {
   );
 }
 
-registerConfigWidget("llm-config", LLMConfigWidget);
-registerConfigWidget("llm-model", LLMModelWidget);
+// The controls core ships, under the names a field's `widget` hint uses.
+const BUILT_IN_WIDGETS = new Map<string, ComponentType<ConfigWidgetProps>>([
+  ["text", TextWidget],
+  ["url", TextWidget],
+  ["password", TextWidget],
+  ["number", NumberWidget],
+  ["textarea", TextareaWidget],
+  ["checkbox", CheckboxWidget],
+  ["llm-config", LLMConfigWidget],
+  ["llm-model", LLMModelWidget],
+]);

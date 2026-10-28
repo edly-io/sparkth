@@ -11,26 +11,10 @@
  * type and format.
  */
 
+import type { ConfigFieldDescriptor, ConfigFieldType } from "@/lib/settings/slots";
+
 /** A JSON-schema fragment. Values are `unknown`: the schema is data from the API. */
 type SchemaObject = Record<string, unknown>;
-
-export type ConfigFieldType = "string" | "integer" | "number" | "boolean" | "array";
-
-export interface ConfigFieldDescriptor {
-  name: string;
-  label: string;
-  description?: string;
-  /** Registry key of the control that renders this field. */
-  widget: string;
-  type: ConfigFieldType;
-  /** The schema lists the field in `required` — it has no default to fall back on. */
-  required: boolean;
-  /** The field accepts null, so leaving it unset is meaningful. */
-  nullable: boolean;
-  default?: unknown;
-  minimum?: number;
-  maximum?: number;
-}
 
 const asObject = (value: unknown): SchemaObject | undefined =>
   typeof value === "object" && value !== null && !Array.isArray(value)
