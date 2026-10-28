@@ -90,15 +90,15 @@ msgstr "Usuario no encontrado"
 msgid "Failed to get user info from Google"
 msgstr "No se pudo obtener la información del usuario de Google"
 
-#: sparkth/core/analytics/reads.py:207
+#: sparkth/core/analytics/reads/queries.py:59
 msgid "Logins"
 msgstr "Inicios de sesión"
 
-#: sparkth/core/analytics/reads.py:208
+#: sparkth/core/analytics/reads/queries.py:60
 msgid "Active users"
 msgstr "Usuarios activos"
 
-#: sparkth/core/analytics/reads.py:209
+#: sparkth/core/analytics/reads/queries.py:61
 msgid "Signups"
 msgstr "Registros"
 

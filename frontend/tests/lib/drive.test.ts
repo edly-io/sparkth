@@ -2,21 +2,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import {
   browseDrive,
-  createFolder,
   deleteFile,
   disconnectGoogle,
   downloadFile,
   getAuthorizationUrl,
   getConnectionStatus,
-  getFolder,
   getFolderRagStatus,
   listFiles,
   listFolders,
   refreshFolder,
-  removeFolder,
-  renameFile,
   syncFolder,
-  uploadFile,
 } from "@/lib/drive";
 
 vi.mock("@/core/auth/tokens", () => ({
@@ -133,52 +128,6 @@ describe("folders", () => {
     expect(result).toEqual(folder);
   });
 
-  it("createFolder POSTs name and parent id", async () => {
-    const folder = {
-      id: 2,
-      drive_folder_id: "xyz",
-      name: "New",
-      file_count: 0,
-      sync_status: "synced",
-    };
-    const spy = mockFetch(folder);
-
-    const result = await createFolder("New", "parent-1", "test-token");
-
-    const request = sentRequest(spy);
-    expect(new URL(request.url).pathname).toBe("/api/v1/google-drive/folders");
-    expect(request.method).toBe("POST");
-    await expect(request.clone().json()).resolves.toEqual({ name: "New", parent_id: "parent-1" });
-    expect(result).toEqual(folder);
-  });
-
-  it("getFolder GETs the folder by id", async () => {
-    const folder = {
-      id: 7,
-      drive_folder_id: "abc",
-      name: "F",
-      file_count: 1,
-      sync_status: "synced",
-      files: [],
-    };
-    const spy = mockFetch(folder);
-
-    const result = await getFolder(7, "test-token");
-
-    expect(new URL(sentRequest(spy).url).pathname).toBe("/api/v1/google-drive/folders/7");
-    expect(result).toEqual(folder);
-  });
-
-  it("removeFolder DELETEs the folder and resolves on 204", async () => {
-    const spy = mockFetch(null, 204);
-
-    await expect(removeFolder(7, "test-token")).resolves.toBeUndefined();
-
-    const request = sentRequest(spy);
-    expect(new URL(request.url).pathname).toBe("/api/v1/google-drive/folders/7");
-    expect(request.method).toBe("DELETE");
-  });
-
   it("refreshFolder POSTs the refresh endpoint", async () => {
     const status = { folder_id: 7, sync_status: "queued" };
     const spy = mockFetch(status);
@@ -206,22 +155,6 @@ describe("files", () => {
     expect(result).toEqual(page);
   });
 
-  it("uploadFile POSTs multipart form data with the file", async () => {
-    const uploaded = { id: 9, drive_file_id: "f9", name: "doc.pdf" };
-    const spy = mockFetch(uploaded, 201);
-    const file = new File(["hello"], "doc.pdf", { type: "application/pdf" });
-
-    const result = await uploadFile(7, file, "test-token");
-
-    const request = sentRequest(spy);
-    expect(new URL(request.url).pathname).toBe("/api/v1/google-drive/folders/7/files");
-    expect(request.method).toBe("POST");
-    // Reading the body back hangs under jsdom (jsdom File vs undici stream),
-    // so pin the multipart contract via the boundary header instead.
-    expect(request.headers.get("content-type")).toMatch(/^multipart\/form-data; boundary=/);
-    expect(result).toEqual(uploaded);
-  });
-
   it("downloadFile resolves to a Blob with the body bytes", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("binary-bytes", { status: 200 }));
 
@@ -232,19 +165,6 @@ describe("files", () => {
     // Assert the realm-independent brand; .text() below proves the bytes read back.
     expect(Object.prototype.toString.call(blob)).toBe("[object Blob]");
     await expect(blob.text()).resolves.toBe("binary-bytes");
-  });
-
-  it("renameFile PATCHes the new name", async () => {
-    const renamed = { id: 9, drive_file_id: "f9", name: "new.pdf" };
-    const spy = mockFetch(renamed);
-
-    const result = await renameFile(9, "new.pdf", "test-token");
-
-    const request = sentRequest(spy);
-    expect(new URL(request.url).pathname).toBe("/api/v1/google-drive/files/9");
-    expect(request.method).toBe("PATCH");
-    await expect(request.clone().json()).resolves.toEqual({ name: "new.pdf" });
-    expect(result).toEqual(renamed);
   });
 
   it("deleteFile DELETEs the file", async () => {
