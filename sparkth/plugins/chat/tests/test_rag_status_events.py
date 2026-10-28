@@ -2,8 +2,10 @@
 
 import json
 import uuid
+from collections.abc import AsyncGenerator, Sequence
 from datetime import datetime
-from typing import AsyncGenerator
+from functools import partial
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -18,6 +20,9 @@ from sparkth.plugins.chat.detached import join_live_tasks
 from sparkth.plugins.chat.routes.utils import parse_metadata_list
 from sparkth.plugins.chat.routes.utils.stream_processor import ChatStreamProcessor
 from sparkth.plugins.chat.schemas import ChatMessage, MessageResponse, PersistedToolCall, RagSection
+from sparkth.plugins.chat.tests.helpers import STREAM_TURN, replay_turn
+
+HELLO_WORLD = [{"type": "token", "content": "Hello"}, {"type": "token", "content": " world"}]
 
 
 def _make_chunk(
@@ -37,14 +42,20 @@ def _make_chunk(
 
 
 def _make_provider() -> MagicMock:
-    provider = MagicMock()
+    return MagicMock()
 
-    async def stream_gen(*args: object, **kwargs: object) -> object:
-        yield {"type": "token", "content": "Hello"}
-        yield {"type": "token", "content": " world"}
 
-    provider.stream_message = stream_gen
-    return provider
+@pytest.fixture(autouse=True)
+def hello_world_turn(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every turn the model reaches here answers "Hello world", unless a test scripts its own."""
+    monkeypatch.setattr(STREAM_TURN, partial(replay_turn, HELLO_WORLD))
+
+
+def _failing_turn(
+    messages: list[dict[str, Any]], tools: Sequence[Any], provider: Any, max_tool_executions: int
+) -> AsyncGenerator[dict[str, Any], None]:
+    """A streamed turn that fails in a way nothing expects."""
+    raise RuntimeError("simulated unexpected failure")
 
 
 def _make_service() -> MagicMock:
@@ -587,18 +598,11 @@ async def test_rag_retrieval_error_persists_error_to_db() -> None:
 
 
 @pytest.mark.asyncio
-async def test_unexpected_error_persists_error_to_db() -> None:
+async def test_unexpected_error_persists_error_to_db(monkeypatch: pytest.MonkeyPatch) -> None:
     """An unhandled exception escaping _run must write an is_error=True message to DB."""
     service = _make_service()
-
     provider = MagicMock()
-
-    async def _failing_stream(*_args: object, **_kwargs: object) -> AsyncGenerator[str, None]:
-        if False:
-            yield ""  # makes this an async generator
-        raise RuntimeError("simulated unexpected failure")
-
-    provider.stream_message = _failing_stream
+    monkeypatch.setattr(STREAM_TURN, _failing_turn)
 
     gen = ChatStreamProcessor(
         provider,
@@ -655,18 +659,16 @@ class TestParseMetadataList:
 
 
 @pytest.mark.asyncio
-async def test_tool_calls_saved_in_metadata() -> None:
+async def test_tool_calls_saved_in_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
     """Tool call names are persisted in message metadata when tools are invoked."""
     service = _make_service()
-
     provider = MagicMock()
-
-    async def stream_gen(*args: object, **kwargs: object) -> object:
-        yield {"type": "tool_start", "name": "search_web"}
-        yield {"type": "tool_end", "name": "search_web"}
-        yield {"type": "token", "content": "Result"}
-
-    provider.stream_message = stream_gen
+    events = [
+        {"type": "tool_start", "name": "search_web"},
+        {"type": "tool_end", "name": "search_web"},
+        {"type": "token", "content": "Result"},
+    ]
+    monkeypatch.setattr(STREAM_TURN, partial(replay_turn, events))
 
     async for _ in ChatStreamProcessor(
         provider,
@@ -691,16 +693,15 @@ async def test_tool_calls_saved_in_metadata() -> None:
 
 
 @pytest.mark.asyncio
-async def test_tool_calls_in_done_payload() -> None:
+async def test_tool_calls_in_done_payload(monkeypatch: pytest.MonkeyPatch) -> None:
     """The done SSE payload includes tool_calls so the frontend can confirm them."""
     provider = MagicMock()
-
-    async def stream_gen(*args: object, **kwargs: object) -> object:
-        yield {"type": "tool_start", "name": "get_data"}
-        yield {"type": "tool_end", "name": "get_data"}
-        yield {"type": "token", "content": "Done"}
-
-    provider.stream_message = stream_gen
+    scripted = [
+        {"type": "tool_start", "name": "get_data"},
+        {"type": "tool_end", "name": "get_data"},
+        {"type": "token", "content": "Done"},
+    ]
+    monkeypatch.setattr(STREAM_TURN, partial(replay_turn, scripted))
 
     events = []
     async for chunk in ChatStreamProcessor(

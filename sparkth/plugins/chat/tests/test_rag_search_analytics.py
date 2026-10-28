@@ -7,6 +7,7 @@ path runs ``resolve_document_blocks`` with a real ``ChatTurnAnalytics`` and runs
 
 import uuid
 from datetime import datetime, timezone
+from functools import partial
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -24,6 +25,7 @@ from sparkth.plugins.chat.routes.utils.message_assembly import assemble_provider
 from sparkth.plugins.chat.routes.utils.rag_search import resolve_document_blocks
 from sparkth.plugins.chat.routes.utils.stream_processor import ChatStreamProcessor
 from sparkth.plugins.chat.schemas import ChatCompletionRequest, ChatMessage
+from sparkth.plugins.chat.tests.helpers import STREAM_TURN, replay_turn
 
 EVENT = "chat.rag_search_completed"
 CONVERSATION = uuid.UUID("550e8400-e29b-41d4-a716-446655440000")
@@ -49,12 +51,11 @@ def _turn() -> list[ChatMessage]:
 def _provider() -> MagicMock:
     provider = MagicMock()
     provider.model = "gpt-4o"
-
-    async def stream(*args: object, **kwargs: object) -> Any:
-        yield {"type": "token", "content": "Hello"}
-
-    provider.stream_message = stream
     return provider
+
+
+# The model's whole answer, whenever a turn here reaches it.
+HELLO_TURN = partial(replay_turn, [{"type": "token", "content": "Hello"}])
 
 
 def _service() -> MagicMock:
@@ -74,7 +75,10 @@ def _conversation() -> MagicMock:
 
 
 async def _stream(retrieve: AsyncMock, service: MagicMock | None = None) -> None:
-    with patch("sparkth.plugins.chat.routes.utils.stream_processor.agentic_retrieve_context", new=retrieve):
+    with (
+        patch("sparkth.plugins.chat.routes.utils.stream_processor.agentic_retrieve_context", new=retrieve),
+        patch(STREAM_TURN, HELLO_TURN),
+    ):
         async for _ in ChatStreamProcessor(
             _provider(),
             [{"role": "user", "content": "Create a course"}],
@@ -131,7 +135,10 @@ async def test_streamed_retrieval_error_records_no_search(analytics_session: SQL
 
 async def test_streamed_turn_without_search_records_nothing(analytics_session: SQLAlchemyAsyncSession) -> None:
     retrieve = AsyncMock(return_value=[_chunk()])
-    with patch("sparkth.plugins.chat.routes.utils.stream_processor.agentic_retrieve_context", new=retrieve):
+    with (
+        patch("sparkth.plugins.chat.routes.utils.stream_processor.agentic_retrieve_context", new=retrieve),
+        patch(STREAM_TURN, HELLO_TURN),
+    ):
         async for _ in ChatStreamProcessor(
             _provider(),
             [{"role": "user", "content": "Hello"}],

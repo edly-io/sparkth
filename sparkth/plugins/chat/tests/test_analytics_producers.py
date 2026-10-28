@@ -9,8 +9,9 @@ emitted from genuinely different seams reading differently shaped execution reco
 so one path passing proves nothing about the other.
 """
 
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from datetime import datetime, timezone
+from functools import partial
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
@@ -34,6 +35,7 @@ from sparkth.lib.testing import ScriptedChatModel
 from sparkth.plugins.chat.detached import join_live_tasks
 from sparkth.plugins.chat.models import Conversation, Message
 from sparkth.plugins.chat.routes.utils.live_turns import request_stop
+from sparkth.plugins.chat.tests.helpers import STREAM_TURN, replay_turn
 from sparkth.plugins.chat.tools import convert_mcp_to_langchain_tool
 
 COMPLETIONS_URL = "/api/v1/chat/completions"
@@ -593,18 +595,27 @@ async def test_analytics_emission_failure_propagates_from_the_completion(
         )
 
 
-def _streaming_provider(events: list[dict[str, Any]]) -> MagicMock:
-    """A provider mock whose stream_message yields the given SSE-source events."""
-
-    async def _stream(*args: Any, **kwargs: Any) -> Any:
-        for event in events:
-            yield event
-
+def _streaming_provider() -> MagicMock:
+    """A provider mock for a streamed turn; the turn's events are scripted at ``STREAM_TURN``."""
     provider = MagicMock()
     provider.model = "gpt-4o"
     provider.system_prompt = ""
-    provider.stream_message = _stream
     return provider
+
+
+async def _stopping_mid_answer(
+    turn_id: str,
+    user_id: int,
+    messages: list[dict[str, Any]],
+    tools: Sequence[Any],
+    provider: Any,
+    max_tool_executions: int,
+) -> AsyncGenerator[dict[str, Any], None]:
+    """A streamed turn whose instructor presses Stop after the first token."""
+    yield {"type": "token", "content": "Half a "}
+    request_stop(turn_id, user_id)
+    yield {"type": "token", "content": "sentence"}
+    yield {"type": "token", "content": " that never arrives"}
 
 
 async def test_streaming_completion_emits_served_and_tool_invoked(
@@ -621,18 +632,21 @@ async def test_streaming_completion_emits_served_and_tool_invoked(
     """
     config_id = await _seed_llm_config(session, current_user.id or 1)
 
-    provider = _streaming_provider(
+    provider = _streaming_provider()
+    turn = partial(
+        replay_turn,
         [
             {"type": "tool_start", "name": "canvas_create_quiz"},
             {"type": "tool_end", "name": "canvas_create_quiz"},
             {"type": "tool_start", "name": "canvas_create_question"},
             {"type": "tool_end", "name": "canvas_create_question"},
             {"type": "token", "content": "Quiz created."},
-        ]
+        ],
     )
 
     with (
         patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=provider),
+        patch(STREAM_TURN, turn),
         patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_scope_cls,
         patch("sparkth.plugins.chat.conversation_title.get_provider", return_value=_non_streaming_provider()),
     ):
@@ -679,10 +693,12 @@ async def test_streaming_completion_without_tools_emits_zero_count(
 ) -> None:
     config_id = await _seed_llm_config(session, current_user.id or 1)
 
-    provider = _streaming_provider([{"type": "token", "content": "Here is an outline."}])
+    provider = _streaming_provider()
+    turn = partial(replay_turn, [{"type": "token", "content": "Here is an outline."}])
 
     with (
         patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=provider),
+        patch(STREAM_TURN, turn),
         patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_scope_cls,
         patch("sparkth.plugins.chat.conversation_title.get_provider", return_value=_non_streaming_provider()),
     ):
@@ -718,17 +734,12 @@ async def test_a_turn_stopped_mid_stream_records_where_it_stopped(
     config_id = await _seed_llm_config(session, current_user.id or 1)
     turn_id = str(uuid4())
 
-    async def _stream(*args: Any, **kwargs: Any) -> Any:
-        yield {"type": "token", "content": "Half a "}
-        request_stop(turn_id, current_user.id or 1)
-        yield {"type": "token", "content": "sentence"}
-        yield {"type": "token", "content": " that never arrives"}
-
-    provider = _streaming_provider([])
-    provider.stream_message = _stream
+    provider = _streaming_provider()
+    turn = partial(_stopping_mid_answer, turn_id, current_user.id or 1)
 
     with (
         patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=provider),
+        patch(STREAM_TURN, turn),
         patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_scope_cls,
         patch("sparkth.plugins.chat.conversation_title.get_provider", return_value=_non_streaming_provider()),
     ):
@@ -778,11 +789,13 @@ async def test_streaming_analytics_failure_does_not_corrupt_the_conversation(
     """
     config_id = await _seed_llm_config(session, current_user.id or 1)
 
-    provider = _streaming_provider([{"type": "token", "content": "Here is an outline."}])
+    provider = _streaming_provider()
+    turn = partial(replay_turn, [{"type": "token", "content": "Here is an outline."}])
     attempted: list[str] = []
 
     with (
         patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=provider),
+        patch(STREAM_TURN, turn),
         patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_scope_cls,
         patch("sparkth.plugins.chat.conversation_title.get_provider", return_value=_non_streaming_provider()),
         patch(
@@ -833,15 +846,18 @@ async def test_a_streamed_turn_timestamps_its_events_in_the_order_they_happened(
     """
     config_id = await _seed_llm_config(session, current_user.id or 1)
 
-    provider = _streaming_provider(
+    provider = _streaming_provider()
+    turn = partial(
+        replay_turn,
         [
             {"type": "tool_end", "name": "canvas_create_quiz"},
             {"type": "token", "content": "Quiz created."},
-        ]
+        ],
     )
 
     with (
         patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=provider),
+        patch(STREAM_TURN, turn),
         patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_scope_cls,
         patch("sparkth.plugins.chat.conversation_title.get_provider", return_value=_non_streaming_provider()),
     ):

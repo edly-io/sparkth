@@ -2,6 +2,7 @@
 
 import json
 from datetime import datetime, timezone
+from functools import partial
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -17,6 +18,7 @@ from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
 from sparkth.plugins.chat.exceptions import RAGSearchError
 from sparkth.plugins.chat.models import Conversation
+from sparkth.plugins.chat.tests.helpers import STREAM_TURN, replay_turn
 from sparkth.plugins.chat.types import ConversationDocuments
 
 
@@ -332,6 +334,7 @@ class TestIntentRouterIntegration:
 
         with (
             patch("sparkth.plugins.chat.routes.completions.get_provider") as mock_get_provider,
+            patch(STREAM_TURN, partial(replay_turn, [{"type": "token", "content": "Hi!"}])),
             patch("sparkth.plugins.chat.routes.completions.MessageScopeClassifier") as mock_cls_cls,
             patch("sparkth.plugins.chat.routes.completions.RAGSearchClassifier") as mock_router_cls,
             patch(
@@ -353,11 +356,6 @@ class TestIntentRouterIntegration:
             mock_provider = MagicMock()
             mock_provider.system_prompt = ""
             mock_provider.create_llm.return_value = MagicMock()
-
-            async def _stream(*args: Any, **kwargs: Any) -> Any:
-                yield {"type": "token", "content": "Hi!"}
-
-            mock_provider.stream_message = _stream
             mock_get_provider.return_value = mock_provider
             mock_add_msg.return_value = mock_msg
 
