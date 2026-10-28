@@ -11,7 +11,7 @@ function ExampleBrandIcon() {
 describe("resolvePluginIcon", () => {
   afterEach(() => {
     vi.restoreAllMocks();
-    PLUGIN_ICONS.delete("example");
+    setNamedSlotItems(PLUGIN_ICONS, "example", []);
   });
 
   it("resolves the icon a plugin set, by its name", () => {
