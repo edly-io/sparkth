@@ -1,3 +1,16 @@
+import type { Schema } from "@/lib/api";
+
+/** A stored chat message, as the chat API returns it. */
+export type ApiMessage = Schema<"MessageResponse">;
+/** A conversation with its messages, as the chat API returns it. */
+export type ApiConversation = Schema<"ConversationDetailResponse">;
+/** A conversation's history-list entry, without its messages. */
+export type ConversationSummary = Schema<"ConversationResponse">;
+/** A document attached to a conversation. */
+export type PersistedAttachment = Schema<"AttachedDocumentResponse">;
+/** The request body of the chat completions endpoint. */
+export type ChatCompletionRequestBody = Schema<"ChatCompletionRequest">;
+
 // What is missing before a course can be composed: no AI key at all, or one that exists but was
 // never selected in the plugin's configuration.
 export type AiKeyProblem = "no-key" | "not-selected";

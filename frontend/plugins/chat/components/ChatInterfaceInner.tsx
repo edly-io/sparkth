@@ -11,7 +11,7 @@ import { appendLine } from "./messages/optionsBlock";
 import { AiKeyProblem, TextAttachment } from "../types";
 import { Preview } from "./attachment/Preview";
 import { useAuth } from "@/lib/auth/hooks";
-import { attachDocument } from "@/lib/chat";
+import { attachDocument } from "../client";
 import { fetchLLMConfigs } from "@/lib/llm/client";
 import { usePlugin } from "@/lib/plugins/context";
 import { Alert } from "@/components/ui/Alert";

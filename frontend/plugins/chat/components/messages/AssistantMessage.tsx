@@ -7,7 +7,7 @@ import { OptionsPrompt } from "./OptionsPrompt";
 import { answeredOptions, splitOptionsBlock } from "./optionsBlock";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { truncate, RAG_DISPLAY_NAME_MAX_CHARS } from "@/lib/utils";
+import { truncate, RAG_DISPLAY_NAME_MAX_CHARS } from "../../utils";
 
 function ThinkingDots() {
   return (

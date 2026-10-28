@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { PersistedFilesInfo } from "@/plugins/chat/components/attachment/PersistedFilesInfo";
 import { TextAttachment } from "@/plugins/chat/types";
-import { RAG_DISPLAY_NAME_MAX_CHARS } from "@/lib/utils";
+import { RAG_DISPLAY_NAME_MAX_CHARS } from "@/plugins/chat/utils";
 
 describe("PersistedFilesInfo", () => {
   const mockOnDetachFile = vi.fn();

@@ -2,7 +2,7 @@ import { FileText, X } from "lucide-react";
 import { TextAttachment } from "../../types";
 import { Button } from "@/lib/components/ui/Button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui/Tooltip";
-import { truncate, RAG_DISPLAY_NAME_MAX_CHARS } from "@/lib/utils";
+import { truncate, RAG_DISPLAY_NAME_MAX_CHARS } from "../../utils";
 
 interface PillProps {
   attachments: TextAttachment[];

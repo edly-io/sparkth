@@ -7,7 +7,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { Spinner } from "@/lib/components/ui/Spinner";
 import { Alert } from "@/components/ui/Alert";
 import { useAuth } from "@/lib/auth/hooks";
-import type { ConversationSummary } from "@/lib/chat";
+import type { ConversationSummary } from "@/plugins/chat/types";
 import { useActiveConversationId } from "@/plugins/chat/hooks/useActiveConversationId";
 import { useConversations } from "@/plugins/chat/hooks/useConversations";
 

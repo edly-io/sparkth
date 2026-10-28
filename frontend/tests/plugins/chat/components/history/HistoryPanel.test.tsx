@@ -3,7 +3,7 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 
 import HistoryPanel from "@/plugins/chat/components/history/HistoryPanel";
 import { useConversations } from "@/plugins/chat/hooks/useConversations";
-import type { ConversationSummary } from "@/lib/chat";
+import type { ConversationSummary } from "@/plugins/chat/types";
 import chatEn from "@/plugins/chat/messages/en.json";
 import { renderWithIntl } from "../../../../intl-test-utils";
 

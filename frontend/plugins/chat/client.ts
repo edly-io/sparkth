@@ -5,7 +5,7 @@ import type {
   ChatCompletionRequestBody,
   ConversationSummary,
   PersistedAttachment,
-} from "@/lib/chat/types";
+} from "./types";
 
 // NOTE: chat endpoints throw plain `Error` on failure, while `@/lib/api`
 // and `@/lib/llm` throw the structured `ApiRequestError`. The chat plugin's

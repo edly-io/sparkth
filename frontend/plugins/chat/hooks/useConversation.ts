@@ -1,11 +1,6 @@
 import { Dispatch, SetStateAction, useCallback, useEffect, useRef, useState } from "react";
-import {
-  type ApiMessage,
-  getConversation,
-  getConversationAttachments,
-  getLastMessage,
-} from "@/lib/chat";
-import { ChatMessage, ChatRole, TextAttachment } from "../types";
+import { getConversation, getConversationAttachments, getLastMessage } from "../client";
+import { type ApiMessage, ChatMessage, ChatRole, TextAttachment } from "../types";
 import {
   clearStreamProgress,
   getRestoredStreamData,
