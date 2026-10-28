@@ -27,9 +27,9 @@ record carries the link's token or the password.
 ## Create a user
 
 ```bash
-make create-user -- --username john --email john@example.com --name "John Doe"
+make create-user -- --username john --email john@example.com --name John
 # Using short flags
-make create-user -- -u john -e john@example.com -n "John Doe"
+make create-user -- -u john -e john@example.com -n John
 ```
 
 If a password is not provided via flag, you'll be prompted to enter it securely.
@@ -39,14 +39,14 @@ role. Run `make migrations` before the second step so the role is seeded. See th
 [permissions guide](permissions.md) for what the `admin` role grants.
 
 ```bash
-make create-user -- --username jane --email jane@example.com --name "Jane Admin"
+make create-user -- --username jane --email jane@example.com --name Jane
 make cli -- roles assign-role jane admin
 ```
 
 Provide the password directly:
 
 ```bash
-make create-user -- -u john -e john@example.com -n "John Doe" --password "SecurePass123"
+make create-user -- -u john -e john@example.com -n John --password "SecurePass123"
 ```
 
 Options:
