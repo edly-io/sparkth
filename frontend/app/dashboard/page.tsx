@@ -39,7 +39,7 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {plugins.map((plugin) => {
               const displayName = displayNameOf(plugin);
-              const Icon = resolvePluginIcon(plugin.display?.icon);
+              const Icon = resolvePluginIcon(plugin.plugin_name, plugin.display?.icon);
               return (
                 <Link
                   key={plugin.plugin_name}

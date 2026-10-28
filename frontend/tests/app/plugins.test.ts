@@ -14,8 +14,8 @@ describe("frontend plugin registry vs backend declarations", () => {
   });
 
   it("resolves every icon the backend plugins declare", () => {
-    expect(resolvePluginIcon("plus")).toBeDefined();
-    expect(resolvePluginIcon("blocks")).toBeDefined();
-    expect(resolvePluginIcon("slack")).toBeDefined();
+    expect(resolvePluginIcon("chat", "plus")).toBeDefined();
+    expect(resolvePluginIcon("pxc", "blocks")).toBeDefined();
+    expect(resolvePluginIcon("slack", "slack")).toBeDefined();
   });
 });
