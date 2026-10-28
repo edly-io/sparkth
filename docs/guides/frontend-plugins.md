@@ -180,9 +180,10 @@ make frontend.build.plugins
   `uv run python scripts/dump_frontend_plugins.py`. The make target passes
   `-o frontend/lib/plugins/generated.ts`, which writes atomically, so a failed
   dump leaves the committed file intact
-- Tests on both tiers fail when the committed list drifts from the backend
-  declarations (`tests/core/test_dump_frontend_plugins.py`) or when the
-  frontend registry does not match it (`frontend/tests/app/plugins.test.ts`)
+- Tests on both tiers fail when the committed file drifts from the backend
+  declarations (`tests/core/test_dump_frontend_plugins.py`), when the
+  frontend registry does not match it, or when a plugin sets no component for
+  an icon name its backend declares (`frontend/tests/app/plugins.test.ts`)
 - `PluginPageClient` handles loading the correct plugin dynamically
 
 ## Translations (Optional)
