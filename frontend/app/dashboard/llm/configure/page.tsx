@@ -20,7 +20,7 @@ import { Select } from "@/components/ui/Select";
 import { SettingsList, SettingsPage } from "@/core/components/settings/SettingsPage";
 import { SettingsRow } from "@/core/components/settings/SettingsRow";
 import { useAuth } from "@/core/auth/hooks";
-import { validateLLMConfigName } from "@/lib/llm-validation";
+import { validateLLMConfigName } from "@/core/llm/validation";
 import {
   createLLMConfig,
   deleteLLMConfig,
