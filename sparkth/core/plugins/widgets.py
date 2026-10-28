@@ -8,11 +8,11 @@ class ConfigWidget(StrEnum):
     """A form control the settings UI knows how to render.
 
     Values are the names the frontend config modal looks a control up by: the controls a
-    plugin passes into its own config modal, then core's built-in controls
-    (``frontend/core/components/settings/widgets.tsx``). A field with no hint is rendered
-    from its JSON-schema type alone, which covers plain strings, numbers and booleans;
-    declare a widget only when the type does not carry enough meaning -- a multi-line
-    message, a secret, or a value that must be picked from data the frontend fetches.
+    plugin passes into its own config modal, then core's built-in controls. A field with no
+    hint is rendered from its JSON-schema type alone, which covers plain strings, numbers and
+    booleans; declare a widget only when the type does not carry enough meaning -- a
+    multi-line message, a secret, or a value that must be picked from data the frontend
+    fetches.
     """
 
     TEXTAREA = "textarea"
