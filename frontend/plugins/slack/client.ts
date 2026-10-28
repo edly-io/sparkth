@@ -5,7 +5,7 @@ import type {
   FetchLogsOptions,
   LogsResponse,
   RagSourcesResponse,
-} from "@/lib/slack/types";
+} from "./types";
 
 function bearer(token: string): { Authorization: string } {
   return { Authorization: `Bearer ${token}` };
