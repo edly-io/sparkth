@@ -149,6 +149,10 @@
     "detailsError": "We couldn't load this event's details.",
     "loadMore": "Load more",
     "empty": "No audit events match these filters.",
+    "errors": {
+      "actorIdInvalid": "Actor user ID must be a number.",
+      "rangeReversed": "The start time must be on or before the end time."
+    },
     "outcomes": {
       "success": "Success",
       "failure": "Failure",
