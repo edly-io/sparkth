@@ -343,46 +343,6 @@ export function ExampleSections() {
 }
 ```
 
-**Named slots.** When readers look up one item by name, such as an icon, declare a `NamedSlot` instead:
-
-```ts
-// lib/example/slots.ts
-import type { ComponentType } from "react";
-import type { NamedSlot } from "@/lib/slots";
-
-export interface ExampleIcon {
-  name: string;
-  component: ComponentType;
-}
-
-export const EXAMPLE_ICONS: NamedSlot<ExampleIcon> = new Map();
-```
-
-A `NamedSlot` is read-only, so a plugin sets its items only with `setNamedSlotItems`. It throws when the items repeat
-a name or another plugin already set an item of the same name, so each name has one item:
-
-```ts
-// plugins/example-plugin/icons.ts
-import { EXAMPLE_ICONS } from "@/lib/example/slots";
-import { setNamedSlotItems } from "@/lib/slots";
-import ExampleBrandIcon from "./ExampleBrandIcon";
-
-setNamedSlotItems(EXAMPLE_ICONS, "example-plugin", [
-  { name: "example-brand", component: ExampleBrandIcon },
-]);
-```
-
-Readers find an item with `namedSlotItem`, which returns it whether or not the plugin that set it is enabled, so a
-reader looks up items only for the plugins it already chose to show:
-
-```ts
-// core/components/example/ExampleHeader.tsx
-import { EXAMPLE_ICONS } from "@/lib/example/slots";
-import { namedSlotItem } from "@/lib/slots";
-
-const Icon = namedSlotItem(EXAMPLE_ICONS, "example-brand")?.component;
-```
-
 ## Settings
 
 The **Settings** page lists the one row each plugin sets in the `SETTINGS_ITEMS` slot
