@@ -129,7 +129,7 @@ async def test_rejects_a_range_that_ends_before_it_starts(
 
 
 @pytest.mark.parametrize("path", ["/api/v1/audit/events", "/api/v1/audit/events/export"])
-@pytest.mark.parametrize("actor_id", ["abc", "0", "-7", "7.5", "07"])
+@pytest.mark.parametrize("actor_id", ["abc", "0", "-7", "7.5", "07", "1" * 65])
 async def test_rejects_an_actor_id_that_is_not_a_user_id(
     client: AsyncClient, session: AsyncSession, current_user: User, path: str, actor_id: str
 ) -> None:

@@ -18,14 +18,15 @@ class AuditEventQuery(BaseModel):
 
     ``from`` and ``to`` bound ``occurred_at`` inclusively and must carry a timezone, so
     a range never silently shifts by the server's offset. ``actor_id`` is a user id, the
-    only actor that carries one, so anything but a positive integer is rejected.
+    only actor that carries one, so anything but a positive integer of at most 64 digits
+    is rejected, matching the column width.
     """
 
     model_config = ConfigDict(populate_by_name=True)
 
     from_: AwareDatetime | None = Field(default=None, alias="from")
     to: AwareDatetime | None = None
-    actor_id: str | None = Field(default=None, pattern=r"^[1-9][0-9]*$")
+    actor_id: str | None = Field(default=None, max_length=64, pattern=r"^[1-9][0-9]*$")
     category: str | None = None
     action: str | None = None
     outcome: AuditOutcome | None = None
