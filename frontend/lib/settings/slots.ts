@@ -10,7 +10,6 @@
 import type { ComponentType } from "react";
 
 import type { UserPluginState } from "@/core/plugins/types";
-import type { Slot } from "@/lib/slots";
 
 export type ConfigFieldType = "string" | "integer" | "number" | "boolean" | "array";
 
@@ -72,5 +71,5 @@ export interface SettingsItem {
   loadConfigModal?: () => Promise<{ default: ComponentType<ConfigModalProps> }>;
 }
 
-/** Each plugin's settings entry, set by the plugin under its name. */
-export const SETTINGS_ITEMS: Slot<SettingsItem> = new Map();
+/** Each plugin's one settings entry, set by the plugin under its name. */
+export const SETTINGS_ITEMS: Map<string, SettingsItem> = new Map();
