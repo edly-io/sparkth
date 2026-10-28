@@ -110,18 +110,18 @@ typed `unknown`, because the backend stores config as JSONB and a field declared
 as a string can still arrive as an array or a number. Narrow at the read site.
 
 Icons cross the wire as names, such as a [lucide](https://lucide.dev/icons/) icon name or a brand name. Each plugin
-sets the component for every icon name its backend declares in the `PLUGIN_ICONS` named slot (see
-[Slots](#slots-optional)), from its `icons.ts`, which its `index.ts` imports. Core keeps no icon map of its own, so
-an icon name no plugin set renders without an icon, and the resolver logs a `console.warn` outside production to
-surface the gap:
+sets the component for every icon name its backend declares in the `PLUGIN_ICONS` slot (see
+[Slots](#slots-optional)), from its `icons.ts`, which its `index.ts` imports. A name is looked up only among the
+icons of the plugin that declares it, so two plugins can both declare `plus`. Core keeps no icon map of its own, so
+an icon name its plugin did not set renders without an icon, and the resolver logs a `console.warn` outside
+production to surface the gap:
 
 ```ts
 // plugins/example-plugin/icons.ts
 import { Plus } from "lucide-react";
 import { PLUGIN_ICONS } from "@/lib/icons/slots";
-import { setNamedSlotItems } from "@/lib/slots";
 
-setNamedSlotItems(PLUGIN_ICONS, "example-plugin", [{ name: "plus", component: Plus }]);
+PLUGIN_ICONS.set("example-plugin", [{ name: "plus", component: Plus }]);
 ```
 
 For more details, see the `PluginDefinition` type in
@@ -323,46 +323,6 @@ export function ExampleSections() {
     </ul>
   );
 }
-```
-
-**Named slots.** When readers look up one item by name, such as an icon, declare a `NamedSlot` instead:
-
-```ts
-// lib/example/slots.ts
-import type { ComponentType } from "react";
-import type { NamedSlot } from "@/lib/slots";
-
-export interface ExampleIcon {
-  name: string;
-  component: ComponentType;
-}
-
-export const EXAMPLE_ICONS: NamedSlot<ExampleIcon> = new Map();
-```
-
-A `NamedSlot` is read-only, so a plugin sets its items only with `setNamedSlotItems`. It throws when the items repeat
-a name or another plugin already set an item of the same name, so each name has one item:
-
-```ts
-// plugins/example-plugin/icons.ts
-import { EXAMPLE_ICONS } from "@/lib/example/slots";
-import { setNamedSlotItems } from "@/lib/slots";
-import ExampleBrandIcon from "./ExampleBrandIcon";
-
-setNamedSlotItems(EXAMPLE_ICONS, "example-plugin", [
-  { name: "example-brand", component: ExampleBrandIcon },
-]);
-```
-
-Readers find an item with `namedSlotItem`, which returns it whether or not the plugin that set it is enabled, so a
-reader looks up items only for the plugins it already chose to show:
-
-```ts
-// core/components/example/ExampleHeader.tsx
-import { EXAMPLE_ICONS } from "@/lib/example/slots";
-import { namedSlotItem } from "@/lib/slots";
-
-const Icon = namedSlotItem(EXAMPLE_ICONS, "example-brand")?.component;
 ```
 
 ## Settings

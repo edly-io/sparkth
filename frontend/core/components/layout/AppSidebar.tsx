@@ -355,7 +355,7 @@ function PluginNavItem({
   isCollapsed?: boolean;
 }) {
   const label = item.label;
-  const Icon = resolvePluginIcon(item.icon);
+  const Icon = resolvePluginIcon(item.name, item.icon);
 
   return (
     <Link
