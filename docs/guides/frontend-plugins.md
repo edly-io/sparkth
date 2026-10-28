@@ -352,6 +352,10 @@ SETTINGS_ITEMS.set("example-plugin", {
 The row shows its configure button only while the plugin's backend config declares fields, so pass the shared modal
 even when the config has no fields yet: adding or removing fields on the backend then needs no frontend change.
 
+A backend plugin with no page still needs a frontend part for its row: its `settings.ts` and an `index.ts` that
+only imports it, with no `PluginDefinition`. `app/plugins.ts` imports that `index.ts` like any other plugin's, as
+`import "@/plugins/canvas";` does for Canvas.
+
 **Field controls.** A backend field picks its control with a `widget` hint (`sparkth/core/plugins/widgets.py`), and a
 field with no hint gets a control from its type. Core ships controls for text, URLs, passwords, numbers, text areas,
 checkboxes and LLM configs. When a field needs a control core doesn't ship, the plugin ships its own config modal that
