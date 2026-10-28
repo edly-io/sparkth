@@ -4,6 +4,7 @@ import { registerPlugin } from "@/core/plugins/registry";
 import "@/plugins/canvas";
 import { chatPlugin } from "@/plugins/chat";
 import { googleDrivePlugin } from "@/plugins/google-drive";
+import "@/plugins/moodle";
 import { pxcPlugin } from "@/plugins/pxc";
 import { slackPlugin } from "@/plugins/slack";
 
