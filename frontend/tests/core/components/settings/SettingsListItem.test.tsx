@@ -7,9 +7,15 @@ import { renderWithIntl } from "@/tests/intl-test-utils";
 
 const noop = async () => {};
 
-function renderItem(plugin: UserPluginState, onConfigure?: () => void) {
+function renderItem(plugin: UserPluginState, onConfigure?: () => void, configuring?: boolean) {
   return renderWithIntl(
-    <SettingsListItem plugin={plugin} onEnable={noop} onDisable={noop} onConfigure={onConfigure} />,
+    <SettingsListItem
+      plugin={plugin}
+      onEnable={noop}
+      onDisable={noop}
+      onConfigure={onConfigure}
+      configuring={configuring}
+    />,
   );
 }
 
@@ -72,5 +78,13 @@ describe("SettingsListItem", () => {
     fireEvent.click(screen.getByRole("button", { name: "Configure Canvas" }));
 
     expect(onConfigure).toHaveBeenCalledOnce();
+  });
+
+  it("shows its configure button busy while the config modal loads", () => {
+    renderItem(CANVAS, vi.fn(), true);
+
+    const button = screen.getByRole("button", { name: "Configure Canvas" });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("aria-busy", "true");
   });
 });

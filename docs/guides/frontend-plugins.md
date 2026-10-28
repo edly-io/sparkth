@@ -354,6 +354,8 @@ SETTINGS_ITEMS.set("example-plugin", {
 
 The row shows its configure button only while the plugin's backend config declares fields, so pass the shared modal
 even when the config has no fields yet: adding or removing fields on the backend then needs no frontend change.
+While the modal loads, the page passes the row `configuring`, and `SettingsListItem` shows a spinner on its configure
+button.
 
 A backend plugin with no page still needs a frontend part for its row: its `settings.ts` and an `index.ts` that
 only imports it, with no `PluginDefinition`. `app/plugins.ts` imports that `index.ts` like any other plugin's, as

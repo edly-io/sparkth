@@ -1,3 +1,4 @@
+import type { ComponentType } from "react";
 import { afterEach, describe, it, expect, vi } from "vitest";
 import { fireEvent, screen } from "@testing-library/react";
 
@@ -44,12 +45,13 @@ function configurable(pluginName: string): UserPluginState {
   };
 }
 
-function ExampleRow({ plugin, onEnable, onConfigure }: SettingsListItemProps) {
+function ExampleRow({ plugin, onEnable, onConfigure, configuring }: SettingsListItemProps) {
   return (
     <div>
       <p>Row for {plugin.plugin_name}</p>
       <button onClick={onEnable}>Enable</button>
       {onConfigure ? <button onClick={onConfigure}>Configure</button> : <p>No configure</p>}
+      {configuring && <p>Loading modal</p>}
     </div>
   );
 }
@@ -136,6 +138,26 @@ describe("PluginSettingsList", () => {
     fireEvent.click(screen.getByRole("button", { name: "Configure" }));
 
     expect(await screen.findByText("Modal for example")).toBeDefined();
+  });
+
+  it("shows the loading config modal in its row, not between the rows", async () => {
+    let load!: (module: { default: ComponentType<ConfigModalProps> }) => void;
+    SETTINGS_ITEMS.set("example", {
+      listItem: ExampleRow,
+      loadConfigModal: () => new Promise((resolve) => (load = resolve)),
+    });
+    context.userPlugins = [configurable("example")];
+
+    renderWithIntl(<PluginSettingsList />);
+    fireEvent.click(screen.getByRole("button", { name: "Configure" }));
+
+    expect(await screen.findByText("Loading modal")).toBeDefined();
+    expect(screen.getByRole("list").children).toHaveLength(1);
+
+    load({ default: ExampleModal });
+
+    expect(await screen.findByText("Modal for example")).toBeDefined();
+    expect(screen.queryByText("Loading modal")).toBeNull();
   });
 
   it("keeps the page and shows an error when a plugin's config modal fails to load", async () => {
