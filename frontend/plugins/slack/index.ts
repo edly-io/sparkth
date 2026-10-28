@@ -1,6 +1,8 @@
 import { PluginDefinition } from "@/lib/plugins/types";
 import { registerPluginIcon } from "@/lib/plugins/icons";
 import SlackIcon from "./SlackIcon";
+// This plugin's contributions to core's slots.
+import "./settings";
 
 export const SLACK_PLUGIN_PATH = "/dashboard/slack";
 

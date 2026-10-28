@@ -128,26 +128,10 @@ registerPluginIcon("example-brand", ExampleBrandIcon);
 For more details, see the `PluginDefinition` type in
 [`frontend/core/plugins/types.ts`](https://github.com/edly-io/sparkth/blob/main/frontend/core/plugins/types.ts).
 
-## 4. Publicly Export the Plugin
+## 4. Register the Plugin
 
-Expose the plugin from the plugins barrel file.
-
-**File**
-
-    plugins/index.ts
-
-```ts
-export * from "./chat"; // already existing
-
-// your plugin export goes here
-export * from "./example-plugin";
-```
-
-This makes the plugin available for registration.
-
-## 5. Register the Plugin
-
-Register the plugin with the plugin registry.
+Import the plugin's `index.ts` in `app/plugins.ts`, once, and register its `PluginDefinition` with the plugin
+registry. Importing the `index.ts` also runs any slot files it imports, such as `settings.ts`.
 
 **File**
 
@@ -155,20 +139,19 @@ Register the plugin with the plugin registry.
 
 ```ts
 import { registerPlugin } from "@/core/plugins/registry";
-import { chatPlugin, examplePlugin } from "@/plugins";
+import { chatPlugin } from "@/plugins/chat"; // already existing
+import { examplePlugin } from "@/plugins/example-plugin";
 
 registerPlugin(chatPlugin); // already existing
-
-// your plugin registration goes here
 registerPlugin(examplePlugin);
 ```
 
 `app/LocaleProvider.tsx` and the dashboard layout import this module, so the plugins are
 registered on every page before their catalogs load.
 
-> ⚠️ If a plugin is not registered here, it will not load, not render, and not appear in the sidebar.
+> ⚠️ If a plugin is not imported and registered here, it will not load, not render, and not appear in the sidebar.
 
-## 6. Regenerate the Plugin Route List
+## 5. Regenerate the Plugin Route List
 
 Each plugin is rendered under:
 
@@ -413,8 +396,7 @@ Rendered plugin UI
 
 **Plugin not showing?**
 
-- Ensure it’s exported from `plugins/index.ts`
-- Ensure it’s registered in `app/plugins.ts`
+- Ensure `app/plugins.ts` imports its `index.ts` and registers it
 
 **Plugin page blank?**
 
