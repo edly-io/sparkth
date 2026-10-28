@@ -54,4 +54,15 @@ describe("named slots", () => {
     expect(() => setNamedSlotItems(slot, "chat", [{ name: "shared", label: "chat's" }])).toThrow();
     expect(namedSlotItem(slot, "shared")).toEqual({ name: "shared", label: "slack's" });
   });
+
+  it("refuses items that repeat a name, and sets none of them", () => {
+    const slot: NamedSlot<Named> = new Map();
+    const items = [
+      { name: "slack", label: "first" },
+      { name: "slack", label: "second" },
+    ];
+
+    expect(() => setNamedSlotItems(slot, "slack", items)).toThrow();
+    expect(namedSlotItem(slot, "slack")).toBeUndefined();
+  });
 });
