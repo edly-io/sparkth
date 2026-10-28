@@ -306,26 +306,63 @@ import "./sections";
 **3. Core reads the slot** where its items are rendered. `slotItems` returns each item with the plugin that set
 it, ordered by plugin name, and leaves the filtering to the reader:
 
-```ts
-import { slotItems } from "@/lib/slots";
+```tsx
+// core/components/example/ExampleSections.tsx
 import { usePluginContext } from "@/core/plugins/context";
+import { EXAMPLE_SECTIONS } from "@/lib/example/slots";
+import { slotItems } from "@/lib/slots";
 
-const { isPluginEnabled } = usePluginContext();
-const sections = slotItems(EXAMPLE_SECTIONS)
-  .filter(([plugin]) => isPluginEnabled(plugin))
-  .map(([, section]) => section);
+export function ExampleSections() {
+  const { isPluginEnabled } = usePluginContext();
+  const sections = slotItems(EXAMPLE_SECTIONS).filter(([plugin]) => isPluginEnabled(plugin));
+
+  return (
+    <ul>
+      {sections.map(([plugin, section]) => (
+        <li key={`${plugin}:${section.title}`}>{section.title}</li>
+      ))}
+    </ul>
+  );
+}
 ```
 
-**Named slots.** When readers look up one item by name, such as an icon, declare a `NamedSlot` instead. A plugin
-sets its items with `setNamedSlotItems`, which throws when another plugin already set an item of the same name, so
-two plugins cannot claim one name. Readers find an item with `namedSlotItem`:
+**Named slots.** When readers look up one item by name, such as an icon, declare a `NamedSlot` instead:
 
 ```ts
-import { namedSlotItem, setNamedSlotItems, type NamedSlot } from "@/lib/slots";
+// lib/example/slots.ts
+import type { ComponentType } from "react";
+import type { NamedSlot } from "@/lib/slots";
 
-export const EXAMPLE_ICONS: NamedSlot<{ name: string; component: ComponentType }> = new Map();
+export interface ExampleIcon {
+  name: string;
+  component: ComponentType;
+}
 
-setNamedSlotItems(EXAMPLE_ICONS, "example-plugin", [{ name: "example-brand", component: ExampleBrandIcon }]);
+export const EXAMPLE_ICONS: NamedSlot<ExampleIcon> = new Map();
+```
+
+A `NamedSlot` is read-only, so a plugin sets its items only with `setNamedSlotItems`. It throws when the items repeat
+a name or another plugin already set an item of the same name, so each name has one item:
+
+```ts
+// plugins/example-plugin/icons.ts
+import { EXAMPLE_ICONS } from "@/lib/example/slots";
+import { setNamedSlotItems } from "@/lib/slots";
+import ExampleBrandIcon from "./ExampleBrandIcon";
+
+setNamedSlotItems(EXAMPLE_ICONS, "example-plugin", [
+  { name: "example-brand", component: ExampleBrandIcon },
+]);
+```
+
+Readers find an item with `namedSlotItem`, which returns it whether or not the plugin that set it is enabled, so a
+reader looks up items only for the plugins it already chose to show:
+
+```ts
+// core/components/example/ExampleHeader.tsx
+import { EXAMPLE_ICONS } from "@/lib/example/slots";
+import { namedSlotItem } from "@/lib/slots";
+
 const Icon = namedSlotItem(EXAMPLE_ICONS, "example-brand")?.component;
 ```
 
