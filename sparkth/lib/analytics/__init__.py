@@ -11,6 +11,9 @@ Plugins:
   - emit it through ``emit_event``, or ``emit_events`` for a group of related
     events that should share one session (reach for the lower-level
     ``ingest_event`` only when the caller already holds an analytics session),
+  - list the registered event types and their payload fields with ``event_catalog``,
+  - measure one event type's raw events, filtered and grouped by payload fields, with
+    ``measure_raw_events`` (an ``ExploreQuery``; bad names or values raise ``ExploreQueryError``),
   - read a continuous aggregate by range and bucket with ``read_rollup`` (payload-key
     dims, no SQL), taking the range as ``RangeQuery``,
   - add a headline figure to the Overview with ``register_summary_figure`` (a
@@ -25,19 +28,40 @@ from types import ModuleType
 from typing import Any
 
 from sparkth.core.analytics import ANALYTICS_EVENTS, get_event_schema
-from sparkth.core.analytics.enums import Bucket
+from sparkth.core.analytics.catalog import EventCatalogEntry, EventField, FilterFieldType, catalog_entry, event_catalog
 from sparkth.core.analytics.exceptions import (
     ContinuousAggregateNotFound,
     DuplicateEventTypeError,
     EventNamespaceError,
+    ExploreQueryError,
+    InvalidFilterValue,
+    UngroupableExploreField,
     UnknownEventTypeError,
+    UnknownExploreEvent,
+    UnknownExploreField,
+)
+from sparkth.core.analytics.explore import (
+    GROUP_LIMIT,
+    ExplorePoint,
+    ExploreQuery,
+    ExploreResult,
+    ExploreTotal,
+    Measure,
+    measure_raw_events,
 )
 from sparkth.core.analytics.gateway import ingest_event
 from sparkth.core.analytics.hooks import SUMMARY_FIGURES
 from sparkth.core.analytics.maintenance import backfill_continuous_aggregates
-from sparkth.core.analytics.reads import get_logins, read_rollup, summarize
+from sparkth.core.analytics.reads import (
+    Bucket,
+    LoginsPoint,
+    RangeQuery,
+    SummaryCount,
+    get_logins,
+    read_rollup,
+    summarize,
+)
 from sparkth.core.analytics.schemas.base import AnalyticsEventSchema
-from sparkth.core.analytics.schemas.reads import LoginsPoint, RangeQuery, SummaryCount
 from sparkth.core.analytics.types import Count, SummaryFigure
 from sparkth.lib.db import analytics_session_scope
 from sparkth.lib.log import get_logger
@@ -58,10 +82,27 @@ __all__ = [
     "read_rollup",
     "ContinuousAggregateNotFound",
     "DuplicateEventTypeError",
+    "EventCatalogEntry",
+    "EventField",
+    "FilterFieldType",
     "EventNamespaceError",
+    "ExplorePoint",
+    "ExploreQuery",
+    "ExploreQueryError",
+    "ExploreResult",
+    "ExploreTotal",
+    "GROUP_LIMIT",
+    "InvalidFilterValue",
+    "UngroupableExploreField",
+    "Measure",
+    "UnknownExploreEvent",
+    "UnknownExploreField",
+    "measure_raw_events",
     "UnknownEventTypeError",
     "backfill_continuous_aggregates",
+    "catalog_entry",
     "emit_event",
+    "event_catalog",
     "emit_events",
     "PendingEvent",
     "get_event_schema",

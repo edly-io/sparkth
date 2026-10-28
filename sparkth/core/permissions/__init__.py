@@ -189,6 +189,9 @@ ANALYTICS_READ = Permission.create("analytics.read")
 # The audit read permission gates querying and exporting the audit trail.
 AUDIT_READ = Permission.create("audit.read")
 
+# Reading user identities (usernames) outside user management, e.g. actor names in analytics.
+USER_READ = Permission.create("user.read")
+
 
 def _scope_clause(
     scope_column: Mapped[str],
