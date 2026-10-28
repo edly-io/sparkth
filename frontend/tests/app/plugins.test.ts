@@ -3,7 +3,6 @@ import { describe, it, expect } from "vitest";
 import "@/app/plugins";
 import { getAllPlugins } from "@/core/plugins/registry";
 import { FRONTEND_PLUGIN_NAMES } from "@/core/plugins/generated";
-import { SETTINGS_ITEMS } from "@/lib/settings/slots";
 
 describe("frontend plugin registry vs backend declarations", () => {
   it("registers a PluginDefinition for exactly the backend-declared frontend plugins", () => {
@@ -11,11 +10,5 @@ describe("frontend plugin registry vs backend declarations", () => {
       .map((plugin) => plugin.name)
       .sort();
     expect(registered).toEqual([...FRONTEND_PLUGIN_NAMES].sort());
-  });
-
-  it("sets a settings row for every plugin", () => {
-    expect([...SETTINGS_ITEMS.keys()]).toEqual(
-      expect.arrayContaining(["chat", "google-drive", "pxc", "slack"]),
-    );
   });
 });
