@@ -129,15 +129,27 @@ async def test_rejects_a_range_that_ends_before_it_starts(
 
 
 @pytest.mark.parametrize("path", ["/api/v1/audit/events", "/api/v1/audit/events/export"])
-@pytest.mark.parametrize("actor_id", ["abc", "0", "-7", "7.5", "07"])
+@pytest.mark.parametrize(
+    ("actor_id", "error_type"),
+    [
+        ("abc", "string_pattern_mismatch"),
+        ("0", "string_pattern_mismatch"),
+        ("-7", "string_pattern_mismatch"),
+        ("7.5", "string_pattern_mismatch"),
+        ("07", "string_pattern_mismatch"),
+        ("1" * 65, "string_too_long"),
+    ],
+)
 async def test_rejects_an_actor_id_that_is_not_a_user_id(
-    client: AsyncClient, session: AsyncSession, current_user: User, path: str, actor_id: str
+    client: AsyncClient, session: AsyncSession, current_user: User, path: str, actor_id: str, error_type: str
 ) -> None:
     await _grant(session, current_user)
 
     response = await client.get(path, params={"actor_id": actor_id})
 
     assert response.status_code == 422
+    (error,) = response.json()["detail"]
+    assert (error["loc"], error["type"]) == (["query", "actor_id"], error_type)
 
 
 async def test_an_event_shows_every_column_but_the_sealed_bytes(
