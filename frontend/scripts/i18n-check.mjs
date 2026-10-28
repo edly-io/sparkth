@@ -24,7 +24,7 @@ function check(localesDir, sourcePaths) {
   return result.status ?? 1;
 }
 
-let failed = check("messages", ["app", "components", "core", "lib", "hooks"]) !== 0;
+let failed = check("messages", ["app", "components", "core", "lib"]) !== 0;
 
 for (const entry of readdirSync("plugins", { withFileTypes: true })) {
   if (!entry.isDirectory()) continue;

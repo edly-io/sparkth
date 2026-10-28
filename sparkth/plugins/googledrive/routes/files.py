@@ -3,10 +3,10 @@
 import re
 import urllib.parse
 from collections.abc import AsyncGenerator, Sequence
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import cast
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func
 from sqlmodel import select
@@ -16,7 +16,6 @@ from sparkth.lib.db import get_async_session
 from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
 from sparkth.plugins.googledrive.client import GoogleDriveClient
-from sparkth.plugins.googledrive.config import get_googledrive_settings
 from sparkth.plugins.googledrive.models import DriveFile, DriveFolder
 from sparkth.plugins.googledrive.oauth import get_valid_access_token
 from sparkth.plugins.googledrive.routes.dependencies import require_user_id
@@ -28,7 +27,6 @@ from sparkth.plugins.googledrive.schemas import (
     FileRagStatusResponse,
     FolderRagStatusResponse,
     PaginatedResponse,
-    RenameFileRequest,
 )
 from sparkth.plugins.googledrive.utils import soft_delete_drive_file
 
@@ -86,78 +84,6 @@ async def list_files(
         total=total,
         skip=skip,
         limit=limit,
-    )
-
-
-@router.post("/folders/{folder_id}/files", response_model=DriveFileResponse)
-async def upload_file(
-    folder_id: int,
-    file: UploadFile = File(...),
-    user_id: int = Depends(require_user_id),
-    session: AsyncSession = Depends(get_async_session),
-) -> DriveFileResponse:
-    """Upload a file to a Google Drive folder."""
-    result = await session.exec(
-        select(DriveFolder).where(
-            DriveFolder.id == folder_id,
-            DriveFolder.user_id == user_id,
-            DriveFolder.is_deleted == False,  # noqa: E712
-        )
-    )
-    folder = result.first()
-    if not folder:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("Folder not found"))
-
-    client_id, client_secret, _redirect_uri = get_drive_credentials()
-    access_token = await get_valid_access_token(session, user_id, client_id, client_secret)
-
-    content = await file.read()
-    max_upload_bytes = get_googledrive_settings().DRIVE_MAX_UPLOAD_BYTES
-    if len(content) > max_upload_bytes:
-        limit_mb = max_upload_bytes / (1024 * 1024)
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=_("File size exceeds {limit:.0f}MB limit.").format(limit=limit_mb),
-        )
-    mime_type = file.content_type or "application/octet-stream"
-
-    async with GoogleDriveClient(access_token) as client:
-        file_metadata = await client.upload_file(
-            name=file.filename or "untitled",
-            content=content,
-            mime_type=mime_type,
-            folder_id=folder.drive_folder_id,
-        )
-
-    now = datetime.now(timezone.utc)
-    modified_time = None
-    if file_metadata.get("modifiedTime"):
-        modified_time = datetime.fromisoformat(file_metadata["modifiedTime"].replace("Z", "+00:00"))
-
-    drive_file = DriveFile(
-        folder_id=cast(int, folder.id),
-        user_id=user_id,
-        drive_file_id=file_metadata["id"],
-        name=file_metadata["name"],
-        mime_type=file_metadata.get("mimeType"),
-        size=int(file_metadata["size"]) if file_metadata.get("size") else len(content),
-        md5_checksum=file_metadata.get("md5Checksum"),
-        modified_time=modified_time,
-        last_synced_at=now,
-    )
-    session.add(drive_file)
-    await session.commit()
-    await session.refresh(drive_file)
-
-    return DriveFileResponse(
-        id=cast(int, drive_file.id),
-        drive_file_id=drive_file.drive_file_id,
-        document_id=drive_file.document_id,
-        name=drive_file.name,
-        mime_type=drive_file.mime_type,
-        size=drive_file.size,
-        modified_time=drive_file.modified_time,
-        last_synced_at=drive_file.last_synced_at,
     )
 
 
@@ -321,60 +247,6 @@ async def download_file(
         _stream(),
         media_type=media_type,
         headers={"Content-Disposition": content_disposition},
-    )
-
-
-@router.patch("/files/{file_id}", response_model=DriveFileResponse)
-async def rename_file(
-    file_id: int,
-    request: RenameFileRequest,
-    user_id: int = Depends(require_user_id),
-    session: AsyncSession = Depends(get_async_session),
-) -> DriveFileResponse:
-    """Rename a file in Google Drive."""
-    db_result = await session.exec(
-        select(DriveFile).where(
-            DriveFile.id == file_id,
-            DriveFile.user_id == user_id,
-            DriveFile.is_deleted == False,  # noqa: E712
-        )
-    )
-    drive_file = db_result.first()
-    if not drive_file:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("File not found"))
-
-    client_id, client_secret, _redirect_uri = get_drive_credentials()
-    access_token = await get_valid_access_token(session, user_id, client_id, client_secret)
-
-    try:
-        async with GoogleDriveClient(access_token) as client:
-            await client.rename_file(drive_file.drive_file_id, request.name)
-    except (ConnectionError, TimeoutError, RuntimeError, ValueError, OSError) as e:
-        logger.error("Failed to rename file %s: %s", file_id, e)
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=_("Failed to rename file."))
-
-    drive_file.name = request.name
-    drive_file.update_timestamp()
-    session.add(drive_file)
-    await session.commit()
-    await session.refresh(drive_file)
-
-    doc = None
-    if drive_file.document_id is not None:
-        docs = await batch_fetch_documents(session, [drive_file.document_id])
-        doc = docs.get(drive_file.document_id)
-
-    return DriveFileResponse(
-        id=cast(int, drive_file.id),
-        drive_file_id=drive_file.drive_file_id,
-        document_id=drive_file.document_id,
-        name=drive_file.name,
-        mime_type=drive_file.mime_type,
-        size=drive_file.size,
-        modified_time=drive_file.modified_time,
-        last_synced_at=drive_file.last_synced_at,
-        rag_status=doc.status if doc else None,
-        rag_error=doc.error if doc else None,
     )
 
 
