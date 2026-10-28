@@ -172,6 +172,18 @@ def _streamed_events(event: dict[str, Any]) -> list[dict[str, Any]]:
             return []
 
 
+async def _stream_tokens(
+    messages: list[dict[str, Any]], provider: BaseChatProvider
+) -> AsyncGenerator[dict[str, Any], None]:
+    """Stream the model's reply to a turn without tools, one token event per text block of each chunk."""
+    llm = provider.create_llm()
+    chunks = llm.astream([SystemMessage(content=provider.system_prompt), *provider.convert_messages(messages)])
+    async with aclosing(chunks):
+        async for chunk in chunks:
+            for text in _text_blocks(chunk.content):
+                yield {"type": "token", "content": text}
+
+
 async def _agent_events(
     messages: list[dict[str, Any]], tools: Sequence[BaseTool], provider: BaseChatProvider, max_tool_executions: int
 ) -> AsyncGenerator[dict[str, Any], None]:
@@ -267,14 +279,16 @@ async def stream_turn(
       {"type": "tool_end",  "name": str, "failure": ToolFailureKind | None}
                                                — tool execution finished, and how it failed
 
-    Without tools the events come from the provider's ``stream_message``. With tools the turn
-    runs on the agent in :func:`_agent_events`: a call reported by ``tool_start`` runs only
-    once the reader asks for the next event, so a reader that stops on ``tool_start`` keeps
-    that tool from running. The model's closing reply arrives as one token per text block.
+    Without tools the model's reply streams as it is generated, one token per text block of each
+    chunk. With tools the turn runs on the agent in :func:`_agent_events`: a call reported by
+    ``tool_start`` runs only once the reader asks for the next event, so a reader that stops on
+    ``tool_start`` keeps that tool from running. The model's closing reply then arrives as one
+    token per text block.
     """
     if not tools:
-        async for event in provider.stream_message(messages):
-            yield event
+        async with aclosing(_stream_tokens(messages, provider)) as tokens:
+            async for event in tokens:
+                yield event
         return
     async with aclosing(_agent_events(messages, tools, provider, max_tool_executions)) as events:
         async for event in events:

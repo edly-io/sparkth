@@ -1,14 +1,10 @@
-import asyncio
 from abc import ABC, abstractmethod
-from typing import Any, AsyncIterator, ClassVar, TypedDict
-from uuid import UUID
+from typing import Any, ClassVar, TypedDict
 
 import httpx
 from langchain_anthropic import ChatAnthropic
-from langchain_core.callbacks.base import AsyncCallbackHandler
 from langchain_core.exceptions import LangChainException
 from langchain_core.messages import AIMessage, AnyMessage, BaseMessage, HumanMessage, SystemMessage
-from langchain_core.outputs import ChatGenerationChunk, GenerationChunk, LLMResult
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from pydantic import ValidationError
@@ -16,64 +12,6 @@ from pydantic import ValidationError
 from sparkth.lib.log import get_logger
 
 logger = get_logger(__name__)
-
-
-class StreamingCallbackHandler(AsyncCallbackHandler):
-    def __init__(self) -> None:
-        self.tokens: list[str] = []
-        self.done = False
-        self.error: BaseException | None = None
-
-    async def on_llm_new_token(
-        self,
-        token: str | list[str | dict[str, Any]],
-        *,
-        chunk: GenerationChunk | ChatGenerationChunk | None = None,
-        run_id: UUID,
-        parent_run_id: UUID | None = None,
-        tags: list[str] | None = None,
-        **kwargs: Any,
-    ) -> None:
-        # Providers may emit content blocks instead of a plain string.
-        if isinstance(token, str):
-            self.tokens.append(token)
-        else:
-            self.tokens.extend(part if isinstance(part, str) else str(part.get("text", "")) for part in token)
-
-    async def on_llm_end(
-        self,
-        response: LLMResult,
-        *,
-        run_id: UUID,
-        parent_run_id: UUID | None = None,
-        tags: list[str] | None = None,
-        **kwargs: Any,
-    ) -> None:
-        self.done = True
-
-    async def on_llm_error(
-        self,
-        error: BaseException,
-        *,
-        run_id: UUID,
-        parent_run_id: UUID | None = None,
-        tags: list[str] | None = None,
-        **kwargs: Any,
-    ) -> None:
-        self.error = error
-        self.done = True
-
-    async def aiter(self) -> AsyncIterator[str]:
-        index = 0
-        while not self.done or index < len(self.tokens):
-            if index < len(self.tokens):
-                yield self.tokens[index]
-                index += 1
-            else:
-                await asyncio.sleep(0.01)
-
-        if self.error:
-            raise self.error
 
 
 class BaseChatProvider(ABC):
@@ -87,24 +25,22 @@ class BaseChatProvider(ABC):
         model: str,
         system_prompt: str | None = None,
         temperature: float = 0.7,
-        max_tool_executions: int = 50,
         max_retries: int = 2,
     ):
         self.api_key = api_key
         self.model = model
         self.temperature = temperature
-        self.max_tool_executions = max_tool_executions
         self.max_retries = max_retries
         self._llm: Any = None
         self.system_prompt = system_prompt or ""
 
     @abstractmethod
-    def _create_llm(self, streaming: bool = False, callbacks: list[Any] | None = None) -> Any:
+    def _create_llm(self, streaming: bool = False) -> Any:
         pass
 
-    def create_llm(self, streaming: bool = False, callbacks: list[Any] | None = None) -> Any:
+    def create_llm(self, streaming: bool = False) -> Any:
         """Public interface for creating a configured LangChain LLM instance."""
-        return self._create_llm(streaming=streaming, callbacks=callbacks)
+        return self._create_llm(streaming=streaming)
 
     def convert_messages(self, messages: list[dict[str, Any]]) -> list[AnyMessage]:
         """Convert dict messages to LangChain message objects."""
@@ -149,43 +85,16 @@ class BaseChatProvider(ABC):
             },
         }
 
-    async def stream_message(
-        self, messages: list[dict[str, Any]], max_tokens: int | None = None
-    ) -> AsyncIterator[dict[str, Any]]:
-        """Stream the model's reply to a message, without tools, as ``{"type": "token", "content": str}`` events."""
-        async for token in self._stream_message_simple(messages):
-            yield {"type": "token", "content": token}
-
-    async def _stream_message_simple(self, messages: list[dict[str, Any]]) -> AsyncIterator[str]:
-        """Stream a message without tools."""
-        callback = StreamingCallbackHandler()
-        llm = self._create_llm(streaming=True, callbacks=[callback])
-
-        langchain_messages: list[BaseMessage] = [SystemMessage(content=self.system_prompt)]
-        langchain_messages.extend(self.convert_messages(messages))
-
-        task = asyncio.create_task(llm.ainvoke(langchain_messages))
-
-        try:
-            async for token in callback.aiter():
-                yield token
-            await task
-        except (LangChainException, asyncio.CancelledError, RuntimeError, httpx.RemoteProtocolError) as e:
-            logger.error(f"Error in stream_message_simple: {e}")
-            task.cancel()
-            raise
-
 
 class OpenAIProvider(BaseChatProvider):
     provider_name: ClassVar[str] = "openai"
 
-    def _create_llm(self, streaming: bool = False, callbacks: list[Any] | None = None) -> ChatOpenAI:
+    def _create_llm(self, streaming: bool = False) -> ChatOpenAI:
         return ChatOpenAI(  # type: ignore[call-arg]
             api_key=self.api_key,
             model=self.model,
             temperature=self.temperature,
             streaming=streaming,
-            callbacks=callbacks or [],
             max_retries=self.max_retries,
         )
 
@@ -193,13 +102,12 @@ class OpenAIProvider(BaseChatProvider):
 class AnthropicProvider(BaseChatProvider):
     provider_name: ClassVar[str] = "anthropic"
 
-    def _create_llm(self, streaming: bool = False, callbacks: list[Any] | None = None) -> ChatAnthropic:
+    def _create_llm(self, streaming: bool = False) -> ChatAnthropic:
         return ChatAnthropic(  # type: ignore[call-arg]
             api_key=self.api_key,
             model=self.model,
             temperature=self.temperature,
             streaming=streaming,
-            callbacks=callbacks or [],
             max_retries=self.max_retries,
         )
 
@@ -207,13 +115,12 @@ class AnthropicProvider(BaseChatProvider):
 class GoogleProvider(BaseChatProvider):
     provider_name: ClassVar[str] = "google"
 
-    def _create_llm(self, streaming: bool = False, callbacks: list[Any] | None = None) -> ChatGoogleGenerativeAI:
+    def _create_llm(self, streaming: bool = False) -> ChatGoogleGenerativeAI:
         return ChatGoogleGenerativeAI(
             google_api_key=self.api_key,
             model=self.model,
             temperature=self.temperature,
             streaming=streaming,
-            callbacks=callbacks or [],
             max_retries=self.max_retries,
         )
 
@@ -263,7 +170,6 @@ def get_provider(
     model: str,
     system_prompt: str | None = None,
     temperature: float = 0.7,
-    max_tool_executions: int = 50,
     max_retries: int = 2,
 ) -> BaseChatProvider:
     """Get a chat provider instance."""
@@ -273,7 +179,7 @@ def get_provider(
         supported = ", ".join(PROVIDER_REGISTRY.keys())
         raise ValueError(f"Unsupported provider: {provider_name}. Supported providers: {supported}")
 
-    return provider_class(api_key, model, system_prompt, temperature, max_tool_executions, max_retries)
+    return provider_class(api_key, model, system_prompt, temperature, max_retries)
 
 
 def get_supported_providers() -> list[str]:
