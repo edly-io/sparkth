@@ -88,9 +88,9 @@ export default function AuditLogPage() {
   const [events, setEvents] = useState<AuditEventSummary[]>([]);
   const [nextBeforeId, setNextBeforeId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
   const [exporting, setExporting] = useState<AuditExportFormat | null>(null);
   const [error, setError] = useState("");
+  const [exportError, setExportError] = useState("");
   const [expanded, setExpanded] = useState<number | null>(null);
   const [records, setRecords] = useState<Record<number, AuditEventRecord>>({});
   const [recordError, setRecordError] = useState<number | null>(null);
@@ -112,7 +112,6 @@ export default function AuditLogPage() {
       // can't land on top of the current ones.
       const request = ++latestRequest.current;
       setLoading(true);
-      setLoadFailed(false);
       setError("");
       try {
         const page = await fetchAuditEvents(token, filters, beforeId);
@@ -125,7 +124,6 @@ export default function AuditLogPage() {
         if (beforeId === undefined) {
           setEvents([]);
           setNextBeforeId(null);
-          setLoadFailed(true);
         }
         setError(err instanceof ApiRequestError ? err.message : t("loadError"));
       } finally {
@@ -166,12 +164,12 @@ export default function AuditLogPage() {
   const handleExport = async (exportFormat: AuditExportFormat) => {
     if (!token) return;
     setExporting(exportFormat);
-    setError("");
+    setExportError("");
     try {
       const { blob, filename } = await exportAuditEvents(token, filters, exportFormat);
       downloadBlob(blob, filename);
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : t("exportError"));
+      setExportError(err instanceof ApiRequestError ? err.message : t("exportError"));
     } finally {
       setExporting(null);
     }
@@ -290,6 +288,11 @@ export default function AuditLogPage() {
                 {error}
               </Alert>
             )}
+            {exportError && (
+              <Alert severity="error" className="mb-4">
+                {exportError}
+              </Alert>
+            )}
 
             {events.length > 0 ? (
               <div className="bg-card rounded-lg shadow-sm overflow-x-auto border border-border">
@@ -376,7 +379,7 @@ export default function AuditLogPage() {
               </div>
             ) : (
               !loading &&
-              !loadFailed && (
+              !error && (
                 <div className="bg-card rounded-lg shadow-sm p-12 text-center border border-border">
                   <ScrollText className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
                   <p className="text-muted-foreground">{t("empty")}</p>

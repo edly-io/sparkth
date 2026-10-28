@@ -295,7 +295,7 @@ describe("AuditLogPage", () => {
     expect(screen.queryByRole("button", { name: "Load more" })).not.toBeInTheDocument();
   });
 
-  it("keeps the empty state hidden when an export follows a failed load", async () => {
+  it("keeps the load error when an export follows a failed load", async () => {
     audit.fetchAuditEvents.mockRejectedValueOnce(
       new ApiRequestError({ message: "Server exploded", fieldErrors: {} }, 500),
     );
@@ -307,7 +307,22 @@ describe("AuditLogPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Export CSV" }));
 
     await waitFor(() => expect(downloadBlob).toHaveBeenCalledWith(blob, "audit-events.csv"));
+    expect(screen.getByText("Server exploded")).toBeInTheDocument();
     expect(screen.queryByText("No audit events match these filters.")).not.toBeInTheDocument();
+  });
+
+  it("shows a failed export's error and keeps the loaded rows", async () => {
+    audit.fetchAuditEvents.mockResolvedValue({ items: [event(2)], next_before_id: null });
+    audit.exportAuditEvents.mockRejectedValue(new Error("network down"));
+    renderWithIntl(<AuditLogPage />);
+    await screen.findByText("auth.login");
+
+    fireEvent.click(screen.getByRole("button", { name: "Export CSV" }));
+
+    expect(
+      await screen.findByText("We couldn't export the audit log. Please try again."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("auth.login")).toBeInTheDocument();
   });
 
   it("keeps the loaded rows when loading more fails", async () => {
