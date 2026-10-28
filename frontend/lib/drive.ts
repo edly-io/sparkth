@@ -3,11 +3,9 @@ import { api, ApiRequestError, type Schema } from "@/lib/api";
 export type ConnectionStatus = Schema<"GoogleDriveConnectionStatusResponse">;
 export type DriveFolder = Schema<"DriveFolderResponse">;
 export type DriveFile = Schema<"DriveFileResponse">;
-export type DriveFolderWithFiles = Schema<"DriveFolderWithFilesResponse">;
 export type DriveBrowseItem = Schema<"DriveBrowseItem">;
 export type DriveBrowseResponse = Schema<"DriveBrowseResponse">;
 export type SyncStatus = Schema<"SyncStatusResponse">;
-export type FileRagStatus = Schema<"FileRagStatusResponse">;
 export type FolderRagStatusResponse = Schema<"FolderRagStatusResponse">;
 
 // openapi-typescript emits one monomorphic paginated schema per item type,
@@ -124,45 +122,6 @@ export async function syncFolder(driveFolderId: string, token: string): Promise<
   }
 }
 
-export async function createFolder(
-  name: string,
-  parentId: string | undefined,
-  token: string,
-): Promise<DriveFolder> {
-  try {
-    const { data } = await api.POST("/api/v1/google-drive/folders", {
-      body: { name, parent_id: parentId },
-      headers: bearer(token),
-    });
-    return data as DriveFolder;
-  } catch (error) {
-    toError("Failed to create folder", error);
-  }
-}
-
-export async function getFolder(folderId: number, token: string): Promise<DriveFolderWithFiles> {
-  try {
-    const { data } = await api.GET("/api/v1/google-drive/folders/{folder_id}", {
-      params: { path: { folder_id: folderId } },
-      headers: bearer(token),
-    });
-    return data as DriveFolderWithFiles;
-  } catch (error) {
-    toError("Failed to get folder", error);
-  }
-}
-
-export async function removeFolder(folderId: number, token: string): Promise<void> {
-  try {
-    await api.DELETE("/api/v1/google-drive/folders/{folder_id}", {
-      params: { path: { folder_id: folderId } },
-      headers: bearer(token),
-    });
-  } catch (error) {
-    toError("Failed to remove folder", error);
-  }
-}
-
 export async function refreshFolder(folderId: number, token: string): Promise<SyncStatus> {
   try {
     const { data } = await api.POST("/api/v1/google-drive/folders/{folder_id}/refresh", {
@@ -193,25 +152,6 @@ export async function listFiles(
   }
 }
 
-export async function uploadFile(folderId: number, file: File, token: string): Promise<DriveFile> {
-  try {
-    const { data } = await api.POST("/api/v1/google-drive/folders/{folder_id}/files", {
-      params: { path: { folder_id: folderId } },
-      body: { file: "" },
-      bodySerializer: () => {
-        const formData = new FormData();
-        formData.append("file", file);
-        return formData;
-      },
-      // Content-Type must stay unset so fetch adds the multipart boundary.
-      headers: { "Content-Type": null, ...bearer(token) },
-    });
-    return data as DriveFile;
-  } catch (error) {
-    toError("Failed to upload file", error);
-  }
-}
-
 export async function downloadFile(fileId: number, token: string): Promise<Blob> {
   try {
     const { data } = await api.GET("/api/v1/google-drive/files/{file_id}/download", {
@@ -222,23 +162,6 @@ export async function downloadFile(fileId: number, token: string): Promise<Blob>
     return data as Blob;
   } catch (error) {
     toError("Failed to download file", error);
-  }
-}
-
-export async function renameFile(
-  fileId: number,
-  newName: string,
-  token: string,
-): Promise<DriveFile> {
-  try {
-    const { data } = await api.PATCH("/api/v1/google-drive/files/{file_id}", {
-      params: { path: { file_id: fileId } },
-      body: { name: newName },
-      headers: bearer(token),
-    });
-    return data as DriveFile;
-  } catch (error) {
-    toError("Failed to rename file", error);
   }
 }
 
@@ -285,18 +208,6 @@ export async function getFolderRagStatus(
 }
 
 // Helper functions
-export function formatFileSize(bytes?: number | null): string {
-  if (!bytes) return "-";
-  const units = ["B", "KB", "MB", "GB"];
-  let size = bytes;
-  let unitIndex = 0;
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024;
-    unitIndex++;
-  }
-  return `${size.toFixed(1)} ${units[unitIndex]}`;
-}
-
 export function formatDate(dateString?: string | null): string {
   if (!dateString) return "-";
   return new Date(dateString).toLocaleDateString();
