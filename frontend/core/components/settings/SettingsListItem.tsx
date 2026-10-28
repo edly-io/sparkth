@@ -5,17 +5,20 @@ import { Sliders } from "lucide-react";
 import { displayNameOf } from "@/core/plugins/metadata";
 import type { SettingsListItemProps } from "@/lib/settings/slots";
 import { Button } from "@/core/components/ui/Button";
+import { Spinner } from "@/core/components/ui/Spinner";
 import { SettingsRow } from "./SettingsRow";
 
 /**
  * A plugin's row on the settings page: its name, description, status and on/off switch and, when
- * the plugin has a config modal, the button that opens it.
+ * the plugin has a config modal, the button that opens it. The button shows a spinner while the
+ * modal loads.
  */
 export function SettingsListItem({
   plugin,
   onEnable,
   onDisable,
   onConfigure,
+  configuring,
 }: SettingsListItemProps) {
   const t = useTranslations("plugins");
   const name = displayNameOf(plugin);
@@ -35,10 +38,15 @@ export function SettingsListItem({
             variant="ghost"
             size="sm"
             onClick={onConfigure}
-            disabled={!plugin.enabled}
+            disabled={!plugin.enabled || configuring}
+            aria-busy={configuring}
             aria-label={t("configure", { name })}
           >
-            <Sliders className="h-4 w-4" aria-hidden="true" />
+            {configuring ? (
+              <Spinner size="sm" />
+            ) : (
+              <Sliders className="h-4 w-4" aria-hidden="true" />
+            )}
           </Button>
         )
       }

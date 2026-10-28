@@ -53,6 +53,8 @@ export interface SettingsListItemProps {
    * declares no fields.
    */
   onConfigure?: () => void;
+  /** The config modal is loading after `onConfigure`, so the row shows it is busy. */
+  configuring?: boolean;
 }
 
 /** What the settings page passes to a plugin's config modal. */
