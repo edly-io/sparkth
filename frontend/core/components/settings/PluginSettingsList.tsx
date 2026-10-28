@@ -3,10 +3,11 @@
 import { lazy, Suspense, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { PluginErrorBoundary } from "@/components/PluginErrorBoundary";
+import { Spinner } from "@/core/components/ui/Spinner";
 import { usePluginContext } from "@/core/plugins/context";
 import type { UserPluginState } from "@/core/plugins/types";
 import { SETTINGS_ITEMS, type SettingsItem } from "@/lib/settings/slots";
-import { slotItems } from "@/lib/slots";
 import { configFieldsOf } from "./schema";
 import { SettingsList } from "./SettingsPage";
 
@@ -17,7 +18,8 @@ interface PluginSettingsRowProps {
 
 /**
  * One plugin's row and, once the user first opens it, the config modal the plugin supplied. The row
- * offers the modal only while the plugin's backend config declares fields.
+ * offers the modal only while the plugin's backend config declares fields. A spinner shows while the
+ * modal loads, and an error shows under the row if it fails to load.
  */
 function PluginSettingsRow({ plugin, item }: PluginSettingsRowProps) {
   const { enablePlugin, disablePlugin, updatePluginConfig, refreshPlugins } = usePluginContext();
@@ -45,15 +47,17 @@ function PluginSettingsRow({ plugin, item }: PluginSettingsRowProps) {
         onConfigure={configurable ? configure : undefined}
       />
       {ConfigModal && opened && (
-        <Suspense fallback={null}>
-          <ConfigModal
-            plugin={plugin}
-            open={open}
-            onOpenChange={setOpen}
-            onSave={(config) => updatePluginConfig(name, config)}
-            onRefresh={refreshPlugins}
-          />
-        </Suspense>
+        <PluginErrorBoundary pluginName={name}>
+          <Suspense fallback={<Spinner size="sm" />}>
+            <ConfigModal
+              plugin={plugin}
+              open={open}
+              onOpenChange={setOpen}
+              onSave={(config) => updatePluginConfig(name, config)}
+              onRefresh={refreshPlugins}
+            />
+          </Suspense>
+        </PluginErrorBoundary>
       )}
     </>
   );
@@ -66,15 +70,17 @@ function PluginSettingsRow({ plugin, item }: PluginSettingsRowProps) {
 export function PluginSettingsList() {
   const t = useTranslations("plugins");
   const { userPlugins } = usePluginContext();
-  const rows = slotItems(SETTINGS_ITEMS).flatMap(([name, item]) => {
-    const plugin = userPlugins.find((candidate) => candidate.plugin_name === name);
-    return plugin ? [{ plugin, item }] : [];
-  });
+  const rows = [...SETTINGS_ITEMS]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .flatMap(([name, item]) => {
+      const plugin = userPlugins.find((candidate) => candidate.plugin_name === name);
+      return plugin ? [{ plugin, item }] : [];
+    });
 
   return (
     <SettingsList empty={<p className="text-muted-foreground">{t("empty")}</p>}>
-      {rows.map(({ plugin, item }, index) => (
-        <PluginSettingsRow key={`${plugin.plugin_name}-${index}`} plugin={plugin} item={item} />
+      {rows.map(({ plugin, item }) => (
+        <PluginSettingsRow key={plugin.plugin_name} plugin={plugin} item={item} />
       ))}
     </SettingsList>
   );
