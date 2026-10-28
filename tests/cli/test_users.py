@@ -11,12 +11,11 @@ import pytest
 import typer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
+from typer.testing import CliRunner
 
 from sparkth.cli import users
+from sparkth.cli.main import app as root_cli
 from sparkth.core.models.user import User
-from sparkth.core.permissions.models import Role
-from sparkth.lib.permissions import has_role
-from sparkth.lib.permissions.scopes import GLOBAL
 
 
 async def test_create_user_persists_a_hashed_user(session: AsyncSession) -> None:
@@ -25,7 +24,6 @@ async def test_create_user_persists_a_hashed_user(session: AsyncSession) -> None
         email="alice@example.com",
         password="s3cret",
         name="Alice",
-        superuser=False,
         email_verified=True,
     )
 
@@ -42,7 +40,6 @@ async def test_create_unverified_user(session: AsyncSession) -> None:
         email="alice@example.com",
         password="s3cret",
         name="Alice",
-        superuser=False,
         email_verified=False,
     )
 
@@ -51,38 +48,11 @@ async def test_create_unverified_user(session: AsyncSession) -> None:
     assert user.email_verified_at is None
 
 
-async def test_create_user_admin_assigns_admin_role(session: AsyncSession) -> None:
-    session.add(Role(name="admin"))
-    await session.flush()
-
-    await users._create_user(
-        username="root",
-        email="root@example.com",
-        password="s3cret",
-        name=None,
-        superuser=True,
-        email_verified=True,
-    )
+async def test_create_user_defaults_name_to_username(session: AsyncSession) -> None:
+    await users._create_user("root", "root@example.com", "s3cret", None, True)
 
     user = (await session.exec(select(User).where(User.username == "root"))).one()
-    assert user.name == "root"  # falls back to username when name is omitted
-    assert await has_role(user, "admin", GLOBAL, None, session) is True
-
-
-async def test_create_user_admin_without_seeded_role_persists_nothing(session: AsyncSession) -> None:
-    # The admin role has not been seeded, so the role assignment fails. Because the
-    # role is assigned before the single commit, the user must not be left orphaned.
-    with pytest.raises(typer.Exit):
-        await users._create_user(
-            username="root",
-            email="root@example.com",
-            password="s3cret",
-            name=None,
-            superuser=True,
-            email_verified=True,
-        )
-
-    assert (await session.exec(select(User).where(User.username == "root"))).all() == []
+    assert user.name == "root"
 
 
 async def test_create_user_rejects_duplicate(session: AsyncSession) -> None:
@@ -91,7 +61,6 @@ async def test_create_user_rejects_duplicate(session: AsyncSession) -> None:
         email="bob@example.com",
         password="s3cret",
         name=None,
-        superuser=False,
         email_verified=True,
     )
 
@@ -101,7 +70,6 @@ async def test_create_user_rejects_duplicate(session: AsyncSession) -> None:
             email="other@example.com",
             password="s3cret",
             name=None,
-            superuser=False,
             email_verified=True,
         )
 
@@ -112,7 +80,6 @@ async def test_reset_password_changes_hash(session: AsyncSession) -> None:
         email="carol@example.com",
         password="old-pass",
         name=None,
-        superuser=False,
         email_verified=True,
     )
     old_hash = (await session.exec(select(User).where(User.username == "carol"))).one().hashed_password
@@ -124,7 +91,7 @@ async def test_reset_password_changes_hash(session: AsyncSession) -> None:
 
 
 async def test_reset_password_finds_the_user_by_email(session: AsyncSession) -> None:
-    await users._create_user("carol", "carol@example.com", "old-pass", None, False, True)
+    await users._create_user("carol", "carol@example.com", "old-pass", None, True)
     old_hash = (await session.exec(select(User).where(User.username == "carol"))).one().hashed_password
 
     await users._reset_password("carol@example.com", "new-pass")
@@ -136,3 +103,21 @@ async def test_reset_password_finds_the_user_by_email(session: AsyncSession) -> 
 async def test_reset_password_unknown_user_exits(session: AsyncSession) -> None:
     with pytest.raises(typer.Exit):
         await users._reset_password(identifier="ghost", new_password="whatever")
+
+
+CREATE_ARGS = ["users", "create-user", "-u", "root", "-e", "root@example.com", "-p", "Sup3rSecret!"]
+
+
+async def _fake_create_user(*_args: object) -> None:
+    return None
+
+
+def test_cli_wires_create_user(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("sparkth.cli.users._create_user", _fake_create_user)
+    assert CliRunner().invoke(root_cli, CREATE_ARGS).exit_code == 0
+
+
+@pytest.mark.parametrize("flag", ["--admin", "--superuser"])
+def test_create_user_rejects_an_admin_flag(monkeypatch: pytest.MonkeyPatch, flag: str) -> None:
+    monkeypatch.setattr("sparkth.cli.users._create_user", _fake_create_user)
+    assert CliRunner().invoke(root_cli, [*CREATE_ARGS, flag]).exit_code == 2
