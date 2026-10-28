@@ -3,6 +3,8 @@
 import { lazy, Suspense, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { PluginErrorBoundary } from "@/components/PluginErrorBoundary";
+import { Spinner } from "@/core/components/ui/Spinner";
 import { usePluginContext } from "@/core/plugins/context";
 import type { UserPluginState } from "@/core/plugins/types";
 import { SETTINGS_ITEMS, type SettingsItem } from "@/lib/settings/slots";
@@ -17,7 +19,8 @@ interface PluginSettingsRowProps {
 
 /**
  * One plugin's row and, once the user first opens it, the config modal the plugin supplied. The row
- * offers the modal only while the plugin's backend config declares fields.
+ * offers the modal only while the plugin's backend config declares fields. A spinner shows while the
+ * modal loads, and an error shows under the row if it fails to load.
  */
 function PluginSettingsRow({ plugin, item }: PluginSettingsRowProps) {
   const { enablePlugin, disablePlugin, updatePluginConfig, refreshPlugins } = usePluginContext();
@@ -45,15 +48,17 @@ function PluginSettingsRow({ plugin, item }: PluginSettingsRowProps) {
         onConfigure={configurable ? configure : undefined}
       />
       {ConfigModal && opened && (
-        <Suspense fallback={null}>
-          <ConfigModal
-            plugin={plugin}
-            open={open}
-            onOpenChange={setOpen}
-            onSave={(config) => updatePluginConfig(name, config)}
-            onRefresh={refreshPlugins}
-          />
-        </Suspense>
+        <PluginErrorBoundary pluginName={name}>
+          <Suspense fallback={<Spinner size="sm" />}>
+            <ConfigModal
+              plugin={plugin}
+              open={open}
+              onOpenChange={setOpen}
+              onSave={(config) => updatePluginConfig(name, config)}
+              onRefresh={refreshPlugins}
+            />
+          </Suspense>
+        </PluginErrorBoundary>
       )}
     </>
   );

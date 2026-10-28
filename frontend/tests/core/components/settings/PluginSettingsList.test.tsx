@@ -124,4 +124,19 @@ describe("PluginSettingsList", () => {
 
     expect(await screen.findByText("Modal for example")).toBeDefined();
   });
+
+  it("keeps the page and shows an error when a plugin's config modal fails to load", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    SETTINGS_ITEMS.set("example", [
+      { listItem: ExampleRow, loadConfigModal: () => Promise.reject(new Error("chunk failed")) },
+    ]);
+    context.userPlugins = [configurable("example")];
+
+    renderWithIntl(<PluginSettingsList />);
+    fireEvent.click(screen.getByRole("button", { name: "Configure" }));
+
+    expect(await screen.findByText("chunk failed")).toBeDefined();
+    expect(screen.getByText("Row for example")).toBeDefined();
+    consoleError.mockRestore();
+  });
 });
