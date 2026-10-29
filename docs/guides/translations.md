@@ -326,9 +326,9 @@ A plugin component test passes the plugin's English catalog as the second
 argument, since the helper's default carries only the core catalog:
 
 ```tsx
-import chatEn from "@/plugins/chat/messages/en.json";
+import composeEn from "@/plugins/compose/messages/en.json";
 
-renderWithIntl(<ChatInput ... />, chatEn);
+renderWithIntl(<ChatInput ... />, composeEn);
 ```
 
 ### Adding a language

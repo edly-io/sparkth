@@ -32,7 +32,7 @@ from sparkth.plugins.compose.tests.helpers import (
     wrapped_google_error,
 )
 
-COMPLETIONS_URL = "/api/v1/chat/completions"
+COMPLETIONS_URL = "/api/v1/compose/completions"
 GENERIC_FAILURE = "An error occurred while generating a response. Please try again."
 
 

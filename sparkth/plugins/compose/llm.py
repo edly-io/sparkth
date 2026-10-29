@@ -162,7 +162,7 @@ async def _chat_tool_call(request: ToolCallRequest, handler: _ToolCallHandler) -
     request.runtime.stream_writer({"type": "tool_start", "name": name, "go": go})
     await go.wait()
     model = _audit_model_info(cast(AuditModelInfo, request.runtime.context), request.state["messages"])
-    with ai_audit_context(AuditSource.CHAT, model):
+    with ai_audit_context(AuditSource.COMPOSE, model):
         result, failure = await _classified_tool_call(request, handler)
     output = result.text if isinstance(result, ToolMessage) else ""
     arguments = request.tool_call["args"]

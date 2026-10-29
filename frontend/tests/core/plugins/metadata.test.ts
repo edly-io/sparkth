@@ -21,7 +21,7 @@ function state(overrides: Partial<UserPluginState> & { plugin_name: string }): U
 describe("displayNameOf", () => {
   it("uses the backend-declared display name", () => {
     const plugin = state({
-      plugin_name: "chat",
+      plugin_name: "compose",
       display: {
         display_name: "Create Course",
         description: "Build courses with AI",

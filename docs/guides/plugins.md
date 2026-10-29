@@ -285,7 +285,7 @@ column of that output name summing the key. Take the range as
 `Annotated[RangeQuery, Query()]`, gate the route with
 `Depends(ANALYTICS_READ.require_in_global_scope())` (`sparkth.lib.permissions`) and read on
 `get_analytics_session` (`sparkth.lib.db`). The aggregate's DDL still goes in the analytics
-migration lineage (`sparkth/migrations/analytics/`). The chat plugin's `analytics/reads.py` is a
+migration lineage (`sparkth/migrations/analytics/`). The compose plugin's `analytics/reads.py` is a
 worked example. To put a headline figure on the analytics Overview, build a `SummaryFigure` at
 module level (a plugin-prefixed `key`, a `gettext_noop` label, an async `count(session, from_, to)`
 and the `view` it links to) and register it from `__init__` with
@@ -340,7 +340,7 @@ carries no authenticated caller, so there is no user whose per-user preference c
 checked. A user who turns your plugin off in their settings can still call its tools over MCP;
 only an administrator disabling the plugin outright stops them.
 
-MCP is not the only tool door. Chat applies both switches for the requesting user on every
+MCP is not the only tool door. Compose applies both switches for the requesting user on every
 turn: a plugin switched off system-wide or by that user has none of its tools bound, no
 capability section or scope offered. Only `/ai/mcp` stays
 system-wide.
@@ -639,8 +639,8 @@ the caller can delete it. Like the builders, `callback` must be a module-level f
 
 ## Chat capabilities
 
-A *capability* is one kind of work the chat assistant does, such as designing a course. A plugin
-contributes one without importing chat, by registering a `ChatCapability` with
+A *capability* is one kind of work the Compose assistant does, such as designing a course. A plugin
+contributes one without importing compose, by registering a `ChatCapability` with
 `register_chat_capability` from `sparkth.lib.compose.hooks`. A plugin registers one capability, from
 its `__init__`, keyed by the plugin instance.
 
@@ -678,10 +678,10 @@ copies fold into one. Only a *different* capability claiming a registered title 
 `DuplicateChatCapabilityError`, from `sparkth.lib.compose.exceptions`. The loader logs the failed
 construction and skips that plugin.
 
-### How chat uses capabilities
+### How Compose uses capabilities
 
-On every request chat reads the capabilities of the plugins enabled for the requesting user, in
-plugin-name order. Chat contributes its own, course design. A plugin switched off system-wide or
+On every request Compose reads the capabilities of the plugins enabled for the requesting user, in
+plugin-name order. Compose contributes its own, course design. A plugin switched off system-wide or
 by the user contributes no section, no scope and no tools.
 
 - **Scope gate.** Each message is judged against every enabled scope. A message that fits none
@@ -689,7 +689,7 @@ by the user contributes no section, no scope and no tools.
   conversation, with the refusal as the assistant's reply. If the classification fails, the turn
   fails with an error and the model is not called. A failed first message writes nothing; a
   failed later message stores the error in the conversation.
-- **System prompt.** The prompt is chat's skeleton with each enabled capability's section under
+- **System prompt.** The prompt is Compose's skeleton with each enabled capability's section under
   its title. The skeleton owns the date, the assistant's identity, the output language, the
   refusal, injection and offering-choices rules, so a section must not repeat them. A section
   holds the capability's workflow, plus any language or guardrail rules specific to it.
@@ -731,7 +731,7 @@ class MyAppPlugin(SparkthPlugin):
 ```
 
 The document is passed rather than just its id, so a handler needing the owner (to attribute
-an analytics event, say) has it without a second query. The chat plugin registers
+an analytics event, say) has it without a second query. The compose plugin registers
 `detach_deleted_document` this way to take deleted documents out of conversations.
 
 ## Complete Example

@@ -2,7 +2,7 @@
 
 Every test drives a real endpoint and asserts on rows that actually landed in the
 analytics database. The two events worth having here are the silent failures —
-`chat.documents_skipped` and `chat.attachment_unusable` — so those get the tests that
+`compose.documents_skipped` and `compose.attachment_unusable` — so those get the tests that
 prove an instructor was affected, not just that a code path ran.
 """
 
@@ -23,11 +23,11 @@ from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
 from sparkth.plugins.compose.models import Conversation
 
-COMPLETIONS_URL = "/api/v1/chat/completions"
+COMPLETIONS_URL = "/api/v1/compose/completions"
 
 
 def _attachments_url(conversation_uuid: str) -> str:
-    return f"/api/v1/chat/conversations/{conversation_uuid}/attachments"
+    return f"/api/v1/compose/conversations/{conversation_uuid}/attachments"
 
 
 async def _seed_conversation(session: AsyncSession, user_id: int) -> tuple[int, str]:
@@ -135,7 +135,7 @@ async def test_attaching_a_document_emits_document_attached(
     response = await client.post(_attachments_url(conversation_uuid), json={"document_id": document_id})
 
     assert response.status_code == 201
-    assert await _events(analytics_session, "chat.document_attached") == [
+    assert await _events(analytics_session, "compose.document_attached") == [
         {"conversation_id": conversation_uuid, "document_id": document_id, "source": "explicit"}
     ]
 
@@ -153,7 +153,7 @@ async def test_re_attaching_the_same_document_emits_nothing(
     await client.post(_attachments_url(conversation_uuid), json={"document_id": document_id})
     await client.post(_attachments_url(conversation_uuid), json={"document_id": document_id})
 
-    assert len(await _events(analytics_session, "chat.document_attached")) == 1
+    assert len(await _events(analytics_session, "compose.document_attached")) == 1
 
 
 async def test_detaching_emits_document_detached(
@@ -169,7 +169,7 @@ async def test_detaching_emits_document_detached(
     response = await client.request("DELETE", f"{_attachments_url(conversation_uuid)}/{document_id}")
 
     assert response.status_code == 204
-    (detached,) = await _events(analytics_session, "chat.document_detached")
+    (detached,) = await _events(analytics_session, "compose.document_detached")
     assert detached["conversation_id"] == conversation_uuid
     assert detached["document_id"] == document_id
     # Attached and removed within the test, so the dwell time is real but tiny.
@@ -189,7 +189,7 @@ async def test_detaching_a_document_that_was_never_attached_emits_nothing(
     response = await client.request("DELETE", f"{_attachments_url(conversation_uuid)}/{document_id}")
 
     assert response.status_code == 204
-    assert await _events(analytics_session, "chat.document_detached") == []
+    assert await _events(analytics_session, "compose.document_detached") == []
 
 
 async def test_documents_named_on_a_completion_request_are_attributed_to_that_source(
@@ -205,7 +205,7 @@ async def test_documents_named_on_a_completion_request_are_attributed_to_that_so
     response = await _complete_turn(client, config_id, conversation_uuid, document_ids=[document_id])
 
     assert response.status_code == 200
-    assert await _events(analytics_session, "chat.document_attached") == [
+    assert await _events(analytics_session, "compose.document_attached") == [
         {"conversation_id": conversation_uuid, "document_id": document_id, "source": "completion_request"}
     ]
 
@@ -225,13 +225,13 @@ async def test_unowned_document_ids_emit_documents_skipped(
     response = await _complete_turn(client, config_id, conversation_uuid, document_ids=[owned, someone_elses])
 
     assert response.status_code == 200
-    assert await _events(analytics_session, "chat.documents_skipped") == [
+    assert await _events(analytics_session, "compose.documents_skipped") == [
         {"conversation_id": conversation_uuid, "requested_count": 2, "skipped_count": 1}
     ]
     # Counts only, never ids: the skipped document belongs to another user, so the payload
     # has no field that could carry it. Asserted on the key set — searching the values for
     # the id is meaningless when a document id and a count are both small integers.
-    (skipped,) = await _events(analytics_session, "chat.documents_skipped")
+    (skipped,) = await _events(analytics_session, "compose.documents_skipped")
     assert set(skipped) == {"conversation_id", "requested_count", "skipped_count"}
 
 
@@ -248,7 +248,7 @@ async def test_all_documents_owned_emits_no_skip_event(
     response = await _complete_turn(client, config_id, conversation_uuid, document_ids=[document_id])
 
     assert response.status_code == 200
-    assert await _events(analytics_session, "chat.documents_skipped") == []
+    assert await _events(analytics_session, "compose.documents_skipped") == []
 
 
 async def test_a_still_ingesting_attachment_emits_attachment_unusable(
@@ -271,7 +271,7 @@ async def test_a_still_ingesting_attachment_emits_attachment_unusable(
     response = await _complete_turn(client, config_id, conversation_uuid)
 
     assert response.status_code == 200
-    assert await _events(analytics_session, "chat.attachment_unusable") == [
+    assert await _events(analytics_session, "compose.attachment_unusable") == [
         {"conversation_id": conversation_uuid, "document_id": document_id, "status": "processing"}
     ]
 
@@ -289,7 +289,7 @@ async def test_a_failed_attachment_reports_its_status(
 
     await _complete_turn(client, config_id, conversation_uuid)
 
-    (unusable,) = await _events(analytics_session, "chat.attachment_unusable")
+    (unusable,) = await _events(analytics_session, "compose.attachment_unusable")
     assert unusable["status"] == "failed"
 
 
@@ -306,7 +306,7 @@ async def test_a_ready_attachment_emits_no_unusable_event(
 
     await _complete_turn(client, config_id, conversation_uuid)
 
-    assert await _events(analytics_session, "chat.attachment_unusable") == []
+    assert await _events(analytics_session, "compose.attachment_unusable") == []
 
 
 async def test_no_document_name_reaches_any_payload(
@@ -340,7 +340,7 @@ async def test_attachment_events_are_timed_when_they_happened(
     after = datetime.now(timezone.utc)
 
     rows = (await analytics_session.execute(select(raw_events))).mappings().all()
-    (attached,) = [row for row in rows if row["event_type"] == "chat.document_attached"]
+    (attached,) = [row for row in rows if row["event_type"] == "compose.document_attached"]
     occurred = attached["occurred_at"]
     occurred = occurred if occurred.tzinfo else occurred.replace(tzinfo=timezone.utc)
     assert before <= occurred <= after
@@ -358,7 +358,7 @@ async def test_the_conversation_uuid_is_what_lands_not_the_row_id(
 
     await client.post(_attachments_url(conversation_uuid), json={"document_id": document_id})
 
-    (attached,) = await _events(analytics_session, "chat.document_attached")
+    (attached,) = await _events(analytics_session, "compose.document_attached")
     assert attached["conversation_id"] == conversation_uuid
     assert attached["conversation_id"] != str(conversation_id)
     UUID(attached["conversation_id"])

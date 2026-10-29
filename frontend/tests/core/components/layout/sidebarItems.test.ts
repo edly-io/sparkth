@@ -20,7 +20,7 @@ function state(overrides: Partial<UserPluginState> & { plugin_name: string }): U
 
 describe("sidebarItemsFrom", () => {
   const chat = state({
-    plugin_name: "chat",
+    plugin_name: "compose",
     display: { display_name: "Create Course", description: "Build courses with AI", icon: "plus" },
     sidebar: { label: "Create Course", icon: "plus", order: 1 },
     has_frontend: true,
@@ -49,17 +49,17 @@ describe("sidebarItemsFrom", () => {
 
   it("includes only enabled frontend plugins that declared a sidebar entry, sorted by order", () => {
     const items = sidebarItemsFrom([slack, canvas, drive, chat]);
-    expect(items.map((item) => item.name)).toEqual(["chat", "slack"]);
+    expect(items.map((item) => item.name)).toEqual(["compose", "slack"]);
   });
 
   it("excludes plugins without a frontend registration even if they declare a sidebar entry", () => {
-    expect(sidebarItemsFrom([backendOnly, chat]).map((item) => item.name)).toEqual(["chat"]);
+    expect(sidebarItemsFrom([backendOnly, chat]).map((item) => item.name)).toEqual(["compose"]);
   });
 
   it("carries the declared label, icon name, and description", () => {
     const [item] = sidebarItemsFrom([chat]);
     expect(item).toEqual({
-      name: "chat",
+      name: "compose",
       label: "Create Course",
       icon: "plus",
       description: "Build courses with AI",

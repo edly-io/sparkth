@@ -11,7 +11,7 @@ from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.core.plugins.service import PluginService
 
 
-def _make_plugin(name: str = "chat", plugin_id: int = 1) -> Plugin:
+def _make_plugin(name: str = "compose", plugin_id: int = 1) -> Plugin:
     plugin = Plugin(name=name, is_core=True, config_schema={}, enabled=True)
     plugin.id = plugin_id
     return plugin

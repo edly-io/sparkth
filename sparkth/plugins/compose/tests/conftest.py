@@ -1,4 +1,4 @@
-"""Fixtures shared by the chat plugin's tests."""
+"""Fixtures shared by the Compose plugin's tests."""
 
 import gc
 from collections.abc import AsyncIterator, Iterator

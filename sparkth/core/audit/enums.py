@@ -44,7 +44,7 @@ class AuditSource(StrEnum):
 
     REST = "rest"
     MCP = "mcp"
-    CHAT = "chat"
+    COMPOSE = "compose"
     RAG = "rag"
     CLI = "cli"
     SYSTEM = "system"

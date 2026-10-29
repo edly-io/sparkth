@@ -69,7 +69,7 @@ Each plugin must export a `PluginDefinition` from its own `index.ts`.
 
 ```
 plugins/
- └─ chat/
+ └─ compose/
     ├─ ChatInterface.tsx
     └─ index.ts
 ```
@@ -138,10 +138,10 @@ registry. Importing the `index.ts` also runs any slot files it imports, such as 
 
 ```ts
 import { registerPlugin } from "@/core/plugins/registry";
-import { chatPlugin } from "@/plugins/chat"; // already existing
+import { composePlugin } from "@/plugins/compose"; // already existing
 import { examplePlugin } from "@/plugins/example-plugin";
 
-registerPlugin(chatPlugin); // already existing
+registerPlugin(composePlugin); // already existing
 registerPlugin(examplePlugin);
 ```
 
@@ -240,7 +240,7 @@ runtime unit):
 ```ts
 import type examplePluginMessages from "@/plugins/example-plugin/messages/en.json";
 
-type PluginMessages = typeof chatMessages & typeof examplePluginMessages;
+type PluginMessages = typeof composeMessages & typeof examplePluginMessages;
 ```
 
 **4. Use the namespace in components**

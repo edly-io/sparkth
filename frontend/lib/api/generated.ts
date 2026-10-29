@@ -398,7 +398,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/chat/analytics/activity": {
+    "/api/v1/compose/analytics/activity": {
         parameters: {
             query?: never;
             header?: never;
@@ -406,14 +406,14 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Chat Activity
-         * @description Return chat authoring event counts per bucket, event type, dimension and outcome.
+         * Compose Activity
+         * @description Return compose authoring event counts per bucket, event type, dimension and outcome.
          *
          *     Sparse: combinations with no events are omitted; consumers zero-fill. Counts are lower
          *     bounds: events queued on background tasks are lost when a route raises. Answers whatever
          *     the plugin switches say.
          */
-        get: operations["chat_activity_api_v1_chat_analytics_activity_get"];
+        get: operations["compose_activity_api_v1_compose_analytics_activity_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -422,7 +422,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/chat/completions": {
+    "/api/v1/compose/completions": {
         parameters: {
             query?: never;
             header?: never;
@@ -431,15 +431,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Chat Completion */
-        post: operations["chat_completion_api_v1_chat_completions_post"];
+        /** Compose Completion */
+        post: operations["compose_completion_api_v1_compose_completions_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/chat/conversations": {
+    "/api/v1/compose/conversations": {
         parameters: {
             query?: never;
             header?: never;
@@ -447,7 +447,7 @@ export interface paths {
             cookie?: never;
         };
         /** List Conversations */
-        get: operations["list_conversations_api_v1_chat_conversations_get"];
+        get: operations["list_conversations_api_v1_compose_conversations_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -456,7 +456,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/chat/conversations/{conversation_id}": {
+    "/api/v1/compose/conversations/{conversation_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -464,7 +464,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get Conversation */
-        get: operations["get_conversation_api_v1_chat_conversations__conversation_id__get"];
+        get: operations["get_conversation_api_v1_compose_conversations__conversation_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -473,7 +473,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/chat/conversations/{conversation_id}/attachments": {
+    "/api/v1/compose/conversations/{conversation_id}/attachments": {
         parameters: {
             query?: never;
             header?: never;
@@ -481,17 +481,17 @@ export interface paths {
             cookie?: never;
         };
         /** List Conversation Attachments */
-        get: operations["list_conversation_attachments_api_v1_chat_conversations__conversation_id__attachments_get"];
+        get: operations["list_conversation_attachments_api_v1_compose_conversations__conversation_id__attachments_get"];
         put?: never;
         /** Attach Document To Conversation */
-        post: operations["attach_document_to_conversation_api_v1_chat_conversations__conversation_id__attachments_post"];
+        post: operations["attach_document_to_conversation_api_v1_compose_conversations__conversation_id__attachments_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/chat/conversations/{conversation_id}/attachments/{document_id}": {
+    "/api/v1/compose/conversations/{conversation_id}/attachments/{document_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -502,13 +502,13 @@ export interface paths {
         put?: never;
         post?: never;
         /** Detach Document From Conversation */
-        delete: operations["detach_document_from_conversation_api_v1_chat_conversations__conversation_id__attachments__document_id__delete"];
+        delete: operations["detach_document_from_conversation_api_v1_compose_conversations__conversation_id__attachments__document_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/chat/conversations/{conversation_id}/last-message": {
+    "/api/v1/compose/conversations/{conversation_id}/last-message": {
         parameters: {
             query?: never;
             header?: never;
@@ -516,7 +516,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get Last Conversation Message */
-        get: operations["get_last_conversation_message_api_v1_chat_conversations__conversation_id__last_message_get"];
+        get: operations["get_last_conversation_message_api_v1_compose_conversations__conversation_id__last_message_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -525,7 +525,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/chat/turns/{turn_id}/stop": {
+    "/api/v1/compose/turns/{turn_id}/stop": {
         parameters: {
             query?: never;
             header?: never;
@@ -538,7 +538,7 @@ export interface paths {
          * Stop Turn
          * @description Ask a streaming turn to stop. 404 covers both an unknown turn and another user's.
          */
-        post: operations["stop_turn_api_v1_chat_turns__turn_id__stop_post"];
+        post: operations["stop_turn_api_v1_compose_turns__turn_id__stop_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1914,7 +1914,7 @@ export interface components {
          * @description Which surface produced the event (the NIST AU-3 where/source field).
          * @enum {string}
          */
-        AuditSource: "rest" | "mcp" | "chat" | "rag" | "cli" | "system";
+        AuditSource: "rest" | "mcp" | "compose" | "rag" | "cli" | "system";
         /** Body_upload_text_api_v1_parser_upload_post */
         Body_upload_text_api_v1_parser_upload_post: {
             /** File */
@@ -1963,22 +1963,6 @@ export interface components {
          * @enum {string}
          */
         ChartKind: "line" | "bar" | "table";
-        /**
-         * ChatActivityPoint
-         * @description Count of one chat event type in one bucket. ``bucket`` is the UTC start, ``YYYY-MM-DD``.
-         */
-        ChatActivityPoint: {
-            /** Bucket */
-            bucket: string;
-            /** Dimension */
-            dimension?: string | null;
-            /** Event Count */
-            event_count: number;
-            /** Event Type */
-            event_type: string;
-            /** Outcome */
-            outcome?: string | null;
-        };
         /** ChatCompletionRequest */
         ChatCompletionRequest: {
             /** Conversation Id */
@@ -2068,6 +2052,22 @@ export interface components {
              * @example user
              */
             role: string;
+        };
+        /**
+         * ComposeActivityPoint
+         * @description Count of one compose event type in one bucket. ``bucket`` is the UTC start, ``YYYY-MM-DD``.
+         */
+        ComposeActivityPoint: {
+            /** Bucket */
+            bucket: string;
+            /** Dimension */
+            dimension?: string | null;
+            /** Event Count */
+            event_count: number;
+            /** Event Type */
+            event_type: string;
+            /** Outcome */
+            outcome?: string | null;
         };
         /** ConnectionLogItem */
         ConnectionLogItem: {
@@ -3755,7 +3755,7 @@ export interface operations {
             };
         };
     };
-    chat_activity_api_v1_chat_analytics_activity_get: {
+    compose_activity_api_v1_compose_analytics_activity_get: {
         parameters: {
             query: {
                 from: string;
@@ -3774,7 +3774,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ChatActivityPoint"][];
+                    "application/json": components["schemas"]["ComposeActivityPoint"][];
                 };
             };
             /** @description Validation Error */
@@ -3788,7 +3788,7 @@ export interface operations {
             };
         };
     };
-    chat_completion_api_v1_chat_completions_post: {
+    compose_completion_api_v1_compose_completions_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -3822,7 +3822,7 @@ export interface operations {
             };
         };
     };
-    list_conversations_api_v1_chat_conversations_get: {
+    list_conversations_api_v1_compose_conversations_get: {
         parameters: {
             query?: {
                 limit?: number;
@@ -3854,7 +3854,7 @@ export interface operations {
             };
         };
     };
-    get_conversation_api_v1_chat_conversations__conversation_id__get: {
+    get_conversation_api_v1_compose_conversations__conversation_id__get: {
         parameters: {
             query?: {
                 limit?: number;
@@ -3888,7 +3888,7 @@ export interface operations {
             };
         };
     };
-    list_conversation_attachments_api_v1_chat_conversations__conversation_id__attachments_get: {
+    list_conversation_attachments_api_v1_compose_conversations__conversation_id__attachments_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -3919,7 +3919,7 @@ export interface operations {
             };
         };
     };
-    attach_document_to_conversation_api_v1_chat_conversations__conversation_id__attachments_post: {
+    attach_document_to_conversation_api_v1_compose_conversations__conversation_id__attachments_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -3954,7 +3954,7 @@ export interface operations {
             };
         };
     };
-    detach_document_from_conversation_api_v1_chat_conversations__conversation_id__attachments__document_id__delete: {
+    detach_document_from_conversation_api_v1_compose_conversations__conversation_id__attachments__document_id__delete: {
         parameters: {
             query?: never;
             header?: never;
@@ -3984,7 +3984,7 @@ export interface operations {
             };
         };
     };
-    get_last_conversation_message_api_v1_chat_conversations__conversation_id__last_message_get: {
+    get_last_conversation_message_api_v1_compose_conversations__conversation_id__last_message_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -4015,7 +4015,7 @@ export interface operations {
             };
         };
     };
-    stop_turn_api_v1_chat_turns__turn_id__stop_post: {
+    stop_turn_api_v1_compose_turns__turn_id__stop_post: {
         parameters: {
             query?: never;
             header?: never;

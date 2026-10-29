@@ -1,4 +1,4 @@
-"""The chat agent's view of every other plugin's MCP tools, as LangChain tools.
+"""The compose agent's view of every other plugin's MCP tools, as LangChain tools.
 
 Only one thing here holds state — the discovered tools, cached per :class:`ToolRegistry` —
 so the registry is the only class with behaviour; :class:`RegisteredTool` is a plain record.

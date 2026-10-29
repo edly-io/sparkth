@@ -10,7 +10,7 @@ vi.mock("next/navigation", () => ({
 
 // The plugins installed in the backend build. No PluginProvider is mounted: analytics must not
 // depend on the viewer's own plugin switches.
-const plugins = vi.hoisted(() => ({ installed: ["chat"] }));
+const plugins = vi.hoisted(() => ({ installed: ["compose"] }));
 vi.mock("@/lib/plugins/generated", () => ({
   get FRONTEND_PLUGIN_NAMES() {
     return plugins.installed;
@@ -42,7 +42,7 @@ describe("AnalyticsNav", () => {
   beforeEach(() => {
     nav.pathname = "/dashboard/analytics/logins";
     nav.search = "";
-    plugins.installed = ["chat"];
+    plugins.installed = ["compose"];
     access.userRead = "allowed";
     vi.clearAllMocks();
     vi.mocked(listViews).mockResolvedValue([]);

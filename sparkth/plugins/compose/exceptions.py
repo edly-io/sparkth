@@ -1,4 +1,4 @@
-"""Chat plugin exceptions."""
+"""Compose plugin exceptions."""
 
 
 class ConversationNotFound(Exception):

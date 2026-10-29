@@ -81,7 +81,7 @@ async def test_request_context_enriches_the_event(session: AsyncSession) -> None
         request_id="req-1",
         request_ip="9.9.9.9",
         user_agent="pytest-agent",
-        source=AuditSource.CHAT,
+        source=AuditSource.COMPOSE,
         actor=ACTOR,
     )
     with audit_context(context):
@@ -92,7 +92,7 @@ async def test_request_context_enriches_the_event(session: AsyncSession) -> None
     assert event.request_id == "req-1"
     assert event.request_ip == "9.9.9.9"
     assert event.user_agent == "pytest-agent"
-    assert event.source == "chat"
+    assert event.source == "compose"
     assert event.actor_id == "1"
 
 

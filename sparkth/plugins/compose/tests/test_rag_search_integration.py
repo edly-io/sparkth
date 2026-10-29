@@ -75,7 +75,7 @@ def _mock_document(document_id: int = 1, name: str = "lecture.pdf") -> Document:
 
 
 class TestIntentRouterIntegration:
-    """End-to-end tests verifying the router is wired correctly into chat_completion."""
+    """End-to-end tests verifying the router is wired correctly into compose_completion."""
 
     @pytest.mark.asyncio
     async def test_on_topic_non_streaming_triggers_rag(
@@ -141,7 +141,7 @@ class TestIntentRouterIntegration:
             mock_add_msg.return_value = mock_msg
 
             response = await client.post(
-                "/api/v1/chat/completions",
+                "/api/v1/compose/completions",
                 json={
                     "llm_config_id": seed.llm_config_id,
                     "messages": [{"role": "user", "content": "Summarize the document"}],
@@ -221,7 +221,7 @@ class TestIntentRouterIntegration:
             mock_processor_cls.return_value = mock_instance
 
             response = await client.post(
-                "/api/v1/chat/completions",
+                "/api/v1/compose/completions",
                 json={
                     "llm_config_id": seed.llm_config_id,
                     "messages": [{"role": "user", "content": "How is the weather?"}],
@@ -299,7 +299,7 @@ class TestIntentRouterIntegration:
             mock_processor_cls.return_value = mock_instance
 
             response = await client.post(
-                "/api/v1/chat/completions",
+                "/api/v1/compose/completions",
                 json={
                     "llm_config_id": seed.llm_config_id,
                     "messages": [{"role": "user", "content": "Summarize chapter 1"}],
@@ -360,7 +360,7 @@ class TestIntentRouterIntegration:
             mock_add_msg.return_value = mock_msg
 
             response = await client.post(
-                "/api/v1/chat/completions",
+                "/api/v1/compose/completions",
                 json={
                     "llm_config_id": seed.llm_config_id,
                     "messages": [{"role": "user", "content": "Hello"}],
@@ -422,7 +422,7 @@ class TestIntentRouterIntegration:
             mock_get_provider.return_value = mock_provider
 
             response = await client.post(
-                "/api/v1/chat/completions",
+                "/api/v1/compose/completions",
                 json={
                     "llm_config_id": seed.llm_config_id,
                     "messages": [{"role": "user", "content": "Summarize"}],
@@ -505,7 +505,7 @@ def _configure_base_mocks(
 
 
 class TestDocumentIdsOwnershipCheck:
-    """Tests for the document_ids ownership-filter in chat_completion (routes.py:334-356).
+    """Tests for the document_ids ownership-filter in compose_completion (routes.py:334-356).
 
     Verifies: all-owned IDs are each attached, mixed owned/unowned only attaches
     owned and logs a warning, all-unowned attaches nothing and logs a warning
@@ -548,7 +548,7 @@ class TestDocumentIdsOwnershipCheck:
             _configure_base_mocks(mock_cls_cls, mock_list, mock_add_msg, mock_get_msgs, mock_get_provider)
 
             response = await client.post(
-                "/api/v1/chat/completions",
+                "/api/v1/compose/completions",
                 json={
                     "llm_config_id": seed.llm_config_id,
                     "messages": [{"role": "user", "content": "Hello"}],
@@ -599,7 +599,7 @@ class TestDocumentIdsOwnershipCheck:
             _configure_base_mocks(mock_cls_cls, mock_list, mock_add_msg, mock_get_msgs, mock_get_provider)
 
             response = await client.post(
-                "/api/v1/chat/completions",
+                "/api/v1/compose/completions",
                 json={
                     "llm_config_id": seed.llm_config_id,
                     "messages": [{"role": "user", "content": "Hello"}],
@@ -649,7 +649,7 @@ class TestDocumentIdsOwnershipCheck:
             _configure_base_mocks(mock_cls_cls, mock_list, mock_add_msg, mock_get_msgs, mock_get_provider)
 
             response = await client.post(
-                "/api/v1/chat/completions",
+                "/api/v1/compose/completions",
                 json={
                     "llm_config_id": seed.llm_config_id,
                     "messages": [{"role": "user", "content": "Hello"}],
@@ -723,7 +723,7 @@ class TestProviderApiErrorPersistence:
             mock_get_provider.return_value = mock_provider
 
             response = await client.post(
-                "/api/v1/chat/completions",
+                "/api/v1/compose/completions",
                 json={
                     "llm_config_id": seed.llm_config_id,
                     "messages": [{"role": "user", "content": "Summarize the document"}],
@@ -785,7 +785,7 @@ class TestProviderApiErrorPersistence:
             mock_get_provider.return_value = mock_provider
 
             response = await client.post(
-                "/api/v1/chat/completions",
+                "/api/v1/compose/completions",
                 json={
                     "llm_config_id": seed.llm_config_id,
                     "messages": [{"role": "user", "content": "Summarize the document"}],
