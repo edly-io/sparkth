@@ -61,6 +61,10 @@ test by the [Test Layout](#test-layout) rules below.
 
 For bug fixes: write a test that reproduces the bug first, verify it fails, then fix.
 
+Don't write tests for one-time data migrations (renames, backfills, rewriting stored values). They run once per
+environment, so a test only re-checks finished work on every CI run. Verify them by hand against a seeded database
+and say how in the PR's How to Test.
+
 Test behaviour, not types. Never assert `issubclass(...)`, `isinstance(X, type)` or `callable(X)`
 on a symbol: `mypy --strict` already checks it, and the test breaks when a class moves. Keep
 `isinstance` on a value the code produced when its runtime type is the behaviour under test. When
