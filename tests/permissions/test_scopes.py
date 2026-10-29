@@ -7,7 +7,7 @@ from sparkth.core.permissions.scopes import (
     PermissionScope,
     get_permission_scope,
 )
-from sparkth.lib.permissions.scopes import ROLE, WHITELIST
+from sparkth.lib.permissions.scopes import GROUP, ROLE, WHITELIST
 
 
 def test_create_with_unregistered_parent_raises() -> None:
@@ -42,6 +42,12 @@ def test_role_scope_registered_under_global() -> None:
     assert ROLE.get_parents() == [GLOBAL]
     # A global grant cascades to a role-scoped check; the role itself carries the checked id.
     assert ROLE.scope_chain("5") == [("role", "5"), ("global", None)]
+
+
+def test_group_scope_registered_under_global() -> None:
+    # A grant at group:<id> covers one group; a global grant cascades down to it.
+    assert get_permission_scope("group") is GROUP
+    assert GROUP.scope_chain("5") == [("group", "5"), ("global", None)]
 
 
 class TestPermissionScope:
