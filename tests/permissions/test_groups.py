@@ -201,6 +201,14 @@ async def test_list_groups_returns_all(session: AsyncSession) -> None:
     assert {g.name for g in await groups.list_groups(session)} == {"a", "b"}
 
 
+async def test_list_groups_by_ids_returns_only_those(session: AsyncSession) -> None:
+    a = await groups.create_group("a", None, session)
+    await groups.create_group("b", None, session)
+    c = await groups.create_group("c", None, session)
+    assert a.id is not None and c.id is not None
+    assert {g.name for g in await groups.list_groups_by_ids({a.id, c.id}, session)} == {"a", "c"}
+
+
 async def test_update_group_changes_fields(session: AsyncSession) -> None:
     group = await groups.create_group("cs-staff", None, session)
     assert group.id is not None

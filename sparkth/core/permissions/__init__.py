@@ -2,8 +2,8 @@
 
 Holds the :class:`Permission` class and the ``PERMISSIONS`` hook (the permission
 vocabulary), the shipped core permissions, the ``Permission.require*`` FastAPI
-dependency layer, and the RBAC engine functions (``can``, ``has_role``,
-``assign_role``, ``revoke_role``) together with the ``get_permission`` /
+dependency layer, and the RBAC engine functions (``can``, ``get_granted_scope_object_ids``,
+``has_role``, ``assign_role``, ``revoke_role``) together with the ``get_permission`` /
 ``get_permission_scope`` lookups. The read-side checks resolve a user's roles as
 their own active assignments plus the assignments of any group they actively
 belong to, both matched against the same scope chain.
@@ -236,18 +236,22 @@ def _user_role_ids_at_scope(
     )
 
 
+def _active_membership_group_ids(user_id: int | None) -> SelectOfScalar[int]:
+    """Subquery of the ids of the groups the user actively belongs to."""
+    return select(GroupMembership.group_id).where(
+        col(GroupMembership.user_id) == user_id,
+        col(GroupMembership.is_deleted) == False,
+    )
+
+
 def _group_role_ids_at_scope(
     user_id: int | None,
     permission_scope: PermissionScope,
     scope_object_id: str | None,
 ) -> SelectOfScalar[int]:
     """Subquery of role ids granted at the scope to any group the user actively belongs to."""
-    active_membership_group_ids = select(GroupMembership.group_id).where(
-        col(GroupMembership.user_id) == user_id,
-        col(GroupMembership.is_deleted) == False,
-    )
     return select(GroupRoleAssignment.role_id).where(
-        col(GroupRoleAssignment.group_id).in_(active_membership_group_ids),
+        col(GroupRoleAssignment.group_id).in_(_active_membership_group_ids(user_id)),
         col(GroupRoleAssignment.is_deleted) == False,
         _scope_clause(
             col(GroupRoleAssignment.scope),
@@ -319,6 +323,35 @@ async def can(
     )
     result = await session.exec(statement)
     return result.first() is not None
+
+
+async def get_granted_scope_object_ids(
+    user: User,
+    permission: Permission,
+    permission_scope: PermissionScope,
+    session: AsyncSession,
+) -> set[str]:
+    """Return the object ids at exactly ``permission_scope`` where user holds permission.
+
+    Collects ``scope_object_id`` from the user's own active assignments and from the active
+    assignments of groups they actively belong to, keeping only roles that grant permission.
+    Grants at ancestor scopes are not included; check those with ``can``.
+    """
+    role_ids = select(RolePermission.role_id).where(RolePermission.permission == permission.name)
+    direct = select(RoleAssignment.scope_object_id).where(
+        col(RoleAssignment.user_id) == user.id,
+        col(RoleAssignment.is_deleted) == False,
+        col(RoleAssignment.scope) == permission_scope.name,
+        col(RoleAssignment.role_id).in_(role_ids),
+    )
+    via_group = select(GroupRoleAssignment.scope_object_id).where(
+        col(GroupRoleAssignment.group_id).in_(_active_membership_group_ids(user.id)),
+        col(GroupRoleAssignment.is_deleted) == False,
+        col(GroupRoleAssignment.scope) == permission_scope.name,
+        col(GroupRoleAssignment.role_id).in_(role_ids),
+    )
+    object_ids = [*(await session.exec(direct)).all(), *(await session.exec(via_group)).all()]
+    return {object_id for object_id in object_ids if object_id is not None}
 
 
 async def has_role(

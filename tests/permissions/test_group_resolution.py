@@ -1,12 +1,19 @@
-"""Engine tests: can()/has_role() resolving grants made to groups the user belongs to.
-Authored with LLM (Claude) assistance."""
+"""Engine tests: can()/has_role()/get_granted_scope_object_ids() resolving a user's own grants
+and grants made to groups the user belongs to. Authored with LLM (Claude) assistance."""
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.user import User
-from sparkth.core.permissions.models import Group, GroupMembership, GroupRoleAssignment, Role, RolePermission
-from sparkth.lib.permissions import EMAIL_WHITELIST_READ, Permission, can, has_role
-from sparkth.lib.permissions.scopes import GLOBAL, WHITELIST
+from sparkth.core.permissions.models import (
+    Group,
+    GroupMembership,
+    GroupRoleAssignment,
+    Role,
+    RoleAssignment,
+    RolePermission,
+)
+from sparkth.lib.permissions import EMAIL_WHITELIST_READ, Permission, can, get_granted_scope_object_ids, has_role
+from sparkth.lib.permissions.scopes import GLOBAL, GROUP, WHITELIST
 
 
 async def make_user(session: AsyncSession, username: str) -> User:
@@ -107,3 +114,52 @@ async def test_has_role_via_group_is_scope_specific(session: AsyncSession) -> No
     role = await make_role(session, "grader", [])
     await make_group_grant(session, user, role, "course", "1")
     assert await has_role(user, "grader", GLOBAL, None, session) is False
+
+
+async def assign_directly(
+    session: AsyncSession, user: User, role: Role, scope: str, scope_object_id: str | None
+) -> RoleAssignment:
+    assert user.id is not None and role.id is not None
+    assignment = RoleAssignment(user_id=user.id, role_id=role.id, scope=scope, scope_object_id=scope_object_id)
+    session.add(assignment)
+    await session.flush()
+    return assignment
+
+
+async def test_granted_scope_object_ids_from_direct_assignments(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    reader = await make_role(session, "reader", ["group.read"])
+    other = await make_role(session, "other", ["group.update"])
+    await assign_directly(session, user, reader, GROUP.name, "3")
+    await assign_directly(session, user, reader, GROUP.name, "9")
+    await assign_directly(session, user, other, GROUP.name, "4")
+    assert await get_granted_scope_object_ids(user, Permission("group.read"), GROUP, session) == {"3", "9"}
+
+
+async def test_granted_scope_object_ids_via_group(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    reader = await make_role(session, "reader", ["group.read"])
+    await make_group_grant(session, user, reader, GROUP.name, "5")
+    assert await get_granted_scope_object_ids(user, Permission("group.read"), GROUP, session) == {"5"}
+
+
+async def test_granted_scope_object_ids_skips_revoked_and_other_scopes(session: AsyncSession) -> None:
+    # Only active grants at exactly the asked scope count: a revoked one, an ancestor (global)
+    # grant, and a grant at another scope kind all contribute nothing.
+    user = await make_user(session, "alice")
+    reader = await make_role(session, "reader", ["group.read"])
+    revoked = await assign_directly(session, user, reader, GROUP.name, "6")
+    revoked.soft_delete()
+    await assign_directly(session, user, reader, GLOBAL.name, None)
+    await assign_directly(session, user, reader, "course", "7")
+    await session.flush()
+    assert await get_granted_scope_object_ids(user, Permission("group.read"), GROUP, session) == set()
+
+
+async def test_granted_scope_object_ids_skips_left_group(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    reader = await make_role(session, "reader", ["group.read"])
+    membership, _ = await make_group_grant(session, user, reader, GROUP.name, "5")
+    membership.soft_delete()
+    await session.flush()
+    assert await get_granted_scope_object_ids(user, Permission("group.read"), GROUP, session) == set()

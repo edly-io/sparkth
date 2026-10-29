@@ -82,6 +82,12 @@ async def list_groups(session: AsyncSession) -> list[Group]:
     return list((await session.exec(select(Group).order_by(col(Group.id)))).all())
 
 
+async def list_groups_by_ids(group_ids: set[int], session: AsyncSession) -> list[Group]:
+    """Return the groups whose ids are in group_ids, oldest first. Unknown ids are skipped."""
+    statement = select(Group).where(col(Group.id).in_(group_ids)).order_by(col(Group.id))
+    return list((await session.exec(statement)).all())
+
+
 async def get_group(group_id: int, session: AsyncSession) -> Group:
     """Return the group with group_id, or raise GroupNotFound."""
     group = await session.get(Group, group_id)
