@@ -641,7 +641,7 @@ the caller can delete it. Like the builders, `callback` must be a module-level f
 
 A *capability* is one kind of work the chat assistant does, such as designing a course. A plugin
 contributes one without importing chat, by registering a `ChatCapability` with
-`register_chat_capability` from `sparkth.lib.chat.hooks`. A plugin registers one capability, from
+`register_chat_capability` from `sparkth.lib.compose.hooks`. A plugin registers one capability, from
 its `__init__`, keyed by the plugin instance.
 
 A `ChatCapability` has three fields:
@@ -656,7 +656,7 @@ For example:
 
 ```python
 # sparkth/plugins/myappplugin/plugin.py
-from sparkth.lib.chat.hooks import ChatCapability, register_chat_capability
+from sparkth.lib.compose.hooks import ChatCapability, register_chat_capability
 from sparkth.lib.plugins import SparkthPlugin
 
 TITLE = "My App builder"
@@ -675,7 +675,7 @@ class MyAppPlugin(SparkthPlugin):
 Register through `register_chat_capability`, not `CHAT_CAPABILITIES.add_item`. Constructing the
 plugin again is harmless: the loader and a plugin's own tests each build an instance, and equal
 copies fold into one. Only a *different* capability claiming a registered title raises
-`DuplicateChatCapabilityError`, from `sparkth.lib.chat.exceptions`. The loader logs the failed
+`DuplicateChatCapabilityError`, from `sparkth.lib.compose.exceptions`. The loader logs the failed
 construction and skips that plugin.
 
 ### How chat uses capabilities

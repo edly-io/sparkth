@@ -89,7 +89,7 @@ class TestNoUnauditedConstructionSites:
     ``audited_tool`` and added here deliberately."""
 
     ALLOWED = {
-        Path("plugins/chat/tools.py"),  # converts already-wrapped Tool.handler (tagged for the callback)
+        Path("plugins/compose/tools.py"),  # converts already-wrapped Tool.handler (tagged for the callback)
         Path("rag/mcp/agent_tools.py"),  # plain coroutines; runs recorded by the callback handler
         Path("rag/retrieval/agent.py"),  # consumes build_search_tools only
         Path("mcp/server.py"),  # direct @mcp.tool registrations, wrapped explicitly

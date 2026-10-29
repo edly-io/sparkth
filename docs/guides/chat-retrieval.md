@@ -8,7 +8,7 @@ conversation has documents to search and only when the user's message needs them
 
 Both conditions must hold.
 
-**The conversation has at least one usable document.** `ChatService.list_conversation_attachments`
+**The conversation has at least one usable document.** `ComposeService.list_conversation_attachments`
 selects documents joined to the conversation whose status is `READY` and that are not deleted. A
 document still being ingested, one whose ingestion failed, and one the user has deleted are all
 invisible here, so none of them can trigger retrieval. With no such document the turn skips
