@@ -1,6 +1,6 @@
 """TimescaleDB-backed tests for the chat activity read (the ``pg``-marked lane).
 
-``get_chat_activity`` reads the ``chat_activity_daily`` continuous aggregate on PostgreSQL and
+``get_compose_activity`` reads the ``chat_activity_daily`` continuous aggregate on PostgreSQL and
 ``raw_events`` on SQLite; these check the two agree, including row order.
 """
 
@@ -13,7 +13,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from sparkth.lib.analytics import Bucket, ingest_event
-from sparkth.plugins.chat.analytics.reads import get_chat_activity
+from sparkth.plugins.compose.analytics.reads import get_compose_activity
 
 pytestmark = pytest.mark.pg
 
@@ -80,7 +80,7 @@ _FAILED: dict[str, object] = {
 }
 
 
-async def test_pg_chat_activity_cagg_exists(pg_analytics_session: AsyncSession) -> None:
+async def test_pg_compose_activity_cagg_exists(pg_analytics_session: AsyncSession) -> None:
     rows = await pg_analytics_session.execute(
         text(
             "SELECT view_name FROM timescaledb_information.continuous_aggregates"
@@ -91,7 +91,7 @@ async def test_pg_chat_activity_cagg_exists(pg_analytics_session: AsyncSession) 
 
 
 @pytest.mark.parametrize("bucket", list(Bucket))
-async def test_pg_chat_activity_matches_sqlite(
+async def test_pg_compose_activity_matches_sqlite(
     pg_analytics_session: AsyncSession,
     pg_refresh: Callable[[], Awaitable[None]],
     analytics_session: AsyncSession,
@@ -120,8 +120,8 @@ async def test_pg_chat_activity_matches_sqlite(
         await _seed_pre_outcome_tool(session, _at("2025-12-01"), "create_x")
     await pg_refresh()
 
-    pg_result = await get_chat_activity(pg_analytics_session, date(2025, 12, 1), date(2026, 1, 31), bucket)
-    sqlite_result = await get_chat_activity(analytics_session, date(2025, 12, 1), date(2026, 1, 31), bucket)
+    pg_result = await get_compose_activity(pg_analytics_session, date(2025, 12, 1), date(2026, 1, 31), bucket)
+    sqlite_result = await get_compose_activity(analytics_session, date(2025, 12, 1), date(2026, 1, 31), bucket)
 
     assert pg_result == sqlite_result
     assert any(p.outcome is None and p.dimension == "create_x" for p in pg_result)
