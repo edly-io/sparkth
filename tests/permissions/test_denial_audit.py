@@ -69,6 +69,20 @@ async def test_denied_scoped_request_names_the_scope_object(
     assert event.error_detail == "scope=role:7"
 
 
+async def test_denied_list_over_scope_names_the_scope_kind(
+    client: AsyncClient, session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    # The group list passes on a grant at any group, so a denial names the scope kind, no object.
+    user = await _user(session, "denied-dan")
+
+    response = await client.get("/api/v1/permissions/groups", headers=_auth(user))
+    assert response.status_code == 403
+
+    (event,) = await audit_events()
+    assert event.target_id == "group.read"
+    assert event.error_detail == "scope=group"
+
+
 async def test_granted_request_records_nothing(
     client: AsyncClient, session: AsyncSession, audit_events: AuditEventsFetcher
 ) -> None:

@@ -4,8 +4,9 @@ Structural definition only — membership and group-role grants are CLI-managed,
 how user-role assignment is CLI-only. The endpoints that address one group by ``{group_id}``
 (get/update/delete) authorize at the ``group`` scope (``require(GROUP, "group_id")``), so a
 grant can be delegated to a single group; a global grant still satisfies them via the scope
-cascade. Listing all groups and creating a group stay global. Authored with LLM (Claude)
-assistance.
+cascade. Creating a group stays global. Listing passes on a ``group.read`` grant at any group
+and returns every group to a global reader, otherwise only the groups the caller holds
+``group.read`` for. Authored with LLM (Claude) assistance.
 """
 
 from fastapi import APIRouter, Depends, status
@@ -15,8 +16,16 @@ from sparkth.api.v1.permissions.schemas import GroupCreate, GroupResponse, Group
 from sparkth.core.permissions import groups as group_engine
 from sparkth.core.permissions.models import Group
 from sparkth.lib.db import get_async_session
-from sparkth.lib.permissions import GROUP_CREATE, GROUP_DELETE, GROUP_READ, GROUP_UPDATE
-from sparkth.lib.permissions.scopes import GROUP
+from sparkth.lib.models import User
+from sparkth.lib.permissions import (
+    GROUP_CREATE,
+    GROUP_DELETE,
+    GROUP_READ,
+    GROUP_UPDATE,
+    can,
+    get_granted_scope_object_ids,
+)
+from sparkth.lib.permissions.scopes import GLOBAL, GROUP
 
 router = APIRouter()
 
@@ -32,14 +41,24 @@ def _group_to_response(group: Group) -> GroupResponse:
     return GroupResponse(id=group.id, name=group.name, description=group.description)
 
 
-@router.get(
-    "",
-    response_model=list[GroupResponse],
-    dependencies=[Depends(GROUP_READ.require_in_global_scope())],
-)
-async def list_groups(session: AsyncSession = Depends(get_async_session)) -> list[GroupResponse]:
-    """List all groups. Returns a list of GroupResponse (id, name, description)."""
-    return [_group_to_response(group) for group in await group_engine.list_groups(session)]
+@router.get("", response_model=list[GroupResponse])
+async def list_groups(
+    current_user: User = Depends(GROUP_READ.require_at_any_object(GROUP)),
+    session: AsyncSession = Depends(get_async_session),
+) -> list[GroupResponse]:
+    """List the groups the caller can read. Returns a list of GroupResponse (id, name, description).
+
+    A caller holding group.read at the global scope sees every group; any other caller sees only
+    the groups they hold group.read for.
+    """
+    if await can(current_user, GROUP_READ, GLOBAL, None, session):
+        groups = await group_engine.list_groups(session)
+    else:
+        granted_ids = await get_granted_scope_object_ids(current_user, GROUP_READ, GROUP, session)
+        # A grant's object id is free-form text; one that is not a number names no group.
+        group_ids = {int(object_id) for object_id in granted_ids if object_id.isdecimal()}
+        groups = await group_engine.list_groups_by_ids(group_ids, session)
+    return [_group_to_response(group) for group in groups]
 
 
 @router.post(

@@ -13,7 +13,7 @@ from sparkth.core.models.user import User
 from sparkth.core.permissions import groups as group_engine
 from sparkth.core.permissions.models import Group, Role, RoleAssignment, RolePermission
 from sparkth.lib.auth import get_current_user
-from sparkth.lib.permissions.scopes import GLOBAL
+from sparkth.lib.permissions.scopes import GLOBAL, GROUP
 
 GROUP_PERMISSIONS = ["group.create", "group.read", "group.update", "group.delete"]
 
@@ -194,13 +194,67 @@ async def test_group_scoped_deleter_can_delete_that_group(client: AsyncClient, s
 async def test_group_scoped_grant_does_not_authorize_global_endpoints(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    # Listing and creating groups stay gated at the global scope; a per-group grant does not
-    # cascade UP to global.
+    # Creating groups stays gated at the global scope; a per-group grant does not cascade UP to global.
     target = await _create_target_group(session)
     _override_current_user(
         client,
         await _create_user_with_permissions(session, ["group.read", "group.create"], "group", str(target.id)),
     )
     await session.commit()
-    assert (await client.get("/api/v1/permissions/groups")).status_code == 403
     assert (await client.post("/api/v1/permissions/groups", json={"name": _uniq("x")})).status_code == 403
+
+
+# --- Filtered list -----------------------------------------------------------------------------
+# A caller without a global group.read grant sees only the groups they hold group.read for.
+
+
+async def _list_group_ids(client: AsyncClient) -> list[int]:
+    response = await client.get("/api/v1/permissions/groups")
+    assert response.status_code == 200
+    return [group["id"] for group in response.json()]
+
+
+async def test_group_scoped_reader_lists_only_that_group(client: AsyncClient, session: AsyncSession) -> None:
+    target = await _create_target_group(session)
+    await _create_target_group(session)
+    _override_current_user(
+        client, await _create_user_with_permissions(session, ["group.read"], "group", str(target.id))
+    )
+    await session.commit()
+    assert await _list_group_ids(client) == [target.id]
+
+
+async def test_group_read_via_membership_lists_that_group(client: AsyncClient, session: AsyncSession) -> None:
+    # group.read at group:<target> is granted to a group the caller belongs to, not to the caller.
+    target = await _create_target_group(session)
+    await _create_target_group(session)
+    managers = await _create_target_group(session)
+    user = await _create_user_with_permissions(session, [])
+    assert user.id is not None and managers.id is not None
+    reader = Role(name=_uniq("reader"))
+    session.add(reader)
+    await session.flush()
+    assert reader.id is not None
+    session.add(RolePermission(role_id=reader.id, permission="group.read"))
+    await session.flush()
+    await group_engine.add_group_member(user.id, managers.id, session)
+    await group_engine.assign_role_to_group(managers.id, reader.name, GROUP, str(target.id), session)
+    _override_current_user(client, user)
+    await session.commit()
+    assert await _list_group_ids(client) == [target.id]
+
+
+async def test_non_numeric_group_grant_is_ignored(client: AsyncClient, session: AsyncSession) -> None:
+    # The CLI stores any string as the scope object id; one that names no group id is skipped.
+    target = await _create_target_group(session)
+    user = await _create_user_with_permissions(session, ["group.read"], "group", "abc")
+    assert user.id is not None
+    reader = Role(name=_uniq("reader"))
+    session.add(reader)
+    await session.flush()
+    assert reader.id is not None
+    session.add(RolePermission(role_id=reader.id, permission="group.read"))
+    session.add(RoleAssignment(user_id=user.id, role_id=reader.id, scope="group", scope_object_id=str(target.id)))
+    _override_current_user(client, user)
+    await session.commit()
+    assert await _list_group_ids(client) == [target.id]
