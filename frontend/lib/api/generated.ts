@@ -1015,7 +1015,10 @@ export interface paths {
         };
         /**
          * List Groups
-         * @description List all groups. Returns a list of GroupResponse (id, name, description).
+         * @description List the groups the caller can read. Returns a list of GroupResponse (id, name, description).
+         *
+         *     A caller holding group.read at the global scope sees every group; any other caller sees only
+         *     the groups they hold group.read for.
          */
         get: operations["list_groups_api_v1_permissions_groups_get"];
         put?: never;
