@@ -2975,7 +2975,8 @@ export interface components {
          *     hints a plugin sets through ``json_schema_extra``. It is empty for a plugin
          *     that registered no config class.
          *
-         *     ``config`` never carries a field marked ``secret()``; ``secrets_set`` names the ones stored.
+         *     ``config`` never carries a field marked ``secret()``; ``secrets_set`` names the ones stored,
+         *     and ``masked_secrets`` maps each stored ``secret(masked=True)`` field to its masked value.
          */
         UserPluginResponse: {
             /** Config */
@@ -2999,6 +3000,13 @@ export interface components {
             has_frontend: boolean;
             /** Is Core */
             is_core: boolean;
+            /**
+             * Masked Secrets
+             * @default {}
+             */
+            masked_secrets: {
+                [key: string]: string;
+            };
             /** Plugin Name */
             plugin_name: string;
             /**

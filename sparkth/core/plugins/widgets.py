@@ -35,12 +35,16 @@ def widget(control: ConfigWidget) -> dict[str, Any]:
     return {"widget": control.value}
 
 
-def secret(control: ConfigWidget = ConfigWidget.PASSWORD) -> dict[str, Any]:
-    """``json_schema_extra`` marking a config field as a secret the API never returns.
+def secret(control: ConfigWidget = ConfigWidget.PASSWORD, *, masked: bool = False) -> dict[str, Any]:
+    """``json_schema_extra`` marking a config field as a secret the API never returns in full.
+
+    A ``masked`` secret, such as an API key, is returned masked (``****2345``); any other, such as
+    a password, is never returned at all.
 
     ```python
-    api_key: str = Field(..., json_schema_extra=secret())
+    api_key: str = Field(..., json_schema_extra=secret(masked=True))
+    password: str = Field(..., json_schema_extra=secret())
     private_key: str = Field(..., json_schema_extra=secret(ConfigWidget.TEXTAREA))
     ```
     """
-    return {**widget(control), "secret": True}
+    return {**widget(control), "secret": True, "masked": masked}

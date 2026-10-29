@@ -9,5 +9,5 @@ class MoodleConfig(PluginConfig):
         ...,
         description="Moodle API key",
         min_length=1,
-        json_schema_extra=secret(),
+        json_schema_extra=secret(masked=True),
     )

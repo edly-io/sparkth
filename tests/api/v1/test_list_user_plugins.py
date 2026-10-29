@@ -34,6 +34,7 @@ def _plugin_entry(plugin_name: str, enabled: bool, config: dict[str, str], is_co
         "sidebar": None,
         "has_frontend": False,
         "secrets_set": [],
+        "masked_secrets": {},
     }
 
 

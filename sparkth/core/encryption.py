@@ -44,6 +44,15 @@ class EncryptionService:
         return Fernet.generate_key().decode()
 
 
+def mask_secret(secret: str) -> str:
+    """``secret`` as its last 4 characters, after the prefix before its first dash: ``sk-****2345``."""
+    if len(secret) <= 4:
+        return "****"
+    parts = secret.split("-", maxsplit=1)
+    prefix = parts[0] + "-" if len(parts) >= 2 else ""
+    return f"{prefix}****{secret[-4:]}"
+
+
 @lru_cache(maxsize=1)
 def get_encryption_service(encryption_key: str) -> EncryptionService:
     return EncryptionService(encryption_key)

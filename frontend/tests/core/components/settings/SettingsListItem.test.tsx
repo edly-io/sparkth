@@ -33,9 +33,16 @@ const CANVAS: UserPluginState = {
   sidebar: null,
   has_frontend: false,
   secrets_set: [],
+  masked_secrets: {},
 };
 
 describe("SettingsListItem", () => {
+  it("shows a stored key masked, like an AI key", () => {
+    renderItem({ ...CANVAS, secrets_set: ["api_key"], masked_secrets: { api_key: "****1QAA" } });
+
+    expect(screen.getByText("****1QAA")).toBeDefined();
+  });
+
   it("renders the backend-declared display name and description", () => {
     renderItem(CANVAS);
 

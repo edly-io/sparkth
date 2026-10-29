@@ -21,6 +21,9 @@ Most plugins need settings before they do anything, such as an AI key or your LM
 A saved password or key shows as dots. To change it, click **Replace** and type the new one; leaving it
 alone keeps the saved one. Clicked **Replace** by mistake? Click **Keep stored** to go back to the saved one.
 
+A plugin's row shows its saved API key with all but the last few characters hidden, like an AI key. A saved
+password is never shown.
+
 ![Configuring a plugin](../img/user-guide/my-plugins-configure.png)
 
 !!! warning "Enabled is not configured"

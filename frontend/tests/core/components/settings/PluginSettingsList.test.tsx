@@ -34,6 +34,7 @@ function state(pluginName: string): UserPluginState {
     sidebar: null,
     has_frontend: false,
     secrets_set: [],
+    masked_secrets: {},
   };
 }
 

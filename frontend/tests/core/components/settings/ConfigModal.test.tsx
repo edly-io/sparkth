@@ -36,6 +36,7 @@ function renderModal(
         sidebar: null,
         has_frontend: false,
         secrets_set: [],
+        masked_secrets: {},
         ...plugin,
       }}
       open
@@ -201,6 +202,7 @@ describe("PluginConfigModal", () => {
     renderModal({
       config: { lms_url: "https://l.example.com", lms_username: "s" },
       secrets_set: ["lms_password"],
+      masked_secrets: {},
     });
 
     expect(screen.getByText("••••••••")).toBeDefined();
@@ -213,6 +215,7 @@ describe("PluginConfigModal", () => {
     const onSave = renderModal({
       config: { lms_url: "https://l.example.com", lms_username: "s" },
       secrets_set: ["lms_password"],
+      masked_secrets: {},
     });
 
     fireEvent.click(screen.getByRole("button", { name: /Save/ }));
@@ -230,6 +233,7 @@ describe("PluginConfigModal", () => {
     const onSave = renderModal({
       config: { lms_url: "https://l.example.com", lms_username: "s" },
       secrets_set: ["lms_password"],
+      masked_secrets: {},
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Replace Lms Password" }));
@@ -247,6 +251,7 @@ describe("PluginConfigModal", () => {
     const onSave = renderModal({
       config: { lms_url: "https://l.example.com", lms_username: "s" },
       secrets_set: ["lms_password"],
+      masked_secrets: {},
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Replace Lms Password" }));
@@ -260,6 +265,7 @@ describe("PluginConfigModal", () => {
     const onSave = renderModal({
       config: { lms_url: "https://l.example.com", lms_username: "s" },
       secrets_set: ["lms_password"],
+      masked_secrets: {},
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Replace Lms Password" }));

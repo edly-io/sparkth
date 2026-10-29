@@ -66,6 +66,9 @@ Sparkth stores every user's plugin config encrypted, and the `user-plugins` API 
 lists the stored ones in `secrets_set` instead. The settings form shows a stored secret as dots with a **Replace**
 action, and a save that leaves it out keeps the stored value.
 
+Mark an API key or token with `secret(masked=True)`: the API also returns it masked (`****2345`) in
+`masked_secrets`, and the plugin's row on the settings page shows it, like an AI key. Leave a password unmasked.
+
 ## Register the plugin configuration class
 
 Register a Pydantic configuration class when your plugin has user-configurable settings that the system
