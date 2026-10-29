@@ -1,0 +1,55 @@
+import json
+from typing import Any
+
+from langchain_core.tools import BaseTool
+
+from sparkth.lib.log import get_logger
+from sparkth.plugins.compose.schemas import ChatCompletionRequest
+from sparkth.plugins.compose.tools import ToolRegistry
+
+logger = get_logger(__name__)
+
+
+async def resolve_tools(
+    request: ChatCompletionRequest, tool_registry: ToolRegistry, disabled_plugins: set[str]
+) -> list[BaseTool] | None:
+    """Resolve the tools the request asks for: every tool for ``"*"`` or ``"all"``, the named ones
+    for a list, and none for ``"none"`` or an empty list. A tool whose plugin is in
+    ``disabled_plugins`` is never returned, however it was asked for."""
+    if request.tools == "none" or request.tools == []:
+        logger.info("Tools explicitly disabled")
+        return None
+    if request.tools == "*" or request.tools == "all":
+        tools = tool_registry.get_all_tools()
+    elif request.tools and isinstance(request.tools, list):
+        tools = tool_registry.get_tools_by_names(request.tools)
+        if not tools:
+            logger.warning("No tools found for: %s", request.tools)
+    else:
+        return None
+    return [tool for tool in tools if tool_registry.plugin_for(tool.name) not in disabled_plugins]
+
+
+def parse_metadata_list(model_metadata: str | None, key: str) -> list[dict[str, Any]] | None:
+    """Extract a list value from a JSON-serialised metadata string."""
+    if not model_metadata:
+        return None
+    try:
+        meta = json.loads(model_metadata)
+        value = meta.get(key)
+        return value if isinstance(value, list) else None
+    except (json.JSONDecodeError, AttributeError) as exc:
+        logger.error("Failed to parse model_metadata for key %r: %s", key, exc)
+        return None
+
+
+def parse_metadata_flag(model_metadata: str | None, key: str) -> bool:
+    """Read a boolean from a JSON-serialised metadata string, defaulting to False."""
+    if not model_metadata:
+        return False
+    try:
+        meta = json.loads(model_metadata)
+        return bool(meta.get(key, False))
+    except (json.JSONDecodeError, AttributeError) as exc:
+        logger.error("Failed to parse model_metadata for key %r: %s", key, exc)
+        return False

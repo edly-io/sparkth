@@ -35,8 +35,8 @@ guide](../guides/plugins.md) for the how-to; this page is the generated referenc
 
 ## Chat capability hooks
 
-::: sparkth.lib.chat.hooks
+::: sparkth.lib.compose.hooks
 
 ## Chat capability exceptions
 
-::: sparkth.lib.chat.exceptions
+::: sparkth.lib.compose.exceptions

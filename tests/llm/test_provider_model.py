@@ -1,7 +1,7 @@
 """
 Unit tests for the provider/model feature:
   - PROVIDER_MODELS registry and catalog helpers (providers.py)
-  - ChatUserConfig.provider validation and model field (config.py)
+  - ComposeUserConfig.provider validation and model field (config.py)
   - streaming_error_message error mapping (routes.py)
   - GET /api/v1/llm/providers endpoint (routes.py)
 """
@@ -22,7 +22,7 @@ from sparkth.llm.providers import (
     get_provider_catalog,
     get_supported_providers,
 )
-from sparkth.plugins.chat.routes.utils.stream_processor import streaming_error_message
+from sparkth.plugins.compose.routes.utils.stream_processor import streaming_error_message
 
 
 def _anthropic_response(status_code: int) -> httpx.Response:
@@ -100,43 +100,43 @@ class TestProviderModels:
 
 
 # ===========================================================================
-# ChatUserConfig validation
+# ComposeUserConfig validation
 # ===========================================================================
 
 
-class TestChatUserConfig:
+class TestComposeUserConfig:
     """
-    ChatUserConfig lives in sparkth.plugins.chat.config.
+    ComposeUserConfig lives in sparkth.plugins.compose.config.
     It now uses llm_config_id (FK to LLMConfig) and an optional
     llm_model_override instead of inline provider/model/key fields.
     """
 
     def test_valid_config_with_llm_config_id(self) -> None:
-        from sparkth.plugins.chat.config import ChatUserConfig
+        from sparkth.plugins.compose.config import ComposeUserConfig
 
-        cfg = ChatUserConfig(llm_config_id=1)
+        cfg = ComposeUserConfig(llm_config_id=1)
         assert cfg.llm_config_id == 1
         assert cfg.llm_model_override is None
 
     def test_llm_model_override_defaults_to_none(self) -> None:
-        from sparkth.plugins.chat.config import ChatUserConfig
+        from sparkth.plugins.compose.config import ComposeUserConfig
 
-        cfg = ChatUserConfig(llm_config_id=42)
+        cfg = ComposeUserConfig(llm_config_id=42)
         assert cfg.llm_model_override is None
 
     def test_llm_model_override_can_be_set(self) -> None:
-        from sparkth.plugins.chat.config import ChatUserConfig
+        from sparkth.plugins.compose.config import ComposeUserConfig
 
-        cfg = ChatUserConfig(llm_config_id=1, llm_model_override="claude-opus-4-5")
+        cfg = ComposeUserConfig(llm_config_id=1, llm_model_override="claude-opus-4-5")
         assert cfg.llm_model_override == "claude-opus-4-5"
 
     def test_missing_llm_config_id_raises_validation_error(self) -> None:
         from pydantic import ValidationError
 
-        from sparkth.plugins.chat.config import ChatUserConfig
+        from sparkth.plugins.compose.config import ComposeUserConfig
 
         with pytest.raises(ValidationError):
-            ChatUserConfig()  # type: ignore[call-arg]
+            ComposeUserConfig()  # type: ignore[call-arg]
 
 
 # ===========================================================================

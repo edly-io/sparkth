@@ -23,7 +23,7 @@ class Tool:
 
     The handler is wrapped for audit at construction
     (:func:`sparkth.lib.audit.audited_tool`), so every execution path
-    that consumes the hook (the FastMCP server and the chat tool registry)
+    that consumes the hook (the FastMCP server and Compose's tool registry)
     records the tool call without instrumenting each consumer. Wrapping
     preserves the handler's name, docstring, and generated input schema.
     """
@@ -48,7 +48,7 @@ class Tool:
 
 
 # MCP tools contributed by plugins, consumed by the MCP server (sparkth/mcp/main.py)
-# and the chat tool registry (sparkth/plugins/chat/tools.py).
+# and Compose's tool registry (sparkth/plugins/compose/tools.py).
 MCP_TOOLS: PluginCollectionHook[Tool] = PluginCollectionHook()
 
 
