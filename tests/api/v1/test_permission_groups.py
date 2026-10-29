@@ -11,7 +11,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.user import User
 from sparkth.core.permissions import groups as group_engine
-from sparkth.core.permissions.models import Role, RoleAssignment, RolePermission
+from sparkth.core.permissions.models import Group, Role, RoleAssignment, RolePermission
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.permissions.scopes import GLOBAL
 
@@ -22,7 +22,12 @@ def _uniq(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:8]}"
 
 
-async def _create_user_with_permissions(session: AsyncSession, permissions: list[str]) -> User:
+async def _create_user_with_permissions(
+    session: AsyncSession,
+    permissions: list[str],
+    scope: str = "global",
+    scope_object_id: str | None = None,
+) -> User:
     user = User(name="Admin", username=_uniq("admin"), email=f"{_uniq('admin')}@example.com", hashed_password="x")
     session.add(user)
     await session.flush()
@@ -33,9 +38,18 @@ async def _create_user_with_permissions(session: AsyncSession, permissions: list
     assert role.id is not None
     for permission in permissions:
         session.add(RolePermission(role_id=role.id, permission=permission))
-    session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope=GLOBAL.name, scope_object_id=None))
+    session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope=scope, scope_object_id=scope_object_id))
     await session.flush()
     return user
+
+
+async def _create_target_group(session: AsyncSession) -> Group:
+    """A plain group with an id, used as the object a per-group grant is scoped to."""
+    group = Group(name=_uniq("target"))
+    session.add(group)
+    await session.flush()
+    assert group.id is not None
+    return group
 
 
 def _override_current_user(client: AsyncClient, user: User) -> None:
@@ -134,3 +148,59 @@ async def test_group_endpoints_require_permission(client: AsyncClient, session: 
     _override_current_user(client, await _create_user_with_permissions(session, []))
     assert (await client.get("/api/v1/permissions/groups")).status_code == 403
     assert (await client.post("/api/v1/permissions/groups", json={"name": "x"})).status_code == 403
+
+
+# --- Per-group scoping -------------------------------------------------------------------------
+# The endpoints addressing one group by {group_id} authorize at the object-bearing `group` scope, so
+# a grant can be delegated to a single group. A global grant still satisfies them via the cascade
+# (covered by the global-grant tests above).
+
+
+async def test_group_scoped_updater_can_update_only_that_group(client: AsyncClient, session: AsyncSession) -> None:
+    target = await _create_target_group(session)
+    other = await _create_target_group(session)
+    _override_current_user(
+        client, await _create_user_with_permissions(session, ["group.update"], "group", str(target.id))
+    )
+    await session.commit()
+    ok = await client.patch(f"/api/v1/permissions/groups/{target.id}", json={"description": "d"})
+    assert ok.status_code == 200
+    denied = await client.patch(f"/api/v1/permissions/groups/{other.id}", json={"description": "d"})
+    assert denied.status_code == 403
+
+
+async def test_group_scoped_reader_can_get_only_that_group(client: AsyncClient, session: AsyncSession) -> None:
+    target = await _create_target_group(session)
+    other = await _create_target_group(session)
+    _override_current_user(
+        client, await _create_user_with_permissions(session, ["group.read"], "group", str(target.id))
+    )
+    await session.commit()
+    assert (await client.get(f"/api/v1/permissions/groups/{target.id}")).status_code == 200
+    assert (await client.get(f"/api/v1/permissions/groups/{other.id}")).status_code == 403
+    # A missing group is denied, not reported missing, so group ids cannot be probed.
+    assert (await client.get("/api/v1/permissions/groups/99999")).status_code == 403
+
+
+async def test_group_scoped_deleter_can_delete_that_group(client: AsyncClient, session: AsyncSession) -> None:
+    target = await _create_target_group(session)
+    _override_current_user(
+        client, await _create_user_with_permissions(session, ["group.delete"], "group", str(target.id))
+    )
+    await session.commit()
+    assert (await client.delete(f"/api/v1/permissions/groups/{target.id}")).status_code == 204
+
+
+async def test_group_scoped_grant_does_not_authorize_global_endpoints(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    # Listing and creating groups stay gated at the global scope; a per-group grant does not
+    # cascade UP to global.
+    target = await _create_target_group(session)
+    _override_current_user(
+        client,
+        await _create_user_with_permissions(session, ["group.read", "group.create"], "group", str(target.id)),
+    )
+    await session.commit()
+    assert (await client.get("/api/v1/permissions/groups")).status_code == 403
+    assert (await client.post("/api/v1/permissions/groups", json={"name": _uniq("x")})).status_code == 403

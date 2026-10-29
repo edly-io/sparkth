@@ -128,9 +128,18 @@ make cli -- groups assign-role-to-group cs-staff grader --scope course --scope-o
 
 From application code, use the façade (`sparkth.lib.permissions`): `add_group_member`,
 `remove_group_member`, `assign_role_to_group`, `revoke_role_from_group`,
-`get_group_by_name`. Group management authorizes at the **global scope only** for now — a
-per-group delegation scope (like the per-role `role` scope) waits on object-bearing scope
-cascade ([#420](https://github.com/edly-io/sparkth/issues/420) Phase 2).
+`get_group_by_name`.
+
+Management of one group can be delegated, like the per-role `role` scope. The endpoints that
+address one group by `{group_id}` (get, update, delete) authorize at the `group` scope, so a
+role assigned at `group` with that group's id covers that group only. A `global` grant still
+satisfies them through the cascade. Listing all groups and creating a group stay at `global`.
+The scope object id is the group's numeric id, listed by `GET /api/v1/permissions/groups`:
+
+```bash
+# let jane manage group 7 only, through a role that holds group.read / group.update
+make cli -- roles assign-role jane group-manager --scope group --scope-object-id 7
+```
 
 ## Audit trail
 
