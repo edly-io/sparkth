@@ -7,7 +7,7 @@ import { getAllPlugins, registerPlugin, unregisterPlugin } from "@/core/plugins/
 import coreEn from "@/messages/en.json";
 import coreEs from "@/messages/es.json";
 import coreFr from "@/messages/fr.json";
-import chatEs from "@/plugins/chat/messages/es.json";
+import composeEs from "@/plugins/compose/messages/es.json";
 
 const CORE_CATALOGS = { en: coreEn, es: coreEs, fr: coreFr } as const;
 
@@ -16,13 +16,13 @@ describe("loadMessages", () => {
     const messages = await loadMessages("es");
 
     expect(messages).toHaveProperty("home");
-    expect(messages).toHaveProperty("chat");
+    expect(messages).toHaveProperty("compose");
   });
 
   it("merges plugin catalogs for the default locale too", async () => {
     const messages = await loadMessages("en");
 
-    expect(messages).toHaveProperty("chat");
+    expect(messages).toHaveProperty("compose");
   });
 });
 
@@ -67,7 +67,7 @@ describe("core catalog failure", () => {
     const messages = await loadWithBrokenCore("es");
 
     expect(messages).toHaveProperty("home", coreEn.home);
-    expect(messages).toHaveProperty("chat", chatEs.chat);
+    expect(messages).toHaveProperty("compose", composeEs.compose);
     expect(consoleError).toHaveBeenCalled();
   });
 });

@@ -4,7 +4,7 @@ import type { ExploreConfig } from "@/lib/analytics/explore";
 import type { Bucket } from "@/lib/analytics/series";
 import type {
   AnalyticsView,
-  ChatActivityPoint,
+  ComposeActivityPoint,
   DriveDocumentsPoint,
   EventCatalogEntry,
   ExploreResult,
@@ -25,12 +25,12 @@ export async function fetchLogins(
   );
 }
 
-export async function fetchChatActivity(
+export async function fetchComposeActivity(
   token: string,
   { from, to }: { from: IsoDate; to: IsoDate },
-): Promise<ChatActivityPoint[]> {
-  return call<ChatActivityPoint[]>(() =>
-    api.GET("/api/v1/chat/analytics/activity", {
+): Promise<ComposeActivityPoint[]> {
+  return call<ComposeActivityPoint[]>(() =>
+    api.GET("/api/v1/compose/analytics/activity", {
       params: { query: { from, to, bucket: "day" } },
       headers: bearer(token),
     }),

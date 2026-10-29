@@ -1,4 +1,4 @@
-"""End-to-end analytics producer tests through POST /api/v1/chat/completions.
+"""End-to-end analytics producer tests through POST /api/v1/compose/completions.
 
 Every test drives the real endpoint and asserts on rows that actually landed in the
 analytics database, rather than on a mocked emit helper — the thing worth protecting
@@ -35,7 +35,7 @@ from sparkth.plugins.compose.models import Conversation, Message
 from sparkth.plugins.compose.routes.utils.live_turns import request_stop
 from sparkth.plugins.compose.tools import convert_mcp_to_langchain_tool
 
-COMPLETIONS_URL = "/api/v1/chat/completions"
+COMPLETIONS_URL = "/api/v1/compose/completions"
 
 
 async def _seed_llm_config(session: AsyncSession, user_id: int) -> int:
@@ -122,7 +122,7 @@ def _ingest_failing_only_for(event_type: str, attempted: list[str] | None = None
     """An ``ingest_event`` stand-in that fails one event type and lands every other.
 
     A side effect that raised unconditionally would be satisfied by whichever analytics
-    write happens to run first — ``chat.conversation_started`` — so such a test would
+    write happens to run first — ``compose.conversation_started`` — so such a test would
     still pass with the seam under test deleted. Failing exactly one event type makes
     the assertion about that seam.
 
@@ -181,14 +181,14 @@ async def test_new_conversation_emits_conversation_started(
 
     assert response.status_code == 200
 
-    started = await _events(analytics_session, "chat.conversation_started")
+    started = await _events(analytics_session, "compose.conversation_started")
     assert len(started) == 1
     assert started[0] == {
         "conversation_id": str(response.json()["conversation_id"]),
         "provider": "openai",
         "model": "gpt-4o",
     }
-    assert await _actors(analytics_session, "chat.conversation_started") == [str(current_user.id)]
+    assert await _actors(analytics_session, "compose.conversation_started") == [str(current_user.id)]
 
 
 async def test_continuing_a_conversation_does_not_re_emit_conversation_started(
@@ -218,7 +218,7 @@ async def test_continuing_a_conversation_does_not_re_emit_conversation_started(
         )
 
     assert response.status_code == 200
-    assert await _events(analytics_session, "chat.conversation_started") == []
+    assert await _events(analytics_session, "compose.conversation_started") == []
 
 
 async def test_refused_first_message_starts_no_conversation_and_emits_nothing(
@@ -283,8 +283,8 @@ async def test_instructor_turn_emits_message_sent(
 
     assert response.status_code == 200
 
-    await join_live_tasks()  # chat.message_sent lands on a detached task
-    sent = await _events(analytics_session, "chat.message_sent")
+    await join_live_tasks()  # compose.message_sent lands on a detached task
+    sent = await _events(analytics_session, "compose.message_sent")
     assert len(sent) == 1
     assert sent[0]["message_length"] == len(question)
     assert sent[0]["has_attachment"] is False
@@ -327,8 +327,8 @@ async def test_attachment_turn_emits_message_sent_with_has_attachment(
 
     assert response.status_code == 200
 
-    await join_live_tasks()  # chat.message_sent lands on a detached task
-    sent = await _events(analytics_session, "chat.message_sent")
+    await join_live_tasks()  # compose.message_sent lands on a detached task
+    sent = await _events(analytics_session, "compose.message_sent")
     assert len(sent) == 1
     assert sent[0]["has_attachment"] is True
 
@@ -361,8 +361,8 @@ async def test_message_sent_payload_carries_no_message_text(
 
     assert response.status_code == 200
 
-    await join_live_tasks()  # chat.message_sent lands on a detached task
-    sent = await _events(analytics_session, "chat.message_sent")
+    await join_live_tasks()  # compose.message_sent lands on a detached task
+    sent = await _events(analytics_session, "compose.message_sent")
     assert set(sent[0]) == {
         "conversation_id",
         "provider",
@@ -404,8 +404,8 @@ async def test_assistant_turns_in_the_request_do_not_emit_message_sent(
 
     assert response.status_code == 200
 
-    await join_live_tasks()  # chat.message_sent lands on a detached task
-    sent = await _events(analytics_session, "chat.message_sent")
+    await join_live_tasks()  # compose.message_sent lands on a detached task
+    sent = await _events(analytics_session, "compose.message_sent")
     assert len(sent) == 1
     assert sent[0]["message_length"] == len("Add a consent module")
 
@@ -439,7 +439,7 @@ async def test_non_streaming_completion_emits_completion_served(
 
     assert response.status_code == 200
 
-    served = await _events(analytics_session, "chat.completion_served")
+    served = await _events(analytics_session, "compose.completion_served")
     assert len(served) == 1
     assert served[0]["streamed"] is False
     assert served[0]["rag_used"] is False
@@ -450,7 +450,7 @@ async def test_non_streaming_completion_emits_completion_served(
     assert served[0]["conversation_id"] == str(response.json()["conversation_id"])
 
     # No executions → no authoring-output events.
-    assert await _events(analytics_session, "chat.tool_invoked") == []
+    assert await _events(analytics_session, "compose.tool_invoked") == []
 
 
 async def test_non_streaming_tool_executions_emit_tool_invoked(
@@ -499,10 +499,10 @@ async def test_non_streaming_tool_executions_emit_tool_invoked(
 
     assert response.status_code == 200
 
-    served = await _events(analytics_session, "chat.completion_served")
+    served = await _events(analytics_session, "compose.completion_served")
     assert served[0]["tool_call_count"] == 2
 
-    invoked = await _events(analytics_session, "chat.tool_invoked")
+    invoked = await _events(analytics_session, "compose.tool_invoked")
     assert [event["tool_name"] for event in invoked] == [
         "openedx_create_course_run",
         "openedx_create_xblock",
@@ -543,7 +543,7 @@ async def test_refused_query_emits_no_completion_served(
         )
 
     assert response.status_code == 200
-    assert await _events(analytics_session, "chat.completion_served") == []
+    assert await _events(analytics_session, "compose.completion_served") == []
 
 
 async def test_analytics_emission_failure_propagates_from_the_completion(
@@ -560,9 +560,9 @@ async def test_analytics_emission_failure_propagates_from_the_completion(
     exception is re-raised here — which is exactly what lets us assert it was not
     swallowed.
 
-    Only ``chat.completion_served`` is made to fail, so the error that surfaces can only
+    Only ``compose.completion_served`` is made to fail, so the error that surfaces can only
     have come from the non-streaming completion seam. Failing every event instead would
-    let the earlier ``chat.conversation_started`` write satisfy the assertion, and the
+    let the earlier ``compose.conversation_started`` write satisfy the assertion, and the
     test would still pass with this seam deleted.
     """
     config_id = await _seed_llm_config(session, current_user.id or 1)
@@ -576,7 +576,7 @@ async def test_analytics_emission_failure_propagates_from_the_completion(
         patch("sparkth.plugins.compose.conversation_title.get_provider", return_value=_non_streaming_provider()),
         patch(
             "sparkth.lib.analytics.ingest_event",
-            side_effect=_ingest_failing_only_for("chat.completion_served"),
+            side_effect=_ingest_failing_only_for("compose.completion_served"),
         ),
         pytest.raises(RuntimeError, match="analytics exploded"),
     ):
@@ -653,7 +653,7 @@ async def test_streaming_completion_emits_served_and_tool_invoked(
     assert response.status_code == 200
     assert "data: " in response.text
 
-    served = await _events(analytics_session, "chat.completion_served")
+    served = await _events(analytics_session, "compose.completion_served")
     assert len(served) == 1
     assert served[0]["streamed"] is True
     assert served[0]["rag_used"] is False
@@ -662,12 +662,12 @@ async def test_streaming_completion_emits_served_and_tool_invoked(
     assert served[0]["provider"] == "openai"
     assert served[0]["model"] == "gpt-4o"
 
-    invoked = await _events(analytics_session, "chat.tool_invoked")
+    invoked = await _events(analytics_session, "compose.tool_invoked")
     assert [event["tool_name"] for event in invoked] == [
         "canvas_create_quiz",
         "canvas_create_question",
     ]
-    assert await _actors(analytics_session, "chat.completion_served") == [str(current_user.id)]
+    assert await _actors(analytics_session, "compose.completion_served") == [str(current_user.id)]
 
 
 async def test_streaming_completion_without_tools_emits_zero_count(
@@ -701,11 +701,11 @@ async def test_streaming_completion_without_tools_emits_zero_count(
     assert response.status_code == 200
     assert "data: " in response.text
 
-    served = await _events(analytics_session, "chat.completion_served")
+    served = await _events(analytics_session, "compose.completion_served")
     assert len(served) == 1
     assert served[0]["tool_call_count"] == 0
     assert served[0]["stopped_at"] is None
-    assert await _events(analytics_session, "chat.tool_invoked") == []
+    assert await _events(analytics_session, "compose.tool_invoked") == []
 
 
 async def test_a_turn_stopped_mid_stream_records_where_it_stopped(
@@ -749,7 +749,7 @@ async def test_a_turn_stopped_mid_stream_records_where_it_stopped(
     rows = [
         row
         for row in (await analytics_session.execute(sa_select(raw_events))).mappings().all()
-        if row["event_type"] == "chat.completion_served"
+        if row["event_type"] == "compose.completion_served"
     ]
     assert [row["event_version"] for row in rows] == [1]
     assert rows[0]["payload"]["stopped_at"] == "streaming"
@@ -786,7 +786,7 @@ async def test_streaming_analytics_failure_does_not_corrupt_the_conversation(
         patch("sparkth.plugins.compose.conversation_title.get_provider", return_value=_non_streaming_provider()),
         patch(
             "sparkth.lib.analytics.ingest_event",
-            side_effect=_ingest_failing_only_for("chat.completion_served", attempted),
+            side_effect=_ingest_failing_only_for("compose.completion_served", attempted),
         ),
     ):
         mock_scope_cls.return_value = _in_scope_classifier()
@@ -806,7 +806,7 @@ async def test_streaming_analytics_failure_does_not_corrupt_the_conversation(
 
     # The streaming seam really did try to write, and failed — the absences below are the
     # consequences of that failure being contained, not of nothing having happened.
-    assert "chat.completion_served" in attempted
+    assert "compose.completion_served" in attempted
     assert '"error"' not in body
     assert "Here is an outline." in body
     assert await _error_message_count(session) == 0
@@ -858,10 +858,10 @@ async def test_a_streamed_turn_timestamps_its_events_in_the_order_they_happened(
 
     assert response.status_code == 200
 
-    (started,) = await _occurred_at(analytics_session, "chat.conversation_started")
-    (sent,) = await _occurred_at(analytics_session, "chat.message_sent")
-    (served,) = await _occurred_at(analytics_session, "chat.completion_served")
-    (invoked,) = await _occurred_at(analytics_session, "chat.tool_invoked")
+    (started,) = await _occurred_at(analytics_session, "compose.conversation_started")
+    (sent,) = await _occurred_at(analytics_session, "compose.message_sent")
+    (served,) = await _occurred_at(analytics_session, "compose.completion_served")
+    (invoked,) = await _occurred_at(analytics_session, "compose.tool_invoked")
 
     assert started <= sent < served, (
         f"a conversation must not start after the reply it produced: started={started} sent={sent} served={served}"
@@ -904,9 +904,9 @@ async def test_event_times_come_from_the_rows_they_describe(
     stored_messages = (await session.exec(select(Message).where(col(Message.conversation_id) == conversation.id))).all()
     instructor_turn = next(message for message in stored_messages if message.role == "user")
 
-    await join_live_tasks()  # chat.message_sent lands on a detached task
-    (started,) = await _occurred_at(analytics_session, "chat.conversation_started")
-    (sent,) = await _occurred_at(analytics_session, "chat.message_sent")
+    await join_live_tasks()  # compose.message_sent lands on a detached task
+    (started,) = await _occurred_at(analytics_session, "compose.conversation_started")
+    (sent,) = await _occurred_at(analytics_session, "compose.message_sent")
 
     assert started == _as_utc(conversation.created_at)
     assert sent == _as_utc(instructor_turn.created_at)
@@ -987,7 +987,7 @@ async def test_tool_invoked_records_whether_each_call_succeeded(
     assert response.status_code == 200
 
     rows = (await analytics_session.execute(sa_select(raw_events))).mappings().all()
-    invoked = [row for row in rows if row["event_type"] == "chat.tool_invoked"]
+    invoked = [row for row in rows if row["event_type"] == "compose.tool_invoked"]
     assert {row["event_version"] for row in invoked} == {1}
     assert [
         (row["payload"]["tool_name"], row["payload"]["outcome"], row["payload"]["failure_kind"]) for row in invoked

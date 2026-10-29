@@ -191,7 +191,7 @@ class TestConversationUUIDRoutes:
         await session.commit()
         await session.refresh(conv)
 
-        response = await client.get("/api/v1/chat/conversations")
+        response = await client.get("/api/v1/compose/conversations")
         assert response.status_code == 200
         body = response.json()
         assert body["total"] >= 1
@@ -210,7 +210,7 @@ class TestConversationUUIDRoutes:
         await session.commit()
         await session.refresh(conv)
 
-        response = await client.get(f"/api/v1/chat/conversations/{conv.uuid}")
+        response = await client.get(f"/api/v1/compose/conversations/{conv.uuid}")
         assert response.status_code == 200
         body = response.json()
         assert UUID(body["id"]) == conv.uuid
@@ -221,13 +221,13 @@ class TestConversationUUIDRoutes:
         self, client: "httpx.AsyncClient", current_user: MagicMock
     ) -> None:
         fake_uuid = uuid4()
-        response = await client.get(f"/api/v1/chat/conversations/{fake_uuid}")
+        response = await client.get(f"/api/v1/compose/conversations/{fake_uuid}")
         assert response.status_code == 404
 
     async def test_get_conversation_by_integer_returns_422(
         self, client: "httpx.AsyncClient", current_user: MagicMock
     ) -> None:
-        response = await client.get("/api/v1/chat/conversations/123")
+        response = await client.get("/api/v1/compose/conversations/123")
         assert response.status_code == 422
 
     async def test_get_conversation_wrong_user_returns_404(
@@ -238,7 +238,7 @@ class TestConversationUUIDRoutes:
         await session.commit()
         await session.refresh(conv)
 
-        response = await client.get(f"/api/v1/chat/conversations/{conv.uuid}")
+        response = await client.get(f"/api/v1/compose/conversations/{conv.uuid}")
         assert response.status_code == 404
 
     async def test_completions_returns_uuid_conversation_id(
@@ -271,7 +271,7 @@ class TestConversationUUIDRoutes:
             mock_add_message.return_value = mock_message
 
             response = await client.post(
-                "/api/v1/chat/completions",
+                "/api/v1/compose/completions",
                 json={
                     "llm_config_id": 1,
                     "messages": [{"role": "user", "content": "hi"}],
@@ -323,7 +323,7 @@ class TestConversationUUIDRoutes:
             mock_add_message.return_value = mock_message
 
             response = await client.post(
-                "/api/v1/chat/completions",
+                "/api/v1/compose/completions",
                 json={
                     "llm_config_id": 1,
                     "messages": [{"role": "user", "content": "hello again"}],
@@ -343,7 +343,7 @@ class TestConversationUUIDRoutes:
         session: "AsyncSession",
     ) -> None:
         response = await client.post(
-            "/api/v1/chat/completions",
+            "/api/v1/compose/completions",
             json={
                 "llm_config_id": 1,
                 "messages": [{"role": "user", "content": "hi"}],
@@ -357,7 +357,7 @@ class TestConversationUUIDRoutes:
         self, client: "httpx.AsyncClient", current_user: MagicMock
     ) -> None:
         response = await client.post(
-            "/api/v1/chat/completions",
+            "/api/v1/compose/completions",
             json={
                 "llm_config_id": 1,
                 "messages": [{"role": "user", "content": "hi"}],

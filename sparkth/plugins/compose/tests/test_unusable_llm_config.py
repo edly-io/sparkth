@@ -68,7 +68,7 @@ class TestUnusableConfigIsAnswered:
         raising_llm_service.resolve.side_effect = error
 
         response = await client.post(
-            "/api/v1/chat/completions",
+            "/api/v1/compose/completions",
             json={"llm_config_id": 1, "messages": [{"role": "user", "content": "hello"}]},
         )
 
@@ -98,7 +98,7 @@ class TestUnusableConfigIsAnswered:
         raising_llm_service.resolve.side_effect = error
 
         response = await client.post(
-            "/api/v1/chat/completions",
+            "/api/v1/compose/completions",
             json={
                 "llm_config_id": 1,
                 "conversation_id": str(conversation_uuid),

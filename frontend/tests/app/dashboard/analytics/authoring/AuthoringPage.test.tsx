@@ -13,12 +13,12 @@ vi.mock("@/core/auth/hooks", () => ({
 // Analytics data access: keep the real types and helpers, stub the fetch.
 vi.mock("@/lib/analytics", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/analytics")>();
-  return { ...actual, fetchChatActivity: vi.fn(), fetchDriveDocuments: vi.fn() };
+  return { ...actual, fetchComposeActivity: vi.fn(), fetchDriveDocuments: vi.fn() };
 });
 
 // The plugins installed in the backend build. No PluginProvider is mounted: analytics must not
 // depend on the viewer's own plugin switches.
-const plugins = vi.hoisted(() => ({ installed: ["chat"] }));
+const plugins = vi.hoisted(() => ({ installed: ["compose"] }));
 vi.mock("@/lib/plugins/generated", () => ({
   get FRONTEND_PLUGIN_NAMES() {
     return plugins.installed;
@@ -32,18 +32,18 @@ vi.mock("next/navigation", () => ({
 }));
 
 import {
-  CHAT_EVENTS,
+  COMPOSE_EVENTS,
   EMPTY_SEARCH,
-  fetchChatActivity,
+  fetchComposeActivity,
   fetchDriveDocuments,
-  type ChatActivityPoint,
+  type ComposeActivityPoint,
   type DriveDocumentsPoint,
 } from "@/lib/analytics";
 import AuthoringPage from "@/app/dashboard/analytics/authoring/AuthoringPage";
 
 // Answers by period: the current period ends on the pinned "today".
-function answer(current: ChatActivityPoint[], previous: ChatActivityPoint[] = []) {
-  vi.mocked(fetchChatActivity).mockImplementation(async (_t, { to }) =>
+function answer(current: ComposeActivityPoint[], previous: ComposeActivityPoint[] = []) {
+  vi.mocked(fetchComposeActivity).mockImplementation(async (_t, { to }) =>
     to === "2026-07-24" ? current : previous,
   );
 }
@@ -51,16 +51,16 @@ const row = (
   event_type: string,
   event_count: number,
   bucket = "2026-07-23",
-  extra: Partial<ChatActivityPoint> = {},
-): ChatActivityPoint => ({ bucket, event_type, event_count, ...extra });
+  extra: Partial<ComposeActivityPoint> = {},
+): ComposeActivityPoint => ({ bucket, event_type, event_count, ...extra });
 const tool = (name: string | null, count: number, outcome?: string | null) =>
-  row(CHAT_EVENTS.tools, count, "2026-07-23", { dimension: name, outcome });
+  row(COMPOSE_EVENTS.tools, count, "2026-07-23", { dimension: name, outcome });
 
 // Pinned so the default 30-day period is 2026-06-25..2026-07-24 and the previous one
 // 2026-05-26..2026-06-24.
 beforeEach(() => {
   vi.clearAllMocks();
-  plugins.installed = ["chat"];
+  plugins.installed = ["compose"];
   vi.useFakeTimers({ shouldAdvanceTime: true });
   vi.setSystemTime(new Date("2026-07-24T12:00:00Z"));
 });
@@ -78,11 +78,11 @@ describe("AuthoringPage cards", () => {
   it("shows document searches and the share that found nothing", async () => {
     answer(
       [
-        row(CHAT_EVENTS.messages, 4),
-        row(CHAT_EVENTS.searches, 3, "2026-07-23", { dimension: "found" }),
-        row(CHAT_EVENTS.searches, 1, "2026-07-23", { dimension: EMPTY_SEARCH }),
+        row(COMPOSE_EVENTS.messages, 4),
+        row(COMPOSE_EVENTS.searches, 3, "2026-07-23", { dimension: "found" }),
+        row(COMPOSE_EVENTS.searches, 1, "2026-07-23", { dimension: EMPTY_SEARCH }),
       ],
-      [row(CHAT_EVENTS.searches, 2, "2026-06-20", { dimension: "found" })],
+      [row(COMPOSE_EVENTS.searches, 2, "2026-06-20", { dimension: "found" })],
     );
     renderWithIntl(<AuthoringPage />);
     const searches = await card("Document searches");
@@ -93,7 +93,7 @@ describe("AuthoringPage cards", () => {
   });
 
   it("shows searches even when no messages were sent", async () => {
-    answer([row(CHAT_EVENTS.searches, 2, "2026-07-23", { dimension: EMPTY_SEARCH })]);
+    answer([row(COMPOSE_EVENTS.searches, 2, "2026-07-23", { dimension: EMPTY_SEARCH })]);
     renderWithIntl(<AuthoringPage />);
     const searches = await card("Document searches");
     expect(within(searches).getByText(/100% found nothing/)).toBeInTheDocument();
@@ -101,7 +101,7 @@ describe("AuthoringPage cards", () => {
   });
 
   it("shows a dash for the found-nothing share when there were no searches", async () => {
-    answer([row(CHAT_EVENTS.messages, 4)]);
+    answer([row(COMPOSE_EVENTS.messages, 4)]);
     renderWithIntl(<AuthoringPage />);
     const searches = await card("Document searches");
     expect(within(searches).getByText(/— found nothing/)).toBeInTheDocument();
@@ -109,8 +109,8 @@ describe("AuthoringPage cards", () => {
 
   it("shows counts compared with the previous period", async () => {
     answer(
-      [row(CHAT_EVENTS.conversations, 6), row(CHAT_EVENTS.messages, 10)],
-      [row(CHAT_EVENTS.conversations, 4, "2026-06-20")],
+      [row(COMPOSE_EVENTS.conversations, 6), row(COMPOSE_EVENTS.messages, 10)],
+      [row(COMPOSE_EVENTS.conversations, 4, "2026-06-20")],
     );
     renderWithIntl(<AuthoringPage />);
     const conversations = await card("Conversations started");
@@ -122,7 +122,7 @@ describe("AuthoringPage cards", () => {
   });
 
   it("shows failed turns as a share of messages", async () => {
-    answer([row(CHAT_EVENTS.messages, 10), row(CHAT_EVENTS.failed, 2)]);
+    answer([row(COMPOSE_EVENTS.messages, 10), row(COMPOSE_EVENTS.failed, 2)]);
     renderWithIntl(<AuthoringPage />);
     const failed = await card("Messages failed");
     expect(within(failed).getByText("2")).toBeInTheDocument();
@@ -132,15 +132,15 @@ describe("AuthoringPage cards", () => {
   });
 
   it("shows a dash for the failure rate when no messages were sent", async () => {
-    answer([row(CHAT_EVENTS.failed, 1)]);
+    answer([row(COMPOSE_EVENTS.failed, 1)]);
     renderWithIntl(<AuthoringPage />);
     expect(within(await card("Messages failed")).getByText(/^— of messages ·/)).toBeInTheDocument();
   });
 
   it("shows documents attached with the detached count", async () => {
     answer(
-      [row(CHAT_EVENTS.attached, 3), row(CHAT_EVENTS.detached, 1)],
-      [row(CHAT_EVENTS.attached, 2, "2026-06-20")],
+      [row(COMPOSE_EVENTS.attached, 3), row(COMPOSE_EVENTS.detached, 1)],
+      [row(COMPOSE_EVENTS.attached, 2, "2026-06-20")],
     );
     renderWithIntl(<AuthoringPage />);
     const documents = await card("Documents attached");
@@ -149,7 +149,7 @@ describe("AuthoringPage cards", () => {
   });
 
   it("notes that counts are lower bounds", async () => {
-    answer([row(CHAT_EVENTS.messages, 1)]);
+    answer([row(COMPOSE_EVENTS.messages, 1)]);
     renderWithIntl(<AuthoringPage />);
     expect(await screen.findByText(/counts are lower bounds/i)).toBeInTheDocument();
   });
@@ -158,7 +158,7 @@ describe("AuthoringPage cards", () => {
 describe("AuthoringPage charts", () => {
   it("draws messages sent with the previous period as the comparison", async () => {
     // 2026-06-23 is day 29 of the previous period, so it lines up with 2026-07-23.
-    answer([row(CHAT_EVENTS.messages, 3)], [row(CHAT_EVENTS.messages, 7, "2026-06-23")]);
+    answer([row(COMPOSE_EVENTS.messages, 3)], [row(COMPOSE_EVENTS.messages, 7, "2026-06-23")]);
     renderWithIntl(<AuthoringPage />);
     const table = await screen.findByRole("table", { name: /^Messages sent,/ });
     expect(
@@ -168,7 +168,7 @@ describe("AuthoringPage charts", () => {
   });
 
   it("draws failed turns with the previous period as the comparison", async () => {
-    answer([row(CHAT_EVENTS.failed, 2)], [row(CHAT_EVENTS.failed, 5, "2026-06-23")]);
+    answer([row(COMPOSE_EVENTS.failed, 2)], [row(COMPOSE_EVENTS.failed, 5, "2026-06-23")]);
     renderWithIntl(<AuthoringPage />);
     const table = await screen.findByRole("table", { name: /^Messages failed,/ });
     expect(
@@ -178,7 +178,7 @@ describe("AuthoringPage charts", () => {
   });
 
   it("draws conversations started", async () => {
-    answer([row(CHAT_EVENTS.conversations, 2)]);
+    answer([row(COMPOSE_EVENTS.conversations, 2)]);
     renderWithIntl(<AuthoringPage />);
     const table = await screen.findByRole("table", { name: /^Conversations started,/ });
     expect(within(table).getByRole("row", { name: "Jul 23, 2026 2 0" })).toBeInTheDocument();
@@ -186,9 +186,9 @@ describe("AuthoringPage charts", () => {
 
   it("draws the failure rate as a percent, 0% where no messages were sent", async () => {
     answer([
-      row(CHAT_EVENTS.messages, 4),
-      row(CHAT_EVENTS.failed, 1),
-      row(CHAT_EVENTS.failed, 2, "2026-07-22"),
+      row(COMPOSE_EVENTS.messages, 4),
+      row(COMPOSE_EVENTS.failed, 1),
+      row(COMPOSE_EVENTS.failed, 2, "2026-07-22"),
     ]);
     renderWithIntl(<AuthoringPage />);
     const table = await screen.findByRole("table", { name: /^Failure rate,/ });
@@ -201,12 +201,12 @@ describe("AuthoringPage failure rate", () => {
   // A turn with no usable AI key fails before any message is stored, so it has no message to
   // divide by: it counts as a failed turn but stays out of the rate.
   const noKey = (count: number, bucket = "2026-07-23") =>
-    row(CHAT_EVENTS.failed, count, bucket, { dimension: "llm_config_unusable" });
+    row(COMPOSE_EVENTS.failed, count, bucket, { dimension: "llm_config_unusable" });
   const providerError = (count: number, bucket = "2026-07-23") =>
-    row(CHAT_EVENTS.failed, count, bucket, { dimension: "provider_api_error" });
+    row(COMPOSE_EVENTS.failed, count, bucket, { dimension: "provider_api_error" });
 
   it("leaves turns with no usable AI key out of the rate but in the count", async () => {
-    answer([row(CHAT_EVENTS.messages, 2), providerError(1), noKey(1)]);
+    answer([row(COMPOSE_EVENTS.messages, 2), providerError(1), noKey(1)]);
     renderWithIntl(<AuthoringPage />);
     const failed = await card("Messages failed");
     expect(within(failed).getByText("2")).toBeInTheDocument();
@@ -216,7 +216,7 @@ describe("AuthoringPage failure rate", () => {
   });
 
   it("shows no rate from failures that never reached the model", async () => {
-    answer([row(CHAT_EVENTS.messages, 2), noKey(3)]);
+    answer([row(COMPOSE_EVENTS.messages, 2), noKey(3)]);
     renderWithIntl(<AuthoringPage />);
     const failed = await card("Messages failed");
     expect(within(failed).getByText("3")).toBeInTheDocument();
@@ -253,14 +253,14 @@ describe("AuthoringPage tools", () => {
 
 describe("AuthoringPage states", () => {
   it("shows the empty state when the period has no activity, even if the previous did", async () => {
-    answer([], [row(CHAT_EVENTS.messages, 4, "2026-06-20")]);
+    answer([], [row(COMPOSE_EVENTS.messages, 4, "2026-06-20")]);
     renderWithIntl(<AuthoringPage />);
     expect(await screen.findByText(empty)).toBeInTheDocument();
     expect(screen.queryByText("Messages sent")).not.toBeInTheDocument();
   });
 
   it("shows the 403 view when access is revoked", async () => {
-    vi.mocked(fetchChatActivity).mockRejectedValue(
+    vi.mocked(fetchComposeActivity).mockRejectedValue(
       new ApiRequestError({ message: "Permission denied", fieldErrors: {} }, 403),
     );
     renderWithIntl(<AuthoringPage />);
@@ -270,14 +270,14 @@ describe("AuthoringPage states", () => {
   });
 
   it("re-fetches when the error state's retry button is pressed", async () => {
-    answer([row(CHAT_EVENTS.messages, 1)]);
-    vi.mocked(fetchChatActivity).mockRejectedValueOnce(
+    answer([row(COMPOSE_EVENTS.messages, 1)]);
+    vi.mocked(fetchComposeActivity).mockRejectedValueOnce(
       new ApiRequestError({ message: "boom", fieldErrors: {} }, 500),
     );
     renderWithIntl(<AuthoringPage />);
     await userEvent.click(await screen.findByRole("button", { name: /try again/i }));
     expect(await screen.findByText("Messages sent")).toBeInTheDocument();
-    expect(fetchChatActivity).toHaveBeenCalledTimes(4); // two periods, twice
+    expect(fetchComposeActivity).toHaveBeenCalledTimes(4); // two periods, twice
   });
 });
 
@@ -291,8 +291,8 @@ const doc = (outcome: string, document_count: number, seconds_total = 0): DriveD
 
 describe("AuthoringPage documents", () => {
   it("shows processed documents, the ready share and why the rest weren't usable", async () => {
-    plugins.installed = ["chat", "google-drive"];
-    answer([row(CHAT_EVENTS.messages, 1)]);
+    plugins.installed = ["compose", "google-drive"];
+    answer([row(COMPOSE_EVENTS.messages, 1)]);
     vi.mocked(fetchDriveDocuments).mockImplementation(async (_t, { to }) =>
       to === "2026-07-24" ? [doc("ingested", 3, 90), doc("scanned_pdf", 1, 2)] : [],
     );
@@ -304,9 +304,9 @@ describe("AuthoringPage documents", () => {
     expect(screen.getAllByText("Scanned PDF").length).toBeGreaterThan(0);
   });
 
-  it("keeps the chat figures when the Drive read fails", async () => {
-    plugins.installed = ["chat", "google-drive"];
-    answer([row(CHAT_EVENTS.messages, 10)]);
+  it("keeps the compose figures when the Drive read fails", async () => {
+    plugins.installed = ["compose", "google-drive"];
+    answer([row(COMPOSE_EVENTS.messages, 10)]);
     vi.mocked(fetchDriveDocuments).mockRejectedValue(
       new ApiRequestError({ message: "Permission denied", fieldErrors: {} }, 403),
     );
@@ -317,7 +317,7 @@ describe("AuthoringPage documents", () => {
   });
 
   it("does not fetch documents when Google Drive is not installed", async () => {
-    answer([row(CHAT_EVENTS.messages, 1)]);
+    answer([row(COMPOSE_EVENTS.messages, 1)]);
     renderWithIntl(<AuthoringPage />);
     await card("Messages sent");
     expect(fetchDriveDocuments).not.toHaveBeenCalled();

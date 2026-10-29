@@ -206,7 +206,7 @@ class TestGateRejectionFollowsTheStoredPreference:
     ) -> None:
         translation_catalog(GATE_DENIAL_MESSAGE, SPANISH_GATE_DENIAL, locale="es")
         user = await _seed_user(session, "gate-locale-user", "es")
-        plugin = Plugin(name="chat", enabled=True)
+        plugin = Plugin(name="compose", enabled=True)
         session.add(plugin)
         await session.commit()
         await session.refresh(plugin)
@@ -214,10 +214,10 @@ class TestGateRejectionFollowsTheStoredPreference:
         await session.commit()
 
         response = await client.post(
-            "/api/v1/chat/completions",
+            "/api/v1/compose/completions",
             json={"messages": []},
             headers={**_auth_headers("gate-locale-user"), "Accept-Language": "fr"},
         )
 
         assert response.status_code == 403
-        assert response.json()["detail"] == SPANISH_GATE_DENIAL.format(name="chat")
+        assert response.json()["detail"] == SPANISH_GATE_DENIAL.format(name="compose")

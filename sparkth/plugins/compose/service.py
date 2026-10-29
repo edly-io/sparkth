@@ -517,5 +517,5 @@ async def detach_deleted_document(session: AsyncSession, document: Document) -> 
 
 
 def get_compose_service() -> ComposeService:
-    """Dependency to get chat service."""
+    """Dependency to get compose service."""
     return ComposeService()

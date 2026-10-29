@@ -22,7 +22,7 @@ export const AUDIT_OUTCOMES = Object.keys({
 export const AUDIT_SOURCES = Object.keys({
   rest: true,
   mcp: true,
-  chat: true,
+  compose: true,
   rag: true,
   cli: true,
   system: true,

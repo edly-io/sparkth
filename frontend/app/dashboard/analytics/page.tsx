@@ -5,15 +5,15 @@ import { useSearchParams } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import { ChartColumn } from "lucide-react";
 import {
-  CHAT_EVENTS,
+  COMPOSE_EVENTS,
   buildSeries,
   countSeries,
-  fetchChatActivity,
+  fetchComposeActivity,
   fetchLogins,
   fetchSummary,
   previousPeriod,
   type BucketCount,
-  type ChatActivityPoint,
+  type ComposeActivityPoint,
   type IsoDate,
   type LoginsPoint,
   type SummaryCount,
@@ -29,22 +29,22 @@ type OverviewData = {
   figures: SummaryCount[];
   logins: LoginsPoint[];
   prevLogins: LoginsPoint[];
-  activity: ChatActivityPoint[];
-  prevActivity: ChatActivityPoint[];
+  activity: ComposeActivityPoint[];
+  prevActivity: ComposeActivityPoint[];
 };
 
 /** The analytics index: one card per headline figure the server declares, for the selected period. */
 export default function OverviewPage() {
   const t = useTranslations("analytics.overview");
-  const chat = isInstalled("chat");
+  const compose = isInstalled("compose");
   const load = async (token: string, range: { from: IsoDate; to: IsoDate }) => {
     const prev = previousPeriod(range.from, range.to);
     const [figures, logins, prevLogins, activity, prevActivity] = await Promise.all([
       fetchSummary(token, range),
       fetchLogins(token, range),
       fetchLogins(token, prev),
-      chat ? fetchChatActivity(token, range) : [],
-      chat ? fetchChatActivity(token, prev) : [],
+      compose ? fetchComposeActivity(token, range) : [],
+      compose ? fetchComposeActivity(token, prev) : [],
     ]);
     return { figures, logins, prevLogins, activity, prevActivity };
   };
@@ -103,7 +103,7 @@ function OverviewCards({ figures, from, to, bucket, ...rest }: OverviewData & Pe
 }
 
 /** One period's rows the activity trend reads. */
-type TrendRows = { logins: LoginsPoint[]; activity: ChatActivityPoint[] };
+type TrendRows = { logins: LoginsPoint[]; activity: ComposeActivityPoint[] };
 
 /** One activity source's count per bucket, on the bucket grid of `opts`. */
 type TrendSource = (rows: TrendRows, opts: PeriodRange) => BucketCount[];
@@ -115,7 +115,7 @@ const loginsSeries: TrendSource = ({ logins }, opts) =>
   );
 
 const messagesSeries: TrendSource = ({ activity }, opts) =>
-  countSeries(activity, CHAT_EVENTS.messages, opts);
+  countSeries(activity, COMPOSE_EVENTS.messages, opts);
 
 /** The sources the activity trend adds up; a new source is one more entry here. */
 const TREND_SOURCES: TrendSource[] = [loginsSeries, messagesSeries];

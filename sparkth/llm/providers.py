@@ -244,7 +244,7 @@ class BaseChatProvider(ABC):
                         continue
 
                     logger.debug(f"Executing tool: {tool_name} with args: {tool_args}")
-                    with ai_audit_context(source=AuditSource.CHAT, model=self._audit_model_info(response)):
+                    with ai_audit_context(source=AuditSource.COMPOSE, model=self._audit_model_info(response)):
                         tool_result, failure = await self._execute_tool(tool_name, tool_args, tools)
                     serialized_result = serialize_result(tool_result)
 
@@ -431,7 +431,7 @@ class BaseChatProvider(ABC):
 
                     yield {"type": "tool_start", "name": tool_name}
                     logger.debug(f"Executing tool: {tool_name} with args: {tool_args}")
-                    with ai_audit_context(source=AuditSource.CHAT, model=self._audit_model_info(response)):
+                    with ai_audit_context(source=AuditSource.COMPOSE, model=self._audit_model_info(response)):
                         tool_result, failure = await self._execute_tool(tool_name, tool_args, tools)
                     serialized_result = serialize_result(tool_result)
                     yield {"type": "tool_end", "name": tool_name, "failure": failure}

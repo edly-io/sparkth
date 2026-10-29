@@ -25,8 +25,10 @@ function LocaleProbe() {
   return <span data-testid="locale">{useLocale()}</span>;
 }
 
-function ChatCatalogProbe() {
-  return <span data-testid="chat-placeholder">{useTranslations("chat")("inputPlaceholder")}</span>;
+function ComposeCatalogProbe() {
+  return (
+    <span data-testid="compose-placeholder">{useTranslations("compose")("inputPlaceholder")}</span>
+  );
 }
 
 function TimeZoneProbe() {
@@ -105,11 +107,11 @@ describe("LocaleProvider", () => {
     document.cookie = `${LOCALE_COOKIE}=es`;
     render(
       <LocaleProvider>
-        <ChatCatalogProbe />
+        <ComposeCatalogProbe />
       </LocaleProvider>,
     );
     await waitFor(() =>
-      expect(screen.getByTestId("chat-placeholder")).toHaveTextContent(
+      expect(screen.getByTestId("compose-placeholder")).toHaveTextContent(
         "Describe el curso que quieres crear...",
       ),
     );

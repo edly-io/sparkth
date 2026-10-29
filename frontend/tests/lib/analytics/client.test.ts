@@ -6,7 +6,7 @@ import {
   fetchView,
   listViews,
   updateView,
-  fetchChatActivity,
+  fetchComposeActivity,
   fetchEventCatalog,
   fetchExplore,
   fetchLogins,
@@ -66,12 +66,12 @@ describe("fetchLogins", () => {
   });
 });
 
-describe("fetchChatActivity", () => {
-  it("GETs /api/v1/chat/analytics/activity for a day range with the bearer token", async () => {
+describe("fetchComposeActivity", () => {
+  it("GETs /api/v1/compose/analytics/activity for a day range with the bearer token", async () => {
     const points = [
       {
         bucket: "2026-07-20",
-        event_type: "chat.tool_invoked",
+        event_type: "compose.tool_invoked",
         dimension: "search",
         outcome: null,
         event_count: 2,
@@ -79,10 +79,13 @@ describe("fetchChatActivity", () => {
     ];
     const spy = mockFetch(points);
 
-    const result = await fetchChatActivity("test-token", { from: "2026-07-01", to: "2026-07-20" });
+    const result = await fetchComposeActivity("test-token", {
+      from: "2026-07-01",
+      to: "2026-07-20",
+    });
 
     const url = new URL(sentRequest(spy).url);
-    expect(url.pathname).toBe("/api/v1/chat/analytics/activity");
+    expect(url.pathname).toBe("/api/v1/compose/analytics/activity");
     expect(url.searchParams.get("from")).toBe("2026-07-01");
     expect(url.searchParams.get("to")).toBe("2026-07-20");
     expect(url.searchParams.get("bucket")).toBe("day");
@@ -93,7 +96,7 @@ describe("fetchChatActivity", () => {
   it("propagates an ApiRequestError with its status intact", async () => {
     mockFetch({ detail: "Permission denied" }, 403);
 
-    const error = await fetchChatActivity("test-token", {
+    const error = await fetchComposeActivity("test-token", {
       from: "2026-07-01",
       to: "2026-07-20",
     }).catch((e: unknown) => e);
@@ -147,7 +150,7 @@ describe("fetchEventCatalog", () => {
 describe("fetchExplore", () => {
   const period = { from: "2026-07-01", to: "2026-07-20", bucket: "week" } as const;
   const bare: ExploreConfig = {
-    event: "chat.tool_invoked",
+    event: "compose.tool_invoked",
     actor: null,
     filters: [],
     measure: "count",
@@ -167,7 +170,7 @@ describe("fetchExplore", () => {
       from: "2026-07-01",
       to: "2026-07-20",
       bucket: "week",
-      event_type: "chat.tool_invoked",
+      event_type: "compose.tool_invoked",
       measure: "count",
     });
   });

@@ -36,7 +36,7 @@ class TestGetLastMessage:
         await session.commit()
         await session.refresh(conv)
 
-        response = await client.get(f"/api/v1/chat/conversations/{conv.uuid}/last-message")
+        response = await client.get(f"/api/v1/compose/conversations/{conv.uuid}/last-message")
         assert response.status_code == 200
         assert response.json() is None
 
@@ -59,7 +59,7 @@ class TestGetLastMessage:
         await session.refresh(msg2)
         msg2_id = msg2.id
 
-        response = await client.get(f"/api/v1/chat/conversations/{conv_uuid}/last-message")
+        response = await client.get(f"/api/v1/compose/conversations/{conv_uuid}/last-message")
         assert response.status_code == 200
         body = response.json()
         assert body is not None
@@ -86,13 +86,13 @@ class TestGetLastMessage:
         session.add(msg2)
         await session.commit()
 
-        response = await client.get(f"/api/v1/chat/conversations/{conv_uuid}/last-message")
+        response = await client.get(f"/api/v1/compose/conversations/{conv_uuid}/last-message")
         assert response.status_code == 200
         body = response.json()
         assert body["content"] == "later"
 
     async def test_returns_404_for_unknown_uuid(self, client: httpx.AsyncClient, current_user: MagicMock) -> None:
-        response = await client.get(f"/api/v1/chat/conversations/{uuid4()}/last-message")
+        response = await client.get(f"/api/v1/compose/conversations/{uuid4()}/last-message")
         assert response.status_code == 404
 
     async def test_returns_404_for_wrong_user(
@@ -103,11 +103,11 @@ class TestGetLastMessage:
         await session.commit()
         await session.refresh(conv)
 
-        response = await client.get(f"/api/v1/chat/conversations/{conv.uuid}/last-message")
+        response = await client.get(f"/api/v1/compose/conversations/{conv.uuid}/last-message")
         assert response.status_code == 404
 
     async def test_returns_422_for_non_uuid(self, client: httpx.AsyncClient, current_user: MagicMock) -> None:
-        response = await client.get("/api/v1/chat/conversations/not-a-uuid/last-message")
+        response = await client.get("/api/v1/compose/conversations/not-a-uuid/last-message")
         assert response.status_code == 422
 
 

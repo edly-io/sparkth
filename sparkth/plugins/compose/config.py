@@ -9,7 +9,7 @@ from sparkth.lib.settings import ENV_FILES
 
 class ComposeSettings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_prefix="CHAT_",
+        env_prefix="COMPOSE_",
         env_file=ENV_FILES,
         env_file_encoding="utf-8",
         extra="ignore",
@@ -38,5 +38,5 @@ class ComposeUserConfig(PluginConfig):
 
 @lru_cache
 def get_compose_settings() -> ComposeSettings:
-    """Dependency to get chat settings from environment variables."""
+    """Dependency to get compose settings from environment variables."""
     return ComposeSettings()

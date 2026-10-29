@@ -163,7 +163,7 @@ class TestAttachmentEndpoints:
         _, document_id = await _seed_document(session, user_id=cast(int, current_user.id))
 
         response = await client.post(
-            f"/api/v1/chat/conversations/{conversation_uuid}/attachments",
+            f"/api/v1/compose/conversations/{conversation_uuid}/attachments",
             json={"document_id": document_id},
         )
 
@@ -185,11 +185,11 @@ class TestAttachmentEndpoints:
         _, document_id = await _seed_document(session, user_id=cast(int, current_user.id))
 
         response1 = await client.post(
-            f"/api/v1/chat/conversations/{conversation_uuid}/attachments",
+            f"/api/v1/compose/conversations/{conversation_uuid}/attachments",
             json={"document_id": document_id},
         )
         response2 = await client.post(
-            f"/api/v1/chat/conversations/{conversation_uuid}/attachments",
+            f"/api/v1/compose/conversations/{conversation_uuid}/attachments",
             json={"document_id": document_id},
         )
 
@@ -207,7 +207,7 @@ class TestAttachmentEndpoints:
         _, document_id = await _seed_document(session, user_id=999)
 
         response = await client.post(
-            f"/api/v1/chat/conversations/{conversation_uuid}/attachments",
+            f"/api/v1/compose/conversations/{conversation_uuid}/attachments",
             json={"document_id": document_id},
         )
 
@@ -223,7 +223,7 @@ class TestAttachmentEndpoints:
         _, document_id = await _seed_document(session, user_id=cast(int, current_user.id))
 
         response = await client.post(
-            f"/api/v1/chat/conversations/{uuid4()}/attachments",
+            f"/api/v1/compose/conversations/{uuid4()}/attachments",
             json={"document_id": document_id},
         )
 
@@ -240,7 +240,7 @@ class TestAttachmentEndpoints:
         _, document_id = await _seed_document(session, user_id=cast(int, current_user.id))
         await ComposeService().attach_document(session, conversation_id, document_id)
 
-        response = await client.delete(f"/api/v1/chat/conversations/{conversation_uuid}/attachments/{document_id}")
+        response = await client.delete(f"/api/v1/compose/conversations/{conversation_uuid}/attachments/{document_id}")
 
         assert response.status_code == 204
 
@@ -253,7 +253,7 @@ class TestAttachmentEndpoints:
     ) -> None:
         _, conversation_uuid = await _seed_conversation(session, cast(int, current_user.id))
 
-        response = await client.delete(f"/api/v1/chat/conversations/{conversation_uuid}/attachments/999")
+        response = await client.delete(f"/api/v1/compose/conversations/{conversation_uuid}/attachments/999")
 
         assert response.status_code == 404
 
@@ -273,7 +273,7 @@ class TestAttachmentEndpoints:
         )
         await ComposeService().attach_document(session, conversation_id, document_id)
 
-        response = await client.get(f"/api/v1/chat/conversations/{conversation_uuid}/attachments")
+        response = await client.get(f"/api/v1/compose/conversations/{conversation_uuid}/attachments")
 
         assert response.status_code == 200
         data = response.json()
@@ -293,7 +293,7 @@ class TestAttachmentEndpoints:
         await service.attach_document(session, conversation_id, ready_id)
         await service.attach_document(session, conversation_id, failed_id)
 
-        response = await client.get(f"/api/v1/chat/conversations/{conversation_uuid}/attachments")
+        response = await client.get(f"/api/v1/compose/conversations/{conversation_uuid}/attachments")
 
         assert response.status_code == 200
         data = response.json()
@@ -306,7 +306,7 @@ class TestAttachmentEndpoints:
         current_user: User,
         session: AsyncSession,
     ) -> None:
-        response = await client.get(f"/api/v1/chat/conversations/{uuid4()}/attachments")
+        response = await client.get(f"/api/v1/compose/conversations/{uuid4()}/attachments")
 
         assert response.status_code == 404
 
@@ -357,7 +357,7 @@ class TestSoftDeleteDetaches:
         await session.commit()
 
         rows = (await analytics_session.execute(sa_select(raw_events))).mappings().all()
-        detached = [row["payload"] for row in rows if row["event_type"] == "chat.document_detached"]
+        detached = [row["payload"] for row in rows if row["event_type"] == "compose.document_detached"]
         assert len(detached) == 1
         assert detached[0]["conversation_id"] == conversation_uuid
         assert detached[0]["document_id"] == document_id

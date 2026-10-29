@@ -68,7 +68,7 @@ def gated_server(*middleware: Any) -> FastMCP:
     for extra in middleware:
         server.add_middleware(extra)
     server.add_middleware(PluginToolAccessMiddleware())
-    server.tool(name=PLUGIN_TOOL, description="Owned by a plugin", meta={PLUGIN_NAME_META_KEY: "chat"})(
+    server.tool(name=PLUGIN_TOOL, description="Owned by a plugin", meta={PLUGIN_NAME_META_KEY: "compose"})(
         audited_tool(echo)
     )
     server.tool(name=CORE_TOOL, description="Owned by no plugin")(audited_tool(echo))
@@ -99,16 +99,16 @@ class TestToolCallGate:
     """Whether a tools/call is allowed through."""
 
     async def test_rejects_a_tool_whose_plugin_is_disabled_system_wide(self, session: AsyncSession) -> None:
-        await seed_plugin(session, "chat", enabled=False)
+        await seed_plugin(session, "compose", enabled=False)
 
         async with Client(gated_server()) as client:
             with pytest.raises(ToolError) as rejection:
                 await client.call_tool(PLUGIN_TOOL, {"value": "x"})
 
-        assert "chat" in str(rejection.value)
+        assert "compose" in str(rejection.value)
 
     async def test_runs_a_tool_whose_plugin_is_enabled(self, session: AsyncSession) -> None:
-        await seed_plugin(session, "chat", enabled=True)
+        await seed_plugin(session, "compose", enabled=True)
 
         async with Client(gated_server()) as client:
             result = await client.call_tool(PLUGIN_TOOL, {"value": "ran"})
@@ -124,7 +124,7 @@ class TestToolCallGate:
         assert result.data == "ran"
 
     async def test_leaves_a_tool_that_belongs_to_no_plugin_alone(self, session: AsyncSession) -> None:
-        await seed_plugin(session, "chat", enabled=False)
+        await seed_plugin(session, "compose", enabled=False)
 
         async with Client(gated_server()) as client:
             result = await client.call_tool(CORE_TOOL, {"value": "ran"})
@@ -134,7 +134,7 @@ class TestToolCallGate:
     async def test_reads_the_flag_at_call_time_not_at_registration_time(self, session: AsyncSession) -> None:
         """The test that fails if the check ever moves into register_plugin_tools: the
         plugin is disabled after the server is built, with no re-registration."""
-        plugin = await seed_plugin(session, "chat", enabled=True)
+        plugin = await seed_plugin(session, "compose", enabled=True)
         server = gated_server()
 
         async with Client(server) as client:
@@ -179,7 +179,7 @@ class TestToolListingFilter:
     """What a tools/list advertises."""
 
     async def test_hides_tools_whose_plugin_is_disabled(self, session: AsyncSession) -> None:
-        await seed_plugin(session, "chat", enabled=False)
+        await seed_plugin(session, "compose", enabled=False)
 
         async with Client(gated_server()) as client:
             listed = [tool.name for tool in await client.list_tools()]
@@ -188,7 +188,7 @@ class TestToolListingFilter:
         assert CORE_TOOL in listed
 
     async def test_keeps_tools_whose_plugin_is_enabled(self, session: AsyncSession) -> None:
-        await seed_plugin(session, "chat", enabled=True)
+        await seed_plugin(session, "compose", enabled=True)
 
         async with Client(gated_server()) as client:
             listed = [tool.name for tool in await client.list_tools()]
@@ -225,7 +225,7 @@ class TestServerWiring:
         self, session: AsyncSession, audit_events: AuditEventsFetcher
     ) -> None:
         """A blocked tool call is exactly the kind of event the audit log exists for."""
-        await seed_plugin(session, "chat", enabled=False)
+        await seed_plugin(session, "compose", enabled=False)
 
         async with Client(gated_server(ToolCallAuditMiddleware())) as client:
             with pytest.raises(ToolError):

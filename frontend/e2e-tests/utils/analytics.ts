@@ -15,14 +15,14 @@ export async function stubLogins(
   await stubPeriods(page, "**/api/v1/analytics/logins**", current, previous, status);
 }
 
-/** Stubs the chat authoring-activity read API, with the same period rule as `stubLogins`. */
-export async function stubChatActivity(
+/** Stubs the compose authoring-activity read API, with the same period rule as `stubLogins`. */
+export async function stubComposeActivity(
   page: Page,
   current: unknown,
   previous: unknown = [],
   status = 200,
 ): Promise<void> {
-  await stubPeriods(page, "**/api/v1/chat/analytics/activity**", current, previous, status);
+  await stubPeriods(page, "**/api/v1/compose/analytics/activity**", current, previous, status);
 }
 
 /** Stubs the Drive documents read API, with the same period rule as `stubLogins`. */

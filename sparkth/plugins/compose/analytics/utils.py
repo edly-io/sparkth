@@ -4,7 +4,7 @@ Order events by ``occurred_at`` (when it happened), not ``received_at`` (when th
 landed).
 
 Known gap: events queued on ``background_tasks`` are dropped when the route raises, so
-those counts are lower bounds. ``chat.message_sent`` and ``chat.turn_failed`` go out on
+those counts are lower bounds. ``compose.message_sent`` and ``compose.turn_failed`` go out on
 detached tasks instead, so a failed turn still counts both its message and its failure.
 """
 
@@ -19,18 +19,18 @@ from sparkth.lib.analytics import AnalyticsEventSchema, PendingEvent, emit_event
 from sparkth.lib.audit import ToolFailureKind
 from sparkth.lib.log import get_logger
 from sparkth.plugins.compose.analytics.events import (
-    ChatAttachmentUnusable,
-    ChatCompletionServed,
-    ChatConversationStarted,
-    ChatDocumentAttached,
-    ChatDocumentDetached,
-    ChatDocumentsSkipped,
-    ChatMessageSent,
-    ChatRagSearchClassified,
-    ChatRagSearchCompleted,
-    ChatScopeClassified,
-    ChatToolInvoked,
-    ChatTurnFailed,
+    ComposeAttachmentUnusable,
+    ComposeCompletionServed,
+    ComposeConversationStarted,
+    ComposeDocumentAttached,
+    ComposeDocumentDetached,
+    ComposeDocumentsSkipped,
+    ComposeMessageSent,
+    ComposeRagSearchClassified,
+    ComposeRagSearchCompleted,
+    ComposeScopeClassified,
+    ComposeToolInvoked,
+    ComposeTurnFailed,
     ScopeVerdict,
     SearchResult,
     StopPoint,
@@ -126,9 +126,9 @@ def as_utc(value: datetime) -> datetime:
 
 def rag_search_event(
     conversation_id: str, provider: str, *, chunks_found: int, document_count: int, streamed: bool
-) -> ChatRagSearchCompleted:
-    """Build ``chat.rag_search_completed``; ``result`` follows from ``chunks_found``."""
-    return ChatRagSearchCompleted(
+) -> ComposeRagSearchCompleted:
+    """Build ``compose.rag_search_completed``; ``result`` follows from ``chunks_found``."""
+    return ComposeRagSearchCompleted(
         conversation_id=conversation_id,
         provider=provider,
         result=SearchResult.EMPTY if chunks_found == 0 else SearchResult.FOUND,
@@ -138,7 +138,7 @@ def rag_search_event(
     )
 
 
-async def emit_rag_search_completed(event: ChatRagSearchCompleted, actor_id: str, occurred_at: datetime) -> None:
+async def emit_rag_search_completed(event: ComposeRagSearchCompleted, actor_id: str, occurred_at: datetime) -> None:
     """Emit a search the streaming seam recorded. Await it outside every guard."""
     await _emit(lambda: event, actor_id, occurred_at)
 
@@ -149,9 +149,9 @@ async def emit_documents_detached(
     actor_id: str,
     occurred_at: datetime,
 ) -> None:
-    """Emit one ``chat.document_detached`` per conversation the document was removed from."""
+    """Emit one ``compose.document_detached`` per conversation the document was removed from."""
     events = [
-        ChatDocumentDetached(
+        ComposeDocumentDetached(
             conversation_id=conversation_id,
             document_id=document_id,
             seconds_attached=seconds_attached,
@@ -182,13 +182,13 @@ async def emit_completion(
     occurred_at: datetime,
     stopped_at: StopPoint | None = None,
 ) -> None:
-    """Emit one completion and one ``chat.tool_invoked`` per tool it executed.
+    """Emit one completion and one ``compose.tool_invoked`` per tool it executed.
 
     One :func:`emit_events` call, so the group shares a session and a failed completion
     write cannot drop the tool events behind it.
     """
     events = [
-        ChatCompletionServed(
+        ComposeCompletionServed(
             conversation_id=conversation_id,
             provider=attribution.provider,
             model=model,
@@ -198,7 +198,7 @@ async def emit_completion(
             stopped_at=stopped_at,
         ),
         *(
-            ChatToolInvoked(
+            ComposeToolInvoked(
                 conversation_id=conversation_id,
                 tool_name=tool.name,
                 tool_category=get_tool_registry().category_for(tool.name),
@@ -224,7 +224,7 @@ async def emit_completion(
 
 @dataclass(frozen=True)
 class ComposeTurnAnalytics:
-    """The scheduling surface for one request's chat events.
+    """The scheduling surface for one request's compose events.
 
     Built once from the facts a turn's events share; each ``schedule_*`` sends exactly
     one event and never awaits. All but ``schedule_message_sent`` queue it on
@@ -242,11 +242,11 @@ class ComposeTurnAnalytics:
     actor_id: str
 
     def schedule_conversation_started(self, *, occurred_at: datetime) -> None:
-        """Queue ``chat.conversation_started`` — the create branch only, or every continued
+        """Queue ``compose.conversation_started`` — the create branch only, or every continued
         turn would look like a new conversation."""
         self.background_tasks.add_task(
             _emit,
-            lambda: ChatConversationStarted(
+            lambda: ComposeConversationStarted(
                 conversation_id=self.conversation_id, provider=self.provider, model=self.model
             ),
             self.actor_id,
@@ -254,7 +254,7 @@ class ComposeTurnAnalytics:
         )
 
     def schedule_message_sent(self, *, message_length: int, has_attachment: bool, occurred_at: datetime) -> None:
-        """Send ``chat.message_sent`` for one stored instructor turn, on a detached task.
+        """Send ``compose.message_sent`` for one stored instructor turn, on a detached task.
 
         Not ``background_tasks``: the turn's route can still raise after the message is
         stored, which discards that queue, and a failed turn must count its message for the
@@ -263,7 +263,7 @@ class ComposeTurnAnalytics:
         """
         detach(
             _emit(
-                lambda: ChatMessageSent(
+                lambda: ComposeMessageSent(
                     conversation_id=self.conversation_id,
                     provider=self.provider,
                     model=self.model,
@@ -291,7 +291,7 @@ class ComposeTurnAnalytics:
         )
 
     def schedule_rag_search_completed(self, *, chunks_found: int, document_count: int, occurred_at: datetime) -> None:
-        """Queue ``chat.rag_search_completed`` for a non-streamed search that returned."""
+        """Queue ``compose.rag_search_completed`` for a non-streamed search that returned."""
         self.background_tasks.add_task(
             _emit,
             lambda: rag_search_event(
@@ -327,19 +327,21 @@ class ComposeAttachmentAnalytics:
     def schedule_document_attached(
         self, *, document_id: int, source: Literal["explicit", "completion_request"], occurred_at: datetime
     ) -> None:
-        """Queue ``chat.document_attached``. Only for a row that was actually created."""
+        """Queue ``compose.document_attached``. Only for a row that was actually created."""
         self.background_tasks.add_task(
             _emit,
-            lambda: ChatDocumentAttached(conversation_id=self.conversation_id, document_id=document_id, source=source),
+            lambda: ComposeDocumentAttached(
+                conversation_id=self.conversation_id, document_id=document_id, source=source
+            ),
             self.actor_id,
             occurred_at,
         )
 
     def schedule_document_detached(self, *, document_id: int, seconds_attached: int, occurred_at: datetime) -> None:
-        """Queue ``chat.document_detached``. Only when a row was actually removed."""
+        """Queue ``compose.document_detached``. Only when a row was actually removed."""
         self.background_tasks.add_task(
             _emit,
-            lambda: ChatDocumentDetached(
+            lambda: ComposeDocumentDetached(
                 conversation_id=self.conversation_id,
                 document_id=document_id,
                 seconds_attached=seconds_attached,
@@ -349,10 +351,10 @@ class ComposeAttachmentAnalytics:
         )
 
     def schedule_documents_skipped(self, *, requested_count: int, skipped_count: int, occurred_at: datetime) -> None:
-        """Queue ``chat.documents_skipped``. Only when something was actually skipped."""
+        """Queue ``compose.documents_skipped``. Only when something was actually skipped."""
         self.background_tasks.add_task(
             _emit,
-            lambda: ChatDocumentsSkipped(
+            lambda: ComposeDocumentsSkipped(
                 conversation_id=self.conversation_id,
                 requested_count=requested_count,
                 skipped_count=skipped_count,
@@ -368,10 +370,10 @@ class ComposeAttachmentAnalytics:
         status: Literal["queued", "processing", "failed", "deleted"],
         occurred_at: datetime,
     ) -> None:
-        """Queue ``chat.attachment_unusable`` for one document this turn could not use."""
+        """Queue ``compose.attachment_unusable`` for one document this turn could not use."""
         self.background_tasks.add_task(
             _emit,
-            lambda: ChatAttachmentUnusable(
+            lambda: ComposeAttachmentUnusable(
                 conversation_id=self.conversation_id, document_id=document_id, status=status
             ),
             self.actor_id,
@@ -398,7 +400,7 @@ def record_turn_failed(
     """
     detach(
         _emit(
-            lambda: ChatTurnFailed(
+            lambda: ComposeTurnFailed(
                 conversation_id=conversation_id,
                 provider=provider,
                 model=model,
@@ -434,10 +436,10 @@ class ComposeClassifierAnalytics:
         query_length: int,
         occurred_at: datetime,
     ) -> None:
-        """Queue ``chat.scope_classified``. Exactly once per turn."""
+        """Queue ``compose.scope_classified``. Exactly once per turn."""
         self.background_tasks.add_task(
             _emit,
-            lambda: ChatScopeClassified(
+            lambda: ComposeScopeClassified(
                 conversation_id=conversation_id,
                 provider=self.provider,
                 classifier_model=classifier_model,
@@ -460,10 +462,10 @@ class ComposeClassifierAnalytics:
         documents_with_unreadable_structure: int,
         occurred_at: datetime,
     ) -> None:
-        """Queue ``chat.rag_search_classified``. Only when the classifier was consulted."""
+        """Queue ``compose.rag_search_classified``. Only when the classifier was consulted."""
         self.background_tasks.add_task(
             _emit,
-            lambda: ChatRagSearchClassified(
+            lambda: ComposeRagSearchClassified(
                 conversation_id=conversation_id,
                 provider=self.provider,
                 classifier_model=classifier_model,

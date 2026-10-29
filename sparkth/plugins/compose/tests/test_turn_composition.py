@@ -20,7 +20,7 @@ from sparkth.plugins.compose.constants import REFUSAL_MESSAGE
 from sparkth.plugins.compose.models import Conversation
 from sparkth.plugins.compose.tests.helpers import CANVAS_CONFIG, OPENEDX_CONFIG
 
-COMPLETIONS_URL = "/api/v1/chat/completions"
+COMPLETIONS_URL = "/api/v1/compose/completions"
 
 
 async def _seed_llm_config(session: AsyncSession, user_id: int) -> int:

@@ -15,7 +15,7 @@ vi.mock("next/navigation", () => ({
 
 // The plugins installed in the backend build. No PluginProvider is mounted: analytics must not
 // depend on the viewer's own plugin switches.
-const plugins = vi.hoisted(() => ({ installed: ["chat"] }));
+const plugins = vi.hoisted(() => ({ installed: ["compose"] }));
 vi.mock("@/lib/plugins/generated", () => ({
   get FRONTEND_PLUGIN_NAMES() {
     return plugins.installed;
@@ -26,15 +26,20 @@ vi.mock("@/lib/analytics", async (orig) => ({
   ...(await orig<typeof import("@/lib/analytics")>()),
   fetchSummary: vi.fn(),
   fetchLogins: vi.fn(),
-  fetchChatActivity: vi.fn(),
+  fetchComposeActivity: vi.fn(),
 }));
 
-import { fetchChatActivity, fetchLogins, fetchSummary, type SummaryCount } from "@/lib/analytics";
+import {
+  fetchComposeActivity,
+  fetchLogins,
+  fetchSummary,
+  type SummaryCount,
+} from "@/lib/analytics";
 import OverviewPage from "@/app/dashboard/analytics/page";
 
 const summary = vi.mocked(fetchSummary);
 const logins = vi.mocked(fetchLogins);
-const activity = vi.mocked(fetchChatActivity);
+const activity = vi.mocked(fetchComposeActivity);
 const today = new Date().toISOString().slice(0, 10);
 
 const fig = (over: Partial<SummaryCount>): SummaryCount => ({
@@ -50,7 +55,7 @@ const fig = (over: Partial<SummaryCount>): SummaryCount => ({
 beforeEach(() => {
   vi.clearAllMocks();
   nav.search = "";
-  plugins.installed = ["chat"];
+  plugins.installed = ["compose"];
   logins.mockResolvedValue([]);
   activity.mockResolvedValue([]);
 });
@@ -92,10 +97,10 @@ describe("OverviewPage", () => {
     summary.mockResolvedValue([
       fig({ current: 1 }),
       fig({
-        key: "chat.messages",
+        key: "compose.messages",
         label: "Messages sent",
         view: "authoring",
-        plugin: "chat",
+        plugin: "compose",
         current: 5,
       }),
     ]);
@@ -143,11 +148,11 @@ describe("OverviewPage", () => {
     const loginRow = { bucket: today, method: "password", login_count: 2 };
     const msgRow = {
       bucket: today,
-      event_type: "chat.message_sent",
+      event_type: "compose.message_sent",
       event_count: 3,
     } as never;
 
-    it("adds messages sent to logins when chat is enabled", async () => {
+    it("adds messages sent to logins when compose is enabled", async () => {
       busyFigures();
       logins.mockResolvedValue([loginRow]);
       activity.mockResolvedValue([msgRow]);
@@ -156,7 +161,7 @@ describe("OverviewPage", () => {
       expect(screen.getByRole("cell", { name: "5" })).toBeInTheDocument();
     });
 
-    it("counts logins only, and never reads chat, when chat is not installed", async () => {
+    it("counts logins only, and never reads compose, when compose is not installed", async () => {
       plugins.installed = [];
       busyFigures();
       logins.mockResolvedValue([loginRow]);
