@@ -251,7 +251,8 @@ await assign_role(user_id, "grader", COURSE, "42", session)
 ```
 
 **Gate an endpoint on a permission** — call `.require_in_global_scope()` or
-`.require(scope, scope_param=None)` on the permission itself. `scope` is a declared
+`.require(scope, scope_param=None)` on the permission itself, or `.require_at_any_object(scope)`
+for a list over every object of an object-bearing scope. `scope` is a declared
 `PermissionScope` **object** (e.g. `GLOBAL`, `WHITELIST`, your `COURSE`), not its name.
 `scope_param` names the path parameter carrying the scope object id — omit it for an
 objectless scope, supply it for an object-bearing one. Getting this wrong raises `ValueError`
@@ -259,6 +260,7 @@ at import time (a wiring error, never a silent 403).
 
 ```python
 from fastapi import Depends
+from sparkth.lib.models import User
 from sparkth.lib.permissions import COURSE_EDIT, COURSE_READ, EMAIL_WHITELIST_READ, THING_READ
 from sparkth.lib.permissions.scopes import COURSE, WHITELIST
 

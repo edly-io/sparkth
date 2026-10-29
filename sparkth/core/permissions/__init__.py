@@ -132,8 +132,9 @@ class Permission:
 
         For a route over every object of a scope (a list) that narrows what it returns to the
         objects the caller may see. The dependency passes when the user holds this permission at
-        one or more objects of the scope, or at an objectless ancestor (such as ``GLOBAL``) that
-        cascades to all of them, and returns the authenticated ``User``. Otherwise it records a
+        one or more objects of the scope, at the scope itself with no object (the only form an
+        objectless scope takes), or at an objectless ancestor (such as ``GLOBAL``) that cascades
+        to all of them, and returns the authenticated ``User``. Otherwise it records a
         ``permission.denied`` audit event and raises 403, like ``require``.
         """
 
@@ -141,7 +142,7 @@ class Permission:
             current_user: User = Depends(get_current_user),
             session: AsyncSession = Depends(get_async_session),
         ) -> User:
-            # No object id: the scope chain matches only the cascading objectless ancestors.
+            # No object id: matches a grant at the scope naming no object, or at an objectless ancestor.
             if await can(current_user, self, permission_scope, None, session):
                 return current_user
             if await get_granted_scope_object_ids(current_user, self, permission_scope, session):

@@ -51,13 +51,12 @@ async def list_groups(
     A caller holding group.read at the global scope sees every group; any other caller sees only
     the groups they hold group.read for.
     """
-    if await can(current_user, GROUP_READ, GLOBAL, None, session):
-        groups = await group_engine.list_groups(session)
-    else:
+    groups = await group_engine.list_groups(session)
+    if not await can(current_user, GROUP_READ, GLOBAL, None, session):
         granted_ids = await get_granted_scope_object_ids(current_user, GROUP_READ, GROUP, session)
-        # A grant's object id is free-form text; one that is not a number names no group.
-        group_ids = {int(object_id) for object_id in granted_ids if object_id.isdecimal()}
-        groups = await group_engine.list_groups_by_ids(group_ids, session)
+        # Match ids as text, exactly as the by-id gate does; a grant naming no group matches none.
+        # ponytail: loads every group then filters, filter in SQL if groups grow into the thousands
+        groups = [group for group in groups if str(group.id) in granted_ids]
     return [_group_to_response(group) for group in groups]
 
 

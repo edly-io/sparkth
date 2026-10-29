@@ -244,17 +244,20 @@ async def test_group_read_via_membership_lists_that_group(client: AsyncClient, s
     assert await _list_group_ids(client) == [target.id]
 
 
-async def test_non_numeric_group_grant_is_ignored(client: AsyncClient, session: AsyncSession) -> None:
-    # The CLI stores any string as the scope object id; one that names no group id is skipped.
+async def test_list_matches_grant_ids_exactly(client: AsyncClient, session: AsyncSession) -> None:
+    # The CLI stores any string as the scope object id. The list shows a group only when a grant
+    # names its id exactly, as the by-id gate does: text, out-of-range and zero-padded ids match none.
     target = await _create_target_group(session)
-    user = await _create_user_with_permissions(session, ["group.read"], "group", "abc")
+    padded = await _create_target_group(session)
+    user = await _create_user_with_permissions(session, ["group.read"], "group", str(target.id))
     assert user.id is not None
     reader = Role(name=_uniq("reader"))
     session.add(reader)
     await session.flush()
     assert reader.id is not None
     session.add(RolePermission(role_id=reader.id, permission="group.read"))
-    session.add(RoleAssignment(user_id=user.id, role_id=reader.id, scope="group", scope_object_id=str(target.id)))
+    for object_id in ["abc", "99999999999999999999999", f"00{padded.id}"]:
+        session.add(RoleAssignment(user_id=user.id, role_id=reader.id, scope="group", scope_object_id=object_id))
     _override_current_user(client, user)
     await session.commit()
     assert await _list_group_ids(client) == [target.id]
