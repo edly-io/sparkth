@@ -1,4 +1,4 @@
-"""Producer tests for ``chat.rag_search_completed``: both retrieval seams write a real row.
+"""Producer tests for ``compose.rag_search_completed``: both retrieval seams write a real row.
 
 The streamed path drives ``ComposeStreamProcessor`` with a real attribution and the real analytics
 database; only the provider, the chat service and retrieval itself are stubbed. The non-streamed
@@ -27,7 +27,7 @@ from sparkth.plugins.compose.routes.utils.stream_processor import ComposeStreamP
 from sparkth.plugins.compose.schemas import ChatCompletionRequest, ChatMessage
 from sparkth.plugins.compose.tests.helpers import STREAM_TURN, replay_turn
 
-EVENT = "chat.rag_search_completed"
+EVENT = "compose.rag_search_completed"
 CONVERSATION = uuid.UUID("550e8400-e29b-41d4-a716-446655440000")
 
 
@@ -122,14 +122,14 @@ async def test_streamed_empty_search_records_empty(analytics_session: SQLAlchemy
     [row] = await _rows(analytics_session)
     assert row["payload"]["result"] == "empty"
     assert row["payload"]["chunks_found"] == 0
-    assert await _rows(analytics_session, "chat.completion_served") == []
+    assert await _rows(analytics_session, "compose.completion_served") == []
 
 
 async def test_streamed_retrieval_error_records_no_search(analytics_session: SQLAlchemyAsyncSession) -> None:
     await _stream(AsyncMock(side_effect=RAGRetrievalError("boom")))
 
     assert await _rows(analytics_session) == []
-    [failed] = await _rows(analytics_session, "chat.turn_failed")
+    [failed] = await _rows(analytics_session, "compose.turn_failed")
     assert failed["payload"]["cause"] == "rag_retrieval_error"
 
 
@@ -175,7 +175,7 @@ async def test_streamed_search_emit_failure_still_records_the_completion(
     ):
         await _stream(AsyncMock(return_value=[_chunk()]))
 
-    assert len(await _rows(analytics_session, "chat.completion_served")) == 1
+    assert len(await _rows(analytics_session, "compose.completion_served")) == 1
 
 
 async def test_non_streamed_search_records_event(analytics_session: SQLAlchemyAsyncSession) -> None:

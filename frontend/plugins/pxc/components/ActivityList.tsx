@@ -11,7 +11,7 @@ import { listActivities, type ActivitySummary } from "@/plugins/pxc/client";
 import { DeleteActivityDialog } from "@/plugins/pxc/components/DeleteActivityDialog";
 import { RetryAlert } from "@/plugins/pxc/components/RetryAlert";
 
-const COMPOSE_PATH = "/dashboard/chat";
+const COMPOSE_PATH = "/dashboard/compose";
 
 function ActivityRow({
   activity,

@@ -7,11 +7,11 @@ describe("slots", () => {
     const slot: Slot<string> = new Map();
 
     slot.set("slack", ["slack item"]);
-    slot.set("chat", ["first", "second"]);
+    slot.set("compose", ["first", "second"]);
 
     expect(slotItems(slot)).toEqual([
-      ["chat", "first"],
-      ["chat", "second"],
+      ["compose", "first"],
+      ["compose", "second"],
       ["slack", "slack item"],
     ]);
   });

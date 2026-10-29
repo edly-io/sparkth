@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import {
   daysAgoUtc,
-  stubChatActivity,
+  stubComposeActivity,
   stubDriveDocuments,
   stubLogins,
   stubPermission,
@@ -84,7 +84,7 @@ test.describe("analytics", () => {
   test("opens the Overview from the sidebar, with its rail entry current", async ({ page }) => {
     await stubSummary(page, []);
     await stubLogins(page, []);
-    await stubChatActivity(page, []);
+    await stubComposeActivity(page, []);
     await page.goto("/dashboard");
     await page.getByRole("link", { name: "Analytics" }).first().click();
     await expect(page).toHaveURL(/\/dashboard\/analytics\/?$/);
@@ -97,7 +97,7 @@ test.describe("analytics", () => {
   test("opens on the Overview with a card per figure", async ({ page }) => {
     await stubSummary(page, summary);
     await stubLogins(page, [{ bucket: todayUtc(), method: "password", login_count: 4 }]);
-    await stubChatActivity(page, []);
+    await stubComposeActivity(page, []);
     await page.goto("/dashboard/analytics");
     await expect(page.getByRole("heading", { name: "Activity" })).toBeVisible();
     await expect(page.getByText("Logins", { exact: true }).first()).toBeVisible();
@@ -108,7 +108,7 @@ test.describe("analytics", () => {
   test("a card opens the view behind it", async ({ page }) => {
     await stubSummary(page, summary);
     await stubLogins(page, []);
-    await stubChatActivity(page, []);
+    await stubComposeActivity(page, []);
     await page.goto("/dashboard/analytics");
     await page
       .getByRole("link", { name: /Logins/ })
@@ -180,7 +180,7 @@ test.describe("analytics course authoring", () => {
   test("opens from its rail entry, with the entry current", async ({ page }) => {
     await stubLogins(page, []);
     await stubDriveDocuments(page, []);
-    await stubChatActivity(page, []);
+    await stubComposeActivity(page, []);
     await page.goto("/dashboard/analytics/logins");
     await page.getByRole("link", { name: "Course authoring" }).click();
     await expect(page).toHaveURL(/\/dashboard\/analytics\/authoring\/?$/);
@@ -192,11 +192,11 @@ test.describe("analytics course authoring", () => {
 
   test("shows activity and the tools used", async ({ page }) => {
     await stubDriveDocuments(page, []);
-    await stubChatActivity(page, [
-      { bucket: todayUtc(), event_type: "chat.message_sent", event_count: 4 },
+    await stubComposeActivity(page, [
+      { bucket: todayUtc(), event_type: "compose.message_sent", event_count: 4 },
       {
         bucket: todayUtc(),
-        event_type: "chat.tool_invoked",
+        event_type: "compose.tool_invoked",
         dimension: "create_course",
         outcome: "succeeded",
         event_count: 2,
@@ -211,7 +211,7 @@ test.describe("analytics course authoring", () => {
   test("keeps the period when switching between Logins and Course authoring", async ({ page }) => {
     await stubLogins(page, []);
     await stubDriveDocuments(page, []);
-    await stubChatActivity(page, []);
+    await stubComposeActivity(page, []);
     await page.goto("/dashboard/analytics/logins?range=90d&bucket=month");
     await page.getByRole("link", { name: "Course authoring" }).click();
     await expect(page).toHaveURL(/\/authoring\/?\?range=90d&bucket=month/);
@@ -220,7 +220,7 @@ test.describe("analytics course authoring", () => {
   });
 
   test("shows processed Drive documents and why the rest weren't usable", async ({ page }) => {
-    await stubChatActivity(page, []);
+    await stubComposeActivity(page, []);
     await stubDriveDocuments(page, [
       {
         bucket: todayUtc(),
@@ -245,7 +245,7 @@ test.describe("analytics course authoring", () => {
 
   test("shows the empty state for a period with no activity", async ({ page }) => {
     await stubDriveDocuments(page, []);
-    await stubChatActivity(page, []);
+    await stubComposeActivity(page, []);
     await page.goto("/dashboard/analytics/authoring");
     await expect(page.getByText(/no course-authoring activity in this period/i)).toBeVisible();
   });

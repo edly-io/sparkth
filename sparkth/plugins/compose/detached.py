@@ -1,4 +1,4 @@
-"""Fire-and-forget tasks the chat plugin runs past the request that spawned them."""
+"""Fire-and-forget tasks the compose plugin runs past the request that spawned them."""
 
 import asyncio
 from collections.abc import Coroutine

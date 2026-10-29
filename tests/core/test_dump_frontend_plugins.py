@@ -37,14 +37,14 @@ def dumps() -> tuple[str, str]:
 
 
 def test_dump_lists_frontend_declaring_plugins_sorted_offline(dumps: tuple[str, str]) -> None:
-    assert 'export const FRONTEND_PLUGIN_NAMES = ["chat", "google-drive", "pxc", "slack"] as const;' in dumps[0]
+    assert 'export const FRONTEND_PLUGIN_NAMES = ["compose", "google-drive", "pxc", "slack"] as const;' in dumps[0]
 
 
 def test_dump_lists_each_plugins_declared_icon_names_once(dumps: tuple[str, str]) -> None:
     """Chat declares "plus" for both its display info and its sidebar entry, and it is listed once."""
     expected = (
         "export const PLUGIN_ICON_NAMES = {\n"
-        '  "chat": ["plus"],\n'
+        '  "compose": ["plus"],\n'
         '  "pxc": ["blocks"],\n'
         '  "slack": ["slack"],\n'
         "} as const;\n"

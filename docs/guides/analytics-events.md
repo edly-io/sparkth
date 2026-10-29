@@ -41,14 +41,14 @@ pipeline's maintenance window.
 Analytics counts are lower bounds by design: events queued on `background_tasks` are discarded
 whenever a route raises (see the "Known gap" note in `sparkth/plugins/compose/analytics/utils.py`). An
 event that cannot tolerate that is audit-grade — route it to audit rather than hardening
-analytics. The exception is an event a rate divides by: `chat.message_sent` goes out on a
-detached task, like `chat.turn_failed`, so a turn that fails after storing its message still
+analytics. The exception is an event a rate divides by: `compose.message_sent` goes out on a
+detached task, like `compose.turn_failed`, so a turn that fails after storing its message still
 counts on both sides of the failure rate.
 
 ## Before adding one
 
 - **What question cannot be answered today?** If an existing event already answers it, add
-  nothing. Check carefully: `chat.completion_served.rag_used` looks like it covers "was
+  nothing. Check carefully: `compose.completion_served.rag_used` looks like it covers "was
   retrieval skipped", but `false` cannot distinguish *declined* from *nothing to search*.
 - **Where is the denominator?** A count without one answers nothing. "Refusal rate" needs the
   turns that were *not* refused, which usually means emitting on every decision rather than only
@@ -204,7 +204,7 @@ check is mandatory — a test written against the happy path passes while the fe
 broken.
 
 A test that asserts on rows written from a detached task must join that task first, not yield to
-the event loop and hope. The chat tests use `join_live_tasks` for this; a fixed number of
+the event loop and hope. The compose tests use `join_live_tasks` for this; a fixed number of
 `asyncio.sleep(0)` calls is not a substitute, because the writes go through database worker
 threads rather than loop turns.
 

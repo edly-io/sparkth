@@ -111,7 +111,7 @@ class TestThePreflightCheckSeesTheWholeTurn:
         ):
             MockClassifier.return_value.in_scope = AsyncMock(return_value=False)
             response = await client.post(
-                "/api/v1/chat/completions",
+                "/api/v1/compose/completions",
                 json={
                     "llm_config_id": llm_config_id,
                     "messages": [
@@ -172,7 +172,7 @@ class TestAnExistingConversationSeesTheWholeTurnToo:
         ):
             MockClassifier.return_value.in_scope = AsyncMock(return_value=False)
             response = await client.post(
-                "/api/v1/chat/completions",
+                "/api/v1/compose/completions",
                 json={
                     "llm_config_id": llm_config_id,
                     "conversation_id": conversation_uuid,
@@ -219,7 +219,7 @@ async def _send(client: AsyncClient, config_id: int, conversation_uuid: str | No
     }
     if conversation_uuid:
         body["conversation_id"] = conversation_uuid
-    return await client.post("/api/v1/chat/completions", json=body)
+    return await client.post("/api/v1/compose/completions", json=body)
 
 
 class TestOutOfScopeConversationCreation:
@@ -255,7 +255,7 @@ class TestOutOfScopeConversationCreation:
             ),
         ):
             response = await client.post(
-                "/api/v1/chat/completions",
+                "/api/v1/compose/completions",
                 json={
                     "llm_config_id": llm_config_id,
                     "messages": [{"role": "user", "content": "what is 2+2?"}],
@@ -323,7 +323,7 @@ class TestOutOfScopeConversationCreation:
             mock_add_msg.return_value = mock_msg
 
             response = await client.post(
-                "/api/v1/chat/completions",
+                "/api/v1/compose/completions",
                 json={
                     "llm_config_id": llm_config_id,
                     "messages": [{"role": "user", "content": "what is 2+2?"}],

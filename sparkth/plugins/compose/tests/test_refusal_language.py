@@ -183,7 +183,7 @@ class TestRefusalAtTheStreamingRenderSite:
 
 
 class TestRefusalAtTheNonStreamingRenderSites:
-    """The non-streaming branches of chat_completion render the refusal with gettext()
+    """The non-streaming branches of compose_completion render the refusal with gettext()
     too, independently of the streaming generator covered above. Both are reached with
     stream=False: no conversation_id takes the pre-conversation return, an existing
     conversation_id takes the persisted-then-returned branch."""
@@ -209,7 +209,7 @@ class TestRefusalAtTheNonStreamingRenderSites:
             ),
         ):
             response = await client.post(
-                "/api/v1/chat/completions",
+                "/api/v1/compose/completions",
                 json={
                     "llm_config_id": llm_config_id,
                     "messages": [{"role": "user", "content": "what is 2+2?"}],
@@ -274,7 +274,7 @@ class TestRefusalAtTheNonStreamingRenderSites:
             ) as mock_add_msg,
         ):
             response = await client.post(
-                "/api/v1/chat/completions",
+                "/api/v1/compose/completions",
                 json={
                     "llm_config_id": llm_config_id,
                     "messages": [{"role": "user", "content": "what is 2+2?"}],

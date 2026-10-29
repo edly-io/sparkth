@@ -62,7 +62,7 @@ describe("ActivityList", () => {
     expect(await screen.findByText("No activities yet")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open Compose" })).toHaveAttribute(
       "href",
-      "/dashboard/chat",
+      "/dashboard/compose",
     );
   });
 

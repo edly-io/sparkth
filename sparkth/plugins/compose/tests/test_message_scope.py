@@ -230,7 +230,7 @@ class TestAFailedClassification:
 
     @pytest.mark.asyncio
     async def test_a_failure_records_no_decision(self) -> None:
-        """The failed turn is recorded by the route, as chat.turn_failed."""
+        """The failed turn is recorded by the route, as compose.turn_failed."""
         chain = MagicMock(ainvoke=AsyncMock(side_effect=LangChainException("provider timeout")))
         analytics = MagicMock()
 

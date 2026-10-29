@@ -6,7 +6,7 @@ from pydantic import ValidationError
 from sparkth.main import assemble_app
 from sparkth.plugins.compose.schemas import AttachmentMeta, ChatCompletionRequest, ChatMessage
 
-COMPLETIONS_PATH = "/api/v1/chat/completions"
+COMPLETIONS_PATH = "/api/v1/compose/completions"
 
 
 def test_completions_200_response_declares_json_and_sse_union() -> None:

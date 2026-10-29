@@ -4,18 +4,18 @@ import { useMemo } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { ChartColumn } from "lucide-react";
 import {
-  CHAT_EVENTS,
+  COMPOSE_EVENTS,
   EMPTY_SEARCH,
   countSeries,
   documentTotals,
-  fetchChatActivity,
+  fetchComposeActivity,
   fetchDriveDocuments,
   previousPeriod,
   rateSeries,
   toolTotals,
   totalOf,
   type BucketCount,
-  type ChatActivityPoint,
+  type ComposeActivityPoint,
   type DriveDocumentsPoint,
   type IsoDate,
 } from "@/lib/analytics";
@@ -31,12 +31,12 @@ export default function AuthoringPage() {
   const t = useTranslations("analytics.authoring");
   const drive = isInstalled("google-drive");
   const load = async (token: string, range: { from: IsoDate; to: IsoDate }) => {
-    const [chat, documents] = await Promise.all([
-      bothPeriods(fetchChatActivity)(token, range),
-      // A failed Drive read hides its card rather than taking the chat figures down with it.
+    const [compose, documents] = await Promise.all([
+      bothPeriods(fetchComposeActivity)(token, range),
+      // A failed Drive read hides its card rather than taking the compose figures down with it.
       drive ? bothPeriods(fetchDriveDocuments)(token, range).catch(() => null) : null,
     ]);
-    return { ...chat, documents };
+    return { ...compose, documents };
   };
   return (
     <PeriodView title={t("title")} subtitle={(range) => t("subtitle", { range })} load={load}>
@@ -52,7 +52,7 @@ function AuthoringContent({
   from,
   to,
   bucket,
-}: PeriodData<ChatActivityPoint> & { documents: DocumentsData }) {
+}: PeriodData<ComposeActivityPoint> & { documents: DocumentsData }) {
   const t = useTranslations("analytics.authoring");
   const tTable = useTranslations("analytics.table");
   const tCompare = useTranslations("analytics.compare");
@@ -67,33 +67,33 @@ function AuthoringContent({
   const { cur, prev, charts, tools } = useMemo(() => {
     // A turn with no usable AI key fails before any message is stored, so no message stands
     // for it in the rate's denominator: it counts as a failed turn but not toward the rate.
-    const rated = (rows: ChatActivityPoint[]) =>
+    const rated = (rows: ComposeActivityPoint[]) =>
       rows.filter(
-        (r) => !(r.event_type === CHAT_EVENTS.failed && r.dimension === "llm_config_unusable"),
+        (r) => !(r.event_type === COMPOSE_EVENTS.failed && r.dimension === "llm_config_unusable"),
       );
-    const totals = (rows: ChatActivityPoint[]) => ({
-      conversations: totalOf(rows, CHAT_EVENTS.conversations),
-      messages: totalOf(rows, CHAT_EVENTS.messages),
-      failed: totalOf(rows, CHAT_EVENTS.failed),
-      ratedFailed: totalOf(rated(rows), CHAT_EVENTS.failed),
-      attached: totalOf(rows, CHAT_EVENTS.attached),
-      detached: totalOf(rows, CHAT_EVENTS.detached),
-      tools: totalOf(rows, CHAT_EVENTS.tools),
-      searches: totalOf(rows, CHAT_EVENTS.searches),
+    const totals = (rows: ComposeActivityPoint[]) => ({
+      conversations: totalOf(rows, COMPOSE_EVENTS.conversations),
+      messages: totalOf(rows, COMPOSE_EVENTS.messages),
+      failed: totalOf(rows, COMPOSE_EVENTS.failed),
+      ratedFailed: totalOf(rated(rows), COMPOSE_EVENTS.failed),
+      attached: totalOf(rows, COMPOSE_EVENTS.attached),
+      detached: totalOf(rows, COMPOSE_EVENTS.detached),
+      tools: totalOf(rows, COMPOSE_EVENTS.tools),
+      searches: totalOf(rows, COMPOSE_EVENTS.searches),
       emptySearches: totalOf(
         rows.filter((r) => r.dimension === EMPTY_SEARCH),
-        CHAT_EVENTS.searches,
+        COMPOSE_EVENTS.searches,
       ),
     });
-    const series = (rows: ChatActivityPoint[], period: { from: string; to: string }) => {
+    const series = (rows: ComposeActivityPoint[], period: { from: string; to: string }) => {
       const at = { ...period, bucket };
-      const messages = countSeries(rows, CHAT_EVENTS.messages, at);
-      const failed = countSeries(rows, CHAT_EVENTS.failed, at);
+      const messages = countSeries(rows, COMPOSE_EVENTS.messages, at);
+      const failed = countSeries(rows, COMPOSE_EVENTS.failed, at);
       return {
         messages,
-        conversations: countSeries(rows, CHAT_EVENTS.conversations, at),
+        conversations: countSeries(rows, COMPOSE_EVENTS.conversations, at),
         failed,
-        failureRate: rateSeries(countSeries(rated(rows), CHAT_EVENTS.failed, at), messages),
+        failureRate: rateSeries(countSeries(rated(rows), COMPOSE_EVENTS.failed, at), messages),
       };
     };
     const now = series(current, { from, to });

@@ -20,7 +20,7 @@ from sparkth.plugins.compose.types import ConversationDocuments
 async def test_stopping_a_live_turn_returns_204(client: AsyncClient, current_user: User) -> None:
     stop_requested = register_turn("11111111-1111-4111-8111-111111111111", cast(int, current_user.id))
     try:
-        response = await client.post("/api/v1/chat/turns/11111111-1111-4111-8111-111111111111/stop")
+        response = await client.post("/api/v1/compose/turns/11111111-1111-4111-8111-111111111111/stop")
         assert response.status_code == 204
         assert stop_requested.is_set()
     finally:
@@ -29,7 +29,7 @@ async def test_stopping_a_live_turn_returns_204(client: AsyncClient, current_use
 
 @pytest.mark.asyncio
 async def test_stopping_an_unknown_turn_returns_404(client: AsyncClient, current_user: User) -> None:
-    response = await client.post("/api/v1/chat/turns/22222222-2222-4222-8222-222222222222/stop")
+    response = await client.post("/api/v1/compose/turns/22222222-2222-4222-8222-222222222222/stop")
     assert response.status_code == 404
 
 
@@ -38,7 +38,7 @@ async def test_stopping_another_users_turn_returns_404(client: AsyncClient, curr
     other_user_id = cast(int, current_user.id) + 1000
     stop_requested = register_turn("33333333-3333-4333-8333-333333333333", other_user_id)
     try:
-        response = await client.post("/api/v1/chat/turns/33333333-3333-4333-8333-333333333333/stop")
+        response = await client.post("/api/v1/compose/turns/33333333-3333-4333-8333-333333333333/stop")
         assert response.status_code == 404
         assert not stop_requested.is_set()
     finally:
@@ -112,7 +112,7 @@ class TestTurnNotLeakedWhenStreamNeverStarts:
 
             with pytest.raises(TypeError, match="simulated construction failure"):
                 await client.post(
-                    "/api/v1/chat/completions",
+                    "/api/v1/compose/completions",
                     json={
                         "llm_config_id": llm_config_id,
                         "messages": [{"role": "user", "content": "Hello"}],

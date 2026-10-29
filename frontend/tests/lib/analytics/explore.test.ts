@@ -10,7 +10,7 @@ import {
 } from "@/lib/analytics";
 
 const config: ExploreConfig = {
-  event: "chat.tool_invoked",
+  event: "compose.tool_invoked",
   actor: "42",
   filters: [
     { field: "outcome", value: "failed" },
@@ -24,7 +24,7 @@ const config: ExploreConfig = {
 
 const catalog: EventCatalogEntry[] = [
   {
-    event_type: "chat.tool_invoked",
+    event_type: "compose.tool_invoked",
     fields: [
       { name: "outcome", kind: "enum", values: ["ok", "failed"], nullable: true },
       { name: "detail", kind: "string", values: null, nullable: false },

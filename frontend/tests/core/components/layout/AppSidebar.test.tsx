@@ -82,7 +82,7 @@ describe("AppSidebar on a plugin page", () => {
   });
 
   it("renders no chat history on the chat page", () => {
-    nav.pathname = "/dashboard/chat";
+    nav.pathname = "/dashboard/compose";
 
     render(<AppSidebar user={{ name: "A" }} />);
 

@@ -1,12 +1,12 @@
-"""Hook through which a plugin gives the chat assistant a capability.
+"""Hook through which a plugin gives the Compose assistant a capability.
 
-A *capability* is one kind of work the chat assistant does, such as designing a course. On every
-request chat reads the capabilities of the plugins that are switched on for the requesting
+A *capability* is one kind of work the Compose assistant does, such as designing a course. On every
+request Compose reads the capabilities of the plugins that are switched on for the requesting
 user. Its scope classifier refuses a message that belongs to none of their scopes, and the turn's
-system prompt is chat's own skeleton with every capability's prompt section under its title.
+system prompt is Compose's own skeleton with every capability's prompt section under its title.
 Every turn gets the tools the request asks for, except those of plugins switched off for the user.
 
-The hook lives in ``sparkth.lib`` so a plugin can contribute a capability without importing chat.
+The hook lives in ``sparkth.lib`` so a plugin can contribute a capability without importing compose.
 It is keyed by plugin, so a capability is offered only while its plugin is switched on for the
 user, by both switches. A plugin registers one capability from its ``__init__``::
 
@@ -25,13 +25,13 @@ logger = get_logger(__name__)
 
 @dataclass(frozen=True)
 class ChatCapability:
-    """One kind of work the chat assistant does for a plugin.
+    """One kind of work the Compose assistant does for a plugin.
 
-    ``title`` is the heading the capability is listed under, in chat's system prompt and in the
+    ``title`` is the heading the capability is listed under, in Compose's system prompt and in the
     scope classifier's, so it is unique among capabilities. ``scope`` is the text the classifier
     reads to decide whether a message belongs to the capability. ``prompt`` is the capability's
     section of the system prompt: plain text inserted as written, never formatted, holding only
-    what is specific to the capability. Chat's skeleton carries the date, identity, output
+    what is specific to the capability. Compose's skeleton carries the date, identity, output
     language, refusal and offering-choices rules.
 
     A frozen dataclass, so the copies registered by repeated plugin constructions compare equal.
@@ -42,7 +42,7 @@ class ChatCapability:
     prompt: str
 
 
-# One chat capability per plugin, consumed by the chat plugin. Keyed by plugin instance,
+# One chat capability per plugin, consumed by the compose plugin. Keyed by plugin instance,
 # so constructing a plugin again re-registers it harmlessly. Register through
 # register_chat_capability, which refuses a clashing title.
 CHAT_CAPABILITIES: PluginHook[ChatCapability] = PluginHook()
@@ -66,7 +66,7 @@ def register_chat_capability(plugin: SparkthPlugin, capability: ChatCapability) 
 
 
 def enabled_capabilities(disabled_plugins: set[str]) -> list[ChatCapability]:
-    """Return the capabilities chat offers, in plugin-name order.
+    """Return the capabilities Compose offers, in plugin-name order.
 
     Leaves out the capability of every plugin named in ``disabled_plugins``, the plugins switched
     off for the requesting user by either switch. Equal copies from repeated constructions of one

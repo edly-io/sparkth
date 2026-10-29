@@ -1,4 +1,4 @@
-"""Chat turns are an audited seam: each tool call is recorded with source ``chat`` and the
+"""Chat turns are an audited seam: each tool call is recorded with source ``compose`` and the
 model that requested it."""
 
 from typing import Any
@@ -51,7 +51,7 @@ def provider(monkeypatch: pytest.MonkeyPatch) -> BaseChatProvider:
     return provider
 
 
-async def test_a_completed_turn_records_its_tool_calls_with_chat_source_and_model_identity(
+async def test_a_completed_turn_records_its_tool_calls_with_compose_source_and_model_identity(
     audit_events: AuditEventsFetcher, provider: BaseChatProvider
 ) -> None:
     response = await complete_turn(TURN, [_lookup_course_tool()], provider, 50)
@@ -59,7 +59,7 @@ async def test_a_completed_turn_records_its_tool_calls_with_chat_source_and_mode
     assert response["content"] == "done"
     invoked, completed = await audit_events()
     for row in (invoked, completed):
-        assert row.source == "chat"
+        assert row.source == "compose"
         assert row.tool_name == "lookup_course"
         assert row.model_provider == "anthropic"
         assert row.model_name == "claude-sonnet-5"
@@ -76,7 +76,7 @@ async def test_a_streamed_turn_records_its_tool_calls(
     invoked, completed = await audit_events()
     assert (invoked.category, invoked.action) == ("tool", "invoked")
     assert (completed.category, completed.action) == ("tool", "completed")
-    assert invoked.source == "chat"
+    assert invoked.source == "compose"
     assert invoked.model_provider == "anthropic"
 
 
