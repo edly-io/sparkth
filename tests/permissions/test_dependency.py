@@ -128,3 +128,39 @@ async def test_require_objectless_scope_allows_no_param(session: AsyncSession) -
     user = await _seed(session, "gwen", "assignment.grade")
     dep = Permission("assignment.grade").require(GLOBAL)
     assert await dep(_request(), user, session) is user
+
+
+async def test_require_at_any_object_allows_a_grant_at_one_object(
+    session: AsyncSession, course_scope: PermissionScope
+) -> None:
+    # A grant at one course is enough to reach a route over every course (a list); the route
+    # narrows what it returns.
+    user = await _seed(session, "hank", None)
+    assert user.id is not None
+    role = Role(name="one-course-grader")
+    session.add(role)
+    await session.flush()
+    assert role.id is not None
+    session.add(RolePermission(role_id=role.id, permission="assignment.grade"))
+    session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope="course", scope_object_id="5"))
+    await session.flush()
+    dep = Permission("assignment.grade").require_at_any_object(course_scope)
+    assert await dep(user, session) is user
+
+
+async def test_require_at_any_object_allows_a_global_grant(
+    session: AsyncSession, course_scope: PermissionScope
+) -> None:
+    user = await _seed(session, "iris", "assignment.grade")
+    dep = Permission("assignment.grade").require_at_any_object(course_scope)
+    assert await dep(user, session) is user
+
+
+async def test_require_at_any_object_denies_without_a_grant(
+    session: AsyncSession, course_scope: PermissionScope
+) -> None:
+    user = await _seed(session, "jack", None)
+    dep = Permission("assignment.grade").require_at_any_object(course_scope)
+    with pytest.raises(HTTPException) as exc:
+        await dep(user, session)
+    assert exc.value.status_code == 403

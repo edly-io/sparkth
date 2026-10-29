@@ -257,7 +257,7 @@ at import time (a wiring error, never a silent 403).
 
 ```python
 from fastapi import Depends
-from sparkth.lib.permissions import COURSE_EDIT, EMAIL_WHITELIST_READ, THING_READ
+from sparkth.lib.permissions import COURSE_EDIT, COURSE_READ, EMAIL_WHITELIST_READ, THING_READ
 from sparkth.lib.permissions.scopes import COURSE, WHITELIST
 
 
@@ -278,6 +278,12 @@ async def list_whitelist(): ...
     dependencies=[Depends(COURSE_EDIT.require(COURSE, "course_id"))],
 )
 async def edit_course(course_id: int): ...
+
+
+# A list over every object of an object-bearing scope — passes on a grant at any one course
+# (or at global); the handler narrows the result with get_granted_scope_object_ids:
+@router.get("/courses")
+async def list_courses(user: User = Depends(COURSE_READ.require_at_any_object(COURSE))): ...
 ```
 
 The returned dependency resolves the current user, checks the permission, and returns the

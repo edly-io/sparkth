@@ -17,6 +17,7 @@ and plugins import from there, never from this module directly.
 """
 
 from collections.abc import Awaitable, Callable
+from typing import NoReturn
 
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import ColumnElement, and_, or_
@@ -54,6 +55,23 @@ from sparkth.lib.log import get_logger
 logger = get_logger(__name__)
 
 
+async def _deny(permission_name: str, scope_detail: str) -> NoReturn:
+    """Record a refused permission check as ``permission.denied``, then raise 403.
+
+    The event is written in its own transaction (``record_event_now``), so it survives the
+    request's rollback. The write is fail-closed: if it fails, the error propagates and the
+    request fails instead of returning 403.
+    """
+    await record_event_now(
+        PermissionDeniedAuditEvent(
+            outcome=AuditOutcome.DENIED,
+            target=AuditTarget(type="permission", id=permission_name),
+            error_detail=scope_detail,
+        )
+    )
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_("Permission denied"))
+
+
 class Permission:
     def __init__(self, name: str) -> None:
         self.name = name
@@ -84,10 +102,7 @@ class Permission:
         ``request.path_params`` per request; a ``scope_param`` the route does not provide raises
         500 (a wiring error, never a silent 403), and a failed permission check raises 403.
 
-        Before raising the 403 the refusal is recorded as a ``permission.denied`` audit event
-        in its own transaction (``record_event_now``), so it survives the request's rollback.
-        The write is fail-closed: if it fails, the error propagates and the request fails
-        instead of returning 403.
+        Before raising the 403 the refusal is recorded by ``_deny``.
         """
 
         async def dependency(
@@ -107,15 +122,31 @@ class Permission:
                 scope_detail = f"scope={permission_scope.name}"
                 if scope_object_id is not None:
                     scope_detail += f":{scope_object_id}"
-                await record_event_now(
-                    PermissionDeniedAuditEvent(
-                        outcome=AuditOutcome.DENIED,
-                        target=AuditTarget(type="permission", id=self.name),
-                        error_detail=scope_detail,
-                    )
-                )
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_("Permission denied"))
+                await _deny(self.name, scope_detail)
             return current_user
+
+        return dependency
+
+    def require_at_any_object(self, permission_scope: PermissionScope) -> Callable[..., Awaitable[User]]:
+        """Return a FastAPI dependency enforcing this permission at any object of ``permission_scope``.
+
+        For a route over every object of a scope (a list) that narrows what it returns to the
+        objects the caller may see. The dependency passes when the user holds this permission at
+        one or more objects of the scope, or at an objectless ancestor (such as ``GLOBAL``) that
+        cascades to all of them, and returns the authenticated ``User``. Otherwise it records a
+        ``permission.denied`` audit event and raises 403, like ``require``.
+        """
+
+        async def dependency(
+            current_user: User = Depends(get_current_user),
+            session: AsyncSession = Depends(get_async_session),
+        ) -> User:
+            # No object id: the scope chain matches only the cascading objectless ancestors.
+            if await can(current_user, self, permission_scope, None, session):
+                return current_user
+            if await get_granted_scope_object_ids(current_user, self, permission_scope, session):
+                return current_user
+            await _deny(self.name, f"scope={permission_scope.name}")
 
         return dependency
 
