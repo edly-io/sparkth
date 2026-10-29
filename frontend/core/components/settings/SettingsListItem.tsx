@@ -9,9 +9,9 @@ import { Spinner } from "@/core/components/ui/Spinner";
 import { SettingsRow } from "./SettingsRow";
 
 /**
- * A plugin's row on the settings page: its name, description, status and on/off switch and, when
- * the plugin has a config modal, the button that opens it. The button shows a spinner while the
- * modal loads.
+ * A plugin's row on the settings page: its name, description, masked keys, status and on/off
+ * switch and, when the plugin has a config modal, the button that opens it. The button shows a
+ * spinner while the modal loads.
  */
 export function SettingsListItem({
   plugin,
@@ -22,6 +22,7 @@ export function SettingsListItem({
 }: SettingsListItemProps) {
   const t = useTranslations("plugins");
   const name = displayNameOf(plugin);
+  const masked = Object.entries(plugin.masked_secrets);
 
   return (
     <SettingsRow
@@ -29,6 +30,14 @@ export function SettingsListItem({
       active={plugin.enabled}
       statusLabel={plugin.enabled ? t("enabled") : t("disabled")}
       description={plugin.display?.description}
+      details={
+        masked.length > 0 &&
+        masked.map(([field, value]) => (
+          <span key={field} className="font-mono">
+            {value}
+          </span>
+        ))
+      }
       toggleLabel={t("toggle", { name })}
       onToggle={(checked) => (checked ? onEnable() : onDisable())}
       toggleErrorMessage={(_, checked) => (checked ? t("enableError") : t("disableError"))}

@@ -14,28 +14,6 @@ if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 
-class TestMaskKey:
-    def test_empty_string_returns_stars(self) -> None:
-        assert LLMConfigService.mask_key("") == "****"
-
-    def test_short_key_up_to_four_chars_returns_stars(self) -> None:
-        assert LLMConfigService.mask_key("abc") == "****"
-        assert LLMConfigService.mask_key("abcd") == "****"
-
-    def test_key_without_dash_uses_no_prefix(self) -> None:
-        assert LLMConfigService.mask_key("abcde12345") == "****2345"
-
-    def test_key_with_one_dash_uses_first_segment_as_prefix(self) -> None:
-        assert LLMConfigService.mask_key("sk-abcde12345") == "sk-****2345"
-
-    def test_key_with_multiple_dashes_uses_only_first_segment_as_prefix(self) -> None:
-        # "sk-ant-api03-abcde12345" → prefix is "sk", suffix is last 4 chars
-        assert LLMConfigService.mask_key("sk-ant-api03-abcde12345") == "sk-****2345"
-
-    def test_exactly_five_chars_no_dash_shows_suffix(self) -> None:
-        assert LLMConfigService.mask_key("abcde") == "****bcde"
-
-
 def _make_service() -> tuple[LLMConfigService, MagicMock, MagicMock]:
     enc = MagicMock()
     enc.encrypt.return_value = "enc-secret"
@@ -354,7 +332,7 @@ async def test_rotate_key_updates_encrypted_and_masked() -> None:
 
     enc.encrypt.assert_called_once_with("sk-new")
     assert result.encrypted_key == "enc-secret"
-    assert result.masked_key == service.mask_key("sk-new")
+    assert result.masked_key == "sk-****-new"
 
 
 @pytest.mark.asyncio

@@ -28,6 +28,7 @@ const SLACK: UserPluginState = {
   sidebar: null,
   has_frontend: true,
   secrets_set: [],
+  masked_secrets: {},
 };
 
 describe("SlackConfigModal", () => {

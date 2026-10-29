@@ -13,6 +13,7 @@ function state(overrides: Partial<UserPluginState> & { plugin_name: string }): U
     sidebar: null,
     has_frontend: false,
     secrets_set: [],
+    masked_secrets: {},
     ...overrides,
   };
 }
