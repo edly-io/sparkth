@@ -27,6 +27,7 @@ from sparkth.lib.audit import ToolFailureKind, tool_failure
 from sparkth.lib.audit.context import AuditSource, ai_audit_context
 from sparkth.lib.audit.events import AuditModelInfo
 from sparkth.lib.audit.exceptions import AuditCaptureError
+from sparkth.lib.i18n import _
 from sparkth.lib.llm import BaseChatProvider
 from sparkth.lib.log import get_logger
 from sparkth.lib.plugins import PluginConfigInvalidError, PluginNotConfiguredError
@@ -171,20 +172,28 @@ async def _chat_tool_call(request: ToolCallRequest, handler: _ToolCallHandler) -
     return result
 
 
+_END_HOOK = "end_after_a_block"
+
+
 def _end_after_a_block(limit: int, state: ToolCallLimitState[Any], runtime: Runtime[Any]) -> dict[str, Any] | None:
     """End the turn when the model asks for tools again after the tool call limit blocked its calls.
 
     The limiter counts blocked calls too, so a count over ``limit`` means an earlier reply was
     blocked. That reply told the model to answer, so a reply that asks for tools anyway ends the
-    turn without an answer, however many calls each reply batches. This hook runs before the
-    limiter for the same reply, so it sees the counts from before that reply.
+    turn, however many calls each reply batches. The turn's answer is a short notice that the
+    limit was reached, in the active language, because the reply that asked for tools has no
+    answer in it. This hook runs before the limiter for the same reply, so it sees the counts
+    from before that reply.
     """
     reply = state["messages"][-1]
     counted = sum(state.get("run_tool_call_count", {}).values())
     if counted <= limit or not (isinstance(reply, AIMessage) and reply.tool_calls):
         return None
-    logger.warning("Model asked for tools after the limit (%s); the turn ends without an answer", limit)
-    return {"jump_to": "end"}
+    logger.warning("Model asked for tools after the limit (%s); the turn ends with a notice", limit)
+    notice = _(
+        "I stopped because I reached the tool-call limit for this turn. You can send another message to continue."
+    )
+    return {"jump_to": "end", "messages": [AIMessage(content=notice)]}
 
 
 def _update_events(
@@ -199,7 +208,7 @@ def _update_events(
     if node == f"{limiter.name}.after_model" and messages:
         logger.warning("Tool call limit (%s) reached; blocked %d call(s)", limiter.run_limit, len(messages))
         return [{"type": "limit_reached"}]
-    if node == "model":
+    if node in ("model", f"{_END_HOOK}.after_model"):
         return [
             {"type": "final", "message": message}
             for message in messages
@@ -243,11 +252,11 @@ async def _agent_events(
     Calls run one at a time, in the order the model listed them, and a call reported as
     started runs only once this generator is asked for its next event. A blocked call
     tells the model to stop calling tools so it answers instead; a model that asks for tools
-    again after that ends the turn without an answer (see :func:`_end_after_a_block`).
+    again after that ends the turn with a notice instead of an answer (see :func:`_end_after_a_block`).
     """
     limiter = ToolCallLimitMiddleware(run_limit=max_tool_executions, exit_behavior="continue")
     # The hook is listed after the limiter so that it runs first for each reply.
-    ender = after_model(can_jump_to=["end"], name="end_after_a_block", state_schema=ToolCallLimitState)(
+    ender = after_model(can_jump_to=["end"], name=_END_HOOK, state_schema=ToolCallLimitState)(
         partial(_end_after_a_block, max_tool_executions)
     )
     # The run context carries the audit identity; the library middlewares never read it.

@@ -15,12 +15,16 @@ from langchain_core.messages import AIMessage, AIMessageChunk
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel
 
+from sparkth.core.i18n import locale_context
 from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG
 from sparkth.lib.llm import BaseChatProvider, get_provider
-from sparkth.lib.testing import ScriptedChatModel
+from sparkth.lib.testing import AddTranslation, ScriptedChatModel
 from sparkth.plugins.chat.llm import complete_turn, stream_turn
 
 TURN = [{"role": "user", "content": "Record the steps."}]
+LIMIT_NOTICE = (
+    "I stopped because I reached the tool-call limit for this turn. You can send another message to continue."
+)
 TOOL_START = {"type": "tool_start", "name": "record"}
 TOOL_END = {"type": "tool_end", "name": "record", "failure": None}
 
@@ -199,16 +203,39 @@ async def test_a_streamed_turn_at_the_limit_ends_with_the_models_answer(monkeypa
     assert runs == ["start 1", "end 1", "start 2", "end 2"]
 
 
-async def test_a_model_that_ignores_the_block_ends_the_turn(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_a_model_that_ignores_the_block_ends_the_turn_with_a_notice(monkeypatch: pytest.MonkeyPatch) -> None:
     model = ScriptedChatModel(messages=iter([_calls(1), _calls(2), _calls(3), AIMessage("never")]))
     provider = _provider(model, monkeypatch)
 
     response = await complete_turn(TURN, [_record_tool([])], provider, 1)
 
-    assert response["content"] == ""
+    assert response["content"] == LIMIT_NOTICE
+    assert response["metadata"]["limit_reached"] is True
     # The limit is used up by the first reply, the second is blocked, and the third asks for tools
     # again: the fourth reply is never asked for.
     assert next(model.messages) == AIMessage("never")
+
+
+async def test_a_streamed_turn_the_limit_ended_shows_the_notice_as_its_answer(monkeypatch: pytest.MonkeyPatch) -> None:
+    model = ScriptedChatModel(messages=iter([_calls(1), _calls(2), _calls(3), AIMessage("never")]))
+    provider = _provider(model, monkeypatch)
+
+    events = await _events([_record_tool([])], provider, 1)
+
+    assert events[-1] == {"type": "token", "content": LIMIT_NOTICE}
+
+
+async def test_the_limit_notice_is_translated_into_the_active_locale(
+    translation_catalog: AddTranslation, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    translation_catalog(LIMIT_NOTICE, "Alcancé el límite de herramientas de este turno.")
+    model = ScriptedChatModel(messages=iter([_calls(1), _calls(2), _calls(3)]))
+    provider = _provider(model, monkeypatch)
+
+    with locale_context("es"):
+        response = await complete_turn(TURN, [_record_tool([])], provider, 1)
+
+    assert response["content"] == "Alcancé el límite de herramientas de este turno."
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
@@ -258,7 +285,7 @@ async def test_a_turn_ended_for_calling_tools_after_the_block_logs_a_warning(
     with caplog.at_level(logging.WARNING):
         await complete_turn(TURN, [_record_tool([])], provider, 1)
 
-    assert _turn_warnings(caplog)[-1] == "Model asked for tools after the limit (1); the turn ends without an answer"
+    assert _turn_warnings(caplog)[-1] == "Model asked for tools after the limit (1); the turn ends with a notice"
 
 
 async def test_a_streamed_turn_without_tools_arrives_token_by_token(monkeypatch: pytest.MonkeyPatch) -> None:
