@@ -140,7 +140,7 @@ MCP_MOUNT_PATH = "/ai"
 PLUGINS = [
     "sparkth.plugins.canvas.plugin:CanvasPlugin",
     "sparkth.plugins.openedx.plugin:OpenEdxPlugin",
-    "sparkth.plugins.chat.plugin:ChatPlugin",
+    "sparkth.plugins.compose.plugin:ComposePlugin",
     "sparkth.plugins.googledrive.plugin:GoogleDrivePlugin",
     "sparkth.plugins.slack.plugin:Slack",
     "sparkth.plugins.moodle.plugin:MoodlePlugin",

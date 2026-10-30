@@ -39,7 +39,7 @@ costs a hard dependency on a write. Analytics runs against a **separate** databa
 pipeline's maintenance window.
 
 Analytics counts are lower bounds by design: events queued on `background_tasks` are discarded
-whenever a route raises (see the "Known gap" note in `sparkth/plugins/chat/analytics/utils.py`). An
+whenever a route raises (see the "Known gap" note in `sparkth/plugins/compose/analytics/utils.py`). An
 event that cannot tolerate that is audit-grade — route it to audit rather than hardening
 analytics. The exception is an event a rate divides by: `chat.message_sent` goes out on a
 detached task, like `chat.turn_failed`, so a turn that fails after storing its message still
@@ -111,10 +111,10 @@ a loud failure for a silent one.
 | A route that **returns** | `background_tasks.add_task(...)`, queued after all functional background work |
 | A route that **raises** (`HTTPException`) | Background tasks are **discarded** — FastAPI only attaches them to a response that is returned. Needs a detached task or an exception-handler seam. An event recorded *before* a later raise, which a rate depends on, takes the detached task too (`schedule_message_sent`) |
 | Inside a detached task (e.g. the stream processor) | `await` the helper directly, outside any `try`/`except` guard |
-| A service or classifier with no `BackgroundTasks` | Give it a scheduling seam — see `ChatTurnAnalytics` in `sparkth/plugins/chat/analytics/utils.py`. Never `await` inline in a request path |
+| A service or classifier with no `BackgroundTasks` | Give it a scheduling seam — see `ComposeTurnAnalytics` in `sparkth/plugins/compose/analytics/utils.py`. Never `await` inline in a request path |
 | A `try`/`except` handling the request's **own** failure | Detached task, never `await` — see *Recording a failure* below |
 
-**One seam per set of events that share their identity fields.** `ChatTurnAnalytics` carries
+**One seam per set of events that share their identity fields.** `ComposeTurnAnalytics` carries
 provider and model because every turn event needs them. Events that do not should get a sibling
 seam rather than optional fields bolted onto that one: a seam whose fields are half-populated
 tells a reader nothing about which events it serves. (The attachment events are the worked
@@ -145,7 +145,7 @@ The task runs outside the guard, so nothing it does can be caught and re-reporte
 error, and nothing it does can delay or replace the error they are already getting. A failure
 propagates as an unhandled error on that task, which is the usual contract.
 
-`record_turn_failed` in `sparkth/plugins/chat/analytics/utils.py` is the shape to copy:
+`record_turn_failed` in `sparkth/plugins/compose/analytics/utils.py` is the shape to copy:
 `asyncio.create_task` plus a module-level set holding the reference until it finishes, because
 asyncio only weakly references a task nothing awaits.
 
@@ -196,7 +196,7 @@ and commits it as one transaction.
 ## Tests
 
 Drive the real endpoint and assert on rows that actually landed in `raw_events` — see
-`sparkth/plugins/chat/tests/test_analytics_producers.py`. Asserting that a mocked emit helper was
+`sparkth/plugins/compose/tests/test_analytics_producers.py`. Asserting that a mocked emit helper was
 called proves the call site exists, not that a row is produced.
 
 Prove the test has bite: delete the emit and confirm the test fails. On a seam that raises, that

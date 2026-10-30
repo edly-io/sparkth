@@ -9,7 +9,7 @@ so they register in ``__init__``.
 
 from fastapi import APIRouter, status
 
-from sparkth.lib.chat.hooks import ChatCapability, register_chat_capability
+from sparkth.lib.compose.hooks import ChatCapability, register_chat_capability
 from sparkth.lib.content.hooks import ContentContributor, register_content_contributor
 from sparkth.lib.exceptions.handlers import register_exception_handler
 from sparkth.lib.frontend.hooks import (

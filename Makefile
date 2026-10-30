@@ -151,7 +151,7 @@ SPARKTH_VERSION := $(shell uv run python -c "import importlib.metadata; print(im
 I18N_CATALOG_DIRS := sparkth/locale $(wildcard sparkth/plugins/*/locale)
 
 # The -k keywords stay literal in this recipe: the extraction guard in
-# sparkth/plugins/chat/tests/test_refusal_language.py reads them off the
+# sparkth/plugins/compose/tests/test_refusal_language.py reads them off the
 # target's own recipe lines, so hoisting them into a variable blinds it.
 .PHONY: i18n.extract
 i18n.extract: ## Extract translatable strings into core and per-plugin messages.pot templates

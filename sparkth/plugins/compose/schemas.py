@@ -1,0 +1,286 @@
+import base64
+import binascii
+from datetime import datetime
+from typing import Any, TypedDict
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from sparkth.plugins.compose.models import MessageRole, MessageType
+
+MAX_FILE_SIZE = 30 * 1024 * 1024  # 30MB
+
+
+class AttachmentMeta(BaseModel):
+    name: str
+    size: int
+
+
+class ChatMessage(BaseModel):
+    role: str = Field(..., examples=["user"])
+    content: str | list[dict[str, Any]] = Field(...)
+    attachment: AttachmentMeta | None = None
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, v: str) -> str:
+        allowed_roles = {"system", "user", "assistant", "tool"}
+        if v not in allowed_roles:
+            raise ValueError(f"Invalid role: {v}. Allowed: {', '.join(allowed_roles)}")
+        return v
+
+    @field_validator("content")
+    @classmethod
+    def validate_content(cls, v: str | list[dict[str, Any]]) -> str | list[dict[str, Any]]:
+        if isinstance(v, str) and not v.strip():
+            raise ValueError("Content must not be empty")
+        if isinstance(v, list) and len(v) == 0:
+            raise ValueError("Content must not be empty")
+        if isinstance(v, list):
+            for block in v:
+                if not isinstance(block, dict):
+                    continue
+                source = block.get("source")
+                if isinstance(source, dict) and source.get("type") == "base64":
+                    data = source.get("data", "")
+                    try:
+                        size = len(base64.b64decode(data))
+                    except binascii.Error:
+                        raise ValueError("Invalid base64 data in content block")
+                    if size > MAX_FILE_SIZE:
+                        raise ValueError("File size exceeds 30MB limit")
+                if block.get("type") == "drive_file":
+                    document_id = block.get("file_id")
+                    if not isinstance(document_id, int) or document_id <= 0:
+                        raise ValueError("legacy document content block must have a positive integer 'file_id'")
+        return v
+
+
+class ToolCall(BaseModel):
+    id: str
+    name: str
+    arguments: dict[str, Any]
+
+
+class ChatCompletionRequest(BaseModel):
+    llm_config_id: int = Field(..., description="ID of the LLMConfig to use for this completion")
+    model_override: str | None = Field(
+        default=None,
+        description="Overrides the model in the selected LLMConfig",
+    )
+    messages: list[ChatMessage] = Field(..., min_length=1)
+    conversation_id: UUID | None = Field(default=None)
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+    max_tokens: int | None = Field(default=None, gt=0)
+    stream: bool = Field(default=False)
+    tools: list[str] | str | None = Field(
+        default="*",
+        description="Includes every tool of the plugins switched on for the requesting user. "
+        "Use 'none' or empty list to disable.",
+    )
+    tool_choice: str | None = Field(
+        default="auto", description="How to use tools: 'auto', 'none', or specific tool name"
+    )
+    include_system_tools_message: bool = Field(
+        default=True, description="Automatically prepend a system message listing available tools"
+    )
+    document_ids: list[int] | None = Field(
+        default=None,
+        max_length=20,
+        description=(
+            "Document IDs to attach to the conversation before processing "
+            "(used when attaching documents on a new conversation)."
+        ),
+    )
+    turn_id: UUID | None = Field(
+        default=None,
+        description="Client-generated id for this turn, used to stop it while it streams.",
+    )
+
+    @field_validator("messages")
+    @classmethod
+    def validate_a_user_turn_is_present(cls, v: list[ChatMessage]) -> list[ChatMessage]:
+        """A completion answers something a user sent, so one user turn is the minimum.
+
+        Downstream the last user message is what gets answered, judged for scope and retrieved
+        against. Without one there is nothing to answer, and every reader of it would need
+        behaviour for a turn that does not exist. An attachment-only turn qualifies: what is
+        absent there is the text, not the request.
+        """
+        if not any(message.role == "user" for message in v):
+            raise ValueError("messages must include at least one user message")
+        return v
+
+
+class ChatCompletionResponse(BaseModel):
+    message: ChatMessage
+    conversation_id: UUID | None = None
+    model: str
+    provider: str
+    tokens_used: int | None = None
+    cost: float | None = None
+    tool_calls: list[ToolCall] | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class RagSection(BaseModel):
+    type: str
+    name: str
+    source: str | None = None
+
+
+class PersistedToolCall(BaseModel):
+    name: str
+
+
+class MessageResponse(BaseModel):
+    id: int
+    role: MessageRole
+    content: str
+    tokens_used: int | None
+    cost: float | None
+    created_at: datetime
+    message_type: MessageType
+    attachment_name: str | None
+    attachment_size: int | None
+    rag_sections: list[RagSection] | None = None
+    tool_calls: list[PersistedToolCall] | None = None
+    is_error: bool = False
+    stopped: bool = False
+
+
+class ConversationResponse(BaseModel):
+    id: UUID
+    provider: str
+    model: str
+    title: str | None
+    total_tokens_used: int
+    total_cost: float
+    message_count: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class ConversationDetailResponse(ConversationResponse):
+    messages: list[MessageResponse]
+
+
+class HistoryTurn(TypedDict):
+    """One prior conversation turn, as a classifier receives it.
+
+    ``role`` is the role as stored, not a narrowed union: a conversation also holds ``tool``
+    and ``system`` turns, and a classifier that replays history decides for itself which
+    roles it can represent.
+    """
+
+    role: str
+    content: str
+
+
+class MessageScopeInput(BaseModel):
+    """What the message-scope classifier is asked to judge.
+
+    Everything here is shown to the model. The conversation UUID is deliberately absent — it
+    identifies the thread for logging and is nobody's business to classify.
+    """
+
+    query: str
+    history: list[HistoryTurn] = Field(default_factory=list)
+    attached_document_names: list[str] = Field(default_factory=list)
+
+
+class ClassifierVerdict(BaseModel):
+    """What every classifier verdict carries besides its decision.
+
+    A negative decision is the one a user or a reviewer asks about later, and the decision
+    itself does not say why. The reason is written by the model and read from a log, which is
+    why it is specified as a category rather than free narration: the message being judged can
+    hold course content, and these logs have never carried any of it.
+    """
+
+    refusal_reason: str = Field(
+        default="",
+        description=(
+            "When the decision is negative, a short phrase naming the category it fell under. "
+            "Name the category only: never quote or restate the user's message. Leave empty "
+            "when the decision is positive."
+        ),
+    )
+
+
+class MessageScopeVerdict(ClassifierVerdict):
+    """Whether a turn belongs to any of the assistant's capabilities."""
+
+    # A rejected answer can echo the message, and validation errors are logged.
+    model_config = ConfigDict(hide_input_in_errors=True)
+
+    in_scope: bool = Field(
+        description=(
+            "True when the message belongs to at least one of the capabilities listed in the "
+            "instructions, false when it belongs to none of them."
+        ),
+    )
+
+
+class DocumentHeadings(BaseModel):
+    """One attached document as the search classifier sees it: a name and its section paths.
+
+    ``structure_unavailable`` separates headings that could not be read from a document that
+    genuinely has none; both arrive with empty ``sections``.
+    """
+
+    name: str
+    sections: list[str] = Field(default_factory=list)
+    structure_unavailable: bool = False
+
+
+class RAGSearchInput(BaseModel):
+    """What the search classifier is asked to judge: a message against what the documents hold."""
+
+    query: str
+    documents: list[DocumentHeadings] = Field(default_factory=list)
+
+
+class RAGSearchVerdict(ClassifierVerdict):
+    """Whether answering this message needs content retrieved from the attached documents."""
+
+    requires_search: bool
+
+
+class ConversationAttachmentCreate(BaseModel):
+    """Request body for attaching a document to a conversation."""
+
+    document_id: int
+
+
+class ConversationAttachmentResponse(BaseModel):
+    """Response for a conversation attachment."""
+
+    id: int
+    conversation_id: int
+    document_id: int
+    attached_at: datetime
+
+
+class AttachedDocumentResponse(BaseModel):
+    """Document info returned by the list-attachments endpoint."""
+
+    id: int
+    name: str
+    size: int | None
+
+
+class ConversationListResponse(BaseModel):
+    conversations: list[ConversationResponse]
+    total: int
+
+
+class ToolSchema(BaseModel):
+    name: str
+    description: str
+    parameters: dict[str, Any]
+
+
+class ToolListResponse(BaseModel):
+    tools: list[ToolSchema]
+    total: int

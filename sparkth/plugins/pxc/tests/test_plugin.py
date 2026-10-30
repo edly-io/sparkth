@@ -1,4 +1,4 @@
-from sparkth.lib.chat.hooks import CHAT_CAPABILITIES
+from sparkth.lib.compose.hooks import CHAT_CAPABILITIES
 from sparkth.lib.frontend import plugin_has_frontend
 from sparkth.lib.frontend.hooks import DISPLAY_INFO, SIDEBAR_ENTRIES, SidebarEntry
 from sparkth.lib.mcp.hooks import MCP_TOOLS
