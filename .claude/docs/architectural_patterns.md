@@ -199,10 +199,15 @@ Plugin code raises typed exceptions; FastAPI translates them to `HTTPException` 
 
 ## 9. Chat Plugin: Service + LLM Layer + Encryption
 
-**Files:** `sparkth/plugins/chat/service.py`, `sparkth/plugins/chat/classifiers/`, `sparkth/plugins/chat/middleware.py`, `sparkth/llm/providers.py`, `sparkth/llm/service.py`, `sparkth/core/encryption.py`, `sparkth/core/cache.py`
+**Files:** `sparkth/plugins/chat/service.py`, `sparkth/plugins/chat/llm.py`, `sparkth/plugins/chat/classifiers/`,
+`sparkth/plugins/chat/middleware.py`, `sparkth/llm/providers.py`, `sparkth/llm/service.py`,
+`sparkth/core/encryption.py`, `sparkth/core/cache.py`
 
 - `ChatService` owns conversation logic and history management
 - LLM backends (OpenAI, Anthropic, Google) are abstracted in the shared `sparkth/llm/` layer — `providers.py` (provider registry + valid models) and `service.py` — not inside the chat plugin
+- `chat/llm.py` runs a chat turn against the model. `complete_turn` and `stream_turn` run a turn with tools on a
+  LangChain `create_agent` graph, one tool call at a time in the model's order, and stream a turn without tools
+  token by token. The shared providers only build the chat model and answer a single message without tools
 - Two classifiers in `classifiers/` decide, before the chat model is reached, whether a turn
   is in scope for any enabled chat capability (`MessageScopeClassifier`) and whether answering it needs
   the attached documents (`RAGSearchClassifier`). Both are one structured-output call on the

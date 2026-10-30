@@ -2,15 +2,16 @@
 
 import asyncio
 import logging
-from collections.abc import Iterator
+from collections.abc import AsyncGenerator, Iterator
 from contextlib import aclosing
 from functools import partial
 from typing import Any
+from unittest.mock import MagicMock
 
 import anthropic
 import httpx
 import pytest
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, AIMessageChunk
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel
 
@@ -61,6 +62,16 @@ def _provider(model: ScriptedChatModel, monkeypatch: pytest.MonkeyPatch) -> Base
     provider = get_provider("anthropic", "test-key", "claude-sonnet-5")
     monkeypatch.setattr(provider, "_create_llm", lambda streaming=False, callbacks=None: model)
     return provider
+
+
+async def _counted_reply(reads: list[str], messages: Any) -> AsyncGenerator[AIMessageChunk, None]:
+    """A three-chunk model reply that records each chunk read, and when its stream is closed."""
+    try:
+        for text in ("one ", "two ", "three"):
+            reads.append(text)
+            yield AIMessageChunk(content=text)
+    finally:
+        reads.append("closed")
 
 
 def _connection_lost() -> Iterator[AIMessage]:
@@ -275,3 +286,30 @@ async def test_a_turn_ended_for_calling_tools_after_the_block_logs_a_warning(
         await complete_turn(TURN, [_record_tool([])], provider, 1)
 
     assert _turn_warnings(caplog)[-1] == "Model asked for tools after the limit (1); the turn ends with a notice"
+
+
+async def test_a_streamed_turn_without_tools_arrives_token_by_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = _provider(ScriptedChatModel(messages=iter([AIMessage("Hello there friend")])), monkeypatch)
+
+    events = await _events([], provider)
+
+    assert events == [{"type": "token", "content": token} for token in ["Hello", " ", "there", " ", "friend"]]
+
+
+async def test_a_provider_error_without_tools_leaves_with_its_own_type(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = _provider(ScriptedChatModel(messages=_connection_lost()), monkeypatch)
+
+    with pytest.raises(anthropic.APIConnectionError):
+        await _events([], provider)
+
+
+async def test_closing_a_streamed_turn_without_tools_stops_reading_the_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    reads: list[str] = []
+    provider = get_provider("anthropic", "test-key", "claude-sonnet-5")
+    model = MagicMock(astream=partial(_counted_reply, reads))
+    monkeypatch.setattr(provider, "_create_llm", lambda streaming=False: model)
+
+    async with aclosing(stream_turn(TURN, [], provider, 50)) as events:
+        assert await anext(events) == {"type": "token", "content": "one "}
+
+    assert reads == ["one ", "closed"]

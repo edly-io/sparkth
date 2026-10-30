@@ -91,6 +91,5 @@ def schedule_title_generation(
             api_key=api_key,
             model=model,
             temperature=config.title_llm_temperature,
-            max_tool_executions=0,
         ),
     )
