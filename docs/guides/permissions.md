@@ -161,17 +161,17 @@ CLI commands are attributed to the `cli` system actor.
 |---|---|---|---|
 | `role.created`, `role.updated`, `role.deleted` | `create_role`, `update_role`, `delete_role` | `role` | name and description (before and after for an update) |
 | `role.permission_granted`, `role.permission_revoked` | `add_role_permission`, `remove_role_permission` | `role` | the permission |
-| `role.assigned`, `role.unassigned` | `assign_role`, `revoke_role` | `user` | role, scope, and scope object id |
+| `role.assigned`, `role.unassigned` | `assign_role`, `revoke_role`, `delete_role` | `user` | role, scope, and scope object id |
 | `group.created`, `group.updated`, `group.deleted` | `create_group`, `update_group`, `delete_group` | `group` | name and description (before and after for an update) |
 | `group.member_added`, `group.member_removed` | `add_group_member`, `remove_group_member` | `group` | the member's user id |
-| `group.role_assigned`, `group.role_revoked` | `assign_role_to_group`, `revoke_role_from_group` | `group` | role, scope, and scope object id |
+| `group.role_assigned`, `group.role_revoked` | `assign_role_to_group`, `revoke_role_from_group`, `delete_role` | `group` | role, scope, and scope object id |
 
 The grant, assign, and add-member functions are idempotent, and so are their revoke and
 remove counterparts: a call that changes nothing (the grant already exists, or there is
-nothing active to revoke) records nothing. Deleting a role records `role.unassigned` and
-`group.role_revoked` for each active grant scoped to it (revoked grants record nothing).
-Likewise an update that leaves a role's or group's name and description as they were records
-nothing.
+nothing active to revoke) records nothing. Likewise an update that leaves a role's or group's
+name and description as they were records nothing. Deleting a role records `role.unassigned`
+and `group.role_revoked` for each of its active assignments (users and groups) and for each
+active grant scoped to it (revoked grants record nothing).
 
 ## Before adding one
 

@@ -3,7 +3,8 @@
 Module-level async functions, consistent with the engine in this package. The
 role-management API (``sparkth/api/v1/permissions``) imports them from here directly.
 Every change is recorded as a ``role.*`` audit event in the same transaction as the
-change itself; an idempotent call that changes nothing records nothing.
+change itself (``delete_role`` also records ``group.role_revoked`` for the group assignments it
+removes); an idempotent call that changes nothing records nothing.
 """
 
 from sqlalchemy import delete
@@ -71,9 +72,12 @@ async def list_roles(session: AsyncSession) -> list[Role]:
     return list((await session.exec(select(Role).order_by(col(Role.id)))).all())
 
 
-async def get_role(role_id: int, session: AsyncSession) -> Role:
-    """Return the role with role_id, or raise RoleNotFound."""
-    role = await session.get(Role, role_id)
+async def get_role(role_id: int, session: AsyncSession, for_update: bool = False) -> Role:
+    """Return the role with role_id, or raise RoleNotFound.
+
+    ``for_update`` locks the row until the transaction ends (a no-op on SQLite).
+    """
+    role = await session.get(Role, role_id, with_for_update=for_update)
     if role is None:
         raise RoleNotFound(str(role_id))
     return role
@@ -130,9 +134,10 @@ async def delete_role(role_id: int, session: AsyncSession) -> None:
     Removes the role's permission grants, every user and group assignment of it (active and
     revoked), and every grant scoped to the role itself (``role:<id>``), in one transaction.
     Each active user assignment records ``role.unassigned`` and each active group assignment
-    ``group.role_revoked`` before ``role.deleted``.
+    ``group.role_revoked`` before ``role.deleted``. The role row is locked for the delete so
+    concurrent assignments wait for it.
     """
-    role = await get_role(role_id, session)
+    role = await get_role(role_id, session, True)
     if not role.deletable:
         raise RoleNotDeletable(role.name)
     await delete_grants_at_object(ROLE, str(role_id), session)
