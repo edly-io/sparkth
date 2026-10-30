@@ -1,7 +1,7 @@
 "use client";
 
 import { type TextareaHTMLAttributes } from "react";
-import { cn } from "@/lib/utils";
+import { twMerge } from "tailwind-merge";
 
 interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   label?: string;
@@ -41,7 +41,7 @@ export function Textarea({
         aria-describedby={describedBy}
         aria-invalid={error ? true : undefined}
         rows={3}
-        className={cn(
+        className={twMerge(
           "block w-full px-4 py-3 rounded-lg",
           "placeholder-muted text-foreground bg-input",
           "border-2",

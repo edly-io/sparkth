@@ -1,6 +1,6 @@
 import { ChartTable } from "@/components/ui/ChartTable";
 import type { BarChartDatum } from "@/components/ui/BarChart";
-import { cn } from "@/lib/utils";
+import { twMerge } from "tailwind-merge";
 
 interface RankedBarProps<D extends BarChartDatum> {
   data: D[];
@@ -26,7 +26,7 @@ export function RankedBar<D extends BarChartDatum>({
   const max = Math.max(1, ...ranked.map((d) => d.value));
 
   return (
-    <figure className={cn("space-y-2", className)}>
+    <figure className={twMerge("space-y-2", className)}>
       <ol aria-hidden="true" className="space-y-2">
         {ranked.map((d, i) => (
           <li

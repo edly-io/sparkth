@@ -9,7 +9,7 @@ import { PERIOD_KEYS, listViews, type AnalyticsView } from "@/lib/analytics";
 import { useAuth } from "@/core/auth/hooks";
 import { isInstalled } from "@/lib/plugins/installed";
 import { usePermissionCheck } from "@/lib/permissions";
-import { cn } from "@/lib/utils";
+import { twMerge } from "tailwind-merge";
 
 // The Insights-style rail: one entry per view. A view's entry lands with the view. A view read
 // from a plugin's route names that plugin, and its entry shows while that plugin is installed.
@@ -26,7 +26,7 @@ export const VIEWS_CHANGED = "analytics:views-changed";
 const EXPLORE = "/dashboard/analytics/explore";
 
 function itemClass(active: boolean) {
-  return cn(
+  return twMerge(
     "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
     active
       ? "bg-primary-500/15 text-primary-600 dark:text-primary-400"

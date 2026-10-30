@@ -1,7 +1,7 @@
 import { HTMLAttributes, forwardRef } from "react";
 import { X } from "lucide-react";
 import { cva, type VariantProps } from "class-variance-authority";
-import { cn } from "@/lib/utils";
+import { twMerge } from "tailwind-merge";
 
 const alertVariants = cva("rounded-lg p-4 flex items-start gap-3", {
   variants: {
@@ -25,7 +25,12 @@ interface AlertProps extends HTMLAttributes<HTMLDivElement>, VariantProps<typeof
 export const Alert = forwardRef<HTMLDivElement, AlertProps>(
   ({ className, severity, title, children, onClose, ...props }, ref) => {
     return (
-      <div ref={ref} className={cn(alertVariants({ severity }), className)} role="alert" {...props}>
+      <div
+        ref={ref}
+        className={twMerge(alertVariants({ severity }), className)}
+        role="alert"
+        {...props}
+      >
         <div className="flex justify-between items-start gap-4 w-full">
           <div className="flex-1">
             {title && <p className="font-semibold mb-1">{title}</p>}
