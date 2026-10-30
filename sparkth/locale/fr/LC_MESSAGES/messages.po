@@ -215,14 +215,6 @@ msgstr ""
 msgid "An LLM config with name '{name}' already exists for this user."
 msgstr "Une configuration LLM nommée '{name}' existe déjà pour cet utilisateur."
 
-#: sparkth/llm/providers.py:200
-msgid ""
-"I stopped because I reached the tool-call limit for this turn. You can "
-"send another message to continue."
-msgstr ""
-"Je me suis arrêté, car j'ai atteint la limite d'appels d'outils pour ce "
-"tour. Vous pouvez envoyer un autre message pour continuer."
-
 #: sparkth/rag/exceptions.py:31
 msgid ""
 "This PDF appears to be scanned (image-only pages with no extractable "
