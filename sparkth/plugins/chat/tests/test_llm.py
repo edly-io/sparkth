@@ -3,6 +3,7 @@
 import asyncio
 import logging
 from collections.abc import Iterator
+from contextlib import aclosing
 from functools import partial
 from typing import Any
 
@@ -100,11 +101,12 @@ async def test_a_consumer_that_stops_at_tool_start_keeps_that_tool_from_running(
     provider = _provider(model, monkeypatch)
 
     starts = 0
-    async for event in stream_turn(TURN, [_record_tool(runs)], provider, 50):
-        if event["type"] == "tool_start":
-            starts += 1
-            if starts == 2:
-                break
+    async with aclosing(stream_turn(TURN, [_record_tool(runs)], provider, 50)) as events:
+        async for event in events:
+            if event["type"] == "tool_start":
+                starts += 1
+                if starts == 2:
+                    break
 
     assert runs == ["start 1", "end 1"]
 
