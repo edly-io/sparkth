@@ -6,17 +6,23 @@ Every change is recorded as a ``role.*`` audit event in the same transaction as 
 change itself; an idempotent call that changes nothing records nothing.
 """
 
+from sqlalchemy import delete
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.permissions import PERMISSIONS, delete_grants_at_object, get_permission
+from sparkth.core.permissions import (
+    PERMISSIONS,
+    _record_active_group_grants_removed,
+    _record_active_user_grants_removed,
+    delete_grants_at_object,
+    get_permission,
+)
 from sparkth.core.permissions.exceptions import (
     RoleAlreadyExists,
-    RoleInUse,
     RoleNotDeletable,
     RoleNotFound,
 )
-from sparkth.core.permissions.models import Role, RoleAssignment, RolePermission
+from sparkth.core.permissions.models import GroupRoleAssignment, Role, RoleAssignment, RolePermission
 from sparkth.core.permissions.scopes import ROLE
 from sparkth.lib.audit import record_event
 from sparkth.lib.audit.events import (
@@ -105,36 +111,32 @@ async def update_role(role_id: int, name: str | None, description: str | None, s
     return role
 
 
+async def _delete_role_dependents(role_id: int, session: AsyncSession) -> None:
+    """Delete the role's permission grants and every assignment of it, recording the active ones.
+
+    The role_id foreign keys have no ON DELETE CASCADE, so dependents go before the role itself.
+    """
+    await _record_active_user_grants_removed(col(RoleAssignment.role_id) == role_id, session)
+    await _record_active_group_grants_removed(col(GroupRoleAssignment.role_id) == role_id, session)
+    for model in (RolePermission, RoleAssignment, GroupRoleAssignment):
+        await session.exec(delete(model).where(col(model.role_id) == role_id))
+    await session.flush()
+
+
 async def delete_role(role_id: int, session: AsyncSession) -> None:
-    """Delete a role together with its permission grants, recording ``role.deleted``.
+    """Delete a role together with everything that references it, recording ``role.deleted``.
 
-    Raises RoleNotFound if the role is missing, RoleNotDeletable if it is marked non-deletable,
-    or RoleInUse if it still has an active assignment. Only active assignments block; historical
-    (soft-deleted) assignment rows are removed along with the role. Every grant scoped to the
-    role itself (``role:<id>``) is removed too, recording an event per active one.
-
-    TODO: the cascade/soft-delete semantics here are provisional — revisit how a role's
-    assignment history should be handled on delete.
+    Raises RoleNotFound if the role is missing or RoleNotDeletable if it is marked non-deletable.
+    Removes the role's permission grants, every user and group assignment of it (active and
+    revoked), and every grant scoped to the role itself (``role:<id>``), in one transaction.
+    Each active user assignment records ``role.unassigned`` and each active group assignment
+    ``group.role_revoked`` before ``role.deleted``.
     """
     role = await get_role(role_id, session)
     if not role.deletable:
         raise RoleNotDeletable(role.name)
-    active = (
-        await session.exec(
-            select(RoleAssignment.id)
-            .where(RoleAssignment.role_id == role_id, RoleAssignment.is_deleted == False)
-            .limit(1)
-        )
-    ).first()
-    if active is not None:
-        raise RoleInUse(role_id)
     await delete_grants_at_object(ROLE, str(role_id), session)
-    # The role_id foreign keys have no ON DELETE CASCADE, so remove dependents (grants and
-    # any historical soft-deleted assignments) before deleting the role itself.
-    for grant in (await session.exec(select(RolePermission).where(RolePermission.role_id == role_id))).all():
-        await session.delete(grant)
-    for assignment in (await session.exec(select(RoleAssignment).where(RoleAssignment.role_id == role_id))).all():
-        await session.delete(assignment)
+    await _delete_role_dependents(role_id, session)
     await session.delete(role)
     await record_event(
         session,

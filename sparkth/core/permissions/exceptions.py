@@ -41,14 +41,6 @@ class RoleNotDeletable(Exception):
         self.role_name = role_name
 
 
-class RoleInUse(Exception):
-    """Raised when deleting a role that still has active assignments."""
-
-    def __init__(self, role_id: int) -> None:
-        super().__init__(_("Role is still assigned and cannot be deleted: {role_id}").format(role_id=role_id))
-        self.role_id = role_id
-
-
 class GroupNotFound(Exception):
     """Raised when a group referenced by id or name does not exist."""
 

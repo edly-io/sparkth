@@ -156,16 +156,15 @@ async def test_delete_role_returns_204(client: AsyncClient, session: AsyncSessio
     assert (await client.get(f"/api/v1/permissions/roles/{created['id']}")).status_code == 404
 
 
-async def test_delete_assigned_role_returns_409(client: AsyncClient, session: AsyncSession) -> None:
+async def test_delete_assigned_role_returns_204(client: AsyncClient, session: AsyncSession) -> None:
     user = await _create_user_with_permissions(session, ROLE_PERMISSIONS)
     assert user.id is not None
     _override_current_user(client, user)
     created = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()
     session.add(RoleAssignment(user_id=user.id, role_id=created["id"], scope="global", scope_object_id=None))
     await session.flush()
-    response = await client.delete(f"/api/v1/permissions/roles/{created['id']}")
-    assert response.status_code == 409
-    assert response.json()["detail"] == f"Role is still assigned and cannot be deleted: {created['id']}"
+    assert (await client.delete(f"/api/v1/permissions/roles/{created['id']}")).status_code == 204
+    assert (await client.get(f"/api/v1/permissions/roles/{created['id']}")).status_code == 404
 
 
 async def test_add_permission_grants_it(client: AsyncClient, session: AsyncSession) -> None:
@@ -405,12 +404,11 @@ async def test_unauthorized_user_gets_403_before_404_on_missing_role(
 
 class TestPermissionExceptionRegistration:
     def test_domain_exceptions_are_registered(self) -> None:
-        """The API package registers its 4 role-management domain exceptions on the central registry."""
+        """The API package registers its role-management domain exceptions on the central registry."""
         from sparkth.core.exceptions.handlers import EXCEPTION_HANDLERS
         from sparkth.lib.permissions.exceptions import (
             PermissionNotFound,
             RoleAlreadyExists,
-            RoleInUse,
             RoleNotDeletable,
             RoleNotFound,
         )
@@ -418,7 +416,6 @@ class TestPermissionExceptionRegistration:
         registered = dict(EXCEPTION_HANDLERS.iter_values())
         assert RoleNotFound in registered
         assert RoleAlreadyExists in registered
-        assert RoleInUse in registered
         assert RoleNotDeletable in registered
         assert PermissionNotFound in registered
 
