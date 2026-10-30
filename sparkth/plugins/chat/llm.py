@@ -5,19 +5,23 @@ import json
 from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from contextlib import aclosing
 from dataclasses import replace
+from functools import partial
 from typing import Any, cast
 
 from langchain.agents import create_agent
 from langchain.agents.middleware import (
     AgentMiddleware,
-    ModelCallLimitMiddleware,
     ToolCallLimitMiddleware,
     ToolCallRequest,
+    after_model,
     wrap_tool_call,
 )
+from langchain.agents.middleware.tool_call_limit import ToolCallLimitState
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
+from langgraph.runtime import Runtime
 from langgraph.types import Command
+from pydantic import BaseModel, ValidationError
 
 from sparkth.lib.audit import ToolFailureKind, tool_failure
 from sparkth.lib.audit.context import AuditSource, ai_audit_context
@@ -66,12 +70,30 @@ def _audit_model_info(turn_model: AuditModelInfo, messages: Sequence[BaseMessage
     return replace(turn_model, version=metadata.get("model_name") or metadata.get("model"))
 
 
-def _failed_call(request: ToolCallRequest, error: Exception) -> ToolMessage:
-    """The model-visible result of a call whose tool raised."""
+def _failed_call(request: ToolCallRequest, detail: str = "") -> ToolMessage:
+    """The model-visible result of a call whose tool raised, with ``detail`` when there is any."""
     name = request.tool_call["name"]
-    return ToolMessage(
-        f"Error executing tool '{name}': {error}", tool_call_id=request.tool_call["id"], name=name, status="error"
-    )
+    text = f"Error executing tool '{name}': {detail}" if detail else f"Error executing tool '{name}'."
+    return ToolMessage(text, tool_call_id=request.tool_call["id"], name=name, status="error")
+
+
+def _arguments_are_valid(request: ToolCallRequest) -> bool:
+    """Whether the model's arguments for a call fit the tool's schema.
+
+    An unknown tool name has no schema, so its call is not valid. A tool without a pydantic
+    schema validates nothing before it runs.
+    """
+    tool = request.tool
+    if tool is None:
+        return False
+    schema = tool.args_schema
+    if not (isinstance(schema, type) and issubclass(schema, BaseModel)):
+        return True
+    try:
+        schema.model_validate(request.tool_call["args"])
+    except ValidationError:
+        return False
+    return True
 
 
 async def _classified_tool_call(
@@ -80,7 +102,8 @@ async def _classified_tool_call(
     """Run one tool call and say how it failed (None on success).
 
     Invalid arguments and a tool name that is not bound come back from the handler as an
-    error result, so they are a validation failure; a tool that raised is an unknown one.
+    error result, so they are a validation failure (see :func:`_refused_call`); a tool that
+    raised is an unknown one.
     """
     name = request.tool_call["name"]
     try:
@@ -93,19 +116,35 @@ async def _classified_tool_call(
     # A user with no usable plugin settings is an expected outcome, not a tool fault.
     except (PluginNotConfiguredError, PluginConfigInvalidError) as e:
         logger.warning("Tool '%s' cannot run for this user: %s", name, e)
-        return _failed_call(request, e), ToolFailureKind.UNKNOWN
+        return _failed_call(request, str(e)), ToolFailureKind.UNKNOWN
     # NOTE: Kept broad here intentionally — tool handlers are user-supplied plugins that can
     # raise anything. Narrowing would silently swallow legitimate errors from arbitrary
     # third-party tool implementations.
     except Exception as e:
         logger.error("Error executing tool '%s': %s", name, e, exc_info=True)
-        return _failed_call(request, e), ToolFailureKind.UNKNOWN
+        return _failed_call(request, str(e)), ToolFailureKind.UNKNOWN
     if not isinstance(result, ToolMessage):
         return result, None
     if result.status == "error":
-        logger.warning("Tool '%s' call was refused: %s", name, result.text)
-        return result, ToolFailureKind.VALIDATION
+        return _refused_call(request, result)
     return result, _reported_failure(result.content)
+
+
+def _refused_call(request: ToolCallRequest, refusal: ToolMessage) -> tuple[ToolMessage, ToolFailureKind]:
+    """Classify a call the agent turned into an error result without the tool's own error.
+
+    LangGraph does this for an unknown tool name, for arguments that do not fit the tool's
+    schema, and for a ``ValidationError`` the handler itself raised. Only the first two are the
+    model's to fix. The refusal text repeats the call's arguments, which can be user data, so it
+    is only logged at debug level.
+    """
+    name = request.tool_call["name"]
+    logger.debug("Tool '%s' refusal: %s", name, refusal.text)
+    if _arguments_are_valid(request):
+        logger.error("Tool '%s' raised a validation error inside its handler", name)
+        return _failed_call(request), ToolFailureKind.UNKNOWN
+    logger.warning("Tool '%s' call was refused", name)
+    return refusal, ToolFailureKind.VALIDATION
 
 
 @wrap_tool_call
@@ -132,24 +171,34 @@ async def _chat_tool_call(request: ToolCallRequest, handler: _ToolCallHandler) -
     return result
 
 
+def _end_after_a_block(limit: int, state: ToolCallLimitState[Any], runtime: Runtime[Any]) -> dict[str, Any] | None:
+    """End the turn when the model asks for tools again after the tool call limit blocked its calls.
+
+    The limiter counts blocked calls too, so a count over ``limit`` means an earlier reply was
+    blocked. That reply told the model to answer, so a reply that asks for tools anyway ends the
+    turn without an answer, however many calls each reply batches. This hook runs before the
+    limiter for the same reply, so it sees the counts from before that reply.
+    """
+    reply = state["messages"][-1]
+    counted = sum(state.get("run_tool_call_count", {}).values())
+    if counted <= limit or not (isinstance(reply, AIMessage) and reply.tool_calls):
+        return None
+    logger.warning("Model asked for tools after the limit (%s); the turn ends without an answer", limit)
+    return {"jump_to": "end"}
+
+
 def _update_events(
-    node: str,
-    update: dict[str, Any] | None,
-    limiter: ToolCallLimitMiddleware[Any, Any],
-    cap: ModelCallLimitMiddleware[Any, Any],
+    node: str, update: dict[str, Any] | None, limiter: ToolCallLimitMiddleware[Any, Any]
 ) -> list[dict[str, Any]]:
     """The agent events one graph node's update stands for: blocked calls, or the closing reply.
 
-    The tool-call ``limiter`` and the model-call ``cap`` add messages only when they act, and
-    each time they do it is logged.
+    The tool-call ``limiter`` adds messages only when it blocks calls, and each time it does it
+    is logged.
     """
     messages = (update or {}).get("messages", [])
     if node == f"{limiter.name}.after_model" and messages:
         logger.warning("Tool call limit (%s) reached; blocked %d call(s)", limiter.run_limit, len(messages))
         return [{"type": "limit_reached"}]
-    if node == f"{cap.name}.before_model" and messages:
-        logger.warning("Model call limit (%s) reached; the turn ends without an answer", cap.run_limit)
-        return []
     if node == "model":
         return [
             {"type": "final", "message": message}
@@ -193,13 +242,16 @@ async def _agent_events(
     ``max_tool_executions`` were blocked, and ``final`` with the model's closing reply.
     Calls run one at a time, in the order the model listed them, and a call reported as
     started runs only once this generator is asked for its next event. A blocked call
-    tells the model to stop calling tools so it answers instead; the model gets two calls
-    beyond one per allowed tool call, so a model that keeps calling tools still ends.
+    tells the model to stop calling tools so it answers instead; a model that asks for tools
+    again after that ends the turn without an answer (see :func:`_end_after_a_block`).
     """
     limiter = ToolCallLimitMiddleware(run_limit=max_tool_executions, exit_behavior="continue")
-    cap = ModelCallLimitMiddleware(run_limit=max_tool_executions + 2, exit_behavior="end")
+    # The hook is listed after the limiter so that it runs first for each reply.
+    ender = after_model(can_jump_to=["end"], name="end_after_a_block", state_schema=ToolCallLimitState)(
+        partial(_end_after_a_block, max_tool_executions)
+    )
     # The run context carries the audit identity; the library middlewares never read it.
-    middleware: list[AgentMiddleware[Any, Any, Any]] = [_chat_tool_call, limiter, cap]
+    middleware: list[AgentMiddleware[Any, Any, Any]] = [_chat_tool_call, limiter, ender]
     agent = create_agent(provider.create_llm(), tools, middleware=middleware, context_schema=AuditModelInfo)
     # With several stream modes, each item is a (mode, chunk) pair.
     stream = cast(
@@ -221,7 +273,7 @@ async def _agent_events(
                     go.set()
                 continue
             for node, update in chunk.items():
-                for event in _update_events(node, update, limiter, cap):
+                for event in _update_events(node, update, limiter):
                     yield event
 
 
