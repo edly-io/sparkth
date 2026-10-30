@@ -89,8 +89,11 @@ there — they are declared in code.
 
 Roles shipped with the app are **non-deletable** (`deletable = false`): deleting one returns `409`.
 Roles created through the API are deletable. A migration that seeds a new shipped role sets
-`deletable = false` on it. Deleting a role also removes every grant scoped to it (`role:<id>`), so
-a later role that reuses the id never inherits them.
+`deletable = false` on it. Deleting a role also removes every user and group assignment of it
+(active and revoked), recording `role.unassigned` per active user assignment and
+`group.role_revoked` per active group assignment; the history stays in the audit trail. It removes
+every grant scoped to the role (`role:<id>`) too, so a later role that reuses the id never inherits
+them.
 
 ## Groups
 

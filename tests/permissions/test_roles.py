@@ -8,7 +8,6 @@ from sparkth.core.permissions import PERMISSIONS, Permission, roles
 from sparkth.core.permissions.exceptions import (
     PermissionNotFound,
     RoleAlreadyExists,
-    RoleInUse,
     RoleNotDeletable,
     RoleNotFound,
 )
@@ -92,13 +91,25 @@ async def test_delete_role_missing_raises(session: AsyncSession) -> None:
         await roles.delete_role(999, session)
 
 
-async def test_delete_role_blocked_when_actively_assigned(session: AsyncSession) -> None:
+async def test_delete_role_removes_active_assignments(session: AsyncSession) -> None:
     role = await roles.create_role("grader", None, session)
     assert role.id is not None
     session.add(RoleAssignment(user_id=1, role_id=role.id, scope=GLOBAL.name, scope_object_id=None))
     await session.flush()
-    with pytest.raises(RoleInUse):
-        await roles.delete_role(role.id, session)
+    await roles.delete_role(role.id, session)
+    assert (await session.exec(select(RoleAssignment).where(RoleAssignment.role_id == role.id))).all() == []
+
+
+async def test_delete_role_removes_group_assignments_of_it(session: AsyncSession) -> None:
+    role = await roles.create_role("grader", None, session)
+    assert role.id is not None
+    revoked = GroupRoleAssignment(group_id=2, role_id=role.id, scope=GLOBAL.name, scope_object_id=None)
+    revoked.soft_delete()
+    session.add(GroupRoleAssignment(group_id=1, role_id=role.id, scope=GLOBAL.name, scope_object_id=None))
+    session.add(revoked)
+    await session.flush()
+    await roles.delete_role(role.id, session)
+    assert (await session.exec(select(GroupRoleAssignment).where(GroupRoleAssignment.role_id == role.id))).all() == []
 
 
 async def test_delete_role_allowed_when_only_soft_deleted_assignment(session: AsyncSession) -> None:
