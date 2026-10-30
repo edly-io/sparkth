@@ -1,6 +1,11 @@
 import { useCallback, useRef, useState } from "react";
-import { requestChatCompletionStream, stopChatTurn } from "../client";
-import { ChatMessage, STREAM_STATUS_PHASES, StreamStatusPhase, TextAttachment } from "../types";
+import { requestChatCompletionStream, stopChatTurn } from "@/plugins/chat/client";
+import {
+  ChatMessage,
+  STREAM_STATUS_PHASES,
+  StreamStatusPhase,
+  TextAttachment,
+} from "@/plugins/chat/types";
 
 interface SendPayload {
   message: string;

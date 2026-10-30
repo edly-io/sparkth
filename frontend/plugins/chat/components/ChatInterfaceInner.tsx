@@ -4,19 +4,19 @@ import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { ChatHeader } from "./ChatHeader";
-import { ChatMessages } from "./messages/ChatMessages";
-import { ChatInput } from "./input/ChatInput";
-import { appendLine } from "./messages/optionsBlock";
-import { AiKeyProblem, TextAttachment } from "../types";
-import { Preview } from "./attachment/Preview";
+import { ChatHeader } from "@/plugins/chat/components/ChatHeader";
+import { ChatMessages } from "@/plugins/chat/components/messages/ChatMessages";
+import { ChatInput } from "@/plugins/chat/components/input/ChatInput";
+import { appendLine } from "@/plugins/chat/components/messages/optionsBlock";
+import { AiKeyProblem, TextAttachment } from "@/plugins/chat/types";
+import { Preview } from "@/plugins/chat/components/attachment/Preview";
 import { useAuth } from "@/lib/auth/hooks";
-import { attachDocument } from "../client";
+import { attachDocument } from "@/plugins/chat/client";
 import { fetchLLMConfigs } from "@/lib/llm/client";
 import { usePlugin } from "@/lib/plugins/context";
 import { Alert } from "@/components/ui/Alert";
-import { useConversation } from "../hooks/useConversation";
-import { useChatStream } from "../hooks/useChatStream";
+import { useConversation } from "@/plugins/chat/hooks/useConversation";
+import { useChatStream } from "@/plugins/chat/hooks/useChatStream";
 
 // Only reached when no key is selected, so a correctly configured author never pays for it.
 async function readAiKeyProblem(token: string): Promise<AiKeyProblem> {

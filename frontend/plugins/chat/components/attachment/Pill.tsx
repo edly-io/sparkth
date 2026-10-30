@@ -1,8 +1,8 @@
 import { FileText, X } from "lucide-react";
-import { TextAttachment } from "../../types";
+import { TextAttachment } from "@/plugins/chat/types";
 import { Button } from "@/lib/components/ui/Button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui/Tooltip";
-import { truncate, RAG_DISPLAY_NAME_MAX_CHARS } from "../../utils";
+import { truncate, RAG_DISPLAY_NAME_MAX_CHARS } from "@/plugins/chat/utils";
 
 interface PillProps {
   attachments: TextAttachment[];

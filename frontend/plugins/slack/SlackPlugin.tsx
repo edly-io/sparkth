@@ -5,11 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Alert } from "@/components/ui/Alert";
 import { Spinner } from "@/lib/components/ui/Spinner";
 import { useAuth } from "@/lib/auth/hooks";
-import { getConnectionStatus } from "./client";
-import type { ConnectionStatus } from "./types";
-import SlackConnectionCard from "./components/SlackConnectionCard";
-import LogStream from "./components/LogStream";
-import { SLACK_PLUGIN_PATH } from "./index";
+import { getConnectionStatus } from "@/plugins/slack/client";
+import type { ConnectionStatus } from "@/plugins/slack/types";
+import SlackConnectionCard from "@/plugins/slack/components/SlackConnectionCard";
+import LogStream from "@/plugins/slack/components/LogStream";
+import { SLACK_PLUGIN_PATH } from "@/plugins/slack";
 
 export default function SlackPlugin() {
   const { token } = useAuth();

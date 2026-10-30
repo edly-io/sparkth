@@ -1,11 +1,11 @@
 import { Dispatch, SetStateAction, useCallback, useEffect, useRef, useState } from "react";
-import { getConversation, getConversationAttachments, getLastMessage } from "../client";
-import { type ApiMessage, ChatMessage, ChatRole, TextAttachment } from "../types";
+import { getConversation, getConversationAttachments, getLastMessage } from "@/plugins/chat/client";
+import { type ApiMessage, ChatMessage, ChatRole, TextAttachment } from "@/plugins/chat/types";
 import {
   clearStreamProgress,
   getRestoredStreamData,
   RECOVERY_PLACEHOLDER_IDS,
-} from "./useChatStream";
+} from "@/plugins/chat/hooks/useChatStream";
 
 function mergeConsecutiveAttachmentMessages(messages: ChatMessage[]): ChatMessage[] {
   const result: ChatMessage[] = [];

@@ -1,13 +1,16 @@
 import { AlertCircle, Bot } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Card } from "@/components/ui/Card";
-import { ChatMessage, StreamStatusPhase, TextAttachment } from "../../types";
-import { Pill } from "../attachment/Pill";
-import { OptionsPrompt } from "./OptionsPrompt";
-import { answeredOptions, splitOptionsBlock } from "./optionsBlock";
+import { ChatMessage, StreamStatusPhase, TextAttachment } from "@/plugins/chat/types";
+import { Pill } from "@/plugins/chat/components/attachment/Pill";
+import { OptionsPrompt } from "@/plugins/chat/components/messages/OptionsPrompt";
+import {
+  answeredOptions,
+  splitOptionsBlock,
+} from "@/plugins/chat/components/messages/optionsBlock";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { truncate, RAG_DISPLAY_NAME_MAX_CHARS } from "../../utils";
+import { truncate, RAG_DISPLAY_NAME_MAX_CHARS } from "@/plugins/chat/utils";
 
 function ThinkingDots() {
   return (
