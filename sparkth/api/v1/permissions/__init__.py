@@ -19,12 +19,14 @@ from sparkth.lib.permissions.exceptions import (
     PermissionScopeNotFound,
     RoleAlreadyExists,
     RoleInUse,
+    RoleNotDeletable,
     RoleNotFound,
 )
 
 register_exception_handler(RoleNotFound, status.HTTP_404_NOT_FOUND)
 register_exception_handler(RoleAlreadyExists, status.HTTP_409_CONFLICT)
 register_exception_handler(RoleInUse, status.HTTP_409_CONFLICT)
+register_exception_handler(RoleNotDeletable, status.HTTP_409_CONFLICT)
 register_exception_handler(GroupNotFound, status.HTTP_404_NOT_FOUND)
 register_exception_handler(GroupAlreadyExists, status.HTTP_409_CONFLICT)
 register_exception_handler(GroupInUse, status.HTTP_409_CONFLICT)
