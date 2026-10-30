@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from contextlib import aclosing
 from dataclasses import replace
+from functools import partial
 from typing import Any, AsyncIterator, ClassVar, TypedDict, cast
 from uuid import UUID
 
@@ -11,11 +12,12 @@ import httpx
 from langchain.agents import create_agent
 from langchain.agents.middleware import (
     AgentMiddleware,
-    ModelCallLimitMiddleware,
     ToolCallLimitMiddleware,
     ToolCallRequest,
+    after_model,
     wrap_tool_call,
 )
+from langchain.agents.middleware.tool_call_limit import ToolCallLimitState
 from langchain_anthropic import ChatAnthropic
 from langchain_core.callbacks.base import AsyncCallbackHandler
 from langchain_core.exceptions import LangChainException
@@ -24,6 +26,7 @@ from langchain_core.outputs import ChatGenerationChunk, GenerationChunk, LLMResu
 from langchain_core.tools import BaseTool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
+from langgraph.runtime import Runtime
 from langgraph.types import Command
 from pydantic import ValidationError
 
@@ -139,6 +142,22 @@ async def _chat_tool_call(request: ToolCallRequest, handler: ToolCallHandler) ->
         {"type": "tool_end", "name": name, "failure": failure, "tool_input": arguments, "output": output}
     )
     return result
+
+
+def _end_after_a_block(limit: int, state: ToolCallLimitState[Any], runtime: Runtime[Any]) -> dict[str, Any] | None:
+    """End the turn when the model asks for tools again after the tool call limit blocked its calls.
+
+    The limiter counts blocked calls too, so a count over ``limit`` means an earlier reply was
+    blocked. That reply told the model to answer, so a reply that asks for tools anyway ends the
+    turn without an answer, however many calls each reply batches. This hook runs before the
+    limiter for the same reply, so it sees the counts from before that reply.
+    """
+    reply = state["messages"][-1]
+    counted = sum(state.get("run_tool_call_count", {}).values())
+    if counted <= limit or not (isinstance(reply, AIMessage) and reply.tool_calls):
+        return None
+    logger.warning("Model asked for tools after the limit (%s); the turn ends without an answer", limit)
+    return {"jump_to": "end"}
 
 
 class StreamingCallbackHandler(AsyncCallbackHandler):
@@ -324,13 +343,16 @@ class BaseChatProvider(ABC):
         ``max_tool_executions`` were blocked, and ``final`` with the model's closing reply.
         Calls run one at a time, in the order the model listed them, and a call reported as
         started runs only once this generator is asked for its next event. A blocked call
-        tells the model to stop calling tools so it answers instead; the model gets two calls
-        beyond one per allowed tool call, so a model that keeps calling tools still ends.
+        tells the model to stop calling tools so it answers instead; a model that asks for tools
+        again after that ends the turn without an answer (see :func:`_end_after_a_block`).
         """
         limiter = ToolCallLimitMiddleware(run_limit=self.max_tool_executions, exit_behavior="continue")
-        cap = ModelCallLimitMiddleware(run_limit=self.max_tool_executions + 2, exit_behavior="end")
+        # The hook is listed after the limiter so that it runs first for each reply.
+        ender = after_model(can_jump_to=["end"], name="end_after_a_block", state_schema=ToolCallLimitState)(
+            partial(_end_after_a_block, self.max_tool_executions)
+        )
         # The run context carries the audit identity; the library middlewares never read it.
-        middleware: list[AgentMiddleware[Any, Any, Any]] = [_chat_tool_call, limiter, cap]
+        middleware: list[AgentMiddleware[Any, Any, Any]] = [_chat_tool_call, limiter, ender]
         agent = create_agent(
             self._create_llm(streaming=False), tools, middleware=middleware, context_schema=AuditModelInfo
         )
@@ -354,7 +376,7 @@ class BaseChatProvider(ABC):
                         go.set()
                     continue
                 for node, update in chunk.items():
-                    for event in _update_events(node, update, limiter, cap):
+                    for event in _update_events(node, update, limiter):
                         yield event
 
     async def stream_message(
@@ -402,23 +424,17 @@ class BaseChatProvider(ABC):
 
 
 def _update_events(
-    node: str,
-    update: dict[str, Any] | None,
-    limiter: ToolCallLimitMiddleware[Any, Any],
-    cap: ModelCallLimitMiddleware[Any, Any],
+    node: str, update: dict[str, Any] | None, limiter: ToolCallLimitMiddleware[Any, Any]
 ) -> list[dict[str, Any]]:
     """The agent events one graph node's update stands for: blocked calls, or the closing reply.
 
-    The tool-call ``limiter`` and the model-call ``cap`` add messages only when they act, and
-    each time they do it is logged.
+    The tool-call ``limiter`` adds messages only when it blocks calls, and each time it does it
+    is logged.
     """
     messages = (update or {}).get("messages", [])
     if node == f"{limiter.name}.after_model" and messages:
         logger.warning("Tool call limit (%s) reached; blocked %d call(s)", limiter.run_limit, len(messages))
         return [{"type": "limit_reached"}]
-    if node == f"{cap.name}.before_model" and messages:
-        logger.warning("Model call limit (%s) reached; the turn ends without an answer", cap.run_limit)
-        return []
     if node == "model":
         return [
             {"type": "final", "message": message}
