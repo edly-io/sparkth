@@ -1,4 +1,4 @@
-import { api, ApiRequestError, type Schema } from "@/lib/api";
+import { api, ApiRequestError, bearer, type Schema } from "@/lib/api";
 
 export type UploadResponse = Schema<"UploadResponse">;
 
@@ -10,7 +10,7 @@ export async function uploadFile(formData: FormData, token?: string): Promise<Up
       // Content-Type must stay unset so fetch adds the multipart boundary.
       headers: {
         "Content-Type": null,
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(token ? bearer(token) : {}),
       },
     });
     return data as UploadResponse;
