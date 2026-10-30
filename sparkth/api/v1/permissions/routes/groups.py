@@ -81,5 +81,5 @@ async def update_group(
     dependencies=[Depends(GROUP_DELETE.require(GROUP, "group_id"))],
 )
 async def delete_group(group_id: int, session: AsyncSession = Depends(get_async_session)) -> None:
-    """Delete a group (refused with 409 while it has active role assignments). Returns 204 No Content."""
+    """Delete a group with its memberships, role assignments and scoped grants. Returns 204 No Content."""
     await group_engine.delete_group(group_id, session)

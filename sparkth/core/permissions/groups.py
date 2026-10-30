@@ -3,8 +3,9 @@
 Module-level async functions mirroring the role engine. The CRUD functions commit
 (like ``roles.py``); the membership and assignment functions only flush (like
 ``assign_role`` / ``revoke_role``), so their callers own the transaction boundary.
-Every change is recorded as a ``group.*`` audit event in that same transaction; an
-idempotent call that changes nothing records nothing.
+Every change is recorded as a ``group.*`` audit event in that same transaction
+(``delete_group`` also records ``role.unassigned`` for the user grants scoped to the group);
+an idempotent call that changes nothing records nothing.
 Authored with LLM (Claude) assistance.
 """
 
@@ -13,15 +14,18 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.permissions import _create_grant_audit_snapshot
+from sparkth.core.permissions import (
+    _create_grant_audit_snapshot,
+    _record_active_group_grants_removed,
+    delete_grants_at_object,
+)
 from sparkth.core.permissions.exceptions import (
     GroupAlreadyExists,
-    GroupInUse,
     GroupNotFound,
     RoleNotFound,
 )
 from sparkth.core.permissions.models import Group, GroupMembership, GroupRoleAssignment, Role
-from sparkth.core.permissions.scopes import PermissionScope
+from sparkth.core.permissions.scopes import GROUP, PermissionScope
 from sparkth.lib.audit import record_event
 from sparkth.lib.audit.events import (
     AuditChange,
@@ -43,6 +47,10 @@ def _target(group_id: int | None) -> AuditTarget:
 
 def _create_audit_snapshot(group: Group) -> dict[str, str | None]:
     return {"name": group.name, "description": group.description}
+
+
+def _create_member_audit_snapshot(user_id: int) -> dict[str, int]:
+    return {"user_id": user_id}
 
 
 async def create_group(name: str, description: str | None, session: AsyncSession) -> Group:
@@ -82,9 +90,12 @@ async def list_groups(session: AsyncSession) -> list[Group]:
     return list((await session.exec(select(Group).order_by(col(Group.id)))).all())
 
 
-async def get_group(group_id: int, session: AsyncSession) -> Group:
-    """Return the group with group_id, or raise GroupNotFound."""
-    group = await session.get(Group, group_id)
+async def get_group(group_id: int, session: AsyncSession, for_update: bool = False) -> Group:
+    """Return the group with group_id, or raise GroupNotFound.
+
+    ``for_update`` locks the row until the transaction ends (a no-op on SQLite).
+    """
+    group = await session.get(Group, group_id, with_for_update=for_update)
     if group is None:
         raise GroupNotFound(str(group_id))
     return group
@@ -139,30 +150,48 @@ async def update_group(group_id: int, name: str | None, description: str | None,
     return group
 
 
-async def delete_group(group_id: int, session: AsyncSession) -> None:
-    """Delete a group together with its membership and assignment history, recording ``group.deleted``.
-
-    Raises GroupNotFound if the group is missing, or GroupInUse if it still has an active
-    role assignment. Members alone do not block; membership rows (active and historical)
-    and historical assignment rows are removed along with the group.
-
-    TODO: the cascade/soft-delete semantics here are provisional — same posture as
-    delete_role.
-    """
-    group = await get_group(group_id, session)
-    active = (
-        await session.exec(
-            select(GroupRoleAssignment.id)
-            .where(GroupRoleAssignment.group_id == group_id, GroupRoleAssignment.is_deleted == False)
-            .limit(1)
+async def _record_active_memberships_removed(group_id: int, session: AsyncSession) -> None:
+    """Record ``group.member_removed`` for each active membership of the group."""
+    user_ids = await session.exec(
+        select(GroupMembership.user_id)
+        .where(GroupMembership.group_id == group_id, GroupMembership.is_deleted == False)
+        .order_by(col(GroupMembership.id))
+    )
+    for user_id in user_ids.all():
+        await record_event(
+            session,
+            GroupMemberRemovedAuditEvent(
+                outcome=AuditOutcome.SUCCESS,
+                target=_target(group_id),
+                change=AuditChange(old=_create_member_audit_snapshot(user_id)),
+            ),
         )
-    ).first()
-    if active is not None:
-        raise GroupInUse(group_id)
-    # The group_id foreign keys have no ON DELETE CASCADE, so remove dependents (membership
-    # rows and historical soft-deleted assignments) in bulk before deleting the group itself.
-    await session.exec(delete(GroupMembership).where(col(GroupMembership.group_id) == group_id))
-    await session.exec(delete(GroupRoleAssignment).where(col(GroupRoleAssignment.group_id) == group_id))
+
+
+async def _delete_group_dependents(group_id: int, session: AsyncSession) -> None:
+    """Delete the group's memberships and role assignments, recording the active ones.
+
+    The group_id foreign keys have no ON DELETE CASCADE, so dependents go before the group itself.
+    """
+    await _record_active_memberships_removed(group_id, session)
+    await _record_active_group_grants_removed(col(GroupRoleAssignment.group_id) == group_id, session)
+    for model in (GroupMembership, GroupRoleAssignment):
+        await session.exec(delete(model).where(col(model.group_id) == group_id))
+    await session.flush()
+
+
+async def delete_group(group_id: int, session: AsyncSession) -> None:
+    """Delete a group together with everything that references it, recording ``group.deleted``.
+
+    Raises GroupNotFound if the group is missing. In one transaction it removes the group's memberships
+    and role assignments (active and revoked) and every grant scoped to the group (``group:<id>``).
+    Before ``group.deleted``, each active removed row records its event: ``group.member_removed`` for a
+    membership, ``group.role_revoked`` for a group assignment, ``role.unassigned`` for a user grant.
+    The group row is locked for the delete so concurrent changes to it wait for it.
+    """
+    group = await get_group(group_id, session, True)
+    await delete_grants_at_object(GROUP, str(group_id), session)
+    await _delete_group_dependents(group_id, session)
     await session.delete(group)
     await record_event(
         session,
@@ -218,7 +247,9 @@ async def add_group_member(user_id: int, group_id: int, session: AsyncSession) -
     await record_event(
         session,
         GroupMemberAddedAuditEvent(
-            outcome=AuditOutcome.SUCCESS, target=_target(group_id), change=AuditChange(new={"user_id": user_id})
+            outcome=AuditOutcome.SUCCESS,
+            target=_target(group_id),
+            change=AuditChange(new=_create_member_audit_snapshot(user_id)),
         ),
     )
     return membership
@@ -242,7 +273,9 @@ async def remove_group_member(user_id: int, group_id: int, session: AsyncSession
         await record_event(
             session,
             GroupMemberRemovedAuditEvent(
-                outcome=AuditOutcome.SUCCESS, target=_target(group_id), change=AuditChange(old={"user_id": user_id})
+                outcome=AuditOutcome.SUCCESS,
+                target=_target(group_id),
+                change=AuditChange(old=_create_member_audit_snapshot(user_id)),
             ),
         )
 
