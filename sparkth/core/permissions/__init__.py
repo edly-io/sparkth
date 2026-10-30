@@ -497,16 +497,6 @@ async def delete_grants_at_object(
     )
     await _record_active_user_grants_removed(user_match, session)
     await _record_active_group_grants_removed(group_match, session)
-    await session.exec(
-        delete(RoleAssignment).where(
-            col(RoleAssignment.scope) == permission_scope.name,
-            col(RoleAssignment.scope_object_id) == scope_object_id,
-        )
-    )
-    await session.exec(
-        delete(GroupRoleAssignment).where(
-            col(GroupRoleAssignment.scope) == permission_scope.name,
-            col(GroupRoleAssignment.scope_object_id) == scope_object_id,
-        )
-    )
+    await session.exec(delete(RoleAssignment).where(user_match))
+    await session.exec(delete(GroupRoleAssignment).where(group_match))
     await session.flush()
