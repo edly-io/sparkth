@@ -203,7 +203,7 @@ routes.
 
 3. **Design exceptions so the mapping is 1-to-1.** Each exception class must mean exactly one
    thing, so it maps unambiguously to a single status (`RoleNotFound` → 404,
-   `RoleAlreadyExists` → 409, `RoleInUse` → 409). If one failure would need different statuses
+   `RoleAlreadyExists` → 409, `RoleNotDeletable` → 409). If one failure would need different statuses
    in different places, split it into distinct per-cause classes — do not overload one class.
 
 4. **`try/except` in a route is the exception, not the rule.** Reach for it only when the

@@ -2,13 +2,23 @@
 caller's transaction; an idempotent no-op call leaves none."""
 
 import pytest
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.audit.models import AuditEvent
 from sparkth.core.permissions import PERMISSIONS, Permission, assign_role, groups, revoke_role, roles
-from sparkth.core.permissions.models import Group, GroupMembership, GroupRoleAssignment, Role, RoleAssignment
-from sparkth.lib.permissions.scopes import GLOBAL
+from sparkth.core.permissions.models import (
+    Group,
+    GroupMembership,
+    GroupRoleAssignment,
+    Role,
+    RoleAssignment,
+    RolePermission,
+)
+from sparkth.lib.audit import record_event
+from sparkth.lib.audit.events import BaseAuditEvent, RoleDeletedAuditEvent
+from sparkth.lib.permissions.scopes import GLOBAL, ROLE
 from sparkth.lib.testing import AuditEventsFetcher
 
 
@@ -31,6 +41,13 @@ async def _role(session: AsyncSession, name: str = "grader") -> Role:
 
 async def _group(session: AsyncSession, name: str = "cs-staff") -> Group:
     return await groups.create_group(name, "CS staff", session)
+
+
+async def _record_event_failing_on_role_deleted(session: AsyncSession, event: BaseAuditEvent) -> AuditEvent:
+    """Delegate to the real ``record_event``, except raise for ``role.deleted`` (the last write of a delete)."""
+    if isinstance(event, RoleDeletedAuditEvent):
+        raise SQLAlchemyError("audit write failed")
+    return await record_event(session, event)
 
 
 GLOBAL_GRANT = {"role": "grader", "scope": "global", "scope_object_id": None}
@@ -102,6 +119,78 @@ class TestRoleEvents:
         _assert_envelope(group_revoked, "group.role_revoked", "group", 2)
         assert group_revoked.old_values == snapshot
         _assert_envelope(deleted, "role.deleted", "role", target_id)
+
+    async def test_delete_records_unassigned_for_active_assignments(
+        self, session: AsyncSession, audit_events: AuditEventsFetcher
+    ) -> None:
+        role = await _role(session)
+        group = await _group(session)
+        assert role.id is not None and group.id is not None
+        await assign_role(1, "grader", GLOBAL, None, session)
+        await assign_role(2, "grader", GLOBAL, None, session)
+        await revoke_role(2, "grader", GLOBAL, None, session)
+        await groups.assign_role_to_group(group.id, "grader", GLOBAL, None, session)
+        before = len(await audit_events())
+        await roles.delete_role(role.id, session)
+
+        unassigned, group_revoked, deleted = (await audit_events())[before:]
+        _assert_envelope(unassigned, "role.unassigned", "user", 1)
+        assert unassigned.old_values == GLOBAL_GRANT
+        _assert_envelope(group_revoked, "group.role_revoked", "group", group.id)
+        assert group_revoked.old_values == GLOBAL_GRANT
+        _assert_envelope(deleted, "role.deleted", "role", role.id)
+
+    async def test_delete_records_one_event_for_a_row_matching_both_cascades(
+        self, session: AsyncSession, audit_events: AuditEventsFetcher
+    ) -> None:
+        role = await _role(session)
+        assert role.id is not None
+        await assign_role(1, "grader", ROLE, str(role.id), session)
+        before = len(await audit_events())
+        await roles.delete_role(role.id, session)
+
+        events = (await audit_events())[before:]
+        assert [e.category + "." + e.action for e in events] == ["role.unassigned", "role.deleted"]
+
+    async def test_delete_tolerates_assignments_at_unregistered_scope_kinds(
+        self, session: AsyncSession, audit_events: AuditEventsFetcher
+    ) -> None:
+        role = await _role(session)
+        assert role.id is not None
+        session.add(RoleAssignment(user_id=1, role_id=role.id, scope="course", scope_object_id="5"))
+        await session.flush()
+        before = len(await audit_events())
+        await roles.delete_role(role.id, session)
+
+        unassigned, _ = (await audit_events())[before:]
+        _assert_envelope(unassigned, "role.unassigned", "user", 1)
+        assert unassigned.old_values == {"role": "grader", "scope": "course", "scope_object_id": "5"}
+
+    async def test_delete_is_fail_closed_when_audit_write_fails(
+        self, session: AsyncSession, audit_events: AuditEventsFetcher, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        role = await _role(session)
+        group = await _group(session)
+        assert role.id is not None and group.id is not None
+        role_id = role.id
+        await roles.add_role_permission(role_id, "assignment.grade", session)
+        await assign_role(1, "grader", GLOBAL, None, session)
+        await groups.assign_role_to_group(group.id, "grader", GLOBAL, None, session)
+        await session.commit()
+        events_before = len(await audit_events())
+
+        monkeypatch.setattr("sparkth.core.permissions.roles.record_event", _record_event_failing_on_role_deleted)
+        with pytest.raises(SQLAlchemyError):
+            await roles.delete_role(role_id, session)
+        await session.rollback()
+
+        assert len(await audit_events()) == events_before
+        assert (await session.exec(select(Role).where(Role.id == role_id))).first() is not None
+        assert (await session.exec(select(RolePermission).where(RolePermission.role_id == role_id))).all() != []
+        assert (await session.exec(select(RoleAssignment).where(RoleAssignment.role_id == role_id))).all() != []
+        assert (
+            await session.exec(select(GroupRoleAssignment).where(GroupRoleAssignment.role_id == role_id))
+        ).all() != []
 
     async def test_grant_records_permission_granted(
         self, session: AsyncSession, audit_events: AuditEventsFetcher
