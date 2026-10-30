@@ -196,3 +196,8 @@ async def test_add_role_permission_returns_the_role(session: AsyncSession) -> No
     returned = await roles.add_role_permission(role.id, "assignment.grade", session)
     assert returned.id == role.id
     assert returned.name == "grader"
+
+
+async def test_create_role_is_deletable(session: AsyncSession) -> None:
+    role = await roles.create_role("grader", None, session)
+    assert role.deletable is True
