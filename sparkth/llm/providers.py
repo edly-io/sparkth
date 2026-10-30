@@ -28,7 +28,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from langgraph.runtime import Runtime
 from langgraph.types import Command
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from sparkth.lib.audit import ToolFailureKind, tool_failure
 from sparkth.lib.audit.context import AuditSource, ai_audit_context
@@ -76,12 +76,30 @@ def _audit_model_info(turn_model: AuditModelInfo, messages: Sequence[BaseMessage
     return replace(turn_model, version=metadata.get("model_name") or metadata.get("model"))
 
 
-def _failed_call(request: ToolCallRequest, error: Exception) -> ToolMessage:
-    """The model-visible result of a call whose tool raised."""
+def _failed_call(request: ToolCallRequest, detail: str = "") -> ToolMessage:
+    """The model-visible result of a call whose tool raised, with ``detail`` when there is any."""
     name = request.tool_call["name"]
-    return ToolMessage(
-        f"Error executing tool '{name}': {error}", tool_call_id=request.tool_call["id"], name=name, status="error"
-    )
+    text = f"Error executing tool '{name}': {detail}" if detail else f"Error executing tool '{name}'."
+    return ToolMessage(text, tool_call_id=request.tool_call["id"], name=name, status="error")
+
+
+def _arguments_are_valid(request: ToolCallRequest) -> bool:
+    """Whether the model's arguments for a call fit the tool's schema.
+
+    An unknown tool name has no schema, so its call is not valid. A tool without a pydantic
+    schema validates nothing before it runs.
+    """
+    tool = request.tool
+    if tool is None:
+        return False
+    schema = tool.args_schema
+    if not (isinstance(schema, type) and issubclass(schema, BaseModel)):
+        return True
+    try:
+        schema.model_validate(request.tool_call["args"])
+    except ValidationError:
+        return False
+    return True
 
 
 async def _classified_tool_call(
@@ -90,7 +108,8 @@ async def _classified_tool_call(
     """Run one tool call and say how it failed (None on success).
 
     Invalid arguments and a tool name that is not bound come back from the handler as an
-    error result, so they are a validation failure; a tool that raised is an unknown one.
+    error result, so they are a validation failure (see :func:`_refused_call`); a tool that
+    raised is an unknown one.
     """
     name = request.tool_call["name"]
     try:
@@ -103,21 +122,35 @@ async def _classified_tool_call(
     # A user with no usable plugin settings is an expected outcome, not a tool fault.
     except (PluginNotConfiguredError, PluginConfigInvalidError) as e:
         logger.warning("Tool '%s' cannot run for this user: %s", name, e)
-        return _failed_call(request, e), ToolFailureKind.UNKNOWN
+        return _failed_call(request, str(e)), ToolFailureKind.UNKNOWN
     # NOTE: Kept broad here intentionally — tool handlers are user-supplied plugins that can
     # raise anything. Narrowing would silently swallow legitimate errors from arbitrary
     # third-party tool implementations.
     except Exception as e:
         logger.error("Error executing tool '%s': %s", name, e, exc_info=True)
-        return _failed_call(request, e), ToolFailureKind.UNKNOWN
+        return _failed_call(request, str(e)), ToolFailureKind.UNKNOWN
     if not isinstance(result, ToolMessage):
         return result, None
     if result.status == "error":
-        logger.warning("Tool '%s' call was refused", name)
-        # The refusal text repeats the call's arguments, which can be user data.
-        logger.debug("Tool '%s' refusal: %s", name, result.text)
-        return result, ToolFailureKind.VALIDATION
+        return _refused_call(request, result)
     return result, _reported_failure(result.content)
+
+
+def _refused_call(request: ToolCallRequest, refusal: ToolMessage) -> tuple[ToolMessage, ToolFailureKind]:
+    """Classify a call the agent turned into an error result without the tool's own error.
+
+    LangGraph does this for an unknown tool name, for arguments that do not fit the tool's
+    schema, and for a ``ValidationError`` the handler itself raised. Only the first two are the
+    model's to fix. The refusal text repeats the call's arguments, which can be user data, so it
+    is only logged at debug level.
+    """
+    name = request.tool_call["name"]
+    logger.debug("Tool '%s' refusal: %s", name, refusal.text)
+    if _arguments_are_valid(request):
+        logger.error("Tool '%s' raised a validation error inside its handler", name)
+        return _failed_call(request), ToolFailureKind.UNKNOWN
+    logger.warning("Tool '%s' call was refused", name)
+    return refusal, ToolFailureKind.VALIDATION
 
 
 @wrap_tool_call
