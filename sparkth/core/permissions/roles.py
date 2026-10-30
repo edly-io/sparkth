@@ -13,6 +13,7 @@ from sparkth.core.permissions import PERMISSIONS, get_permission
 from sparkth.core.permissions.exceptions import (
     RoleAlreadyExists,
     RoleInUse,
+    RoleNotDeletable,
     RoleNotFound,
 )
 from sparkth.core.permissions.models import Role, RoleAssignment, RolePermission
@@ -106,14 +107,16 @@ async def update_role(role_id: int, name: str | None, description: str | None, s
 async def delete_role(role_id: int, session: AsyncSession) -> None:
     """Delete a role together with its permission grants, recording ``role.deleted``.
 
-    Raises RoleNotFound if the role is missing, or RoleInUse if it still has an active
-    assignment. Only active assignments block; historical (soft-deleted) assignment rows
-    are removed along with the role.
+    Raises RoleNotFound if the role is missing, RoleNotDeletable if it is marked non-deletable,
+    or RoleInUse if it still has an active assignment. Only active assignments block; historical
+    (soft-deleted) assignment rows are removed along with the role.
 
     TODO: the cascade/soft-delete semantics here are provisional — revisit how a role's
     assignment history should be handled on delete.
     """
     role = await get_role(role_id, session)
+    if not role.deletable:
+        raise RoleNotDeletable(role.name)
     active = (
         await session.exec(
             select(RoleAssignment.id)

@@ -33,6 +33,14 @@ class RoleAlreadyExists(Exception):
         self.name = name
 
 
+class RoleNotDeletable(Exception):
+    """Raised when deleting a role that is marked non-deletable."""
+
+    def __init__(self, role_name: str) -> None:
+        super().__init__(_("Role cannot be deleted: {name}").format(name=role_name))
+        self.role_name = role_name
+
+
 class RoleInUse(Exception):
     """Raised when deleting a role that still has active assignments."""
 

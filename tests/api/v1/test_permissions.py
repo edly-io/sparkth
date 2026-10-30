@@ -411,6 +411,7 @@ class TestPermissionExceptionRegistration:
             PermissionNotFound,
             RoleAlreadyExists,
             RoleInUse,
+            RoleNotDeletable,
             RoleNotFound,
         )
 
@@ -418,4 +419,15 @@ class TestPermissionExceptionRegistration:
         assert RoleNotFound in registered
         assert RoleAlreadyExists in registered
         assert RoleInUse in registered
+        assert RoleNotDeletable in registered
         assert PermissionNotFound in registered
+
+
+async def test_delete_non_deletable_role_returns_409(client: AsyncClient, session: AsyncSession) -> None:
+    _override_current_user(client, await _create_user_with_permissions(session, ROLE_PERMISSIONS))
+    role = Role(name="admin", deletable=False)
+    session.add(role)
+    await session.flush()
+    response = await client.delete(f"/api/v1/permissions/roles/{role.id}")
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Role cannot be deleted: admin"
