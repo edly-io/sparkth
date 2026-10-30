@@ -59,20 +59,18 @@ async def test_invalid_arguments_are_a_validation_failure(monkeypatch: pytest.Mo
     assert execution["failure"] is ToolFailureKind.VALIDATION
 
 
-async def test_a_refused_call_logs_a_warning_naming_the_tool(
+async def test_a_refused_call_warns_with_the_tool_name_and_never_the_arguments(
     caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     tool = _tool(lookup_course, "Look up a course.")
 
     with caplog.at_level(logging.DEBUG):
-        await _first_execution(tool, "lookup_course", {"course_id": "abc"}, monkeypatch)
+        await _first_execution(tool, "lookup_course", {"course_id": "private-course-text"}, monkeypatch)
 
-    reports = [
-        record
-        for record in caplog.records
-        if record.levelno >= logging.WARNING and "lookup_course" in record.getMessage()
-    ]
-    assert [record.levelno for record in reports] == [logging.WARNING]
+    warnings = [record for record in caplog.records if record.levelno >= logging.WARNING]
+    assert [record.getMessage() for record in warnings] == ["Tool 'lookup_course' call was refused"]
+    details = [record for record in caplog.records if record.levelno == logging.DEBUG]
+    assert any("private-course-text" in record.getMessage() for record in details)
 
 
 async def test_a_tool_name_that_is_not_bound_is_a_validation_failure(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -103,11 +101,16 @@ async def test_missing_plugin_settings_log_a_warning_without_a_traceback(
     assert all(record.levelno < logging.ERROR for record in caplog.records)
 
 
-async def test_a_validation_error_raised_inside_a_handler_is_a_validation_failure(
-    monkeypatch: pytest.MonkeyPatch,
+async def test_a_validation_error_raised_inside_a_handler_is_an_unknown_failure(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """The model's arguments were valid, so the failure is the handler's own, not the model's to fix."""
     tool = _tool(convert_course_id, "Look up a course by its id.")
 
-    execution = await _first_execution(tool, "convert_course_id", {"course_id": "abc"}, monkeypatch)
+    with caplog.at_level(logging.DEBUG):
+        execution = await _first_execution(tool, "convert_course_id", {"course_id": "abc"}, monkeypatch)
 
-    assert execution["failure"] is ToolFailureKind.VALIDATION
+    assert execution["failure"] is ToolFailureKind.UNKNOWN
+    assert execution["output"] == "Error executing tool 'convert_course_id'."
+    errors = [record.getMessage() for record in caplog.records if record.levelno >= logging.ERROR]
+    assert errors == ["Tool 'convert_course_id' raised a validation error inside its handler"]
