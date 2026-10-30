@@ -159,3 +159,34 @@ def test_compose_activity_cagg_migration_is_noop_on_sqlite(tmp_path: Path) -> No
         conn.close()
     assert views == []
     assert version != [("ebad497c31e2",)]
+
+
+def test_stored_chat_events_become_compose_events(tmp_path: Path) -> None:
+    """Stored ``chat.*`` events are renamed to ``compose.*`` with their counts, and back on downgrade."""
+    db_file = tmp_path / "analytics_compose_rename.db"
+    _alembic(db_file, "upgrade", "63217cf46808")
+    seeded = [("chat.message_sent",)] * 3 + [("chat.turn_failed",), ("user.logged_in",)]
+
+    conn = sqlite3.connect(db_file)
+    try:
+        conn.executemany(
+            "INSERT INTO raw_events (occurred_at, received_at, event_type, event_version, actor_id, payload)"
+            " VALUES ('2026-09-01 10:00:00', '2026-09-01 10:00:00', ?, 1, '7', '{}')",
+            seeded,
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    def counts() -> list[tuple[str, int]]:
+        c = sqlite3.connect(db_file)
+        try:
+            return list(c.execute("SELECT event_type, count(*) FROM raw_events GROUP BY event_type ORDER BY 1"))
+        finally:
+            c.close()
+
+    _alembic(db_file, "upgrade", "head")
+    assert counts() == [("compose.message_sent", 3), ("compose.turn_failed", 1), ("user.logged_in", 1)]
+
+    _alembic(db_file, "downgrade", "63217cf46808")
+    assert counts() == [("chat.message_sent", 3), ("chat.turn_failed", 1), ("user.logged_in", 1)]
