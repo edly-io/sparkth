@@ -89,3 +89,34 @@ describe("PluginProvider api calls", () => {
     expect(result.current.error).toBe("Failed to fetch plugins: Forbidden");
   });
 });
+
+describe("plugin context callApi", () => {
+  // callApi uses raw fetch(url, init), so the headers are in the second argument.
+  function sentHeaders(spy: ReturnType<typeof mockFetch>): Headers {
+    const init = spy.mock.calls.at(-1)?.[1] as RequestInit;
+    return new Headers(init.headers);
+  }
+
+  it("sends the bearer token", async () => {
+    const spy = mockFetch([]);
+    const { result } = renderHook(() => usePluginContext(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await result.current.createPluginContext("slack").callApi("logs");
+
+    expect(sentHeaders(spy).get("authorization")).toBe("Bearer test-token");
+  });
+
+  it("sends no authorization header without a token", async () => {
+    const spy = mockFetch({});
+    const { result } = renderHook(() => usePluginContext(), {
+      wrapper: ({ children }: { children: ReactNode }) =>
+        React.createElement(PluginProvider, { token: null, children }),
+    });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await result.current.createPluginContext("slack").callApi("logs");
+
+    expect(sentHeaders(spy).has("authorization")).toBe(false);
+  });
+});

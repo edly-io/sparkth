@@ -1,4 +1,4 @@
-import { api, ApiRequestError, type Schema } from "@/lib/api";
+import { api, ApiRequestError, bearer, type Schema } from "@/lib/api";
 
 export type ConnectionStatus = Schema<"GoogleDriveConnectionStatusResponse">;
 export type DriveFolder = Schema<"DriveFolderResponse">;
@@ -28,10 +28,6 @@ export const RagStatus = {
   Failed: "failed",
 } as const satisfies Record<string, Schema<"DocumentStatus">>;
 export type RagStatus = Schema<"DocumentStatus">;
-
-function bearer(token: string): { Authorization: string } {
-  return { Authorization: `Bearer ${token}` };
-}
 
 // This module's public contract is plain Error objects with action-prefixed
 // messages (logged before throwing); network failures propagate untouched.

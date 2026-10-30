@@ -9,7 +9,7 @@ import {
   useMemo,
   ReactNode,
 } from "react";
-import { api, ApiRequestError } from "@/lib/api";
+import { api, ApiRequestError, bearer } from "@/lib/api";
 import { PluginConfig, PluginContext as IPluginContext, UserPluginState } from "./types";
 
 // ============================================================================
@@ -43,10 +43,6 @@ const PluginContext = createContext<PluginContextValue | undefined>(undefined);
 // ============================================================================
 
 const API_BASE = "/api/v1";
-
-function bearer(token: string): { Authorization: string } {
-  return { Authorization: `Bearer ${token}` };
-}
 
 // This module's public contract is plain Error objects; network failures
 // propagate untouched.
@@ -222,7 +218,7 @@ export function PluginProvider({ children, token }: PluginProviderProps) {
             ...options,
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
+              ...(token ? bearer(token) : {}),
               ...options?.headers,
             },
           });
