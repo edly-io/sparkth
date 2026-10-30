@@ -3,8 +3,9 @@
 Module-level async functions mirroring the role engine. The CRUD functions commit
 (like ``roles.py``); the membership and assignment functions only flush (like
 ``assign_role`` / ``revoke_role``), so their callers own the transaction boundary.
-Every change is recorded as a ``group.*`` audit event in that same transaction; an
-idempotent call that changes nothing records nothing.
+Every change is recorded as a ``group.*`` audit event in that same transaction
+(``delete_group`` also records ``role.unassigned`` for the user grants scoped to the group);
+an idempotent call that changes nothing records nothing.
 Authored with LLM (Claude) assistance.
 """
 
@@ -89,9 +90,12 @@ async def list_groups(session: AsyncSession) -> list[Group]:
     return list((await session.exec(select(Group).order_by(col(Group.id)))).all())
 
 
-async def get_group(group_id: int, session: AsyncSession) -> Group:
-    """Return the group with group_id, or raise GroupNotFound."""
-    group = await session.get(Group, group_id)
+async def get_group(group_id: int, session: AsyncSession, for_update: bool = False) -> Group:
+    """Return the group with group_id, or raise GroupNotFound.
+
+    ``for_update`` locks the row until the transaction ends (a no-op on SQLite).
+    """
+    group = await session.get(Group, group_id, with_for_update=for_update)
     if group is None:
         raise GroupNotFound(str(group_id))
     return group
@@ -183,8 +187,9 @@ async def delete_group(group_id: int, session: AsyncSession) -> None:
     and role assignments (active and revoked) and every grant scoped to the group (``group:<id>``).
     Before ``group.deleted``, each active removed row records its event: ``group.member_removed`` for a
     membership, ``group.role_revoked`` for a group assignment, ``role.unassigned`` for a user grant.
+    The group row is locked for the delete so concurrent changes to it wait for it.
     """
-    group = await get_group(group_id, session)
+    group = await get_group(group_id, session, True)
     await delete_grants_at_object(GROUP, str(group_id), session)
     await _delete_group_dependents(group_id, session)
     await session.delete(group)

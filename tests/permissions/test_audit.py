@@ -18,7 +18,7 @@ from sparkth.core.permissions.models import (
 )
 from sparkth.lib.audit import record_event
 from sparkth.lib.audit.events import BaseAuditEvent, RoleDeletedAuditEvent
-from sparkth.lib.permissions.scopes import GLOBAL, ROLE
+from sparkth.lib.permissions.scopes import GLOBAL, GROUP, ROLE
 from sparkth.lib.testing import AuditEventsFetcher
 
 
@@ -167,7 +167,7 @@ class TestRoleEvents:
         assert unassigned.old_values == {"role": "grader", "scope": "course", "scope_object_id": "5"}
 
     async def test_delete_is_fail_closed_when_audit_write_fails(
-        self, session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+        self, session: AsyncSession, audit_events: AuditEventsFetcher, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         role = await _role(session)
         group = await _group(session)
@@ -177,12 +177,14 @@ class TestRoleEvents:
         await assign_role(1, "grader", GLOBAL, None, session)
         await groups.assign_role_to_group(group.id, "grader", GLOBAL, None, session)
         await session.commit()
+        events_before = len(await audit_events())
 
         monkeypatch.setattr("sparkth.core.permissions.roles.record_event", _record_event_failing_on_role_deleted)
         with pytest.raises(SQLAlchemyError):
             await roles.delete_role(role_id, session)
         await session.rollback()
 
+        assert len(await audit_events()) == events_before
         assert (await session.exec(select(Role).where(Role.id == role_id))).first() is not None
         assert (await session.exec(select(RolePermission).where(RolePermission.role_id == role_id))).all() != []
         assert (await session.exec(select(RoleAssignment).where(RoleAssignment.role_id == role_id))).all() != []
@@ -357,8 +359,21 @@ class TestGroupEvents:
 
         unassigned, deleted = (await audit_events())[before:]
         _assert_envelope(unassigned, "role.unassigned", "user", 1)
-        assert unassigned.old_values is not None and unassigned.old_values["scope"] == "group"
+        assert unassigned.old_values == {"role": "manager", "scope": "group", "scope_object_id": str(group_id)}
         _assert_envelope(deleted, "group.deleted", "group", group_id)
+
+    async def test_delete_records_one_event_for_a_group_assigned_at_itself(
+        self, session: AsyncSession, audit_events: AuditEventsFetcher
+    ) -> None:
+        group = await _group(session)
+        await _role(session, "grader")
+        assert group.id is not None
+        await groups.assign_role_to_group(group.id, "grader", GROUP, str(group.id), session)
+        before = len(await audit_events())
+        await groups.delete_group(group.id, session)
+
+        events = (await audit_events())[before:]
+        assert [e.category + "." + e.action for e in events] == ["group.role_revoked", "group.deleted"]
 
     async def test_add_member_records_member_added(
         self, session: AsyncSession, audit_events: AuditEventsFetcher
