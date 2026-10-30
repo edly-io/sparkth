@@ -382,6 +382,7 @@ async def chat_completion(
                 rag_search_declined,
                 analytics=turn_analytics.attribution,
                 turn_id=turn_key,
+                max_tool_executions=config.max_tool_executions,
             )
             return StreamingResponse(
                 # The stream task outlives this response — it writes its analytics after the
