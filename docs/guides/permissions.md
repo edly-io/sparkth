@@ -89,7 +89,8 @@ there — they are declared in code.
 
 Roles shipped with the app are **non-deletable** (`deletable = false`): deleting one returns `409`.
 Roles created through the API are deletable. A migration that seeds a new shipped role sets
-`deletable = false` on it.
+`deletable = false` on it. Deleting a role also removes every grant scoped to it (`role:<id>`), so
+a later role that reuses the id never inherits them.
 
 ## Groups
 
@@ -163,8 +164,10 @@ CLI commands are attributed to the `cli` system actor.
 
 The grant, assign, and add-member functions are idempotent, and so are their revoke and
 remove counterparts: a call that changes nothing (the grant already exists, or there is
-nothing active to revoke) records nothing. Likewise an update that leaves a role's or group's
-name and description as they were records nothing.
+nothing active to revoke) records nothing. Deleting a role records `role.unassigned` and
+`group.role_revoked` for each active grant scoped to it (revoked grants record nothing).
+Likewise an update that leaves a role's or group's name and description as they were records
+nothing.
 
 ## Before adding one
 

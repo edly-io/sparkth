@@ -324,7 +324,7 @@ async def assign_role_to_group(
         GroupRoleAssignedAuditEvent(
             outcome=AuditOutcome.SUCCESS,
             target=_target(group_id),
-            change=AuditChange(new=_create_grant_audit_snapshot(role_name, permission_scope, scope_object_id)),
+            change=AuditChange(new=_create_grant_audit_snapshot(role_name, permission_scope.name, scope_object_id)),
         ),
     )
     return assignment
@@ -364,7 +364,7 @@ async def revoke_role_from_group(
             GroupRoleRevokedAuditEvent(
                 outcome=AuditOutcome.SUCCESS,
                 target=_target(group_id),
-                change=AuditChange(old=_create_grant_audit_snapshot(role_name, permission_scope, scope_object_id)),
+                change=AuditChange(old=_create_grant_audit_snapshot(role_name, permission_scope.name, scope_object_id)),
             ),
         )
 

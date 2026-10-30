@@ -9,7 +9,7 @@ change itself; an idempotent call that changes nothing records nothing.
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.permissions import PERMISSIONS, get_permission
+from sparkth.core.permissions import PERMISSIONS, delete_grants_at_object, get_permission
 from sparkth.core.permissions.exceptions import (
     RoleAlreadyExists,
     RoleInUse,
@@ -17,6 +17,7 @@ from sparkth.core.permissions.exceptions import (
     RoleNotFound,
 )
 from sparkth.core.permissions.models import Role, RoleAssignment, RolePermission
+from sparkth.core.permissions.scopes import ROLE
 from sparkth.lib.audit import record_event
 from sparkth.lib.audit.events import (
     AuditChange,
@@ -109,7 +110,8 @@ async def delete_role(role_id: int, session: AsyncSession) -> None:
 
     Raises RoleNotFound if the role is missing, RoleNotDeletable if it is marked non-deletable,
     or RoleInUse if it still has an active assignment. Only active assignments block; historical
-    (soft-deleted) assignment rows are removed along with the role.
+    (soft-deleted) assignment rows are removed along with the role. Every grant scoped to the
+    role itself (``role:<id>``) is removed too, recording an event per active one.
 
     TODO: the cascade/soft-delete semantics here are provisional — revisit how a role's
     assignment history should be handled on delete.
@@ -126,6 +128,7 @@ async def delete_role(role_id: int, session: AsyncSession) -> None:
     ).first()
     if active is not None:
         raise RoleInUse(role_id)
+    await delete_grants_at_object(ROLE, str(role_id), session)
     # The role_id foreign keys have no ON DELETE CASCADE, so remove dependents (grants and
     # any historical soft-deleted assignments) before deleting the role itself.
     for grant in (await session.exec(select(RolePermission).where(RolePermission.role_id == role_id))).all():
