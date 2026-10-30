@@ -51,7 +51,7 @@ import { PeriodSelector } from "@/app/dashboard/analytics/PeriodSelector";
 
 const catalog: EventCatalogEntry[] = [
   {
-    event_type: "chat.tool_invoked",
+    event_type: "compose.tool_invoked",
     fields: [
       { name: "outcome", kind: "enum", values: ["ok", "provider_api_error"], nullable: true },
       { name: "tool", kind: "string", values: null, nullable: false },
@@ -104,42 +104,42 @@ describe("ExplorePage", () => {
   it("writes the picked event to the URL, keeping the period", async () => {
     nav.search = "range=7d";
     renderWithIntl(<ExplorePage />);
-    await userEvent.selectOptions(await screen.findByLabelText("Event"), "chat.tool_invoked");
+    await userEvent.selectOptions(await screen.findByLabelText("Event"), "compose.tool_invoked");
     expect(nav.replace).toHaveBeenCalledWith(
-      "/dashboard/analytics/explore?range=7d&event=chat.tool_invoked",
+      "/dashboard/analytics/explore?range=7d&event=compose.tool_invoked",
     );
   });
 
   it("charts an ungrouped query as a line over the period", async () => {
-    nav.search = "event=chat.tool_invoked";
+    nav.search = "event=compose.tool_invoked";
     answer({ points: [{ bucket: "2026-07-23", group: null, value: 3 }] });
     renderWithIntl(<ExplorePage />);
-    const table = await screen.findByRole("table", { name: /^chat\.tool_invoked,/ });
+    const table = await screen.findByRole("table", { name: /^compose\.tool_invoked,/ });
     expect(within(table).getByRole("row", { name: "Jul 23, 2026 3" })).toBeInTheDocument();
     expect(fetchExplore).toHaveBeenCalledWith(
       "test-token",
       { from: "2026-06-25", to: "2026-07-24", bucket: "day" },
-      expect.objectContaining({ event: "chat.tool_invoked" }),
+      expect.objectContaining({ event: "compose.tool_invoked" }),
     );
   });
 
   it("keeps a first bucket that starts before the period", async () => {
-    nav.search = "bucket=month&event=chat.tool_invoked&chart=table";
+    nav.search = "bucket=month&event=compose.tool_invoked&chart=table";
     answer({ points: [{ bucket: "2026-06-01", group: null, value: 5 }] });
     renderWithIntl(<ExplorePage />);
-    const table = await screen.findByRole("table", { name: /^chat\.tool_invoked,/ });
+    const table = await screen.findByRole("table", { name: /^compose\.tool_invoked,/ });
     expect(within(table).getByRole("row", { name: /Jun.* 5$/ })).toBeInTheDocument();
   });
 
   it("shows a no-data state when nothing matched", async () => {
-    nav.search = "event=chat.tool_invoked";
+    nav.search = "event=compose.tool_invoked";
     answer({});
     renderWithIntl(<ExplorePage />);
     expect(await screen.findByText(/no matching events/i)).toBeInTheDocument();
   });
 
   it("ranks actor groups by name when known, else by id", async () => {
-    nav.search = "event=chat.tool_invoked&group=actor";
+    nav.search = "event=compose.tool_invoked&group=actor";
     answer({
       totals: [
         { group: "1", value: 5 },
@@ -148,22 +148,22 @@ describe("ExplorePage", () => {
       actor_names: { "1": "alice" },
     });
     renderWithIntl(<ExplorePage />);
-    const table = await screen.findByRole("table", { name: /^chat\.tool_invoked by actor,/i });
+    const table = await screen.findByRole("table", { name: /^compose\.tool_invoked by actor,/i });
     expect(within(table).getByRole("row", { name: "alice 5" })).toBeInTheDocument();
     expect(within(table).getByRole("row", { name: "2 2" })).toBeInTheDocument();
   });
 
   it("shows the totals as a visible table when asked", async () => {
-    nav.search = "event=chat.tool_invoked&group=outcome&chart=table";
+    nav.search = "event=compose.tool_invoked&group=outcome&chart=table";
     answer({ totals: [{ group: null, value: 4 }] });
     renderWithIntl(<ExplorePage />);
-    const table = await screen.findByRole("table", { name: /^chat\.tool_invoked by outcome,/ });
+    const table = await screen.findByRole("table", { name: /^compose\.tool_invoked by outcome,/ });
     expect(table).not.toHaveClass("sr-only");
     expect(within(table).getByRole("row", { name: "(none) 4" })).toBeInTheDocument();
   });
 
   it("says when only the top groups are shown", async () => {
-    nav.search = "event=chat.tool_invoked&group=tool";
+    nav.search = "event=compose.tool_invoked&group=tool";
     answer({ totals: [{ group: "search", value: 1 }], truncated: true });
     renderWithIntl(<ExplorePage />);
     expect(await screen.findByText(/top 20/i)).toBeInTheDocument();
@@ -178,7 +178,7 @@ describe("ExplorePage", () => {
   });
 
   it("offers an enum field's values from the catalog and adds the filter", async () => {
-    nav.search = "event=chat.tool_invoked";
+    nav.search = "event=compose.tool_invoked";
     answer({});
     renderWithIntl(<ExplorePage />);
     await userEvent.selectOptions(await screen.findByLabelText("Field"), "outcome");
@@ -191,12 +191,12 @@ describe("ExplorePage", () => {
     await userEvent.selectOptions(value, "provider_api_error");
     await userEvent.click(screen.getByRole("button", { name: "Add filter" }));
     expect(nav.replace).toHaveBeenCalledWith(
-      "/dashboard/analytics/explore?event=chat.tool_invoked&filter=outcome%3Aprovider_api_error",
+      "/dashboard/analytics/explore?event=compose.tool_invoked&filter=outcome%3Aprovider_api_error",
     );
   });
 
   it("keeps both of two changes made before the URL updates", async () => {
-    nav.search = "event=chat.tool_invoked";
+    nav.search = "event=compose.tool_invoked";
     answer({});
     renderWithIntl(<ExplorePage />);
     await userEvent.type(await screen.findByLabelText("Actor ID"), "42");
@@ -204,12 +204,12 @@ describe("ExplorePage", () => {
     await userEvent.selectOptions(screen.getByLabelText("Field"), "outcome");
     await userEvent.click(screen.getByRole("button", { name: "Add filter" }));
     expect(nav.replace).toHaveBeenLastCalledWith(
-      "/dashboard/analytics/explore?event=chat.tool_invoked&actor=42&filter=outcome%3Aok",
+      "/dashboard/analytics/explore?event=compose.tool_invoked&actor=42&filter=outcome%3Aok",
     );
   });
 
   it("keeps a period change made just before a control change", async () => {
-    nav.search = "event=chat.tool_invoked";
+    nav.search = "event=compose.tool_invoked";
     answer({});
     renderWithIntl(
       <>
@@ -220,12 +220,12 @@ describe("ExplorePage", () => {
     await userEvent.selectOptions(await screen.findByLabelText("Period"), "7d");
     await userEvent.selectOptions(screen.getByLabelText("Measure"), "distinct_actors");
     expect(nav.replace).toHaveBeenLastCalledWith(
-      "/dashboard/analytics/explore?range=7d&bucket=day&event=chat.tool_invoked&measure=distinct_actors",
+      "/dashboard/analytics/explore?range=7d&bucket=day&event=compose.tool_invoked&measure=distinct_actors",
     );
   });
 
   it("offers only bars and a table for a breakdown, showing a line link as bars", async () => {
-    nav.search = "event=chat.tool_invoked&group=tool";
+    nav.search = "event=compose.tool_invoked&group=tool";
     answer({ totals: [{ group: "search", value: 1 }] });
     renderWithIntl(<ExplorePage />);
     const chart = await screen.findByLabelText("Chart");
@@ -241,7 +241,7 @@ describe("ExplorePage", () => {
   });
 
   it("only adds a filter value the field accepts", async () => {
-    nav.search = "event=chat.tool_invoked";
+    nav.search = "event=compose.tool_invoked";
     answer({});
     renderWithIntl(<ExplorePage />);
     const add = () => screen.getByRole("button", { name: "Add filter" });
@@ -259,7 +259,7 @@ describe("ExplorePage", () => {
   });
 
   it("drops a stale filter value with a notice instead of failing", async () => {
-    nav.search = "event=chat.tool_invoked&filter=outcome:removed_reason";
+    nav.search = "event=compose.tool_invoked&filter=outcome:removed_reason";
     answer({});
     renderWithIntl(<ExplorePage />);
     expect(await screen.findByText(/no longer exist/i)).toBeInTheDocument();
@@ -285,7 +285,7 @@ describe("ExplorePage", () => {
   });
 
   it("keeps unsaved edits in the URL when a saved view's link is reloaded", async () => {
-    nav.search = "view=v1&event=chat.tool_invoked";
+    nav.search = "view=v1&event=compose.tool_invoked";
     answer({});
     vi.mocked(fetchView).mockResolvedValue(savedView({ event: "auth.login", chart: "bar" }));
     renderWithIntl(<ExplorePage />);
@@ -296,7 +296,7 @@ describe("ExplorePage", () => {
   it("shows the notice for a saved view naming a removed field", async () => {
     nav.search = "view=v1";
     vi.mocked(fetchView).mockResolvedValue(
-      savedView({ event: "chat.tool_invoked", filters: [{ field: "gone", value: "x" }] }),
+      savedView({ event: "compose.tool_invoked", filters: [{ field: "gone", value: "x" }] }),
     );
     const first = renderWithIntl(<ExplorePage />);
     await vi.waitFor(() => expect(nav.replace).toHaveBeenCalled());

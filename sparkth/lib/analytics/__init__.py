@@ -159,7 +159,7 @@ async def emit_event(
     Prefer ``ingest_event`` where the caller already holds an analytics session.
 
     Args:
-        event_type: The registered event name, e.g. ``"chat.message_sent"``.
+        event_type: The registered event name, e.g. ``"compose.message_sent"``.
         version: The schema version, e.g. ``1``.
         payload: The event body, validated against the registered schema.
         actor_id: The acting user's id as a string, stored for provenance.

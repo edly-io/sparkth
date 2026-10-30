@@ -56,7 +56,7 @@ async def resolve_document_blocks(
     once per message, groups results by source, and injects one text block per source.
     Returns a new list; original messages are not mutated.
     Base64 and plain text blocks pass through unchanged.
-    ``analytics`` schedules ``chat.rag_search_completed`` for each search that returns.
+    ``analytics`` schedules ``compose.rag_search_completed`` for each search that returns.
 
     Raises:
         HTTPException(422): document not found or RAG not ready.

@@ -1,6 +1,6 @@
 """The chat LangChain loop is an audited seam: tool calls executed inside
 ``_send_message_with_tools`` / ``_stream_message_with_tools`` are recorded
-with source ``chat`` and the model identity that drove them (ADR-0002 seam
+with source ``compose`` and the model identity that drove them (ADR-0002 seam
 table row two)."""
 
 from typing import Any
@@ -57,7 +57,7 @@ def provider(monkeypatch: pytest.MonkeyPatch) -> AnthropicProvider:
     return provider
 
 
-async def test_send_message_tool_calls_carry_chat_source_and_model_identity(
+async def test_send_message_tool_calls_carry_compose_source_and_model_identity(
     audit_events: AuditEventsFetcher, provider: AnthropicProvider
 ) -> None:
     response = await provider.send_message(
@@ -68,7 +68,7 @@ async def test_send_message_tool_calls_carry_chat_source_and_model_identity(
     assert response["content"] == "done"
     invoked, completed = await audit_events()
     for row in (invoked, completed):
-        assert row.source == "chat"
+        assert row.source == "compose"
         assert row.tool_name == "lookup_course"
         assert row.model_provider == "anthropic"
         assert row.model_name == "claude-sonnet-5"
@@ -91,7 +91,7 @@ async def test_stream_message_tool_calls_are_audited(
     invoked, completed = await audit_events()
     assert (invoked.category, invoked.action) == ("tool", "invoked")
     assert (completed.category, completed.action) == ("tool", "completed")
-    assert invoked.source == "chat"
+    assert invoked.source == "compose"
     assert invoked.model_provider == "anthropic"
 
 

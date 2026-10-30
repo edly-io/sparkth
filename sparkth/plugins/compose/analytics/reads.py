@@ -1,7 +1,7 @@
-"""Read-side query over chat authoring activity.
+"""Read-side query over compose authoring activity.
 
-Reads the ``chat_activity_daily`` continuous aggregate through ``read_rollup``; its ``dims``
-must match the aggregate's ``dimension`` / ``outcome`` definition. Also declares chat's Overview
+Reads the ``compose_activity_daily`` continuous aggregate through ``read_rollup``; its ``dims``
+must match the aggregate's ``dimension`` / ``outcome`` definition. Also declares compose's Overview
 figures, which sum that read.
 """
 
@@ -13,54 +13,56 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sparkth.lib.analytics import Bucket, Count, SummaryFigure, read_rollup
 from sparkth.lib.i18n import gettext_noop
 from sparkth.plugins.compose.analytics.events import (
-    ChatConversationStarted,
-    ChatDocumentAttached,
-    ChatDocumentDetached,
-    ChatMessageSent,
-    ChatRagSearchCompleted,
-    ChatToolInvoked,
-    ChatTurnFailed,
+    ComposeConversationStarted,
+    ComposeDocumentAttached,
+    ComposeDocumentDetached,
+    ComposeMessageSent,
+    ComposeRagSearchCompleted,
+    ComposeToolInvoked,
+    ComposeTurnFailed,
 )
 
 ACTIVITY_EVENT_TYPES = (
-    ChatConversationStarted.event_type,
-    ChatMessageSent.event_type,
-    ChatToolInvoked.event_type,
-    ChatDocumentAttached.event_type,
-    ChatDocumentDetached.event_type,
-    ChatTurnFailed.event_type,
-    ChatRagSearchCompleted.event_type,
+    ComposeConversationStarted.event_type,
+    ComposeMessageSent.event_type,
+    ComposeToolInvoked.event_type,
+    ComposeDocumentAttached.event_type,
+    ComposeDocumentDetached.event_type,
+    ComposeTurnFailed.event_type,
+    ComposeRagSearchCompleted.event_type,
 )
 
 
-class ChatActivityPoint(BaseModel):
-    """Count of one chat event type in one bucket. ``bucket`` is the UTC start, ``YYYY-MM-DD``."""
+class ComposeActivityPoint(BaseModel):
+    """Count of one compose event type in one bucket. ``bucket`` is the UTC start, ``YYYY-MM-DD``."""
 
     bucket: str
     event_type: str
     dimension: str | None = None
-    """Tool name for ``chat.tool_invoked``, failure cause for ``chat.turn_failed``,
-    ``found`` / ``empty`` for ``chat.rag_search_completed``."""
+    """Tool name for ``compose.tool_invoked``, failure cause for ``compose.turn_failed``,
+    ``found`` / ``empty`` for ``compose.rag_search_completed``."""
     outcome: str | None = None
     """``succeeded`` / ``failed`` for tool calls recorded with an outcome."""
     event_count: int
 
 
-async def get_compose_activity(session: AsyncSession, from_: date, to: date, bucket: Bucket) -> list[ChatActivityPoint]:
-    """Return chat event counts per ``bucket``, event type, dimension and outcome for ``from_``..``to``.
+async def get_compose_activity(
+    session: AsyncSession, from_: date, to: date, bucket: Bucket
+) -> list[ComposeActivityPoint]:
+    """Return compose event counts per ``bucket``, event type, dimension and outcome for ``from_``..``to``.
 
     Sparse: combinations with no events are omitted. Sorted with NULLs first, bytewise.
     """
     rows = await read_rollup(
         session,
-        aggregate="chat_activity_daily",
+        aggregate="compose_activity_daily",
         event_types=ACTIVITY_EVENT_TYPES,
         by_event_type=True,
         dims={
             "dimension": {
-                ChatToolInvoked.event_type: "tool_name",
-                ChatTurnFailed.event_type: "cause",
-                ChatRagSearchCompleted.event_type: "result",
+                ComposeToolInvoked.event_type: "tool_name",
+                ComposeTurnFailed.event_type: "cause",
+                ComposeRagSearchCompleted.event_type: "result",
             },
             "outcome": "outcome",
         },
@@ -69,7 +71,7 @@ async def get_compose_activity(session: AsyncSession, from_: date, to: date, buc
         to=to,
         bucket=bucket,
     )
-    return [ChatActivityPoint.model_validate(dict(r)) for r in rows]
+    return [ComposeActivityPoint.model_validate(dict(r)) for r in rows]
 
 
 def _count_of(event_type: str) -> Count:
@@ -84,26 +86,30 @@ def _count_of(event_type: str) -> Count:
 # Built once so a second ComposePlugin() registers equal figures (a no-op).
 SUMMARY_FIGURES_COMPOSE = (
     SummaryFigure(
-        "chat.conversations",
+        "compose.conversations",
         gettext_noop("Conversations started"),
-        _count_of(ChatConversationStarted.event_type),
+        _count_of(ComposeConversationStarted.event_type),
         view="authoring",
         order=40,
     ),
     SummaryFigure(
-        "chat.messages",
+        "compose.messages",
         gettext_noop("Messages sent"),
-        _count_of(ChatMessageSent.event_type),
+        _count_of(ComposeMessageSent.event_type),
         view="authoring",
         order=50,
     ),
     SummaryFigure(
-        "chat.tool_calls", gettext_noop("Tool calls"), _count_of(ChatToolInvoked.event_type), view="authoring", order=60
+        "compose.tool_calls",
+        gettext_noop("Tool calls"),
+        _count_of(ComposeToolInvoked.event_type),
+        view="authoring",
+        order=60,
     ),
     SummaryFigure(
-        "chat.failed_turns",
+        "compose.failed_turns",
         gettext_noop("Messages failed"),
-        _count_of(ChatTurnFailed.event_type),
+        _count_of(ComposeTurnFailed.event_type),
         view="authoring",
         order=70,
     ),

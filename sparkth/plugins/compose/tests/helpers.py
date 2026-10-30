@@ -1,4 +1,4 @@
-"""Helpers shared by the chat plugin's tests: seeded rows, LMS configs, mocked providers and Google's errors."""
+"""Helpers shared by the Compose plugin's tests: seeded rows, LMS configs, mocked providers and Google's errors."""
 
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID

@@ -1,4 +1,4 @@
-"""The chat plugin's analytics event schemas.
+"""The compose plugin's analytics event schemas.
 
 Payloads carry identifiers, lengths, flags and names only: no message content, title,
 prompt, tool argument or tool output.
@@ -13,10 +13,10 @@ from sparkth.lib.analytics import AnalyticsEventSchema
 from sparkth.lib.audit import ToolFailureKind
 
 
-class ChatConversationStarted(AnalyticsEventSchema):
+class ComposeConversationStarted(AnalyticsEventSchema):
     """A new authoring conversation was created."""
 
-    event_type = "chat.conversation_started"
+    event_type = "compose.conversation_started"
     version = 1
 
     conversation_id: str
@@ -24,7 +24,7 @@ class ChatConversationStarted(AnalyticsEventSchema):
     model: str
 
 
-class ChatMessageSent(AnalyticsEventSchema):
+class ComposeMessageSent(AnalyticsEventSchema):
     """An instructor turn was persisted.
 
     ``message_length`` counts the stored row, so a text-less turn records the length of
@@ -33,7 +33,7 @@ class ChatMessageSent(AnalyticsEventSchema):
     ``document_ids``.
     """
 
-    event_type = "chat.message_sent"
+    event_type = "compose.message_sent"
     version = 1
 
     conversation_id: str
@@ -43,7 +43,7 @@ class ChatMessageSent(AnalyticsEventSchema):
     has_attachment: bool
 
 
-class ChatCompletionServed(AnalyticsEventSchema):
+class ComposeCompletionServed(AnalyticsEventSchema):
     """A turn's reply was served, including one the author stopped before or during the reply.
 
     Not every delivered reply emits this: the RAG-no-results and streaming-error branches
@@ -54,7 +54,7 @@ class ChatCompletionServed(AnalyticsEventSchema):
     end; a ``before_model`` stop persists an empty reply.
     """
 
-    event_type = "chat.completion_served"
+    event_type = "compose.completion_served"
     version = 1
 
     conversation_id: str
@@ -73,14 +73,14 @@ class ToolOutcome(StrEnum):
     FAILED = "failed"
 
 
-class ChatToolInvoked(AnalyticsEventSchema):
+class ComposeToolInvoked(AnalyticsEventSchema):
     """One tool execution — the authoring-output event.
 
     Counts attempts; ``outcome`` says whether the call succeeded. ``failure_kind`` is
     ``None`` exactly when it did; a tool that raised is ``unknown``.
     """
 
-    event_type = "chat.tool_invoked"
+    event_type = "compose.tool_invoked"
     version = 1
 
     conversation_id: str
@@ -90,14 +90,14 @@ class ChatToolInvoked(AnalyticsEventSchema):
     failure_kind: ToolFailureKind | None
 
 
-class ChatDocumentAttached(AnalyticsEventSchema):
+class ComposeDocumentAttached(AnalyticsEventSchema):
     """An instructor put a document in play for a conversation.
 
     ``source`` separates a deliberate attach from one named on a completion request.
     Re-attaching an already-attached document emits nothing.
     """
 
-    event_type = "chat.document_attached"
+    event_type = "compose.document_attached"
     version = 1
 
     conversation_id: str
@@ -105,14 +105,14 @@ class ChatDocumentAttached(AnalyticsEventSchema):
     source: Literal["explicit", "completion_request"]
 
 
-class ChatDocumentDetached(AnalyticsEventSchema):
+class ComposeDocumentDetached(AnalyticsEventSchema):
     """An instructor removed a document from a conversation.
 
     ``seconds_attached`` is measured from the removed row's ``attached_at`` — the one fact
     about it that outlives the row.
     """
 
-    event_type = "chat.document_detached"
+    event_type = "compose.document_detached"
     version = 1
 
     conversation_id: str
@@ -120,13 +120,13 @@ class ChatDocumentDetached(AnalyticsEventSchema):
     seconds_attached: NonNegativeInt
 
 
-class ChatDocumentsSkipped(AnalyticsEventSchema):
+class ComposeDocumentsSkipped(AnalyticsEventSchema):
     """A completion request named documents that were silently dropped from the turn.
 
     Counts only, never ids: a skipped id may belong to another user.
     """
 
-    event_type = "chat.documents_skipped"
+    event_type = "compose.documents_skipped"
     version = 1
 
     conversation_id: str
@@ -134,7 +134,7 @@ class ChatDocumentsSkipped(AnalyticsEventSchema):
     skipped_count: NonNegativeInt
 
 
-class ChatAttachmentUnusable(AnalyticsEventSchema):
+class ComposeAttachmentUnusable(AnalyticsEventSchema):
     """A turn ran while an attached document was not ingestible, so it was ignored.
 
     Chat reads only READY attachments, so the instructor gets a reply that ignores their
@@ -142,7 +142,7 @@ class ChatAttachmentUnusable(AnalyticsEventSchema):
     intended.
     """
 
-    event_type = "chat.attachment_unusable"
+    event_type = "compose.attachment_unusable"
     version = 1
 
     conversation_id: str
@@ -160,17 +160,17 @@ class ScopeVerdict(StrEnum):
     OUT_OF_SCOPE = "out_of_scope"
 
 
-class ChatScopeClassified(AnalyticsEventSchema):
+class ComposeScopeClassified(AnalyticsEventSchema):
     """The scope classifier judged one turn.
 
     ``out_of_scope`` is a refusal — the chat model is never reached, and this event is the
     only record of it. Emitted on every judged turn, so the rate has its denominator here. A
-    turn the classifier could not judge records ``chat.turn_failed`` instead.
+    turn the classifier could not judge records ``compose.turn_failed`` instead.
     ``conversation_id`` is null on a first message, judged before the conversation exists.
     ``classifier_model`` is the classifier's own model, not the conversation's.
     """
 
-    event_type = "chat.scope_classified"
+    event_type = "compose.scope_classified"
     version = 1
 
     conversation_id: str | None
@@ -182,7 +182,7 @@ class ChatScopeClassified(AnalyticsEventSchema):
     query_length: NonNegativeInt
 
 
-class ChatRagSearchClassified(AnalyticsEventSchema):
+class ComposeRagSearchClassified(AnalyticsEventSchema):
     """The search classifier decided whether a turn needed the attached documents.
 
     Emitted only when the classifier was consulted, so its absence means there was no
@@ -190,10 +190,10 @@ class ChatRagSearchClassified(AnalyticsEventSchema):
     ``requires_search=False`` means attached documents were deliberately not read.
     ``documents_with_unreadable_structure`` counts failed heading lookups, not documents
     that genuinely have no sections.
-    A failed classification is fatal to the turn and lands as ``chat.turn_failed`` instead.
+    A failed classification is fatal to the turn and lands as ``compose.turn_failed`` instead.
     """
 
-    event_type = "chat.rag_search_classified"
+    event_type = "compose.rag_search_classified"
     version = 1
 
     conversation_id: str
@@ -211,16 +211,16 @@ class SearchResult(StrEnum):
     EMPTY = "empty"
 
 
-class ChatRagSearchCompleted(AnalyticsEventSchema):
+class ComposeRagSearchCompleted(AnalyticsEventSchema):
     """A turn searched its attached documents and the search returned.
 
     ``result`` is ``empty`` exactly when ``chunks_found`` is 0. On a streamed turn that is the turn
     that replies asking the author to rephrase; a non-streamed turn goes on to the model. A search
-    that errors is ``chat.turn_failed`` instead.
+    that errors is ``compose.turn_failed`` instead.
     ``document_count`` counts the documents searched.
     """
 
-    event_type = "chat.rag_search_completed"
+    event_type = "compose.rag_search_completed"
     version = 1
 
     conversation_id: str
@@ -256,7 +256,7 @@ class TurnFailureCause(StrEnum):
     UNEXPECTED = "unexpected"
 
 
-class ChatTurnFailed(AnalyticsEventSchema):
+class ComposeTurnFailed(AnalyticsEventSchema):
     """A turn ended in an error message instead of a reply.
 
     ``provider`` and ``model`` are null only for ``llm_config_unusable``, where neither has
@@ -264,7 +264,7 @@ class ChatTurnFailed(AnalyticsEventSchema):
     existed.
     """
 
-    event_type = "chat.turn_failed"
+    event_type = "compose.turn_failed"
     version = 1
 
     conversation_id: str | None

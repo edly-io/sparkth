@@ -1,4 +1,4 @@
-"""The chat plugin's analytics event schemas and their registration.
+"""The Compose plugin's analytics event schemas and their registration.
 
 Registration happens in ComposePlugin.__init__, which the plugin loader runs once when
 the app is imported — so these tests read the process-wide hook rather than
@@ -19,10 +19,10 @@ from sparkth.lib.analytics import AnalyticsEventSchema, get_event_schema
 from sparkth.lib.audit import ToolFailureKind
 from sparkth.plugins.compose.analytics import (
     AnalyticsAttribution,
-    ChatCompletionServed,
-    ChatConversationStarted,
-    ChatMessageSent,
-    ChatToolInvoked,
+    ComposeCompletionServed,
+    ComposeConversationStarted,
+    ComposeMessageSent,
+    ComposeToolInvoked,
     ComposeTurnAnalytics,
     ExecutedTool,
     StopPoint,
@@ -33,18 +33,18 @@ from sparkth.plugins.compose.analytics import (
 from sparkth.plugins.compose.detached import join_live_tasks, live_tasks
 
 ALL_SCHEMAS = [
-    ChatConversationStarted,
-    ChatMessageSent,
-    ChatCompletionServed,
-    ChatToolInvoked,
+    ComposeConversationStarted,
+    ComposeMessageSent,
+    ComposeCompletionServed,
+    ComposeToolInvoked,
 ]
 
 # One fully valid payload per schema, so the extra="forbid" test can fail on the
 # unexpected key alone rather than on missing required fields.
 VALID_PAYLOADS: list[tuple[type[AnalyticsEventSchema], dict[str, Any]]] = [
-    (ChatConversationStarted, {"conversation_id": "abc", "provider": "openai", "model": "gpt-4o"}),
+    (ComposeConversationStarted, {"conversation_id": "abc", "provider": "openai", "model": "gpt-4o"}),
     (
-        ChatMessageSent,
+        ComposeMessageSent,
         {
             "conversation_id": "abc",
             "provider": "openai",
@@ -54,7 +54,7 @@ VALID_PAYLOADS: list[tuple[type[AnalyticsEventSchema], dict[str, Any]]] = [
         },
     ),
     (
-        ChatCompletionServed,
+        ComposeCompletionServed,
         {
             "conversation_id": "abc",
             "provider": "openai",
@@ -66,7 +66,7 @@ VALID_PAYLOADS: list[tuple[type[AnalyticsEventSchema], dict[str, Any]]] = [
         },
     ),
     (
-        ChatToolInvoked,
+        ComposeToolInvoked,
         {
             "conversation_id": "abc",
             "tool_name": "openedx_create_xblock",
@@ -84,12 +84,12 @@ def test_schema_is_registered_under_its_own_identity(schema: type[AnalyticsEvent
 
 
 @pytest.mark.parametrize("schema", ALL_SCHEMAS, ids=lambda s: s.event_type)
-def test_event_type_is_namespaced_under_the_plugin(schema: type[AnalyticsEventSchema]) -> None:
-    assert schema.event_type.startswith("chat.")
+def test_event_types_are_namespaced_compose(schema: type[AnalyticsEventSchema]) -> None:
+    assert schema.event_type.startswith("compose.")
 
 
 def test_conversation_started_payload() -> None:
-    event = ChatConversationStarted(conversation_id="abc", provider="openai", model="gpt-4o")
+    event = ComposeConversationStarted(conversation_id="abc", provider="openai", model="gpt-4o")
     assert event.model_dump(mode="json") == {
         "conversation_id": "abc",
         "provider": "openai",
@@ -98,7 +98,7 @@ def test_conversation_started_payload() -> None:
 
 
 def test_message_sent_payload() -> None:
-    event = ChatMessageSent(
+    event = ComposeMessageSent(
         conversation_id="abc",
         provider="openai",
         model="gpt-4o",
@@ -110,7 +110,7 @@ def test_message_sent_payload() -> None:
 
 
 def test_completion_served_payload() -> None:
-    event = ChatCompletionServed(
+    event = ComposeCompletionServed(
         conversation_id="abc",
         provider="openai",
         model="gpt-4o",
@@ -124,7 +124,7 @@ def test_completion_served_payload() -> None:
 
 
 def test_tool_invoked_payload() -> None:
-    event = ChatToolInvoked(
+    event = ComposeToolInvoked(
         conversation_id="abc",
         tool_name="openedx_create_xblock",
         tool_category="openedx-course",
@@ -152,7 +152,7 @@ def test_schemas_forbid_extra_fields(schema: type[AnalyticsEventSchema], payload
 def test_message_length_rejects_a_negative_count() -> None:
     """A producer bug must fail validation rather than silently skew aggregates."""
     with pytest.raises(ValidationError) as exc_info:
-        ChatMessageSent(
+        ComposeMessageSent(
             conversation_id="abc",
             provider="openai",
             model="gpt-4o",
@@ -189,7 +189,7 @@ def test_tool_invoked_requires_its_outcome_fields(field: str) -> None:
     del payload[field]
 
     with pytest.raises(ValidationError) as exc_info:
-        ChatToolInvoked(**payload)
+        ComposeToolInvoked(**payload)
 
     assert [error["type"] for error in exc_info.value.errors()] == ["missing"]
 
@@ -200,25 +200,25 @@ def test_completion_served_requires_stopped_at() -> None:
     del payload["stopped_at"]
 
     with pytest.raises(ValidationError) as exc_info:
-        ChatCompletionServed(**payload)
+        ComposeCompletionServed(**payload)
 
     assert [error["type"] for error in exc_info.value.errors()] == ["missing"]
 
 
 def test_completion_served_accepts_each_stop_point() -> None:
     for stop_point in StopPoint:
-        assert ChatCompletionServed(**_completion_payload(stopped_at=stop_point)).stopped_at == stop_point
+        assert ComposeCompletionServed(**_completion_payload(stopped_at=stop_point)).stopped_at == stop_point
 
 
 def test_completion_served_rejects_an_unknown_stop_point() -> None:
     with pytest.raises(ValidationError):
-        ChatCompletionServed(**_completion_payload(stopped_at="later"))
+        ComposeCompletionServed(**_completion_payload(stopped_at="later"))
 
 
 def test_tool_call_count_rejects_a_negative_count() -> None:
     """A producer bug must fail validation rather than silently skew aggregates."""
     with pytest.raises(ValidationError) as exc_info:
-        ChatCompletionServed(
+        ComposeCompletionServed(
             conversation_id="abc",
             provider="openai",
             model="gpt-4o",
@@ -326,7 +326,7 @@ class TestSchedulingATurnEvent:
             await background_tasks()
 
         emit.assert_awaited_once_with(
-            "chat.conversation_started",
+            "compose.conversation_started",
             1,
             {"conversation_id": "conv-1", "provider": "openai", "model": "gpt-4o"},
             actor_id="7",
@@ -345,7 +345,7 @@ class TestSchedulingATurnEvent:
             await join_live_tasks()
 
         emit.assert_awaited_once_with(
-            "chat.message_sent",
+            "compose.message_sent",
             1,
             {
                 "conversation_id": "conv-1",
@@ -383,9 +383,9 @@ class TestSchedulingATurnEvent:
         assert emit.await_args is not None
         landed = emit.await_args.args[0]
         assert [event.event_type for event in landed] == [
-            "chat.completion_served",
-            "chat.tool_invoked",
-            "chat.tool_invoked",
+            "compose.completion_served",
+            "compose.tool_invoked",
+            "compose.tool_invoked",
         ]
         assert {event.actor_id for event in landed} == {"9"}
         assert landed[0].payload == {
@@ -427,7 +427,7 @@ class TestSchedulingATurnEvent:
         emit.assert_awaited_once()
         assert emit.await_args is not None
         landed = emit.await_args.args[0]
-        assert [event.event_type for event in landed] == ["chat.completion_served"]
+        assert [event.event_type for event in landed] == ["compose.completion_served"]
         assert landed[0].payload["tool_call_count"] == 0
         assert landed[0].occurred_at == MOMENT
 

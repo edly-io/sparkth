@@ -78,7 +78,7 @@ describe("fetchAuditCategories", () => {
 describe("filter choices", () => {
   it("offers every outcome and source the backend accepts", () => {
     expect(AUDIT_OUTCOMES).toEqual(["success", "failure", "denied"]);
-    expect(AUDIT_SOURCES).toEqual(["rest", "mcp", "chat", "rag", "cli", "system"]);
+    expect(AUDIT_SOURCES).toEqual(["rest", "mcp", "compose", "rag", "cli", "system"]);
   });
 });
 

@@ -30,10 +30,10 @@ from sparkth.core.security import create_access_token
 from sparkth.lib.testing import grant_global_permission
 from sparkth.main import assemble_app
 
-CHAT_COMPLETIONS_PATH = "/api/v1/chat/completions"
+COMPOSE_COMPLETIONS_PATH = "/api/v1/compose/completions"
 SLACK_CALLBACK_PATH = "/api/v1/slack/oauth/callback"
 ANALYTICS_READS = [
-    ("chat", "/api/v1/chat/analytics/activity"),
+    ("compose", "/api/v1/compose/analytics/activity"),
     ("google-drive", "/api/v1/google-drive/analytics/documents"),
 ]
 ANALYTICS_RANGE = {"from": "2026-03-01", "to": "2026-03-31"}
@@ -150,7 +150,7 @@ class TestRoutePluginResolution:
     @pytest.mark.parametrize(
         "method, path, plugin_name",
         [
-            ("POST", CHAT_COMPLETIONS_PATH, "chat"),
+            ("POST", COMPOSE_COMPLETIONS_PATH, "compose"),
             ("GET", "/api/v1/slack/oauth/status", "slack"),
             ("GET", "/api/v1/google-drive/oauth/status", "google-drive"),
         ],
@@ -184,10 +184,10 @@ class TestRoutePluginResolution:
         flattener = _CountingFlattener()
         monkeypatch.setattr("sparkth.core.plugins.middleware.iter_route_contexts", flattener)
 
-        first = _owner(middleware, _request(app, "POST", CHAT_COMPLETIONS_PATH))
+        first = _owner(middleware, _request(app, "POST", COMPOSE_COMPLETIONS_PATH))
         second = _owner(middleware, _request(app, "GET", "/api/v1/slack/oauth/status"))
 
-        assert (first, second) == ("chat", "slack")
+        assert (first, second) == ("compose", "slack")
         assert flattener.calls == 1
 
 
@@ -199,7 +199,7 @@ class TestExcludedPaths:
         # there is and leave the gate enforcing nothing at all.
         middleware = PluginAccessMiddleware(assemble_app())
 
-        assert middleware._is_excluded_path(CHAT_COMPLETIONS_PATH) is False
+        assert middleware._is_excluded_path(COMPOSE_COMPLETIONS_PATH) is False
 
     def test_excludes_the_configured_paths(self) -> None:
         middleware = PluginAccessMiddleware(assemble_app(), ["/api/v1/auth"])
@@ -212,31 +212,31 @@ class TestPluginAccessGate:
 
     async def test_blocks_a_plugin_the_user_disabled(self, client: AsyncClient, session: AsyncSession) -> None:
         user = await _seed_user(session, "disabled-chat-user")
-        plugin = await _seed_plugin(session, "chat", True)
+        plugin = await _seed_plugin(session, "compose", True)
         await _seed_user_plugin(session, user, plugin, False)
 
         response = await client.post(
-            CHAT_COMPLETIONS_PATH,
+            COMPOSE_COMPLETIONS_PATH,
             json={"messages": []},
             headers=_auth_headers(user.username),
         )
 
         assert response.status_code == 403
-        assert "chat" in response.json()["detail"]
+        assert "compose" in response.json()["detail"]
 
     async def test_blocks_a_plugin_disabled_system_wide(self, client: AsyncClient, session: AsyncSession) -> None:
         user = await _seed_user(session, "system-disabled-user")
-        plugin = await _seed_plugin(session, "chat", False)
+        plugin = await _seed_plugin(session, "compose", False)
         await _seed_user_plugin(session, user, plugin, True)
 
         response = await client.post(
-            CHAT_COMPLETIONS_PATH,
+            COMPOSE_COMPLETIONS_PATH,
             json={"messages": []},
             headers=_auth_headers(user.username),
         )
 
         assert response.status_code == 403
-        assert "chat" in response.json()["detail"]
+        assert "compose" in response.json()["detail"]
 
     @pytest.mark.parametrize("plugin_name, path", ANALYTICS_READS)
     @pytest.mark.parametrize("system_enabled, user_enabled", [(True, False), (False, True), (False, False)])
@@ -284,11 +284,11 @@ class TestPluginAccessGate:
         # The inverse of the block: without it, a gate that rejects everything would pass the
         # tests above while breaking every plugin endpoint in the product.
         user = await _seed_user(session, "enabled-chat-user")
-        plugin = await _seed_plugin(session, "chat", True)
+        plugin = await _seed_plugin(session, "compose", True)
         await _seed_user_plugin(session, user, plugin, True)
 
         response = await client.post(
-            CHAT_COMPLETIONS_PATH,
+            COMPOSE_COMPLETIONS_PATH,
             json={"messages": []},
             headers=_auth_headers(user.username),
         )
@@ -299,10 +299,10 @@ class TestPluginAccessGate:
         self, client: AsyncClient, session: AsyncSession
     ) -> None:
         user = await _seed_user(session, "no-preference-user")
-        await _seed_plugin(session, "chat", True)
+        await _seed_plugin(session, "compose", True)
 
         response = await client.post(
-            CHAT_COMPLETIONS_PATH,
+            COMPOSE_COMPLETIONS_PATH,
             json={"messages": []},
             headers=_auth_headers(user.username),
         )
@@ -311,7 +311,7 @@ class TestPluginAccessGate:
 
     async def test_does_not_gate_core_routes(self, client: AsyncClient, session: AsyncSession) -> None:
         user = await _seed_user(session, "core-route-user")
-        plugin = await _seed_plugin(session, "chat", True)
+        plugin = await _seed_plugin(session, "compose", True)
         await _seed_user_plugin(session, user, plugin, False)
 
         response = await client.get("/api/v1/user/me", headers=_auth_headers(user.username))
@@ -335,10 +335,10 @@ class TestPluginAccessGate:
     ) -> None:
         # Nobody to hold a preference, so there is nothing to enforce. The route's own auth
         # dependency is what rejects the request.
-        await _seed_plugin(session, "chat", True)
+        await _seed_plugin(session, "compose", True)
 
         response = await client.post(
-            CHAT_COMPLETIONS_PATH,
+            COMPOSE_COMPLETIONS_PATH,
             json={"messages": []},
             headers=_auth_headers("no-such-user"),
         )
@@ -355,16 +355,16 @@ class TestPluginAccessGate:
         control silently stops applying to exactly the users who never opened their
         settings."""
         user = await _seed_user(session, "no-preference-system-disabled")
-        await _seed_plugin(session, "chat", False)
+        await _seed_plugin(session, "compose", False)
 
         response = await client.post(
-            CHAT_COMPLETIONS_PATH,
+            COMPOSE_COMPLETIONS_PATH,
             json={"messages": []},
             headers=_auth_headers(user.username),
         )
 
         assert response.status_code == 403
-        assert "chat" in response.json()["detail"]
+        assert "compose" in response.json()["detail"]
 
     async def test_lets_through_a_plugin_only_another_user_disabled(
         self, client: AsyncClient, session: AsyncSession
@@ -374,11 +374,11 @@ class TestPluginAccessGate:
         user turning a plugin off would turn it off for everybody."""
         caller = await _seed_user(session, "unaffected-caller")
         other = await _seed_user(session, "opted-out-user")
-        plugin = await _seed_plugin(session, "chat", True)
+        plugin = await _seed_plugin(session, "compose", True)
         await _seed_user_plugin(session, other, plugin, False)
 
         response = await client.post(
-            CHAT_COMPLETIONS_PATH,
+            COMPOSE_COMPLETIONS_PATH,
             json={"messages": []},
             headers=_auth_headers(caller.username),
         )
@@ -393,7 +393,7 @@ class TestPluginAccessGate:
         user = await _seed_user(session, "unregistered-plugin-user")
 
         response = await client.post(
-            CHAT_COMPLETIONS_PATH,
+            COMPOSE_COMPLETIONS_PATH,
             json={"messages": []},
             headers=_auth_headers(user.username),
         )
@@ -405,30 +405,30 @@ class TestPluginAccessGate:
     ) -> None:
         # The gate fails closed: a lookup it could not complete is not permission to proceed.
         user = await _seed_user(session, "db-error-user")
-        plugin = await _seed_plugin(session, "chat", True)
+        plugin = await _seed_plugin(session, "compose", True)
         await _seed_user_plugin(session, user, plugin, True)
         monkeypatch.setattr("sparkth.core.plugins.middleware.get_user_by_username", _raise_operational_error)
 
         response = await client.post(
-            CHAT_COMPLETIONS_PATH,
+            COMPOSE_COMPLETIONS_PATH,
             json={"messages": []},
             headers=_auth_headers(user.username),
         )
 
         assert response.status_code == 403
-        assert "chat" in response.json()["detail"]
+        assert "compose" in response.json()["detail"]
 
     async def test_lets_through_a_request_carrying_an_invalid_token(
         self, client: AsyncClient, session: AsyncSession
     ) -> None:
         # An unreadable token identifies nobody, so there is no per-user preference to enforce.
         # The route's own auth dependency still rejects the request.
-        plugin = await _seed_plugin(session, "chat", True)
+        plugin = await _seed_plugin(session, "compose", True)
         user = await _seed_user(session, "invalid-token-user")
         await _seed_user_plugin(session, user, plugin, False)
 
         response = await client.post(
-            CHAT_COMPLETIONS_PATH,
+            COMPOSE_COMPLETIONS_PATH,
             json={"messages": []},
             headers={"Authorization": "Bearer not-a-real-token"},
         )
@@ -442,12 +442,12 @@ class TestCallerIsResolvedOnce:
 
     async def test_a_gated_route_reads_the_user_once(self, client: AsyncClient, session: AsyncSession) -> None:
         user = await _seed_user(session, "reuse-user")
-        plugin = await _seed_plugin(session, "chat", True)
+        plugin = await _seed_plugin(session, "compose", True)
         await _seed_user_plugin(session, user, plugin, True)
 
         with _counting(_UserSelectCounter()) as counter:
             await client.post(
-                CHAT_COMPLETIONS_PATH,
+                COMPOSE_COMPLETIONS_PATH,
                 json={"messages": []},
                 headers=_auth_headers(user.username),
             )
@@ -458,12 +458,12 @@ class TestCallerIsResolvedOnce:
         self, client: AsyncClient, session: AsyncSession
     ) -> None:
         user = await _seed_user(session, "switch-reuse-user")
-        plugin = await _seed_plugin(session, "chat", True)
+        plugin = await _seed_plugin(session, "compose", True)
         await _seed_user_plugin(session, user, plugin, True)
 
         with _counting(_SwitchReadCounter()) as counter:
             await client.post(
-                CHAT_COMPLETIONS_PATH,
+                COMPOSE_COMPLETIONS_PATH,
                 json={"messages": []},
                 headers=_auth_headers(user.username),
             )

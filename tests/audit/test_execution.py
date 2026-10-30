@@ -234,12 +234,12 @@ async def test_model_identity_and_source_come_from_ai_audit_context(audit_events
     wrapped = audited_tool(sample_tool)
     model = AuditModelInfo(provider="anthropic", name="claude-sonnet-5", version="claude-sonnet-5-20250929")
 
-    with ai_audit_context(source=AuditSource.CHAT, model=model):
+    with ai_audit_context(source=AuditSource.COMPOSE, model=model):
         await wrapped(course_id=1)
 
     invoked, completed = await audit_events()
     for row in (invoked, completed):
-        assert row.source == "chat"
+        assert row.source == "compose"
         assert row.model_provider == "anthropic"
         assert row.model_name == "claude-sonnet-5"
         assert row.model_version == "claude-sonnet-5-20250929"

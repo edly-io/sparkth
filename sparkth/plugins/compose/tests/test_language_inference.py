@@ -118,7 +118,7 @@ async def _system_prompt_for_one_request(client: AsyncClient, seed: _Seeded) -> 
         mock_processor_cls.return_value = mock_processor
 
         response = await client.post(
-            "/api/v1/chat/completions",
+            "/api/v1/compose/completions",
             json={
                 "llm_config_id": seed.llm_config_id,
                 "messages": [{"role": "user", "content": "Create a course on data privacy"}],
@@ -175,7 +175,7 @@ async def _scheduled_title_task_kwargs(client: AsyncClient, llm_config_id: int) 
         mock_processor_cls.return_value = mock_processor
 
         response = await client.post(
-            "/api/v1/chat/completions",
+            "/api/v1/compose/completions",
             json={
                 "llm_config_id": llm_config_id,
                 "messages": [{"role": "user", "content": "Create a course on data privacy"}],

@@ -40,7 +40,7 @@ register_exception_handler(DocumentNotFound, status.HTTP_404_NOT_FOUND)
 
 class ComposePlugin(SparkthPlugin):
     def __init__(self) -> None:
-        super().__init__("chat")
+        super().__init__("compose")
         register_router(self, compose_router)
         DOCUMENT_DELETED.add_item(self, detach_deleted_document)
         CONFIG_SCHEMAS.add_item(self, ComposeUserConfig)

@@ -1,4 +1,4 @@
-"""The chat plugin's LLM-config adapter is registered and reached.
+"""The Compose plugin's LLM-config adapter is registered and reached.
 
 The adapter is what validates that a chat config's llm_config_id belongs to the user asking,
 so losing its registration would quietly let one user point their chat config at another user's
@@ -27,4 +27,4 @@ async def test_the_config_pipeline_rejects_a_config_the_user_does_not_own() -> N
     """Proves the registration is reached, not merely present: PluginService looks the adapter
     up by plugin name, and an unowned llm_config_id must not survive the round trip."""
     with pytest.raises(ValueError, match="llm_config_id"):
-        await PluginService.apply_preprocess("chat", _session_finding_nothing(), 1, {"llm_config_id": 999})
+        await PluginService.apply_preprocess("compose", _session_finding_nothing(), 1, {"llm_config_id": 999})

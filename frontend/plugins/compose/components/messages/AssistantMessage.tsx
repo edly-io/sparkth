@@ -1,0 +1,252 @@
+import { AlertCircle, Bot } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { Card } from "@/components/ui/Card";
+import { ChatMessage, StreamStatusPhase, TextAttachment } from "../../types";
+import { Pill } from "../attachment/Pill";
+import { OptionsPrompt } from "./OptionsPrompt";
+import { answeredOptions, splitOptionsBlock } from "./optionsBlock";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { truncate, RAG_DISPLAY_NAME_MAX_CHARS } from "@/lib/utils";
+
+function ThinkingDots() {
+  return (
+    <div data-testid="thinking-dots" className="flex items-center gap-1 py-1">
+      <span className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-thinking-dot [animation-delay:0ms]" />
+      <span className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-thinking-dot [animation-delay:150ms]" />
+      <span className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-thinking-dot [animation-delay:300ms]" />
+    </div>
+  );
+}
+
+interface AssistantMessageProps {
+  message: ChatMessage;
+  setPreviewOpen: (open: boolean) => void;
+  setPreviewAttachment: (attachment: TextAttachment | null) => void;
+  onOptionCheck: (option: string) => void;
+  isLatest: boolean;
+  reply?: string;
+}
+
+function formatToolName(name: string): string {
+  return name.replace(/_/g, " ");
+}
+
+export function AssistantMessage({
+  message,
+  setPreviewOpen,
+  setPreviewAttachment,
+  onOptionCheck,
+  isLatest,
+  reply,
+}: AssistantMessageProps) {
+  const t = useTranslations("compose");
+
+  // Keys must stay literal t("...") calls — i18n-check only traces literal calls, not computed keys.
+  const statusTexts: Record<StreamStatusPhase, string> = {
+    scanning_attachments: t("statusScanningAttachments"),
+    searching_documents: t("statusSearchingDocuments"),
+    skipping_rag: t("statusSkippingRag"),
+    generating: t("statusGenerating"),
+  };
+  const displayText = message.streamedContent ?? message.content;
+  const { body, options, closed } = splitOptionsBlock(displayText);
+  const toolCalls = message.toolCalls ?? [];
+  // The dots stay up for every waiting state, tools running or not, so nothing flickers as a
+  // turn moves between calls; the count line above the card says what has run.
+  const isThinking = message.isTyping && !displayText;
+  // The sentence belongs to the start of a turn: once any tool call exists the count
+  // line above the card carries the state, so the card falls back to the dots.
+  const statusLine =
+    toolCalls.length > 0
+      ? null
+      : message.statusPhase
+        ? statusTexts[message.statusPhase]
+        : t("working");
+
+  const openPreview = (attachment: TextAttachment) => {
+    setPreviewAttachment(attachment);
+    setPreviewOpen(true);
+  };
+
+  return (
+    <div className="flex gap-4">
+      <div className="w-8 h-8 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center flex-shrink-0">
+        <Bot className="w-4 h-4" />
+      </div>
+
+      <div className="max-w-[75%] w-fit space-y-2">
+        {/* RAG context indicator — outside bubble, persistent */}
+        {message.ragSections && message.ragSections.length > 0 && (
+          <div className="px-1 space-y-0.5">
+            <p className="text-xs text-neutral-400 dark:text-neutral-500">Taking into context:</p>
+            <ul className="space-y-0.5">
+              {message.ragSections.slice(0, 5).map((section) => (
+                <li
+                  key={`${section.type}-${section.name}`}
+                  className="text-xs text-neutral-400 dark:text-neutral-500 flex items-baseline gap-1.5"
+                >
+                  {section.state === "scanning" ? (
+                    <span className="w-1.5 h-1.5 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0 mt-0.5 animate-pulse" />
+                  ) : (
+                    <span className="w-1 h-1 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0 mt-1" />
+                  )}
+                  <span className="capitalize">{section.type}</span>
+                  <span className="text-neutral-300 dark:text-neutral-600">—</span>
+                  <span className={section.state === "scanning" ? "opacity-50" : ""}>
+                    {truncate(section.name, RAG_DISPLAY_NAME_MAX_CHARS)}
+                    {section.source && (
+                      <>
+                        {" "}
+                        from{" "}
+                        <span className="opacity-70">
+                          {truncate(section.source, RAG_DISPLAY_NAME_MAX_CHARS)}
+                        </span>
+                      </>
+                    )}
+                  </span>
+                </li>
+              ))}
+              {message.ragSections.length > 5 && (
+                <li className="relative group ml-2.5 w-fit">
+                  <span className="text-xs text-neutral-300 dark:text-neutral-600 cursor-default underline decoration-dotted">
+                    +{message.ragSections.length - 5} more
+                  </span>
+                  {/* Hover tooltip showing remaining sections */}
+                  <div className="absolute bottom-full left-0 mb-1.5 hidden group-hover:block z-20 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-md shadow-lg p-2 min-w-max max-w-xs">
+                    <ul className="space-y-1">
+                      {message.ragSections.slice(5).map((section) => (
+                        <li
+                          key={`${section.type}-${section.name}`}
+                          className="text-xs text-neutral-500 dark:text-neutral-400 flex items-baseline gap-1.5"
+                        >
+                          <span className="w-1 h-1 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0 mt-1" />
+                          <span className="capitalize">{section.type}</span>
+                          <span className="text-neutral-300 dark:text-neutral-600">—</span>
+                          <span>
+                            {truncate(section.name, RAG_DISPLAY_NAME_MAX_CHARS)}
+                            {section.source && (
+                              <>
+                                {" "}
+                                from{" "}
+                                <span className="opacity-70">
+                                  {truncate(section.source, RAG_DISPLAY_NAME_MAX_CHARS)}
+                                </span>
+                              </>
+                            )}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </li>
+              )}
+            </ul>
+          </div>
+        )}
+
+        {/* Tool call progress — outside bubble, above response; same shape live and after */}
+        {toolCalls.length > 0 && (
+          <div className="px-1">
+            <div className="relative group w-fit flex items-center gap-1.5">
+              {/* Pulses for as long as the turn runs, so the count line is not static */}
+              {message.isTyping && (
+                <span
+                  data-testid="tool-activity-indicator"
+                  className="w-1.5 h-1.5 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0 animate-pulse"
+                />
+              )}
+              <p className="text-xs text-neutral-400 dark:text-neutral-500 cursor-default underline decoration-dotted decoration-neutral-300 dark:decoration-neutral-600">
+                {t("toolCallCount", { count: toolCalls.length })}
+              </p>
+              <div className="absolute bottom-full left-0 mb-1.5 hidden group-hover:block z-20 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-md shadow-lg p-2 min-w-max max-w-xs">
+                <ul className="space-y-1">
+                  {toolCalls.map((tool, i) => (
+                    <li
+                      key={`${tool.name}-${i}`}
+                      className="text-xs text-neutral-500 dark:text-neutral-400 flex items-center gap-1.5"
+                    >
+                      {tool.status === "running" ? (
+                        <span className="w-1.5 h-1.5 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0 animate-pulse" />
+                      ) : (
+                        <span className="w-1 h-1 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0" />
+                      )}
+                      <span>{formatToolName(tool.name)}</span>
+                      {tool.status === "running" && (
+                        <span className="text-neutral-400 dark:text-neutral-500">
+                          — {t("toolExecuting")}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {message.isError ? (
+          <Card variant="outlined" className="p-4 border-error bg-error-50">
+            <div className="flex items-start gap-2 text-error-500">
+              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <p className="text-sm">{displayText || "Something went wrong. Please try again."}</p>
+            </div>
+          </Card>
+        ) : (
+          <Card variant="outlined" className="p-4">
+            {isThinking ? (
+              statusLine ? (
+                <div className="flex items-center gap-2 py-1">
+                  <span className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-pulse" />
+                  <p className="text-sm text-muted-foreground">{statusLine}</p>
+                </div>
+              ) : (
+                <ThinkingDots />
+              )
+            ) : message.isPending ? (
+              <div className="flex items-start gap-2">
+                <span
+                  data-testid="pending-indicator"
+                  className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-pulse flex-shrink-0 mt-1.5"
+                />
+                <div className="prose prose-neutral dark:prose-invert max-w-none">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
+                </div>
+              </div>
+            ) : (
+              <div className="prose prose-neutral dark:prose-invert max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
+              </div>
+            )}
+
+            {message.stopped && (
+              <p className="mt-2 text-xs text-neutral-400 dark:text-neutral-500">{t("stopped")}</p>
+            )}
+
+            {!message.isTyping && (
+              <Pill
+                attachments={message.pillAttachment ? [message.pillAttachment] : []}
+                onPreview={openPreview}
+              />
+            )}
+
+            {options && (
+              <OptionsPrompt
+                options={options}
+                interactive={
+                  isLatest &&
+                  !message.isTyping &&
+                  !message.isPending &&
+                  (closed || !message.stopped)
+                }
+                selected={reply ? answeredOptions(options, reply) : []}
+                answered={!!reply}
+                onOptionCheck={onOptionCheck}
+              />
+            )}
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+}

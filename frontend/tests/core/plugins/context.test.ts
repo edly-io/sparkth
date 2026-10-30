@@ -43,11 +43,13 @@ describe("PluginProvider api calls", () => {
 
     const { result } = renderHook(() => usePluginContext(), { wrapper });
     await waitFor(() => expect(result.current.loading).toBe(false));
-    await act(() => result.current.enablePlugin("chat"));
+    await act(() => result.current.enablePlugin("compose"));
 
-    const request = sentRequests(spy).find((r) => new URL(r.url).pathname.endsWith("/chat/enable"));
+    const request = sentRequests(spy).find((r) =>
+      new URL(r.url).pathname.endsWith("/compose/enable"),
+    );
     expect(request).toBeDefined();
-    expect(new URL(request!.url).pathname).toBe("/api/v1/user-plugins/chat/enable");
+    expect(new URL(request!.url).pathname).toBe("/api/v1/user-plugins/compose/enable");
     expect(request!.method).toBe("PATCH");
     expect(request!.headers.get("authorization")).toBe("Bearer test-token");
   });
@@ -57,10 +59,10 @@ describe("PluginProvider api calls", () => {
 
     const { result } = renderHook(() => usePluginContext(), { wrapper });
     await waitFor(() => expect(result.current.loading).toBe(false));
-    await act(() => result.current.disablePlugin("chat"));
+    await act(() => result.current.disablePlugin("compose"));
 
     const request = sentRequests(spy).find((r) =>
-      new URL(r.url).pathname.endsWith("/chat/disable"),
+      new URL(r.url).pathname.endsWith("/compose/disable"),
     );
     expect(request).toBeDefined();
     expect(request!.method).toBe("PATCH");
@@ -71,11 +73,13 @@ describe("PluginProvider api calls", () => {
 
     const { result } = renderHook(() => usePluginContext(), { wrapper });
     await waitFor(() => expect(result.current.loading).toBe(false));
-    await act(() => result.current.updatePluginConfig("chat", { key: "v" }));
+    await act(() => result.current.updatePluginConfig("compose", { key: "v" }));
 
-    const request = sentRequests(spy).find((r) => new URL(r.url).pathname.endsWith("/chat/config"));
+    const request = sentRequests(spy).find((r) =>
+      new URL(r.url).pathname.endsWith("/compose/config"),
+    );
     expect(request).toBeDefined();
-    expect(new URL(request!.url).pathname).toBe("/api/v1/user-plugins/chat/config");
+    expect(new URL(request!.url).pathname).toBe("/api/v1/user-plugins/compose/config");
     expect(request!.method).toBe("PUT");
     await expect(request!.clone().json()).resolves.toEqual({ config: { key: "v" } });
   });

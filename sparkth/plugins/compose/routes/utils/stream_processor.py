@@ -29,7 +29,7 @@ from sparkth.lib.rag import (
 )
 from sparkth.plugins.compose.analytics import (
     AnalyticsAttribution,
-    ChatRagSearchCompleted,
+    ComposeRagSearchCompleted,
     ExecutedTool,
     StopPoint,
     TurnFailureCause,
@@ -73,7 +73,7 @@ class CompletedSearch:
     ``occurred_at`` is when retrieval returned; nothing else records that moment.
     """
 
-    event: ChatRagSearchCompleted
+    event: ComposeRagSearchCompleted
     occurred_at: datetime
 
 

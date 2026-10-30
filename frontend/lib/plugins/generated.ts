@@ -3,12 +3,12 @@
 // each plugin declares (DISPLAY_INFO and SIDEBAR_ENTRIES hooks).
 // Regenerate with `make frontend.build.plugins`; tests fail on drift.
 
-export const FRONTEND_PLUGIN_NAMES = ["chat", "google-drive", "pxc", "slack"] as const;
+export const FRONTEND_PLUGIN_NAMES = ["compose", "google-drive", "pxc", "slack"] as const;
 
 export type FrontendPluginName = (typeof FRONTEND_PLUGIN_NAMES)[number];
 
 export const PLUGIN_ICON_NAMES = {
-  "chat": ["plus"],
+  "compose": ["plus"],
   "pxc": ["blocks"],
   "slack": ["slack"],
 } as const;

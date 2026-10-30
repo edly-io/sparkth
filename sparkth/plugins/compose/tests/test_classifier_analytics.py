@@ -1,6 +1,6 @@
 """End-to-end analytics tests for the classifier decisions and failed turns.
 
-Each drives a real request and asserts on rows that landed. `chat.turn_failed` is emitted
+Each drives a real request and asserts on rows that landed. `compose.turn_failed` is emitted
 from a detached task — its seams raise rather than return — so these join it with `join_live_tasks`
 before asserting.
 """
@@ -25,7 +25,7 @@ from sparkth.plugins.compose.detached import join_live_tasks
 from sparkth.plugins.compose.models import Conversation, ConversationAttachment
 from sparkth.plugins.compose.tests.helpers import classifier_provider, seed_conversation, seed_llm_config
 
-COMPLETIONS_URL = "/api/v1/chat/completions"
+COMPLETIONS_URL = "/api/v1/compose/completions"
 _OPENAI_REQUEST = httpx.Request("POST", "https://api.openai.com/v1/chat/completions")
 
 
@@ -116,7 +116,7 @@ async def test_an_admitted_turn_records_the_scope_decision(
         response = await _turn(client, config_id, conversation_uuid=conversation_uuid)
 
     assert response.status_code == 200
-    (decision,) = await _events(analytics_session, "chat.scope_classified")
+    (decision,) = await _events(analytics_session, "compose.scope_classified")
     assert decision["verdict"] == "in_scope"
     assert decision["conversation_id"] == conversation_uuid
     assert decision["provider"] == "openai"
@@ -144,7 +144,7 @@ async def test_a_refused_turn_records_the_refusal_as_the_verdict(
         response = await _turn(client, config_id, conversation_uuid=conversation_uuid, content="what is 2+2?")
 
     assert response.status_code == 200
-    (decision,) = await _events(analytics_session, "chat.scope_classified")
+    (decision,) = await _events(analytics_session, "compose.scope_classified")
     assert decision["verdict"] == "out_of_scope"
 
 
@@ -169,7 +169,7 @@ async def test_a_first_message_refusal_is_recorded_without_a_conversation(
         response = await _turn(client, config_id, content="what is 2+2?")
 
     assert response.status_code == 200
-    (decision,) = await _events(analytics_session, "chat.scope_classified")
+    (decision,) = await _events(analytics_session, "compose.scope_classified")
     assert decision["verdict"] == "out_of_scope"
     assert decision["conversation_id"] is None
 
@@ -195,9 +195,9 @@ async def test_an_unreadable_scope_answer_records_a_failed_turn_and_no_decision(
         await join_live_tasks()
 
     assert response.status_code == 502
-    (failure,) = await _events(analytics_session, "chat.turn_failed")
+    (failure,) = await _events(analytics_session, "compose.turn_failed")
     assert failure["cause"] == "scope_classification_error"
-    assert await _events(analytics_session, "chat.scope_classified") == []
+    assert await _events(analytics_session, "compose.scope_classified") == []
 
 
 async def test_a_new_conversation_records_exactly_one_scope_decision(
@@ -222,7 +222,7 @@ async def test_a_new_conversation_records_exactly_one_scope_decision(
         response = await _turn(client, config_id)
 
     assert response.status_code == 200
-    assert len(await _events(analytics_session, "chat.scope_classified")) == 1
+    assert len(await _events(analytics_session, "compose.scope_classified")) == 1
 
 
 async def test_the_search_decision_is_recorded_when_the_classifier_is_consulted(
@@ -257,7 +257,7 @@ async def test_the_search_decision_is_recorded_when_the_classifier_is_consulted(
         response = await _turn(client, config_id, conversation_uuid=conversation_uuid)
 
     assert response.status_code == 200
-    (decision,) = await _events(analytics_session, "chat.rag_search_classified")
+    (decision,) = await _events(analytics_session, "compose.rag_search_classified")
     assert decision["requires_search"] is False
     assert decision["document_count"] == 1
     assert decision["conversation_id"] == conversation_uuid
@@ -284,7 +284,7 @@ async def test_no_search_decision_is_recorded_when_there_is_nothing_to_search(
     ):
         await _turn(client, config_id, conversation_uuid=conversation_uuid)
 
-    assert await _events(analytics_session, "chat.rag_search_classified") == []
+    assert await _events(analytics_session, "compose.rag_search_classified") == []
 
 
 async def test_documents_whose_structure_cannot_be_read_are_counted(
@@ -324,7 +324,7 @@ async def test_documents_whose_structure_cannot_be_read_are_counted(
     ):
         await _turn(client, config_id, conversation_uuid=conversation_uuid)
 
-    (decision,) = await _events(analytics_session, "chat.rag_search_classified")
+    (decision,) = await _events(analytics_session, "compose.rag_search_classified")
     assert decision["documents_with_unreadable_structure"] == 1
 
 
@@ -353,13 +353,13 @@ async def test_an_unusable_ai_key_records_a_failed_turn(
     await join_live_tasks()
 
     assert response.status_code == 404
-    (failure,) = await _events(analytics_session, "chat.turn_failed")
+    (failure,) = await _events(analytics_session, "compose.turn_failed")
     assert failure["cause"] == "llm_config_unusable"
     assert failure["provider"] is None
     assert failure["model"] is None
     assert failure["streamed"] is False
     # The turn failed before any message was stored, so there is none to count.
-    assert await _events(analytics_session, "chat.message_sent") == []
+    assert await _events(analytics_session, "compose.message_sent") == []
 
 
 async def test_a_provider_failure_records_a_failed_turn(
@@ -388,13 +388,13 @@ async def test_a_provider_failure_records_a_failed_turn(
         await join_live_tasks()
 
     assert response.status_code == 500
-    (failure,) = await _events(analytics_session, "chat.turn_failed")
+    (failure,) = await _events(analytics_session, "compose.turn_failed")
     assert failure["cause"] == "unexpected"
     assert failure["provider"] == "openai"
     assert failure["model"] == "gpt-4o"
     assert failure["conversation_id"] == conversation_uuid
     # The instructor's message was stored before the route raised, so it still counts.
-    (sent,) = await _events(analytics_session, "chat.message_sent")
+    (sent,) = await _events(analytics_session, "compose.message_sent")
     assert sent["conversation_id"] == conversation_uuid
 
 
@@ -420,13 +420,13 @@ async def test_a_failed_scope_check_on_a_first_message_records_a_failed_turn(
         await join_live_tasks()
 
     assert response.status_code == 502
-    (failure,) = await _events(analytics_session, "chat.turn_failed")
+    (failure,) = await _events(analytics_session, "compose.turn_failed")
     assert failure["cause"] == "scope_classification_error"
     assert failure["conversation_id"] is None
     assert failure["provider"] == "openai"
     assert failure["model"] == "gpt-4o"
     assert failure["streamed"] is False
-    assert await _events(analytics_session, "chat.scope_classified") == []
+    assert await _events(analytics_session, "compose.scope_classified") == []
 
 
 async def test_a_failed_scope_check_on_a_later_turn_records_one_failed_turn(
@@ -452,10 +452,10 @@ async def test_a_failed_scope_check_on_a_later_turn_records_one_failed_turn(
         await join_live_tasks()
 
     assert response.status_code == 502
-    (failure,) = await _events(analytics_session, "chat.turn_failed")
+    (failure,) = await _events(analytics_session, "compose.turn_failed")
     assert failure["cause"] == "scope_classification_error"
     assert failure["conversation_id"] == conversation_uuid
-    assert await _events(analytics_session, "chat.scope_classified") == []
+    assert await _events(analytics_session, "compose.scope_classified") == []
 
 
 async def test_a_search_classifier_provider_failure_keeps_its_own_cause(
@@ -492,7 +492,7 @@ async def test_a_search_classifier_provider_failure_keeps_its_own_cause(
         await join_live_tasks()
 
     assert response.status_code == 502
-    (failure,) = await _events(analytics_session, "chat.turn_failed")
+    (failure,) = await _events(analytics_session, "compose.turn_failed")
     assert failure["cause"] == "provider_api_error"
 
 
@@ -517,7 +517,7 @@ async def test_a_successful_turn_records_no_failure(
         await _turn(client, config_id, conversation_uuid=conversation_uuid)
         await join_live_tasks()
 
-    assert await _events(analytics_session, "chat.turn_failed") == []
+    assert await _events(analytics_session, "compose.turn_failed") == []
 
 
 async def test_no_classifier_reason_reaches_any_payload(
@@ -567,7 +567,7 @@ async def test_the_failure_records_which_shape_the_client_asked_for(
     await join_live_tasks()
 
     assert response.status_code == 404
-    (failure,) = await _events(analytics_session, "chat.turn_failed")
+    (failure,) = await _events(analytics_session, "compose.turn_failed")
     assert failure["streamed"] is streamed
 
 
@@ -609,9 +609,9 @@ async def test_a_streaming_failure_records_a_failed_turn(
         assert "data: " in response.text
         await join_live_tasks()
 
-    (failure,) = await _events(analytics_session, "chat.turn_failed")
+    (failure,) = await _events(analytics_session, "compose.turn_failed")
     assert failure["cause"] == "unexpected"
     assert failure["streamed"] is True
     assert failure["conversation_id"] == conversation_uuid
-    (sent,) = await _events(analytics_session, "chat.message_sent")
+    (sent,) = await _events(analytics_session, "compose.message_sent")
     assert sent["conversation_id"] == conversation_uuid

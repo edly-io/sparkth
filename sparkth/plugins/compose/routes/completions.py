@@ -138,7 +138,7 @@ def _fail_first_message_scope_check(
         }
     },
 )
-async def chat_completion(
+async def compose_completion(
     request: ChatCompletionRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
@@ -276,7 +276,7 @@ async def chat_completion(
     incoming_messages = await service.add_incoming_messages(session, conversation_id, request.messages)
     for stored in incoming_messages:
         # Instructor turns only: an assistant turn in the request is history the client
-        # replayed, and assistant output is counted by chat.completion_served instead.
+        # replayed, and assistant output is counted by compose.completion_served instead.
         if stored.role != "user":
             continue
         turn_analytics.schedule_message_sent(

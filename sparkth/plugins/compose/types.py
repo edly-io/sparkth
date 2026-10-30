@@ -1,4 +1,4 @@
-"""Value objects the chat service returns.
+"""Value objects the compose service returns.
 
 These carry what a service call did, separate from the SQLModel rows in
 :mod:`sparkth.plugins.compose.models` and the request/response bodies in
