@@ -8,3 +8,11 @@ class Measure(StrEnum):
 
     COUNT = "count"
     DISTINCT_ACTORS = "distinct_actors"
+
+
+class ChartKind(StrEnum):
+    """How an Explore result is drawn."""
+
+    LINE = "line"
+    BAR = "bar"
+    TABLE = "table"

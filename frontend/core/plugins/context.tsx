@@ -11,7 +11,6 @@ import {
 } from "react";
 import { api, ApiRequestError } from "@/lib/api";
 import { PluginConfig, PluginContext as IPluginContext, UserPluginState } from "./types";
-import { emitPluginEvent } from "./registry";
 
 // ============================================================================
 // Plugin Context Types
@@ -58,7 +57,7 @@ function toError(prefix: string | null, error: unknown): never {
   throw error;
 }
 
-export async function fetchUserPlugins(token: string): Promise<UserPluginState[]> {
+async function fetchUserPlugins(token: string): Promise<UserPluginState[]> {
   try {
     const { data } = await api.GET("/api/v1/user-plugins/", { headers: bearer(token) });
     return data as UserPluginState[];
@@ -170,13 +169,6 @@ export function PluginProvider({ children, token }: PluginProviderProps) {
       const newConfig = { ...currentConfig, ...config };
 
       await updatePluginConfigApi(pluginName, newConfig, token);
-
-      emitPluginEvent({
-        type: "plugin:config-updated",
-        pluginName,
-        payload: newConfig,
-      });
-
       await refreshPlugins();
     },
     [token, getPluginConfig, refreshPlugins],
@@ -187,12 +179,6 @@ export function PluginProvider({ children, token }: PluginProviderProps) {
       if (!token) throw new Error("Not authenticated");
 
       await togglePluginApi(pluginName, "enable", token);
-
-      emitPluginEvent({
-        type: "plugin:enabled",
-        pluginName,
-      });
-
       await refreshPlugins();
     },
     [token, refreshPlugins],
@@ -203,12 +189,6 @@ export function PluginProvider({ children, token }: PluginProviderProps) {
       if (!token) throw new Error("Not authenticated");
 
       await togglePluginApi(pluginName, "disable", token);
-
-      emitPluginEvent({
-        type: "plugin:disabled",
-        pluginName,
-      });
-
       await refreshPlugins();
     },
     [token, refreshPlugins],
@@ -307,11 +287,13 @@ export function usePluginContext(): PluginContextValue {
  */
 export function usePlugin(pluginName: string): {
   isEnabled: boolean;
+  /** The user's plugins are still loading, so `isEnabled` and `config` are not known yet. */
+  loading: boolean;
   config: PluginConfig;
   context: IPluginContext;
   updateConfig: (config: Partial<PluginConfig>) => Promise<void>;
 } {
-  const { isPluginEnabled, getPluginConfig, createPluginContext, updatePluginConfig } =
+  const { loading, isPluginEnabled, getPluginConfig, createPluginContext, updatePluginConfig } =
     usePluginContext();
 
   const isEnabled = isPluginEnabled(pluginName);
@@ -320,6 +302,7 @@ export function usePlugin(pluginName: string): {
 
   return {
     isEnabled,
+    loading,
     config,
     context,
     updateConfig: (newConfig: Partial<PluginConfig>) => updatePluginConfig(pluginName, newConfig),

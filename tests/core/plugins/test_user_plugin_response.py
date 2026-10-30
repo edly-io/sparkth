@@ -10,6 +10,7 @@ SCHEMA: dict[str, Any] = {
         "backup_key": {"type": "string", **secret()},
         "private_key": {"type": "string", **secret(ConfigWidget.TEXTAREA)},
         "note": {"type": "string", **widget(ConfigWidget.PASSWORD)},
+        "token": {"type": "string", **secret(masked=True)},
     }
 }
 
@@ -58,3 +59,23 @@ def test_plugin_without_secret_fields_has_none_set() -> None:
 
     assert response.config == {"note": "x"}
     assert response.secrets_set == []
+
+
+def test_a_masked_secret_is_returned_masked() -> None:
+    response = _response({"token": "tok-abcde12345"})
+
+    assert response.config == {}
+    assert response.secrets_set == ["token"]
+    assert response.masked_secrets == {"token": "tok-****2345"}
+
+
+def test_an_unmasked_secret_is_never_returned_masked() -> None:
+    response = _response({"api_key": "s3cret-value"})
+
+    assert response.masked_secrets == {}
+
+
+def test_an_empty_masked_secret_is_not_returned() -> None:
+    response = _response({"token": ""})
+
+    assert response.masked_secrets == {}

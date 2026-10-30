@@ -1,16 +1,20 @@
-// Screen-reader copy of a chart's data. Charts hide their visuals and render one of these,
-// so assistive tech reads the numbers rather than a picture.
+/**
+ * Screen-reader copy of a chart's data. Charts hide their visuals and render one of these,
+ * so assistive tech reads the numbers rather than a picture. A `className` shows it instead.
+ */
 export function ChartTable({
   caption,
   headers,
   rows,
+  className = "sr-only",
 }: {
   caption: string;
   headers: string[];
   rows: (string | number)[][];
+  className?: string;
 }) {
   return (
-    <table className="sr-only">
+    <table className={className}>
       <caption>{caption}</caption>
       <thead>
         <tr>

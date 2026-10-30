@@ -96,6 +96,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/analytics/views": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Analytics Views
+         * @description Return the caller's saved views, by name.
+         */
+        get: operations["list_analytics_views_api_v1_analytics_views_get"];
+        put?: never;
+        /**
+         * Create Analytics View
+         * @description Save an Explore config as a new view.
+         */
+        post: operations["create_analytics_view_api_v1_analytics_views_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/views/{view_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Analytics View
+         * @description Return one of the caller's views.
+         */
+        get: operations["get_analytics_view_api_v1_analytics_views__view_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Analytics View
+         * @description Delete one of the caller's views.
+         */
+        delete: operations["delete_analytics_view_api_v1_analytics_views__view_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Analytics View
+         * @description Rename a view and/or replace its config.
+         */
+        patch: operations["update_analytics_view_api_v1_analytics_views__view_id__patch"];
+        trace?: never;
+    };
     "/api/v1/audit/categories": {
         parameters: {
             query?: never;
@@ -1686,6 +1738,48 @@ export interface components {
             title: string;
         };
         /**
+         * AnalyticsViewIn
+         * @description A view to save.
+         */
+        AnalyticsViewIn: {
+            config: components["schemas"]["ViewConfig"];
+            /** Name */
+            name: string;
+        };
+        /**
+         * AnalyticsViewOut
+         * @description A saved view.
+         */
+        AnalyticsViewOut: {
+            config: components["schemas"]["ViewConfig"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * AnalyticsViewPatch
+         * @description Parts of a view to change.
+         */
+        AnalyticsViewPatch: {
+            config?: components["schemas"]["ViewConfig"] | null;
+            /** Name */
+            name?: string | null;
+        };
+        /**
          * AttachedDocumentResponse
          * @description Document info returned by the list-attachments endpoint.
          */
@@ -1865,6 +1959,12 @@ export interface components {
          * @enum {string}
          */
         Bucket: "day" | "week" | "month";
+        /**
+         * ChartKind
+         * @description How an Explore result is drawn.
+         * @enum {string}
+         */
+        ChartKind: "line" | "bar" | "table";
         /**
          * ChatActivityPoint
          * @description Count of one chat event type in one bucket. ``bucket`` is the UTC start, ``YYYY-MM-DD``.
@@ -2875,7 +2975,8 @@ export interface components {
          *     hints a plugin sets through ``json_schema_extra``. It is empty for a plugin
          *     that registered no config class.
          *
-         *     ``config`` never carries a field marked ``secret()``; ``secrets_set`` names the ones stored.
+         *     ``config`` never carries a field marked ``secret()``; ``secrets_set`` names the ones stored,
+         *     and ``masked_secrets`` maps each stored ``secret(masked=True)`` field to its masked value.
          */
         UserPluginResponse: {
             /** Config */
@@ -2899,6 +3000,13 @@ export interface components {
             has_frontend: boolean;
             /** Is Core */
             is_core: boolean;
+            /**
+             * Masked Secrets
+             * @default {}
+             */
+            masked_secrets: {
+                [key: string]: string;
+            };
             /** Plugin Name */
             plugin_name: string;
             /**
@@ -2940,6 +3048,37 @@ export interface components {
         VerifyEmailRequest: {
             /** Token */
             token: string;
+        };
+        /**
+         * ViewConfig
+         * @description An Explore config without the period, keyed as the frontend keeps it.
+         */
+        ViewConfig: {
+            /** Actor */
+            actor?: string | null;
+            /** @default line */
+            chart: components["schemas"]["ChartKind"];
+            /** Event */
+            event?: string | null;
+            /**
+             * Filters
+             * @default []
+             */
+            filters: components["schemas"]["ViewFilter"][];
+            /** Groupby */
+            groupBy?: string | null;
+            /** @default count */
+            measure: components["schemas"]["Measure"];
+        };
+        /**
+         * ViewFilter
+         * @description One filter: the field must equal the value.
+         */
+        ViewFilter: {
+            /** Field */
+            field: string;
+            /** Value */
+            value: string;
         };
         /** WhitelistedEmailCreate */
         WhitelistedEmailCreate: {
@@ -3080,6 +3219,154 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SummaryCount"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_analytics_views_api_v1_analytics_views_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyticsViewOut"][];
+                };
+            };
+        };
+    };
+    create_analytics_view_api_v1_analytics_views_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnalyticsViewIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyticsViewOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_analytics_view_api_v1_analytics_views__view_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                view_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyticsViewOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_analytics_view_api_v1_analytics_views__view_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                view_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_analytics_view_api_v1_analytics_views__view_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                view_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnalyticsViewPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyticsViewOut"];
                 };
             };
             /** @description Validation Error */

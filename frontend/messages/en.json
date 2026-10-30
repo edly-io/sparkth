@@ -78,7 +78,9 @@
       "label": "Analytics views",
       "overview": "Overview",
       "logins": "Logins",
-      "authoring": "Course authoring"
+      "authoring": "Course authoring",
+      "explore": "Explore",
+      "savedViews": "Saved views"
     },
     "period": {
       "range": "Period",
@@ -112,6 +114,53 @@
       "new": "New this period",
       "trend": "Activity",
       "trendCaption": "Logins and messages sent, {range}"
+    },
+    "explore": {
+      "title": "Explore",
+      "description": "Build a chart from any recorded event. Events, fields and values show as recorded.",
+      "subtitle": "{range} (UTC).",
+      "event": "Event",
+      "pickEvent": "Choose an event",
+      "actorId": "Actor ID",
+      "actor": "Actor",
+      "measure": "Measure",
+      "measures": {
+        "count": "Events",
+        "distinct_actors": "Distinct actors"
+      },
+      "groupBy": "Break down by",
+      "noGroup": "No breakdown",
+      "chart": "Chart",
+      "charts": {
+        "line": "Line",
+        "bar": "Bar",
+        "table": "Table"
+      },
+      "filters": "Filters",
+      "field": "Field",
+      "pickField": "Choose a field",
+      "value": "Value",
+      "addFilter": "Add filter",
+      "removeFilter": "Remove filter {filter}",
+      "start": "Choose an event to build a chart.",
+      "empty": "No matching events in this period.",
+      "stale": "This view named events, fields or values that no longer exist, so they were left out.",
+      "truncated": "Showing the top 20 groups; there are more.",
+      "none": "(none)",
+      "chartCaption": "{event}, {range}",
+      "groupCaption": "{event} by {group}, {range}",
+      "saveView": "Save view",
+      "save": "Save",
+      "saveAsNew": "Save as new",
+      "rename": "Rename",
+      "delete": "Delete",
+      "renameView": "Rename view",
+      "viewName": "Name",
+      "nameTaken": "You already have a view with this name.",
+      "saveError": "We couldn't save your changes to the view. Please try again.",
+      "saved": "View saved.",
+      "confirmDelete": "Delete the view “{name}”?",
+      "viewMissing": "This saved view doesn't exist or isn't yours."
     }
   },
   "home": {
@@ -149,6 +198,10 @@
     "detailsError": "We couldn't load this event's details.",
     "loadMore": "Load more",
     "empty": "No audit events match these filters.",
+    "errors": {
+      "actorIdInvalid": "Actor user ID must be a number.",
+      "rangeReversed": "The start time must be on or before the end time."
+    },
     "outcomes": {
       "success": "Success",
       "failure": "Failure",

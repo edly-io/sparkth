@@ -7,5 +7,8 @@ MAX_PAGE_SIZE = 200
 # never holds the whole trail in memory.
 EXPORT_BATCH_SIZE = 500
 
+# Byte-order mark a CSV export starts with, so spreadsheets read it as UTF-8.
+CSV_BOM = "\ufeff"
+
 # Leading characters that make Excel or Sheets read a CSV cell as a formula.
 FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")

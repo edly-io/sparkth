@@ -22,7 +22,7 @@ from sparkth.lib.audit.hooks import AUDIT_EVENTS
 from sparkth.lib.db import session_scope
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import AuditEvent
-from sparkth.services.audit.constants import EXPORT_BATCH_SIZE, FORMULA_PREFIXES
+from sparkth.services.audit.constants import CSV_BOM, EXPORT_BATCH_SIZE, FORMULA_PREFIXES
 from sparkth.services.audit.enums import ExportFormat
 from sparkth.services.audit.exceptions import AuditEventNotFound
 from sparkth.services.audit.schemas import (
@@ -142,14 +142,15 @@ async def record_export(actor: UserActor, query: AuditEventExportQuery) -> None:
 async def export_lines(actor: UserActor, query: AuditEventExportQuery) -> AsyncIterator[str]:
     """Stream every event matching ``query``, most recently recorded first, as CSV or JSON Lines.
 
-    Fetches ``EXPORT_BATCH_SIZE`` rows at a time, each batch in a session of its
+    The CSV starts with a UTF-8 byte-order mark so spreadsheets detect the encoding;
+    JSON Lines carries none. Fetches ``EXPORT_BATCH_SIZE`` rows at a time, each batch in a session of its
     own that closes before the batch is sent, so a slow client never holds a pool
     connection. The keyset cursor carries the position from one batch to the next.
     A batch that cannot be read cuts the file short, so it is recorded as a failed
     ``audit.exported`` for ``actor`` before the error propagates.
     """
     if query.export_format is ExportFormat.CSV:
-        yield ",".join(CSV_COLUMNS) + "\r\n"
+        yield CSV_BOM + ",".join(CSV_COLUMNS) + "\r\n"
     before_id: int | None = None
     while True:
         try:

@@ -8,7 +8,7 @@ import { TextAttachment } from "../../types";
 import { PersistedFilesInfo } from "../attachment/PersistedFilesInfo";
 import { Button } from "@/lib/components/ui/Button";
 import { useAuth } from "@/lib/auth/hooks";
-import { useIsPluginEnabled } from "@/lib/plugins/usePlugins";
+import { usePlugin } from "@/lib/plugins/context";
 import DriveFilePicker from "@/components/drive/DriveFilePicker";
 import { useChatInput } from "../../hooks/useChatInput";
 
@@ -64,7 +64,7 @@ export function ChatInput({
     onSend,
   });
 
-  const { isEnabled: isDriveEnabled } = useIsPluginEnabled(token, "google-drive");
+  const { isEnabled: isDriveEnabled } = usePlugin("google-drive");
 
   // Grow with the text. The reset lets the box shrink again when lines are removed, and CSS caps
   // it at five lines, so the cap and the scrollbar cannot disagree.
