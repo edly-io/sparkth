@@ -27,24 +27,26 @@ record carries the link's token or the password.
 ## Create a user
 
 ```bash
-make create-user -- --username john --email john@example.com --name "John Doe"
+make create-user -- --username john --email john@example.com --name John
 # Using short flags
-make create-user -- -u john -e john@example.com -n "John Doe"
+make create-user -- -u john -e john@example.com -n John
 ```
 
 If a password is not provided via flag, you'll be prompted to enter it securely.
 
-Create an admin user — grants the global `admin` role (run `make migrations` first so the
-role is seeded):
+Create an administrator in two steps: create the user, then grant them the global `admin`
+role. Run `make migrations` before the second step so the role is seeded. See the
+[permissions guide](permissions.md) for what the `admin` role grants.
 
 ```bash
-make create-user -- --username admin --email admin@example.com --name "Admin User" --admin
+make create-user -- --username jane --email jane@example.com --name Jane
+make cli -- roles assign-role jane admin
 ```
 
 Provide the password directly:
 
 ```bash
-make create-user -- -u john -e john@example.com -n "John Doe" --password "SecurePass123"
+make create-user -- -u john -e john@example.com -n John --password "SecurePass123"
 ```
 
 Options:
@@ -54,10 +56,6 @@ Options:
 - `--name, -n`: Full name (optional, defaults to the username)
 - `--password, -p`: Password (optional, will prompt if not provided)
 - `--email-verified`: mark the user's email as already verified (optional, default: false)
-- `--admin` (alias `--superuser`): also grant the user the global `admin` role (optional,
-  default: false). The `admin` role must already be seeded (via `make migrations`), or the
-  command exits without creating the user. See the [permissions guide](permissions.md) for
-  what the `admin` role grants.
 
 ## Reset a password
 

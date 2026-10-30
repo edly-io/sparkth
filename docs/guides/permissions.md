@@ -102,8 +102,8 @@ joins or leaves the set) is a membership edit, not a grant edit.
   object-bearing cascade).
 - `can()` / `has_role()` resolve group grants through the **same scope chain** as direct
   assignments — a group grant at `global` cascades to descendant scopes exactly like a
-  direct one, and `has_role` counting group grants means an admin role granted via a group
-  is a real admin.
+  direct one, and `has_role` counts a role granted through a group as held, like a direct
+  assignment.
 - Membership and group-role assignments are **soft-deleted**: removing a member (or revoking
   a group's role) drops the inherited access immediately while keeping the history row for
   auditing.
