@@ -11,9 +11,10 @@ from pydantic import TypeAdapter
 
 from sparkth.lib.audit import ToolFailureKind
 from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG
+from sparkth.lib.llm import get_provider
 from sparkth.lib.plugins import PluginNotConfiguredError
 from sparkth.lib.testing import ScriptedChatModel
-from sparkth.llm.providers import AnthropicProvider
+from sparkth.plugins.chat.llm import complete_turn
 
 
 async def lookup_course(course_id: int) -> dict[str, Any]:
@@ -39,12 +40,12 @@ async def _first_execution(
     tool: StructuredTool, tool_name: str, args: dict[str, Any], monkeypatch: pytest.MonkeyPatch
 ) -> dict[str, Any]:
     """The recorded execution of the one call a non-streamed turn makes to ``tool_name``."""
-    provider = AnthropicProvider("test-key", "claude-sonnet-5")
+    provider = get_provider("anthropic", "test-key", "claude-sonnet-5")
     call = AIMessage(content="", tool_calls=[{"name": tool_name, "args": args, "id": "call_1"}])
     model = ScriptedChatModel(messages=iter([call, AIMessage("done")]))
     monkeypatch.setattr(provider, "_create_llm", lambda streaming=False, callbacks=None: model)
 
-    response = await provider.send_message([{"role": "user", "content": "go"}], tools=[tool])
+    response = await complete_turn([{"role": "user", "content": "go"}], [tool], provider, 50)
 
     execution: dict[str, Any] = response["metadata"]["tool_executions"][0]
     return execution

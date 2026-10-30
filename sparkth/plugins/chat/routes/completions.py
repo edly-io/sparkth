@@ -37,6 +37,7 @@ from sparkth.plugins.chat.config import ChatSettings, get_chat_settings
 from sparkth.plugins.chat.constants import LLM_PROVIDER_API_ERRORS, REFUSAL_MESSAGE
 from sparkth.plugins.chat.conversation_title import extract_title_from_messages, schedule_title_generation
 from sparkth.plugins.chat.exceptions import RAGSearchError, ScopeCheckError
+from sparkth.plugins.chat.llm import complete_turn
 from sparkth.plugins.chat.messages import get_last_user_text
 from sparkth.plugins.chat.prompt import render_system_prompt
 from sparkth.plugins.chat.routes.utils import resolve_tools
@@ -332,7 +333,6 @@ async def chat_completion(
             model=model,
             system_prompt=render_system_prompt(capabilities),
             temperature=request.temperature,
-            max_tool_executions=config.max_tool_executions,
         )
 
         # Only asked when there is something to search and something to search for.
@@ -382,6 +382,7 @@ async def chat_completion(
                 rag_search_declined,
                 analytics=turn_analytics.attribution,
                 turn_id=turn_key,
+                max_tool_executions=config.max_tool_executions,
             )
             return StreamingResponse(
                 # The stream task outlives this response — it writes its analytics after the
@@ -390,11 +391,7 @@ async def chat_completion(
                 media_type="text/event-stream",
             )
         else:
-            response = await provider.send_message(
-                messages=messages,
-                max_tokens=request.max_tokens,
-                tools=tools,
-            )
+            response = await complete_turn(messages, tools or [], provider, config.max_tool_executions)
 
             tokens_used = response.get("metadata", {}).get("usage_metadata", {}).get("total_tokens")
             tool_calls = response.get("tool_calls")
@@ -409,8 +406,8 @@ async def chat_completion(
                 message_type="text",
             )
 
-            # Executions live under metadata: response["tool_calls"] is hard-coded to None
-            # by every provider, so reading it would count zero forever.
+            # Executions live under metadata: response["tool_calls"] is always None, so reading
+            # it would count zero forever.
             response_metadata = response.get("metadata") or {}
             executions = response_metadata.get("tool_executions") or []
             turn_analytics.schedule_completion(

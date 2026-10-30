@@ -15,7 +15,9 @@ from sparkth.lib.chat.hooks import ChatCapability
 from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
+from sparkth.main import app
 from sparkth.plugins.chat.capabilities import COURSE_DESIGN
+from sparkth.plugins.chat.config import ChatSettings, get_chat_settings
 from sparkth.plugins.chat.constants import REFUSAL_MESSAGE
 from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.tests.helpers import CANVAS_CONFIG, OPENEDX_CONFIG
@@ -91,8 +93,13 @@ def _lms_registry() -> MagicMock:
     return registry
 
 
-def _bound_tool_names(provider: MagicMock) -> list[str]:
-    return [tool.name for tool in provider.send_message.await_args.kwargs["tools"]]
+def _turn_answer() -> AsyncMock:
+    """Stands in for running a turn with tools, which a mocked provider cannot do."""
+    return AsyncMock(return_value={"content": "On it.", "metadata": {}})
+
+
+def _bound_tool_names(complete_turn: AsyncMock) -> list[str]:
+    return [tool.name for tool in complete_turn.await_args_list[-1].args[1]]
 
 
 def _system_prompt(get_provider: MagicMock) -> str:
@@ -212,10 +219,11 @@ class TestOneAssistantPerTurn:
             ),
             patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=provider),
             patch("sparkth.plugins.chat.routes.completions.get_tool_registry", return_value=_registry()),
+            patch("sparkth.plugins.chat.routes.completions.complete_turn", new=_turn_answer()) as complete_turn,
         ):
             await _turn(client, config_id, conversation_uuid, "*")
 
-        assert _bound_tool_names(provider) == ["openedx_create_xblock", "stub_build"]
+        assert _bound_tool_names(complete_turn) == ["openedx_create_xblock", "stub_build"]
 
 
 async def _switch_stub(session: AsyncSession, user_id: int, system_on: bool, user_on: bool | None) -> None:
@@ -279,9 +287,10 @@ class TestPluginSwitches:
             ),
             patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=provider),
             patch("sparkth.plugins.chat.routes.completions.get_tool_registry", return_value=_registry()),
+            patch("sparkth.plugins.chat.routes.completions.complete_turn", new=_turn_answer()) as complete_turn,
         ):
             await _turn(client, config_id, conversation_uuid, "*")
-        return _bound_tool_names(provider)
+        return _bound_tool_names(complete_turn)
 
     async def test_a_plugin_the_user_switched_off_binds_none_of_its_tools(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
@@ -345,6 +354,27 @@ class TestPluginSwitches:
 
         assert [tool.name for tool in processor_cls.call_args.args[4]] == ["openedx_create_xblock"]
 
+    async def test_a_streamed_turn_gets_the_tool_limit_from_the_routes_settings(
+        self, client: AsyncClient, current_user: User, session: AsyncSession
+    ) -> None:
+        user_id = current_user.id or 1
+        config_id = await _seed_llm_config(session, user_id)
+        conversation_uuid = await _seed_conversation(session, user_id)
+        app.dependency_overrides[get_chat_settings] = lambda: ChatSettings(max_tool_executions=7)
+
+        with (
+            patch(
+                "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
+                return_value=_classifier_answering(True),
+            ),
+            patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=_provider()),
+            patch("sparkth.plugins.chat.routes.completions.ChatStreamProcessor") as processor_cls,
+        ):
+            processor_cls.return_value.stream.return_value = _fake_stream()
+            await _turn(client, config_id, conversation_uuid, stream=True)
+
+        assert processor_cls.call_args.kwargs["max_tool_executions"] == 7
+
     async def test_a_failed_switch_lookup_never_reaches_the_model(
         self,
         client: AsyncClient,
@@ -374,7 +404,7 @@ class TestPluginSwitches:
         openedx_on: bool,
         canvas_on: bool,
         openedx_system_on: bool = True,
-    ) -> tuple[MagicMock, MagicMock]:
+    ) -> tuple[AsyncMock, MagicMock]:
         config_id = await _seed_llm_config(session, user_id)
         conversation_uuid = await _seed_conversation(session, user_id)
         await _seed_lms_plugins(session, user_id, openedx_on, canvas_on, openedx_system_on)
@@ -386,16 +416,17 @@ class TestPluginSwitches:
             ),
             patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=provider) as get_provider,
             patch("sparkth.plugins.chat.routes.completions.get_tool_registry", return_value=_lms_registry()),
+            patch("sparkth.plugins.chat.routes.completions.complete_turn", new=_turn_answer()) as complete_turn,
         ):
             await _turn(client, config_id, conversation_uuid, "*")
-        return provider, get_provider
+        return complete_turn, get_provider
 
     async def test_an_lms_switched_off_system_wide_binds_none_of_its_tools(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
     ) -> None:
-        provider, _ = await self._lms_turn(client, session, current_user.id or 1, True, True, False)
+        complete_turn, _ = await self._lms_turn(client, session, current_user.id or 1, True, True, False)
 
-        assert "openedx_create_xblock" not in _bound_tool_names(provider)
+        assert "openedx_create_xblock" not in _bound_tool_names(complete_turn)
 
     async def test_a_plugin_the_user_switched_off_offers_no_scope(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
@@ -420,16 +451,16 @@ class TestPluginSwitches:
     async def test_an_enabled_plugin_contributes_its_tools_and_section(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
     ) -> None:
-        provider, get_provider = await self._lms_turn(client, session, current_user.id or 1, True, True)
+        complete_turn, get_provider = await self._lms_turn(client, session, current_user.id or 1, True, True)
 
-        assert _bound_tool_names(provider) == ["openedx_create_xblock", "canvas_create_course", "stub_build"]
+        assert _bound_tool_names(complete_turn) == ["openedx_create_xblock", "canvas_create_course", "stub_build"]
         assert _section(stub_capability) in _system_prompt(get_provider)
 
     async def test_no_turn_sends_lms_settings_to_the_model(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
     ) -> None:
-        provider, get_provider = await self._lms_turn(client, session, current_user.id or 1, True, True)
+        _, get_provider = await self._lms_turn(client, session, current_user.id or 1, True, True)
 
-        prompt = _system_prompt(get_provider) + provider.system_prompt
+        prompt = _system_prompt(get_provider)
         for value in (*OPENEDX_CONFIG.values(), *CANVAS_CONFIG.values()):
             assert value not in prompt

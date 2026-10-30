@@ -92,7 +92,7 @@ class TestNoUnauditedConstructionSites:
         Path("plugins/chat/tools.py"),  # converts already-wrapped Tool.handler (tagged for the callback)
         Path("rag/mcp/agent_tools.py"),  # plain coroutines; runs recorded by the callback handler
         Path("rag/retrieval/agent.py"),  # consumes build_search_tools only
-        Path("llm/providers.py"),  # runs the chat registry's handler-audited, tagged tools
+        Path("plugins/chat/llm.py"),  # runs the chat registry's handler-audited, tagged tools
         Path("mcp/server.py"),  # direct @mcp.tool registrations, wrapped explicitly
     }
 
