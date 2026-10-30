@@ -110,7 +110,9 @@ async def _classified_tool_call(
     if not isinstance(result, ToolMessage):
         return result, None
     if result.status == "error":
-        logger.warning("Tool '%s' call was refused: %s", name, result.text)
+        logger.warning("Tool '%s' call was refused", name)
+        # The refusal text repeats the call's arguments, which can be user data.
+        logger.debug("Tool '%s' refusal: %s", name, result.text)
         return result, ToolFailureKind.VALIDATION
     return result, _reported_failure(result.content)
 
