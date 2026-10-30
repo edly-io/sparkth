@@ -2,9 +2,10 @@
 
 import asyncio
 import logging
-from collections.abc import Iterator
+from collections.abc import AsyncGenerator, Iterator
+from contextlib import aclosing
 from functools import partial
-from typing import Any
+from typing import Any, cast
 
 import anthropic
 import httpx
@@ -99,11 +100,14 @@ async def test_a_consumer_that_stops_at_tool_start_keeps_that_tool_from_running(
     provider = _provider(model, monkeypatch)
 
     starts = 0
-    async for event in provider.stream_message(TURN, tools=[_record_tool(runs)]):
-        if event["type"] == "tool_start":
-            starts += 1
-            if starts == 2:
-                break
+    # stream_message is an async generator, but it is typed as an AsyncIterator.
+    stream = cast(AsyncGenerator[dict[str, Any], None], provider.stream_message(TURN, tools=[_record_tool(runs)]))
+    async with aclosing(stream) as events:
+        async for event in events:
+            if event["type"] == "tool_start":
+                starts += 1
+                if starts == 2:
+                    break
 
     assert runs == ["start 1", "end 1"]
 
