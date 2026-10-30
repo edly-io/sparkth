@@ -80,12 +80,16 @@ descendants. Object-bearing multi-level cascade (e.g. a grant at one `org` apply
 |---|---|---|
 | **Scopes** | `global`, `whitelist`, `role`, `group` | `global` is the objectless root (applies platform-wide). `whitelist` is an objectless singleton nested under `global` for the registration whitelist. `role` is object-bearing (nested under `global`) so role management can be delegated per-role by that role's id. `group` is object-bearing (nested under `global`) so group management can be delegated per-group by that group's id. A `global` grant cascades down to all three. |
 | **Permissions** | `email.whitelist.{read,create,delete}`; `role.{create,read,update,delete}`; `group.{create,read,update,delete}`; `permission.read`; `analytics.read`; `audit.read`; `user.read` | Gate the registration email-whitelist endpoints, the role-management API, the group-management API, listing the assignable permission vocabulary, the analytics dashboards and their read API, querying and exporting the audit trail, and reading usernames outside user management (Explore's `/analytics/query`, which names each actor, and its saved `/analytics/views`; both also need `analytics.read`) respectively. |
-| **Roles** | `admin` | Grants the three `email.whitelist.*`, the four `role.*`, the four `group.*`, `permission.read`, `analytics.read`, `audit.read`, and `user.read`. A seed migration also assigned it at `global` to every account that was a superuser when the migration ran — a one-time backfill. |
+| **Roles** | `admin` (cannot be deleted) | Grants the three `email.whitelist.*`, the four `role.*`, the four `group.*`, `permission.read`, `analytics.read`, `audit.read`, and `user.read`. A seed migration also assigned it at `global` to every account that was a superuser when the migration ran — a one-time backfill. |
 
 Roles and their permission grants are managed at runtime through the role-management REST API
 under `/api/v1/permissions` (gated by `role.*` / `permission.read`). See the REST API docs
 (`/docs`) for the endpoints. Permissions and scope kinds themselves are **not** editable
 there — they are declared in code.
+
+Roles shipped with the app are **non-deletable** (`deletable = false`): deleting one returns `409`.
+Roles created through the API are deletable. A migration that seeds a new shipped role sets
+`deletable = false` on it.
 
 ## Groups
 
