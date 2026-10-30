@@ -27,7 +27,7 @@ class AuditCaptureError(Exception):
 
     Distinct from the arbitrary exceptions tool handlers raise so that
     execution seams which convert handler errors into model-visible messages
-    (the chat loop's tool executor) can tell an audit-store outage apart and
+    (the chat agent's tool-call middleware) can tell an audit-store outage apart and
     let it surface as a hard failure instead of a silent, unrecorded refusal.
     """
 

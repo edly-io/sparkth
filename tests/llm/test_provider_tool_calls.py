@@ -1,6 +1,7 @@
 """How a chat turn runs the tools the model asks for: their order, a stop, the call limit and the answer."""
 
 import asyncio
+import logging
 from collections.abc import AsyncGenerator, Iterator
 from contextlib import aclosing
 from functools import partial
@@ -13,11 +14,15 @@ from langchain_core.messages import AIMessage
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel
 
+from sparkth.core.i18n import locale_context
 from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG
-from sparkth.lib.testing import ScriptedChatModel
+from sparkth.lib.testing import AddTranslation, ScriptedChatModel
 from sparkth.llm.providers import AnthropicProvider
 
 TURN = [{"role": "user", "content": "Record the steps."}]
+LIMIT_NOTICE = (
+    "I stopped because I reached the tool-call limit for this turn. You can send another message to continue."
+)
 TOOL_START = {"type": "tool_start", "name": "record"}
 TOOL_END = {"type": "tool_end", "name": "record", "failure": None}
 
@@ -175,3 +180,99 @@ async def test_a_provider_error_leaves_with_its_own_type(stream: bool, monkeypat
             await _events(provider, tools)
         else:
             await provider.send_message(TURN, tools=tools)
+
+
+async def test_a_streamed_turn_at_the_limit_ends_with_the_models_answer(monkeypatch: pytest.MonkeyPatch) -> None:
+    runs: list[str] = []
+    model = ScriptedChatModel(messages=iter([_calls(1, 2, 3), AIMessage("answer")]))
+    provider = _provider(model, monkeypatch, 2)
+
+    events = await _events(provider, [_record_tool(runs)])
+
+    assert events == [TOOL_START, TOOL_END, TOOL_START, TOOL_END, {"type": "token", "content": "answer"}]
+    assert runs == ["start 1", "end 1", "start 2", "end 2"]
+
+
+async def test_a_model_that_ignores_the_block_ends_the_turn_with_a_notice(monkeypatch: pytest.MonkeyPatch) -> None:
+    model = ScriptedChatModel(messages=iter([_calls(1), _calls(2), _calls(3), AIMessage("never")]))
+    provider = _provider(model, monkeypatch, 1)
+
+    response = await provider.send_message(TURN, tools=[_record_tool([])])
+
+    assert response["content"] == LIMIT_NOTICE
+    assert response["metadata"]["limit_reached"] is True
+    # The limit is used up by the first reply, the second is blocked, and the third asks for tools
+    # again: the fourth reply is never asked for.
+    assert next(model.messages) == AIMessage("never")
+
+
+async def test_a_streamed_turn_the_limit_ended_shows_the_notice_as_its_answer(monkeypatch: pytest.MonkeyPatch) -> None:
+    model = ScriptedChatModel(messages=iter([_calls(1), _calls(2), _calls(3), AIMessage("never")]))
+    provider = _provider(model, monkeypatch, 1)
+
+    events = await _events(provider, [_record_tool([])])
+
+    assert events[-1] == {"type": "token", "content": LIMIT_NOTICE}
+
+
+async def test_the_limit_notice_is_translated_into_the_active_locale(
+    translation_catalog: AddTranslation, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    translation_catalog(LIMIT_NOTICE, "Alcancé el límite de herramientas de este turno.")
+    model = ScriptedChatModel(messages=iter([_calls(1), _calls(2), _calls(3)]))
+    provider = _provider(model, monkeypatch, 1)
+
+    with locale_context("es"):
+        response = await provider.send_message(TURN, tools=[_record_tool([])])
+
+    assert response["content"] == "Alcancé el límite de herramientas de este turno."
+
+
+@pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
+async def test_a_model_that_batches_calls_gets_one_more_reply_after_the_block(
+    stream: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    replies = [_calls(1, 2, text=f"reply {number}") for number in range(1, 6)]
+    model = ScriptedChatModel(messages=iter(replies))
+    provider = _provider(model, monkeypatch, 2)
+
+    if stream:
+        await _events(provider, [_record_tool([])])
+    else:
+        await provider.send_message(TURN, tools=[_record_tool([])])
+
+    # Reply 1 uses the limit, reply 2 is blocked, and reply 3 asks for tools again: replies 4 and 5
+    # are never asked for, however many calls each reply batches.
+    assert next(model.messages) is replies[3]
+
+
+def _provider_warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == "sparkth.llm.providers" and record.levelno == logging.WARNING
+    ]
+
+
+async def test_blocked_calls_log_that_the_tool_call_limit_was_reached(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    model = ScriptedChatModel(messages=iter([_calls(1, 2, 3), AIMessage("answer")]))
+    provider = _provider(model, monkeypatch, 2)
+
+    with caplog.at_level(logging.WARNING):
+        await provider.send_message(TURN, tools=[_record_tool([])])
+
+    assert _provider_warnings(caplog) == ["Tool call limit (2) reached; blocked 1 call(s)"]
+
+
+async def test_a_turn_ended_for_calling_tools_after_the_block_logs_a_warning(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    model = ScriptedChatModel(messages=iter([_calls(1), _calls(2), _calls(3), AIMessage("never")]))
+    provider = _provider(model, monkeypatch, 1)
+
+    with caplog.at_level(logging.WARNING):
+        await provider.send_message(TURN, tools=[_record_tool([])])
+
+    assert _provider_warnings(caplog)[-1] == "Model asked for tools after the limit (1); the turn ends with a notice"

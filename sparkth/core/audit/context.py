@@ -23,7 +23,7 @@ from sparkth.core.audit.types import AuditActor, AuditContext, AuditModelInfo, A
 _audit_context: ContextVar[AuditContext | None] = ContextVar("audit_context", default=None)
 
 # Which model is driving the tool calls currently executing. Seeded by the
-# AI seams (the chat provider loop, the RAG agent runner) via ai_audit_context
+# AI seams (the chat agent's tool-call middleware, the RAG agent runner) via ai_audit_context
 # and read by the audited tool wrapper, so model identity reaches the event
 # without threading provider objects through every tool handler.
 _model_info: ContextVar[AuditModelInfo | None] = ContextVar("audit_model_info", default=None)
@@ -60,8 +60,8 @@ def ai_audit_context(source: AuditSource | None = None, model: AuditModelInfo | 
 
     Derives the active context with ``source`` replaced (keeping the request
     origin and resolved actor) and pins ``model`` as the identity the audited
-    tool wrapper records. The chat provider loop installs
-    ``(CHAT, provider/model/version)`` around its tool executions and the RAG
+    tool wrapper records. The chat agent's tool-call middleware installs
+    ``(CHAT, provider/model/version)`` around each tool execution and the RAG
     agent runner installs ``(RAG, best-effort model)`` around the agent run;
     handlers themselves stay seam-agnostic.
     """
