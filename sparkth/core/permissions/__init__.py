@@ -438,18 +438,12 @@ async def revoke_role(
         )
 
 
-async def _record_active_user_grants_removed(
-    permission_scope: PermissionScope, scope_object_id: str, session: AsyncSession
-) -> None:
-    """Record ``role.unassigned`` for each active user grant at the object."""
+async def _record_active_user_grants_removed(match: ColumnElement[bool], session: AsyncSession) -> None:
+    """Record ``role.unassigned`` for each active user assignment satisfying ``match``."""
     user_rows = await session.exec(
         select(RoleAssignment.user_id, Role.name, RoleAssignment.scope, RoleAssignment.scope_object_id)
         .join(Role, col(Role.id) == col(RoleAssignment.role_id))
-        .where(
-            RoleAssignment.scope == permission_scope.name,
-            RoleAssignment.scope_object_id == scope_object_id,
-            RoleAssignment.is_deleted == False,
-        )
+        .where(match, RoleAssignment.is_deleted == False)
         .order_by(col(RoleAssignment.id))
     )
     for user_id, role_name, scope_name, object_id in user_rows.all():
@@ -463,18 +457,12 @@ async def _record_active_user_grants_removed(
         )
 
 
-async def _record_active_group_grants_removed(
-    permission_scope: PermissionScope, scope_object_id: str, session: AsyncSession
-) -> None:
-    """Record ``group.role_revoked`` for each active group grant at the object."""
+async def _record_active_group_grants_removed(match: ColumnElement[bool], session: AsyncSession) -> None:
+    """Record ``group.role_revoked`` for each active group assignment satisfying ``match``."""
     group_rows = await session.exec(
         select(GroupRoleAssignment.group_id, Role.name, GroupRoleAssignment.scope, GroupRoleAssignment.scope_object_id)
         .join(Role, col(Role.id) == col(GroupRoleAssignment.role_id))
-        .where(
-            GroupRoleAssignment.scope == permission_scope.name,
-            GroupRoleAssignment.scope_object_id == scope_object_id,
-            GroupRoleAssignment.is_deleted == False,
-        )
+        .where(match, GroupRoleAssignment.is_deleted == False)
         .order_by(col(GroupRoleAssignment.id))
     )
     for group_id, role_name, scope_name, object_id in group_rows.all():
@@ -500,8 +488,15 @@ async def delete_grants_at_object(
     scope kind that is no longer registered still works; revoked rows record nothing.
     ``scope_object_id`` is matched exactly. Flushes in the caller's transaction, never commits.
     """
-    await _record_active_user_grants_removed(permission_scope, scope_object_id, session)
-    await _record_active_group_grants_removed(permission_scope, scope_object_id, session)
+    user_match = and_(
+        col(RoleAssignment.scope) == permission_scope.name, col(RoleAssignment.scope_object_id) == scope_object_id
+    )
+    group_match = and_(
+        col(GroupRoleAssignment.scope) == permission_scope.name,
+        col(GroupRoleAssignment.scope_object_id) == scope_object_id,
+    )
+    await _record_active_user_grants_removed(user_match, session)
+    await _record_active_group_grants_removed(group_match, session)
     await session.exec(
         delete(RoleAssignment).where(
             col(RoleAssignment.scope) == permission_scope.name,
