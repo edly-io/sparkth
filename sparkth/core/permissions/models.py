@@ -1,5 +1,6 @@
 """Scoped-RBAC table models. Authored with LLM (Claude) assistance."""
 
+import sqlalchemy as sa
 from sqlalchemy import Index, text
 from sqlmodel import Field
 
@@ -12,6 +13,8 @@ class Role(TimestampedModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(max_length=50, unique=True, index=True)
     description: str | None = Field(default=None, max_length=255)
+    # Roles shipped with the app are non-deletable.
+    deletable: bool = Field(default=True, sa_column_kwargs={"server_default": sa.true()})
 
 
 class RolePermission(TimestampedModel, table=True):
