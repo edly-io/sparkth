@@ -27,6 +27,15 @@ msgstr ""
 "Je suis un assistant de création de cours et je peux uniquement vous "
 "aider à concevoir et à créer des cours."
 
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/chat/llm.py:194
+msgid ""
+"I stopped because I reached the tool-call limit for this turn. You can "
+"send another message to continue."
+msgstr ""
+"Je me suis arrêté, car j'ai atteint la limite d'appels d'outils pour ce "
+"tour. Vous pouvez envoyer un autre message pour continuer."
+
 #: sparkth/plugins/chat/plugin.py:51 sparkth/plugins/chat/plugin.py:56
 msgid "Compose"
 msgstr "Composer"
