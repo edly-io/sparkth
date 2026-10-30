@@ -30,6 +30,7 @@ from sparkth.lib.llm import get_provider
 from sparkth.lib.mcp.hooks import Tool
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
+from sparkth.lib.testing import ScriptedChatModel
 from sparkth.plugins.chat.detached import join_live_tasks
 from sparkth.plugins.chat.models import Conversation, Message
 from sparkth.plugins.chat.routes.utils.live_turns import request_stop
@@ -929,26 +930,17 @@ async def delete_page(title: str) -> dict[str, Any]:
     raise ValueError("the LMS went away")
 
 
-class _ToolCallingLLM:
+def _tool_calling_model() -> ScriptedChatModel:
     """Asks for one call of each tool, then answers once their results are in."""
-
-    def __init__(self) -> None:
-        self.calls = 0
-
-    def bind_tools(self, tools: list[Any]) -> "_ToolCallingLLM":
-        return self
-
-    async def ainvoke(self, messages: list[Any]) -> AIMessage:
-        self.calls += 1
-        if self.calls == 1:
-            return AIMessage(
-                content="",
-                tool_calls=[
-                    {"name": handler.__name__, "args": {"title": "Data Privacy"}, "id": f"call_{index}"}
-                    for index, handler in enumerate((create_page, publish_page, delete_page))
-                ],
-            )
-        return AIMessage(content="Done.", usage_metadata={"input_tokens": 1, "output_tokens": 1, "total_tokens": 2})
+    calls = AIMessage(
+        content="",
+        tool_calls=[
+            {"name": handler.__name__, "args": {"title": "Data Privacy"}, "id": f"call_{index}"}
+            for index, handler in enumerate((create_page, publish_page, delete_page))
+        ],
+    )
+    usage = {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}
+    return ScriptedChatModel(messages=iter([calls, AIMessage(content="Done.", usage_metadata=usage)]))
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
@@ -959,10 +951,10 @@ async def test_tool_invoked_records_whether_each_call_succeeded(
     session: AsyncSession,
     analytics_session: SQLAlchemyAsyncSession,
 ) -> None:
-    """Real tools through the real provider loop: a success, a returned error, and a raise."""
+    """Real tools through the real provider: a success, a returned error, and a raise."""
     config_id = await _seed_llm_config(session, current_user.id or 1)
     provider = get_provider("openai", api_key="sk-test", model="gpt-4o")
-    llm = _ToolCallingLLM()
+    llm = _tool_calling_model()
     tools = [convert_mcp_to_langchain_tool(Tool(handler)) for handler in (create_page, publish_page, delete_page)]
 
     with (
