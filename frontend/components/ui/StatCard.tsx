@@ -1,5 +1,5 @@
 import { HTMLAttributes, forwardRef } from "react";
-import { cn } from "@/lib/utils";
+import { twMerge } from "tailwind-merge";
 import { Card } from "@/components/ui/Card";
 
 interface StatCardProps extends HTMLAttributes<HTMLDivElement> {
@@ -15,7 +15,7 @@ export const StatCard = forwardRef<HTMLDivElement, StatCardProps>(
       <Card
         ref={ref}
         variant="outlined"
-        className={cn("flex flex-col gap-1", className)}
+        className={twMerge("flex flex-col gap-1", className)}
         {...props}
       >
         <p className="text-sm font-medium text-muted-foreground">{title}</p>

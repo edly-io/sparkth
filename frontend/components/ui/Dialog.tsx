@@ -3,7 +3,7 @@
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { twMerge } from "tailwind-merge";
 
 const Dialog = DialogPrimitive.Root;
 
@@ -19,7 +19,7 @@ const DialogOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Overlay
     ref={ref}
-    className={cn(
+    className={twMerge(
       "fixed inset-0 z-50 bg-black/50 data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out",
       className,
     )}
@@ -37,7 +37,7 @@ const DialogContent = React.forwardRef<
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <DialogPrimitive.Content
         ref={ref}
-        className={cn(
+        className={twMerge(
           "relative w-full max-w-[calc(100vw-2rem)] sm:max-w-lg md:max-w-xl lg:max-w-2xl grid gap-4 border border-border bg-card p-4 sm:p-6 shadow-xl rounded-xl overflow-hidden data-[state=open]:animate-zoom-in data-[state=closed]:animate-zoom-out",
           className,
         )}
@@ -55,13 +55,16 @@ const DialogContent = React.forwardRef<
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("flex flex-col space-y-1.5 text-center sm:text-left", className)} {...props} />
+  <div
+    className={twMerge("flex flex-col space-y-1.5 text-center sm:text-left", className)}
+    {...props}
+  />
 );
 DialogHeader.displayName = "DialogHeader";
 
 const DialogFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn("flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2", className)}
+    className={twMerge("flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2", className)}
     {...props}
   />
 );
@@ -73,7 +76,10 @@ const DialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn("text-lg font-semibold leading-none tracking-tight text-foreground", className)}
+    className={twMerge(
+      "text-lg font-semibold leading-none tracking-tight text-foreground",
+      className,
+    )}
     {...props}
   />
 ));
@@ -85,7 +91,7 @@ const DialogDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn("text-sm text-muted-foreground", className)}
+    className={twMerge("text-sm text-muted-foreground", className)}
     {...props}
   />
 ));

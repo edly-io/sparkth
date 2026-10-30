@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
-import { cn } from "@/lib/utils";
+import { twMerge } from "tailwind-merge";
 
 const TooltipProvider = TooltipPrimitive.Provider;
 
@@ -20,7 +20,7 @@ const TooltipContent = React.forwardRef<
     <TooltipPrimitive.Content
       ref={ref}
       sideOffset={sideOffset}
-      className={cn(
+      className={twMerge(
         "z-[100] overflow-hidden rounded-md bg-neutral-900 px-3 py-1.5 text-xs text-neutral-50 shadow-md",
         className,
       )}
