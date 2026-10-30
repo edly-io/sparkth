@@ -4,12 +4,8 @@ import { useEffect, useReducer, useRef, useCallback } from "react";
 import { RefreshCw, Plug } from "lucide-react";
 import { Spinner } from "@/lib/components/ui/Spinner";
 import { useAuth } from "@/lib/auth/hooks";
-import {
-  fetchLogs,
-  type BotResponseLogItem,
-  type ConnectionLogItem,
-  type LogItem,
-} from "@/lib/slack";
+import { fetchLogs } from "@/plugins/slack/client";
+import type { BotResponseLogItem, ConnectionLogItem, LogItem } from "@/plugins/slack/types";
 
 const POLL_INTERVAL_MS = 30_000;
 const PAGE_SIZE = 50;

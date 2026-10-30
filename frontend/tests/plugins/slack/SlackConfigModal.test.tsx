@@ -9,7 +9,7 @@ vi.mock("@/lib/auth/hooks", () => ({
   useAuth: () => ({ token: "test-token" }),
 }));
 
-vi.mock("@/lib/slack", () => ({
+vi.mock("@/plugins/slack/client", () => ({
   fetchRagSources: vi.fn(async () => ({ sources: ["handbook.pdf"] })),
 }));
 

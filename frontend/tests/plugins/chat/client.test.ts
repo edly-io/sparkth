@@ -9,8 +9,8 @@ import {
   getLastMessage,
   listConversations,
   requestChatCompletionStream,
-} from "@/lib/chat";
-import type { ChatCompletionRequestBody } from "@/lib/chat/types";
+} from "@/plugins/chat/client";
+import type { ChatCompletionRequestBody } from "@/plugins/chat/types";
 
 vi.mock("@/core/auth/tokens", () => ({
   getStoredToken: vi.fn().mockReturnValue(null),
