@@ -19,7 +19,7 @@ and plugins import from there, never from this module directly.
 from collections.abc import Awaitable, Callable
 
 from fastapi import Depends, HTTPException, Request, status
-from sqlalchemy import ColumnElement, and_, or_
+from sqlalchemy import ColumnElement, and_, delete, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Mapped
 from sqlmodel import col, select
@@ -41,6 +41,7 @@ from sparkth.lib.audit.events import (
     AuditChange,
     AuditOutcome,
     AuditTarget,
+    GroupRoleRevokedAuditEvent,
     PermissionDeniedAuditEvent,
     RoleAssignedAuditEvent,
     RoleUnassignedAuditEvent,
@@ -272,11 +273,13 @@ def _granted_role_ids_clause(
     )
 
 
-def _create_grant_audit_snapshot(
-    role_name: str, permission_scope: PermissionScope, scope_object_id: str | None
-) -> dict[str, str | None]:
-    """Audit snapshot of a role grant at a scope, shared by user and group assignments."""
-    return {"role": role_name, "scope": permission_scope.name, "scope_object_id": scope_object_id}
+def _create_grant_audit_snapshot(role_name: str, scope_name: str, scope_object_id: str | None) -> dict[str, str | None]:
+    """Audit snapshot of a role grant at a scope, shared by user and group assignments.
+
+    Takes the scope's stored name, so a grant whose scope kind is no longer registered can
+    still be snapshotted from its own row.
+    """
+    return {"role": role_name, "scope": scope_name, "scope_object_id": scope_object_id}
 
 
 async def _find_active_assignment(
@@ -389,7 +392,7 @@ async def assign_role(
         RoleAssignedAuditEvent(
             outcome=AuditOutcome.SUCCESS,
             target=AuditTarget(type="user", id=str(user_id)),
-            change=AuditChange(new=_create_grant_audit_snapshot(role_name, permission_scope, scope_object_id)),
+            change=AuditChange(new=_create_grant_audit_snapshot(role_name, permission_scope.name, scope_object_id)),
         ),
     )
     return assignment
@@ -430,6 +433,70 @@ async def revoke_role(
             RoleUnassignedAuditEvent(
                 outcome=AuditOutcome.SUCCESS,
                 target=AuditTarget(type="user", id=str(user_id)),
-                change=AuditChange(old=_create_grant_audit_snapshot(role_name, permission_scope, scope_object_id)),
+                change=AuditChange(old=_create_grant_audit_snapshot(role_name, permission_scope.name, scope_object_id)),
             ),
         )
+
+
+async def _record_active_user_grants_removed(match: ColumnElement[bool], session: AsyncSession) -> None:
+    """Record ``role.unassigned`` for each active user assignment satisfying ``match``."""
+    user_rows = await session.exec(
+        select(RoleAssignment.user_id, Role.name, RoleAssignment.scope, RoleAssignment.scope_object_id)
+        .join(Role, col(Role.id) == col(RoleAssignment.role_id))
+        .where(match, RoleAssignment.is_deleted == False)
+        .order_by(col(RoleAssignment.id))
+    )
+    for user_id, role_name, scope_name, object_id in user_rows.all():
+        await record_event(
+            session,
+            RoleUnassignedAuditEvent(
+                outcome=AuditOutcome.SUCCESS,
+                target=AuditTarget(type="user", id=str(user_id)),
+                change=AuditChange(old=_create_grant_audit_snapshot(role_name, scope_name, object_id)),
+            ),
+        )
+
+
+async def _record_active_group_grants_removed(match: ColumnElement[bool], session: AsyncSession) -> None:
+    """Record ``group.role_revoked`` for each active group assignment satisfying ``match``."""
+    group_rows = await session.exec(
+        select(GroupRoleAssignment.group_id, Role.name, GroupRoleAssignment.scope, GroupRoleAssignment.scope_object_id)
+        .join(Role, col(Role.id) == col(GroupRoleAssignment.role_id))
+        .where(match, GroupRoleAssignment.is_deleted == False)
+        .order_by(col(GroupRoleAssignment.id))
+    )
+    for group_id, role_name, scope_name, object_id in group_rows.all():
+        await record_event(
+            session,
+            GroupRoleRevokedAuditEvent(
+                outcome=AuditOutcome.SUCCESS,
+                target=AuditTarget(type="group", id=str(group_id)),
+                change=AuditChange(old=_create_grant_audit_snapshot(role_name, scope_name, object_id)),
+            ),
+        )
+
+
+async def delete_grants_at_object(
+    permission_scope: PermissionScope,
+    scope_object_id: str,
+    session: AsyncSession,
+) -> None:
+    """Delete every user and group grant scoped to one object, active and revoked.
+
+    Each active grant is recorded first (``role.unassigned`` per user grant, then
+    ``group.role_revoked`` per group grant), snapshotted from the row's own scope strings so a
+    scope kind that is no longer registered still works; revoked rows record nothing.
+    ``scope_object_id`` is matched exactly. Flushes in the caller's transaction, never commits.
+    """
+    user_match = and_(
+        col(RoleAssignment.scope) == permission_scope.name, col(RoleAssignment.scope_object_id) == scope_object_id
+    )
+    group_match = and_(
+        col(GroupRoleAssignment.scope) == permission_scope.name,
+        col(GroupRoleAssignment.scope_object_id) == scope_object_id,
+    )
+    await _record_active_user_grants_removed(user_match, session)
+    await _record_active_group_grants_removed(group_match, session)
+    await session.exec(delete(RoleAssignment).where(user_match))
+    await session.exec(delete(GroupRoleAssignment).where(group_match))
+    await session.flush()

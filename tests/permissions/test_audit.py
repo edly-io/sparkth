@@ -7,7 +7,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.audit.models import AuditEvent
 from sparkth.core.permissions import PERMISSIONS, Permission, assign_role, groups, revoke_role, roles
-from sparkth.core.permissions.models import Group, GroupMembership, Role, RoleAssignment
+from sparkth.core.permissions.models import Group, GroupMembership, GroupRoleAssignment, Role, RoleAssignment
 from sparkth.lib.permissions.scopes import GLOBAL
 from sparkth.lib.testing import AuditEventsFetcher
 
@@ -77,6 +77,31 @@ class TestRoleEvents:
         _assert_envelope(event, "role.deleted", "role", role_id)
         assert event.old_values == {"name": "grader", "description": "Grades stuff"}
         assert event.new_values is None
+
+    async def test_delete_records_unassigned_for_active_grants_scoped_to_role(
+        self, session: AsyncSession, audit_events: AuditEventsFetcher
+    ) -> None:
+        target = await _role(session, "target")
+        manager = await _role(session, "manager")
+        assert target.id is not None and manager.id is not None
+        target_id = target.id
+        object_id = str(target_id)
+        session.add(RoleAssignment(user_id=1, role_id=manager.id, scope="role", scope_object_id=object_id))
+        session.add(GroupRoleAssignment(group_id=2, role_id=manager.id, scope="role", scope_object_id=object_id))
+        revoked = RoleAssignment(user_id=3, role_id=manager.id, scope="role", scope_object_id=object_id)
+        revoked.soft_delete()
+        session.add(revoked)
+        await session.flush()
+        before = len(await audit_events())
+        await roles.delete_role(target_id, session)
+
+        unassigned, group_revoked, deleted = (await audit_events())[before:]
+        snapshot = {"role": "manager", "scope": "role", "scope_object_id": object_id}
+        _assert_envelope(unassigned, "role.unassigned", "user", 1)
+        assert unassigned.old_values == snapshot
+        _assert_envelope(group_revoked, "group.role_revoked", "group", 2)
+        assert group_revoked.old_values == snapshot
+        _assert_envelope(deleted, "role.deleted", "role", target_id)
 
     async def test_grant_records_permission_granted(
         self, session: AsyncSession, audit_events: AuditEventsFetcher
