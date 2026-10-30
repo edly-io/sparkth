@@ -15,7 +15,9 @@ from sparkth.lib.chat.hooks import ChatCapability
 from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
+from sparkth.main import app
 from sparkth.plugins.chat.capabilities import COURSE_DESIGN
+from sparkth.plugins.chat.config import ChatSettings, get_chat_settings
 from sparkth.plugins.chat.constants import REFUSAL_MESSAGE
 from sparkth.plugins.chat.models import Conversation
 from sparkth.plugins.chat.tests.helpers import CANVAS_CONFIG, OPENEDX_CONFIG
@@ -351,6 +353,27 @@ class TestPluginSwitches:
             await _turn(client, config_id, conversation_uuid, "*", True)
 
         assert [tool.name for tool in processor_cls.call_args.args[4]] == ["openedx_create_xblock"]
+
+    async def test_a_streamed_turn_gets_the_tool_limit_from_the_routes_settings(
+        self, client: AsyncClient, current_user: User, session: AsyncSession
+    ) -> None:
+        user_id = current_user.id or 1
+        config_id = await _seed_llm_config(session, user_id)
+        conversation_uuid = await _seed_conversation(session, user_id)
+        app.dependency_overrides[get_chat_settings] = lambda: ChatSettings(max_tool_executions=7)
+
+        with (
+            patch(
+                "sparkth.plugins.chat.routes.completions.MessageScopeClassifier",
+                return_value=_classifier_answering(True),
+            ),
+            patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=_provider()),
+            patch("sparkth.plugins.chat.routes.completions.ChatStreamProcessor") as processor_cls,
+        ):
+            processor_cls.return_value.stream.return_value = _fake_stream()
+            await _turn(client, config_id, conversation_uuid, stream=True)
+
+        assert processor_cls.call_args.kwargs["max_tool_executions"] == 7
 
     async def test_a_failed_switch_lookup_never_reaches_the_model(
         self,

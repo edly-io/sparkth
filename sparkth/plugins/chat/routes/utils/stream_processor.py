@@ -203,6 +203,7 @@ class ChatStreamProcessor:
         rag_search_declined: bool = False,
         analytics: AnalyticsAttribution | None = None,
         turn_id: str | None = None,
+        max_tool_executions: int | None = None,
     ) -> None:
         self.provider = provider
         self.messages = messages
@@ -223,6 +224,9 @@ class ChatStreamProcessor:
         # pair is its key in the live-turns registry. None leaves the stop poll never firing.
         self.stoppable_turn: tuple[str, int] | None = (turn_id, user_id) if turn_id and user_id is not None else None
         self.stop_requested: asyncio.Event | None = None
+        # The route passes the limit it read from its own settings, so streamed and non-streamed
+        # turns share one source. Left out, the chat settings are read when the turn runs.
+        self.max_tool_executions = max_tool_executions
         self.conversation_id: int = cast(int, conversation.id)
         self.conversation_uuid: str = str(conversation.uuid)
         self.queue: asyncio.Queue[str | None] = asyncio.Queue()
@@ -420,7 +424,9 @@ class ChatStreamProcessor:
         full_response = ""
         completed_tool_calls: list[dict[str, Any]] = []
         stopped = False
-        max_tool_executions = get_chat_settings().max_tool_executions
+        max_tool_executions = self.max_tool_executions
+        if max_tool_executions is None:
+            max_tool_executions = get_chat_settings().max_tool_executions
         try:
             async for event in stream_turn(self.messages, self.tools or [], self.provider, max_tool_executions):
                 stopping = self._stop_is_requested()
