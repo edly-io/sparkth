@@ -57,16 +57,6 @@ class GroupAlreadyExists(Exception):
         self.name = name
 
 
-class GroupInUse(Exception):
-    """Raised when deleting a group that still has active role assignments."""
-
-    def __init__(self, group_id: int) -> None:
-        super().__init__(
-            _("Group still has active role assignments and cannot be deleted: {group_id}").format(group_id=group_id)
-        )
-        self.group_id = group_id
-
-
 class InvalidScopeObjectId(Exception):
     """Raised when a (scope, object id) pairing is invalid.
 

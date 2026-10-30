@@ -132,7 +132,7 @@ async def test_delete_group_returns_204(client: AsyncClient, session: AsyncSessi
     assert (await client.get(f"/api/v1/permissions/groups/{created['id']}")).status_code == 404
 
 
-async def test_delete_group_with_active_assignment_returns_409(client: AsyncClient, session: AsyncSession) -> None:
+async def test_delete_group_with_active_assignment_returns_204(client: AsyncClient, session: AsyncSession) -> None:
     _override_current_user(client, await _create_user_with_permissions(session, GROUP_PERMISSIONS))
     created = (await client.post("/api/v1/permissions/groups", json={"name": "cs-staff"})).json()
     role = Role(name=_uniq("granted"))
@@ -141,7 +141,7 @@ async def test_delete_group_with_active_assignment_returns_409(client: AsyncClie
     await group_engine.assign_role_to_group(created["id"], role.name, GLOBAL, None, session)
     await session.commit()
     response = await client.delete(f"/api/v1/permissions/groups/{created['id']}")
-    assert response.status_code == 409
+    assert response.status_code == 204
 
 
 async def test_group_endpoints_require_permission(client: AsyncClient, session: AsyncSession) -> None:

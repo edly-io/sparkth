@@ -115,12 +115,13 @@ joins or leaves the set) is a membership edit, not a grant edit.
 - Membership and group-role assignments are **soft-deleted**: removing a member (or revoking
   a group's role) drops the inherited access immediately while keeping the history row for
   auditing.
+  Deleting the group itself hard-deletes those history rows along with the group.
 - Membership rows carry a **`source`** column (`"manual"` today); rule-driven membership can
   later own its `"rule"` rows without touching manually managed ones.
 
 Group structure is managed through the REST API under `/api/v1/permissions/groups`
-(CRUD, gated by the `group.*` permissions; deleting a group is refused with **409** while it
-still has active role assignments). Membership and group-role grants are CLI-managed,
+(CRUD, gated by the `group.*` permissions; deleting a group also deletes its memberships, its
+role assignments and every grant scoped to it). Membership and group-role grants are CLI-managed,
 mirroring how user-role assignment is CLI-only:
 
 ```bash
