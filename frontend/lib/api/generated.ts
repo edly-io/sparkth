@@ -1621,9 +1621,7 @@ export interface paths {
          * Get User
          * @description Fetch the current authenticated user from the JWT token.
          *
-         *     ``is_admin`` is derived from whether the user holds the global ``admin`` role;
-         *     it is not a stored column. ``language`` is the raw stored preference — ``None``
-         *     when the user never chose one.
+         *     ``language`` is the raw stored preference — ``None`` when the user never chose one.
          */
         get: operations["get_user_api_v1_user_me_get"];
         put?: never;
@@ -2918,11 +2916,6 @@ export interface components {
             has_password: boolean;
             /** Id */
             id: number;
-            /**
-             * Is Admin
-             * @default false
-             */
-            is_admin: boolean;
             /** Language */
             language?: string | null;
             /** Name */

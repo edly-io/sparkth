@@ -63,7 +63,7 @@ describe("WhitelistPage access guard", () => {
 
   it("does not fetch the whitelist for a denied user", async () => {
     // The fetch must be gated on access === "allowed": a denied user should never fire
-    // getWhitelist (no wasted 403), matching the old synchronous is_admin guard.
+    // getWhitelist (no wasted 403).
     vi.mocked(checkPermission).mockResolvedValue(false);
 
     render(<WhitelistPage />);

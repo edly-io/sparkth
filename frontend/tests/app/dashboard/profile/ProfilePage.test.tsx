@@ -28,7 +28,6 @@ const passwordUser: CurrentUser = {
   email: "ada@example.com",
   email_verified: true,
   has_password: true,
-  is_admin: false,
 };
 
 beforeEach(() => {
