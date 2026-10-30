@@ -1,5 +1,7 @@
 """Helpers shared by the chat plugin's tests: seeded rows, LMS configs, mocked providers and Google's errors."""
 
+from collections.abc import AsyncGenerator, Sequence
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID
 
@@ -26,6 +28,26 @@ OPENEDX_CONFIG = {
     "lms_password": "edx-pass-9d4c",
 }
 CANVAS_CONFIG = {"api_url": "https://canvas.example.com", "api_key": "token-abc123"}
+
+# Where the stream processor looks up the function that streams a turn; tests patch a scripted
+# turn in here to stand in for the model.
+STREAM_TURN = "sparkth.plugins.chat.routes.utils.stream_processor.stream_turn"
+
+
+async def replay_turn(
+    events: list[dict[str, Any]],
+    messages: list[dict[str, Any]],
+    tools: Sequence[Any],
+    provider: Any,
+    max_tool_executions: int,
+) -> AsyncGenerator[dict[str, Any], None]:
+    """Stand in for ``stream_turn`` with a turn that streams ``events``.
+
+    Bind the events with ``functools.partial(replay_turn, events)`` and patch the result in at
+    :data:`STREAM_TURN`.
+    """
+    for event in events:
+        yield event
 
 
 async def seed_llm_config(session: AsyncSession, user_id: int) -> int:

@@ -1,7 +1,7 @@
 import asyncio
 import json
 import uuid
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Sequence
 from functools import partial
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -24,6 +24,7 @@ from sparkth.plugins.chat.analytics import StopPoint
 from sparkth.plugins.chat.routes.utils.live_turns import request_stop
 from sparkth.plugins.chat.routes.utils.stream_processor import ChatStreamProcessor
 from sparkth.plugins.chat.schemas import ChatMessage
+from sparkth.plugins.chat.tests.helpers import STREAM_TURN, replay_turn
 
 
 async def _stopping_tool(executed: list[str]) -> str:
@@ -75,16 +76,65 @@ def _make_processor(
     )
 
 
-class SimpleProvider:
-    """A fake provider that streams two tokens and never asks to stop."""
+# A turn that streams two tokens and never asks to stop.
+HELLO_WORLD_TURN = partial(replay_turn, [{"type": "token", "content": "Hello"}, {"type": "token", "content": " world"}])
 
-    model = "test-model"
 
-    async def stream_message(
-        self, messages: list[dict[str, Any]], tools: list[Any] | None = None
-    ) -> AsyncGenerator[dict[str, Any], None]:
-        yield {"type": "token", "content": "Hello"}
-        yield {"type": "token", "content": " world"}
+def _failing_turn(
+    error: Exception, messages: list[dict[str, Any]], tools: Sequence[Any], provider: Any, max_tool_executions: int
+) -> AsyncGenerator[dict[str, Any], None]:
+    """A streamed turn that fails with ``error`` before its first event."""
+    raise error
+
+
+async def _stopping_between_tools(
+    executed: list[str], messages: list[dict[str, Any]], tools: Sequence[Any], provider: Any, max_tool_executions: int
+) -> AsyncGenerator[dict[str, Any], None]:
+    """Two tool calls, with Stop pressed between the first finishing and the second starting."""
+    yield {"type": "tool_start", "name": "first_tool"}
+    executed.append("first_tool")
+    yield {"type": "tool_end", "name": "first_tool"}
+    request_stop("turn-1", 1)
+    yield {"type": "tool_start", "name": "second_tool"}
+    executed.append("second_tool")
+    yield {"type": "tool_end", "name": "second_tool"}
+    yield {"type": "token", "content": "done"}
+
+
+async def _stopping_during_a_tool(
+    executed: list[str], messages: list[dict[str, Any]], tools: Sequence[Any], provider: Any, max_tool_executions: int
+) -> AsyncGenerator[dict[str, Any], None]:
+    """Two tool calls, with Stop pressed while the first one runs."""
+    yield {"type": "tool_start", "name": "first_tool"}
+    # The stop lands while the first tool runs, between its tool_start and tool_end.
+    request_stop("turn-6", 1)
+    executed.append("first_tool")
+    yield {"type": "tool_end", "name": "first_tool"}
+    yield {"type": "tool_start", "name": "second_tool"}
+    executed.append("second_tool")
+    yield {"type": "tool_end", "name": "second_tool"}
+    yield {"type": "token", "content": "done"}
+
+
+async def _stopping_mid_answer(
+    messages: list[dict[str, Any]], tools: Sequence[Any], provider: Any, max_tool_executions: int
+) -> AsyncGenerator[dict[str, Any], None]:
+    """An answer whose instructor presses Stop after its second token."""
+    yield {"type": "token", "content": "Half a "}
+    yield {"type": "token", "content": "sentence"}
+    request_stop("turn-2", 1)
+    yield {"type": "token", "content": " that still arrives"}
+    yield {"type": "token", "content": " but this one never does"}
+
+
+async def _setting_stop_mid_answer(
+    stop: asyncio.Event, messages: list[dict[str, Any]], tools: Sequence[Any], provider: Any, max_tool_executions: int
+) -> AsyncGenerator[dict[str, Any], None]:
+    """An answer that sets ``stop`` after its first token."""
+    yield {"type": "token", "content": "Half"}
+    stop.set()
+    yield {"type": "token", "content": " done"}
+    yield {"type": "token", "content": " never"}
 
 
 def _make_chunk(
@@ -363,14 +413,9 @@ class TestRunRagPhase:
 
 class TestCollectStreamResponse:
     @pytest.mark.asyncio
-    async def test_returns_full_response_and_empty_tool_calls(self) -> None:
+    async def test_returns_full_response_and_empty_tool_calls(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(STREAM_TURN, HELLO_WORLD_TURN)
         processor = _make_processor()
-
-        async def stream_gen(*args: object, **kwargs: object) -> object:
-            yield {"type": "token", "content": "Hello"}
-            yield {"type": "token", "content": " world"}
-
-        processor.provider.stream_message = stream_gen  # type: ignore[assignment]
         result = await processor._collect_stream_response(MagicMock())
         assert result is not None
         full_response, tool_calls, stopped = result
@@ -379,15 +424,14 @@ class TestCollectStreamResponse:
         assert stopped is False
 
     @pytest.mark.asyncio
-    async def test_collects_tool_call_names(self) -> None:
+    async def test_collects_tool_call_names(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        events = [
+            {"type": "tool_start", "name": "search_web"},
+            {"type": "tool_end", "name": "search_web"},
+            {"type": "token", "content": "Done"},
+        ]
+        monkeypatch.setattr(STREAM_TURN, partial(replay_turn, events))
         processor = _make_processor()
-
-        async def stream_gen(*args: object, **kwargs: object) -> object:
-            yield {"type": "tool_start", "name": "search_web"}
-            yield {"type": "tool_end", "name": "search_web"}
-            yield {"type": "token", "content": "Done"}
-
-        processor.provider.stream_message = stream_gen  # type: ignore[assignment]
         result = await processor._collect_stream_response(MagicMock())
         assert result is not None
         _, tool_calls, stopped = result
@@ -395,45 +439,27 @@ class TestCollectStreamResponse:
         assert stopped is False
 
     @pytest.mark.asyncio
-    async def test_returns_none_on_provider_api_error(self) -> None:
+    async def test_returns_none_on_provider_api_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import httpx
 
+        monkeypatch.setattr(STREAM_TURN, partial(_failing_turn, httpx.RemoteProtocolError("connection reset by peer")))
         processor = _make_processor()
-
-        async def stream_gen(*args: object, **kwargs: object) -> object:
-            if False:
-                yield {}
-            raise httpx.RemoteProtocolError("connection reset by peer")
-
-        processor.provider.stream_message = stream_gen  # type: ignore[assignment]
         result = await processor._collect_stream_response(MagicMock())
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_returns_none_on_os_error(self) -> None:
+    async def test_returns_none_on_os_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(STREAM_TURN, partial(_failing_turn, OSError("connection reset")))
         processor = _make_processor()
-
-        async def stream_gen(*args: object, **kwargs: object) -> object:
-            if False:
-                yield {}
-            raise OSError("connection reset")
-
-        processor.provider.stream_message = stream_gen  # type: ignore[assignment]
         result = await processor._collect_stream_response(MagicMock())
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_returns_none_on_langchain_exception(self) -> None:
+    async def test_returns_none_on_langchain_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:
         from langchain_core.exceptions import OutputParserException
 
+        monkeypatch.setattr(STREAM_TURN, partial(_failing_turn, OutputParserException("parse failed")))
         processor = _make_processor()
-
-        async def stream_gen(*args: object, **kwargs: object) -> object:
-            if False:
-                yield {}
-            raise OutputParserException("parse failed")
-
-        processor.provider.stream_message = stream_gen  # type: ignore[assignment]
         result = await processor._collect_stream_response(MagicMock())
         assert result is None
 
@@ -505,26 +531,11 @@ class TestStopHonoured:
         assert done["message"]["tool_calls"] == [{"name": "first"}]
 
     @pytest.mark.asyncio
-    async def test_a_stopped_turn_runs_no_further_tools(self) -> None:
+    async def test_a_stopped_turn_runs_no_further_tools(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """The stop lands between events, so the first tool completes and the second never starts."""
         executed: list[str] = []
-
-        class StoppingProvider:
-            model = "test-model"
-
-            async def stream_message(
-                self, messages: list[dict[str, Any]], tools: list[Any] | None = None
-            ) -> AsyncGenerator[dict[str, Any], None]:
-                yield {"type": "tool_start", "name": "first_tool"}
-                executed.append("first_tool")
-                yield {"type": "tool_end", "name": "first_tool"}
-                request_stop("turn-1", 1)
-                yield {"type": "tool_start", "name": "second_tool"}
-                executed.append("second_tool")
-                yield {"type": "tool_end", "name": "second_tool"}
-                yield {"type": "token", "content": "done"}
-
-        processor = _make_processor(provider=StoppingProvider(), turn_id="turn-1", user_id=1)
+        monkeypatch.setattr(STREAM_TURN, partial(_stopping_between_tools, executed))
+        processor = _make_processor(turn_id="turn-1", user_id=1)
 
         payloads = [json.loads(chunk.removeprefix("data: ")) async for chunk in processor.stream()]
 
@@ -535,29 +546,14 @@ class TestStopHonoured:
         assert done["message"]["tool_calls"] == [{"name": "first_tool"}]
 
     @pytest.mark.asyncio
-    async def test_a_stop_during_execution_still_keeps_the_finishing_tool(self) -> None:
+    async def test_a_stop_during_execution_still_keeps_the_finishing_tool(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Stop requested while a tool is executing (between its tool_start and tool_end): the
         in-flight tool's result is still kept, and only the next tool is skipped."""
         executed: list[str] = []
-
-        class StoppingDuringExecutionProvider:
-            model = "test-model"
-
-            async def stream_message(
-                self, messages: list[dict[str, Any]], tools: list[Any] | None = None
-            ) -> AsyncGenerator[dict[str, Any], None]:
-                yield {"type": "tool_start", "name": "first_tool"}
-                # The stop lands here — inside the window where the real provider is
-                # running the tool, between yielding tool_start and tool_end.
-                request_stop("turn-6", 1)
-                executed.append("first_tool")
-                yield {"type": "tool_end", "name": "first_tool"}
-                yield {"type": "tool_start", "name": "second_tool"}
-                executed.append("second_tool")
-                yield {"type": "tool_end", "name": "second_tool"}
-                yield {"type": "token", "content": "done"}
-
-        processor = _make_processor(provider=StoppingDuringExecutionProvider(), turn_id="turn-6", user_id=1)
+        monkeypatch.setattr(STREAM_TURN, partial(_stopping_during_a_tool, executed))
+        processor = _make_processor(turn_id="turn-6", user_id=1)
 
         payloads = [json.loads(chunk.removeprefix("data: ")) async for chunk in processor.stream()]
 
@@ -567,27 +563,17 @@ class TestStopHonoured:
         assert done["message"]["tool_calls"] == [{"name": "first_tool"}]
 
     @pytest.mark.asyncio
-    async def test_a_stopped_turn_keeps_the_token_delivered_when_stop_was_noticed(self) -> None:
+    async def test_a_stopped_turn_keeps_the_token_delivered_when_stop_was_noticed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """A token is always text the model already produced, never work in flight, so the one
         delivered on the very iteration the stop is noticed is kept, not dropped. The fourth
         token is load-bearing: with only three, the test would pass even without the
         ``if stopping: break`` — the generator would just run out on its own. A fourth token
         that must never be requested is what a deleted break would let leak through.
         """
-
-        class StoppingProvider:
-            model = "test-model"
-
-            async def stream_message(
-                self, messages: list[dict[str, Any]], tools: list[Any] | None = None
-            ) -> AsyncGenerator[dict[str, Any], None]:
-                yield {"type": "token", "content": "Half a "}
-                yield {"type": "token", "content": "sentence"}
-                request_stop("turn-2", 1)
-                yield {"type": "token", "content": " that still arrives"}
-                yield {"type": "token", "content": " but this one never does"}
-
-        processor = _make_processor(provider=StoppingProvider(), turn_id="turn-2", user_id=1)
+        monkeypatch.setattr(STREAM_TURN, _stopping_mid_answer)
+        processor = _make_processor(turn_id="turn-2", user_id=1)
 
         payloads = [json.loads(chunk.removeprefix("data: ")) async for chunk in processor.stream()]
 
@@ -596,17 +582,19 @@ class TestStopHonoured:
         assert done["stopped"] is True
 
     @pytest.mark.asyncio
-    async def test_an_uninterrupted_turn_is_not_marked_stopped(self) -> None:
-        processor = _make_processor(provider=SimpleProvider(), turn_id="turn-3", user_id=1)
+    async def test_an_uninterrupted_turn_is_not_marked_stopped(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(STREAM_TURN, HELLO_WORLD_TURN)
+        processor = _make_processor(turn_id="turn-3", user_id=1)
 
         payloads = [json.loads(chunk.removeprefix("data: ")) async for chunk in processor.stream()]
 
         assert payloads[-1].get("stopped", False) is False
 
     @pytest.mark.asyncio
-    async def test_release_turn_called_when_stream_ends(self) -> None:
+    async def test_release_turn_called_when_stream_ends(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """The turn is released from the live-turns registry once the stream finishes."""
-        processor = _make_processor(provider=SimpleProvider(), turn_id="turn-4", user_id=1)
+        monkeypatch.setattr(STREAM_TURN, HELLO_WORLD_TURN)
+        processor = _make_processor(turn_id="turn-4", user_id=1)
 
         async for _ in processor.stream():
             pass
@@ -617,28 +605,13 @@ class TestStopHonoured:
     async def test_a_turn_is_not_registered_until_its_stream_runs(self) -> None:
         """Registering inside the stream is what keeps a turn whose stream never runs out of
         the registry: there is nothing to release, so nothing can be left behind."""
-        _make_processor(provider=SimpleProvider(), turn_id="turn-7", user_id=1)
+        _make_processor(turn_id="turn-7", user_id=1)
 
         assert request_stop("turn-7", 1) is False
 
 
 class TestStopPoint:
     """``StreamedCompletion.stopped_at`` names the phase a stop landed in."""
-
-    @staticmethod
-    def _stopping_provider(stop: asyncio.Event) -> Any:
-        class Provider:
-            model = "test-model"
-
-            async def stream_message(
-                self, messages: list[dict[str, Any]], tools: list[Any] | None = None
-            ) -> AsyncGenerator[dict[str, Any], None]:
-                yield {"type": "token", "content": "Half"}
-                stop.set()
-                yield {"type": "token", "content": " done"}
-                yield {"type": "token", "content": " never"}
-
-        return Provider()
 
     @pytest.mark.asyncio
     async def test_a_stop_before_retrieval_is_before_the_model(self) -> None:
@@ -668,9 +641,10 @@ class TestStopPoint:
         assert completion.stopped_at == StopPoint.BEFORE_MODEL
 
     @pytest.mark.asyncio
-    async def test_a_stop_while_streaming_is_streaming(self) -> None:
+    async def test_a_stop_while_streaming_is_streaming(self, monkeypatch: pytest.MonkeyPatch) -> None:
         stop = asyncio.Event()
-        processor = _make_processor(provider=self._stopping_provider(stop))
+        monkeypatch.setattr(STREAM_TURN, partial(_setting_stop_mid_answer, stop))
+        processor = _make_processor()
         processor.stop_requested = stop
 
         completion = await processor._run(MagicMock())
@@ -679,8 +653,9 @@ class TestStopPoint:
         assert completion.stopped_at == StopPoint.STREAMING
 
     @pytest.mark.asyncio
-    async def test_an_uninterrupted_turn_has_no_stop_point(self) -> None:
-        processor = _make_processor(provider=SimpleProvider())
+    async def test_an_uninterrupted_turn_has_no_stop_point(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(STREAM_TURN, HELLO_WORLD_TURN)
+        processor = _make_processor()
         processor.stop_requested = asyncio.Event()
 
         completion = await processor._run(MagicMock())

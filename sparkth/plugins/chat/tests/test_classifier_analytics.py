@@ -5,6 +5,7 @@ from a detached task — its seams raise rather than return — so these join it
 before asserting.
 """
 
+from collections.abc import AsyncGenerator, Sequence
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID
@@ -23,7 +24,7 @@ from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.lib.models import User
 from sparkth.plugins.chat.detached import join_live_tasks
 from sparkth.plugins.chat.models import Conversation, ConversationAttachment
-from sparkth.plugins.chat.tests.helpers import classifier_provider, seed_conversation, seed_llm_config
+from sparkth.plugins.chat.tests.helpers import STREAM_TURN, classifier_provider, seed_conversation, seed_llm_config
 
 COMPLETIONS_URL = "/api/v1/chat/completions"
 _OPENAI_REQUEST = httpx.Request("POST", "https://api.openai.com/v1/chat/completions")
@@ -59,6 +60,13 @@ def _provider() -> MagicMock:
     provider.system_prompt = ""
     provider.send_message = AsyncMock(return_value={"content": "Outline ready.", "metadata": {}})
     return provider
+
+
+def _dropped_connection_turn(
+    messages: list[dict[str, Any]], tools: Sequence[Any], provider: Any, max_tool_executions: int
+) -> AsyncGenerator[dict[str, Any], None]:
+    """A streamed turn whose connection drops before the first event."""
+    raise OSError("the connection dropped mid-stream")
 
 
 def _scope_verdict(in_scope: bool) -> MagicMock:
@@ -581,14 +589,9 @@ async def test_a_streaming_failure_records_a_failed_turn(
     config_id = await seed_llm_config(session, current_user.id or 1)
     conversation_uuid = await seed_conversation(session, current_user.id or 1)
 
-    def _exploding_stream(*args: Any, **kwargs: Any) -> Any:
-        raise OSError("the connection dropped mid-stream")
-
-    provider = _provider()
-    provider.stream_message = _exploding_stream
-
     with (
-        patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=provider),
+        patch("sparkth.plugins.chat.routes.completions.get_provider", return_value=_provider()),
+        patch(STREAM_TURN, _dropped_connection_turn),
         patch("sparkth.plugins.chat.classifiers.base.get_provider"),
         patch(
             "sparkth.plugins.chat.classifiers.message_scope.MessageScopeClassifier.classify",
