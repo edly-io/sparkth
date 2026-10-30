@@ -1,4 +1,4 @@
-import { api, ApiRequestError } from "@/lib/api";
+import { api, ApiRequestError, bearer } from "@/lib/api";
 import type {
   AuthorizationUrlResponse,
   ConnectionStatus,
@@ -6,10 +6,6 @@ import type {
   LogsResponse,
   RagSourcesResponse,
 } from "@/plugins/slack/types";
-
-function bearer(token: string): { Authorization: string } {
-  return { Authorization: `Bearer ${token}` };
-}
 
 // This module's public contract is plain Error objects with action-prefixed
 // messages, except disconnectSlack, which rejects with the ApiRequestError itself;
