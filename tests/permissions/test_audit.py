@@ -400,7 +400,7 @@ class TestGroupEvents:
         await groups.delete_group(group.id, session)
 
         events = (await audit_events())[before:]
-        assert [e.category + "." + e.action for e in events] == ["group.role_revoked", "group.deleted"]
+        assert [event.category + "." + event.action for event in events] == ["group.role_revoked", "group.deleted"]
 
     async def test_add_member_records_member_added(
         self, session: AsyncSession, audit_events: AuditEventsFetcher
