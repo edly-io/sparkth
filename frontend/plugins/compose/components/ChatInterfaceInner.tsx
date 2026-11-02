@@ -7,7 +7,7 @@ import Link from "next/link";
 import { ChatHeader } from "@/plugins/compose/components/ChatHeader";
 import { ChatMessages } from "@/plugins/compose/components/messages/ChatMessages";
 import { ChatInput } from "@/plugins/compose/components/input/ChatInput";
-import { appendLine } from "@/plugins/compose/components/messages/optionsBlock";
+import { appendLine, replaceLine } from "@/plugins/compose/components/messages/optionsBlock";
 import { AiKeyProblem, TextAttachment } from "@/plugins/compose/types";
 import { Preview } from "@/plugins/compose/components/attachment/Preview";
 import { useAuth } from "@/lib/auth/hooks";
@@ -122,7 +122,10 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
   );
 
   const handleOptionCheck = useCallback(
-    (option: string) => setInputMessage((prev) => appendLine(prev, option)),
+    (option: string, previous?: string) =>
+      setInputMessage((prev) =>
+        previous === undefined ? appendLine(prev, option) : replaceLine(prev, previous, option),
+      ),
     [],
   );
 
