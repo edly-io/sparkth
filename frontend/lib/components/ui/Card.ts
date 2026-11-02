@@ -1,1 +1,1 @@
-export { Card } from "@/components/ui/Card";
+export { Card } from "@/core/components/ui/Card";

@@ -1,1 +1,1 @@
-export { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/Popover";
+export { Popover, PopoverContent, PopoverTrigger } from "@/core/components/ui/Popover";

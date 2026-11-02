@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from "@/components/ui/Dialog";
+} from "@/core/components/ui/Dialog";
 import { useFolderPicker } from "./useFolderPicker";
 
 interface FolderPickerProps {

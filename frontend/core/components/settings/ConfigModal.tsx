@@ -15,14 +15,14 @@ import {
 } from "./schema";
 import { configWidgetFor } from "./widgets";
 import { Button } from "@/core/components/ui/Button";
-import { Alert } from "@/components/ui/Alert";
+import { Alert } from "@/core/components/ui/Alert";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/components/ui/Dialog";
+} from "@/core/components/ui/Dialog";
 
 interface PluginConfigModalProps extends ConfigModalProps {
   /** The plugin's own controls, by the `widget` hint name a backend field uses. */

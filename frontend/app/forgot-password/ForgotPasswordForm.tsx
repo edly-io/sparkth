@@ -4,7 +4,7 @@ import { useState, type SubmitEvent } from "react";
 import { useTranslations } from "next-intl";
 
 import { AuthCard, AuthHeading, AuthLink } from "@/components/AuthCard";
-import { Alert } from "@/components/ui/Alert";
+import { Alert } from "@/core/components/ui/Alert";
 import { Button } from "@/core/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { ApiRequestError, requestPasswordReset } from "@/lib/api";

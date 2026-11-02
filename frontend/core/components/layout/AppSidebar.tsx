@@ -26,7 +26,7 @@ import { Spinner } from "@/core/components/ui/Spinner";
 import { SparkthLogo } from "@/components/SparkthLogo";
 import { Button } from "@/core/components/ui/Button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/core/components/ui/Tooltip";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/Popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/core/components/ui/Popover";
 
 interface AppSidebarProps {
   user?: {
