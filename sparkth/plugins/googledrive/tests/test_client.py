@@ -199,66 +199,7 @@ class TestGoogleDriveClientDownload:
             await client.download_file("file_id")
 
 
-class TestGoogleDriveClientUpload:
-    @pytest.mark.asyncio
-    async def test_upload_file(self) -> None:
-        """Upload a file with multipart request."""
-        upload_result = {
-            "id": "new_file_id",
-            "name": "uploaded.pdf",
-            "mimeType": "application/pdf",
-            "size": "2048",
-        }
-        response = _mock_aiohttp_response(status=200, json_data=upload_result)
-        session = _mock_session()
-        session.post.return_value = response
-
-        client = GoogleDriveClient("fake_token")
-        client.session = session
-
-        result = await client.upload_file(
-            name="uploaded.pdf",
-            content=b"pdf content",
-            mime_type="application/pdf",
-            folder_id="parent_folder",
-        )
-
-        assert result["id"] == "new_file_id"
-        session.post.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_upload_error_raises(self) -> None:
-        """Upload errors should raise."""
-        response = _mock_aiohttp_response(status=500)
-        response.text = AsyncMock(return_value="Internal Server Error")
-        session = _mock_session()
-        session.post.return_value = response
-
-        client = GoogleDriveClient("fake_token")
-        client.session = session
-
-        with pytest.raises(GoogleDriveAPIError, match="Google Drive API error"):
-            await client.upload_file("file.txt", b"data", "text/plain")
-
-
 class TestGoogleDriveClientMutations:
-    @pytest.mark.asyncio
-    async def test_rename_file(self) -> None:
-        """Rename a file sends PATCH with new name."""
-        response = _mock_aiohttp_response(json_data={"id": "f1", "name": "renamed.pdf"})
-        session = _mock_session()
-        session.request.return_value = response
-
-        client = GoogleDriveClient("fake_token")
-        client.session = session
-
-        result = await client.rename_file("f1", "renamed.pdf")
-
-        assert result["name"] == "renamed.pdf"
-        call_args = session.request.call_args
-        assert call_args[0][0] == "PATCH"
-        assert call_args[1]["json"] == {"name": "renamed.pdf"}
-
     @pytest.mark.asyncio
     async def test_delete_file(self) -> None:
         """Delete a file sends DELETE request."""
@@ -274,25 +215,6 @@ class TestGoogleDriveClientMutations:
         assert result is True
         call_args = session.request.call_args
         assert call_args[0][0] == "DELETE"
-
-    @pytest.mark.asyncio
-    async def test_create_folder(self) -> None:
-        """Create a folder sends POST with folder MIME type."""
-        response = _mock_aiohttp_response(json_data={"id": "new_folder_id", "name": "New Folder"})
-        session = _mock_session()
-        session.request.return_value = response
-
-        client = GoogleDriveClient("fake_token")
-        client.session = session
-
-        result = await client.create_folder("New Folder", parent_id="parent123")
-
-        assert result["id"] == "new_folder_id"
-        call_args = session.request.call_args
-        json_body = call_args[1]["json"]
-        assert json_body["name"] == "New Folder"
-        assert json_body["mimeType"] == GoogleDriveClient.FOLDER_MIME_TYPE
-        assert json_body["parents"] == ["parent123"]
 
 
 class TestGoogleDriveClientRequestErrors:

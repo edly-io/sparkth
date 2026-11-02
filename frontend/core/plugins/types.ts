@@ -10,25 +10,11 @@ import type { Locale } from "@/lib/i18n/config";
  * A plugin's stored configuration values.
  *
  * The fields themselves are declared by the backend config class and reach the
- * frontend as the JSON schema on {@link UserPluginState}; `core/plugins/schema.ts`
+ * frontend as the JSON schema on {@link UserPluginState}; `core/components/settings/schema.ts`
  * turns that into the settings form.
  */
 export interface PluginConfig {
   [key: string]: unknown;
-}
-
-// ============================================================================
-// Plugin Route Types
-// ============================================================================
-
-/**
- * Defines a route provided by a plugin
- */
-export interface PluginRoute {
-  path: string;
-  label: string;
-  icon?: ComponentType<{ className?: string }>;
-  showInNav?: boolean;
 }
 
 // ============================================================================
@@ -88,9 +74,6 @@ export interface PluginDefinition {
    */
   loadMessages?: (locale: Locale) => Promise<Record<string, unknown>>;
 
-  /** Plugin routes */
-  routes?: PluginRoute[];
-
   /**
    * Optional initialization function called when plugin is loaded
    */
@@ -107,25 +90,6 @@ export interface PluginDefinition {
 // ============================================================================
 
 /**
- * Represents a plugin's state for a specific user
- */
-export interface EnabledPlugin {
-  name: string;
-  config: PluginConfig;
-  enabled: boolean;
-}
-
-/**
- * The display info a backend plugin declared (DISPLAY_INFO hook).
- */
-export type PluginDisplayInfo = Schema<"DisplayInfo">;
-
-/**
- * The sidebar entry a backend plugin declared (SIDEBAR_ENTRIES hook).
- */
-export type PluginSidebarEntry = Schema<"SidebarEntry">;
-
-/**
  * Plugin state from the API, sourced from the generated schema so the shape
  * cannot drift from the backend response.
  *
@@ -133,48 +97,3 @@ export type PluginSidebarEntry = Schema<"SidebarEntry">;
  * backend plugin declared through the frontend hooks.
  */
 export type UserPluginState = Schema<"UserPluginResponse">;
-
-// ============================================================================
-// Plugin Event Types
-// ============================================================================
-
-/**
- * Events that plugins can emit/listen to
- */
-export type PluginEventType =
-  | "plugin:enabled"
-  | "plugin:disabled"
-  | "plugin:config-updated"
-  | "plugin:error";
-
-export interface PluginEvent {
-  type: PluginEventType;
-  pluginName: string;
-  payload?: unknown;
-}
-
-export type PluginEventHandler = (event: PluginEvent) => void;
-
-// ============================================================================
-// Plugin API Types
-// ============================================================================
-
-/**
- * Standard API response wrapper
- */
-export interface PluginApiResponse<T = unknown> {
-  success: boolean;
-  data?: T;
-  error?: string;
-}
-
-/**
- * Plugin API client interface
- */
-export interface PluginApiClient {
-  get: <T = unknown>(endpoint: string) => Promise<T>;
-  post: <T = unknown>(endpoint: string, data?: unknown) => Promise<T>;
-  put: <T = unknown>(endpoint: string, data?: unknown) => Promise<T>;
-  patch: <T = unknown>(endpoint: string, data?: unknown) => Promise<T>;
-  delete: <T = unknown>(endpoint: string) => Promise<T>;
-}

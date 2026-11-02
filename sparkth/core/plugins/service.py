@@ -24,6 +24,7 @@ from sparkth.lib.audit.events import (
 from sparkth.lib.auth import current_user_id, get_current_user
 from sparkth.lib.config import get_plugin_adapter, get_plugin_config_schema
 from sparkth.lib.db import get_async_session, session_scope
+from sparkth.lib.encryption import mask_secret
 from sparkth.lib.frontend import get_plugin_display_info, get_plugin_sidebar_entry, plugin_has_frontend
 from sparkth.lib.frontend.hooks import DisplayInfo, SidebarEntry
 from sparkth.lib.i18n import _
@@ -161,13 +162,15 @@ class UserPluginResponse(pydantic.BaseModel):
     hints a plugin sets through ``json_schema_extra``. It is empty for a plugin
     that registered no config class.
 
-    ``config`` never carries a field marked ``secret()``; ``secrets_set`` names the ones stored.
+    ``config`` never carries a field marked ``secret()``; ``secrets_set`` names the ones stored,
+    and ``masked_secrets`` maps each stored ``secret(masked=True)`` field to its masked value.
     """
 
     plugin_name: str
     enabled: bool
     config: dict[str, Any]
     secrets_set: list[str] = []
+    masked_secrets: dict[str, str] = {}
     is_core: bool
     config_schema: dict[str, Any] = {}
     display: DisplayInfo | None = None
@@ -202,6 +205,11 @@ class UserPluginResponse(pydantic.BaseModel):
             enabled=enabled,
             config={key: value for key, value in config.items() if key not in secrets},
             secrets_set=[name for name in secrets if config.get(name)],
+            masked_secrets={
+                name: mask_secret(config[name])
+                for name in secrets
+                if config.get(name) and properties[name].get("masked")
+            },
             is_core=is_core,
             config_schema=config_schema or {},
             display=display,

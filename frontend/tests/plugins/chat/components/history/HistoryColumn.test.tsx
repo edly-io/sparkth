@@ -5,7 +5,7 @@ import { TooltipProvider } from "@/core/components/ui/Tooltip";
 import HistoryColumn from "@/plugins/chat/components/history/HistoryColumn";
 import { useConversations } from "@/plugins/chat/hooks/useConversations";
 import { HISTORY_COLLAPSED_KEY } from "@/plugins/chat/hooks/useHistoryCollapsed";
-import type { ConversationSummary } from "@/lib/chat";
+import type { ConversationSummary } from "@/plugins/chat/types";
 import chatEn from "@/plugins/chat/messages/en.json";
 import { renderWithIntl } from "../../../../intl-test-utils";
 
