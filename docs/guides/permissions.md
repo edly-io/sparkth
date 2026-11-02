@@ -115,12 +115,13 @@ joins or leaves the set) is a membership edit, not a grant edit.
 - Membership and group-role assignments are **soft-deleted**: removing a member (or revoking
   a group's role) drops the inherited access immediately while keeping the history row for
   auditing.
+  Deleting the group itself hard-deletes those history rows along with the group.
 - Membership rows carry a **`source`** column (`"manual"` today); rule-driven membership can
   later own its `"rule"` rows without touching manually managed ones.
 
 Group structure is managed through the REST API under `/api/v1/permissions/groups`
-(CRUD, gated by the `group.*` permissions; deleting a group is refused with **409** while it
-still has active role assignments). Membership and group-role grants are CLI-managed,
+(CRUD, gated by the `group.*` permissions; deleting a group also deletes its memberships, its
+role assignments and every grant scoped to it). Membership and group-role grants are CLI-managed,
 mirroring how user-role assignment is CLI-only:
 
 ```bash
@@ -160,17 +161,19 @@ CLI commands are attributed to the `cli` system actor.
 |---|---|---|---|
 | `role.created`, `role.updated`, `role.deleted` | `create_role`, `update_role`, `delete_role` | `role` | name and description (before and after for an update) |
 | `role.permission_granted`, `role.permission_revoked` | `add_role_permission`, `remove_role_permission` | `role` | the permission |
-| `role.assigned`, `role.unassigned` | `assign_role`, `revoke_role`, `delete_role` | `user` | role, scope, and scope object id |
+| `role.assigned`, `role.unassigned` | `assign_role`, `revoke_role`, `delete_role`, `delete_group` | `user` | role, scope, and scope object id |
 | `group.created`, `group.updated`, `group.deleted` | `create_group`, `update_group`, `delete_group` | `group` | name and description (before and after for an update) |
-| `group.member_added`, `group.member_removed` | `add_group_member`, `remove_group_member` | `group` | the member's user id |
-| `group.role_assigned`, `group.role_revoked` | `assign_role_to_group`, `revoke_role_from_group`, `delete_role` | `group` | role, scope, and scope object id |
+| `group.member_added`, `group.member_removed` | `add_group_member`, `remove_group_member`, `delete_group` | `group` | the member's user id |
+| `group.role_assigned`, `group.role_revoked` | `assign_role_to_group`, `revoke_role_from_group`, `delete_role`, `delete_group` | `group` | role, scope, and scope object id |
 
 The grant, assign, and add-member functions are idempotent, and so are their revoke and
 remove counterparts: a call that changes nothing (the grant already exists, or there is
 nothing active to revoke) records nothing. Likewise an update that leaves a role's or group's
 name and description as they were records nothing. Deleting a role records `role.unassigned`
 and `group.role_revoked` for each of its active assignments (users and groups) and for each
-active grant scoped to it (revoked grants record nothing).
+active grant scoped to it (revoked grants record nothing). Deleting a group records
+`group.member_removed` and `group.role_revoked` for its active memberships and assignments, and
+`role.unassigned` and `group.role_revoked` for the active grants at `group:<id>`.
 
 ## Before adding one
 
