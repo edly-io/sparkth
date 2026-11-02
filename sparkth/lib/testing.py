@@ -21,7 +21,7 @@ os.environ.setdefault("ANALYTICS_DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 os.environ.setdefault("ENCRYPTION_KEY", "QL9oJuLxl0gKCbJpQgkzrdlsZUmvIVR3Cp0gSPcVLvQ=")
 
-from collections.abc import AsyncGenerator, Awaitable, Callable, Generator
+from collections.abc import AsyncGenerator, Awaitable, Callable, Generator, Sequence
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Protocol, cast
@@ -32,6 +32,11 @@ from babel.messages.catalog import Catalog
 from babel.messages.mofile import write_mo
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from langchain_core.language_models import LanguageModelInput
+from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+from langchain_core.messages import AIMessage
+from langchain_core.runnables import Runnable
+from langchain_core.tools import BaseTool
 from sqlalchemy.ext.asyncio import AsyncSession as SQLAlchemyAsyncSession
 from sqlmodel import SQLModel, col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -375,6 +380,19 @@ class FakeRedis:
     async def delete(self, key: str) -> int:
         self.ttls.pop(key, None)
         return 1 if self.store.pop(key, None) is not None else 0
+
+
+class ScriptedChatModel(GenericFakeChatModel):
+    """A chat model that replies with its scripted ``messages`` in order and accepts any tool binding.
+
+    Each model call consumes the next scripted reply, so ``next(model.messages)`` shows the first
+    reply no call reached.
+    """
+
+    def bind_tools(
+        self, tools: Sequence[dict[str, Any] | type | Callable[..., Any] | BaseTool], **kwargs: Any
+    ) -> Runnable[LanguageModelInput, AIMessage]:
+        return cast(Runnable[LanguageModelInput, AIMessage], self)
 
 
 @pytest.fixture
