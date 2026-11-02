@@ -128,27 +128,32 @@ msgstr "El rol ya existe: {name}"
 
 #: sparkth/core/permissions/exceptions.py:40
 #, python-brace-format
+msgid "The {name} role comes with Sparkth and can't be deleted."
+msgstr "El rol {name} viene con Sparkth y no se puede eliminar."
+
+#: sparkth/core/permissions/exceptions.py:48
+#, python-brace-format
 msgid "Role is still assigned and cannot be deleted: {role_id}"
 msgstr "El rol sigue asignado y no se puede eliminar: {role_id}"
 
-#: sparkth/core/permissions/exceptions.py:48
+#: sparkth/core/permissions/exceptions.py:56
 #, python-brace-format
 msgid "Group not found: {name}"
 msgstr "Grupo no encontrado: {name}"
 
-#: sparkth/core/permissions/exceptions.py:56
+#: sparkth/core/permissions/exceptions.py:64
 #, python-brace-format
 msgid "Group already exists: {name}"
 msgstr "El grupo ya existe: {name}"
 
-#: sparkth/core/permissions/exceptions.py:65
+#: sparkth/core/permissions/exceptions.py:73
 #, python-brace-format
 msgid "Group still has active role assignments and cannot be deleted: {group_id}"
 msgstr ""
 "El grupo aún tiene asignaciones de roles activas y no se puede eliminar: "
 "{group_id}"
 
-#: sparkth/core/permissions/exceptions.py:81
+#: sparkth/core/permissions/exceptions.py:89
 #, python-brace-format
 msgid "Invalid scope/object-id pairing for scope {scope!r}: {scope_object_id!r}"
 msgstr ""

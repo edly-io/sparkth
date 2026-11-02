@@ -101,7 +101,7 @@ async def update_role(
     dependencies=[Depends(ROLE_DELETE.require(ROLE, "role_id"))],
 )
 async def delete_role(role_id: int, session: AsyncSession = Depends(get_async_session)) -> None:
-    """Delete a role (refused with 409 while it still has active assignments). Returns 204 No Content."""
+    """Delete a role. Refused with 409 if it is non-deletable or still has active assignments. Returns 204."""
     await role_engine.delete_role(role_id, session)
 
 

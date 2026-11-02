@@ -4,15 +4,18 @@ import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.core.models.user import User
 from sparkth.core.permissions import PERMISSIONS, Permission, roles
 from sparkth.core.permissions.exceptions import (
     PermissionNotFound,
     RoleAlreadyExists,
     RoleInUse,
+    RoleNotDeletable,
     RoleNotFound,
 )
 from sparkth.core.permissions.models import Role, RoleAssignment, RolePermission
 from sparkth.lib.permissions.scopes import GLOBAL
+from sparkth.lib.testing import AuditEventsFetcher
 
 
 @pytest.fixture(autouse=True)
@@ -21,6 +24,13 @@ def _register_test_permission(monkeypatch: pytest.MonkeyPatch) -> None:
     # PERMISSIONS hook for the duration of one test. monkeypatch restores the backing dict after
     # each test, so the permission never leaks into the shared vocabulary other tests see.
     monkeypatch.setitem(PERMISSIONS._items, "assignment.grade", Permission("assignment.grade"))
+
+
+async def make_user(session: AsyncSession, username: str) -> User:
+    user = User(name="T", username=username, email=f"{username}@example.com", hashed_password="x")
+    session.add(user)
+    await session.flush()
+    return user
 
 
 async def test_create_role_persists(session: AsyncSession) -> None:
@@ -92,8 +102,9 @@ async def test_delete_role_missing_raises(session: AsyncSession) -> None:
 
 async def test_delete_role_blocked_when_actively_assigned(session: AsyncSession) -> None:
     role = await roles.create_role("grader", None, session)
-    assert role.id is not None
-    session.add(RoleAssignment(user_id=1, role_id=role.id, scope=GLOBAL.name, scope_object_id=None))
+    user = await make_user(session, "alice")
+    assert role.id is not None and user.id is not None
+    session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope=GLOBAL.name, scope_object_id=None))
     await session.flush()
     with pytest.raises(RoleInUse):
         await roles.delete_role(role.id, session)
@@ -101,8 +112,9 @@ async def test_delete_role_blocked_when_actively_assigned(session: AsyncSession)
 
 async def test_delete_role_allowed_when_only_soft_deleted_assignment(session: AsyncSession) -> None:
     role = await roles.create_role("grader", None, session)
-    assert role.id is not None
-    assignment = RoleAssignment(user_id=1, role_id=role.id, scope=GLOBAL.name, scope_object_id=None)
+    user = await make_user(session, "alice")
+    assert role.id is not None and user.id is not None
+    assignment = RoleAssignment(user_id=user.id, role_id=role.id, scope=GLOBAL.name, scope_object_id=None)
     session.add(assignment)
     await session.flush()
     assignment.soft_delete()
@@ -201,3 +213,19 @@ async def test_add_role_permission_returns_the_role(session: AsyncSession) -> No
 async def test_create_role_is_deletable(session: AsyncSession) -> None:
     role = await roles.create_role("grader", None, session)
     assert role.deletable is True
+
+
+async def test_delete_role_refuses_non_deletable_role(session: AsyncSession, audit_events: AuditEventsFetcher) -> None:
+    role = await roles.create_role("admin", None, session)
+    user = await make_user(session, "alice")
+    assert role.id is not None and user.id is not None
+    role.deletable = False
+    session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope=GLOBAL.name, scope_object_id=None))
+    await session.flush()
+    events_before = len(await audit_events())
+    with pytest.raises(RoleNotDeletable):
+        await roles.delete_role(role.id, session)
+    assert len(await audit_events()) == events_before
+    assert await session.get(Role, role.id) is not None
+    assignments = (await session.exec(select(RoleAssignment).where(RoleAssignment.role_id == role.id))).all()
+    assert len(assignments) == 1
