@@ -2,7 +2,7 @@
 
 import { forwardRef, useId, type SelectHTMLAttributes } from "react";
 import { ChevronDown } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { twMerge } from "tailwind-merge";
 
 interface SelectOption {
   value: string;
@@ -41,7 +41,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             {...props}
             aria-describedby={error ? `${selectId}-error` : undefined}
             aria-invalid={error ? true : undefined}
-            className={cn(
+            className={twMerge(
               "appearance-none block w-full px-4 py-3 pr-10 rounded-lg",
               "text-foreground bg-input",
               "border-2",

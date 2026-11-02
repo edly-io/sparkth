@@ -1,5 +1,5 @@
 import { HTMLAttributes, forwardRef } from "react";
-import { cn } from "@/lib/utils";
+import { twMerge } from "tailwind-merge";
 
 interface CardProps extends HTMLAttributes<HTMLDivElement> {
   variant?: "elevated" | "outlined" | "filled";
@@ -10,7 +10,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
     return (
       <div
         ref={ref}
-        className={cn(
+        className={twMerge(
           "rounded-xl p-6",
           {
             elevated: "bg-card text-card-foreground shadow-lg",

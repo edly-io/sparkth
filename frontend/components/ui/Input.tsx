@@ -1,5 +1,5 @@
 import { InputHTMLAttributes, forwardRef } from "react";
-import { cn } from "@/lib/utils";
+import { twMerge } from "tailwind-merge";
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -22,7 +22,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         <input
           ref={ref}
           id={inputId}
-          className={cn(
+          className={twMerge(
             "appearance-none block w-full px-4 py-3 rounded-lg",
             "placeholder-muted text-foreground",
             "bg-input",

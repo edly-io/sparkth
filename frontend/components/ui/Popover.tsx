@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
-import { cn } from "@/lib/utils";
+import { twMerge } from "tailwind-merge";
 
 const Popover = PopoverPrimitive.Root;
 
@@ -19,7 +19,7 @@ const PopoverContent = React.forwardRef<
       ref={ref}
       align={align}
       sideOffset={sideOffset}
-      className={cn(
+      className={twMerge(
         "z-[100] w-56 rounded-lg border border-border bg-card p-1 shadow-lg outline-none",
         className,
       )}
