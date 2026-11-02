@@ -272,7 +272,8 @@ Messages use ICU syntax for interpolation and plurals
 `frontend/messages/en.json` first; `es.json` and `fr.json` must carry the same
 keys. Unknown keys are a TypeScript error: the catalogs are bound to
 next-intl's types via the `Messages` type in `frontend/lib/i18n/messages.ts`
-(referenced from `frontend/lib/i18n/next-intl.d.ts`).
+(referenced from `frontend/lib/i18n/next-intl.d.ts`). Each plugin with
+catalogs adds its namespace to that type from its own `messages.d.ts`.
 
 Analytics dates are UTC calendar days. `LocaleProvider` renders in the browser's time zone,
 so format them with an explicit `timeZone: "UTC"`, or a user west of UTC sees the day before:

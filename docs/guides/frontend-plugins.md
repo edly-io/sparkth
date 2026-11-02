@@ -233,15 +233,23 @@ back to the plugin's English one.
 
 **3. Bind the types**
 
-Intersect the plugin's English catalog into the `PluginMessages` type in
-`lib/i18n/messages.ts` (type-only, so the plugin stays a self-contained
-runtime unit):
+Add a `messages.d.ts` to the plugin that extends the `PluginMessages`
+interface in `lib/i18n/messages.ts` with the plugin's English catalog.
+TypeScript merges every plugin's declaration into that interface, so unknown
+keys fail the typecheck, and core names no plugin:
 
 ```ts
-import type examplePluginMessages from "@/plugins/example-plugin/messages/en.json";
+// plugins/example-plugin/messages.d.ts
+import type catalog from "./messages/en.json";
 
-type PluginMessages = typeof composeMessages & typeof examplePluginMessages;
+type Catalog = typeof catalog;
+
+declare module "@/lib/i18n/messages" {
+  interface PluginMessages extends Catalog {}
+}
 ```
+
+Removing the plugin's directory removes its declaration with it.
 
 **4. Use the namespace in components**
 
