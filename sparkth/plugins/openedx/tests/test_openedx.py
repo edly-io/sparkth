@@ -281,6 +281,21 @@ class TestOpenEdxPluginCreateProblemOrHtml:
         assert result["response"]["locator"] == "block-v1:new_html"
         assert result["response"]["result"]["detail"] == "Component created; no content/metadata to update"
 
+    @pytest.mark.parametrize(
+        ("kind", "category"),
+        [(None, "problem"), (Component.PROBLEM, "problem"), (Component.HTML, "html")],
+    )
+    async def test_create_sends_registered_xblock_category(
+        self, mock_openedx_client: tuple[MagicMock, AsyncMock], kind: Component | None, category: str
+    ) -> None:
+        _, client = mock_openedx_client
+        client.post.return_value = {"locator": "block-v1:new"}
+
+        payload = ProblemOrHtmlArgs(course_id="course-v1:Org+101+2024", unit_locator="block-v1:unit", kind=kind)
+        await openedx_tools.openedx_create_problem_or_html(payload)
+
+        assert client.post.call_args.args[2]["category"] == category
+
     async def test_create_problem_auth_failure(self, mock_openedx_client: tuple[MagicMock, AsyncMock]) -> None:
         _, client = mock_openedx_client
         client.post.side_effect = AuthenticationError(401, "Unauthorized")

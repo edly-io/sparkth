@@ -95,7 +95,6 @@ A `PluginDefinition` holds only what the frontend alone can own:
 
 - `name` – unique plugin identifier (must match folder and route, **and** the backend plugin's declared name (see "Plugin Names" in the [backend plugin development guide](plugins.md)), so the UI resolves to the right backend plugin)
 - `loadComponent` – lazy-loaded UI component
-- `loadSettingsComponent` (optional) – custom settings modal
 
 The display name, description, icon, and sidebar entry are **declared by the
 backend plugin** through the frontend metadata hooks (`DISPLAY_INFO`,
@@ -110,45 +109,28 @@ cannot drift from the API. One consequence for settings UIs: `config` values are
 typed `unknown`, because the backend stores config as JSONB and a field declared
 as a string can still arrive as an array or a number. Narrow at the read site.
 
-Icons cross the wire as [lucide](https://lucide.dev/icons/) icon names. The
-resolver in `core/plugins/icons.ts` maps names to components, and only the lucide
-names already in that map resolve (icons are mapped explicitly to keep the
-bundle tree-shakeable). A backend plugin declaring a new lucide name must also
-add it to the map in `core/plugins/icons.ts`, or the UI silently falls
-back to an icon-less rendering (the resolver logs a `console.warn` outside
-production to surface the gap). A plugin that ships a custom (non-lucide) icon
-registers it under its declared name:
+Icons cross the wire as names, such as a [lucide](https://lucide.dev/icons/) icon name or a brand name. Each plugin
+sets the component for every icon name its backend declares in the `PLUGIN_ICONS` slot (see
+[Slots](#slots-optional)), from its `icons.ts`, which its `index.ts` imports. A name is looked up only among the
+icons of the plugin that declares it, so two plugins can both declare `plus`. Core keeps no icon map of its own, so
+an icon name its plugin did not set renders without an icon, and the resolver logs a `console.warn` outside
+production to surface the gap:
 
 ```ts
-import { registerPluginIcon } from "@/lib/plugins/icons";
-import ExampleBrandIcon from "./ExampleBrandIcon";
+// plugins/example-plugin/icons.ts
+import { Plus } from "lucide-react";
+import { PLUGIN_ICONS } from "@/lib/icons/slots";
 
-registerPluginIcon("example-brand", ExampleBrandIcon);
+PLUGIN_ICONS.set("example-plugin", [{ name: "plus", component: Plus }]);
 ```
 
 For more details, see the `PluginDefinition` type in
 [`frontend/core/plugins/types.ts`](https://github.com/edly-io/sparkth/blob/main/frontend/core/plugins/types.ts).
 
-## 4. Publicly Export the Plugin
+## 4. Register the Plugin
 
-Expose the plugin from the plugins barrel file.
-
-**File**
-
-    plugins/index.ts
-
-```ts
-export * from "./chat"; // already existing
-
-// your plugin export goes here
-export * from "./example-plugin";
-```
-
-This makes the plugin available for registration.
-
-## 5. Register the Plugin
-
-Register the plugin with the plugin registry.
+Import the plugin's `index.ts` in `app/plugins.ts`, once, and register its `PluginDefinition` with the plugin
+registry. Importing the `index.ts` also runs any slot files it imports, such as `settings.ts`.
 
 **File**
 
@@ -156,20 +138,19 @@ Register the plugin with the plugin registry.
 
 ```ts
 import { registerPlugin } from "@/core/plugins/registry";
-import { chatPlugin, examplePlugin } from "@/plugins";
+import { chatPlugin } from "@/plugins/chat"; // already existing
+import { examplePlugin } from "@/plugins/example-plugin";
 
 registerPlugin(chatPlugin); // already existing
-
-// your plugin registration goes here
 registerPlugin(examplePlugin);
 ```
 
 `app/LocaleProvider.tsx` and the dashboard layout import this module, so the plugins are
 registered on every page before their catalogs load.
 
-> ⚠️ If a plugin is not registered here, it will not load, not render, and not appear in the sidebar.
+> ⚠️ If a plugin is not imported and registered here, it will not load, not render, and not appear in the sidebar.
 
-## 6. Regenerate the Plugin Route List
+## 5. Regenerate the Plugin Route List
 
 Each plugin is rendered under:
 
@@ -178,9 +159,11 @@ Each plugin is rendered under:
 The static routes are **generated from the backend declarations**, not
 hand-maintained: `generateStaticParams` in
 `app/dashboard/[pluginName]/page.tsx` reads `FRONTEND_PLUGIN_NAMES` from
-`core/plugins/generated.ts`, which lists every backend plugin that registered
-the `FRONTEND_APPS` hook. After declaring (or removing) a frontend app on the
-backend plugin, regenerate the list:
+`lib/plugins/generated.ts`, which lists every backend plugin that registered
+the `FRONTEND_APPS` hook. The same file lists, as `PLUGIN_ICON_NAMES`, the icon
+names each plugin declares in `DISPLAY_INFO` and `SIDEBAR_ENTRIES`. After
+declaring (or removing) a frontend app, or changing a declared icon, on the
+backend plugin, regenerate the file:
 
 ```bash
 make frontend.build.plugins
@@ -188,18 +171,19 @@ make frontend.build.plugins
 
 **Notes**
 
-- Do not edit `core/plugins/generated.ts` by hand. The dump script is its sole
+- Do not edit `lib/plugins/generated.ts` by hand. The dump script is its sole
   formatter, so the file is listed in `.oxfmtrc.json` `ignorePatterns` (as
   `lib/api/generated.ts` already is) — otherwise `make format` would rewrite it
   and break the byte-exact backend gate
 - To inspect the dump without touching the committed file, run the script with
   no arguments and it prints to stdout:
   `uv run python scripts/dump_frontend_plugins.py`. The make target passes
-  `-o frontend/core/plugins/generated.ts`, which writes atomically, so a failed
+  `-o frontend/lib/plugins/generated.ts`, which writes atomically, so a failed
   dump leaves the committed file intact
-- Tests on both tiers fail when the committed list drifts from the backend
-  declarations (`tests/core/test_dump_frontend_plugins.py`) or when the
-  frontend registry does not match it (`frontend/tests/app/plugins.test.ts`)
+- Tests on both tiers fail when the committed file drifts from the backend
+  declarations (`tests/core/test_dump_frontend_plugins.py`), when the
+  frontend registry does not match it, or when a plugin sets no component for
+  an icon name its backend declares (`frontend/tests/app/plugins.test.ts`)
 - `PluginPageClient` handles loading the correct plugin dynamically
 
 ## Translations (Optional)
@@ -275,6 +259,129 @@ In component tests, pass the plugin catalog to the intl helper:
 `renderWithIntl(<ExamplePlugin />, exampleEn)`. See the
 [translations guide](translations.md#plugin-catalogs) for the full picture.
 
+## Slots (Optional)
+
+A plugin contributes to a core screen, or to another plugin, through a **slot**. A slot is the frontend counterpart
+of a backend hook, such as the one behind [chat capabilities](plugins.md#chat-capabilities). It is called a slot
+so it is not confused with a React hook.
+
+A slot keeps each plugin's items under the plugin's name. The code that reads the slot decides which plugins'
+items to show, for example only the plugins the user has turned on. Slots are defined in `lib`, the way
+backend hooks are defined in `sparkth/lib/`, so core and plugins import a slot from the same path and no plugin
+imports another.
+
+**1. Declare the slot** in `lib/<area>/slots.ts`, with the type of item it holds:
+
+```ts
+import type { ComponentType } from "react";
+import type { Slot } from "@/lib/slots";
+
+export interface ExampleSection {
+  title: string;
+  loadComponent: () => Promise<{ default: ComponentType }>;
+}
+
+export const EXAMPLE_SECTIONS: Slot<ExampleSection> = new Map();
+```
+
+**2. Set the plugin's items** from a file of the plugin's own, named for what it contributes, all in one call under
+the plugin's name. Setting them again replaces them, so the dev server's hot reload, which runs the file again, adds
+nothing twice:
+
+```ts
+// plugins/example-plugin/sections.ts
+import { EXAMPLE_SECTIONS } from "@/lib/example/slots";
+
+EXAMPLE_SECTIONS.set("example-plugin", [
+  { title: "Example", loadComponent: () => import("./ExampleSection") },
+]);
+```
+
+A file runs only when something imports it, so the plugin's `index.ts` imports it, and the file runs when
+`app/plugins.ts` imports the plugin:
+
+```ts
+// plugins/example-plugin/index.ts
+import "./sections";
+```
+
+**3. Core reads the slot** where its items are rendered. `slotItems` returns each item with the plugin that set
+it, ordered by plugin name, and leaves the filtering to the reader:
+
+```tsx
+// core/components/example/ExampleSections.tsx
+import { usePluginContext } from "@/core/plugins/context";
+import { EXAMPLE_SECTIONS } from "@/lib/example/slots";
+import { slotItems } from "@/lib/slots";
+
+export function ExampleSections() {
+  const { isPluginEnabled } = usePluginContext();
+  const sections = slotItems(EXAMPLE_SECTIONS).filter(([plugin]) => isPluginEnabled(plugin));
+
+  return (
+    <ul>
+      {sections.map(([plugin, section]) => (
+        <li key={`${plugin}:${section.title}`}>{section.title}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+## Settings
+
+The **Settings** page lists the one row each plugin sets in the `SETTINGS_ITEMS` slot
+(`@/lib/settings/slots`), in plugin-name order, for every plugin the user-plugins API returns. The page passes each row
+its plugin's state and the actions to turn it on or off, and knows nothing about any plugin. A backend plugin whose
+frontend part sets no row does not appear on the page.
+
+A row is a `listItem` component and, when the plugin has config, a `loadConfigModal` that loads the modal editing it.
+Core ships both: `SettingsListItem` (`@/lib/components/settings/SettingsListItem`) shows the plugin's name,
+description and on/off switch, and the config modal (`@/lib/components/settings/ConfigModal`) builds its form from the
+config class the backend plugin declares. Set the row from the plugin's `settings.ts`, under the backend plugin's
+name, and import that file from the plugin's `index.ts` (`import "./settings";`):
+
+```ts
+// plugins/example-plugin/settings.ts
+import { SettingsListItem } from "@/lib/components/settings/SettingsListItem";
+import { SETTINGS_ITEMS } from "@/lib/settings/slots";
+
+SETTINGS_ITEMS.set("example-plugin", {
+  listItem: SettingsListItem,
+  loadConfigModal: () => import("@/lib/components/settings/ConfigModal"),
+});
+```
+
+The row shows its configure button only while the plugin's backend config declares fields, so pass the shared modal
+even when the config has no fields yet: adding or removing fields on the backend then needs no frontend change.
+While the modal loads, the page passes the row `configuring`, and `SettingsListItem` shows a spinner on its configure
+button.
+
+A backend plugin with no page still needs a frontend part for its row: its `settings.ts` and an `index.ts` that
+only imports it, with no `PluginDefinition`. `app/plugins.ts` imports that `index.ts` like any other plugin's, as
+`import "@/plugins/canvas";` does for Canvas.
+
+**Field controls.** A backend field picks its control with a `widget` hint (`sparkth/core/plugins/widgets.py`), and a
+field with no hint gets a control from its type. Core ships controls for text, URLs, passwords, numbers, text areas,
+checkboxes and LLM configs. When a field needs a control core doesn't ship, the plugin ships its own config modal that
+passes the control to core's modal under the hint's name. The control receives `ConfigWidgetProps`
+(`@/lib/settings/slots`):
+
+```tsx
+import PluginConfigModal from "@/lib/components/settings/ConfigModal";
+import type { ConfigModalProps } from "@/lib/settings/slots";
+import ExamplePicker from "./components/ExamplePicker";
+
+const CONTROLS = { "example-picker": ExamplePicker };
+
+export default function ExampleConfigModal(props: ConfigModalProps) {
+  return <PluginConfigModal {...props} controls={CONTROLS} />;
+}
+```
+
+The plugin's row then loads that modal: `loadConfigModal: () => import("./ExampleConfigModal")`. Core's modal renders a
+field with the plugin's control for its hint, then with a built-in control, and falls back to a text input.
+
 ## Plugin Loading Flow (Summary)
 
 ```
@@ -297,8 +404,7 @@ Rendered plugin UI
 
 **Plugin not showing?**
 
-- Ensure it’s exported from `plugins/index.ts`
-- Ensure it’s registered in `app/plugins.ts`
+- Ensure `app/plugins.ts` imports its `index.ts` and registers it
 
 **Plugin page blank?**
 

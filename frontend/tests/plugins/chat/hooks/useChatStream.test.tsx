@@ -7,7 +7,7 @@ import type { ChatMessage } from "@/plugins/chat/types";
 const requestChatCompletionStream = vi.fn();
 const stopChatTurn = vi.fn().mockResolvedValue(undefined);
 
-vi.mock("@/lib/chat", () => ({
+vi.mock("@/plugins/chat/client", () => ({
   requestChatCompletionStream: (...args: unknown[]) => requestChatCompletionStream(...args),
   stopChatTurn: (...args: unknown[]) => stopChatTurn(...args),
 }));

@@ -4,10 +4,6 @@
 Every endpoint serves the caller and nobody else. None takes a user id, so a
 request can only ever read or write its own row.
 
-``is_admin`` is not a stored column: it is derived per response from whether the
-user holds the ``admin`` role at the global scope, and filled in during
-serialization rather than read off the model.
-
 ``PATCH`` is a partial update of the name and the preferred language: a field left
 out of the body keeps its stored value. For ``language`` an explicit ``null`` is
 meaningful, clearing a previous choice so the platform default applies again.
@@ -25,21 +21,10 @@ from sparkth.core.models.user import User
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
 from sparkth.lib.i18n import _
-from sparkth.lib.permissions import has_role
-from sparkth.lib.permissions.scopes import GLOBAL
 from sparkth.schemas import User as UserSchema
 from sparkth.services.account import change_password
 
 router = APIRouter()
-
-
-async def _to_schema(user: User, session: AsyncSession) -> UserSchema:
-    """Serialize a user, filling in the ``is_admin`` flag the model does not store.
-
-    "global" is the root scope; admin-ness is membership of the admin role there.
-    """
-    is_admin = await has_role(user, "admin", GLOBAL, None, session)
-    return UserSchema.model_validate(user).model_copy(update={"is_admin": is_admin})
 
 
 async def _load_user_for_update(current_user: User, session: AsyncSession) -> User:
@@ -52,17 +37,12 @@ async def _load_user_for_update(current_user: User, session: AsyncSession) -> Us
 
 
 @router.get("/me", response_model=UserSchema)
-async def get_user(
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
-) -> UserSchema:
+async def get_user(current_user: User = Depends(get_current_user)) -> UserSchema:
     """Fetch the current authenticated user from the JWT token.
 
-    ``is_admin`` is derived from whether the user holds the global ``admin`` role;
-    it is not a stored column. ``language`` is the raw stored preference — ``None``
-    when the user never chose one.
+    ``language`` is the raw stored preference — ``None`` when the user never chose one.
     """
-    return await _to_schema(current_user, session)
+    return UserSchema.model_validate(current_user)
 
 
 @router.patch("/me", response_model=UserSchema)
@@ -86,7 +66,7 @@ async def update_user(
     user.update_timestamp()
     await session.commit()
 
-    return await _to_schema(user, session)
+    return UserSchema.model_validate(user)
 
 
 @router.post("/me/password", status_code=status.HTTP_204_NO_CONTENT)

@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: sparkth 0.1.11\n"
 "Report-Msgid-Bugs-To: https://github.com/edly-io/sparkth/issues\n"
-"POT-Creation-Date: 2026-08-25 05:31+0500\n"
+"POT-Creation-Date: 2026-10-28 15:00+0500\n"
 "PO-Revision-Date: 2026-08-14 07:25+0500\n"
 "Last-Translator: Hamza Shafique <hamza.shafique1@arbisoft.com>\n"
 "Language: es\n"
@@ -18,28 +18,32 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: sparkth/plugins/googledrive/plugin.py:26
+#: sparkth/plugins/googledrive/plugin.py:28
 msgid "Google Drive"
 msgstr "Google Drive"
 
-#: sparkth/plugins/googledrive/plugin.py:26
+#: sparkth/plugins/googledrive/plugin.py:28
 msgid "All imported files from your connected plugins"
 msgstr "Todos los archivos importados de tus plugins conectados"
 
-#: sparkth/plugins/googledrive/utils.py:222
+#: sparkth/plugins/googledrive/utils.py:234
+msgid "Unsupported file type"
+msgstr ""
+
+#: sparkth/plugins/googledrive/utils.py:244
 msgid "Google Drive error"
 msgstr "Error de Google Drive"
 
-#: sparkth/plugins/googledrive/utils.py:226
+#: sparkth/plugins/googledrive/utils.py:249
 msgid "Could not reach Google Drive"
 msgstr "No se pudo conectar con Google Drive"
 
-#: sparkth/plugins/googledrive/utils.py:239
-#: sparkth/plugins/googledrive/utils.py:255
+#: sparkth/plugins/googledrive/utils.py:264
+#: sparkth/plugins/googledrive/utils.py:282
 msgid "Processing failed"
 msgstr "El procesamiento falló"
 
-#: sparkth/plugins/googledrive/utils.py:245
+#: sparkth/plugins/googledrive/utils.py:271
 msgid "Database integrity error"
 msgstr "Error de integridad de la base de datos"
 
@@ -47,59 +51,52 @@ msgstr "Error de integridad de la base de datos"
 msgid "User not authenticated"
 msgstr "Usuario no autenticado"
 
-#: sparkth/plugins/googledrive/routes/files.py:57
-#: sparkth/plugins/googledrive/routes/files.py:109
-#: sparkth/plugins/googledrive/routes/files.py:248
-#: sparkth/plugins/googledrive/routes/folders.py:196
-#: sparkth/plugins/googledrive/routes/folders.py:253
-#: sparkth/plugins/googledrive/routes/folders.py:288
+#: sparkth/plugins/googledrive/routes/files.py:55
+#: sparkth/plugins/googledrive/routes/files.py:174
+#: sparkth/plugins/googledrive/routes/folders.py:157
 msgid "Folder not found"
 msgstr "Carpeta no encontrada"
 
-#: sparkth/plugins/googledrive/routes/files.py:120
-#, python-brace-format
-msgid "File size exceeds {limit:.0f}MB limit."
-msgstr "El archivo supera el límite de {limit:.0f} MB."
-
-#: sparkth/plugins/googledrive/routes/files.py:180
-#: sparkth/plugins/googledrive/routes/files.py:217
-#: sparkth/plugins/googledrive/routes/files.py:295
-#: sparkth/plugins/googledrive/routes/files.py:344
-#: sparkth/plugins/googledrive/routes/files.py:397
+#: sparkth/plugins/googledrive/routes/files.py:106
+#: sparkth/plugins/googledrive/routes/files.py:143
+#: sparkth/plugins/googledrive/routes/files.py:221
+#: sparkth/plugins/googledrive/routes/files.py:269
 msgid "File not found"
 msgstr "Archivo no encontrado"
 
-#: sparkth/plugins/googledrive/routes/files.py:354
-msgid "Failed to rename file."
-msgstr "No se pudo renombrar el archivo."
-
-#: sparkth/plugins/googledrive/routes/folders.py:111
+#: sparkth/plugins/googledrive/routes/folders.py:108
 msgid "Folder is already synced"
 msgstr "La carpeta ya está sincronizada"
 
-#: sparkth/plugins/googledrive/routes/oauth.py:59
+#: sparkth/plugins/googledrive/routes/oauth.py:64
 msgid "OAuth state expired. Please try again."
 msgstr "El estado de OAuth expiró. Inténtalo de nuevo."
 
-#: sparkth/plugins/googledrive/routes/oauth.py:61
+#: sparkth/plugins/googledrive/routes/oauth.py:66
 msgid "Invalid OAuth state."
 msgstr "Estado de OAuth no válido."
 
-#: sparkth/plugins/googledrive/routes/oauth.py:68
+#: sparkth/plugins/googledrive/routes/oauth.py:74
 msgid "Failed to exchange authorization code."
 msgstr "No se pudo intercambiar el código de autorización."
 
-#: sparkth/plugins/googledrive/routes/oauth.py:79
+#: sparkth/plugins/googledrive/routes/oauth.py:85
 msgid "No refresh token received. Please disconnect and reconnect Google Drive."
 msgstr ""
 "No se recibió el token de actualización. Desconecta y vuelve a conectar "
 "Google Drive."
 
-#: sparkth/plugins/googledrive/routes/oauth.py:94
+#: sparkth/plugins/googledrive/routes/oauth.py:100
 msgid "Failed to save tokens."
 msgstr "No se pudieron guardar los tokens."
 
-#: sparkth/plugins/googledrive/routes/oauth.py:108
+#: sparkth/plugins/googledrive/routes/oauth.py:114
 msgid "Google Drive not connected"
 msgstr "Google Drive no está conectado"
+
+#~ msgid "File size exceeds {limit:.0f}MB limit."
+#~ msgstr "El archivo supera el límite de {limit:.0f} MB."
+
+#~ msgid "Failed to rename file."
+#~ msgstr "No se pudo renombrar el archivo."
 

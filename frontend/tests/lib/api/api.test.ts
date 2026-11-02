@@ -91,7 +91,6 @@ describe("register", () => {
       name: "H",
       username: "h",
       email: "h@example.com",
-      is_admin: false,
       email_verified: false,
     };
     const spy = mockFetch(user);
@@ -221,7 +220,6 @@ describe("getCurrentUser", () => {
       name: "H",
       username: "h",
       email: "h@example.com",
-      is_admin: false,
       email_verified: true,
     };
     const spy = mockFetch(user);
@@ -267,7 +265,6 @@ describe("updateCurrentUser", () => {
       name: "New Name",
       username: "h",
       email: "h@example.com",
-      is_admin: false,
       email_verified: true,
       has_password: true,
     };

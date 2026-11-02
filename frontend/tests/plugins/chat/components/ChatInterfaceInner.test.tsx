@@ -17,11 +17,7 @@ vi.mock("@/lib/auth/hooks", () => ({
 }));
 
 vi.mock("@/lib/plugins/context", () => ({
-  usePlugin: () => ({ config: pluginConfig }),
-}));
-
-vi.mock("@/lib/plugins/usePlugins", () => ({
-  useIsPluginEnabled: () => ({ isEnabled: false, loading: false }),
+  usePlugin: () => ({ isEnabled: false, loading: false, config: pluginConfig }),
 }));
 
 vi.mock("@/components/drive/DriveFilePicker", () => ({

@@ -219,9 +219,10 @@ Kubernetes.
 
 [`deploy-dev.yml`](.github/workflows/deploy-dev.yml) redeploys a single-host stack every
 time the image workflow publishes `ghcr.io/edly-io/sparkth:main`. It runs on a self-hosted
-runner on the VM, resets the checkout to the published commit, dumps the databases to
-`backups/` (the last seven are kept), runs `migrate` and restarts the stack with
-`SPARKTH_TAG=main`. It can also be started by hand from the Actions tab.
+runner on the VM, resets the checkout to the published commit, writes `.env.local` from the
+`dev` environment's secrets and variables, dumps the databases to `backups/` (the last seven
+are kept), runs `migrate` and restarts the stack with `SPARKTH_TAG=main`. It can also be
+started by hand from the Actions tab.
 
 To set up the VM, starting from a working stack as described above:
 
@@ -246,10 +247,13 @@ To set up the VM, starting from a working stack as described above:
 3. Create a `dev` environment under **Settings → Environments**, limited to `main`. If
    the checkout is not at `/app/sparkth`, set the `DEV_DEPLOY_DIR` repository variable.
 
-The deploy discards local edits to tracked files in the checkout, so keep server-specific
-settings in the git-ignored `.env.local`. Only this workflow targets the `sparkth-dev`
-label; keep it that way, and keep approval required for outside contributors' workflow
-runs, because this repository is public.
+4. Add the app's environment variables to the `dev` environment, as secrets or variables,
+   each name prefixed with `ENV_` (e.g. `ENV_SECRET_KEY`). The next deploy writes them to
+   `.env.local` without the prefix. The VM needs `jq`.
+
+The deploy discards edits made on the VM, to `.env.local` or to tracked files in the
+checkout. Only this workflow targets the `sparkth-dev` label; keep it that way, and keep
+approval required for outside contributors' workflow runs, because this repository is public.
 
 ## Configuration
 

@@ -62,6 +62,7 @@ async def test_create_user(client: AsyncClient, session: AsyncSession) -> None:
     assert data["username"] == username
     assert "id" in data
     assert "hashed_password" not in data
+    assert "is_admin" not in data
 
 
 async def test_create_user_existing_username(client: AsyncClient, session: AsyncSession) -> None:

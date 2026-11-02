@@ -30,7 +30,6 @@ class GoogleDriveSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=ENV_FILES, env_file_encoding="utf-8", extra="ignore")
 
     GOOGLE_DRIVE_REDIRECT_URI: str
-    DRIVE_MAX_UPLOAD_BYTES: int = 30 * 1024 * 1024
     # Max files ingested in parallel during a folder sync.
     INGESTION_CONCURRENCY: int = 1
     # Files larger than this are skipped during ingestion (the client enforces

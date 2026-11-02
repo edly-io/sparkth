@@ -1,6 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-import { fetchChatActivity, fetchLogins, fetchSummary } from "@/lib/analytics";
+import {
+  createView,
+  deleteView,
+  fetchView,
+  listViews,
+  updateView,
+  fetchChatActivity,
+  fetchEventCatalog,
+  fetchExplore,
+  fetchLogins,
+  fetchSummary,
+  type ExploreConfig,
+} from "@/lib/analytics";
 import { ApiRequestError } from "@/lib/api";
 
 import { mockFetch, sentRequest } from "@/tests/lib/test-utils";
@@ -116,5 +128,123 @@ describe("fetchSummary", () => {
     expect(url.searchParams.has("bucket")).toBe(false);
     expect(sentRequest(spy).headers.get("authorization")).toBe("Bearer test-token");
     expect(result).toEqual(counts);
+  });
+});
+
+describe("fetchEventCatalog", () => {
+  it("GETs /api/v1/analytics/events with the bearer token", async () => {
+    const catalog = [{ event_type: "x", fields: [] }];
+    const spy = mockFetch(catalog);
+
+    const result = await fetchEventCatalog("test-token");
+
+    expect(new URL(sentRequest(spy).url).pathname).toBe("/api/v1/analytics/events");
+    expect(sentRequest(spy).headers.get("authorization")).toBe("Bearer test-token");
+    expect(result).toEqual(catalog);
+  });
+});
+
+describe("fetchExplore", () => {
+  const period = { from: "2026-07-01", to: "2026-07-20", bucket: "week" } as const;
+  const bare: ExploreConfig = {
+    event: "chat.tool_invoked",
+    actor: null,
+    filters: [],
+    measure: "count",
+    groupBy: null,
+    chart: "line",
+  };
+  const empty = { points: [], totals: [], truncated: false, actor_names: {} };
+
+  it("sends the period, event and measure, and nothing unset", async () => {
+    const spy = mockFetch(empty);
+
+    await fetchExplore("test-token", period, bare);
+
+    const url = new URL(sentRequest(spy).url);
+    expect(url.pathname).toBe("/api/v1/analytics/query");
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      from: "2026-07-01",
+      to: "2026-07-20",
+      bucket: "week",
+      event_type: "chat.tool_invoked",
+      measure: "count",
+    });
+  });
+
+  it("sends the actor, each filter and the grouping when set", async () => {
+    const spy = mockFetch(empty);
+
+    await fetchExplore("test-token", period, {
+      ...bare,
+      actor: "42",
+      filters: [
+        { field: "outcome", value: "failed" },
+        { field: "outcome", value: "null" },
+      ],
+      measure: "distinct_actors",
+      groupBy: "actor",
+    });
+
+    const params = new URL(sentRequest(spy).url).searchParams;
+    expect(params.get("actor_id")).toBe("42");
+    expect(params.getAll("filter")).toEqual(["outcome:failed", "outcome:null"]);
+    expect(params.get("measure")).toBe("distinct_actors");
+    expect(params.get("group_by")).toBe("actor");
+  });
+});
+
+describe("saved views", () => {
+  const config: ExploreConfig = {
+    event: "auth.login",
+    actor: null,
+    filters: [],
+    measure: "count",
+    groupBy: null,
+    chart: "line",
+  };
+  const view = { id: "v1", name: "Logins", config, created_at: "", updated_at: "" };
+
+  it("lists the caller's views", async () => {
+    const spy = mockFetch([view]);
+    expect(await listViews("test-token")).toEqual([view]);
+    expect(new URL(sentRequest(spy).url).pathname).toBe("/api/v1/analytics/views");
+    expect(sentRequest(spy).headers.get("authorization")).toBe("Bearer test-token");
+  });
+
+  it("fetches one view by id", async () => {
+    const spy = mockFetch(view);
+    expect(await fetchView("test-token", "v1")).toEqual(view);
+    expect(new URL(sentRequest(spy).url).pathname).toBe("/api/v1/analytics/views/v1");
+  });
+
+  it("POSTs a new view with its name and config", async () => {
+    const spy = mockFetch(view, 201);
+    expect(await createView("test-token", "Logins", config)).toEqual(view);
+    const request = sentRequest(spy);
+    expect(request.method).toBe("POST");
+    expect(await request.json()).toEqual({ name: "Logins", config });
+  });
+
+  it("PATCHes only the parts given", async () => {
+    const spy = mockFetch(view);
+    await updateView("test-token", "v1", { name: "Renamed" });
+    const request = sentRequest(spy);
+    expect(request.method).toBe("PATCH");
+    expect(new URL(request.url).pathname).toBe("/api/v1/analytics/views/v1");
+    expect(await request.json()).toEqual({ name: "Renamed" });
+  });
+
+  it("DELETEs a view", async () => {
+    const spy = mockFetch(null, 204);
+    await deleteView("test-token", "v1");
+    expect(sentRequest(spy).method).toBe("DELETE");
+    expect(new URL(sentRequest(spy).url).pathname).toBe("/api/v1/analytics/views/v1");
+  });
+
+  it("rejects with the status when the view is missing", async () => {
+    mockFetch({ detail: "not found" }, 404);
+    const error = await fetchView("test-token", "v1").catch((e: unknown) => e);
+    expect((error as ApiRequestError).status).toBe(404);
   });
 });
