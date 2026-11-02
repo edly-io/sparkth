@@ -182,12 +182,14 @@ async def test_group_scoped_reader_can_get_only_that_group(client: AsyncClient, 
     assert (await client.get("/api/v1/permissions/groups/99999")).status_code == 403
 
 
-async def test_group_scoped_deleter_can_delete_that_group(client: AsyncClient, session: AsyncSession) -> None:
+async def test_group_scoped_deleter_can_delete_only_that_group(client: AsyncClient, session: AsyncSession) -> None:
     target = await _create_target_group(session)
+    other = await _create_target_group(session)
     _override_current_user(
         client, await _create_user_with_permissions(session, ["group.delete"], "group", str(target.id))
     )
     await session.commit()
+    assert (await client.delete(f"/api/v1/permissions/groups/{other.id}")).status_code == 403
     assert (await client.delete(f"/api/v1/permissions/groups/{target.id}")).status_code == 204
 
 
