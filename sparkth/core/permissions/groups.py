@@ -90,7 +90,7 @@ async def list_groups(session: AsyncSession) -> list[Group]:
     return list((await session.exec(select(Group).order_by(col(Group.id)))).all())
 
 
-async def get_group(group_id: int, session: AsyncSession, for_update: bool = False) -> Group:
+async def get_group(group_id: int, session: AsyncSession, *, for_update: bool = False) -> Group:
     """Return the group with group_id, or raise GroupNotFound.
 
     ``for_update`` locks the row until the transaction ends (a no-op on SQLite).
