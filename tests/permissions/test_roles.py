@@ -13,8 +13,8 @@ from sparkth.core.permissions.exceptions import (
     RoleNotDeletable,
     RoleNotFound,
 )
-from sparkth.core.permissions.models import Role, RoleAssignment, RolePermission
-from sparkth.lib.permissions.scopes import GLOBAL
+from sparkth.core.permissions.models import Group, GroupRoleAssignment, Role, RoleAssignment, RolePermission
+from sparkth.lib.permissions.scopes import GLOBAL, ROLE
 from sparkth.lib.testing import AuditEventsFetcher
 
 
@@ -31,6 +31,13 @@ async def make_user(session: AsyncSession, username: str) -> User:
     session.add(user)
     await session.flush()
     return user
+
+
+async def make_group(session: AsyncSession, name: str) -> Group:
+    group = Group(name=name)
+    session.add(group)
+    await session.flush()
+    return group
 
 
 async def test_create_role_persists(session: AsyncSession) -> None:
@@ -123,6 +130,63 @@ async def test_delete_role_allowed_when_only_soft_deleted_assignment(session: As
 
     await roles.delete_role(role.id, session)
     assert (await session.exec(select(Role).where(Role.id == role.id))).first() is None
+
+
+async def _grant_at_role(
+    session: AsyncSession, user_id: int, group_id: int, role_id: int, object_id: str, revoked: bool = False
+) -> None:
+    """Grant ``role_id`` to the user and to the group at ``role:<object_id>``, optionally soft-deleted."""
+    user_grant = RoleAssignment(user_id=user_id, role_id=role_id, scope=ROLE.name, scope_object_id=object_id)
+    group_grant = GroupRoleAssignment(group_id=group_id, role_id=role_id, scope=ROLE.name, scope_object_id=object_id)
+    for grant in (user_grant, group_grant):
+        if revoked:
+            grant.soft_delete()
+        session.add(grant)
+    await session.flush()
+
+
+async def _grants_at_role(session: AsyncSession, object_id: str) -> list[RoleAssignment | GroupRoleAssignment]:
+    users = (
+        await session.exec(
+            select(RoleAssignment).where(RoleAssignment.scope == ROLE.name, RoleAssignment.scope_object_id == object_id)
+        )
+    ).all()
+    groups = (
+        await session.exec(
+            select(GroupRoleAssignment).where(
+                GroupRoleAssignment.scope == ROLE.name, GroupRoleAssignment.scope_object_id == object_id
+            )
+        )
+    ).all()
+    return [*users, *groups]
+
+
+async def test_delete_role_removes_grants_scoped_to_it(session: AsyncSession) -> None:
+    target = await roles.create_role("target", None, session)
+    manager = await roles.create_role("manager", None, session)
+    user = await make_user(session, "alice")
+    group = await make_group(session, "staff")
+    assert target.id is not None and manager.id is not None and user.id is not None and group.id is not None
+    await _grant_at_role(session, user.id, group.id, manager.id, str(target.id))
+    await _grant_at_role(session, user.id, group.id, manager.id, str(target.id), revoked=True)
+    await roles.delete_role(target.id, session)
+    assert await _grants_at_role(session, str(target.id)) == []
+    assert (await session.exec(select(Role).where(Role.id == manager.id))).first() is not None
+
+
+async def test_delete_role_keeps_grants_scoped_to_other_roles(session: AsyncSession) -> None:
+    target = await roles.create_role("target", None, session)
+    manager = await roles.create_role("manager", None, session)
+    user = await make_user(session, "alice")
+    group = await make_group(session, "staff")
+    assert target.id is not None and manager.id is not None and user.id is not None and group.id is not None
+    other_object_id = f"{target.id}7"
+    await _grant_at_role(session, user.id, group.id, manager.id, str(target.id))
+    await _grant_at_role(session, user.id, group.id, manager.id, other_object_id)
+    await roles.delete_role(target.id, session)
+    kept = await _grants_at_role(session, other_object_id)
+    assert len(kept) == 2
+    assert all(not grant.is_deleted for grant in kept)
 
 
 async def test_add_role_permission_grants(session: AsyncSession) -> None:
