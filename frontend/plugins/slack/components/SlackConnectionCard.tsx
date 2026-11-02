@@ -6,8 +6,9 @@ import { Button } from "@/lib/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useAuth } from "@/lib/auth/hooks";
-import SlackIcon from "../SlackIcon";
-import { getAuthorizationUrl, disconnectSlack, type ConnectionStatus } from "@/lib/slack";
+import SlackIcon from "@/plugins/slack/SlackIcon";
+import { getAuthorizationUrl, disconnectSlack } from "@/plugins/slack/client";
+import type { ConnectionStatus } from "@/plugins/slack/types";
 
 interface SlackConnectionCardProps {
   status: ConnectionStatus | null;

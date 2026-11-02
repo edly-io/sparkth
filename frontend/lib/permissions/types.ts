@@ -21,4 +21,5 @@ export type PermissionName =
   | "group.read"
   | "group.update"
   | "group.delete"
-  | "permission.read";
+  | "permission.read"
+  | "user.read";

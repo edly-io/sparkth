@@ -17,9 +17,6 @@ from sparkth.lib.audit.events import (
     RegisteredAuditEvent,
 )
 from sparkth.lib.db import session_scope
-from sparkth.lib.permissions import assign_role
-from sparkth.lib.permissions.exceptions import RoleNotFound
-from sparkth.lib.permissions.scopes import GLOBAL
 
 app = typer.Typer(help="User management commands")
 
@@ -38,10 +35,9 @@ def create_user(
     email: str = typer.Option(..., "--email", "-e", prompt=True),
     password: str = typer.Option(..., "--password", "-p", prompt=True, hide_input=True, confirmation_prompt=True),
     name: str | None = typer.Option(None, "--name", "-n"),
-    superuser: bool = typer.Option(False, "--superuser", "--admin", is_flag=True),
     email_verified: bool = typer.Option(False, "--email-verified", is_flag=True),
 ) -> None:
-    asyncio.run(_create_user(username, email, password, name, superuser, email_verified))
+    asyncio.run(_create_user(username, email, password, name, email_verified))
 
 
 async def _create_user(
@@ -49,12 +45,11 @@ async def _create_user(
     email: str,
     password: str,
     name: str | None,
-    superuser: bool,
     email_verified: bool,
 ) -> None:
     """Create a user, recording ``auth.registered`` (method ``cli``) in the same transaction."""
     with cli_audit_context():
-        await _create_user_in_session(username, email, password, name, superuser, email_verified)
+        await _create_user_in_session(username, email, password, name, email_verified)
 
 
 async def _create_user_in_session(
@@ -62,7 +57,6 @@ async def _create_user_in_session(
     email: str,
     password: str,
     name: str | None,
-    superuser: bool,
     email_verified: bool,
 ) -> None:
     async with session_scope() as session:
@@ -83,27 +77,15 @@ async def _create_user_in_session(
             email_verified_at=utc_now() if email_verified else None,
         )
         session.add(user)
-        # Flush to obtain user.id, then grant the admin role before the single commit
-        # so a missing admin role aborts the whole operation and leaves no orphaned user.
+        # Flush to assign user.id, which the audit target needs.
         await session.flush()
-        if superuser:
-            assert user.id is not None
-            try:
-                await assign_role(user.id, "admin", GLOBAL, None, session)
-            except RoleNotFound:
-                typer.secho(
-                    "Admin role not found — run migrations to seed it before creating an admin user.",
-                    fg=typer.colors.RED,
-                )
-                raise typer.Exit(code=1) from None
 
         target, change = _cli_change(user)
         await record_event(session, RegisteredAuditEvent(outcome=AuditOutcome.SUCCESS, target=target, change=change))
         await session.commit()
         await session.refresh(user)
 
-        role = "Admin" if superuser else "Regular user"
-        typer.secho(f"{role} created successfully!", fg=typer.colors.GREEN)
+        typer.secho("User created successfully!", fg=typer.colors.GREEN)
         typer.echo(f"ID: {user.id}")
         typer.echo(f"UUID: {user.uuid}")
         typer.echo(f"Username: {user.username}")

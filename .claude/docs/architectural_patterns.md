@@ -35,7 +35,7 @@ deriving both the prefix and OpenAPI tags from the plugin instance automatically
 A `Tool` (`sparkth/lib/mcp/hooks.py`) derives its name from the handler method, its
 description from the handler docstring, and its input schema from the signature.
 Consumers iterate the hooks: `sparkth/mcp/main.py` registers `MCP_TOOLS` with the FastMCP
-server, the chat tool registry converts them to LangChain tools, and `sparkth/main.py`
+server, Compose's tool registry converts them to LangChain tools, and `sparkth/main.py`
 mounts plugin routes.
 
 Every plugin also declares a `PluginConfig` (Pydantic model) that drives per-user configuration stored in the DB. See `sparkth/core/plugins/config_base.py` for the base class.
@@ -199,13 +199,13 @@ Plugin code raises typed exceptions; FastAPI translates them to `HTTPException` 
 
 ## 9. Chat Plugin: Service + LLM Layer + Encryption
 
-**Files:** `sparkth/plugins/chat/service.py`, `sparkth/plugins/chat/llm.py`, `sparkth/plugins/chat/classifiers/`,
-`sparkth/plugins/chat/middleware.py`, `sparkth/llm/providers.py`, `sparkth/llm/service.py`,
-`sparkth/core/encryption.py`, `sparkth/core/cache.py`
+**Files:** `sparkth/plugins/compose/service.py`, `sparkth/plugins/compose/llm.py`,
+`sparkth/plugins/compose/classifiers/`, `sparkth/plugins/compose/middleware.py`, `sparkth/llm/providers.py`,
+`sparkth/llm/service.py`, `sparkth/core/encryption.py`, `sparkth/core/cache.py`
 
-- `ChatService` owns conversation logic and history management
+- `ComposeService` owns conversation logic and history management
 - LLM backends (OpenAI, Anthropic, Google) are abstracted in the shared `sparkth/llm/` layer — `providers.py` (provider registry + valid models) and `service.py` — not inside the chat plugin
-- `chat/llm.py` runs a chat turn against the model. `complete_turn` and `stream_turn` run a turn with tools on a
+- `compose/llm.py` runs a chat turn against the model. `complete_turn` and `stream_turn` run a turn with tools on a
   LangChain `create_agent` graph, one tool call at a time in the model's order, and stream a turn without tools
   token by token. The shared providers only build the chat model and answer a single message without tools
 - Two classifiers in `classifiers/` decide, before the chat model is reached, whether a turn
@@ -216,14 +216,13 @@ Plugin code raises typed exceptions; FastAPI translates them to `HTTPException` 
   (`sparkth/core/encryption.py`, `EncryptedJSON` in `sparkth/core/models/types.py`); key from
   `ENCRYPTION_KEY`, which may list several comma-separated keys for rotation (the first encrypts, any
   decrypts). A plugin config that won't decrypt loads as `{}`. Conversation contents themselves are not encrypted
-- Redis (`sparkth/core/cache.py`) backs the rate limiting enforced in `chat/middleware.py` — per-minute request/chat limits and a concurrent-stream cap, configured in `chat/config.py`
 
 ---
 
 ## 10. Frontend: Lazy-Loaded Plugin Routes
 
 **Files:** `frontend/core/plugins/`, `frontend/app/plugins.ts`, `frontend/app/dashboard/[pluginName]/page.tsx`,
-`frontend/plugins/index.ts`
+`frontend/plugins/<name>/index.ts`
 
 Each frontend plugin exports a `PluginDefinition` with `loadComponent: () => import("./Plugin")`. The dashboard's dynamic route `[pluginName]` resolves the plugin from the registry and renders it via `next/dynamic`. `generateStaticParams()` returns the known plugin names so Next.js can pre-generate routes at build time.
 

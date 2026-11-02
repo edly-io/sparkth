@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any, Self
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
+from pydantic_core import PydanticCustomError
 
 from sparkth.lib.audit.context import AuditSource
 from sparkth.lib.audit.events import AuditOutcome
@@ -16,14 +17,16 @@ class AuditEventQuery(BaseModel):
     """Filters over the audit trail; every one is optional and they combine with AND.
 
     ``from`` and ``to`` bound ``occurred_at`` inclusively and must carry a timezone, so
-    a range never silently shifts by the server's offset.
+    a range never silently shifts by the server's offset. ``actor_id`` is a user id, the
+    only actor that carries one, so anything but a positive integer of at most 64 digits
+    is rejected, matching the column width.
     """
 
     model_config = ConfigDict(populate_by_name=True)
 
     from_: AwareDatetime | None = Field(default=None, alias="from")
     to: AwareDatetime | None = None
-    actor_id: str | None = None
+    actor_id: str | None = Field(default=None, max_length=64, pattern=r"^[1-9][0-9]*$")
     category: str | None = None
     action: str | None = None
     outcome: AuditOutcome | None = None
@@ -35,7 +38,7 @@ class AuditEventQuery(BaseModel):
     @model_validator(mode="after")
     def _check_range(self) -> Self:
         if self.from_ is not None and self.to is not None and self.from_ > self.to:
-            raise ValueError("'from' must not be after 'to'")
+            raise PydanticCustomError("range_reversed", "'from' must not be after 'to'")
         return self
 
 
