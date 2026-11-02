@@ -216,6 +216,14 @@ msgstr ""
 "Ya existe una configuración de LLM con el nombre '{name}' para este "
 "usuario."
 
+#: sparkth/llm/providers.py:200
+msgid ""
+"I stopped because I reached the tool-call limit for this turn. You can "
+"send another message to continue."
+msgstr ""
+"Me detuve porque alcancé el límite de llamadas a herramientas de este "
+"turno. Puedes enviar otro mensaje para continuar."
+
 #: sparkth/rag/exceptions.py:31
 msgid ""
 "This PDF appears to be scanned (image-only pages with no extractable "
