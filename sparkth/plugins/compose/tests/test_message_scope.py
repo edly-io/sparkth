@@ -18,11 +18,11 @@ from langchain_core.exceptions import LangChainException
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
 from sparkth.lib.compose.hooks import Agent
-from sparkth.plugins.compose.capabilities import COURSE_DESIGN
 from sparkth.plugins.compose.classifiers import MessageScopeClassifier
 from sparkth.plugins.compose.exceptions import ClassifierError, ScopeCheckError
 from sparkth.plugins.compose.prompt import render_scope_classifier_prompt
 from sparkth.plugins.compose.schemas import HistoryTurn
+from sparkth.plugins.compose.tests.conftest import OTHER_AGENT, STUB_AGENT
 
 _LOGGER = "sparkth.plugins.compose.classifiers.message_scope"
 
@@ -30,13 +30,13 @@ _LOGGER = "sparkth.plugins.compose.classifiers.message_scope"
 _USER_ID = 42
 
 
-_AGENTS: list[Agent] = [COURSE_DESIGN]
+_AGENTS: list[Agent] = [STUB_AGENT]
 
 
 def _classifier_with(
     chain: MagicMock, agents: list[Agent] | None = None, analytics: MagicMock | None = None
 ) -> MessageScopeClassifier:
-    """A classifier offering ``agents`` (course design alone by default), its LLM yielding ``chain``."""
+    """A classifier offering ``agents`` (one agent by default), its LLM yielding ``chain``."""
     llm = MagicMock()
     llm.with_structured_output.return_value = chain
     provider = MagicMock()
@@ -164,15 +164,15 @@ class TestTheAnswerCallersActOn:
         assert await _classifier_with(_chain_answering(False)).in_scope("What is the capital of France?") is False
 
 
-class TestThePromptListsTheCapabilities:
+class TestThePromptListsTheAgents:
     @pytest.mark.asyncio
-    async def test_every_agent_reaches_the_model_by_title_and_description(self, stub_agent: Agent) -> None:
+    async def test_every_agent_reaches_the_model_by_title_and_description(self) -> None:
         chain = _chain_answering(True)
 
-        await _classifier_with(chain, [COURSE_DESIGN, stub_agent]).in_scope("design a quiz")
+        await _classifier_with(chain, [STUB_AGENT, OTHER_AGENT]).in_scope("design a quiz")
 
         system = _sent_messages(chain)[0].content
-        for agent in (COURSE_DESIGN, stub_agent):
+        for agent in (STUB_AGENT, OTHER_AGENT):
             assert agent.title in system
             assert agent.description in system
 

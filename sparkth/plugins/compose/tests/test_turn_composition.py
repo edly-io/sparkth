@@ -16,7 +16,6 @@ from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
 from sparkth.main import app
-from sparkth.plugins.compose.capabilities import COURSE_DESIGN
 from sparkth.plugins.compose.config import ComposeSettings, get_compose_settings
 from sparkth.plugins.compose.constants import REFUSAL_MESSAGE
 from sparkth.plugins.compose.models import Conversation
@@ -144,10 +143,9 @@ class TestOneAssistantPerTurn:
 
         assert response.json()["message"]["content"] == REFUSAL_MESSAGE
 
-    async def test_a_message_for_another_capability_is_answered_with_every_enabled_section(
-        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
+    async def test_an_in_scope_message_is_answered_with_every_enabled_section(
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent, other_agent: Agent
     ) -> None:
-        """A message for the stub capability is answered with every enabled section."""
         config_id = await _seed_llm_config(session, current_user.id or 1)
         conversation_uuid = await _seed_conversation(session, current_user.id or 1)
         provider = _provider()
@@ -162,7 +160,7 @@ class TestOneAssistantPerTurn:
             response = await _turn(client, config_id, conversation_uuid)
 
         assert response.json()["message"]["content"] == "On it."
-        assert _section(COURSE_DESIGN) in _system_prompt(get_provider)
+        assert _section(other_agent) in _system_prompt(get_provider)
         assert _section(stub_agent) in _system_prompt(get_provider)
 
     async def test_a_first_message_is_answered_with_every_enabled_section(
@@ -206,7 +204,7 @@ class TestOneAssistantPerTurn:
         provider.send_message.assert_awaited_once()
         assert _section(stub_agent) not in _system_prompt(get_provider)
 
-    async def test_every_requested_tool_is_bound_whatever_the_capability(
+    async def test_every_requested_tool_is_bound_whatever_the_agent(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
     ) -> None:
         config_id = await _seed_llm_config(session, current_user.id or 1)
@@ -301,7 +299,7 @@ class TestPluginSwitches:
         assert bound == ["openedx_create_xblock"]
 
     async def test_a_plugin_the_user_switched_off_offers_no_section(
-        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent, other_agent: Agent
     ) -> None:
         config_id = await _seed_llm_config(session, current_user.id or 1)
         conversation_uuid = await _seed_conversation(session, current_user.id or 1)
@@ -317,7 +315,7 @@ class TestPluginSwitches:
             await _turn(client, config_id, conversation_uuid)
 
         assert _section(stub_agent) not in _system_prompt(get_provider)
-        assert _section(COURSE_DESIGN) in _system_prompt(get_provider)
+        assert _section(other_agent) in _system_prompt(get_provider)
 
     async def test_a_plugin_switched_off_system_wide_binds_none_of_its_tools(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
@@ -430,7 +428,7 @@ class TestPluginSwitches:
         assert "openedx_create_xblock" not in _bound_tool_names(complete_turn)
 
     async def test_a_plugin_the_user_switched_off_offers_no_scope(
-        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent, other_agent: Agent
     ) -> None:
         config_id = await _seed_llm_config(session, current_user.id or 1)
         conversation_uuid = await _seed_conversation(session, current_user.id or 1)
@@ -447,7 +445,7 @@ class TestPluginSwitches:
 
         offered = classifier_cls.call_args.args[0]
         assert stub_agent not in offered
-        assert COURSE_DESIGN in offered
+        assert other_agent in offered
 
     async def test_an_enabled_plugin_contributes_its_tools_and_section(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
