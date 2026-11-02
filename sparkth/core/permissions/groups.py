@@ -14,15 +14,15 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.permissions import (
-    create_grant_audit_snapshot,
-    delete_grants_at_object,
-    record_active_group_grants_removed,
-)
 from sparkth.core.permissions.exceptions import (
     GroupAlreadyExists,
     GroupNotFound,
     RoleNotFound,
+)
+from sparkth.core.permissions.grants import (
+    create_grant_audit_snapshot,
+    delete_grants_at_object,
+    record_active_group_grants_removed,
 )
 from sparkth.core.permissions.models import Group, GroupMembership, GroupRoleAssignment, Role
 from sparkth.core.permissions.scopes import GROUP, PermissionScope

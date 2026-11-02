@@ -7,7 +7,8 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.audit.models import AuditEvent
-from sparkth.core.permissions import PERMISSIONS, Permission, assign_role, groups, revoke_role, roles
+from sparkth.core.permissions import PERMISSIONS, Permission, groups, roles
+from sparkth.core.permissions.grants import assign_role, revoke_role
 from sparkth.core.permissions.models import (
     Group,
     GroupMembership,
