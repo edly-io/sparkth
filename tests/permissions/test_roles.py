@@ -14,7 +14,7 @@ from sparkth.core.permissions.exceptions import (
     RoleNotFound,
 )
 from sparkth.core.permissions.models import Group, GroupRoleAssignment, Role, RoleAssignment, RolePermission
-from sparkth.lib.permissions.scopes import GLOBAL
+from sparkth.lib.permissions.scopes import GLOBAL, ROLE
 from sparkth.lib.testing import AuditEventsFetcher
 
 
@@ -136,8 +136,8 @@ async def _grant_at_role(
     session: AsyncSession, user_id: int, group_id: int, role_id: int, object_id: str, revoked: bool = False
 ) -> None:
     """Grant ``role_id`` to the user and to the group at ``role:<object_id>``, optionally soft-deleted."""
-    user_grant = RoleAssignment(user_id=user_id, role_id=role_id, scope="role", scope_object_id=object_id)
-    group_grant = GroupRoleAssignment(group_id=group_id, role_id=role_id, scope="role", scope_object_id=object_id)
+    user_grant = RoleAssignment(user_id=user_id, role_id=role_id, scope=ROLE.name, scope_object_id=object_id)
+    group_grant = GroupRoleAssignment(group_id=group_id, role_id=role_id, scope=ROLE.name, scope_object_id=object_id)
     for grant in (user_grant, group_grant):
         if revoked:
             grant.soft_delete()
@@ -148,13 +148,13 @@ async def _grant_at_role(
 async def _grants_at_role(session: AsyncSession, object_id: str) -> list[RoleAssignment | GroupRoleAssignment]:
     users = (
         await session.exec(
-            select(RoleAssignment).where(RoleAssignment.scope == "role", RoleAssignment.scope_object_id == object_id)
+            select(RoleAssignment).where(RoleAssignment.scope == ROLE.name, RoleAssignment.scope_object_id == object_id)
         )
     ).all()
     groups = (
         await session.exec(
             select(GroupRoleAssignment).where(
-                GroupRoleAssignment.scope == "role", GroupRoleAssignment.scope_object_id == object_id
+                GroupRoleAssignment.scope == ROLE.name, GroupRoleAssignment.scope_object_id == object_id
             )
         )
     ).all()
