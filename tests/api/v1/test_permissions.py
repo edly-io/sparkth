@@ -427,4 +427,4 @@ async def test_delete_non_deletable_role_returns_409(client: AsyncClient, sessio
     await session.flush()
     response = await client.delete(f"/api/v1/permissions/roles/{role.id}")
     assert response.status_code == 409
-    assert response.json()["detail"] == "Role cannot be deleted: admin"
+    assert response.json()["detail"] == "The admin role comes with Sparkth and can't be deleted."
