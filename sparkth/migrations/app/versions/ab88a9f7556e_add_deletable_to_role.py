@@ -23,8 +23,8 @@ _SHIPPED_ROLES = ("admin",)
 def upgrade() -> None:
     """Add role.deletable and mark the shipped roles non-deletable."""
     op.add_column("role", sa.Column("deletable", sa.Boolean(), server_default=sa.true(), nullable=False))
-    for name in _SHIPPED_ROLES:
-        op.execute(sa.text("UPDATE role SET deletable = false WHERE name = :name").bindparams(name=name))
+    role = sa.table("role", sa.column("name", sa.String), sa.column("deletable", sa.Boolean))
+    op.execute(role.update().where(role.c.name.in_(_SHIPPED_ROLES)).values(deletable=False))
 
 
 def downgrade() -> None:
