@@ -351,18 +351,20 @@ class TestGroupEvents:
     ) -> None:
         group = await _group(session)
         await _role(session, "grader")
-        assert group.id is not None
+        member = await _user(session, "alice")
+        former_member = await _user(session, "bob")
+        assert group.id is not None and member.id is not None and former_member.id is not None
         group_id = group.id
-        await groups.add_group_member(1, group_id, session)
-        await groups.add_group_member(2, group_id, session)
-        await groups.remove_group_member(2, group_id, session)
+        await groups.add_group_member(member.id, group_id, session)
+        await groups.add_group_member(former_member.id, group_id, session)
+        await groups.remove_group_member(former_member.id, group_id, session)
         await groups.assign_role_to_group(group_id, "grader", GLOBAL, None, session)
         before = len(await audit_events())
         await groups.delete_group(group_id, session)
 
         member_removed, role_revoked, deleted = (await audit_events())[before:]
         _assert_envelope(member_removed, "group.member_removed", "group", group_id)
-        assert member_removed.old_values == {"user_id": 1}
+        assert member_removed.old_values == {"user_id": member.id}
         _assert_envelope(role_revoked, "group.role_revoked", "group", group_id)
         assert role_revoked.old_values == GLOBAL_GRANT
         _assert_envelope(deleted, "group.deleted", "group", group_id)
@@ -372,16 +374,19 @@ class TestGroupEvents:
     ) -> None:
         group = await _group(session)
         manager = await _role(session, "manager")
-        assert group.id is not None and manager.id is not None
+        holder = await _user(session, "alice")
+        assert group.id is not None and manager.id is not None and holder.id is not None
         group_id = group.id
-        session.add(RoleAssignment(user_id=1, role_id=manager.id, scope="group", scope_object_id=str(group_id)))
+        session.add(
+            RoleAssignment(user_id=holder.id, role_id=manager.id, scope=GROUP.name, scope_object_id=str(group_id))
+        )
         await session.flush()
         before = len(await audit_events())
         await groups.delete_group(group_id, session)
 
         unassigned, deleted = (await audit_events())[before:]
-        _assert_envelope(unassigned, "role.unassigned", "user", 1)
-        assert unassigned.old_values == {"role": "manager", "scope": "group", "scope_object_id": str(group_id)}
+        _assert_envelope(unassigned, "role.unassigned", "user", holder.id)
+        assert unassigned.old_values == {"role": "manager", "scope": GROUP.name, "scope_object_id": str(group_id)}
         _assert_envelope(deleted, "group.deleted", "group", group_id)
 
     async def test_delete_records_one_event_for_a_group_assigned_at_itself(
