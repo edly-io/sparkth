@@ -14,10 +14,11 @@ from pydantic import Field, TypeAdapter
 from sparkth.lib.auth import current_user_id
 from sparkth.lib.db import session_scope
 from sparkth.lib.log import get_logger
+from sparkth.lib.mcp.hooks import Tool
 from sparkth.plugins.pxc.activities import activity_dir, parse_activity_id, preview_url
 from sparkth.plugins.pxc.builder import build_activity, update_activity
 from sparkth.plugins.pxc.config import get_pxc_settings
-from sparkth.plugins.pxc.constants import PXC_ASSET_DIR
+from sparkth.plugins.pxc.constants import PXC_ASSET_DIR, PXC_TOOL_CATEGORY
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound, PxcManifestInvalid
 from sparkth.plugins.pxc.revisions import live_revision
 from sparkth.plugins.pxc.schemas import ActivitySource, TrialStep
@@ -248,3 +249,18 @@ async def pxc_run_activity(activity_id: str, steps: list[TrialStep]) -> ScratchR
     step_list = Annotated[list[TrialStep], Field(max_length=get_pxc_settings().trial_step_limit)]
     validated = TypeAdapter(step_list).validate_python(steps)
     return await run_trial(activity_dir(activity_id), validated)
+
+
+# The plugin's MCP tools, in the order they are offered.
+PXC_TOOLS = [
+    Tool(handler, PXC_TOOL_CATEGORY)
+    for handler in (
+        pxc_about,
+        pxc_build_activity,
+        pxc_list_activities,
+        pxc_get_activity_source,
+        pxc_update_activity,
+        pxc_get_activity_failures,
+        pxc_run_activity,
+    )
+]
