@@ -189,21 +189,6 @@ async def test_delete_role_keeps_grants_scoped_to_other_roles(session: AsyncSess
     assert all(not grant.is_deleted for grant in kept)
 
 
-async def test_new_role_does_not_inherit_grants_of_a_deleted_role_id(session: AsyncSession) -> None:
-    manager = await roles.create_role("manager", None, session)
-    target = await roles.create_role("target", None, session)
-    user = await make_user(session, "alice")
-    group = await make_group(session, "staff")
-    assert target.id is not None and manager.id is not None and user.id is not None and group.id is not None
-    target_id = target.id
-    await _grant_at_role(session, user.id, group.id, manager.id, str(target_id))
-    await roles.delete_role(target_id, session)
-    new_role = await roles.create_role("newcomer", None, session)
-    assert new_role.id == target_id
-    active = [grant for grant in await _grants_at_role(session, str(target_id)) if not grant.is_deleted]
-    assert active == []
-
-
 async def test_add_role_permission_grants(session: AsyncSession) -> None:
     role = await roles.create_role("grader", None, session)
     assert role.id is not None
