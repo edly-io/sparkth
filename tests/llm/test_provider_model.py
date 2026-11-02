@@ -17,6 +17,9 @@ from google.api_core import exceptions as google_exceptions
 from sparkth.llm.providers import (
     PROVIDER_MODELS,
     PROVIDER_REGISTRY,
+    AnthropicProvider,
+    GoogleProvider,
+    OpenAIProvider,
     get_models_for_provider,
     get_provider,
     get_provider_catalog,
@@ -97,6 +100,11 @@ class TestProviderModels:
     def test_get_provider_catalog_label_is_capitalised_id(self) -> None:
         for entry in get_provider_catalog():
             assert entry["label"] == entry["id"].capitalize()
+
+    def test_every_provider_declares_its_provider_name(self) -> None:
+        assert OpenAIProvider.provider_name == "openai"
+        assert AnthropicProvider.provider_name == "anthropic"
+        assert GoogleProvider.provider_name == "google"
 
 
 # ===========================================================================
