@@ -9,9 +9,9 @@ import {
   rotateLLMConfigKey,
   setLLMConfigActive,
   updateLLMConfig,
-} from "@/lib/llm";
+} from "@/lib/llm/client";
 
-import { mockFetch, sentRequest } from "./test-utils";
+import { mockFetch, sentRequest } from "@/tests/lib/test-utils";
 
 vi.mock("@/core/auth/tokens", () => ({
   getStoredToken: vi.fn().mockReturnValue(null),

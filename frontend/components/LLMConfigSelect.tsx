@@ -6,7 +6,8 @@ import Link from "next/link";
 import { Select } from "@/components/ui/Select";
 import { Alert } from "@/components/ui/Alert";
 import { useAuth } from "@/core/auth/hooks";
-import { fetchLLMConfigs, type LLMConfig } from "@/lib/llm";
+import { fetchLLMConfigs } from "@/lib/llm/client";
+import type { LLMConfig } from "@/lib/llm/types";
 
 interface LLMConfigSelectProps {
   value: number | undefined;

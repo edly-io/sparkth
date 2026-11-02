@@ -4,7 +4,7 @@ import { useReducer, useEffect, useCallback, type SubmitEvent } from "react";
 import { redirect } from "next/navigation";
 import { Plus, Trash2, Mail, Globe } from "lucide-react";
 import { useAuth } from "@/core/auth/hooks";
-import { usePermissionCheck } from "@/lib/permissions";
+import { usePermissionCheck } from "@/lib/permissions/usePermissionCheck";
 import {
   getWhitelist,
   addWhitelistEntry,

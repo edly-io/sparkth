@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/lib/permissions", () => ({ checkPermission: vi.fn() }));
+vi.mock("@/lib/permissions/client", () => ({ checkPermission: vi.fn() }));
 
-import { checkPermission } from "@/lib/permissions";
+import { checkPermission } from "@/lib/permissions/client";
 import { GATED_NAV, resolveNavPermissions, type GatedNavItem } from "@/components/NavItem/gatedNav";
 
 const noopIcon = () => null;

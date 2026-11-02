@@ -1,13 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import {
-  AUDIT_OUTCOMES,
-  AUDIT_SOURCES,
   exportAuditEvents,
   fetchAuditCategories,
   fetchAuditEvent,
   fetchAuditEvents,
-} from "@/lib/audit";
+} from "@/lib/audit/client";
+import { AUDIT_OUTCOMES, AUDIT_SOURCES } from "@/lib/audit/types";
 import { ApiRequestError } from "@/lib/api";
 
 import { mockFetch, sentRequest } from "@/tests/lib/test-utils";

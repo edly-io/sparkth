@@ -8,7 +8,7 @@ import { Bookmark, Compass, LayoutDashboard, LogIn, PenLine } from "lucide-react
 import { PERIOD_KEYS, listViews, type AnalyticsView } from "@/lib/analytics";
 import { useAuth } from "@/core/auth/hooks";
 import { isInstalled } from "@/lib/plugins/installed";
-import { usePermissionCheck } from "@/lib/permissions";
+import { usePermissionCheck } from "@/lib/permissions/usePermissionCheck";
 import { twMerge } from "tailwind-merge";
 
 // The Insights-style rail: one entry per view. A view's entry lands with the view. A view read
