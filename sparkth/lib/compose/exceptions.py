@@ -1,21 +1,43 @@
-"""Domain exceptions raised when plugins contribute chat capabilities."""
+"""Domain exceptions raised when plugins contribute Compose agents.
+
+Each is a programming error raised from a plugin's ``__init__``.
+"""
 
 
-class DuplicateChatCapabilityError(Exception):
-    """Raised when a capability claims a title an unequal capability already holds.
+class InvalidAgentName(Exception):
+    """Raised when an agent's name can't be used as a tool name."""
 
-    Fires only for a *different* capability claiming the title, which is a programming error:
-    chat's system prompt and the scope classifier's list each capability under its title, so two
-    unequal capabilities under one title would give the model two sections under one heading. An
-    equal capability arriving again is accepted, so a plugin constructed more than once does not
+    def __init__(self, name: str) -> None:
+        self.name = name
+        super().__init__(
+            f"Agent name '{name}' must start with a letter and use only lowercase letters, digits and underscores"
+        )
+
+
+class ReservedAgentName(Exception):
+    """Raised when an agent claims a name Compose keeps for itself."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        super().__init__(f"Agent name '{name}' is reserved")
+
+
+class DuplicateAgentName(Exception):
+    """Raised when another agent, another plugin or a registered MCP tool already holds the name.
+
+    An equal agent from the same plugin is accepted, so a plugin constructed more than once doesn't
     trip this.
-
-    Raising this from a plugin's ``__init__`` does not stop the process. The plugin loader logs a
-    failed construction and carries on, so the colliding plugin is absent from the running
-    application — no routes, no tools, no capability — while everything else starts normally.
-    The log entry is the only signal.
     """
 
-    def __init__(self, title: str) -> None:
-        self.title = title
-        super().__init__(f"A different chat capability is already registered as '{title}'")
+    def __init__(self, name: str) -> None:
+        self.name = name
+        super().__init__(f"Agent name '{name}' is already taken")
+
+
+class UnknownAgentTool(Exception):
+    """Raised when an agent names a tool its plugin doesn't contribute."""
+
+    def __init__(self, agent_name: str, tool_name: str) -> None:
+        self.agent_name = agent_name
+        self.tool_name = tool_name
+        super().__init__(f"Agent '{agent_name}' names tool '{tool_name}', which its plugin doesn't contribute")

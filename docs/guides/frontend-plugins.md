@@ -262,7 +262,7 @@ In component tests, pass the plugin catalog to the intl helper:
 ## Slots (Optional)
 
 A plugin contributes to a core screen, or to another plugin, through a **slot**. A slot is the frontend counterpart
-of a backend hook, such as the one behind [chat capabilities](plugins.md#chat-capabilities). It is called a slot
+of a backend hook, such as the one behind [Compose agents](plugins.md#compose-agents). It is called a slot
 so it is not confused with a React hook.
 
 A slot keeps each plugin's items under the plugin's name. The code that reads the slot decides which plugins'

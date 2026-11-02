@@ -9,7 +9,7 @@ from pydantic import ValidationError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.auth import get_current_user
-from sparkth.lib.compose.hooks import enabled_capabilities
+from sparkth.lib.compose.hooks import enabled_agents
 from sparkth.lib.db import get_async_session
 from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.lib.i18n import _, gettext
@@ -194,9 +194,9 @@ async def compose_completion(
         provider=provider_name,
         actor_id=str(user_id),
     )
-    # The tool filter and the capability list share one set of switched-off plugins.
-    capabilities = enabled_capabilities(disabled_plugins)
-    scope_classifier = MessageScopeClassifier(capabilities, provider_name, api_key, user_id, classifier_analytics)
+    # The tool filter and the agent list share one set of switched-off plugins.
+    agents = enabled_agents(disabled_plugins)
+    scope_classifier = MessageScopeClassifier(agents, provider_name, api_key, user_id, classifier_analytics)
 
     # A file uploaded with the message is base64 content, not a Document row, so its name exists
     # only here — both scope checks below need it.
@@ -331,7 +331,7 @@ async def compose_completion(
             provider_name=provider_name,
             api_key=api_key,
             model=model,
-            system_prompt=render_system_prompt(capabilities),
+            system_prompt=render_system_prompt(agents),
             temperature=request.temperature,
         )
 

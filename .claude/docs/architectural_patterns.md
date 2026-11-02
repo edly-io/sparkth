@@ -209,7 +209,7 @@ Plugin code raises typed exceptions; FastAPI translates them to `HTTPException` 
   LangChain `create_agent` graph, one tool call at a time in the model's order, and stream a turn without tools
   token by token. The shared providers only build the chat model and answer a single message without tools
 - Two classifiers in `classifiers/` decide, before the chat model is reached, whether a turn
-  is in scope for any enabled chat capability (`MessageScopeClassifier`) and whether answering it needs
+  is in scope for any enabled Compose agent (`MessageScopeClassifier`) and whether answering it needs
   the attached documents (`RAGSearchClassifier`). Both are one structured-output call on the
   cheapest model of the user's provider, sharing `BaseClassifier` for everything but the judgement
 - Stored LLM API keys and user plugin configs are encrypted at rest with Fernet via `EncryptionService`

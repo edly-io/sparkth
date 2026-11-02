@@ -3,13 +3,13 @@
 Exception mappings are registered at module level, not in ``__init__``: the loader constructs
 the plugin once but its own tests construct it again, and ``register_exception_handler`` builds
 a fresh handler closure on every call, so a second registration is a genuine duplicate rather
-than a repeat of the same one. The chat capability and the MCP tools are per plugin instance,
+than a repeat of the same one. The Compose agent and the MCP tools are per plugin instance,
 so they register in ``__init__``.
 """
 
 from fastapi import APIRouter, status
 
-from sparkth.lib.compose.hooks import ChatCapability, register_chat_capability
+from sparkth.lib.compose.hooks import Agent, register_agent
 from sparkth.lib.content.hooks import ContentContributor, register_content_contributor
 from sparkth.lib.exceptions.handlers import register_exception_handler
 from sparkth.lib.frontend.hooks import (
@@ -65,9 +65,26 @@ pxc_router = APIRouter()
 pxc_router.include_router(learner_router)
 pxc_router.include_router(activity_router)
 
-# The chat capability that builds activities.
-PXC_ACTIVITY_BUILDER = ChatCapability(
-    PXC_ACTIVITY_BUILDER_TITLE, PXC_ACTIVITY_BUILDER_SCOPE, PXC_ACTIVITY_BUILDER_PROMPT
+PXC_TOOLS = [
+    Tool(handler, PXC_TOOL_CATEGORY)
+    for handler in (
+        pxc_tools.pxc_about,
+        pxc_tools.pxc_build_activity,
+        pxc_tools.pxc_list_activities,
+        pxc_tools.pxc_get_activity_source,
+        pxc_tools.pxc_update_activity,
+        pxc_tools.pxc_get_activity_failures,
+        pxc_tools.pxc_run_activity,
+    )
+]
+
+# The Compose agent that builds activities.
+PXC_ACTIVITY_BUILDER = Agent(
+    "pxc_activities",
+    PXC_ACTIVITY_BUILDER_TITLE,
+    PXC_ACTIVITY_BUILDER_SCOPE,
+    PXC_ACTIVITY_BUILDER_PROMPT,
+    tools=tuple(tool.name for tool in PXC_TOOLS),
 )
 
 
@@ -87,22 +104,8 @@ class PxcPlugin(SparkthPlugin):
         )
         SIDEBAR_ENTRIES.add_item(self, SidebarEntry(gettext_noop("Activities"), icon="blocks", order=2))
         FRONTEND_APPS.add_item(self, FrontendApp())
-        register_chat_capability(self, PXC_ACTIVITY_BUILDER)
-        MCP_TOOLS.add_items(
-            self,
-            [
-                Tool(handler, PXC_TOOL_CATEGORY)
-                for handler in (
-                    pxc_tools.pxc_about,
-                    pxc_tools.pxc_build_activity,
-                    pxc_tools.pxc_list_activities,
-                    pxc_tools.pxc_get_activity_source,
-                    pxc_tools.pxc_update_activity,
-                    pxc_tools.pxc_get_activity_failures,
-                    pxc_tools.pxc_run_activity,
-                )
-            ],
-        )
+        MCP_TOOLS.add_items(self, PXC_TOOLS)
+        register_agent(self, PXC_ACTIVITY_BUILDER)
         register_content_contributor(
             self,
             ContentContributor(
