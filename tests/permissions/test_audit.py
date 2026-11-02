@@ -141,16 +141,19 @@ class TestRoleEvents:
     ) -> None:
         role = await _role(session)
         group = await _group(session)
+        holder = await _user(session, "alice")
+        former_holder = await _user(session, "bob")
         assert role.id is not None and group.id is not None
-        await assign_role(1, "grader", GLOBAL, None, session)
-        await assign_role(2, "grader", GLOBAL, None, session)
-        await revoke_role(2, "grader", GLOBAL, None, session)
+        assert holder.id is not None and former_holder.id is not None
+        await assign_role(holder.id, "grader", GLOBAL, None, session)
+        await assign_role(former_holder.id, "grader", GLOBAL, None, session)
+        await revoke_role(former_holder.id, "grader", GLOBAL, None, session)
         await groups.assign_role_to_group(group.id, "grader", GLOBAL, None, session)
         before = len(await audit_events())
         await roles.delete_role(role.id, session)
 
         unassigned, group_revoked, deleted = (await audit_events())[before:]
-        _assert_envelope(unassigned, "role.unassigned", "user", 1)
+        _assert_envelope(unassigned, "role.unassigned", "user", holder.id)
         assert unassigned.old_values == GLOBAL_GRANT
         _assert_envelope(group_revoked, "group.role_revoked", "group", group.id)
         assert group_revoked.old_values == GLOBAL_GRANT
@@ -160,8 +163,9 @@ class TestRoleEvents:
         self, session: AsyncSession, audit_events: AuditEventsFetcher
     ) -> None:
         role = await _role(session)
-        assert role.id is not None
-        await assign_role(1, "grader", ROLE, str(role.id), session)
+        holder = await _user(session, "alice")
+        assert role.id is not None and holder.id is not None
+        await assign_role(holder.id, "grader", ROLE, str(role.id), session)
         before = len(await audit_events())
         await roles.delete_role(role.id, session)
 
@@ -172,14 +176,15 @@ class TestRoleEvents:
         self, session: AsyncSession, audit_events: AuditEventsFetcher
     ) -> None:
         role = await _role(session)
-        assert role.id is not None
-        session.add(RoleAssignment(user_id=1, role_id=role.id, scope="course", scope_object_id="5"))
+        holder = await _user(session, "alice")
+        assert role.id is not None and holder.id is not None
+        session.add(RoleAssignment(user_id=holder.id, role_id=role.id, scope="course", scope_object_id="5"))
         await session.flush()
         before = len(await audit_events())
         await roles.delete_role(role.id, session)
 
         unassigned, _ = (await audit_events())[before:]
-        _assert_envelope(unassigned, "role.unassigned", "user", 1)
+        _assert_envelope(unassigned, "role.unassigned", "user", holder.id)
         assert unassigned.old_values == {"role": "grader", "scope": "course", "scope_object_id": "5"}
 
     async def test_delete_is_fail_closed_when_audit_write_fails(
@@ -187,10 +192,11 @@ class TestRoleEvents:
     ) -> None:
         role = await _role(session)
         group = await _group(session)
-        assert role.id is not None and group.id is not None
+        holder = await _user(session, "alice")
+        assert role.id is not None and group.id is not None and holder.id is not None
         role_id = role.id
         await roles.add_role_permission(role_id, "assignment.grade", session)
-        await assign_role(1, "grader", GLOBAL, None, session)
+        await assign_role(holder.id, "grader", GLOBAL, None, session)
         await groups.assign_role_to_group(group.id, "grader", GLOBAL, None, session)
         await session.commit()
         events_before = len(await audit_events())
