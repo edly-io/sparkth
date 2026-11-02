@@ -47,6 +47,7 @@ def test_the_plugin_contributes_the_activity_builder_agent() -> None:
     agents = [item for owner, item in COMPOSE_AGENTS.iter_items() if owner is plugin]
 
     assert agents == [PXC_ACTIVITY_BUILDER]
+    assert set(PXC_ACTIVITY_BUILDER.tools) == {tool.name for owner, tool in MCP_TOOLS.iter_items() if owner is plugin}
 
 
 def test_the_plugin_ships_a_frontend_page() -> None:

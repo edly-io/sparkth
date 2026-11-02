@@ -9,7 +9,7 @@ from sparkth.lib.compose.hooks import Agent, register_agent
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.plugins.compose.detached import join_live_tasks
 
-STUB_AGENT = Agent("Stub agent", "Stub scope text.", "STUB SECTION")
+STUB_AGENT = Agent("stub", "Stub agent", "Stub scope text.", "STUB SECTION")
 
 
 @pytest.fixture(autouse=True)

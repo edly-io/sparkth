@@ -37,6 +37,10 @@ guide](../guides/plugins.md) for the how-to; this page is the generated referenc
 
 ::: sparkth.lib.compose.hooks
 
+## Compose agent constants
+
+::: sparkth.lib.compose.constants
+
 ## Compose agent exceptions
 
 ::: sparkth.lib.compose.exceptions

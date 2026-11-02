@@ -65,8 +65,24 @@ pxc_router = APIRouter()
 pxc_router.include_router(learner_router)
 pxc_router.include_router(activity_router)
 
+PXC_TOOL_HANDLERS = (
+    pxc_tools.pxc_about,
+    pxc_tools.pxc_build_activity,
+    pxc_tools.pxc_list_activities,
+    pxc_tools.pxc_get_activity_source,
+    pxc_tools.pxc_update_activity,
+    pxc_tools.pxc_get_activity_failures,
+    pxc_tools.pxc_run_activity,
+)
+
 # The Compose agent that builds activities.
-PXC_ACTIVITY_BUILDER = Agent(PXC_ACTIVITY_BUILDER_TITLE, PXC_ACTIVITY_BUILDER_SCOPE, PXC_ACTIVITY_BUILDER_PROMPT)
+PXC_ACTIVITY_BUILDER = Agent(
+    "pxc_activities",
+    PXC_ACTIVITY_BUILDER_TITLE,
+    PXC_ACTIVITY_BUILDER_SCOPE,
+    PXC_ACTIVITY_BUILDER_PROMPT,
+    tools=tuple(handler.__name__ for handler in PXC_TOOL_HANDLERS),
+)
 
 
 class PxcPlugin(SparkthPlugin):
@@ -85,22 +101,8 @@ class PxcPlugin(SparkthPlugin):
         )
         SIDEBAR_ENTRIES.add_item(self, SidebarEntry(gettext_noop("Activities"), icon="blocks", order=2))
         FRONTEND_APPS.add_item(self, FrontendApp())
+        MCP_TOOLS.add_items(self, [Tool(handler, PXC_TOOL_CATEGORY) for handler in PXC_TOOL_HANDLERS])
         register_agent(self, PXC_ACTIVITY_BUILDER)
-        MCP_TOOLS.add_items(
-            self,
-            [
-                Tool(handler, PXC_TOOL_CATEGORY)
-                for handler in (
-                    pxc_tools.pxc_about,
-                    pxc_tools.pxc_build_activity,
-                    pxc_tools.pxc_list_activities,
-                    pxc_tools.pxc_get_activity_source,
-                    pxc_tools.pxc_update_activity,
-                    pxc_tools.pxc_get_activity_failures,
-                    pxc_tools.pxc_run_activity,
-                )
-            ],
-        )
         register_content_contributor(
             self,
             ContentContributor(

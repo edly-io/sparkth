@@ -4,13 +4,40 @@ Each is a programming error raised from a plugin's ``__init__``.
 """
 
 
-class DuplicateAgentTitle(Exception):
-    """Raised when a different agent already holds the title.
+class InvalidAgentName(Exception):
+    """Raised when an agent's name can't be used as a tool name."""
 
-    An equal agent arriving again is accepted, so a plugin constructed more than once doesn't trip
-    this.
+    def __init__(self, name: str) -> None:
+        self.name = name
+        super().__init__(
+            f"Agent name '{name}' must start with a letter and use only lowercase letters, digits and underscores"
+        )
+
+
+class ReservedAgentName(Exception):
+    """Raised when an agent claims a name Compose keeps for itself."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        super().__init__(f"Agent name '{name}' is reserved")
+
+
+class DuplicateAgentName(Exception):
+    """Raised when another agent or another plugin already holds the name.
+
+    An equal agent from the same plugin is accepted, so a plugin constructed more than once doesn't
+    trip this.
     """
 
-    def __init__(self, title: str) -> None:
-        self.title = title
-        super().__init__(f"A different agent is already registered as '{title}'")
+    def __init__(self, name: str) -> None:
+        self.name = name
+        super().__init__(f"A different agent is already registered as '{name}'")
+
+
+class UnknownAgentTool(Exception):
+    """Raised when an agent names a tool its plugin doesn't contribute."""
+
+    def __init__(self, agent_name: str, tool_name: str) -> None:
+        self.agent_name = agent_name
+        self.tool_name = tool_name
+        super().__init__(f"Agent '{agent_name}' names tool '{tool_name}', which its plugin doesn't contribute")

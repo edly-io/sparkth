@@ -65,7 +65,7 @@ asks for confirmation before calling the delete route.
 
 ## Building an activity from chat
 
-The plugin contributes a Compose agent: a title, a description and a prompt. Its
+The plugin contributes a Compose agent: its name, title, description, prompt and tools. Its
 contract: the author describes an activity in plain words, and the agent builds it and
 replies with a preview link that opens the activity on the Sparkth
 `/dashboard/pxc` page.

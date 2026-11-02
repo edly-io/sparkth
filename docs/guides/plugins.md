@@ -643,38 +643,52 @@ without importing compose, by registering an `Agent` with `register_agent` from
 `sparkth.lib.compose.hooks`. A plugin registers one agent, from its `__init__`, keyed by the plugin
 instance.
 
-An `Agent` has three fields:
+An `Agent` has five fields:
 
+- `name` identifies the agent: lowercase letters, digits and underscores, starting with a letter.
+  `compose` and `operator` are reserved.
 - `title` is the heading the agent appears under, both in the system prompt and in the scope
-  gate's list, so no two agents share one.
+  gate's list.
 - `description` is the text the scope gate judges a message against.
 - `prompt` is plain text inserted into the system prompt as written, so a brace in it needs no
   escaping.
+- `tools` names the agent's tools. Each one must be one of the plugin's own `MCP_TOOLS`, so
+  register those first.
 
 For example:
 
 ```python
 # sparkth/plugins/myappplugin/plugin.py
 from sparkth.lib.compose.hooks import Agent, register_agent
+from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
 from sparkth.lib.plugins import SparkthPlugin
 
 MY_AGENT = Agent(
+    "my_app",
     "My App builder",
     "Requests to build or change things in My App.",
     "Ask which My App item the author wants, then build it with the My App tools.",
+    tools=("my_app_build",),
 )
 
 
 class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
         super().__init__("my-app")
+        MCP_TOOLS.add_item(self, Tool(my_app_build))
         register_agent(self, MY_AGENT)
 ```
 
 Register through `register_agent`, not `COMPOSE_AGENTS.add_item`. Constructing the plugin again
 is harmless: the loader and a plugin's own tests each build an instance, and equal copies fold into
-one. Only a *different* agent claiming a registered title raises `DuplicateAgentTitle`, from
-`sparkth.lib.compose.exceptions`. The loader logs the failed construction and skips that plugin.
+one. `register_agent` raises, from `sparkth.lib.compose.exceptions`:
+
+- `InvalidAgentName` for a name that breaks the pattern above;
+- `ReservedAgentName` for `compose` or `operator`;
+- `DuplicateAgentName` when another agent or another plugin already holds the name;
+- `UnknownAgentTool` for a tool the plugin doesn't contribute.
+
+The loader logs the failed construction and skips that plugin.
 
 ### How Compose uses agents
 
