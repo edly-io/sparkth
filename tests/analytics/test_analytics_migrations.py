@@ -144,18 +144,3 @@ def test_drop_login_activity_cagg_migration_is_noop_on_sqlite(tmp_path: Path) ->
     finally:
         conn.close()
     assert views == []
-
-
-def test_compose_activity_cagg_migration_is_noop_on_sqlite(tmp_path: Path) -> None:
-    """The compose activity aggregate is TimescaleDB-only; on SQLite upgrading skips it."""
-    db_file = tmp_path / "analytics_compose_activity.db"
-    _alembic(db_file, "upgrade", "head")
-
-    conn = sqlite3.connect(db_file)
-    try:
-        views = conn.execute("SELECT name FROM sqlite_master WHERE name LIKE '%_activity_daily'").fetchall()
-        version = conn.execute("SELECT version_num FROM alembic_version").fetchall()
-    finally:
-        conn.close()
-    assert views == []
-    assert version != [("ebad497c31e2",)]

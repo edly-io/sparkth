@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.permissions import _create_grant_audit_snapshot
+from sparkth.core.permissions import create_grant_audit_snapshot
 from sparkth.core.permissions.exceptions import (
     GroupAlreadyExists,
     GroupInUse,
@@ -324,7 +324,7 @@ async def assign_role_to_group(
         GroupRoleAssignedAuditEvent(
             outcome=AuditOutcome.SUCCESS,
             target=_target(group_id),
-            change=AuditChange(new=_create_grant_audit_snapshot(role_name, permission_scope.name, scope_object_id)),
+            change=AuditChange(new=create_grant_audit_snapshot(role_name, permission_scope.name, scope_object_id)),
         ),
     )
     return assignment
@@ -364,7 +364,7 @@ async def revoke_role_from_group(
             GroupRoleRevokedAuditEvent(
                 outcome=AuditOutcome.SUCCESS,
                 target=_target(group_id),
-                change=AuditChange(old=_create_grant_audit_snapshot(role_name, permission_scope.name, scope_object_id)),
+                change=AuditChange(old=create_grant_audit_snapshot(role_name, permission_scope.name, scope_object_id)),
             ),
         )
 
