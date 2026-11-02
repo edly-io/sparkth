@@ -39,4 +39,7 @@ Second choice
 
 CAPABILITIES
 
+## Publishing and managing courses on your LMS
+Publish, retrieve, and manage courses on LMS platforms with the available tools.
+
 {capabilities}
