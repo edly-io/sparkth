@@ -1,5 +1,4 @@
 import { Component, ReactNode } from "react";
-import { emitPluginEvent } from "@/core/plugins/registry";
 import { Button } from "@/core/components/ui/Button";
 
 interface Props {
@@ -24,16 +23,6 @@ export class PluginErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error(`Plugin "${this.props.pluginName}" error:`, error, errorInfo);
-
-    emitPluginEvent({
-      type: "plugin:error",
-      pluginName: this.props.pluginName,
-      payload: {
-        error: error.message,
-        stack: error.stack,
-        componentStack: errorInfo.componentStack,
-      },
-    });
   }
 
   render() {

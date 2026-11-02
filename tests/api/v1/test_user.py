@@ -1,9 +1,9 @@
-"""Tests for the /user/me endpoint: the computed is_admin flag, whether the user
-has a password, and the name and preferred-language columns exposed via GET and PATCH.
+"""Tests for the /user/me endpoint: whether the user has a password, and the name
+and preferred-language columns exposed via GET and PATCH.
 
-is_admin is not a stored column — it is derived from whether the user holds the
-global ``admin`` role, so those tests seed role assignments and assert the
-endpoint reflects them. The language tests cover reading the raw stored
+Neither response reports whether the user is an admin, even for a holder of the
+global ``admin`` role: clients ask about a capability through the permissions
+API instead. The language tests cover reading the raw stored
 preference and writing it through PATCH, including the allowlist validation that
 keeps unsupported tags out of the database, the auth gate on the write endpoint,
 and that a PATCH only ever touches the caller's own row.
@@ -28,7 +28,7 @@ from sparkth.core.permissions.models import Role
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
 from sparkth.lib.permissions import assign_role
-from sparkth.lib.permissions.scopes import GLOBAL, PermissionScope
+from sparkth.lib.permissions.scopes import GLOBAL
 
 
 async def _create_user(
@@ -70,7 +70,7 @@ def _override_current_user(client: AsyncClient, user: User) -> None:
     app_instance.dependency_overrides[get_current_user] = override
 
 
-async def test_me_reports_admin_when_user_holds_global_admin_role(client: AsyncClient, session: AsyncSession) -> None:
+async def test_me_does_not_report_an_admin_flag(client: AsyncClient, session: AsyncSession) -> None:
     user = await _create_user(session, "root")
     assert user.id is not None
     session.add(Role(name="admin"))
@@ -81,33 +81,7 @@ async def test_me_reports_admin_when_user_holds_global_admin_role(client: AsyncC
     response = await client.get("/api/v1/user/me")
 
     assert response.status_code == 200
-    assert response.json()["is_admin"] is True
-
-
-async def test_me_reports_non_admin_for_regular_user(client: AsyncClient, session: AsyncSession) -> None:
-    user = await _create_user(session, "regular")
-    _override_current_user(client, user)
-
-    response = await client.get("/api/v1/user/me")
-
-    assert response.status_code == 200
-    assert response.json()["is_admin"] is False
-
-
-async def test_me_admin_role_at_other_scope_does_not_grant_global_admin(
-    client: AsyncClient, session: AsyncSession
-) -> None:
-    user = await _create_user(session, "scoped")
-    assert user.id is not None
-    session.add(Role(name="admin"))
-    await session.flush()
-    await assign_role(user.id, "admin", PermissionScope("course"), "1", session)
-    _override_current_user(client, user)
-
-    response = await client.get("/api/v1/user/me")
-
-    assert response.status_code == 200
-    assert response.json()["is_admin"] is False
+    assert "is_admin" not in response.json()
 
 
 async def test_me_reports_no_language_for_a_user_who_never_chose(client: AsyncClient, session: AsyncSession) -> None:
@@ -265,7 +239,7 @@ async def test_patch_me_clears_the_language_with_null(client: AsyncClient, sessi
     assert (await client.get("/api/v1/user/me")).json()["language"] is None
 
 
-async def test_patch_me_preserves_the_computed_admin_flag(client: AsyncClient, session: AsyncSession) -> None:
+async def test_patch_me_does_not_report_an_admin_flag(client: AsyncClient, session: AsyncSession) -> None:
     user = await _create_user(session, "adminpicker")
     assert user.id is not None
     session.add(Role(name="admin"))
@@ -277,7 +251,7 @@ async def test_patch_me_preserves_the_computed_admin_flag(client: AsyncClient, s
     response = await client.patch("/api/v1/user/me", json={"language": "fr"})
 
     assert response.status_code == 200
-    assert response.json()["is_admin"] is True
+    assert "is_admin" not in response.json()
     assert response.json()["language"] == "fr"
 
 

@@ -17,19 +17,6 @@ class SyncFolderRequest(BaseModel):
     drive_folder_id: str = Field(..., description="Google Drive folder ID to sync")
 
 
-class CreateFolderRequest(BaseModel):
-    """Request to create a new folder in Google Drive."""
-
-    name: str = Field(..., description="Name of the folder to create")
-    parent_id: str | None = Field(None, description="Parent folder ID in Google Drive")
-
-
-class RenameFileRequest(BaseModel):
-    """Request to rename a file."""
-
-    name: str = Field(..., description="New name for the file")
-
-
 # Response models
 class GoogleDriveConnectionStatusResponse(BaseModel):
     """Google Drive connection status."""
@@ -70,12 +57,6 @@ class DriveFileResponse(BaseModel):
     last_synced_at: datetime | None = None
     rag_status: DocumentStatus | None = None
     rag_error: str | None = None
-
-
-class DriveFolderWithFilesResponse(DriveFolderResponse):
-    """Folder with its files."""
-
-    files: list[DriveFileResponse] = []
 
 
 class SyncStatusResponse(BaseModel):

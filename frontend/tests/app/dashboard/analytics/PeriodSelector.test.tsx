@@ -51,6 +51,15 @@ describe("PeriodSelector", () => {
     expect(nav.replace).toHaveBeenCalledWith("/dashboard/analytics/logins?range=90d&bucket=week");
   });
 
+  it("keeps the view's own settings when the period changes", async () => {
+    nav.search = "range=90d&event=x&filter=a:b";
+    renderWithIntl(<PeriodSelector />);
+    await userEvent.selectOptions(screen.getByLabelText("Period"), "7d");
+    expect(nav.replace).toHaveBeenCalledWith(
+      "/dashboard/analytics/logins?range=7d&bucket=day&event=x&filter=a%3Ab",
+    );
+  });
+
   it("applies a valid custom range", async () => {
     renderWithIntl(<PeriodSelector />);
     await userEvent.selectOptions(screen.getByLabelText("Period"), "custom");
