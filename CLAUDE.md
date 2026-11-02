@@ -77,7 +77,10 @@ a hierarchy drives runtime behaviour (a base-class `register_exception_handler` 
 
 Documentation includes:
 
-- **Docstrings** — module, class, and function docstrings must reflect current behaviour. If a function no longer does what its docstring says, update the docstring in the same commit. Describe what the code does now — not its history, versioning policy, or why an earlier design changed.
+- **Docstrings** — module, class, and function docstrings must reflect current behaviour.
+  A docstring never names other modules, functions or classes, so it cannot go stale when they change.
+  If a function no longer does what its docstring says, update the docstring in the same commit.
+  Describe what the code does now — not its history, versioning policy, or why an earlier design changed.
 - **TypeScript doc comments** — document an exported function, component, hook, type or constant with a
   `/** … */` JSDoc block above its declaration, never a `//` comment. Keep `//` for notes inside a body.
 - **Inline comments** — remove or update comments that describe logic that has changed. Never leave comments that contradict the code.

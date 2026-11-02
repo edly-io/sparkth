@@ -3,11 +3,7 @@
 ``assign_role`` and ``revoke_role`` change a user's role assignments, and
 ``delete_grants_at_object`` removes every user and group grant scoped to one object when that
 object is deleted. Each active grant removed is recorded as a ``role.unassigned`` or
-``group.role_revoked`` audit event in the caller's transaction, with the snapshot built by
-``create_grant_audit_snapshot`` from the row's own scope strings.
-
-None of these need the ``Permission`` class, so they live apart from the RBAC gate in
-``sparkth.core.permissions``. The public surface is re-exported from ``sparkth.lib.permissions``.
+``group.role_revoked`` audit event.
 """
 
 from sqlalchemy import ColumnElement, and_, delete
