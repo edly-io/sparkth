@@ -15,9 +15,9 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.permissions import (
-    _create_grant_audit_snapshot,
-    _record_active_group_grants_removed,
+    create_grant_audit_snapshot,
     delete_grants_at_object,
+    record_active_group_grants_removed,
 )
 from sparkth.core.permissions.exceptions import (
     GroupAlreadyExists,
@@ -174,7 +174,7 @@ async def _delete_group_dependents(group_id: int, session: AsyncSession) -> None
     The group_id foreign keys have no ON DELETE CASCADE, so dependents go before the group itself.
     """
     await _record_active_memberships_removed(group_id, session)
-    await _record_active_group_grants_removed(col(GroupRoleAssignment.group_id) == group_id, session)
+    await record_active_group_grants_removed(col(GroupRoleAssignment.group_id) == group_id, session)
     for model in (GroupMembership, GroupRoleAssignment):
         await session.exec(delete(model).where(col(model.group_id) == group_id))
     await session.flush()
@@ -357,7 +357,7 @@ async def assign_role_to_group(
         GroupRoleAssignedAuditEvent(
             outcome=AuditOutcome.SUCCESS,
             target=_target(group_id),
-            change=AuditChange(new=_create_grant_audit_snapshot(role_name, permission_scope.name, scope_object_id)),
+            change=AuditChange(new=create_grant_audit_snapshot(role_name, permission_scope.name, scope_object_id)),
         ),
     )
     return assignment
@@ -397,7 +397,7 @@ async def revoke_role_from_group(
             GroupRoleRevokedAuditEvent(
                 outcome=AuditOutcome.SUCCESS,
                 target=_target(group_id),
-                change=AuditChange(old=_create_grant_audit_snapshot(role_name, permission_scope.name, scope_object_id)),
+                change=AuditChange(old=create_grant_audit_snapshot(role_name, permission_scope.name, scope_object_id)),
             ),
         )
 

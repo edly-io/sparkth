@@ -1,7 +1,7 @@
 """add deletable to role
 
 Revision ID: ab88a9f7556e
-Revises: fd29c3a6164d
+Revises: 84eeee1d97b9
 Create Date: 2026-10-30 13:01:11.799171
 
 """
@@ -13,7 +13,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "ab88a9f7556e"
-down_revision: Union[str, Sequence[str], None] = "fd29c3a6164d"
+down_revision: Union[str, Sequence[str], None] = "84eeee1d97b9"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
