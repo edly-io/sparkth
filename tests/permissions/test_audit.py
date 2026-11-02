@@ -7,6 +7,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.audit.models import AuditEvent
+from sparkth.core.models.user import User
 from sparkth.core.permissions import PERMISSIONS, Permission, assign_role, groups, revoke_role, roles
 from sparkth.core.permissions.models import (
     Group,
@@ -48,6 +49,13 @@ async def _record_event_failing_on_role_deleted(session: AsyncSession, event: Ba
     if isinstance(event, RoleDeletedAuditEvent):
         raise SQLAlchemyError("audit write failed")
     return await record_event(session, event)
+
+
+async def _user(session: AsyncSession, username: str) -> User:
+    user = User(name="T", username=username, email=f"{username}@example.com", hashed_password="x")
+    session.add(user)
+    await session.flush()
+    return user
 
 
 GLOBAL_GRANT = {"role": "grader", "scope": "global", "scope_object_id": None}
@@ -100,12 +108,20 @@ class TestRoleEvents:
     ) -> None:
         target = await _role(session, "target")
         manager = await _role(session, "manager")
+        holder = await _user(session, "alice")
+        former_holder = await _user(session, "bob")
+        group = await _group(session)
         assert target.id is not None and manager.id is not None
+        assert holder.id is not None and former_holder.id is not None and group.id is not None
         target_id = target.id
         object_id = str(target_id)
-        session.add(RoleAssignment(user_id=1, role_id=manager.id, scope="role", scope_object_id=object_id))
-        session.add(GroupRoleAssignment(group_id=2, role_id=manager.id, scope="role", scope_object_id=object_id))
-        revoked = RoleAssignment(user_id=3, role_id=manager.id, scope="role", scope_object_id=object_id)
+        session.add(RoleAssignment(user_id=holder.id, role_id=manager.id, scope=ROLE.name, scope_object_id=object_id))
+        session.add(
+            GroupRoleAssignment(group_id=group.id, role_id=manager.id, scope=ROLE.name, scope_object_id=object_id)
+        )
+        revoked = RoleAssignment(
+            user_id=former_holder.id, role_id=manager.id, scope=ROLE.name, scope_object_id=object_id
+        )
         revoked.soft_delete()
         session.add(revoked)
         await session.flush()
@@ -113,10 +129,10 @@ class TestRoleEvents:
         await roles.delete_role(target_id, session)
 
         unassigned, group_revoked, deleted = (await audit_events())[before:]
-        snapshot = {"role": "manager", "scope": "role", "scope_object_id": object_id}
-        _assert_envelope(unassigned, "role.unassigned", "user", 1)
+        snapshot = {"role": "manager", "scope": ROLE.name, "scope_object_id": object_id}
+        _assert_envelope(unassigned, "role.unassigned", "user", holder.id)
         assert unassigned.old_values == snapshot
-        _assert_envelope(group_revoked, "group.role_revoked", "group", 2)
+        _assert_envelope(group_revoked, "group.role_revoked", "group", group.id)
         assert group_revoked.old_values == snapshot
         _assert_envelope(deleted, "role.deleted", "role", target_id)
 
