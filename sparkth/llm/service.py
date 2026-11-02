@@ -18,6 +18,7 @@ from sparkth.lib.audit.events import (
     LLMConfigKeyRotatedAuditEvent,
     LLMConfigUpdatedAuditEvent,
 )
+from sparkth.lib.encryption import mask_secret
 from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
 from sparkth.llm.exceptions import (
@@ -64,16 +65,6 @@ class LLMConfigService:
         self.encryption = encryption
         self.cache = cache
 
-    @staticmethod
-    def mask_key(api_key: str) -> str:
-        """Return a masked version of the API key, preserving the provider prefix and last 4 chars."""
-        if len(api_key) <= 4:
-            return "****"
-        suffix = api_key[-4:]
-        parts = api_key.split("-", maxsplit=1)
-        prefix = parts[0] + "-" if len(parts) >= 2 else ""
-        return f"{prefix}****{suffix}"
-
     async def _assert_name_available(
         self, session: AsyncSession, user_id: int, name: str, exclude_id: int | None = None
     ) -> None:
@@ -102,7 +93,7 @@ class LLMConfigService:
             provider=provider.lower(),
             model=model,
             encrypted_key=self.encryption.encrypt(api_key),
-            masked_key=self.mask_key(api_key),
+            masked_key=mask_secret(api_key),
         )
         session.add(config)
         try:
@@ -203,7 +194,7 @@ class LLMConfigService:
             raise LLMConfigNotFoundError(config_id, user_id)
         previous_masked_key = config.masked_key
         config.encrypted_key = self.encryption.encrypt(api_key)
-        config.masked_key = self.mask_key(api_key)
+        config.masked_key = mask_secret(api_key)
         config.update_timestamp()
         session.add(config)
         await session.flush()

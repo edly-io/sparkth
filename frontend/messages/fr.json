@@ -78,7 +78,9 @@
       "label": "Vues des analyses",
       "overview": "Vue d'ensemble",
       "logins": "Connexions",
-      "authoring": "Création de cours"
+      "authoring": "Création de cours",
+      "explore": "Explorer",
+      "savedViews": "Vues enregistrées"
     },
     "period": {
       "range": "Période",
@@ -112,6 +114,53 @@
       "new": "Nouveau sur cette période",
       "trend": "Activité",
       "trendCaption": "Connexions et messages envoyés, {range}"
+    },
+    "explore": {
+      "title": "Explorer",
+      "description": "Créez un graphique à partir de n'importe quel événement enregistré. Les événements, champs et valeurs s'affichent tels qu'enregistrés.",
+      "subtitle": "{range} (UTC).",
+      "event": "Événement",
+      "pickEvent": "Choisissez un événement",
+      "actorId": "ID de l'acteur",
+      "actor": "Acteur",
+      "measure": "Mesure",
+      "measures": {
+        "count": "Événements",
+        "distinct_actors": "Acteurs distincts"
+      },
+      "groupBy": "Ventiler par",
+      "noGroup": "Aucune ventilation",
+      "chart": "Graphique",
+      "charts": {
+        "line": "Courbe",
+        "bar": "Barres",
+        "table": "Tableau"
+      },
+      "filters": "Filtres",
+      "field": "Champ",
+      "pickField": "Choisissez un champ",
+      "value": "Valeur",
+      "addFilter": "Ajouter un filtre",
+      "removeFilter": "Retirer le filtre {filter}",
+      "start": "Choisissez un événement pour créer un graphique.",
+      "empty": "Aucun événement correspondant sur cette période.",
+      "stale": "Cette vue mentionnait des événements, des champs ou des valeurs qui n'existent plus ; ils ont été ignorés.",
+      "truncated": "Les 20 premiers groupes sont affichés ; il y en a d'autres.",
+      "none": "(aucun)",
+      "chartCaption": "{event}, {range}",
+      "groupCaption": "{event} par {group}, {range}",
+      "saveView": "Enregistrer la vue",
+      "save": "Enregistrer",
+      "saveAsNew": "Enregistrer comme nouvelle",
+      "rename": "Renommer",
+      "delete": "Supprimer",
+      "renameView": "Renommer la vue",
+      "viewName": "Nom",
+      "nameTaken": "Vous avez déjà une vue portant ce nom.",
+      "saveError": "Impossible d'enregistrer les modifications de la vue. Veuillez réessayer.",
+      "saved": "Vue enregistrée.",
+      "confirmDelete": "Supprimer la vue « {name} » ?",
+      "viewMissing": "Cette vue enregistrée n'existe pas ou ne vous appartient pas."
     }
   },
   "home": {
@@ -149,6 +198,10 @@
     "detailsError": "Impossible de charger les détails de cet événement.",
     "loadMore": "Charger plus",
     "empty": "Aucun événement d'audit ne correspond à ces filtres.",
+    "errors": {
+      "actorIdInvalid": "L'ID utilisateur de l'acteur doit être un nombre.",
+      "rangeReversed": "L'heure de début doit être antérieure ou égale à l'heure de fin."
+    },
     "outcomes": {
       "success": "Réussite",
       "failure": "Échec",

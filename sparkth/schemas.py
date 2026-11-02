@@ -13,10 +13,6 @@ class User(UserBase):
     id: int
     name: str
     username: str
-    # Derived from the permission system (holding the global admin role), not a stored
-    # column. Defaults to False so endpoints that return the ORM user directly (e.g.
-    # register) report a non-admin; /user/me computes and sets the real value.
-    is_admin: bool = False
     email_verified: bool
     # Whether the user can sign in with a password; False means Google only. Read off
     # the model's property, so the hash itself is never exposed.

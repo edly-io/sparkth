@@ -2,12 +2,9 @@
 
 /**
  * The settings control for a config field hinting the `doc-sources` widget.
- *
- * Registered by the Slack plugin (see `plugins/slack/index.ts`) rather than by core:
- * it fetches the user's RAG sources, which is the plugin's own concern.
  */
 
-import type { ConfigWidgetProps } from "@/components/settings/widgets";
+import type { ConfigWidgetProps } from "@/lib/settings/slots";
 import DocSourcePicker from "./DocSourcePicker";
 
 export default function DocSourcesWidget({ field, value, disabled, onChange }: ConfigWidgetProps) {

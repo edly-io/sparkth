@@ -66,6 +66,9 @@ Sparkth stores every user's plugin config encrypted, and the `user-plugins` API 
 lists the stored ones in `secrets_set` instead. The settings form shows a stored secret as dots with a **Replace**
 action, and a save that leaves it out keeps the stored value.
 
+Mark an API key or token with `secret(masked=True)`: the API also returns it masked (`****2345`) in
+`masked_secrets`, and the plugin's row on the settings page shows it, like an AI key. Leave a password unmasked.
+
 ## Register the plugin configuration class
 
 Register a Pydantic configuration class when your plugin has user-configurable settings that the system
@@ -371,7 +374,7 @@ class MyAppPlugin(SparkthPlugin):
 What each hook carries, which of them are optional, and how the declarations reach the frontend live in the [frontend metadata hooks reference](../reference/plugins.md#frontend-metadata-hooks), generated from the module docstrings.
 
 After adding or removing a `FRONTEND_APPS` declaration, regenerate the frontend's static route list with
-`make frontend.build.plugins` (it rewrites `frontend/core/plugins/generated.ts` from the declarations); tests on
+`make frontend.build.plugins` (it rewrites `frontend/lib/plugins/generated.ts` from the declarations); tests on
 both tiers fail while the committed list is stale.
 
 ### Rendering plugin exceptions as HTTP responses
@@ -638,7 +641,7 @@ the caller can delete it. Like the builders, `callback` must be a module-level f
 
 A *capability* is one kind of work the chat assistant does, such as designing a course. A plugin
 contributes one without importing chat, by registering a `ChatCapability` with
-`register_chat_capability` from `sparkth.lib.chat.hooks`. A plugin registers one capability, from
+`register_chat_capability` from `sparkth.lib.compose.hooks`. A plugin registers one capability, from
 its `__init__`, keyed by the plugin instance.
 
 A `ChatCapability` has three fields:
@@ -653,7 +656,7 @@ For example:
 
 ```python
 # sparkth/plugins/myappplugin/plugin.py
-from sparkth.lib.chat.hooks import ChatCapability, register_chat_capability
+from sparkth.lib.compose.hooks import ChatCapability, register_chat_capability
 from sparkth.lib.plugins import SparkthPlugin
 
 TITLE = "My App builder"
@@ -672,7 +675,7 @@ class MyAppPlugin(SparkthPlugin):
 Register through `register_chat_capability`, not `CHAT_CAPABILITIES.add_item`. Constructing the
 plugin again is harmless: the loader and a plugin's own tests each build an instance, and equal
 copies fold into one. Only a *different* capability claiming a registered title raises
-`DuplicateChatCapabilityError`, from `sparkth.lib.chat.exceptions`. The loader logs the failed
+`DuplicateChatCapabilityError`, from `sparkth.lib.compose.exceptions`. The loader logs the failed
 construction and skips that plugin.
 
 ### How chat uses capabilities

@@ -6,7 +6,7 @@ import { Button } from "@/lib/components/ui/Button";
 import { Alert } from "@/components/ui/Alert";
 import { Spinner } from "@/lib/components/ui/Spinner";
 import { useAuth } from "@/lib/auth/hooks";
-import { fetchRagSources } from "@/lib/slack";
+import { fetchRagSources } from "@/plugins/slack/client";
 
 interface DocSourcePickerProps {
   value: string[];
