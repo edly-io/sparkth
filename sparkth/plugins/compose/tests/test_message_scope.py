@@ -17,7 +17,7 @@ import pytest
 from langchain_core.exceptions import LangChainException
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
-from sparkth.lib.compose.hooks import ChatCapability
+from sparkth.lib.compose.hooks import Agent
 from sparkth.plugins.compose.capabilities import COURSE_DESIGN
 from sparkth.plugins.compose.classifiers import MessageScopeClassifier
 from sparkth.plugins.compose.exceptions import ClassifierError, ScopeCheckError
@@ -30,19 +30,19 @@ _LOGGER = "sparkth.plugins.compose.classifiers.message_scope"
 _USER_ID = 42
 
 
-_CAPABILITIES: list[ChatCapability] = [COURSE_DESIGN]
+_AGENTS: list[Agent] = [COURSE_DESIGN]
 
 
 def _classifier_with(
-    chain: MagicMock, capabilities: list[ChatCapability] | None = None, analytics: MagicMock | None = None
+    chain: MagicMock, agents: list[Agent] | None = None, analytics: MagicMock | None = None
 ) -> MessageScopeClassifier:
-    """A classifier offering ``capabilities`` (course design alone by default), its LLM yielding ``chain``."""
+    """A classifier offering ``agents`` (course design alone by default), its LLM yielding ``chain``."""
     llm = MagicMock()
     llm.with_structured_output.return_value = chain
     provider = MagicMock()
     provider.create_llm.return_value = llm
     with patch("sparkth.plugins.compose.classifiers.base.get_provider", return_value=provider):
-        return MessageScopeClassifier(capabilities or _CAPABILITIES, "anthropic", "test-key", _USER_ID, analytics)
+        return MessageScopeClassifier(agents or _AGENTS, "anthropic", "test-key", _USER_ID, analytics)
 
 
 def _chain_answering(in_scope: bool, refusal_reason: str = "") -> MagicMock:
@@ -66,7 +66,7 @@ class TestTurnRendering:
 
         await _classifier_with(chain).in_scope("design a quiz")
 
-        assert _sent_messages(chain)[0].content == render_scope_classifier_prompt(_CAPABILITIES)
+        assert _sent_messages(chain)[0].content == render_scope_classifier_prompt(_AGENTS)
 
     @pytest.mark.asyncio
     async def test_the_turn_is_the_bare_query(self) -> None:
@@ -166,15 +166,15 @@ class TestTheAnswerCallersActOn:
 
 class TestThePromptListsTheCapabilities:
     @pytest.mark.asyncio
-    async def test_every_capability_reaches_the_model_by_title_and_scope(self, stub_capability: ChatCapability) -> None:
+    async def test_every_agent_reaches_the_model_by_title_and_description(self, stub_agent: Agent) -> None:
         chain = _chain_answering(True)
 
-        await _classifier_with(chain, [COURSE_DESIGN, stub_capability]).in_scope("design a quiz")
+        await _classifier_with(chain, [COURSE_DESIGN, stub_agent]).in_scope("design a quiz")
 
         system = _sent_messages(chain)[0].content
-        for capability in (COURSE_DESIGN, stub_capability):
-            assert capability.title in system
-            assert capability.scope in system
+        for agent in (COURSE_DESIGN, stub_agent):
+            assert agent.title in system
+            assert agent.description in system
 
 
 class TestATurnWithNoWords:

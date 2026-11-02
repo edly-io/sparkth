@@ -10,7 +10,7 @@ from uuid import UUID
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
-from sparkth.lib.compose.hooks import ChatCapability
+from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.log import get_logger
 from sparkth.plugins.compose.analytics import ComposeClassifierAnalytics, ScopeVerdict
 from sparkth.plugins.compose.classifiers.base import BaseClassifier
@@ -27,19 +27,19 @@ class MessageScopeClassifier(BaseClassifier[MessageScopeInput, MessageScopeVerdi
 
     def __init__(
         self,
-        capabilities: list[ChatCapability],
+        agents: list[Agent],
         provider_name: str,
         api_key: str,
         user_id: int,
         analytics: ComposeClassifierAnalytics | None = None,
     ) -> None:
-        """``capabilities`` are this request's enabled capabilities; the prompt lists each by its
-        title and scope. ``user_id`` never reaches the model; it is logged, and is all a refusal
+        """``agents`` are this request's enabled agents; the prompt lists each by its title and
+        description. ``user_id`` never reaches the model; it is logged, and is all a refusal
         on a first message can be traced by. ``analytics`` is optional: without it a decision is
         simply not measured.
         """
         super().__init__(
-            render_scope_classifier_prompt(capabilities),
+            render_scope_classifier_prompt(agents),
             MessageScopeVerdict,
             provider_name,
             api_key,

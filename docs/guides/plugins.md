@@ -342,8 +342,7 @@ only an administrator disabling the plugin outright stops them.
 
 MCP is not the only tool door. Compose applies both switches for the requesting user on every
 turn: a plugin switched off system-wide or by that user has none of its tools bound, no
-capability section or scope offered. Only `/ai/mcp` stays
-system-wide.
+agent offered. Only `/ai/mcp` stays system-wide.
 
 Because `/ai/mcp` has no per-user switch, a tool that must not run for a particular caller
 over MCP has to enforce that inside the tool.
@@ -637,66 +636,85 @@ record the placement, it raises
 block's attributes unwritten and reports the block's locator, so the block points at nothing and
 the caller can delete it. Like the builders, `callback` must be a module-level function.
 
-## Chat capabilities
+## Compose agents
 
-A *capability* is one kind of work the Compose assistant does, such as designing a course. A plugin
-contributes one without importing compose, by registering a `ChatCapability` with
-`register_chat_capability` from `sparkth.lib.compose.hooks`. A plugin registers one capability, from
-its `__init__`, keyed by the plugin instance.
+An *agent* does one kind of work for Compose, such as designing a course. A plugin contributes one
+without importing compose, by registering an `Agent` with `register_agent` from
+`sparkth.lib.compose.hooks`. A plugin registers one agent, from its `__init__`, keyed by the plugin
+instance.
 
-A `ChatCapability` has three fields:
+An `Agent` has five fields:
 
-- `title` is the heading the capability appears under, both in the system prompt and in the scope
-  gate's list, so no two capabilities share one.
-- `scope` is the text the scope gate judges a message against.
+- `name` identifies the agent: lowercase letters, digits and underscores, starting with a letter.
+  `compose` and `operator` are reserved.
+- `title` is the heading the agent appears under, both in the system prompt and in the scope
+  gate's list.
+- `description` is the text the scope gate judges a message against.
 - `prompt` is plain text inserted into the system prompt as written, so a brace in it needs no
   escaping.
+- `tools` names the agent's tools. Each one must be one of the plugin's own `MCP_TOOLS`, so
+  register those first.
 
 For example:
 
 ```python
 # sparkth/plugins/myappplugin/plugin.py
-from sparkth.lib.compose.hooks import ChatCapability, register_chat_capability
+from sparkth.lib.compose.hooks import Agent, register_agent
+from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
 from sparkth.lib.plugins import SparkthPlugin
 
-TITLE = "My App builder"
-SCOPE = "Requests to build or change things in My App."
-PROMPT = "Ask which My App item the author wants, then build it with the My App tools."
 
-MY_CAPABILITY = ChatCapability(TITLE, SCOPE, PROMPT)
+async def my_app_build(title: str) -> str:
+    """Build a My App item and return its id."""
+    ...
+
+
+MY_AGENT = Agent(
+    "my_app",
+    "My App builder",
+    "Requests to build or change things in My App.",
+    "Ask which My App item the author wants, then build it with the My App tools.",
+    tools=("my_app_build",),
+)
 
 
 class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
         super().__init__("my-app")
-        register_chat_capability(self, MY_CAPABILITY)
+        MCP_TOOLS.add_item(self, Tool(my_app_build))
+        register_agent(self, MY_AGENT)
 ```
 
-Register through `register_chat_capability`, not `CHAT_CAPABILITIES.add_item`. Constructing the
-plugin again is harmless: the loader and a plugin's own tests each build an instance, and equal
-copies fold into one. Only a *different* capability claiming a registered title raises
-`DuplicateChatCapabilityError`, from `sparkth.lib.compose.exceptions`. The loader logs the failed
-construction and skips that plugin.
+Register through `register_agent`, not `COMPOSE_AGENTS.add_item`. Constructing the plugin again
+is harmless: the loader and a plugin's own tests each build an instance, and equal copies fold into
+one. `register_agent` raises, from `sparkth.lib.compose.exceptions`:
 
-### How Compose uses capabilities
+- `InvalidAgentName` for a name that breaks the pattern above;
+- `ReservedAgentName` for `compose` or `operator`;
+- `DuplicateAgentName` when another agent, another plugin or a registered MCP tool already holds the name;
+- `UnknownAgentTool` for a tool the plugin doesn't contribute.
 
-On every request Compose reads the capabilities of the plugins enabled for the requesting user, in
+The loader logs the failed construction and skips that plugin.
+
+### How Compose uses agents
+
+On every request Compose reads the agents of the plugins enabled for the requesting user, in
 plugin-name order. Compose contributes its own, course design. A plugin switched off system-wide or
-by the user contributes no section, no scope and no tools.
+by the user contributes no section, no description and no tools.
 
-- **Scope gate.** Each message is judged against every enabled scope. A message that fits none
+- **Scope gate.** Each message is judged against every enabled description. A message that fits none
   is refused with a fixed sentence before the model runs. A refused first message writes nothing; a refused later message is stored in the
   conversation, with the refusal as the assistant's reply. If the classification fails, the turn
   fails with an error and the model is not called. A failed first message writes nothing; a
   failed later message stores the error in the conversation.
-- **System prompt.** The prompt is Compose's skeleton with each enabled capability's section under
-  its title. The skeleton owns the date, the assistant's identity, the output language, the
-  refusal, injection and offering-choices rules, so a section must not repeat them. A section
-  holds the capability's workflow, plus any language or guardrail rules specific to it.
+- **System prompt.** The prompt is Compose's skeleton with each enabled agent's prompt under its
+  title. The skeleton owns the date, the assistant's identity, the output language, the
+  refusal, injection and offering-choices rules, so a prompt must not repeat them. A prompt
+  holds the agent's workflow, plus any language or guardrail rules specific to it.
 - **Tools.** Every turn gets the tools the request asks for, minus those of a switched-off
   plugin.
 
-Plugin-specific knowledge belongs in a `<prefix>about` tool, not in a capability's `prompt`;
+Plugin-specific knowledge belongs in a `<prefix>about` tool, not in an agent's `prompt`;
 see the LMS `about` tool [above](#lms-plugins-tools-without-credentials) for the convention.
 
 ## Reacting to a deleted document

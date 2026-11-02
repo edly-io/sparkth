@@ -33,10 +33,14 @@ guide](../guides/plugins.md) for the how-to; this page is the generated referenc
 
 ::: sparkth.lib.content.exceptions
 
-## Chat capability hooks
+## Compose agent hooks
 
 ::: sparkth.lib.compose.hooks
 
-## Chat capability exceptions
+## Compose agent constants
+
+::: sparkth.lib.compose.constants
+
+## Compose agent exceptions
 
 ::: sparkth.lib.compose.exceptions
