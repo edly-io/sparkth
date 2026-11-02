@@ -1100,7 +1100,7 @@ export interface paths {
         post?: never;
         /**
          * Delete Role
-         * @description Delete a role (refused with 409 while it still has active assignments). Returns 204 No Content.
+         * @description Delete a role. Refused with 409 if it is non-deletable or still has active assignments. Returns 204.
          */
         delete: operations["delete_role_api_v1_permissions_roles__role_id__delete"];
         options?: never;
