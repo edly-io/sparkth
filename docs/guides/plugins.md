@@ -702,15 +702,17 @@ On every request Compose reads the agents of the plugins enabled for the request
 plugin-name order. Compose contributes its own, course design. A plugin switched off system-wide or
 by the user contributes no section, no description and no tools.
 
-- **Scope gate.** Each message is judged against every enabled description. A message that fits none
-  is refused with a fixed sentence before the model runs. A refused first message writes nothing; a refused later message is stored in the
-  conversation, with the refusal as the assistant's reply. If the classification fails, the turn
-  fails with an error and the model is not called. A failed first message writes nothing; a
-  failed later message stores the error in the conversation.
+- **Scope gate.** Each message is judged against every enabled description and Compose's own LMS
+  operations (publishing, retrieving and managing courses). A message that fits none is refused with
+  a fixed sentence before the model runs. A refused first message writes nothing; a refused later
+  message is stored in the conversation, with the refusal as the assistant's reply. If the
+  classification fails, the turn fails with an error and the model is not called. A failed first
+  message writes nothing; a failed later message stores the error in the conversation.
 - **System prompt.** The prompt is Compose's skeleton with each enabled agent's prompt under its
   title. The skeleton owns the date, the assistant's identity, the output language, the
-  refusal, injection and offering-choices rules, so a prompt must not repeat them. A prompt
-  holds the agent's workflow, plus any language or guardrail rules specific to it.
+  refusal, injection and offering-choices rules, and Compose's LMS operations, so a prompt must not
+  repeat them. A prompt holds the agent's workflow, plus any language or guardrail rules specific to
+  it.
 - **Tools.** Every turn gets the tools the request asks for, minus those of a switched-off
   plugin.
 
