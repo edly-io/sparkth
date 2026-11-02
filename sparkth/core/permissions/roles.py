@@ -13,10 +13,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.permissions import (
     PERMISSIONS,
-    _record_active_group_grants_removed,
-    _record_active_user_grants_removed,
     delete_grants_at_object,
     get_permission,
+    record_active_group_grants_removed,
+    record_active_user_grants_removed,
 )
 from sparkth.core.permissions.exceptions import (
     RoleAlreadyExists,
@@ -120,8 +120,8 @@ async def _delete_role_dependents(role_id: int, session: AsyncSession) -> None:
 
     The role_id foreign keys have no ON DELETE CASCADE, so dependents go before the role itself.
     """
-    await _record_active_user_grants_removed(col(RoleAssignment.role_id) == role_id, session)
-    await _record_active_group_grants_removed(col(GroupRoleAssignment.role_id) == role_id, session)
+    await record_active_user_grants_removed(col(RoleAssignment.role_id) == role_id, session)
+    await record_active_group_grants_removed(col(GroupRoleAssignment.role_id) == role_id, session)
     for model in (RolePermission, RoleAssignment, GroupRoleAssignment):
         await session.exec(delete(model).where(col(model.role_id) == role_id))
     await session.flush()
