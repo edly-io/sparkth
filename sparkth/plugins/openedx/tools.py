@@ -447,8 +447,8 @@ async def openedx_create_problem_or_html(payload: ProblemOrHtmlArgs) -> dict[str
             course_id (str): The course identifier.
             unit_locator (str): The unit locator where the component should be created.
             kind (str, optional):
-                The type of component to create. Accepts "Problem" or "HTML".
-                Defaults to "Problem".
+                The type of component to create. Accepts "problem" or "html".
+                Defaults to "problem".
 
             data (str, optional):
                 Raw OLX (for problems) or HTML (for HTML components).

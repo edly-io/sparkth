@@ -27,7 +27,6 @@ async def _create(username: str = "alice") -> None:
         email=f"{username}@example.com",
         password=PASSWORD,
         name=None,
-        superuser=False,
         email_verified=True,
     )
 
