@@ -72,7 +72,7 @@ async def list_roles(session: AsyncSession) -> list[Role]:
     return list((await session.exec(select(Role).order_by(col(Role.id)))).all())
 
 
-async def get_role(role_id: int, session: AsyncSession, for_update: bool = False) -> Role:
+async def get_role(role_id: int, session: AsyncSession, *, for_update: bool = False) -> Role:
     """Return the role with role_id, or raise RoleNotFound.
 
     ``for_update`` locks the row until the transaction ends (a no-op on SQLite).
