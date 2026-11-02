@@ -141,14 +141,7 @@ msgstr "Grupo no encontrado: {name}"
 msgid "Group already exists: {name}"
 msgstr "El grupo ya existe: {name}"
 
-#: sparkth/core/permissions/exceptions.py:65
-#, python-brace-format
-msgid "Group still has active role assignments and cannot be deleted: {group_id}"
-msgstr ""
-"El grupo aún tiene asignaciones de roles activas y no se puede eliminar: "
-"{group_id}"
-
-#: sparkth/core/permissions/exceptions.py:81
+#: sparkth/core/permissions/exceptions.py:71
 #, python-brace-format
 msgid "Invalid scope/object-id pairing for scope {scope!r}: {scope_object_id!r}"
 msgstr ""
