@@ -118,10 +118,12 @@ async def test_delete_role_removes_active_assignments(session: AsyncSession) -> 
 
 async def test_delete_role_removes_group_assignments_of_it(session: AsyncSession) -> None:
     role = await roles.create_role("grader", None, session)
-    assert role.id is not None
-    revoked = GroupRoleAssignment(group_id=2, role_id=role.id, scope=GLOBAL.name, scope_object_id=None)
+    active_group = await make_group(session, "staff")
+    revoked_group = await make_group(session, "alumni")
+    assert role.id is not None and active_group.id is not None and revoked_group.id is not None
+    revoked = GroupRoleAssignment(group_id=revoked_group.id, role_id=role.id, scope=GLOBAL.name, scope_object_id=None)
     revoked.soft_delete()
-    session.add(GroupRoleAssignment(group_id=1, role_id=role.id, scope=GLOBAL.name, scope_object_id=None))
+    session.add(GroupRoleAssignment(group_id=active_group.id, role_id=role.id, scope=GLOBAL.name, scope_object_id=None))
     session.add(revoked)
     await session.flush()
     await roles.delete_role(role.id, session)
