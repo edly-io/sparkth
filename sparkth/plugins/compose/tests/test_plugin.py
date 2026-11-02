@@ -1,12 +1,10 @@
 """Tests for the compose plugin's declared identity and frontend metadata."""
 
-from sparkth.lib.compose.hooks import enabled_agents
 from sparkth.lib.frontend import (
     get_plugin_display_info,
     get_plugin_sidebar_entry,
     plugin_has_frontend,
 )
-from sparkth.plugins.compose.capabilities import COURSE_DESIGN
 from sparkth.plugins.compose.plugin import ComposePlugin
 
 
@@ -28,12 +26,3 @@ def test_declares_frontend_metadata() -> None:
     assert sidebar.order == 1
 
     assert plugin_has_frontend("compose") is True
-
-
-def test_offers_course_design_and_survives_a_second_construction() -> None:
-    """The loader builds the plugin, and tests build it again; the agent is offered once."""
-    plugin = ComposePlugin()  # noqa: F841 - keeps the weakly-keyed hook entry alive
-
-    agents = enabled_agents(set())
-
-    assert agents.count(COURSE_DESIGN) == 1

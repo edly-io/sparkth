@@ -2,7 +2,7 @@ import re
 
 import pytest
 
-from sparkth.plugins.compose.capabilities import COURSE_DESIGN
+from sparkth.plugins.course_design.agent import COURSE_DESIGN
 
 LMS_TERMS = re.compile(r"\b(publish\w*|lms|canvas|moodle|open edx)\b", re.IGNORECASE)
 
