@@ -1,7 +1,7 @@
 "use client";
 
 import { Sheet, SheetContent } from "@/core/components/ui/Sheet";
-import { useSidebar } from "@/lib/sidebar-context";
+import { useSidebar } from "@/core/sidebar/hooks";
 import AppSidebar from "@/core/components/layout/AppSidebar";
 
 interface MobileSidebarProps {

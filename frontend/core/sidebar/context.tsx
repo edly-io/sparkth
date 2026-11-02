@@ -1,8 +1,9 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback } from "react";
+import React, { createContext, useState, useCallback } from "react";
 
-interface SidebarContextType {
+/** The sidebar's state and the functions that change it. */
+export interface SidebarContextType {
   // Mobile sidebar state
   isOpen: boolean;
   open: () => void;
@@ -14,8 +15,10 @@ interface SidebarContextType {
   toggleCollapsed: () => void;
 }
 
-const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
+/** The sidebar context, read through `useSidebar`. It is undefined outside a `SidebarProvider`. */
+export const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
 
+/** Holds whether the mobile sidebar is open and the desktop sidebar is collapsed. Both start false. */
 export function SidebarProvider({ children }: { children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -42,12 +45,4 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
       {children}
     </SidebarContext.Provider>
   );
-}
-
-export function useSidebar(): SidebarContextType {
-  const context = useContext(SidebarContext);
-  if (context === undefined) {
-    throw new Error("useSidebar must be used within a SidebarProvider");
-  }
-  return context;
 }

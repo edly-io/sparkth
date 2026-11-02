@@ -5,7 +5,7 @@ import MobileSidebar from "@/core/components/layout/MobileSidebar";
 
 const sidebar = vi.hoisted(() => ({ isOpen: false, close: vi.fn() }));
 
-vi.mock("@/lib/sidebar-context", () => ({ useSidebar: () => sidebar }));
+vi.mock("@/core/sidebar/hooks", () => ({ useSidebar: () => sidebar }));
 vi.mock("@/core/components/layout/AppSidebar", () => ({
   default: ({ variant, onNavigate }: { variant: string; onNavigate?: () => void }) => (
     <button onClick={onNavigate}>{`sidebar ${variant}`}</button>
