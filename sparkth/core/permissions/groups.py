@@ -189,7 +189,7 @@ async def delete_group(group_id: int, session: AsyncSession) -> None:
     membership, ``group.role_revoked`` for a group assignment, ``role.unassigned`` for a user grant.
     The group row is locked for the delete so concurrent changes to it wait for it.
     """
-    group = await get_group(group_id, session, True)
+    group = await get_group(group_id, session, for_update=True)
     await delete_grants_at_object(GROUP, str(group_id), session)
     await _delete_group_dependents(group_id, session)
     await session.delete(group)
