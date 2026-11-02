@@ -655,19 +655,11 @@ An `Agent` has five fields:
 - `tools` names the agent's tools. Each one must be one of the plugin's own `MCP_TOOLS`, so
   register those first.
 
-For example:
+Define the agent in the plugin's `agent.py` and register it from `plugin.py`. For example:
 
 ```python
-# sparkth/plugins/myappplugin/plugin.py
-from sparkth.lib.compose.hooks import Agent, register_agent
-from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
-from sparkth.lib.plugins import SparkthPlugin
-
-
-async def my_app_build(title: str) -> str:
-    """Build a My App item and return its id."""
-    ...
-
+# sparkth/plugins/myappplugin/agent.py
+from sparkth.lib.compose.hooks import Agent
 
 MY_AGENT = Agent(
     "my_app",
@@ -676,6 +668,19 @@ MY_AGENT = Agent(
     "Ask which My App item the author wants, then build it with the My App tools.",
     tools=("my_app_build",),
 )
+```
+
+```python
+# sparkth/plugins/myappplugin/plugin.py
+from sparkth.lib.compose.hooks import register_agent
+from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
+from sparkth.lib.plugins import SparkthPlugin
+from sparkth.plugins.myappplugin.agent import MY_AGENT
+
+
+async def my_app_build(title: str) -> str:
+    """Build a My App item and return its id."""
+    ...
 
 
 class MyAppPlugin(SparkthPlugin):
@@ -699,7 +704,7 @@ The loader logs the failed construction and skips that plugin.
 ### How Compose uses agents
 
 On every request Compose reads the agents of the plugins enabled for the requesting user, in
-plugin-name order. Compose contributes its own, course design. A plugin switched off system-wide or
+plugin-name order. Course design comes from the course design plugin. A plugin switched off system-wide or
 by the user contributes no section, no description and no tools.
 
 - **Scope gate.** Each message is judged against every enabled description and Compose's own LMS
