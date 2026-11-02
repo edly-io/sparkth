@@ -90,7 +90,7 @@ class TestRoleEvents:
         await roles.update_role(role.id, None, None, session)
         await roles.update_role(role.id, "grader", "Grades stuff", session)
 
-        assert [e.action for e in await audit_events()] == ["created"]
+        assert [event.action for event in await audit_events()] == ["created"]
 
     async def test_delete_records_deleted(self, session: AsyncSession, audit_events: AuditEventsFetcher) -> None:
         role = await _role(session)
@@ -170,7 +170,7 @@ class TestRoleEvents:
         await roles.delete_role(role.id, session)
 
         events = (await audit_events())[before:]
-        assert [e.category + "." + e.action for e in events] == ["role.unassigned", "role.deleted"]
+        assert [event.category + "." + event.action for event in events] == ["role.unassigned", "role.deleted"]
 
     async def test_delete_tolerates_assignments_at_unregistered_scope_kinds(
         self, session: AsyncSession, audit_events: AuditEventsFetcher
@@ -233,7 +233,7 @@ class TestRoleEvents:
         await roles.add_role_permission(role.id, "assignment.grade", session)
         await roles.add_role_permission(role.id, "assignment.grade", session)
 
-        assert [e.action for e in await audit_events()] == ["created", "permission_granted"]
+        assert [event.action for event in await audit_events()] == ["created", "permission_granted"]
 
     async def test_revoke_records_permission_revoked(
         self, session: AsyncSession, audit_events: AuditEventsFetcher
@@ -254,7 +254,7 @@ class TestRoleEvents:
         assert role.id is not None
         await roles.remove_role_permission(role.id, "assignment.grade", session)
 
-        assert [e.action for e in await audit_events()] == ["created"]
+        assert [event.action for event in await audit_events()] == ["created"]
 
 
 class TestRoleAssignmentEvents:
@@ -273,7 +273,7 @@ class TestRoleAssignmentEvents:
         await assign_role(7, "grader", GLOBAL, None, session)
         await assign_role(7, "grader", GLOBAL, None, session)
 
-        assert [e.action for e in await audit_events()] == ["created", "assigned"]
+        assert [event.action for event in await audit_events()] == ["created", "assigned"]
 
     async def test_revoke_records_unassigned(self, session: AsyncSession, audit_events: AuditEventsFetcher) -> None:
         await _role(session)
@@ -290,7 +290,7 @@ class TestRoleAssignmentEvents:
         await _role(session)
         await revoke_role(7, "grader", GLOBAL, None, session)
 
-        assert [e.action for e in await audit_events()] == ["created"]
+        assert [event.action for event in await audit_events()] == ["created"]
 
     async def test_rollback_discards_the_revocation_and_its_record(
         self, session: AsyncSession, audit_events: AuditEventsFetcher
@@ -299,10 +299,10 @@ class TestRoleAssignmentEvents:
         await assign_role(7, "grader", GLOBAL, None, session)
         await session.commit()
         await revoke_role(7, "grader", GLOBAL, None, session)
-        assert [e.action for e in await audit_events()] == ["created", "assigned", "unassigned"]
+        assert [event.action for event in await audit_events()] == ["created", "assigned", "unassigned"]
         await session.rollback()
 
-        assert [e.action for e in await audit_events()] == ["created", "assigned"]
+        assert [event.action for event in await audit_events()] == ["created", "assigned"]
         assert [a.is_deleted for a in (await session.exec(select(RoleAssignment))).all()] == [False]
 
 
@@ -334,7 +334,7 @@ class TestGroupEvents:
         await groups.update_group(group.id, None, None, session)
         await groups.update_group(group.id, "cs-staff", "CS staff", session)
 
-        assert [e.action for e in await audit_events()] == ["created"]
+        assert [event.action for event in await audit_events()] == ["created"]
 
     async def test_delete_records_deleted(self, session: AsyncSession, audit_events: AuditEventsFetcher) -> None:
         group = await _group(session)
@@ -421,7 +421,7 @@ class TestGroupEvents:
         await groups.add_group_member(7, group.id, session)
         await groups.add_group_member(7, group.id, session)
 
-        assert [e.action for e in await audit_events()] == ["created", "member_added"]
+        assert [event.action for event in await audit_events()] == ["created", "member_added"]
 
     async def test_remove_member_records_member_removed(
         self, session: AsyncSession, audit_events: AuditEventsFetcher
@@ -442,7 +442,7 @@ class TestGroupEvents:
         assert group.id is not None
         await groups.remove_group_member(7, group.id, session)
 
-        assert [e.action for e in await audit_events()] == ["created"]
+        assert [event.action for event in await audit_events()] == ["created"]
 
     async def test_assign_role_records_role_assigned(
         self, session: AsyncSession, audit_events: AuditEventsFetcher
@@ -465,7 +465,7 @@ class TestGroupEvents:
         await groups.assign_role_to_group(group.id, "grader", GLOBAL, None, session)
         await groups.assign_role_to_group(group.id, "grader", GLOBAL, None, session)
 
-        assert [(e.category, e.action) for e in await audit_events()] == [
+        assert [(event.category, event.action) for event in await audit_events()] == [
             ("role", "created"),
             ("group", "created"),
             ("group", "role_assigned"),
@@ -492,7 +492,10 @@ class TestGroupEvents:
         assert group.id is not None
         await groups.revoke_role_from_group(group.id, "grader", GLOBAL, None, session)
 
-        assert [(e.category, e.action) for e in await audit_events()] == [("role", "created"), ("group", "created")]
+        assert [(event.category, event.action) for event in await audit_events()] == [
+            ("role", "created"),
+            ("group", "created"),
+        ]
 
     async def test_rollback_discards_the_removal_and_its_record(
         self, session: AsyncSession, audit_events: AuditEventsFetcher
@@ -503,8 +506,8 @@ class TestGroupEvents:
         await groups.add_group_member(7, group_id, session)
         await session.commit()
         await groups.remove_group_member(7, group_id, session)
-        assert [e.action for e in await audit_events()] == ["created", "member_added", "member_removed"]
+        assert [event.action for event in await audit_events()] == ["created", "member_added", "member_removed"]
         await session.rollback()
 
-        assert [e.action for e in await audit_events()] == ["created", "member_added"]
+        assert [event.action for event in await audit_events()] == ["created", "member_added"]
         assert [m.is_deleted for m in (await session.exec(select(GroupMembership))).all()] == [False]
