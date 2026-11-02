@@ -1046,7 +1046,7 @@ export interface paths {
         post?: never;
         /**
          * Delete Group
-         * @description Delete a group (refused with 409 while it has active role assignments). Returns 204 No Content.
+         * @description Delete a group with its memberships, role assignments and scoped grants. Returns 204 No Content.
          */
         delete: operations["delete_group_api_v1_permissions_groups__group_id__delete"];
         options?: never;
