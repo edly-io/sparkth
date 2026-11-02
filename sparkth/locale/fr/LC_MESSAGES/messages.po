@@ -128,8 +128,8 @@ msgstr "Le rôle existe déjà : {name}"
 
 #: sparkth/core/permissions/exceptions.py:40
 #, python-brace-format
-msgid "Role cannot be deleted: {name}"
-msgstr "Le rôle ne peut pas être supprimé : {name}"
+msgid "The {name} role comes with Sparkth and can't be deleted."
+msgstr "Le rôle {name} est fourni avec Sparkth et ne peut pas être supprimé."
 
 #: sparkth/core/permissions/exceptions.py:40
 #, python-brace-format

@@ -37,7 +37,7 @@ class RoleNotDeletable(Exception):
     """Raised when deleting a role that is marked non-deletable."""
 
     def __init__(self, role_name: str) -> None:
-        super().__init__(_("Role cannot be deleted: {name}").format(name=role_name))
+        super().__init__(_("The {name} role comes with Sparkth and can't be deleted.").format(name=role_name))
         self.role_name = role_name
 
 
