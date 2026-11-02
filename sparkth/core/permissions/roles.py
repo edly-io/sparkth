@@ -11,17 +11,16 @@ from sqlalchemy import delete
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.permissions import (
-    PERMISSIONS,
-    delete_grants_at_object,
-    get_permission,
-    record_active_group_grants_removed,
-    record_active_user_grants_removed,
-)
+from sparkth.core.permissions import PERMISSIONS, get_permission
 from sparkth.core.permissions.exceptions import (
     RoleAlreadyExists,
     RoleNotDeletable,
     RoleNotFound,
+)
+from sparkth.core.permissions.grants import (
+    delete_grants_at_object,
+    record_active_group_grants_removed,
+    record_active_user_grants_removed,
 )
 from sparkth.core.permissions.models import GroupRoleAssignment, Role, RoleAssignment, RolePermission
 from sparkth.core.permissions.scopes import ROLE

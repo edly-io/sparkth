@@ -3,8 +3,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core import permissions as permissions_module
 from sparkth.core.models.user import User
+from sparkth.core.permissions import grants as grants_module
 from sparkth.core.permissions.exceptions import (
     InvalidScopeObjectId,
     PermissionNotFound,
@@ -182,7 +182,7 @@ async def test_assign_role_recovers_from_concurrent_insert(
     session.add(existing)
     await session.flush()
 
-    real_find = permissions_module._find_active_assignment
+    real_find = grants_module._find_active_assignment
     calls = {"n": 0}
 
     async def find_missing_first(
@@ -197,7 +197,7 @@ async def test_assign_role_recovers_from_concurrent_insert(
             return None  # the existence check misses, as if the concurrent row isn't visible yet
         return await real_find(user_id, role_id, permission_scope, scope_object_id, db)
 
-    monkeypatch.setattr(permissions_module, "_find_active_assignment", find_missing_first)
+    monkeypatch.setattr(grants_module, "_find_active_assignment", find_missing_first)
 
     result = await assign_role(user.id, "grader", GLOBAL, None, session)
 
