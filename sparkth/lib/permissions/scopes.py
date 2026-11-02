@@ -1,4 +1,4 @@
-from sparkth.core.permissions.scopes import GLOBAL, ROLE, WHITELIST, ObjectlessPermissionScope, PermissionScope
+from sparkth.core.permissions.scopes import GLOBAL, GROUP, ROLE, WHITELIST, ObjectlessPermissionScope, PermissionScope
 
 __all__ = [
     "PermissionScope",
@@ -6,4 +6,5 @@ __all__ = [
     "GLOBAL",
     "WHITELIST",
     "ROLE",
+    "GROUP",
 ]

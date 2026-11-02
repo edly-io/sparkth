@@ -1,9 +1,11 @@
 """Group sub-router (mounted at ``/groups``): CRUD for user groups (issue #519).
 
 Structural definition only — membership and group-role grants are CLI-managed, mirroring
-how user-role assignment is CLI-only. All endpoints authorize at the GLOBAL scope; a
-per-group delegation scope is deferred until object-bearing scope cascade exists
-(EPIC #420 Phase 2). Authored with LLM (Claude) assistance.
+how user-role assignment is CLI-only. The endpoints that address one group by ``{group_id}``
+(get/update/delete) authorize at the ``group`` scope (``require(GROUP, "group_id")``), so a
+grant can be delegated to a single group; a global grant still satisfies them via the scope
+cascade. Listing all groups and creating a group stay global. Authored with LLM (Claude)
+assistance.
 """
 
 from fastapi import APIRouter, Depends, status
@@ -14,6 +16,7 @@ from sparkth.core.permissions import groups as group_engine
 from sparkth.core.permissions.models import Group
 from sparkth.lib.db import get_async_session
 from sparkth.lib.permissions import GROUP_CREATE, GROUP_DELETE, GROUP_READ, GROUP_UPDATE
+from sparkth.lib.permissions.scopes import GROUP
 
 router = APIRouter()
 
@@ -53,7 +56,7 @@ async def create_group(payload: GroupCreate, session: AsyncSession = Depends(get
 @router.get(
     "/{group_id}",
     response_model=GroupResponse,
-    dependencies=[Depends(GROUP_READ.require_in_global_scope())],
+    dependencies=[Depends(GROUP_READ.require(GROUP, "group_id"))],
 )
 async def get_group(group_id: int, session: AsyncSession = Depends(get_async_session)) -> GroupResponse:
     """Fetch a group by id. Returns its GroupResponse (id, name, description)."""
@@ -63,7 +66,7 @@ async def get_group(group_id: int, session: AsyncSession = Depends(get_async_ses
 @router.patch(
     "/{group_id}",
     response_model=GroupResponse,
-    dependencies=[Depends(GROUP_UPDATE.require_in_global_scope())],
+    dependencies=[Depends(GROUP_UPDATE.require(GROUP, "group_id"))],
 )
 async def update_group(
     group_id: int, payload: GroupUpdate, session: AsyncSession = Depends(get_async_session)
@@ -75,7 +78,7 @@ async def update_group(
 @router.delete(
     "/{group_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(GROUP_DELETE.require_in_global_scope())],
+    dependencies=[Depends(GROUP_DELETE.require(GROUP, "group_id"))],
 )
 async def delete_group(group_id: int, session: AsyncSession = Depends(get_async_session)) -> None:
     """Delete a group (refused with 409 while it has active role assignments). Returns 204 No Content."""

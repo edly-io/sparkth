@@ -148,3 +148,9 @@ WHITELIST = ObjectlessPermissionScope.create("whitelist", parent=GLOBAL)
 # object-bearing PermissionScope (there are many roles) hanging off GLOBAL, so a GLOBAL grant
 # cascades down to it and existing global admins keep full role-management authority. See #490.
 ROLE = PermissionScope.create("role", parent=GLOBAL)
+
+# Group management is delegable per-group: a role assigned at this scope authorizes managing one
+# specific group (named by scope_object_id — the group's id), rather than every group. It is an
+# object-bearing PermissionScope hanging off GLOBAL, so a GLOBAL grant cascades down to it and
+# existing global admins keep full group-management authority.
+GROUP = PermissionScope.create("group", parent=GLOBAL)

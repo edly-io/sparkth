@@ -102,6 +102,15 @@ async def test_assign_role_object_bearing_role_scope_with_id_succeeds(cli_sessio
     assert assignment.scope_object_id == "5"
 
 
+async def test_assign_role_object_bearing_group_scope_with_id_succeeds(cli_session: AsyncSession) -> None:
+    # Delegating management of one group: --scope group --scope-object-id <group id>.
+    await _seed_user_and_role(cli_session)
+    await roles._assign_role("alice", "admin", "group", "5")
+    assignment = (await cli_session.exec(select(RoleAssignment))).one()
+    assert assignment.scope == "group"
+    assert assignment.scope_object_id == "5"
+
+
 async def test_assign_role_objectless_whitelist_scope_with_id_exits(cli_session: AsyncSession) -> None:
     await _seed_user_and_role(cli_session)
     # whitelist is objectless — passing --scope-object-id is a contradiction and must be rejected
