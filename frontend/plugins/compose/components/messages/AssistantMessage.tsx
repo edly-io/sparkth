@@ -1,6 +1,6 @@
 import { AlertCircle, Bot } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { Card } from "@/components/ui/Card";
+import { Card } from "@/lib/components/ui/Card";
 import { ChatMessage, StreamStatusPhase, TextAttachment } from "@/plugins/compose/types";
 import { Pill } from "@/plugins/compose/components/attachment/Pill";
 import { OptionsPrompt } from "@/plugins/compose/components/messages/OptionsPrompt";
