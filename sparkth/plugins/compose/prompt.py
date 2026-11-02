@@ -21,11 +21,11 @@ def render_system_prompt(agents: list[Agent]) -> str:
     substitution that varies per request. The refusal sentence is the English source constant,
     which the model is told to send in the conversation's language.
     """
-    capabilities = "\n\n".join(f"## {agent.title}\n{agent.prompt}" for agent in agents)
+    sections = "\n\n".join(f"## {agent.title}\n{agent.prompt}" for agent in agents)
     return SYSTEM_PROMPT_SKELETON.format(
         current_datetime=datetime.now(),
         refusal_message=REFUSAL_MESSAGE,
-        capabilities=capabilities,
+        capabilities=sections,
     )
 
 
@@ -37,5 +37,5 @@ def render_scope_classifier_prompt(agents: list[Agent]) -> str:
     Rendered per request from the enabled agents, so nothing depends on which plugin was
     imported first.
     """
-    listed = "\n\n".join(f'CAPABILITY "{agent.title}":\n{agent.description}' for agent in agents)
-    return MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT.format(capabilities=listed)
+    sections = "\n\n".join(f'CAPABILITY "{agent.title}":\n{agent.description}' for agent in agents)
+    return MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT.format(capabilities=sections)
