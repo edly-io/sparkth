@@ -11,7 +11,7 @@ from sqlalchemy.exc import OperationalError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.plugin import Plugin, UserPlugin
-from sparkth.lib.compose.hooks import ChatCapability
+from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
@@ -107,8 +107,8 @@ def _system_prompt(get_provider: MagicMock) -> str:
     return prompt
 
 
-def _section(capability: ChatCapability) -> str:
-    return f"## {capability.title}\n{capability.prompt}"
+def _section(agent: Agent) -> str:
+    return f"## {agent.title}\n{agent.prompt}"
 
 
 async def _turn(
@@ -131,7 +131,7 @@ async def _turn(
 
 class TestOneAssistantPerTurn:
     async def test_an_out_of_scope_message_is_refused(
-        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
     ) -> None:
         config_id = await _seed_llm_config(session, current_user.id or 1)
         conversation_uuid = await _seed_conversation(session, current_user.id or 1)
@@ -145,7 +145,7 @@ class TestOneAssistantPerTurn:
         assert response.json()["message"]["content"] == REFUSAL_MESSAGE
 
     async def test_a_message_for_another_capability_is_answered_with_every_enabled_section(
-        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
     ) -> None:
         """A message for the stub capability is answered with every enabled section."""
         config_id = await _seed_llm_config(session, current_user.id or 1)
@@ -163,10 +163,10 @@ class TestOneAssistantPerTurn:
 
         assert response.json()["message"]["content"] == "On it."
         assert _section(COURSE_DESIGN) in _system_prompt(get_provider)
-        assert _section(stub_capability) in _system_prompt(get_provider)
+        assert _section(stub_agent) in _system_prompt(get_provider)
 
     async def test_a_first_message_is_answered_with_every_enabled_section(
-        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
     ) -> None:
         config_id = await _seed_llm_config(session, current_user.id or 1)
 
@@ -181,10 +181,10 @@ class TestOneAssistantPerTurn:
             response = await _turn(client, config_id)
 
         assert response.status_code == 200
-        assert _section(stub_capability) in _system_prompt(get_provider)
+        assert _section(stub_agent) in _system_prompt(get_provider)
 
     async def test_a_conversation_continues_after_a_plugin_is_switched_off(
-        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
     ) -> None:
         """Switching a plugin off removes its section; the conversation goes on."""
         config_id = await _seed_llm_config(session, current_user.id or 1)
@@ -204,10 +204,10 @@ class TestOneAssistantPerTurn:
 
         assert response.status_code == 200
         provider.send_message.assert_awaited_once()
-        assert _section(stub_capability) not in _system_prompt(get_provider)
+        assert _section(stub_agent) not in _system_prompt(get_provider)
 
     async def test_every_requested_tool_is_bound_whatever_the_capability(
-        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
     ) -> None:
         config_id = await _seed_llm_config(session, current_user.id or 1)
         conversation_uuid = await _seed_conversation(session, current_user.id or 1)
@@ -294,14 +294,14 @@ class TestPluginSwitches:
         return _bound_tool_names(complete_turn)
 
     async def test_a_plugin_the_user_switched_off_binds_none_of_its_tools(
-        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
     ) -> None:
         bound = await self._bound_after(client, session, current_user.id or 1, True, False)
 
         assert bound == ["openedx_create_xblock"]
 
     async def test_a_plugin_the_user_switched_off_offers_no_section(
-        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
     ) -> None:
         config_id = await _seed_llm_config(session, current_user.id or 1)
         conversation_uuid = await _seed_conversation(session, current_user.id or 1)
@@ -316,25 +316,25 @@ class TestPluginSwitches:
         ):
             await _turn(client, config_id, conversation_uuid)
 
-        assert _section(stub_capability) not in _system_prompt(get_provider)
+        assert _section(stub_agent) not in _system_prompt(get_provider)
         assert _section(COURSE_DESIGN) in _system_prompt(get_provider)
 
     async def test_a_plugin_switched_off_system_wide_binds_none_of_its_tools(
-        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
     ) -> None:
         bound = await self._bound_after(client, session, current_user.id or 1, False, None)
 
         assert bound == ["openedx_create_xblock"]
 
     async def test_an_enabled_plugin_keeps_its_tools(
-        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
     ) -> None:
         bound = await self._bound_after(client, session, current_user.id or 1, True, True)
 
         assert bound == ["openedx_create_xblock", "stub_build"]
 
     async def test_a_streamed_turn_binds_the_same_filtered_tools(
-        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
     ) -> None:
         user_id = current_user.id or 1
         config_id = await _seed_llm_config(session, user_id)
@@ -381,7 +381,7 @@ class TestPluginSwitches:
         client: AsyncClient,
         current_user: User,
         session: AsyncSession,
-        stub_capability: ChatCapability,
+        stub_agent: Agent,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         config_id = await _seed_llm_config(session, current_user.id or 1)
@@ -423,14 +423,14 @@ class TestPluginSwitches:
         return complete_turn, get_provider
 
     async def test_an_lms_switched_off_system_wide_binds_none_of_its_tools(
-        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
     ) -> None:
         complete_turn, _ = await self._lms_turn(client, session, current_user.id or 1, True, True, False)
 
         assert "openedx_create_xblock" not in _bound_tool_names(complete_turn)
 
     async def test_a_plugin_the_user_switched_off_offers_no_scope(
-        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
     ) -> None:
         config_id = await _seed_llm_config(session, current_user.id or 1)
         conversation_uuid = await _seed_conversation(session, current_user.id or 1)
@@ -446,19 +446,19 @@ class TestPluginSwitches:
             await _turn(client, config_id, conversation_uuid)
 
         offered = classifier_cls.call_args.args[0]
-        assert stub_capability not in offered
+        assert stub_agent not in offered
         assert COURSE_DESIGN in offered
 
     async def test_an_enabled_plugin_contributes_its_tools_and_section(
-        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
     ) -> None:
         complete_turn, get_provider = await self._lms_turn(client, session, current_user.id or 1, True, True)
 
         assert _bound_tool_names(complete_turn) == ["openedx_create_xblock", "canvas_create_course", "stub_build"]
-        assert _section(stub_capability) in _system_prompt(get_provider)
+        assert _section(stub_agent) in _system_prompt(get_provider)
 
     async def test_no_turn_sends_lms_settings_to_the_model(
-        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_capability: ChatCapability
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
     ) -> None:
         _, get_provider = await self._lms_turn(client, session, current_user.id or 1, True, True)
 

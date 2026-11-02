@@ -65,7 +65,7 @@ asks for confirmation before calling the delete route.
 
 ## Building an activity from chat
 
-The plugin contributes its chat capability: a title, its scope and its prompt section. Its
+The plugin contributes a Compose agent: a title, a description and a prompt. Its
 contract: the author describes an activity in plain words, and the agent builds it and
 replies with a preview link that opens the activity on the Sparkth
 `/dashboard/pxc` page.
@@ -117,9 +117,9 @@ There is no rollback: an update overwrites the previous version. So before the a
 placed activity, even with a change it accepts, it tells the author that the change reaches every
 course using it and cannot be undone, and updates only after the author confirms.
 
-The capability's prompt lives in `assets/pxc_activity_builder_prompt.txt` and caps build
+The agent's prompt lives in `assets/pxc_activity_builder_prompt.txt` and caps build
 and update attempts at three. A refusal because the activity is placed does not count toward the
-cap. The contract text lives in `assets/about.txt`, and the scope the scope gate
+cap. The contract text lives in `assets/about.txt`, and the description the scope gate
 reads in `assets/pxc_activity_building_scope.txt`.
 
 ## Adding an activity

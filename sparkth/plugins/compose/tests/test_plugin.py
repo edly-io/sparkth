@@ -1,6 +1,6 @@
 """Tests for the compose plugin's declared identity and frontend metadata."""
 
-from sparkth.lib.compose.hooks import enabled_capabilities
+from sparkth.lib.compose.hooks import enabled_agents
 from sparkth.lib.frontend import (
     get_plugin_display_info,
     get_plugin_sidebar_entry,
@@ -31,9 +31,9 @@ def test_declares_frontend_metadata() -> None:
 
 
 def test_offers_course_design_and_survives_a_second_construction() -> None:
-    """The loader builds the plugin, and tests build it again; the capability is offered once."""
+    """The loader builds the plugin, and tests build it again; the agent is offered once."""
     plugin = ComposePlugin()  # noqa: F841 - keeps the weakly-keyed hook entry alive
 
-    capabilities = enabled_capabilities(set())
+    agents = enabled_agents(set())
 
-    assert capabilities.count(COURSE_DESIGN) == 1
+    assert agents.count(COURSE_DESIGN) == 1

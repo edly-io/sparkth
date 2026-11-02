@@ -1,7 +1,7 @@
 from fastapi import status
 
 from sparkth.lib.analytics import register_event_schemas, register_summary_figure
-from sparkth.lib.compose.hooks import register_chat_capability
+from sparkth.lib.compose.hooks import register_agent
 from sparkth.lib.config.hooks import CONFIG_ADAPTERS, CONFIG_SCHEMAS
 from sparkth.lib.documents import DOCUMENT_DELETED
 from sparkth.lib.exceptions.handlers import register_exception_handler
@@ -55,7 +55,7 @@ class ComposePlugin(SparkthPlugin):
         )
         SIDEBAR_ENTRIES.add_item(self, SidebarEntry(gettext_noop("Compose"), icon="plus", order=1))
         FRONTEND_APPS.add_item(self, FrontendApp())
-        register_chat_capability(self, COURSE_DESIGN)
+        register_agent(self, COURSE_DESIGN)
 
         register_event_schemas(self, events)
         for figure in SUMMARY_FIGURES_COMPOSE:

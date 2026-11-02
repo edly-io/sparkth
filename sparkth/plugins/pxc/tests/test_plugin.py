@@ -1,4 +1,4 @@
-from sparkth.lib.compose.hooks import CHAT_CAPABILITIES
+from sparkth.lib.compose.hooks import COMPOSE_AGENTS
 from sparkth.lib.frontend import plugin_has_frontend
 from sparkth.lib.frontend.hooks import DISPLAY_INFO, SIDEBAR_ENTRIES, SidebarEntry
 from sparkth.lib.mcp.hooks import MCP_TOOLS
@@ -41,12 +41,12 @@ def test_the_plugin_contributes_its_tools_under_the_pxc_category() -> None:
     }
 
 
-def test_the_plugin_registers_the_activity_capability() -> None:
+def test_the_plugin_contributes_the_activity_builder_agent() -> None:
     plugin = PxcPlugin()
 
-    capabilities = [item for owner, item in CHAT_CAPABILITIES.iter_items() if owner is plugin]
+    agents = [item for owner, item in COMPOSE_AGENTS.iter_items() if owner is plugin]
 
-    assert capabilities == [PXC_ACTIVITY_BUILDER]
+    assert agents == [PXC_ACTIVITY_BUILDER]
 
 
 def test_the_plugin_ships_a_frontend_page() -> None:

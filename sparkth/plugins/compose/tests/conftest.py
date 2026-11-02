@@ -5,11 +5,11 @@ from collections.abc import AsyncIterator, Iterator
 
 import pytest
 
-from sparkth.lib.compose.hooks import ChatCapability, register_chat_capability
+from sparkth.lib.compose.hooks import Agent, register_agent
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.plugins.compose.detached import join_live_tasks
 
-STUB_CAPABILITY = ChatCapability("Stub capability", "Stub scope text.", "STUB SECTION")
+STUB_AGENT = Agent("Stub agent", "Stub scope text.", "STUB SECTION")
 
 
 @pytest.fixture(autouse=True)
@@ -24,10 +24,10 @@ async def drain_detached_emits() -> AsyncIterator[None]:
 
 
 @pytest.fixture
-def stub_capability() -> Iterator[ChatCapability]:
-    """A second enabled capability beside course design, gone when its plugin is collected."""
+def stub_agent() -> Iterator[Agent]:
+    """A second enabled agent beside course design, gone when its plugin is collected."""
     plugin = SparkthPlugin("stub")
-    register_chat_capability(plugin, STUB_CAPABILITY)
-    yield STUB_CAPABILITY
+    register_agent(plugin, STUB_AGENT)
+    yield STUB_AGENT
     del plugin
     gc.collect()
