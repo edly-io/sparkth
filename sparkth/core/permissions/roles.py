@@ -137,7 +137,7 @@ async def delete_role(role_id: int, session: AsyncSession) -> None:
     ``group.role_revoked`` before ``role.deleted``. The role row is locked for the delete so
     concurrent assignments wait for it.
     """
-    role = await get_role(role_id, session, True)
+    role = await get_role(role_id, session, for_update=True)
     if not role.deletable:
         raise RoleNotDeletable(role.name)
     await delete_grants_at_object(ROLE, str(role_id), session)
