@@ -233,14 +233,14 @@ back to the plugin's English one.
 
 **3. Bind the types**
 
-Add a `messages.d.ts` to the plugin that extends the `PluginMessages`
+Add an `i18n/messages.d.ts` to the plugin that extends the `PluginMessages`
 interface in `lib/i18n/messages.ts` with the plugin's English catalog.
 TypeScript merges every plugin's declaration into that interface, so unknown
 keys fail the typecheck, and core names no plugin:
 
 ```ts
-// plugins/example-plugin/messages.d.ts
-import type catalog from "./messages/en.json";
+// plugins/example-plugin/i18n/messages.d.ts
+import type catalog from "@/plugins/example-plugin/messages/en.json";
 
 type Catalog = typeof catalog;
 

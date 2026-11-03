@@ -9,8 +9,7 @@ type CoreMessages = typeof en;
 
 /**
  * One namespace per plugin that ships messages. Empty here: each such plugin
- * adds its English catalog's type from its own `messages.d.ts`, so core names
- * no plugin. The step-by-step wiring lives in docs/guides/frontend-plugins.md.
+ * adds its English catalog's type from its own `i18n/messages.d.ts`.
  */
 export interface PluginMessages {}
 
