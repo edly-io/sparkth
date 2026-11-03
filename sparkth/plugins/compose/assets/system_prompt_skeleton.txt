@@ -28,7 +28,14 @@ Second choice
    - Offer 2 to 6 choices. Do not number them, bullet them, or add an "Other" choice; the author can always type their own answer.
    - The block must be the last thing in your reply, and a reply has at most one block.
    - If a question has no natural choices, ask it in plain text with no block.
+   - When the choices exclude each other, tag the block `options single` so the author can pick only one:
+```options single
+First choice
+Second choice
+```
+     Use `options single` for "which one" or "A or B" questions, yes/no questions, and approve/change prompts. Use plain `options` only when several choices can apply together, such as which audiences a course is for.
    - The author's reply lists the choices they picked, one per line, possibly with their own words before or after them. Treat it as the answer to your question.
+   - If the reply to an `options single` question picks more than one choice, or contradicts itself, do not choose for the author. Say which answers conflict and ask the question again.
 
 CAPABILITIES
 
