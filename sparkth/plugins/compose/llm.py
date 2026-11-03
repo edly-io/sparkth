@@ -291,11 +291,19 @@ async def complete_turn(
 ) -> dict[str, Any]:
     """Run one non-streamed chat turn to its end and return the model's answer.
 
-    Without tools this is the provider's plain ``send_message``. With tools the turn runs on
-    the agent in :func:`_agent_events`, and ``metadata`` lists every tool call it made.
+    Without tools this is one call to the provider's model. With tools the turn runs on the
+    agent in :func:`_agent_events`, and ``metadata`` lists every tool call it made.
     """
     if not tools:
-        return await provider.send_message(messages)
+        llm = provider.create_llm()
+        reply = await llm.ainvoke([SystemMessage(content=provider.system_prompt), *provider.convert_messages(messages)])
+        return {
+            "content": reply.content,
+            "role": "assistant",
+            "model": provider.model,
+            "tool_calls": None,
+            "metadata": {"response_metadata": reply.response_metadata, "usage_metadata": reply.usage_metadata or {}},
+        }
     tool_executions: list[dict[str, Any]] = []
     limit_reached = False
     final: AIMessage | None = None

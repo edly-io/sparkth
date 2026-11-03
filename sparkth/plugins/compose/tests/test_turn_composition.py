@@ -19,7 +19,7 @@ from sparkth.main import app
 from sparkth.plugins.compose.config import ComposeSettings, get_compose_settings
 from sparkth.plugins.compose.constants import REFUSAL_MESSAGE
 from sparkth.plugins.compose.models import Conversation
-from sparkth.plugins.compose.tests.helpers import CANVAS_CONFIG, OPENEDX_CONFIG
+from sparkth.plugins.compose.tests.helpers import CANVAS_CONFIG, OPENEDX_CONFIG, answering_model
 
 COMPLETIONS_URL = "/api/v1/compose/completions"
 
@@ -54,7 +54,7 @@ async def _seed_conversation(session: AsyncSession, user_id: int) -> str:
 def _provider() -> MagicMock:
     provider = MagicMock()
     provider.system_prompt = ""
-    provider.send_message = AsyncMock(return_value={"content": "On it.", "metadata": {}})
+    provider.create_llm.return_value = answering_model("On it.")
     return provider
 
 
@@ -201,7 +201,7 @@ class TestOneAssistantPerTurn:
             response = await _turn(client, config_id, conversation_uuid)
 
         assert response.status_code == 200
-        provider.send_message.assert_awaited_once()
+        assert response.json()["message"]["content"] == "On it."
         assert _section(stub_agent) not in _system_prompt(get_provider)
 
     async def test_every_requested_tool_is_bound_whatever_the_agent(

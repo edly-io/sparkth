@@ -24,7 +24,14 @@ from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.lib.models import User
 from sparkth.plugins.compose.detached import join_live_tasks
 from sparkth.plugins.compose.models import Conversation, ConversationAttachment
-from sparkth.plugins.compose.tests.helpers import STREAM_TURN, classifier_provider, seed_conversation, seed_llm_config
+from sparkth.plugins.compose.tests.helpers import (
+    STREAM_TURN,
+    answering_model,
+    classifier_provider,
+    failing_model,
+    seed_conversation,
+    seed_llm_config,
+)
 
 COMPLETIONS_URL = "/api/v1/compose/completions"
 _OPENAI_REQUEST = httpx.Request("POST", "https://api.openai.com/v1/chat/completions")
@@ -55,9 +62,11 @@ async def _all_payloads(analytics_session: SQLAlchemyAsyncSession) -> str:
 
 
 def _provider() -> MagicMock:
+    """A provider mock whose model answers; its ``send_message`` writes conversation titles."""
     provider = MagicMock()
     provider.model = "gpt-4o"
     provider.system_prompt = ""
+    provider.create_llm.return_value = answering_model("Outline ready.")
     provider.send_message = AsyncMock(return_value={"content": "Outline ready.", "metadata": {}})
     return provider
 
@@ -381,7 +390,7 @@ async def test_a_provider_failure_records_a_failed_turn(
     conversation_uuid = await seed_conversation(session, current_user.id or 1)
 
     provider = _provider()
-    provider.send_message = AsyncMock(side_effect=RuntimeError("upstream exploded"))
+    provider.create_llm.return_value = failing_model(RuntimeError("upstream exploded"))
 
     with (
         patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=provider),

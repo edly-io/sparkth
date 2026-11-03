@@ -313,3 +313,17 @@ async def test_closing_a_streamed_turn_without_tools_stops_reading_the_model(mon
         assert await anext(events) == {"type": "token", "content": "one "}
 
     assert reads == ["one ", "closed"]
+
+
+async def test_a_turn_without_tools_is_answered_by_the_providers_model() -> None:
+    """The model comes from ``create_llm`` like every other turn; ``send_message`` is not used."""
+    provider = MagicMock()
+    provider.model = "claude-sonnet-5"
+    provider.system_prompt = ""
+    provider.convert_messages.return_value = []
+    provider.create_llm.return_value = ScriptedChatModel(messages=iter([AIMessage(content="Plain answer.")]))
+    provider.send_message.side_effect = AssertionError("send_message is not the turn's path")
+
+    response = await complete_turn(TURN, [], provider, 50)
+
+    assert response["content"] == "Plain answer."
