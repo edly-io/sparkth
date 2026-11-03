@@ -66,18 +66,18 @@ class PermissionScope:
         path must end at the checked object, ``<this scope name>:<scope_object_id>``; any other
         leaf raises ``ValueError``.
         """
-        pairs: list[tuple[str, str | None]]
+        _scope_chain: list[tuple[str, str | None]]
         if scope_path is None:
-            pairs = [(self.name, scope_object_id)]
+            _scope_chain = [(self.name, scope_object_id)]
         else:
-            pairs = [_split_segment(segment) for segment in reversed(scope_path.split("/"))]
-            if pairs[0] != (self.name, scope_object_id):
+            _scope_chain = [_split_segment(segment) for segment in reversed(scope_path.split("/"))]
+            if _scope_chain[0] != (self.name, scope_object_id):
                 raise ValueError(
                     f"Scope path {scope_path!r} does not end at the checked object {self.name}:{scope_object_id}"
                 )
         for ancestor in self.get_parents():
-            pairs.extend(ancestor._cascade_pairs())
-        return pairs
+            _scope_chain.extend(ancestor._cascade_pairs())
+        return _scope_chain
 
     def validate_object_id(self, scope_object_id: str | None) -> None:
         """Raise ``InvalidScopeObjectId`` unless ``scope_object_id`` names an object.

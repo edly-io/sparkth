@@ -195,9 +195,9 @@ USER_READ = Permission.create("user.read")
 def _scope_clause(
     scope_column: Mapped[str],
     object_id_column: Mapped[str | None],
-    pairs: list[tuple[str, str | None]],
+    _scope_chain: list[tuple[str, str | None]],
 ) -> ColumnElement[bool]:
-    """WHERE clause matching an assignment table's (scope, object id) columns against ``pairs``,
+    """WHERE clause matching an assignment table's (scope, object id) columns against ``_scope_chain``,
     the ``(scope name, object id)`` pairs a grant may occupy to satisfy a check.
 
     The pairs are the checked scope and object, each
@@ -207,20 +207,20 @@ def _scope_clause(
     ``revoke_role``) target the exact assignment row and must NOT use this — they never
     cascade to ancestor scopes.
     """
-    return or_(*(and_(scope_column == name, object_id_column == object_id) for name, object_id in pairs))
+    return or_(*(and_(scope_column == name, object_id_column == object_id) for name, object_id in _scope_chain))
 
 
-def _user_role_ids_at_scope(user_id: int | None, pairs: list[tuple[str, str | None]]) -> SelectOfScalar[int]:
-    """Subquery of role ids the user holds via their own active assignments at any of ``pairs``."""
+def _user_role_ids_at_scope(user_id: int | None, _scope_chain: list[tuple[str, str | None]]) -> SelectOfScalar[int]:
+    """Subquery of role ids the user holds via their own active assignments at any of ``_scope_chain``."""
     return select(RoleAssignment.role_id).where(
         col(RoleAssignment.user_id) == user_id,
         col(RoleAssignment.is_deleted) == False,
-        _scope_clause(col(RoleAssignment.scope), col(RoleAssignment.scope_object_id), pairs),
+        _scope_clause(col(RoleAssignment.scope), col(RoleAssignment.scope_object_id), _scope_chain),
     )
 
 
-def _group_role_ids_at_scope(user_id: int | None, pairs: list[tuple[str, str | None]]) -> SelectOfScalar[int]:
-    """Subquery of role ids granted at any of ``pairs`` to a group the user actively belongs to."""
+def _group_role_ids_at_scope(user_id: int | None, _scope_chain: list[tuple[str, str | None]]) -> SelectOfScalar[int]:
+    """Subquery of role ids granted at any of ``_scope_chain`` to a group the user actively belongs to."""
     active_membership_group_ids = select(GroupMembership.group_id).where(
         col(GroupMembership.user_id) == user_id,
         col(GroupMembership.is_deleted) == False,
@@ -228,20 +228,20 @@ def _group_role_ids_at_scope(user_id: int | None, pairs: list[tuple[str, str | N
     return select(GroupRoleAssignment.role_id).where(
         col(GroupRoleAssignment.group_id).in_(active_membership_group_ids),
         col(GroupRoleAssignment.is_deleted) == False,
-        _scope_clause(col(GroupRoleAssignment.scope), col(GroupRoleAssignment.scope_object_id), pairs),
+        _scope_clause(col(GroupRoleAssignment.scope), col(GroupRoleAssignment.scope_object_id), _scope_chain),
     )
 
 
 def _granted_role_ids_clause(
     role_id_column: Mapped[int] | Mapped[int | None],
     user_id: int | None,
-    pairs: list[tuple[str, str | None]],
+    _scope_chain: list[tuple[str, str | None]],
 ) -> ColumnElement[bool]:
-    """Whether ``role_id_column`` is a role the user holds at any of ``pairs`` — via their own
+    """Whether ``role_id_column`` is a role the user holds at any of ``_scope_chain`` — via their own
     assignments or via an assignment to a group they actively belong to."""
     return or_(
-        role_id_column.in_(_user_role_ids_at_scope(user_id, pairs)),
-        role_id_column.in_(_group_role_ids_at_scope(user_id, pairs)),
+        role_id_column.in_(_user_role_ids_at_scope(user_id, _scope_chain)),
+        role_id_column.in_(_group_role_ids_at_scope(user_id, _scope_chain)),
     )
 
 
@@ -259,12 +259,12 @@ async def can(
     ancestor object on the path also authorizes. Without it, only the scope itself and its
     objectless ancestors do.
     """
-    pairs = permission_scope.scope_chain(scope_object_id, scope_path)
+    _scope_chain = permission_scope.scope_chain(scope_object_id, scope_path)
     statement = (
         select(RolePermission.permission)
         .where(
             RolePermission.permission == permission.name,
-            _granted_role_ids_clause(col(RolePermission.role_id), user.id, pairs),
+            _granted_role_ids_clause(col(RolePermission.role_id), user.id, _scope_chain),
         )
         .limit(1)
     )
@@ -285,12 +285,12 @@ async def has_role(
     A ``scope_path``, the materialized path of the checked object, also lets a role granted at
     an ancestor object count.
     """
-    pairs = permission_scope.scope_chain(scope_object_id, scope_path)
+    _scope_chain = permission_scope.scope_chain(scope_object_id, scope_path)
     statement = (
         select(Role.id)
         .where(
             Role.name == role_name,
-            _granted_role_ids_clause(col(Role.id), user.id, pairs),
+            _granted_role_ids_clause(col(Role.id), user.id, _scope_chain),
         )
         .limit(1)
     )
