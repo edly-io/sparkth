@@ -274,14 +274,14 @@ await assign_role(user_id, "grader", COURSE, "42", session)
 ```
 
 **Gate an endpoint on a permission** — call `.require_in_global_scope()` or
-`.require(scope, scope_param=None, object_id=None)` on the permission itself. `scope` is a
+`.require(scope, scope_param=None, scope_object_id=None)` on the permission itself. `scope` is a
 declared `PermissionScope` **object** (e.g. `GLOBAL`, `WHITELIST`, your `COURSE`), not its
-name. An objectless scope takes neither `scope_param` nor `object_id`; an object-bearing scope
+name. An objectless scope takes neither `scope_param` nor `scope_object_id`; an object-bearing scope
 takes exactly one of them, so passing both is as much an error as passing neither. A wrong
 combination raises `ValueError` at import time (a wiring error, never a silent 403).
 
 - `scope_param` names the path parameter carrying the object id.
-- `object_id` is a fixed id string, or an async FastAPI dependency returning the id as a `str`
+- `scope_object_id` is a fixed id string, or an async FastAPI dependency returning the id as a `str`
   or the loaded `ScopeableMixin` record. For a record, its `scope_path` is checked too, so a role
   granted at an ancestor object authorizes it. A record is checked at its own scope, so to
   authorize at an owner's scope the dependency returns the owner's record or id, not the
@@ -340,11 +340,11 @@ not contain `/`, since it would add path segments; `build_scope_path` raises `Va
 root-level object, whose parent scope is objectless, passes no parent path. **Moving an object
 means rewriting its path** (and the path of everything beneath it): nothing derives it later.
 
-Then gate routes with `object_id`, as a fixed string or as a dependency returning the record:
+Then gate routes with `scope_object_id`, as a fixed string or as a dependency returning the record:
 
 ```python
 # Fixed id: a plugin's routes check the grant held at plugin:grader.
-@router.get("/status", dependencies=[Depends(GRADER_USE.require(PLUGIN, object_id="grader"))])
+@router.get("/status", dependencies=[Depends(GRADER_USE.require(PLUGIN, scope_object_id="grader"))])
 async def status(): ...
 
 
@@ -356,7 +356,7 @@ async def load_course(course_id: int, session: AsyncSession = Depends(get_async_
 
 
 # The record carries its scope_path, so a grant at its org authorizes the edit.
-@router.patch("/courses/{course_id}", dependencies=[Depends(COURSE_EDIT.require(COURSE, object_id=load_course))])
+@router.patch("/courses/{course_id}", dependencies=[Depends(COURSE_EDIT.require(COURSE, scope_object_id=load_course))])
 async def edit_course(course_id: int): ...
 ```
 

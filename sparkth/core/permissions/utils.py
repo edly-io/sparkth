@@ -60,13 +60,13 @@ def _dependency_source(object_id: Callable[..., Awaitable[str | ScopeableMixin]]
 
 
 def get_scope_object_source(
-    scope_param: str | None, object_id: str | Callable[..., Awaitable[str | ScopeableMixin]] | None
+    scope_param: str | None, scope_object_id: str | Callable[..., Awaitable[str | ScopeableMixin]] | None
 ) -> ObjectSource:
     """Pick the object source for a route: the path parameter, the fixed id, the dependency, or none."""
     if scope_param is not None:
         return _path_param_source(scope_param)
-    if isinstance(object_id, str):
-        return _fixed_source(object_id)
-    if object_id is not None:
-        return _dependency_source(object_id)
+    if isinstance(scope_object_id, str):
+        return _fixed_source(scope_object_id)
+    if scope_object_id is not None:
+        return _dependency_source(scope_object_id)
     return _no_object

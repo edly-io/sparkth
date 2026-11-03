@@ -90,17 +90,19 @@ class PermissionScope:
             logger.warning("Object-bearing scope %r requires an object id", self.name)
             raise InvalidScopeObjectId(self.name, scope_object_id)
 
-    def validate_object_source(self, scope_param: str | None, object_id: object | None) -> None:
+    def validate_object_source(self, scope_param: str | None, scope_object_id: object | None) -> None:
         """Raise ``ValueError`` unless a route names exactly one source for the object id.
 
-        The source is either ``scope_param`` (a path parameter) or ``object_id`` (a fixed id or
+        The source is either ``scope_param`` (a path parameter) or ``scope_object_id`` (a fixed id or
         a dependency). Called by ``Permission.require`` at route-definition/import time so a
         misconfiguration fails fast at startup rather than as a silent per-request denial.
         """
-        if scope_param is None and object_id is None:
-            raise ValueError(f"Scope {self.name!r} is object-bearing; require() needs a scope_param or an object_id")
-        if scope_param is not None and object_id is not None:
-            raise ValueError(f"Scope {self.name!r}: pass either scope_param or object_id to require(), not both")
+        if scope_param is None and scope_object_id is None:
+            raise ValueError(
+                f"Scope {self.name!r} is object-bearing; require() needs a scope_param or a scope_object_id"
+            )
+        if scope_param is not None and scope_object_id is not None:
+            raise ValueError(f"Scope {self.name!r}: pass either scope_param or scope_object_id to require(), not both")
 
     def _cascade_pairs(self) -> list[tuple[str, str | None]]:
         """This scope's contribution to a descendant's :meth:`scope_chain` when it is an ancestor.
@@ -120,9 +122,11 @@ class ObjectlessPermissionScope(PermissionScope):
             logger.warning("Objectless scope %r was given object id %r", self.name, scope_object_id)
             raise InvalidScopeObjectId(self.name, scope_object_id)
 
-    def validate_object_source(self, scope_param: str | None, object_id: object | None) -> None:
-        if scope_param is not None or object_id is not None:
-            raise ValueError(f"Scope {self.name!r} is objectless and names no object; drop the scope_param/object_id")
+    def validate_object_source(self, scope_param: str | None, scope_object_id: object | None) -> None:
+        if scope_param is not None or scope_object_id is not None:
+            raise ValueError(
+                f"Scope {self.name!r} is objectless and names no object; drop the scope_param/scope_object_id"
+            )
 
     def _cascade_pairs(self) -> list[tuple[str, str | None]]:
         # A singleton names no object, so it cascades to every descendant with a NULL id.

@@ -129,9 +129,9 @@ async def probe() -> dict[str, bool]:
 
 
 def _object_id_client(
-    session: AsyncSession, scope: PermissionScope, object_id: Callable[..., Awaitable[str]]
+    session: AsyncSession, scope: PermissionScope, scope_object_id: Callable[..., Awaitable[str]]
 ) -> AsyncClient:
-    """A one-route app gated by ``require(scope, object_id=...)`` with the real auth dependency."""
+    """A one-route app gated by ``require(scope, scope_object_id=...)`` with the real auth dependency."""
     app = FastAPI()
 
     async def db() -> AsyncSession:
@@ -141,7 +141,7 @@ def _object_id_client(
 
     app.add_exception_handler(_QuizNotFound, not_found)
 
-    app.get("/probe", dependencies=[Depends(Permission("quiz.read").require(scope, None, object_id))])(probe)
+    app.get("/probe", dependencies=[Depends(Permission("quiz.read").require(scope, None, scope_object_id))])(probe)
     return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
 
 
