@@ -26,7 +26,7 @@ interface AssistantMessageProps {
   message: ChatMessage;
   setPreviewOpen: (open: boolean) => void;
   setPreviewAttachment: (attachment: TextAttachment | null) => void;
-  onOptionCheck: (option: string) => void;
+  onOptionCheck: (option: string, previous?: string) => void;
   isLatest: boolean;
   reply?: string;
 }
@@ -53,7 +53,7 @@ export function AssistantMessage({
     generating: t("statusGenerating"),
   };
   const displayText = message.streamedContent ?? message.content;
-  const { body, options, closed } = splitOptionsBlock(displayText);
+  const { body, options, closed, single } = splitOptionsBlock(displayText);
   const toolCalls = message.toolCalls ?? [];
   // The dots stay up for every waiting state, tools running or not, so nothing flickers as a
   // turn moves between calls; the count line above the card says what has run.
@@ -236,6 +236,7 @@ export function AssistantMessage({
             {options && (
               <OptionsPrompt
                 options={options}
+                single={single}
                 interactive={
                   isLatest &&
                   !message.isTyping &&
