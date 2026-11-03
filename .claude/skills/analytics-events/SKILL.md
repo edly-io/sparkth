@@ -17,6 +17,8 @@ timing, seam choice, batching, the testing standard — is in
 An event type is a permanent public contract. Once rows exist, dashboards and queries depend on
 the name, the fields and their meaning, and changing any of them is a versioned migration of
 everyone's saved queries. That decision is not yours.
+A new version never edits the existing schema class; it extends it, as the
+[guide's Versioning section](../../../docs/guides/analytics-events.md#versioning) describes.
 
 Never add, rename, split, merge or drop an event on your own judgement. Put a proposal to the
 developer: the event name, every field, what question it answers, and what it costs. Then wait

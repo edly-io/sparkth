@@ -440,10 +440,9 @@ class TestCollectStreamResponse:
         processor = _make_processor()
         result = await processor._collect_stream_response(MagicMock())
         assert result is not None
-        full_response, tool_calls, stopped = result
-        assert full_response == "Hello world"
-        assert tool_calls == []
-        assert stopped is False
+        assert result.text == "Hello world"
+        assert result.tool_calls == []
+        assert result.stopped is False
 
     @pytest.mark.asyncio
     async def test_collects_tool_call_names(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -456,9 +455,8 @@ class TestCollectStreamResponse:
         processor = _make_processor()
         result = await processor._collect_stream_response(MagicMock())
         assert result is not None
-        _, tool_calls, stopped = result
-        assert tool_calls == [{"name": "search_web", "failure": None}]
-        assert stopped is False
+        assert result.tool_calls == [{"name": "search_web", "failure": None}]
+        assert result.stopped is False
 
     @pytest.mark.asyncio
     async def test_returns_none_on_provider_api_error(self, monkeypatch: pytest.MonkeyPatch) -> None:

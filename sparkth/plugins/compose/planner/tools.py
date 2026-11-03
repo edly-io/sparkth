@@ -14,7 +14,8 @@ from sparkth.lib.audit.events import AuditModelInfo
 from sparkth.lib.compose.constants import REFUSE_TOOL_NAME
 from sparkth.lib.i18n import gettext
 from sparkth.plugins.compose.constants import REFUSAL_MESSAGE
-from sparkth.plugins.compose.planner.types import AgentGraph
+from sparkth.plugins.compose.enums import TurnEventType
+from sparkth.plugins.compose.planner.types import AgentGraph, TurnRouting
 
 
 class HandOff(BaseModel):
@@ -36,9 +37,14 @@ def agent_input(messages: Sequence[AnyMessage], request: str) -> list[AnyMessage
 
 
 def agent_handoff_tool(agent: AgentGraph) -> BaseTool:
-    """The planner's tool for ``agent``: it runs the agent and returns its reply as the turn's answer."""
+    """The planner's tool for ``agent``: it runs the agent and returns its reply as the turn's answer.
+
+    It reports a ``routed`` event naming the agent as it starts, so a turn stopped mid-reply is
+    still the agent's.
+    """
 
     async def hand_off(request: str, runtime: ToolRuntime[AuditModelInfo, AgentState[Any]]) -> str:
+        runtime.stream_writer({"type": TurnEventType.ROUTED, "routing": TurnRouting(agent=agent.spec.name)})
         result = await agent.graph.ainvoke(
             {"messages": agent_input(runtime.state["messages"], request)}, context=runtime.context
         )

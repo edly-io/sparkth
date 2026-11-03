@@ -211,3 +211,12 @@ threads rather than loop turns.
 ## Migrations
 
 New event types are rows in the existing `raw_events` table. **No migration.**
+
+## Versioning
+
+An event schema is open to extension and closed to editing: once rows are recorded under a version, its class never
+changes. Any change to the fields is a new version, with no migration. Add a subclass of the existing class with the
+next `version` and a `V<n>` suffix (for example `ComposeCompletionServedV2` extends `ComposeCompletionServed`), and
+give each added field a default, so a payload recorded under an earlier version is valid under the new one too. Keep
+every version registered: Explore reads each field from the versions whose schema declares it, so dropping an old
+class would hide the rows recorded under it.

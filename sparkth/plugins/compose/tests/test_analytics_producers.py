@@ -26,6 +26,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.analytics.models import raw_events
 from sparkth.lib.analytics import ingest_event as real_ingest_event
+from sparkth.lib.compose.constants import REFUSE_TOOL_NAME
 from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.llm import get_provider
@@ -35,8 +36,10 @@ from sparkth.lib.settings import get_settings
 from sparkth.lib.testing import ScriptedChatModel
 from sparkth.plugins.compose.detached import join_live_tasks
 from sparkth.plugins.compose.models import Conversation, Message
+from sparkth.plugins.compose.planner import TurnRouting
 from sparkth.plugins.compose.routes.utils.live_turns import request_stop
-from sparkth.plugins.compose.tests.helpers import STREAM_TURN, answering_model, replay_turn, routing_to
+from sparkth.plugins.compose.tests.conftest import STUB_AGENT
+from sparkth.plugins.compose.tests.helpers import STREAM_TURN, answering_model, hand_off, planning, replay_turn
 from sparkth.plugins.compose.tools import convert_mcp_to_langchain_tool
 
 COMPLETIONS_URL = "/api/v1/compose/completions"
@@ -413,6 +416,53 @@ async def test_assistant_turns_in_the_request_do_not_emit_message_sent(
     assert sent[0]["message_length"] == len("Add a consent module")
 
 
+@pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
+@pytest.mark.parametrize(
+    ("reply", "agent", "refused"),
+    [
+        (hand_off(STUB_AGENT), STUB_AGENT.name, False),
+        (AIMessage("", tool_calls=[{"name": REFUSE_TOOL_NAME, "args": {}, "id": "c1"}]), None, True),
+    ],
+    ids=["handed_off", "refused"],
+)
+@pytest.mark.usefixtures("stub_agent")
+async def test_a_completion_records_who_answered(
+    stream: bool,
+    reply: AIMessage,
+    agent: str | None,
+    refused: bool,
+    client: AsyncClient,
+    current_user: User,
+    session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
+) -> None:
+    config_id = await _seed_llm_config(session, current_user.id or 1)
+
+    with (
+        patch(
+            "sparkth.plugins.compose.routes.completions.get_provider",
+            side_effect=planning(_non_streaming_provider("Outline ready."), reply),
+        ),
+        patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_scope_cls,
+        patch("sparkth.plugins.compose.conversation_title.get_provider", return_value=_non_streaming_provider()),
+    ):
+        mock_scope_cls.return_value = _in_scope_classifier()
+        response = await client.post(
+            COMPLETIONS_URL,
+            json={
+                "llm_config_id": config_id,
+                "messages": [{"role": "user", "content": "Create a course on data privacy"}],
+                "stream": stream,
+                "tools": "none",
+            },
+        )
+        await response.aread()
+        await join_live_tasks()
+
+    (served,) = await _events(analytics_session, "compose.completion_served")
+    assert (served["agent"], served["refused"]) == (agent, refused)
+
+
 async def test_non_streaming_completion_emits_completion_served(
     client: AsyncClient,
     current_user: User,
@@ -468,6 +518,7 @@ async def test_non_streaming_tool_executions_emit_tool_invoked(
     turn = AsyncMock(
         return_value={
             "content": "Created the course run and an xblock.",
+            "routing": TurnRouting(),
             "metadata": {
                 "num_executions": 2,
                 "tool_executions": [
@@ -767,7 +818,7 @@ async def test_a_turn_stopped_mid_stream_records_where_it_stopped(
         for row in (await analytics_session.execute(sa_select(raw_events))).mappings().all()
         if row["event_type"] == "compose.completion_served"
     ]
-    assert [row["event_version"] for row in rows] == [1]
+    assert [row["event_version"] for row in rows] == [2]
     assert rows[0]["payload"]["stopped_at"] == "streaming"
 
 
@@ -982,7 +1033,10 @@ async def test_tool_invoked_records_whether_each_call_succeeded(
 
     with (
         patch.object(provider, "_create_llm", lambda streaming=False, callbacks=None: llm),
-        patch("sparkth.plugins.compose.routes.completions.get_provider", side_effect=routing_to(provider, stub_agent)),
+        patch(
+            "sparkth.plugins.compose.routes.completions.get_provider",
+            side_effect=planning(provider, hand_off(stub_agent)),
+        ),
         patch("sparkth.plugins.compose.routes.completions.resolve_tools", AsyncMock(return_value=tools)),
         patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_scope_cls,
         patch("sparkth.plugins.compose.conversation_title.get_provider", return_value=_non_streaming_provider()),

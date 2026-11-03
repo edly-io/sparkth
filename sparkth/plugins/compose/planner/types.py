@@ -15,3 +15,11 @@ class AgentGraph:
 
     spec: Agent
     graph: CompiledStateGraph[Any, AuditModelInfo, Any, Any]
+
+
+@dataclass(frozen=True)
+class TurnRouting:
+    """Who answered a turn: the agent it was handed to, if any, and whether it was refused."""
+
+    agent: str | None = None
+    refused: bool = False
