@@ -1,10 +1,9 @@
 """The out-of-scope refusal reaches the user in a language they can read.
 
-Two paths emit it and they are not symmetric. The model is handed the English source and
-told by the system prompt to send it in the language of the conversation. On the
-deterministic path — a classifier refusal streamed or persisted straight from Python — the
-backend writes the refusal sentence itself rather than a model generating it, so it renders
-under the request locale (``gettext``) rather than the conversation's language.
+Two paths emit it and they are not symmetric. An agent is handed the English source and told
+by the system prompt to send it in the language of the conversation. When Compose's planner
+refuses, the backend writes the refusal sentence itself rather than a model generating it, so
+it renders under the request locale (``gettext``) rather than the conversation's language.
 
 The shipped catalogs are detached for the test session, so the Spanish assertion injects its
 own single-message catalog rather than reading sparkth/locale/es. One class steps outside the
@@ -14,26 +13,34 @@ in those catalogs is invisible to every runtime assertion.
 
 import json
 import re
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import UUID
 
 import pytest
 from babel.messages.extract import DEFAULT_KEYWORDS, extract_from_dir
 from httpx import AsyncClient
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 import sparkth
 from sparkth.core.i18n import locale_context
-from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.i18n import gettext
-from sparkth.lib.models import LLMConfig, User
-from sparkth.lib.settings import get_settings
+from sparkth.lib.models import User
 from sparkth.lib.testing import AddTranslation
 from sparkth.plugins.compose.constants import REFUSAL_MESSAGE
 from sparkth.plugins.compose.models import Conversation
 from sparkth.plugins.compose.prompt import render_system_prompt
-from sparkth.plugins.compose.routes.utils.stream_processor import stream_out_of_scope_refusal
-from sparkth.plugins.compose.types import ConversationDocuments
+from sparkth.plugins.compose.tests.helpers import (
+    answering_model,
+    planning,
+    refusal,
+    seed_conversation,
+    seed_llm_config,
+    stored_messages,
+)
 
 SPANISH = (
     "Soy un asistente de creación de cursos y solo puedo ayudarte a diseñar y crear "
@@ -73,28 +80,18 @@ def _extraction_directory_filter(dirpath: str) -> bool:
     return Path(dirpath).name not in _EXTRACTION_SKIPPED_DIRS
 
 
-async def _seed_llm_config(session: AsyncSession, user_id: int) -> int:
-    """Create an active LLMConfig in the DB and return its id.
+def _refusing() -> Callable[..., Any]:
+    """The route's ``get_provider`` with a planner that refuses every message."""
+    provider = MagicMock()
+    provider.create_llm.return_value = answering_model("never used")
+    return planning(provider, refusal())
 
-    Mirrors the helper in test_scope_validation.py — kept local rather than imported so
-    this file stays a self-contained unit, matching test_language_inference.py's
-    convention of a private per-file seeding helper."""
-    settings = get_settings()
-    encryption = get_encryption_service(settings.ENCRYPTION_KEY)
-    llm_config = LLMConfig(
-        user_id=user_id,
-        name="test-cfg-refusal-language",
-        provider="openai",
-        model="gpt-4o",
-        encrypted_key=encryption.encrypt("sk-test"),
-        masked_key="sk-***",
-        is_active=True,
-    )
-    session.add(llm_config)
-    await session.flush()
-    llm_config_id = llm_config.id or 0
-    await session.commit()
-    return llm_config_id
+
+def _titling() -> MagicMock:
+    """A provider that writes conversation titles."""
+    provider = MagicMock()
+    provider.send_message = AsyncMock(return_value={"content": "Arithmetic", "metadata": {}})
+    return provider
 
 
 class TestRefusalIsMarked:
@@ -163,49 +160,25 @@ class TestRefusalInTheSystemPrompt:
         assert SPANISH not in prompt
 
 
-class TestRefusalAtTheStreamingRenderSite:
-    """stream_out_of_scope_refusal has no model in the loop, so it renders under the
-    request locale via gettext() rather than the conversation language."""
+class TestARefusedTurn:
+    """Compose's planner refuses by calling its refuse tool, whose sentence is rendered by the
+    backend under the request locale, on both the streamed and the non-streamed path."""
 
     @pytest.mark.asyncio
-    async def test_streamed_refusal_translates_under_a_non_default_locale(
-        self, translation_catalog: AddTranslation
-    ) -> None:
-        """Parse the SSE payload rather than substring-matching the raw chunk: json.dumps
-        escapes non-ASCII by default, so the Spanish text never appears literally on the
-        wire even when the render site is translating correctly."""
-        translation_catalog(REFUSAL_MESSAGE, SPANISH)
-        with locale_context("es"):
-            chunks = [chunk async for chunk in stream_out_of_scope_refusal()]
-        payload = json.loads(chunks[0].removeprefix("data: ").strip())
-        assert payload["content"] == SPANISH
-
-
-class TestRefusalAtTheNonStreamingRenderSites:
-    """The non-streaming branches of compose_completion render the refusal with gettext()
-    too, independently of the streaming generator covered above. Both are reached with
-    stream=False: no conversation_id takes the pre-conversation return, an existing
-    conversation_id takes the persisted-then-returned branch."""
-
-    @pytest.mark.asyncio
-    async def test_no_conversation_refusal_translates(
+    async def test_a_refused_first_message_starts_a_conversation_in_the_request_locale(
         self,
         client: AsyncClient,
         current_user: User,
         session: AsyncSession,
         translation_catalog: AddTranslation,
     ) -> None:
-        """No conversation_id + stream=False returns the refusal directly in the JSON
-        body, before any conversation is created — the earliest render site."""
         translation_catalog(REFUSAL_MESSAGE, SPANISH)
-        llm_config_id = await _seed_llm_config(session, current_user.id or 1)
+        llm_config_id = await seed_llm_config(session, current_user.id or 1)
 
         with (
             locale_context("es"),
-            patch(
-                "sparkth.plugins.compose.routes.completions.MessageScopeClassifier",
-                return_value=MagicMock(in_scope=AsyncMock(return_value=False)),
-            ),
+            patch("sparkth.plugins.compose.routes.completions.get_provider", side_effect=_refusing()),
+            patch("sparkth.plugins.compose.conversation_title.get_provider", return_value=_titling()),
         ):
             response = await client.post(
                 "/api/v1/compose/completions",
@@ -219,73 +192,41 @@ class TestRefusalAtTheNonStreamingRenderSites:
 
         assert response.status_code == 200
         assert response.json()["message"]["content"] == SPANISH
+        conversation = (
+            await session.exec(
+                select(Conversation).where(Conversation.uuid == UUID(response.json()["conversation_id"]))
+            )
+        ).one()
+        assert conversation.title == "Arithmetic"
 
     @pytest.mark.asyncio
-    async def test_existing_conversation_refusal_translates_both_persisted_and_returned(
+    async def test_a_streamed_refusal_arrives_and_is_stored_in_the_request_locale(
         self,
         client: AsyncClient,
         current_user: User,
         session: AsyncSession,
         translation_catalog: AddTranslation,
     ) -> None:
-        """An existing conversation_id + stream=False renders the refusal twice: once
-        persisted via service.add_message, once returned in the JSON body. Each call is
-        a separate gettext() invocation, so this asserts both independently rather than
-        trusting one to imply the other."""
         translation_catalog(REFUSAL_MESSAGE, SPANISH)
-        llm_config_id = await _seed_llm_config(session, current_user.id or 1)
-
-        conv = Conversation(
-            user_id=current_user.id or 1,
-            provider="openai",
-            model="gpt-4o",
-            llm_config_id=llm_config_id,
-        )
-        session.add(conv)
-        await session.flush()
-        conv_uuid = str(conv.uuid)
-        await session.commit()
-
-        mock_msg = MagicMock()
-        mock_msg.id = 99
+        llm_config_id = await seed_llm_config(session, current_user.id or 1)
+        conversation_uuid = await seed_conversation(session, current_user.id or 1)
 
         with (
             locale_context("es"),
-            patch("sparkth.plugins.compose.routes.completions.get_provider"),
-            patch(
-                "sparkth.plugins.compose.routes.completions.MessageScopeClassifier",
-                return_value=MagicMock(in_scope=AsyncMock(return_value=False)),
-            ),
-            patch(
-                "sparkth.plugins.compose.service.ComposeService.get_conversation_messages",
-                new_callable=AsyncMock,
-                return_value=[],
-            ),
-            patch(
-                "sparkth.plugins.compose.service.ComposeService.list_conversation_attachments",
-                new_callable=AsyncMock,
-                return_value=ConversationDocuments(ready=[], unusable=[]),
-            ),
-            patch(
-                "sparkth.plugins.compose.service.ComposeService.add_message",
-                new_callable=AsyncMock,
-                return_value=mock_msg,
-            ) as mock_add_msg,
+            patch("sparkth.plugins.compose.routes.completions.get_provider", side_effect=_refusing()),
         ):
             response = await client.post(
                 "/api/v1/compose/completions",
                 json={
                     "llm_config_id": llm_config_id,
                     "messages": [{"role": "user", "content": "what is 2+2?"}],
-                    "conversation_id": conv_uuid,
-                    "stream": False,
+                    "conversation_id": conversation_uuid,
+                    "stream": True,
                     "tools": "none",
                 },
             )
 
-        assert response.status_code == 200
-        assert response.json()["message"]["content"] == SPANISH
-
-        assistant_calls = [c for c in mock_add_msg.call_args_list if c.kwargs.get("role") == "assistant"]
-        assert len(assistant_calls) == 1
-        assert assistant_calls[0].kwargs["content"] == SPANISH
+        payloads = [json.loads(line.removeprefix("data: ")) for line in response.text.split("\n\n") if line.strip()]
+        assert "".join(payload.get("token", "") for payload in payloads if not payload.get("done")) == SPANISH
+        stored = await stored_messages(session, conversation_uuid)
+        assert (stored[-1].role, stored[-1].content) == ("assistant", SPANISH)

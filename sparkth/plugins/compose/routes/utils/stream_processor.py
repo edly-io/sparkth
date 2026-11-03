@@ -18,7 +18,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.db import session_scope
-from sparkth.lib.i18n import _, gettext
+from sparkth.lib.i18n import _
 from sparkth.lib.llm import BaseChatProvider
 from sparkth.lib.log import get_logger
 from sparkth.lib.rag import (
@@ -42,7 +42,7 @@ from sparkth.plugins.compose.analytics import (
     record_turn_failed,
 )
 from sparkth.plugins.compose.config import get_compose_settings
-from sparkth.plugins.compose.constants import LLM_PROVIDER_API_ERRORS, RAG_CONTEXT_PROMPT, REFUSAL_MESSAGE
+from sparkth.plugins.compose.constants import LLM_PROVIDER_API_ERRORS, RAG_CONTEXT_PROMPT
 from sparkth.plugins.compose.detached import detach
 from sparkth.plugins.compose.llm import stream_turn
 from sparkth.plugins.compose.messages import get_last_user_text
@@ -91,15 +91,6 @@ class CompletedSearch:
 
     event: ComposeRagSearchCompleted
     occurred_at: datetime
-
-
-async def stream_out_of_scope_refusal() -> AsyncGenerator[str, None]:
-    """Yield a single SSE done-event carrying the refusal sentence that ends the turn.
-
-    The sentence is written by the backend, not a model, so ``REFUSAL_MESSAGE`` renders under the
-    active request locale (``gettext``) rather than the conversation's language.
-    """
-    yield f"data: {json.dumps({'done': True, 'content': gettext(REFUSAL_MESSAGE)})}\n\n"
 
 
 def streaming_error_message(exc: Exception) -> str:

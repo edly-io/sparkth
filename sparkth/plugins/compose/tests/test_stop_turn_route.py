@@ -91,7 +91,6 @@ class TestTurnNotLeakedWhenStreamNeverStarts:
 
         with (
             patch("sparkth.plugins.compose.routes.completions.get_provider") as mock_get_provider,
-            patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_cls_cls,
             patch(
                 "sparkth.plugins.compose.service.ComposeService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -101,9 +100,6 @@ class TestTurnNotLeakedWhenStreamNeverStarts:
                 side_effect=TypeError("simulated construction failure"),
             ),
         ):
-            mock_scope = AsyncMock()
-            mock_scope.in_scope = AsyncMock(return_value=True)
-            mock_cls_cls.return_value = mock_scope
             mock_list_attachments.return_value = ConversationDocuments(ready=[], unusable=[])
 
             mock_provider = AsyncMock()
