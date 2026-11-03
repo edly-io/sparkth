@@ -94,11 +94,11 @@ class PermissionScope:
             raise InvalidScopeObjectId(self.name, scope_object_id)
 
     def validate_scope_object_source(self, scope_param: str | None, scope_object_id: object | None) -> None:
-        """Raise ``ValueError`` unless a route names exactly one source for the object id.
+        """Raise ``ValueError`` unless a route gives exactly one of ``scope_param`` and ``scope_object_id``.
 
-        The source is either ``scope_param`` (a path parameter) or ``scope_object_id`` (a fixed id or
-        a dependency). Called by ``Permission.require`` at route-definition/import time so a
-        misconfiguration fails fast at startup rather than as a silent per-request denial.
+        ``scope_param`` names a path parameter; ``scope_object_id`` is a fixed id or a dependency.
+        Called by ``Permission.require`` at route-definition/import time so a misconfiguration
+        fails fast at startup rather than as a silent per-request denial.
         """
         if scope_param is None and scope_object_id is None:
             raise ValueError(

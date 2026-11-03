@@ -20,12 +20,12 @@ _ScopeObjectSource = Callable[..., Awaitable[str | None]]
 
 
 async def _no_object() -> None:
-    """The object source of an objectless scope: no object, so no path."""
+    """The scope path dependency of an objectless scope: no object, so no path."""
     return None
 
 
 def _path_param_source(permission_scope: PermissionScope, scope_param: str) -> _ScopeObjectSource:
-    """An object source building the scope path from the route's ``scope_param`` path parameter."""
+    """A dependency building the scope path from the route's ``scope_param`` path parameter."""
 
     async def source(request: Request) -> str:
         if scope_param not in request.path_params:
@@ -41,7 +41,7 @@ def _path_param_source(permission_scope: PermissionScope, scope_param: str) -> _
 
 
 def _fixed_source(permission_scope: PermissionScope, object_id: str) -> _ScopeObjectSource:
-    """An object source building the scope path of the fixed ``object_id``."""
+    """A dependency building the scope path of the fixed ``object_id``."""
 
     async def source() -> str:
         return build_scope_path(permission_scope, object_id)
@@ -52,7 +52,7 @@ def _fixed_source(permission_scope: PermissionScope, object_id: str) -> _ScopeOb
 def _dependency_source(
     permission_scope: PermissionScope, object_id: Callable[..., Awaitable[str | ScopeObjectMixin]]
 ) -> _ScopeObjectSource:
-    """An object source wrapping the ``object_id`` dependency, which returns an id or a record."""
+    """A dependency building the scope path from what the ``object_id`` dependency returns, an id or a record."""
 
     async def source(resolved: str | ScopeObjectMixin = Depends(object_id)) -> str:
         if isinstance(resolved, str):
@@ -67,7 +67,8 @@ def get_scope_path(
     scope_param: str | None,
     scope_object_id: str | Callable[..., Awaitable[str | ScopeObjectMixin]] | None,
 ) -> _ScopeObjectSource:
-    """Pick the scope path source for a route: the path parameter, the fixed id, the dependency, or none."""
+    """Return the dependency that yields a route's scope path, built from the path parameter, the fixed id,
+    or the ``object_id`` dependency; an objectless scope has no object and so yields ``None``."""
     if scope_param is not None:
         return _path_param_source(permission_scope, scope_param)
     if isinstance(scope_object_id, str):

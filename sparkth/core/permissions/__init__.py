@@ -133,12 +133,12 @@ class Permission:
             scope_param: The route path parameter carrying the scope object id, resolved from
                 ``request.path_params`` per request. A ``scope_param`` the route does not provide
                 raises 500 (a wiring error, never a silent 403).
-            scope_object_id: Another source for the scope object id: a fixed id string, or an async
-                FastAPI dependency returning the id as a ``str`` or a ``ScopeObjectMixin`` record. For a
-                record, its ``scope_path`` is passed to the check, so a role granted at an
-                ancestor object authorizes it too. The dependency loads the record itself and
-                raises its own not-found error when it is missing, which runs after
-                authentication and before the permission check.
+            scope_object_id: The scope object id when the route has no path parameter for it: a fixed
+                id string, or an async FastAPI dependency returning the id as a ``str`` or a
+                ``ScopeObjectMixin`` record. For a record, its ``scope_path`` is passed to the
+                check, so a role granted at an ancestor object authorizes it too. The dependency
+                loads the record itself and raises its own not-found error when it is missing,
+                which runs after authentication and before the permission check.
 
         An objectless scope takes neither ``scope_param`` nor ``scope_object_id``; an object-bearing
         scope takes exactly one of them. Any other combination is a wiring error and raises
