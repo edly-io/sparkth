@@ -35,7 +35,7 @@ from sparkth.lib.testing import ScriptedChatModel
 from sparkth.plugins.compose.detached import join_live_tasks
 from sparkth.plugins.compose.models import Conversation, Message
 from sparkth.plugins.compose.routes.utils.live_turns import request_stop
-from sparkth.plugins.compose.tests.helpers import STREAM_TURN, replay_turn
+from sparkth.plugins.compose.tests.helpers import STREAM_TURN, answering_model, replay_turn
 from sparkth.plugins.compose.tools import convert_mcp_to_langchain_tool
 
 COMPLETIONS_URL = "/api/v1/compose/completions"
@@ -103,14 +103,13 @@ async def _occurred_at(analytics_session: SQLAlchemyAsyncSession, event_type: st
     return [_as_utc(row["occurred_at"]) for row in rows if row["event_type"] == event_type]
 
 
-def _non_streaming_provider(
-    content: str = "Here is your course outline.", metadata: dict[str, Any] | None = None
-) -> MagicMock:
-    """A provider mock standing in for the non-streaming send_message path."""
+def _non_streaming_provider(content: str = "Here is your course outline.") -> MagicMock:
+    """A provider mock whose model answers ``content``; its ``send_message`` writes conversation titles."""
     provider = MagicMock()
     provider.model = "gpt-4o"
     provider.system_prompt = ""
-    provider.send_message = AsyncMock(return_value={"content": content, "metadata": metadata or {}})
+    provider.create_llm.return_value = answering_model(content)
+    provider.send_message = AsyncMock(return_value={"content": content, "metadata": {}})
     return provider
 
 
@@ -465,27 +464,30 @@ async def test_non_streaming_tool_executions_emit_tool_invoked(
     """The non-streaming path reads metadata["tool_executions"], keyed "tool"."""
     config_id = await _seed_llm_config(session, current_user.id or 1)
 
-    provider = _non_streaming_provider(
-        "Created the course run and an xblock.",
-        {
-            "num_executions": 2,
-            "tool_executions": [
-                {
-                    "tool": "openedx_create_course_run",
-                    "tool_input": {"title": "Data Privacy"},
-                    "output": "course-v1:X+Y+Z",
-                },
-                {
-                    "tool": "openedx_create_xblock",
-                    "tool_input": {"category": "html"},
-                    "output": "block-v1:...",
-                },
-            ],
-        },
+    turn = AsyncMock(
+        return_value={
+            "content": "Created the course run and an xblock.",
+            "metadata": {
+                "num_executions": 2,
+                "tool_executions": [
+                    {
+                        "tool": "openedx_create_course_run",
+                        "tool_input": {"title": "Data Privacy"},
+                        "output": "course-v1:X+Y+Z",
+                    },
+                    {
+                        "tool": "openedx_create_xblock",
+                        "tool_input": {"category": "html"},
+                        "output": "block-v1:...",
+                    },
+                ],
+            },
+        }
     )
 
     with (
-        patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=provider),
+        patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_non_streaming_provider()),
+        patch("sparkth.plugins.compose.routes.completions.complete_turn", new=turn),
         patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_scope_cls,
         patch("sparkth.plugins.compose.conversation_title.get_provider", return_value=_non_streaming_provider()),
     ):

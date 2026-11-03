@@ -1,6 +1,7 @@
 """Helpers shared by the Compose plugin's tests: seeded rows, LMS configs, mocked providers and Google's errors."""
 
-from collections.abc import AsyncGenerator, Sequence
+from collections.abc import AsyncGenerator, Iterator, Sequence
+from itertools import repeat
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID
@@ -8,6 +9,7 @@ from uuid import UUID
 import aiohttp
 import pytest
 from google.genai import errors as google_genai_errors
+from langchain_core.messages import AIMessage
 from langchain_google_genai.chat_models import ChatGoogleGenerativeAIError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -15,6 +17,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.models import LLMConfig
 from sparkth.lib.settings import get_settings
+from sparkth.lib.testing import ScriptedChatModel
 from sparkth.plugins.compose.models import Conversation, Message
 
 GOOGLE_INVALID_KEY = "Invalid API key. Please check your Google API key in AI Keys."
@@ -48,6 +51,26 @@ async def replay_turn(
     """
     for event in events:
         yield event
+
+
+def answering_model(content: str, total_tokens: int | None = None) -> ScriptedChatModel:
+    """A chat model that answers every call with ``content``, reporting ``total_tokens`` when given."""
+    usage = (
+        {"input_tokens": 0, "output_tokens": total_tokens, "total_tokens": total_tokens}
+        if total_tokens is not None
+        else None
+    )
+    return ScriptedChatModel(messages=repeat(AIMessage(content=content, usage_metadata=usage)))
+
+
+def _raising(failure: Exception) -> Iterator[AIMessage]:
+    raise failure
+    yield AIMessage(content="never")
+
+
+def failing_model(failure: Exception) -> ScriptedChatModel:
+    """A chat model whose first call raises ``failure``."""
+    return ScriptedChatModel(messages=_raising(failure))
 
 
 async def seed_llm_config(session: AsyncSession, user_id: int) -> int:
