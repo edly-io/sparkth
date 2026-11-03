@@ -36,7 +36,7 @@ from sparkth.core.permissions.models import (
 )
 from sparkth.core.permissions.scopes import GLOBAL, PermissionScope
 from sparkth.core.permissions.scopes.mixins import ScopeObjectMixin
-from sparkth.core.permissions.utils import get_scope_object_source
+from sparkth.core.permissions.utils import get_scope_path
 from sparkth.lib.audit import record_event_now
 from sparkth.lib.audit.events import AuditOutcome, AuditTarget, PermissionDeniedAuditEvent
 from sparkth.lib.auth import get_current_user
@@ -93,7 +93,7 @@ class Permission:
         async def dependency(
             current_user: User = Depends(get_current_user),
             session: AsyncSession = Depends(get_async_session),
-            scope_path: str | None = Depends(get_scope_object_source(permission_scope, scope_param, scope_object_id)),
+            scope_path: str | None = Depends(get_scope_path(permission_scope, scope_param, scope_object_id)),
         ) -> User:
             if not await can(current_user, self, permission_scope, scope_path, session):
                 scope_detail = _describe_checked_scope(permission_scope, scope_path)

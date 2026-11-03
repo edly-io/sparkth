@@ -1,6 +1,6 @@
 """Where a permission check gets the scope path it checks.
 
-``get_scope_object_source`` returns the FastAPI dependency that yields the checked object's
+``get_scope_path`` returns the FastAPI dependency that yields the checked object's
 scope path for a route: built from a path parameter, a fixed id, an async dependency returning
 an id or a scope object record, or ``None`` for an objectless scope.
 """
@@ -62,7 +62,7 @@ def _dependency_source(
     return source
 
 
-def get_scope_object_source(
+def get_scope_path(
     permission_scope: PermissionScope,
     scope_param: str | None,
     scope_object_id: str | Callable[..., Awaitable[str | ScopeObjectMixin]] | None,
