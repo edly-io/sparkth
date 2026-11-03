@@ -55,16 +55,17 @@ class PermissionScope:
         return [self.parent, *self.parent.get_parents()]
 
     def scope_chain(self, scope_object_id: str | None, scope_path: str | None = None) -> list[tuple[str, str | None]]:
-        """The ``(scope name, object id)`` pairs a grant may occupy to satisfy a check at THIS
-        scope with ``scope_object_id``.
+        """The ``(scope name, object id)`` entries, leaf first, where a grant authorizes a check at this scope.
 
-        Without ``scope_path`` the chain is this scope carrying the checked id, then each
-        objectless ancestor with a ``None`` id. With a materialized ``scope_path``
-        (a path built from the scopes' ids) the chain is every ``name:id`` segment of the path, leaf
-        first, then each objectless ancestor of this scope with a ``None`` id. The read-side checks
-        match a user's active assignments against these pairs — a grant at any one authorizes. The
-        path must end at the checked object, ``<this scope name>:<scope_object_id>``; any other
-        leaf raises ``ValueError``.
+        If ``scope_path`` is set, the chain is every ``name:id`` segment of the path, then this scope's
+        objectless ancestors (id ``None``). The path must end at ``<this scope name>:<scope_object_id>``,
+        otherwise ``ValueError`` is raised. For ``quiz`` under ``course`` under ``org`` under ``global``,
+        ``quiz.scope_chain("777", "org:5/course:123/quiz:777")`` is
+        ``[("quiz", "777"), ("course", "123"), ("org", "5"), ("global", None)]``.
+
+        If ``scope_path`` is ``None``, the chain is this scope carrying ``scope_object_id``, then its
+        objectless ancestors. For the same ``quiz``, ``quiz.scope_chain("777")`` is
+        ``[("quiz", "777"), ("global", None)]``.
         """
         _scope_chain: list[tuple[str, str | None]]
         if scope_path is None:
