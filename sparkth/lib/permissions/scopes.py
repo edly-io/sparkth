@@ -5,14 +5,13 @@ from sparkth.core.permissions.scopes import (
     WHITELIST,
     ObjectlessPermissionScope,
     PermissionScope,
-    Scopeable,
-    build_scope_path,
 )
+from sparkth.core.permissions.scopes.mixins import ScopeableMixin, build_scope_path
 
 __all__ = [
     "PermissionScope",
     "ObjectlessPermissionScope",
-    "Scopeable",
+    "ScopeableMixin",
     "build_scope_path",
     "GLOBAL",
     "WHITELIST",

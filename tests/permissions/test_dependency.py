@@ -7,14 +7,15 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.user import User
 from sparkth.core.permissions.models import Role, RoleAssignment, RolePermission
-from sparkth.core.permissions.scopes import PERMISSION_SCOPES, PermissionScope, Scopeable
+from sparkth.core.permissions.scopes import PERMISSION_SCOPES, PermissionScope
+from sparkth.core.permissions.scopes.mixins import ScopeableMixin
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
 from sparkth.lib.permissions import Permission
 from sparkth.lib.permissions.scopes import GLOBAL
 
 
-class _Course(Scopeable):
+class _Course(ScopeableMixin):
     id: int
 
 

@@ -7,10 +7,9 @@ from sparkth.core.permissions.scopes import (
     GLOBAL,
     ObjectlessPermissionScope,
     PermissionScope,
-    Scopeable,
-    build_scope_path,
     get_permission_scope,
 )
+from sparkth.core.permissions.scopes.mixins import ScopeableMixin, build_scope_path
 from sparkth.lib.permissions.scopes import GROUP, ROLE, WHITELIST
 
 
@@ -170,7 +169,7 @@ def test_build_scope_path_rejects_an_id_containing_a_slash() -> None:
         build_scope_path(org, "5/course:9")
 
 
-class _Widget(Scopeable, table=True):
+class _Widget(ScopeableMixin, table=True):
     __tablename__ = "test_scopeable_widget"
     scope = PermissionScope("widget", parent=GLOBAL)
 

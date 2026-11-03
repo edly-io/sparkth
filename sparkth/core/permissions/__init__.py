@@ -34,7 +34,8 @@ from sparkth.core.permissions.models import (
     RoleAssignment,
     RolePermission,
 )
-from sparkth.core.permissions.scopes import GLOBAL, PermissionScope, Scopeable
+from sparkth.core.permissions.scopes import GLOBAL, PermissionScope
+from sparkth.core.permissions.scopes.mixins import ScopeableMixin
 from sparkth.lib.audit import record_event_now
 from sparkth.lib.audit.events import AuditOutcome, AuditTarget, PermissionDeniedAuditEvent
 from sparkth.lib.auth import get_current_user
@@ -80,10 +81,10 @@ def _fixed_source(object_id: str) -> ObjectSource:
     return source
 
 
-def _dependency_source(object_id: Callable[..., Awaitable[str | Scopeable]]) -> ObjectSource:
+def _dependency_source(object_id: Callable[..., Awaitable[str | ScopeableMixin]]) -> ObjectSource:
     """An object source wrapping the ``object_id`` dependency, which returns an id or a record."""
 
-    async def source(resolved: str | Scopeable = Depends(object_id)) -> tuple[str | None, str | None]:
+    async def source(resolved: str | ScopeableMixin = Depends(object_id)) -> tuple[str | None, str | None]:
         if isinstance(resolved, str):
             return resolved, None
         return resolved.scope_id, resolved.scope_path
@@ -92,7 +93,7 @@ def _dependency_source(object_id: Callable[..., Awaitable[str | Scopeable]]) -> 
 
 
 def _object_source(
-    scope_param: str | None, object_id: str | Callable[..., Awaitable[str | Scopeable]] | None
+    scope_param: str | None, object_id: str | Callable[..., Awaitable[str | ScopeableMixin]] | None
 ) -> ObjectSource:
     """Pick the object source for a route: the path parameter, the fixed id, the dependency, or none."""
     if scope_param is not None:
@@ -174,7 +175,7 @@ class Permission:
         self,
         permission_scope: PermissionScope,
         scope_param: str | None = None,
-        object_id: str | Callable[..., Awaitable[str | Scopeable]] | None = None,
+        object_id: str | Callable[..., Awaitable[str | ScopeableMixin]] | None = None,
     ) -> Callable[..., Awaitable[User]]:
         """Return a FastAPI dependency enforcing this permission at a scope.
 
@@ -187,7 +188,7 @@ class Permission:
                 ``request.path_params`` per request. A ``scope_param`` the route does not provide
                 raises 500 (a wiring error, never a silent 403).
             object_id: Another source for the scope object id: a fixed id string, or an async
-                FastAPI dependency returning the id as a ``str`` or a ``Scopeable`` record. For a
+                FastAPI dependency returning the id as a ``str`` or a ``ScopeableMixin`` record. For a
                 record, its ``scope_path`` is passed to the check, so a role granted at an
                 ancestor object authorizes it too. The dependency loads the record itself and
                 raises its own not-found error when it is missing, which runs after
