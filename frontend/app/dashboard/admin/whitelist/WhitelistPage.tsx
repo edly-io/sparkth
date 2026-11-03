@@ -14,9 +14,9 @@ import {
 } from "@/lib/api";
 import { Button } from "@/core/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Alert } from "@/components/ui/Alert";
+import { Alert } from "@/core/components/ui/Alert";
 import { Spinner } from "@/core/components/ui/Spinner";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { ConfirmDialog } from "@/core/components/ui/ConfirmDialog";
 
 interface WhitelistState {
   entries: WhitelistEntry[];

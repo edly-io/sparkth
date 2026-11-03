@@ -1,1 +1,1 @@
-export { Alert } from "@/components/ui/Alert";
+export { Alert } from "@/core/components/ui/Alert";

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { FolderSync, RefreshCw, Unplug } from "lucide-react";
 import { useAuth } from "@/core/auth/hooks";
 import { Button } from "@/core/components/ui/Button";
-import { Card } from "@/components/ui/Card";
+import { Card } from "@/core/components/ui/Card";
 import GoogleDriveIcon from "@/plugins/google-drive/GoogleDriveIcon";
 import {
   getAuthorizationUrl,

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { Alert } from "@/components/ui/Alert";
+import { Alert } from "@/core/components/ui/Alert";
 import { Button } from "@/core/components/ui/Button";
 import {
   Dialog,
@@ -11,7 +11,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/Dialog";
+} from "@/core/components/ui/Dialog";
 import { ApiRequestError } from "@/lib/api";
 
 /**

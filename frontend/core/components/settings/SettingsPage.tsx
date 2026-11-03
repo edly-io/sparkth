@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { Spinner } from "@/core/components/ui/Spinner";
-import { Alert } from "@/components/ui/Alert";
+import { Alert } from "@/core/components/ui/Alert";
 
 /** The shell every settings page shares: heading, loading state, load error, then the page's content. */
 export function SettingsPage({
