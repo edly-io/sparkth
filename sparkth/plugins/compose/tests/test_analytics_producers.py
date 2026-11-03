@@ -26,6 +26,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.analytics.models import raw_events
 from sparkth.lib.analytics import ingest_event as real_ingest_event
+from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.llm import get_provider
 from sparkth.lib.mcp.hooks import Tool
@@ -35,7 +36,7 @@ from sparkth.lib.testing import ScriptedChatModel
 from sparkth.plugins.compose.detached import join_live_tasks
 from sparkth.plugins.compose.models import Conversation, Message
 from sparkth.plugins.compose.routes.utils.live_turns import request_stop
-from sparkth.plugins.compose.tests.helpers import STREAM_TURN, answering_model, replay_turn
+from sparkth.plugins.compose.tests.helpers import STREAM_TURN, answering_model, replay_turn, routing_to
 from sparkth.plugins.compose.tools import convert_mcp_to_langchain_tool
 
 COMPLETIONS_URL = "/api/v1/compose/completions"
@@ -612,6 +613,7 @@ async def _stopping_mid_answer(
     tools: Sequence[Any],
     provider: Any,
     max_tool_executions: int,
+    **planner: Any,
 ) -> AsyncGenerator[dict[str, Any], None]:
     """A streamed turn whose instructor presses Stop after the first token."""
     yield {"type": "token", "content": "Half a "}
@@ -958,7 +960,9 @@ def _tool_calling_model() -> ScriptedChatModel:
         ],
     )
     usage = {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}
-    return ScriptedChatModel(messages=iter([calls, AIMessage(content="Done.", usage_metadata=usage)]))
+    return ScriptedChatModel(
+        messages=iter([calls, AIMessage(content="Done.", usage_metadata=usage)]), disable_streaming=True
+    )
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
@@ -968,6 +972,7 @@ async def test_tool_invoked_records_whether_each_call_succeeded(
     current_user: User,
     session: AsyncSession,
     analytics_session: SQLAlchemyAsyncSession,
+    stub_agent: Agent,
 ) -> None:
     """Real tools through the real provider: a success, a returned error, and a raise."""
     config_id = await _seed_llm_config(session, current_user.id or 1)
@@ -977,7 +982,7 @@ async def test_tool_invoked_records_whether_each_call_succeeded(
 
     with (
         patch.object(provider, "_create_llm", lambda streaming=False, callbacks=None: llm),
-        patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=provider),
+        patch("sparkth.plugins.compose.routes.completions.get_provider", side_effect=routing_to(provider, stub_agent)),
         patch("sparkth.plugins.compose.routes.completions.resolve_tools", AsyncMock(return_value=tools)),
         patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_scope_cls,
         patch("sparkth.plugins.compose.conversation_title.get_provider", return_value=_non_streaming_provider()),

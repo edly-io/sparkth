@@ -20,9 +20,13 @@ from sparkth.plugins.compose.detached import join_live_tasks
 from sparkth.plugins.compose.routes.utils import parse_metadata_list
 from sparkth.plugins.compose.routes.utils.stream_processor import ComposeStreamProcessor
 from sparkth.plugins.compose.schemas import ChatMessage, MessageResponse, PersistedToolCall, RagSection
-from sparkth.plugins.compose.tests.helpers import STREAM_TURN, replay_turn
+from sparkth.plugins.compose.tests.conftest import STUB_AGENT
+from sparkth.plugins.compose.tests.helpers import STREAM_TURN, handing_off_to, replay_turn
 
 HELLO_WORLD = [{"type": "token", "content": "Hello"}, {"type": "token", "content": " world"}]
+
+# The turns here are replayed, so the planner never runs.
+PLANNER = handing_off_to(STUB_AGENT)
 
 
 def _make_chunk(
@@ -112,6 +116,7 @@ async def test_status_events_emitted_before_tokens() -> None:
             1,
             MagicMock(),
             True,
+            **PLANNER,
         ).stream():
             events.append(chunk)
 
@@ -168,6 +173,7 @@ async def test_searching_documents_event_includes_legacy_file_count() -> None:
             1,
             MagicMock(),
             True,
+            **PLANNER,
         ).stream():
             events.append(chunk)
 
@@ -201,6 +207,7 @@ async def test_agent_context_injected_into_messages() -> None:
             1,
             MagicMock(),
             True,
+            **PLANNER,
         ).stream():
             pass
 
@@ -248,6 +255,7 @@ async def test_multi_document_rag_context_preserved() -> None:
             1,
             MagicMock(),
             True,
+            **PLANNER,
         ).stream():
             pass
 
@@ -271,6 +279,7 @@ async def test_no_status_events_without_document_blocks() -> None:
         _make_conversation(),
         _make_service(),
         None,
+        **PLANNER,
     ).stream():
         events.append(chunk)
 
@@ -310,6 +319,7 @@ async def test_confirmed_rag_sections_saved_as_metadata() -> None:
             1,
             MagicMock(),
             True,
+            **PLANNER,
         ).stream():
             pass
 
@@ -341,6 +351,7 @@ async def test_no_rag_sections_metadata_without_document_blocks() -> None:
         _make_conversation(),
         service,
         None,
+        **PLANNER,
     ).stream():
         pass
 
@@ -410,6 +421,7 @@ async def test_document_not_found_emits_friendly_error() -> None:
                 1,
                 MagicMock(),
                 True,
+                **PLANNER,
             ).stream()
         )
 
@@ -439,6 +451,7 @@ async def test_rag_not_ready_emits_friendly_error() -> None:
                 1,
                 MagicMock(),
                 True,
+                **PLANNER,
             ).stream()
         )
 
@@ -468,6 +481,7 @@ async def test_rag_retrieval_error_emits_friendly_error() -> None:
                 1,
                 MagicMock(),
                 True,
+                **PLANNER,
             ).stream()
         )
 
@@ -492,6 +506,7 @@ async def test_add_message_called_after_early_consumer_exit() -> None:
         _make_conversation(),
         service,
         None,
+        **PLANNER,
     ).stream()
 
     # Consume only the first event then abandon the generator
@@ -528,6 +543,7 @@ async def test_document_not_found_persists_error_to_db() -> None:
             1,
             MagicMock(),
             True,
+            **PLANNER,
         ).stream()
         async for _ in gen:
             pass
@@ -559,6 +575,7 @@ async def test_rag_not_ready_persists_error_to_db() -> None:
             1,
             MagicMock(),
             True,
+            **PLANNER,
         ).stream()
         async for _ in gen:
             pass
@@ -588,6 +605,7 @@ async def test_rag_retrieval_error_persists_error_to_db() -> None:
             1,
             MagicMock(),
             True,
+            **PLANNER,
         ).stream()
         async for _ in gen:
             pass
@@ -610,6 +628,7 @@ async def test_unexpected_error_persists_error_to_db(monkeypatch: pytest.MonkeyP
         _make_conversation(),
         service,
         None,
+        **PLANNER,
     ).stream()
     async for _ in gen:
         pass
@@ -676,6 +695,7 @@ async def test_tool_calls_saved_in_metadata(monkeypatch: pytest.MonkeyPatch) -> 
         _make_conversation(),
         service,
         None,
+        **PLANNER,
     ).stream():
         pass
     await join_live_tasks()
@@ -710,6 +730,7 @@ async def test_tool_calls_in_done_payload(monkeypatch: pytest.MonkeyPatch) -> No
         _make_conversation(),
         _make_service(),
         None,
+        **PLANNER,
     ).stream():
         if chunk.startswith("data:"):
             events.append(json.loads(chunk[5:].strip()))
@@ -732,6 +753,7 @@ async def test_no_tool_calls_metadata_without_tools() -> None:
         _make_conversation(),
         service,
         None,
+        **PLANNER,
     ).stream():
         pass
     await join_live_tasks()

@@ -22,6 +22,7 @@ from sparkth.llm.providers import (
     get_provider,
     get_provider_catalog,
     small_model_for,
+    to_langchain_messages,
 )
 from sparkth.llm.schemas import (
     LLMConfigCreate,
@@ -58,6 +59,7 @@ __all__ = [
     "get_provider",
     "get_provider_catalog",
     "small_model_for",
+    "to_langchain_messages",
 ]
 
 
