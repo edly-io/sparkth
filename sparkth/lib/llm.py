@@ -21,6 +21,7 @@ from sparkth.llm.providers import (
     BaseChatProvider,
     get_provider,
     get_provider_catalog,
+    small_model_for,
 )
 from sparkth.llm.schemas import (
     LLMConfigCreate,
@@ -56,6 +57,7 @@ __all__ = [
     "get_llm_service",
     "get_provider",
     "get_provider_catalog",
+    "small_model_for",
 ]
 
 

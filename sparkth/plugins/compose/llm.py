@@ -17,8 +17,10 @@ from langchain.agents.middleware import (
     wrap_tool_call,
 )
 from langchain.agents.middleware.tool_call_limit import ToolCallLimitState
+from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
+from langgraph.graph.state import CompiledStateGraph
 from langgraph.runtime import Runtime
 from langgraph.types import Command
 from pydantic import BaseModel, ValidationError
@@ -27,10 +29,11 @@ from sparkth.lib.audit import ToolFailureKind, tool_failure
 from sparkth.lib.audit.context import AuditSource, ai_audit_context
 from sparkth.lib.audit.events import AuditModelInfo
 from sparkth.lib.audit.exceptions import AuditCaptureError
-from sparkth.lib.i18n import _
+from sparkth.lib.i18n import gettext
 from sparkth.lib.llm import BaseChatProvider
 from sparkth.lib.log import get_logger
 from sparkth.lib.plugins import PluginConfigInvalidError, PluginNotConfiguredError
+from sparkth.plugins.compose.constants import TOOL_CALL_LIMIT_NOTICE
 
 logger = get_logger(__name__)
 
@@ -190,23 +193,18 @@ def _end_after_a_block(limit: int, state: ToolCallLimitState[Any], runtime: Runt
     if counted <= limit or not (isinstance(reply, AIMessage) and reply.tool_calls):
         return None
     logger.warning("Model asked for tools after the limit (%s); the turn ends with a notice", limit)
-    notice = _(
-        "I stopped because I reached the tool-call limit for this turn. You can send another message to continue."
-    )
-    return {"jump_to": "end", "messages": [AIMessage(content=notice)]}
+    return {"jump_to": "end", "messages": [AIMessage(content=gettext(TOOL_CALL_LIMIT_NOTICE))]}
 
 
-def _update_events(
-    node: str, update: dict[str, Any] | None, limiter: ToolCallLimitMiddleware[Any, Any]
-) -> list[dict[str, Any]]:
+def _update_events(node: str, update: dict[str, Any] | None, max_tool_executions: int) -> list[dict[str, Any]]:
     """The agent events one graph node's update stands for: blocked calls, or the closing reply.
 
-    The tool-call ``limiter`` adds messages only when it blocks calls, and each time it does it
-    is logged.
+    The tool call limiter adds messages only when it blocks calls, and each time it does it is
+    logged.
     """
     messages = (update or {}).get("messages", [])
-    if node == f"{limiter.name}.after_model" and messages:
-        logger.warning("Tool call limit (%s) reached; blocked %d call(s)", limiter.run_limit, len(messages))
+    if node == f"{ToolCallLimitMiddleware.__name__}.after_model" and messages:
+        logger.warning("Tool call limit (%s) reached; blocked %d call(s)", max_tool_executions, len(messages))
         return [{"type": "limit_reached"}]
     if node in ("model", f"{_END_HOOK}.after_model"):
         return [
@@ -242,17 +240,16 @@ async def _stream_tokens(
                 yield {"type": "token", "content": text}
 
 
-async def _agent_events(
-    messages: list[dict[str, Any]], tools: Sequence[BaseTool], provider: BaseChatProvider, max_tool_executions: int
-) -> AsyncGenerator[dict[str, Any], None]:
-    """Run a turn with tools on a LangChain agent, yielding what happens as it happens.
+def build_turn_agent(
+    llm: BaseChatModel, tools: Sequence[BaseTool], system_prompt: str, max_tool_executions: int
+) -> CompiledStateGraph[Any, AuditModelInfo, Any, Any]:
+    """Build the agent that runs a turn's tool calls, led by ``system_prompt``.
 
-    Yields ``tool_start`` and ``tool_end`` for each call, ``limit_reached`` when calls past
-    ``max_tool_executions`` were blocked, and ``final`` with the model's closing reply.
-    Calls run one at a time, in the order the model listed them, and a call reported as
-    started runs only once this generator is asked for its next event. A blocked call
-    tells the model to stop calling tools so it answers instead; a model that asks for tools
-    again after that ends the turn with a notice instead of an answer (see :func:`_end_after_a_block`).
+    Calls run one at a time, in the order the model listed them, and each reports its start and
+    end on the agent's stream (see :func:`_chat_tool_call`). Calls past ``max_tool_executions``
+    are blocked and the model is told to answer instead; a model that asks for tools again after
+    that ends the turn with a notice instead of an answer (see :func:`_end_after_a_block`). The
+    run's context is the :class:`AuditModelInfo` of the model the turn runs on.
     """
     limiter = ToolCallLimitMiddleware(run_limit=max_tool_executions, exit_behavior="continue")
     # The hook is listed after the limiter so that it runs first for each reply.
@@ -261,12 +258,24 @@ async def _agent_events(
     )
     # The run context carries the audit identity; the library middlewares never read it.
     middleware: list[AgentMiddleware[Any, Any, Any]] = [_chat_tool_call, limiter, ender]
-    agent = create_agent(provider.create_llm(), tools, middleware=middleware, context_schema=AuditModelInfo)
+    return create_agent(llm, tools, system_prompt=system_prompt, middleware=middleware, context_schema=AuditModelInfo)
+
+
+async def _agent_events(
+    messages: list[dict[str, Any]], tools: Sequence[BaseTool], provider: BaseChatProvider, max_tool_executions: int
+) -> AsyncGenerator[dict[str, Any], None]:
+    """Run a turn with tools on the agent from :func:`build_turn_agent`, yielding what happens as it happens.
+
+    Yields ``tool_start`` and ``tool_end`` for each call, ``limit_reached`` when calls past
+    ``max_tool_executions`` were blocked, and ``final`` with the model's closing reply. A call
+    reported as started runs only once this generator is asked for its next event.
+    """
+    agent = build_turn_agent(provider.create_llm(), tools, provider.system_prompt, max_tool_executions)
     # With several stream modes, each item is a (mode, chunk) pair.
     stream = cast(
         AsyncGenerator[tuple[str, Any], None],
         agent.astream(
-            {"messages": [SystemMessage(content=provider.system_prompt), *provider.convert_messages(messages)]},
+            {"messages": provider.convert_messages(messages)},
             {"max_concurrency": 1},
             context=AuditModelInfo(provider.provider_name, provider.model),
             stream_mode=["custom", "updates"],
@@ -282,7 +291,7 @@ async def _agent_events(
                     go.set()
                 continue
             for node, update in chunk.items():
-                for event in _update_events(node, update, limiter):
+                for event in _update_events(node, update, max_tool_executions):
                     yield event
 
 

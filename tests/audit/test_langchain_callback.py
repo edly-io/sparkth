@@ -16,7 +16,7 @@ from sqlalchemy.exc import OperationalError
 from sparkth.core.audit.callbacks import audit_tool_callbacks
 from sparkth.core.audit.constants import REDACTED, TOOL_INVOCATION_TARGET_TYPE
 from sparkth.lib.audit import record_event_now
-from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG, AuditToolCallbackHandler
+from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG, AUDIT_SKIP_TAG, AuditToolCallbackHandler
 from sparkth.lib.audit.context import AuditSource, ai_audit_context
 from sparkth.lib.audit.events import AuditModelInfo
 from sparkth.lib.audit.exceptions import AuditCaptureError
@@ -153,6 +153,15 @@ async def test_runs_tagged_audited_at_handler_are_skipped(audit_events: AuditEve
     chat registry's hook-wrapped handlers) carry the tag so the callback never
     double-records them."""
     result = await _tool(sample_tool, tags=[AUDIT_AT_HANDLER_TAG]).ainvoke({"course_id": 7, "title": "Algebra"})
+
+    assert result == {"course_id": 7, "title": "Algebra"}
+    assert await audit_events() == []
+
+
+async def test_runs_tagged_to_skip_are_not_recorded(audit_events: AuditEventsFetcher) -> None:
+    """Tools that act on no system, such as Compose handing a message to an agent, carry the skip
+    tag so the callback records nothing for them."""
+    result = await _tool(sample_tool, tags=[AUDIT_SKIP_TAG]).ainvoke({"course_id": 7, "title": "Algebra"})
 
     assert result == {"course_id": 7, "title": "Algebra"}
     assert await audit_events() == []

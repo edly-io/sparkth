@@ -646,7 +646,7 @@ instance.
 An `Agent` has five fields:
 
 - `name` identifies the agent: lowercase letters, digits and underscores, starting with a letter.
-  `compose` and `operator` are reserved.
+  `compose`, `operator` and `refuse` are reserved.
 - `title` is the heading the agent appears under, both in the system prompt and in the scope
   gate's list.
 - `description` is the text the scope gate judges a message against.
@@ -695,7 +695,7 @@ is harmless: the loader and a plugin's own tests each build an instance, and equ
 one. `register_agent` raises, from `sparkth.lib.compose.exceptions`:
 
 - `InvalidAgentName` for a name that breaks the pattern above;
-- `ReservedAgentName` for `compose` or `operator`;
+- `ReservedAgentName` for `compose`, `operator` or `refuse`;
 - `DuplicateAgentName` when another agent, another plugin or a registered MCP tool already holds the name;
 - `UnknownAgentTool` for a tool the plugin doesn't contribute.
 
