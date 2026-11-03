@@ -36,7 +36,7 @@ from sparkth.core.permissions.models import (
 )
 from sparkth.core.permissions.scopes import GLOBAL, PermissionScope
 from sparkth.core.permissions.scopes.mixins import ScopeObjectMixin
-from sparkth.core.permissions.utils import ObjectSource, get_scope_object_source
+from sparkth.core.permissions.utils import get_scope_object_source
 from sparkth.lib.audit import record_event_now
 from sparkth.lib.audit.events import AuditOutcome, AuditTarget, PermissionDeniedAuditEvent
 from sparkth.lib.auth import get_current_user
@@ -61,18 +61,21 @@ class Permission:
         return permission
 
     def _require_permission(
-        self, permission_scope: PermissionScope, source_dependency: ObjectSource
+        self,
+        permission_scope: PermissionScope,
+        scope_param: str | None,
+        scope_object_id: str | Callable[..., Awaitable[str | ScopeObjectMixin]] | None,
     ) -> Callable[..., Awaitable[User]]:
         """Build the FastAPI dependency enforcing this permission at ``permission_scope``.
 
-        Shared by ``require`` and ``require_in_global_scope``. FastAPI cannot inject the scope or
-        ``source_dependency`` (they are fixed when the route is declared, not per request), so this
-        returns a closure that captures them and declares only the sub-dependencies FastAPI does
-        resolve: the current user, the DB session, then ``source_dependency``. The user comes first,
-        so an unauthenticated request is refused with 401 before any object lookup runs.
+        Shared by ``require`` and ``require_in_global_scope``. FastAPI cannot inject the scope,
+        ``scope_param`` or ``scope_object_id`` (they are fixed when the route is declared, not per
+        request), so this returns a closure that captures them and declares only the
+        sub-dependencies FastAPI does resolve: the current user, the DB session, then the checked
+        object's ``(scope_object_id, scope_path)``. The user comes first, so an unauthenticated
+        request is refused with 401 before any object lookup runs.
 
-        ``source_dependency`` yields ``(scope_object_id, scope_path)`` for the checked object. The
-        dependency returns the authenticated ``User`` on success; a failed permission check
+        The dependency returns the authenticated ``User`` on success; a failed permission check
         raises 403.
 
         Before raising the 403 the refusal is recorded as a ``permission.denied`` audit event
@@ -84,13 +87,13 @@ class Permission:
         async def dependency(
             current_user: User = Depends(get_current_user),
             session: AsyncSession = Depends(get_async_session),
-            source: tuple[str | None, str | None] = Depends(source_dependency),
+            source: tuple[str | None, str | None] = Depends(get_scope_object_source(scope_param, scope_object_id)),
         ) -> User:
-            scope_object_id, scope_path = source
-            if not await can(current_user, self, permission_scope, scope_object_id, session, scope_path):
+            checked_object_id, scope_path = source
+            if not await can(current_user, self, permission_scope, checked_object_id, session, scope_path):
                 scope_detail = f"scope={permission_scope.name}"
-                if scope_object_id is not None:
-                    scope_detail += f":{scope_object_id}"
+                if checked_object_id is not None:
+                    scope_detail += f":{checked_object_id}"
                 await record_event_now(
                     PermissionDeniedAuditEvent(
                         outcome=AuditOutcome.DENIED,
@@ -109,7 +112,7 @@ class Permission:
         The dependency resolves the current user, checks the permission with no scope object
         id, returns the authenticated ``User`` on success, and raises 403 otherwise.
         """
-        return self._require_permission(GLOBAL, get_scope_object_source(None, None))
+        return self._require_permission(GLOBAL, None, None)
 
     def require(
         self,
@@ -139,7 +142,7 @@ class Permission:
         ``ValueError`` at definition time.
         """
         permission_scope.validate_object_source(scope_param, scope_object_id)
-        return self._require_permission(permission_scope, get_scope_object_source(scope_param, scope_object_id))
+        return self._require_permission(permission_scope, scope_param, scope_object_id)
 
 
 # Every permission the platform knows; Permission.create() registers each one here.
