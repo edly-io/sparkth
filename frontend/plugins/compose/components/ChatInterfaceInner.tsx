@@ -14,7 +14,7 @@ import { useAuth } from "@/lib/auth/hooks";
 import { attachDocument } from "@/plugins/compose/client";
 import { fetchLLMConfigs } from "@/lib/llm/client";
 import { usePlugin } from "@/lib/plugins/context";
-import { Alert } from "@/components/ui/Alert";
+import { Alert } from "@/lib/components/ui/Alert";
 import { useConversation } from "@/plugins/compose/hooks/useConversation";
 import { useChatStream } from "@/plugins/compose/hooks/useChatStream";
 
