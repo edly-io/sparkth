@@ -1,6 +1,6 @@
 import asyncio
 import json
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, cast
@@ -12,9 +12,11 @@ import openai
 from google.api_core import exceptions as google_exceptions
 from google.genai import errors as google_genai_errors
 from langchain_core.exceptions import LangChainException
+from langchain_core.language_models import BaseChatModel
 from langchain_google_genai.chat_models import ChatGoogleGenerativeAIError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.db import session_scope
 from sparkth.lib.i18n import _, gettext
 from sparkth.lib.llm import BaseChatProvider
@@ -204,8 +206,14 @@ class ComposeStreamProcessor:
         analytics: AnalyticsAttribution | None = None,
         turn_id: str | None = None,
         max_tool_executions: int | None = None,
+        *,
+        agents: Sequence[Agent],
+        planner_llm: BaseChatModel,
     ) -> None:
         self.provider = provider
+        # The turn's planner hands the message to one of ``agents``, running on ``planner_llm``.
+        self.agents = agents
+        self.planner_llm = planner_llm
         self.messages = messages
         self.service = service
         self.tools = tools
@@ -428,7 +436,15 @@ class ComposeStreamProcessor:
         if max_tool_executions is None:
             max_tool_executions = get_compose_settings().max_tool_executions
         try:
-            async for event in stream_turn(self.messages, self.tools or [], self.provider, max_tool_executions):
+            turn = stream_turn(
+                self.messages,
+                self.tools or [],
+                self.provider,
+                max_tool_executions,
+                agents=self.agents,
+                planner_llm=self.planner_llm,
+            )
+            async for event in turn:
                 stopping = self._stop_is_requested()
                 if stopping and event["type"] == "tool_start":
                     stopped = True

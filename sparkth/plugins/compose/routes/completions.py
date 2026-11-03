@@ -20,6 +20,7 @@ from sparkth.lib.llm import (
     LLMConfigService,
     get_llm_service,
     get_provider,
+    small_model_for,
 )
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
@@ -39,7 +40,6 @@ from sparkth.plugins.compose.conversation_title import extract_title_from_messag
 from sparkth.plugins.compose.exceptions import RAGSearchError, ScopeCheckError
 from sparkth.plugins.compose.llm import complete_turn
 from sparkth.plugins.compose.messages import get_last_user_text
-from sparkth.plugins.compose.prompt import render_system_prompt
 from sparkth.plugins.compose.routes.utils import resolve_tools
 from sparkth.plugins.compose.routes.utils.live_turns import request_stop
 from sparkth.plugins.compose.routes.utils.message_assembly import assemble_provider_messages
@@ -331,9 +331,10 @@ async def compose_completion(
             provider_name=provider_name,
             api_key=api_key,
             model=model,
-            system_prompt=render_system_prompt(agents),
             temperature=request.temperature,
         )
+        # The planner picks who answers, so it runs on the provider's smallest model.
+        planner_llm = get_provider(provider_name, api_key, small_model_for(provider_name), temperature=0).create_llm()
 
         # Only asked when there is something to search and something to search for.
         rag_search_required = False
@@ -383,6 +384,8 @@ async def compose_completion(
                 analytics=turn_analytics.attribution,
                 turn_id=turn_key,
                 max_tool_executions=config.max_tool_executions,
+                agents=agents,
+                planner_llm=planner_llm,
             )
             return StreamingResponse(
                 # The stream task outlives this response — it writes its analytics after the
@@ -391,7 +394,9 @@ async def compose_completion(
                 media_type="text/event-stream",
             )
         else:
-            response = await complete_turn(messages, tools or [], provider, config.max_tool_executions)
+            response = await complete_turn(
+                messages, tools or [], provider, config.max_tool_executions, agents=agents, planner_llm=planner_llm
+            )
 
             tokens_used = response.get("metadata", {}).get("usage_metadata", {}).get("total_tokens")
             tool_calls = response.get("tool_calls")
