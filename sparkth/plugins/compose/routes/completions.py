@@ -420,6 +420,7 @@ async def compose_completion(
                 streamed=False,
                 executed_tools=executed_tools_from(executions),
                 occurred_at=assistant_message.created_at,
+                routing=response["routing"],
             )
 
             return ChatCompletionResponse(

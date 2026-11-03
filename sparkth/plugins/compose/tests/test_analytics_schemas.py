@@ -14,12 +14,20 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import BackgroundTasks
 from pydantic import ValidationError
+from sqlalchemy.ext.asyncio import AsyncSession as SQLAlchemyAsyncSession
 
-from sparkth.lib.analytics import AnalyticsEventSchema, get_event_schema
+from sparkth.lib.analytics import (
+    AnalyticsEventSchema,
+    ExploreQuery,
+    get_event_schema,
+    ingest_event,
+    measure_raw_events,
+)
 from sparkth.lib.audit import ToolFailureKind
 from sparkth.plugins.compose.analytics import (
     AnalyticsAttribution,
     ComposeCompletionServed,
+    ComposeCompletionServedV2,
     ComposeConversationStarted,
     ComposeMessageSent,
     ComposeToolInvoked,
@@ -31,13 +39,31 @@ from sparkth.plugins.compose.analytics import (
     executed_tools_from,
 )
 from sparkth.plugins.compose.detached import join_live_tasks, live_tasks
+from sparkth.plugins.compose.planner import TurnRouting
 
 ALL_SCHEMAS = [
     ComposeConversationStarted,
     ComposeMessageSent,
     ComposeCompletionServed,
+    ComposeCompletionServedV2,
     ComposeToolInvoked,
 ]
+
+
+def _schema_id(schema: type[AnalyticsEventSchema]) -> str:
+    return f"{schema.event_type}.v{schema.version}"
+
+
+# A completion as recorded before it named who answered the turn.
+COMPLETION_V1 = {
+    "conversation_id": "abc",
+    "provider": "openai",
+    "model": "gpt-4o",
+    "streamed": True,
+    "rag_used": False,
+    "tool_call_count": 2,
+    "stopped_at": None,
+}
 
 # One fully valid payload per schema, so the extra="forbid" test can fail on the
 # unexpected key alone rather than on missing required fields.
@@ -53,18 +79,8 @@ VALID_PAYLOADS: list[tuple[type[AnalyticsEventSchema], dict[str, Any]]] = [
             "has_attachment": False,
         },
     ),
-    (
-        ComposeCompletionServed,
-        {
-            "conversation_id": "abc",
-            "provider": "openai",
-            "model": "gpt-4o",
-            "streamed": True,
-            "rag_used": False,
-            "tool_call_count": 2,
-            "stopped_at": None,
-        },
-    ),
+    (ComposeCompletionServed, COMPLETION_V1),
+    (ComposeCompletionServedV2, {**COMPLETION_V1, "agent": None, "refused": False}),
     (
         ComposeToolInvoked,
         {
@@ -78,12 +94,12 @@ VALID_PAYLOADS: list[tuple[type[AnalyticsEventSchema], dict[str, Any]]] = [
 ]
 
 
-@pytest.mark.parametrize("schema", ALL_SCHEMAS, ids=lambda s: s.event_type)
+@pytest.mark.parametrize("schema", ALL_SCHEMAS, ids=_schema_id)
 def test_schema_is_registered_under_its_own_identity(schema: type[AnalyticsEventSchema]) -> None:
     assert get_event_schema(schema.event_type, schema.version) is schema
 
 
-@pytest.mark.parametrize("schema", ALL_SCHEMAS, ids=lambda s: s.event_type)
+@pytest.mark.parametrize("schema", ALL_SCHEMAS, ids=_schema_id)
 def test_event_types_are_namespaced_compose(schema: type[AnalyticsEventSchema]) -> None:
     assert schema.event_type.startswith("compose.")
 
@@ -110,7 +126,7 @@ def test_message_sent_payload() -> None:
 
 
 def test_completion_served_payload() -> None:
-    event = ComposeCompletionServed(
+    event = ComposeCompletionServedV2(
         conversation_id="abc",
         provider="openai",
         model="gpt-4o",
@@ -118,9 +134,37 @@ def test_completion_served_payload() -> None:
         rag_used=False,
         tool_call_count=2,
         stopped_at=None,
+        agent="course_design",
+        refused=False,
     )
     assert event.streamed is True
     assert event.tool_call_count == 2
+    assert event.agent == "course_design"
+
+
+def test_a_version_1_completion_is_a_valid_version_2_completion() -> None:
+    event = ComposeCompletionServedV2.model_validate(COMPLETION_V1)
+
+    assert event.agent is None
+    assert event.refused is False
+
+
+async def test_completions_from_before_routing_are_explored_beside_new_ones(
+    analytics_session: SQLAlchemyAsyncSession,
+) -> None:
+    served = ComposeCompletionServedV2.event_type
+    await ingest_event(analytics_session, served, 1, COMPLETION_V1, occurred_at=MOMENT)
+    await ingest_event(
+        analytics_session, served, 2, {**COMPLETION_V1, "agent": "course_design", "refused": False}, occurred_at=MOMENT
+    )
+    day = MOMENT.date().isoformat()
+
+    result = await measure_raw_events(
+        analytics_session,
+        ExploreQuery.model_validate({"from": day, "to": day, "event_type": served, "group_by": "agent"}),
+    )
+
+    assert {total.group: total.value for total in result.totals} == {None: 1, "course_design": 1}
 
 
 def test_tool_invoked_payload() -> None:
@@ -136,7 +180,9 @@ def test_tool_invoked_payload() -> None:
     assert event.model_dump(mode="json")["failure_kind"] == "auth"
 
 
-@pytest.mark.parametrize(("schema", "payload"), VALID_PAYLOADS, ids=[schema.event_type for schema, _ in VALID_PAYLOADS])
+@pytest.mark.parametrize(
+    ("schema", "payload"), VALID_PAYLOADS, ids=[_schema_id(schema) for schema, _ in VALID_PAYLOADS]
+)
 def test_schemas_forbid_extra_fields(schema: type[AnalyticsEventSchema], payload: dict[str, Any]) -> None:
     """extra="forbid" on the base class stops a producer smuggling content into a payload.
 
@@ -172,6 +218,8 @@ def _completion_payload(**overrides: Any) -> dict[str, Any]:
         "rag_used": False,
         "tool_call_count": 0,
         "stopped_at": None,
+        "agent": None,
+        "refused": False,
         **overrides,
     }
 
@@ -200,25 +248,25 @@ def test_completion_served_requires_stopped_at() -> None:
     del payload["stopped_at"]
 
     with pytest.raises(ValidationError) as exc_info:
-        ComposeCompletionServed(**payload)
+        ComposeCompletionServedV2(**payload)
 
     assert [error["type"] for error in exc_info.value.errors()] == ["missing"]
 
 
 def test_completion_served_accepts_each_stop_point() -> None:
     for stop_point in StopPoint:
-        assert ComposeCompletionServed(**_completion_payload(stopped_at=stop_point)).stopped_at == stop_point
+        assert ComposeCompletionServedV2(**_completion_payload(stopped_at=stop_point)).stopped_at == stop_point
 
 
 def test_completion_served_rejects_an_unknown_stop_point() -> None:
     with pytest.raises(ValidationError):
-        ComposeCompletionServed(**_completion_payload(stopped_at="later"))
+        ComposeCompletionServedV2(**_completion_payload(stopped_at="later"))
 
 
 def test_tool_call_count_rejects_a_negative_count() -> None:
     """A producer bug must fail validation rather than silently skew aggregates."""
     with pytest.raises(ValidationError) as exc_info:
-        ComposeCompletionServed(
+        ComposeCompletionServedV2(
             conversation_id="abc",
             provider="openai",
             model="gpt-4o",
@@ -226,6 +274,8 @@ def test_tool_call_count_rejects_a_negative_count() -> None:
             rag_used=False,
             tool_call_count=-1,
             stopped_at=None,
+            agent=None,
+            refused=False,
         )
 
     assert [error["type"] for error in exc_info.value.errors()] == ["greater_than_equal"]
@@ -377,6 +427,7 @@ class TestSchedulingATurnEvent:
                     ExecutedTool("canvas_create_quiz", ToolFailureKind.UPSTREAM),
                 ],
                 occurred_at=MOMENT,
+                routing=TurnRouting(agent="course_design"),
             )
 
         emit.assert_awaited_once()
@@ -397,6 +448,8 @@ class TestSchedulingATurnEvent:
             # Derived from the tool list, so it cannot disagree with the events beside it.
             "tool_call_count": 2,
             "stopped_at": None,
+            "agent": "course_design",
+            "refused": False,
         }
         assert [event.payload["tool_name"] for event in landed[1:]] == [
             "openedx_create_xblock",
@@ -422,6 +475,7 @@ class TestSchedulingATurnEvent:
                 streamed=False,
                 executed_tools=[],
                 occurred_at=MOMENT,
+                routing=TurnRouting(refused=True),
             )
 
         emit.assert_awaited_once()

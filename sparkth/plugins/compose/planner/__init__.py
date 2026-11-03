@@ -8,6 +8,6 @@ callback skips them; the tools an agent calls are still audited.
 
 from sparkth.plugins.compose.planner.graph import build_planner, render_planner_prompt
 from sparkth.plugins.compose.planner.tools import agent_input
-from sparkth.plugins.compose.planner.types import AgentGraph
+from sparkth.plugins.compose.planner.types import AgentGraph, TurnRouting
 
-__all__ = ["AgentGraph", "agent_input", "build_planner", "render_planner_prompt"]
+__all__ = ["AgentGraph", "TurnRouting", "agent_input", "build_planner", "render_planner_prompt"]

@@ -44,9 +44,11 @@ from sparkth.plugins.compose.analytics import (
 from sparkth.plugins.compose.config import get_compose_settings
 from sparkth.plugins.compose.constants import LLM_PROVIDER_API_ERRORS, RAG_CONTEXT_PROMPT, REFUSAL_MESSAGE
 from sparkth.plugins.compose.detached import detach
+from sparkth.plugins.compose.enums import TurnEventType
 from sparkth.plugins.compose.llm import stream_turn
 from sparkth.plugins.compose.messages import get_last_user_text
 from sparkth.plugins.compose.models import Conversation
+from sparkth.plugins.compose.planner import TurnRouting
 from sparkth.plugins.compose.routes.utils.live_turns import register_turn, release_turn
 from sparkth.plugins.compose.routes.utils.rag_search import collect_document_ids
 from sparkth.plugins.compose.schemas import ChatMessage
@@ -62,12 +64,23 @@ class StreamedCompletion:
     ``occurred_at`` is the assistant message's own ``created_at`` rather than the time the
     emit runs: the emits deliberately happen after the stream has closed, so timing them
     there would place the completion later than it was. ``stopped_at`` is where the author's
-    stop landed, ``None`` for a turn that ran to the end.
+    stop landed, ``None`` for a turn that ran to the end. ``routing`` is who answered it.
     """
 
     executed_tools: list[ExecutedTool]
     occurred_at: datetime
     stopped_at: StopPoint | None
+    routing: TurnRouting
+
+
+@dataclass(frozen=True)
+class CollectedReply:
+    """What a turn streamed: its text, its tool calls, whether the author stopped it, and who answered."""
+
+    text: str
+    tool_calls: list[dict[str, Any]]
+    stopped: bool
+    routing: TurnRouting
 
 
 @dataclass(frozen=True)
@@ -418,7 +431,7 @@ class ComposeStreamProcessor:
         await self._emit_rag_section_events(confirmed_rag_sections)
         return confirmed_rag_sections
 
-    async def _collect_stream_response(self, bg_session: AsyncSession) -> tuple[str, list[dict[str, Any]], bool] | None:
+    async def _collect_stream_response(self, bg_session: AsyncSession) -> CollectedReply | None:
         """Returns None when a streaming error is handled; the error SSE and DB write are already done.
 
         The stop check reads the event *before* deciding whether to act on it. A ``tool_start``
@@ -432,6 +445,8 @@ class ComposeStreamProcessor:
         full_response = ""
         completed_tool_calls: list[dict[str, Any]] = []
         stopped = False
+        # A turn stopped before a hand-off returned has no agent.
+        routing = TurnRouting()
         max_tool_executions = self.max_tool_executions
         if max_tool_executions is None:
             max_tool_executions = get_compose_settings().max_tool_executions
@@ -446,18 +461,20 @@ class ComposeStreamProcessor:
             )
             async for event in turn:
                 stopping = self._stop_is_requested()
-                if stopping and event["type"] == "tool_start":
+                if stopping and event["type"] == TurnEventType.TOOL_START:
                     stopped = True
                     break
-                if event["type"] == "token":
+                if event["type"] == TurnEventType.ROUTED:
+                    routing = event["routing"]
+                elif event["type"] == TurnEventType.TOKEN:
                     token = event["content"]
                     full_response += token
                     await self._emit({"token": token, "done": False})
-                elif event["type"] == "tool_start":
+                elif event["type"] == TurnEventType.TOOL_START:
                     await self._emit(
                         {"status": "tool_call", "tool_name": event["name"], "tool_status": "running", "done": False}
                     )
-                elif event["type"] == "tool_end":
+                elif event["type"] == TurnEventType.TOOL_END:
                     completed_tool_calls.append({"name": event["name"], "failure": event.get("failure")})
                     await self._emit(
                         {"status": "tool_call", "tool_name": event["name"], "tool_status": "done", "done": False}
@@ -465,7 +482,7 @@ class ComposeStreamProcessor:
                 if self._stop_is_requested():
                     stopped = True
                     break
-            return full_response, completed_tool_calls, stopped
+            return CollectedReply(text=full_response, tool_calls=completed_tool_calls, stopped=stopped, routing=routing)
         except LLM_PROVIDER_API_ERRORS as e:
             logger.error("Streaming failed: %s", e)
             await self._persist_and_emit_error(
@@ -486,6 +503,7 @@ class ComposeStreamProcessor:
         completed_tool_calls: list[dict[str, Any]],
         bg_session: AsyncSession,
         stopped_at: StopPoint | None = None,
+        routing: TurnRouting = TurnRouting(),
     ) -> StreamedCompletion:
         """Persist the assistant message, emit the done SSE, and return what it completed.
 
@@ -493,7 +511,7 @@ class ComposeStreamProcessor:
         state without a separate fetch after the stream closes. ``stopped_at`` marks a turn
         that ended early because the author asked it to, so a boolean ``stopped`` is written
         into the message metadata (for a page reload to still show it) and onto the done
-        payload itself.
+        payload itself. ``routing`` is who answered the turn; nobody has before the model runs.
 
         Returns:
             The tools this completion executed and when the reply was stored, for the
@@ -547,6 +565,7 @@ class ComposeStreamProcessor:
             executed_tools=executed_tools_from(completed_tool_calls),
             occurred_at=assistant_message.created_at,
             stopped_at=stopped_at,
+            routing=routing,
         )
 
     async def _run_llm_phase(
@@ -558,16 +577,16 @@ class ComposeStreamProcessor:
 
         A completion with no executed tools is not the same thing, and is not None.
         """
-        result = await self._collect_stream_response(bg_session)
-        if result is None:
+        reply = await self._collect_stream_response(bg_session)
+        if reply is None:
             return None
-        full_response, completed_tool_calls, stopped = result
         return await self._persist_and_emit_done(
-            full_response,
+            reply.text,
             confirmed_rag_sections,
-            completed_tool_calls,
+            reply.tool_calls,
             bg_session,
-            StopPoint.STREAMING if stopped else None,
+            stopped_at=StopPoint.STREAMING if reply.stopped else None,
+            routing=reply.routing,
         )
 
     async def _run(self, bg_session: AsyncSession) -> StreamedCompletion | None:
@@ -639,6 +658,7 @@ class ComposeStreamProcessor:
                 streamed=True,
                 executed_tools=completion.executed_tools,
                 occurred_at=completion.occurred_at,
+                routing=completion.routing,
                 stopped_at=completion.stopped_at,
             )
         if self.completed_search is not None:

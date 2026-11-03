@@ -66,6 +66,19 @@ class ComposeCompletionServed(AnalyticsEventSchema):
     stopped_at: StopPoint | None
 
 
+class ComposeCompletionServedV2(ComposeCompletionServed):
+    """``compose.completion_served`` with the agent that answered the turn.
+
+    ``agent`` is the registered name of the agent that answered, ``None`` when no agent did.
+    ``refused`` is true for a refusal.
+    """
+
+    version = 2
+
+    agent: str | None = None
+    refused: bool = False
+
+
 class ToolOutcome(StrEnum):
     """Whether a tool call did what it was asked."""
 

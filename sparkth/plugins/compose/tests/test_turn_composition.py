@@ -19,7 +19,7 @@ from sparkth.main import app
 from sparkth.plugins.compose.config import ComposeSettings, get_compose_settings
 from sparkth.plugins.compose.constants import REFUSAL_MESSAGE
 from sparkth.plugins.compose.models import Conversation
-from sparkth.plugins.compose.planner import render_planner_prompt
+from sparkth.plugins.compose.planner import TurnRouting, render_planner_prompt
 from sparkth.plugins.compose.prompt import render_system_prompt
 from sparkth.plugins.compose.tests.helpers import CANVAS_CONFIG, OPENEDX_CONFIG, answering_model
 
@@ -95,7 +95,7 @@ def _lms_registry() -> MagicMock:
 
 def _turn_answer() -> AsyncMock:
     """Stands in for running a turn with tools, which a mocked provider cannot do."""
-    return AsyncMock(return_value={"content": "On it.", "metadata": {}})
+    return AsyncMock(return_value={"content": "On it.", "metadata": {}, "routing": TurnRouting()})
 
 
 def _bound_tool_names(complete_turn: AsyncMock) -> list[str]:
