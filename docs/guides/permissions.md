@@ -80,7 +80,7 @@ so a check at that quiz is satisfied by a grant at any of these, nearest first:
 quiz:777 → course:123 → org:5 → global
 ```
 
-The caller supplies the path (`can(..., scope_path=...)`, or a `ScopeableMixin` record handed to
+The caller supplies the path (`can(..., scope_path=...)`, or a `ScopeObjectMixin` record handed to
 `require()`); without one, only the scope itself and its objectless ancestors count. The path
 must end at the checked object (`quiz:777` for a check at `quiz` with id `777`); any other
 leaf raises `ValueError`. Role
@@ -282,7 +282,7 @@ combination raises `ValueError` at import time (a wiring error, never a silent 4
 
 - `scope_param` names the path parameter carrying the object id.
 - `scope_object_id` is a fixed id string, or an async FastAPI dependency returning the id as a `str`
-  or the loaded `ScopeableMixin` record. For a record, its `scope_path` is checked too, so a role
+  or the loaded `ScopeObjectMixin` record. For a record, its `scope_path` is checked too, so a role
   granted at an ancestor object authorizes it. A record is checked at its own scope, so to
   authorize at an owner's scope the dependency returns the owner's record or id, not the
   child record. The dependency raises its own not-found error
@@ -313,15 +313,15 @@ async def list_whitelist(): ...
 async def edit_course(course_id: int): ...
 ```
 
-**Make an object cascade** — a table model that is an object of a scope inherits `ScopeableMixin`,
+**Make an object cascade** — a table model that is an object of a scope inherits `ScopeObjectMixin`,
 sets its `scope`, and stores a `scope_path` built from its parent's path when it is created:
 
 ```python
 from sqlmodel import Field
-from sparkth.lib.permissions.scopes import ScopeableMixin, build_scope_path
+from sparkth.lib.permissions.scopes import ScopeObjectMixin, build_scope_path
 
 
-class Course(ScopeableMixin, table=True):
+class Course(ScopeObjectMixin, table=True):
     scope = COURSE  # the PermissionScope this model is an object of
 
     id: int | None = Field(default=None, primary_key=True)

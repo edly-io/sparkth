@@ -35,7 +35,7 @@ from sparkth.core.permissions.models import (
     RolePermission,
 )
 from sparkth.core.permissions.scopes import GLOBAL, PermissionScope
-from sparkth.core.permissions.scopes.mixins import ScopeableMixin
+from sparkth.core.permissions.scopes.mixins import ScopeObjectMixin
 from sparkth.core.permissions.utils import ObjectSource, get_scope_object_source
 from sparkth.lib.audit import record_event_now
 from sparkth.lib.audit.events import AuditOutcome, AuditTarget, PermissionDeniedAuditEvent
@@ -115,7 +115,7 @@ class Permission:
         self,
         permission_scope: PermissionScope,
         scope_param: str | None = None,
-        scope_object_id: str | Callable[..., Awaitable[str | ScopeableMixin]] | None = None,
+        scope_object_id: str | Callable[..., Awaitable[str | ScopeObjectMixin]] | None = None,
     ) -> Callable[..., Awaitable[User]]:
         """Return a FastAPI dependency enforcing this permission at a scope.
 
@@ -128,7 +128,7 @@ class Permission:
                 ``request.path_params`` per request. A ``scope_param`` the route does not provide
                 raises 500 (a wiring error, never a silent 403).
             scope_object_id: Another source for the scope object id: a fixed id string, or an async
-                FastAPI dependency returning the id as a ``str`` or a ``ScopeableMixin`` record. For a
+                FastAPI dependency returning the id as a ``str`` or a ``ScopeObjectMixin`` record. For a
                 record, its ``scope_path`` is passed to the check, so a role granted at an
                 ancestor object authorizes it too. The dependency loads the record itself and
                 raises its own not-found error when it is missing, which runs after

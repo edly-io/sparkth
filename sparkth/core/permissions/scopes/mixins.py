@@ -18,7 +18,7 @@ def build_scope_path(scope: PermissionScope, scope_id: str, parent_path: str | N
     return segment if parent_path is None else f"{parent_path}/{segment}"
 
 
-class ScopeableMixin(SQLModel):
+class ScopeObjectMixin(SQLModel):
     """Mixin for a table model that is an object of a permission scope.
 
     The adopting model sets the class-level ``scope`` and stores ``scope_path``, the

@@ -9,7 +9,7 @@ from sparkth.core.permissions.scopes import (
     PermissionScope,
     get_permission_scope,
 )
-from sparkth.core.permissions.scopes.mixins import ScopeableMixin, build_scope_path
+from sparkth.core.permissions.scopes.mixins import ScopeObjectMixin, build_scope_path
 from sparkth.lib.permissions.scopes import GROUP, ROLE, WHITELIST
 
 
@@ -169,14 +169,14 @@ def test_build_scope_path_rejects_an_id_containing_a_slash() -> None:
         build_scope_path(org, "5/course:9")
 
 
-class _Widget(ScopeableMixin, table=True):
-    __tablename__ = "test_scopeable_widget"
+class _Widget(ScopeObjectMixin, table=True):
+    __tablename__ = "test_scope_object_widget"
     scope = PermissionScope("widget", parent=GLOBAL)
 
     id: int | None = Field(default=None, primary_key=True)
 
 
-async def test_scopeable_round_trips_scope_path_and_scope_id(session: AsyncSession) -> None:
+async def test_scope_object_round_trips_scope_path_and_scope_id(session: AsyncSession) -> None:
     widget = _Widget(id=7, scope_path=build_scope_path(_Widget.scope, "7"))
     session.add(widget)
     await session.flush()

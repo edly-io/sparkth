@@ -8,14 +8,14 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.core.models.user import User
 from sparkth.core.permissions.models import Role, RoleAssignment, RolePermission
 from sparkth.core.permissions.scopes import PERMISSION_SCOPES, PermissionScope
-from sparkth.core.permissions.scopes.mixins import ScopeableMixin
+from sparkth.core.permissions.scopes.mixins import ScopeObjectMixin
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
 from sparkth.lib.permissions import Permission
 from sparkth.lib.permissions.scopes import GLOBAL
 
 
-class _Course(ScopeableMixin):
+class _Course(ScopeObjectMixin):
     id: int
 
 
@@ -209,7 +209,7 @@ async def test_require_object_id_dependency_returning_str(session: AsyncSession,
         assert (await client.get("/probe")).status_code == 403
 
 
-async def test_require_object_id_dependency_returning_scopeable_cascades(
+async def test_require_object_id_dependency_returning_a_scope_object_cascades(
     session: AsyncSession, course_scope: PermissionScope
 ) -> None:
     user = await _seed(session, "jay", None)

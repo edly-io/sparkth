@@ -2,14 +2,14 @@
 
 ``get_scope_object_source`` returns the FastAPI dependency that yields the checked object's
 ``(scope_object_id, scope_path)`` for a route: read from a path parameter, a fixed id,
-an async dependency returning an id or a scopeable record, or nothing for an objectless scope.
+an async dependency returning an id or a scope object record, or nothing for an objectless scope.
 """
 
 from collections.abc import Awaitable, Callable
 
 from fastapi import Depends, Request
 
-from sparkth.core.permissions.scopes.mixins import ScopeableMixin
+from sparkth.core.permissions.scopes.mixins import ScopeObjectMixin
 from sparkth.lib.log import get_logger
 
 logger = get_logger(__name__)
@@ -48,10 +48,10 @@ def _fixed_source(object_id: str) -> ObjectSource:
     return source
 
 
-def _dependency_source(object_id: Callable[..., Awaitable[str | ScopeableMixin]]) -> ObjectSource:
+def _dependency_source(object_id: Callable[..., Awaitable[str | ScopeObjectMixin]]) -> ObjectSource:
     """An object source wrapping the ``object_id`` dependency, which returns an id or a record."""
 
-    async def source(resolved: str | ScopeableMixin = Depends(object_id)) -> tuple[str | None, str | None]:
+    async def source(resolved: str | ScopeObjectMixin = Depends(object_id)) -> tuple[str | None, str | None]:
         if isinstance(resolved, str):
             return resolved, None
         return resolved.scope_id, resolved.scope_path
@@ -60,7 +60,7 @@ def _dependency_source(object_id: Callable[..., Awaitable[str | ScopeableMixin]]
 
 
 def get_scope_object_source(
-    scope_param: str | None, scope_object_id: str | Callable[..., Awaitable[str | ScopeableMixin]] | None
+    scope_param: str | None, scope_object_id: str | Callable[..., Awaitable[str | ScopeObjectMixin]] | None
 ) -> ObjectSource:
     """Pick the object source for a route: the path parameter, the fixed id, the dependency, or none."""
     if scope_param is not None:
