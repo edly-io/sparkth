@@ -4,21 +4,23 @@ import { Fragment, useCallback, useEffect, useRef, useState, type SubmitEvent } 
 import { ChevronDown, ChevronRight, Download, ScrollText } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import { useAuth } from "@/core/auth/hooks";
-import { usePermissionCheck } from "@/lib/permissions";
+import { usePermissionCheck } from "@/lib/permissions/usePermissionCheck";
 import { ApiRequestError } from "@/lib/api";
 import {
-  AUDIT_OUTCOMES,
-  AUDIT_SOURCES,
   exportAuditEvents,
   fetchAuditCategories,
   fetchAuditEvent,
   fetchAuditEvents,
+} from "@/lib/audit/client";
+import {
+  AUDIT_OUTCOMES,
+  AUDIT_SOURCES,
   type AuditEventRecord,
   type AuditEventSummary,
   type AuditExportFormat,
   type AuditFilters,
   type AuditOutcome,
-} from "@/lib/audit";
+} from "@/lib/audit/types";
 import { downloadBlob } from "@/lib/download";
 import { Forbidden } from "@/components/Forbidden";
 import { Spinner } from "@/core/components/ui/Spinner";

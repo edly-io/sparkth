@@ -19,7 +19,8 @@ import {
 import { usePluginContext } from "@/core/plugins/context";
 import { sidebarItemsFrom, type SidebarItem } from "./sidebarItems";
 import { resolvePluginIcon } from "@/core/components/ui/icons";
-import { GATED_NAV, NavItem } from "@/components/NavItem";
+import { GATED_NAV } from "@/components/NavItem/gatedNav";
+import { NavItem } from "@/components/NavItem/NavItem";
 import Image from "next/image";
 import { Spinner } from "@/core/components/ui/Spinner";
 import { SparkthLogo } from "@/components/SparkthLogo";

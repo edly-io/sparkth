@@ -29,9 +29,8 @@ import {
   rotateLLMConfigKey,
   setLLMConfigActive,
   updateLLMConfig,
-  type LLMConfig,
-  type ProviderInfo,
-} from "@/lib/llm";
+} from "@/lib/llm/client";
+import type { LLMConfig, ProviderInfo } from "@/lib/llm/types";
 
 // ─── Edit Modal ───────────────────────────────────────────────────────────────
 

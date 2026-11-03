@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import { ChartColumn, ScrollText, Shield } from "lucide-react";
-import { checkPermission, type PermissionName } from "@/lib/permissions";
+import { checkPermission } from "@/lib/permissions/client";
+import type { PermissionName } from "@/lib/permissions/types";
 
 export interface GatedNavItem {
   key: string; // stable id; also the navPermissions map key

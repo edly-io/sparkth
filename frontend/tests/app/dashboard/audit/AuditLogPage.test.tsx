@@ -14,8 +14,8 @@ const audit = vi.hoisted(() => ({
   fetchAuditCategories: vi.fn(),
   exportAuditEvents: vi.fn(),
 }));
-vi.mock("@/lib/audit", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/audit")>()),
+vi.mock("@/lib/audit/client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/audit/client")>()),
   ...audit,
 }));
 const downloadBlob = vi.hoisted(() => vi.fn());
