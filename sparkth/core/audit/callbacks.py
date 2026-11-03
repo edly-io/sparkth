@@ -18,7 +18,9 @@ surfaces and the missing outcome event stays the abnormal-termination signal.
 
 Tools whose executions are already recorded at the handler level (the chat
 registry's hook-wrapped handlers) carry :data:`AUDIT_AT_HANDLER_TAG` in their
-``tags`` so their runs are skipped and never double-recorded.
+``tags`` so their runs are skipped and never double-recorded. Tools that act on no
+system (Compose handing a message to one of its agents) carry :data:`AUDIT_SKIP_TAG`;
+the tools those agents call are still recorded.
 
 In-flight run tracking is bounded: a run cancelled between callbacks never
 gets a terminal callback (LangChain fires ``on_tool_error`` only for
@@ -52,6 +54,9 @@ logger = get_logger(__name__)
 # Marks a LangChain tool whose executions are already recorded at the handler
 # level, so the callback must not record its runs a second time.
 AUDIT_AT_HANDLER_TAG = "sparkth:audited-at-handler"
+
+# Marks a LangChain tool that acts on no system, so the callback records nothing for it.
+AUDIT_SKIP_TAG = "sparkth:audit-skip"
 
 
 @dataclass(frozen=True)
@@ -87,7 +92,7 @@ class AuditToolCallbackHandler(AsyncCallbackHandler):
         inputs: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> None:
-        if tags and AUDIT_AT_HANDLER_TAG in tags:
+        if tags and (AUDIT_AT_HANDLER_TAG in tags or AUDIT_SKIP_TAG in tags):
             return
 
         name = serialized.get("name", "unknown")

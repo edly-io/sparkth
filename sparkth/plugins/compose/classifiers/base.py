@@ -19,30 +19,11 @@ from langchain_core.exceptions import LangChainException
 from langchain_core.messages import BaseMessage, SystemMessage
 from pydantic import BaseModel, ValidationError
 
-from sparkth.lib.llm import get_provider
+from sparkth.lib.llm import get_provider, small_model_for
 from sparkth.plugins.compose.exceptions import ClassifierError
 
 InputT = TypeVar("InputT", bound=BaseModel)
 OutputT = TypeVar("OutputT", bound=BaseModel)
-
-# Smallest capable model per provider, keyed by the provider names an LLMConfig can carry.
-SMALL_MODELS: dict[str, str] = {
-    "openai": "gpt-4o-mini",
-    "anthropic": "claude-haiku-4-5",
-    "google": "gemini-2.0-flash",
-}
-
-
-def small_model_for(provider_name: str) -> str:
-    """Return the smallest classification model registered for ``provider_name``.
-
-    Raises:
-        ValueError: no small model is registered for that provider.
-    """
-    model = SMALL_MODELS.get(provider_name)
-    if model is None:
-        raise ValueError(f"Unsupported provider for classifier: {provider_name!r}")
-    return model
 
 
 class BaseClassifier(ABC, Generic[InputT, OutputT]):

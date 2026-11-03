@@ -155,12 +155,20 @@ PROVIDER_MODELS: dict[str, list[str]] = {
     ],
 }
 
+# Smallest capable model per provider, for quick calls such as classifying or routing a message.
+SMALL_MODELS: dict[str, str] = {
+    "openai": "gpt-4o-mini",
+    "anthropic": "claude-haiku-4-5",
+    "google": "gemini-2.0-flash",
+}
+
 _registry_only = set(PROVIDER_REGISTRY) - set(PROVIDER_MODELS)
 _models_only = set(PROVIDER_MODELS) - set(PROVIDER_REGISTRY)
-if _registry_only or _models_only:
+_without_small_model = set(PROVIDER_REGISTRY) - set(SMALL_MODELS)
+if _registry_only or _models_only or _without_small_model:
     raise ValueError(
-        f"PROVIDER_REGISTRY and PROVIDER_MODELS are out of sync. "
-        f"Registry only: {_registry_only}, Models only: {_models_only}"
+        f"PROVIDER_REGISTRY, PROVIDER_MODELS and SMALL_MODELS are out of sync. Registry only: {_registry_only}, "
+        f"Models only: {_models_only}, No small model: {_without_small_model}"
     )
 
 
@@ -180,6 +188,18 @@ def get_provider(
         raise ValueError(f"Unsupported provider: {provider_name}. Supported providers: {supported}")
 
     return provider_class(api_key, model, system_prompt, temperature, max_retries)
+
+
+def small_model_for(provider_name: str) -> str:
+    """Return the smallest model registered for ``provider_name``.
+
+    Raises:
+        ValueError: no small model is registered for that provider.
+    """
+    model = SMALL_MODELS.get(provider_name)
+    if model is None:
+        raise ValueError(f"Unsupported provider for a small model: {provider_name!r}")
+    return model
 
 
 def get_supported_providers() -> list[str]:

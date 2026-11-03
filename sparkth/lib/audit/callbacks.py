@@ -9,12 +9,14 @@ not pull in LangChain.
 
 ``AUDIT_AT_HANDLER_TAG`` marks a LangChain tool whose executions are already
 recorded at the handler level (a hook-wrapped ``Tool.handler``); tag such
-tools so their runs are never double-recorded.
+tools so their runs are never double-recorded. ``AUDIT_SKIP_TAG`` marks a tool
+that acts on no system, such as a hand-off to an agent, so nothing is recorded.
 """
 
-from sparkth.core.audit.callbacks import AUDIT_AT_HANDLER_TAG, AuditToolCallbackHandler
+from sparkth.core.audit.callbacks import AUDIT_AT_HANDLER_TAG, AUDIT_SKIP_TAG, AuditToolCallbackHandler
 
 __all__ = [
     "AUDIT_AT_HANDLER_TAG",
+    "AUDIT_SKIP_TAG",
     "AuditToolCallbackHandler",
 ]
