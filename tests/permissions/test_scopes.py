@@ -44,13 +44,13 @@ def test_role_scope_registered_under_global() -> None:
     assert ROLE.parent is GLOBAL
     assert ROLE.get_parents() == [GLOBAL]
     # A global grant cascades to a role-scoped check; the role itself carries the checked id.
-    assert ROLE.scope_chain("5") == [("role", "5"), ("global", None)]
+    assert ROLE.scope_chain("role:5") == [("role", "5"), ("global", None)]
 
 
 def test_group_scope_registered_under_global() -> None:
     # A grant at group:<id> covers one group; a global grant cascades down to it.
     assert get_permission_scope("group") is GROUP
-    assert GROUP.scope_chain("5") == [("group", "5"), ("global", None)]
+    assert GROUP.scope_chain("group:5") == [("group", "5"), ("global", None)]
 
 
 class TestPermissionScope:
@@ -105,15 +105,19 @@ class TestScopeChain:
     def test_object_target_under_objectless_ancestor(self) -> None:
         course = PermissionScope("course", parent=GLOBAL)
         # The course itself carries the checked id; its objectless ancestor cascades with NULL.
-        assert course.scope_chain("5") == [("course", "5"), ("global", None)]
+        assert course.scope_chain("course:5") == [("course", "5"), ("global", None)]
 
-    def test_object_bearing_ancestor_does_not_cascade_without_path(self) -> None:
-        # activity -> course -> global. The object-bearing `course` ancestor contributes nothing
-        # without a scope path; only the objectless GLOBAL root cascades. So without a path a
-        # course-level grant does NOT reach an activity.
+    def test_object_bearing_ancestor_does_not_cascade_from_a_single_segment_path(self) -> None:
+        # activity -> course -> global. The path names only the activity, and the object-bearing
+        # `course` ancestor contributes nothing of its own; only the objectless GLOBAL root cascades.
+        # So a course-level grant does NOT reach an activity named by a single-segment path.
         course = PermissionScope("course", parent=GLOBAL)
         activity = PermissionScope("activity", parent=course)
-        assert activity.scope_chain("Y") == [("activity", "Y"), ("global", None)]
+        assert activity.scope_chain("activity:Y") == [("activity", "Y"), ("global", None)]
+
+    def test_no_path_gives_the_scope_itself_without_an_object_then_objectless_ancestors(self) -> None:
+        course = PermissionScope("course", parent=GLOBAL)
+        assert course.scope_chain(None) == [("course", None), ("global", None)]
 
 
 def test_build_scope_path_for_root_level_object() -> None:
@@ -135,7 +139,7 @@ def test_scope_chain_from_path_returns_pairs_leaf_to_root_then_objectless_ancest
     course = PermissionScope("course", parent=org)
     quiz = PermissionScope("quiz", parent=course)
 
-    assert quiz.scope_chain("777", "org:5/course:123/quiz:777") == [
+    assert quiz.scope_chain("org:5/course:123/quiz:777") == [
         ("quiz", "777"),
         ("course", "123"),
         ("org", "5"),
@@ -146,7 +150,7 @@ def test_scope_chain_from_path_returns_pairs_leaf_to_root_then_objectless_ancest
 def test_scope_chain_from_path_keeps_whitelist_style_objectless_ancestors() -> None:
     thing = PermissionScope("thing", parent=WHITELIST)
 
-    assert thing.scope_chain("1", "thing:1") == [("thing", "1"), ("whitelist", None), ("global", None)]
+    assert thing.scope_chain("thing:1") == [("thing", "1"), ("whitelist", None), ("global", None)]
 
 
 def test_scope_chain_rejects_a_path_ending_at_another_object() -> None:
@@ -155,11 +159,11 @@ def test_scope_chain_rejects_a_path_ending_at_another_object() -> None:
     quiz = PermissionScope("quiz", parent=course)
 
     with pytest.raises(ValueError):
-        course.scope_chain("777", "org:5/course:123/quiz:777")
+        course.scope_chain("org:5/course:123/quiz:777")
     with pytest.raises(ValueError):
-        GLOBAL.scope_chain(None, "org:5")
+        GLOBAL.scope_chain("org:5")
     with pytest.raises(ValueError):
-        quiz.scope_chain("777", "org:5")
+        quiz.scope_chain("org:5")
 
 
 def test_build_scope_path_rejects_an_id_containing_a_slash() -> None:

@@ -45,6 +45,12 @@ from sparkth.lib.hooks import SingleNamedItemHook
 from sparkth.lib.i18n import _
 
 
+def _describe_checked_scope(permission_scope: PermissionScope, scope_path: str | None) -> str:
+    """Name the checked scope for a denial record: ``scope=<name>``, then ``:<object id>`` when it has one."""
+    name, object_id = permission_scope.scope_chain(scope_path)[0]
+    return f"scope={name}" if object_id is None else f"scope={name}:{object_id}"
+
+
 class Permission:
     def __init__(self, name: str) -> None:
         self.name = name
@@ -72,7 +78,7 @@ class Permission:
         ``scope_param`` or ``scope_object_id`` (they are fixed when the route is declared, not per
         request), so this returns a closure that captures them and declares only the
         sub-dependencies FastAPI does resolve: the current user, the DB session, then the checked
-        object's ``(scope_object_id, scope_path)``. The user comes first, so an unauthenticated
+        object's scope path. The user comes first, so an unauthenticated
         request is refused with 401 before any object lookup runs.
 
         The dependency returns the authenticated ``User`` on success; a failed permission check
@@ -87,13 +93,10 @@ class Permission:
         async def dependency(
             current_user: User = Depends(get_current_user),
             session: AsyncSession = Depends(get_async_session),
-            source: tuple[str | None, str | None] = Depends(get_scope_object_source(scope_param, scope_object_id)),
+            scope_path: str | None = Depends(get_scope_object_source(permission_scope, scope_param, scope_object_id)),
         ) -> User:
-            checked_object_id, scope_path = source
-            if not await can(current_user, self, permission_scope, checked_object_id, session, scope_path):
-                scope_detail = f"scope={permission_scope.name}"
-                if checked_object_id is not None:
-                    scope_detail += f":{checked_object_id}"
+            if not await can(current_user, self, permission_scope, scope_path, session):
+                scope_detail = _describe_checked_scope(permission_scope, scope_path)
                 await record_event_now(
                     PermissionDeniedAuditEvent(
                         outcome=AuditOutcome.DENIED,
@@ -249,17 +252,16 @@ async def can(
     user: User,
     permission: Permission,
     permission_scope: PermissionScope,
-    scope_object_id: str | None,
+    scope_path: str | None,
     session: AsyncSession,
-    scope_path: str | None = None,
 ) -> bool:
     """Return whether user holds permission at the given permission scope.
 
-    ``scope_path`` is the materialized path of the checked object; when given, a grant at any
-    ancestor object on the path also authorizes. Without it, only the scope itself and its
-    objectless ancestors do.
+    ``scope_path`` is the materialized path of the checked object; a grant at the object or at any
+    ancestor object on the path authorizes. Without it, only the scope itself and its objectless
+    ancestors do. Raises ``ValueError`` when the path's leaf names another scope.
     """
-    _scope_chain = permission_scope.scope_chain(scope_object_id, scope_path)
+    _scope_chain = permission_scope.scope_chain(scope_path)
     statement = (
         select(RolePermission.permission)
         .where(
@@ -276,16 +278,16 @@ async def has_role(
     user: User,
     role_name: str,
     permission_scope: PermissionScope,
-    scope_object_id: str | None,
+    scope_path: str | None,
     session: AsyncSession,
-    scope_path: str | None = None,
 ) -> bool:
     """Return whether user holds an active assignment of role_name at the given permission scope.
 
-    A ``scope_path``, the materialized path of the checked object, also lets a role granted at
-    an ancestor object count.
+    ``scope_path`` is the materialized path of the checked object; a role granted at the object or
+    at any ancestor object on the path counts. Raises ``ValueError`` when the path's leaf names
+    another scope.
     """
-    _scope_chain = permission_scope.scope_chain(scope_object_id, scope_path)
+    _scope_chain = permission_scope.scope_chain(scope_path)
     statement = (
         select(Role.id)
         .where(

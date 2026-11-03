@@ -8,13 +8,15 @@ from sparkth.lib.auth import get_current_user
 URL = "/api/v1/permissions/can"
 
 
-async def _grant(session: AsyncSession, user_id: int, permission: str) -> None:
+async def _grant(
+    session: AsyncSession, user_id: int, permission: str, scope: str = "global", scope_object_id: str | None = None
+) -> None:
     role = Role(name="reader")
     session.add(role)
     await session.flush()
     assert role.id is not None
     session.add(RolePermission(role_id=role.id, permission=permission))
-    session.add(RoleAssignment(user_id=user_id, role_id=role.id, scope="global", scope_object_id=None))
+    session.add(RoleAssignment(user_id=user_id, role_id=role.id, scope=scope, scope_object_id=scope_object_id))
     await session.flush()
 
 
@@ -76,3 +78,35 @@ async def test_can_requires_authentication(client: AsyncClient) -> None:
     # dependency per RFC 9110 with WWW-Authenticate. (Authenticated-but-denied stays 403.)
     resp = await client.get(URL, params={"permission": "analytics.read"})
     assert resp.status_code == 401
+
+
+async def _user_with_role_grant(session: AsyncSession, client: AsyncClient) -> None:
+    user = User(id=5, name="O", username="o", email="o@example.com", hashed_password="x")
+    session.add(user)
+    await session.flush()
+    await _grant(session, 5, "analytics.read", "role", "5")
+    await session.commit()
+    _login_as(client, user)
+
+
+async def test_can_at_an_object_is_true_for_the_granted_object_only(client: AsyncClient, session: AsyncSession) -> None:
+    await _user_with_role_grant(session, client)
+    params = {"permission": "analytics.read", "scope": "role"}
+
+    assert (await client.get(URL, params={**params, "scope_object_id": "5"})).json() == {"allowed": True}
+    assert (await client.get(URL, params={**params, "scope_object_id": "6"})).json() == {"allowed": False}
+    assert (await client.get(URL, params=params)).json() == {"allowed": False}
+
+
+async def test_can_with_an_object_id_containing_a_slash_returns_422(client: AsyncClient, session: AsyncSession) -> None:
+    await _user_with_role_grant(session, client)
+
+    resp = await client.get(URL, params={"permission": "analytics.read", "scope": "role", "scope_object_id": "5/x"})
+    assert resp.status_code == 422
+
+
+async def test_can_resolves_the_permission_before_the_scope(client: AsyncClient, session: AsyncSession) -> None:
+    await _user_with_role_grant(session, client)
+
+    resp = await client.get(URL, params={"permission": "does.not.exist", "scope": "nope"})
+    assert "does.not.exist" in str(resp.json()["detail"])

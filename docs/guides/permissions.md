@@ -80,11 +80,14 @@ so a check at that quiz is satisfied by a grant at any of these, nearest first:
 quiz:777 → course:123 → org:5 → global
 ```
 
-The caller supplies the path (`can(..., scope_path=...)`, or a `ScopeObjectMixin` record handed to
-`require()`); without one, only the scope itself and its objectless ancestors count. The path
-must end at the checked object (`quiz:777` for a check at `quiz` with id `777`); any other
-leaf raises `ValueError`. Role
-assignment and revocation never cascade: a grant is stored at exactly the scope it was
+The caller supplies the path (`can(user, permission, scope, scope_path, session)`, or a `ScopeObjectMixin`
+record handed to `require()`); the path is the only input naming the checked object. Pass `None` for an
+objectless scope. A single-segment path (`quiz:777`) names the object without ancestry, so only a grant
+at that object and the objectless ancestors count. The path must end at a segment named after the checked
+scope (`quiz:777` for a check at `quiz`); any other leaf raises `ValueError`. An object id may not contain
+`/` wherever it becomes a path: `build_scope_path`, the ids given to `require()`, and `scope_object_id` on
+`/permissions/can` (answered with 422).
+Role assignment and revocation never cascade: a grant is stored at exactly the scope it was
 assigned at.
 
 ## Shipped with the app
@@ -282,8 +285,9 @@ combination raises `ValueError` at import time (a wiring error, never a silent 4
 
 - `scope_param` names the path parameter carrying the object id.
 - `scope_object_id` is a fixed id string, or an async FastAPI dependency returning the id as a `str`
-  or the loaded `ScopeObjectMixin` record. For a record, its `scope_path` is checked too, so a role
-  granted at an ancestor object authorizes it. A record is checked at its own scope, so to
+  or the loaded `ScopeObjectMixin` record. An id becomes the path of that object at the checked scope;
+  a record's own `scope_path` is checked, so a role granted at an ancestor object
+  authorizes it. A record is checked at its own scope, so to
   authorize at an owner's scope the dependency returns the owner's record or id, not the
   child record. The dependency raises its own not-found error
   for a missing record; it runs after authentication, so an anonymous caller gets 401 first.

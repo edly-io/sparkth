@@ -116,5 +116,5 @@ async def test_group_assignment_cascades_through_scope_path(session: AsyncSessio
     role = await make_role(session, "grader", ["assignment.grade"])
     await make_group_grant(session, user, role, "org", "5")
     permission = Permission("assignment.grade")
-    assert await can(user, permission, course, "123", session, "org:5/course:123") is True
-    assert await can(user, permission, course, "123", session, "org:6/course:123") is False
+    assert await can(user, permission, course, "org:5/course:123", session) is True
+    assert await can(user, permission, course, "org:6/course:123", session) is False
