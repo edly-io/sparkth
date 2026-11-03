@@ -62,19 +62,19 @@ class TestPermissionScope:
         with pytest.raises(InvalidScopeObjectId):
             PermissionScope("s").validate_object_id(None)
 
-    def test_validate_object_source_accepts_scope_param(self) -> None:
-        PermissionScope("s").validate_object_source("thing_id", None)  # no raise
+    def test_validate_scope_object_source_accepts_scope_param(self) -> None:
+        PermissionScope("s").validate_scope_object_source("thing_id", None)  # no raise
 
-    def test_validate_object_source_accepts_object_id(self) -> None:
-        PermissionScope("s").validate_object_source(None, "5")  # no raise
+    def test_validate_scope_object_source_accepts_object_id(self) -> None:
+        PermissionScope("s").validate_scope_object_source(None, "5")  # no raise
 
-    def test_validate_object_source_rejects_neither(self) -> None:
+    def test_validate_scope_object_source_rejects_neither(self) -> None:
         with pytest.raises(ValueError):
-            PermissionScope("s").validate_object_source(None, None)
+            PermissionScope("s").validate_scope_object_source(None, None)
 
-    def test_validate_object_source_rejects_both(self) -> None:
+    def test_validate_scope_object_source_rejects_both(self) -> None:
         with pytest.raises(ValueError):
-            PermissionScope("s").validate_object_source("thing_id", "5")
+            PermissionScope("s").validate_scope_object_source("thing_id", "5")
 
 
 class TestObjectlessPermissionScope:
@@ -85,16 +85,16 @@ class TestObjectlessPermissionScope:
         with pytest.raises(InvalidScopeObjectId):
             ObjectlessPermissionScope("s").validate_object_id("42")
 
-    def test_validate_object_source_accepts_none(self) -> None:
-        ObjectlessPermissionScope("s").validate_object_source(None, None)  # no raise
+    def test_validate_scope_object_source_accepts_none(self) -> None:
+        ObjectlessPermissionScope("s").validate_scope_object_source(None, None)  # no raise
 
-    def test_validate_object_source_rejects_param(self) -> None:
+    def test_validate_scope_object_source_rejects_param(self) -> None:
         with pytest.raises(ValueError):
-            ObjectlessPermissionScope("s").validate_object_source("thing_id", None)
+            ObjectlessPermissionScope("s").validate_scope_object_source("thing_id", None)
 
-    def test_validate_object_source_rejects_object_id(self) -> None:
+    def test_validate_scope_object_source_rejects_object_id(self) -> None:
         with pytest.raises(ValueError):
-            ObjectlessPermissionScope("s").validate_object_source(None, "5")
+            ObjectlessPermissionScope("s").validate_scope_object_source(None, "5")
 
 
 class TestScopeChain:
