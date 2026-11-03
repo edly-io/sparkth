@@ -14,7 +14,7 @@ from sparkth.lib.log import get_logger
 
 logger = get_logger(__name__)
 
-ObjectSource = Callable[..., Awaitable[tuple[str | None, str | None]]]
+_ScopeObjectSource = Callable[..., Awaitable[tuple[str | None, str | None]]]
 """A FastAPI dependency yielding the checked object's ``(scope_object_id, scope_path)``."""
 
 
@@ -23,7 +23,7 @@ async def _no_object() -> tuple[str | None, str | None]:
     return None, None
 
 
-def _path_param_source(scope_param: str) -> ObjectSource:
+def _path_param_source(scope_param: str) -> _ScopeObjectSource:
     """An object source reading the id from the route's ``scope_param`` path parameter."""
 
     async def source(request: Request) -> tuple[str | None, str | None]:
@@ -39,7 +39,7 @@ def _path_param_source(scope_param: str) -> ObjectSource:
     return source
 
 
-def _fixed_source(object_id: str) -> ObjectSource:
+def _fixed_source(object_id: str) -> _ScopeObjectSource:
     """An object source returning the fixed ``object_id``."""
 
     async def source() -> tuple[str | None, str | None]:
@@ -48,7 +48,7 @@ def _fixed_source(object_id: str) -> ObjectSource:
     return source
 
 
-def _dependency_source(object_id: Callable[..., Awaitable[str | ScopeObjectMixin]]) -> ObjectSource:
+def _dependency_source(object_id: Callable[..., Awaitable[str | ScopeObjectMixin]]) -> _ScopeObjectSource:
     """An object source wrapping the ``object_id`` dependency, which returns an id or a record."""
 
     async def source(resolved: str | ScopeObjectMixin = Depends(object_id)) -> tuple[str | None, str | None]:
@@ -61,7 +61,7 @@ def _dependency_source(object_id: Callable[..., Awaitable[str | ScopeObjectMixin
 
 def get_scope_object_source(
     scope_param: str | None, scope_object_id: str | Callable[..., Awaitable[str | ScopeObjectMixin]] | None
-) -> ObjectSource:
+) -> _ScopeObjectSource:
     """Pick the object source for a route: the path parameter, the fixed id, the dependency, or none."""
     if scope_param is not None:
         return _path_param_source(scope_param)
