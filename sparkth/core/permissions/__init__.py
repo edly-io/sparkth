@@ -18,7 +18,7 @@ and plugins import from there, never from this module directly.
 
 from collections.abc import Awaitable, Callable
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, status
 from sqlalchemy import ColumnElement, and_, or_
 from sqlalchemy.orm import Mapped
 from sqlmodel import col, select
@@ -36,73 +36,13 @@ from sparkth.core.permissions.models import (
 )
 from sparkth.core.permissions.scopes import GLOBAL, PermissionScope
 from sparkth.core.permissions.scopes.mixins import ScopeableMixin
+from sparkth.core.permissions.utils import ObjectSource, get_scope_object_source
 from sparkth.lib.audit import record_event_now
 from sparkth.lib.audit.events import AuditOutcome, AuditTarget, PermissionDeniedAuditEvent
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
 from sparkth.lib.hooks import SingleNamedItemHook
 from sparkth.lib.i18n import _
-from sparkth.lib.log import get_logger
-
-logger = get_logger(__name__)
-
-
-ObjectSource = Callable[..., Awaitable[tuple[str | None, str | None]]]
-"""A FastAPI dependency yielding the checked object's ``(scope_object_id, scope_path)``."""
-
-
-async def _no_object() -> tuple[str | None, str | None]:
-    """The object source of an objectless scope: no id and no path."""
-    return None, None
-
-
-def _path_param_source(scope_param: str) -> ObjectSource:
-    """An object source reading the id from the route's ``scope_param`` path parameter."""
-
-    async def source(request: Request) -> tuple[str | None, str | None]:
-        if scope_param not in request.path_params:
-            logger.error(
-                "Permission dependency misconfigured: scope_param %r is not among the route's path params %s",
-                scope_param,
-                list(request.path_params),
-            )
-            raise RuntimeError("Permission scope is misconfigured")
-        return request.path_params[scope_param], None
-
-    return source
-
-
-def _fixed_source(object_id: str) -> ObjectSource:
-    """An object source returning the fixed ``object_id``."""
-
-    async def source() -> tuple[str | None, str | None]:
-        return object_id, None
-
-    return source
-
-
-def _dependency_source(object_id: Callable[..., Awaitable[str | ScopeableMixin]]) -> ObjectSource:
-    """An object source wrapping the ``object_id`` dependency, which returns an id or a record."""
-
-    async def source(resolved: str | ScopeableMixin = Depends(object_id)) -> tuple[str | None, str | None]:
-        if isinstance(resolved, str):
-            return resolved, None
-        return resolved.scope_id, resolved.scope_path
-
-    return source
-
-
-def _object_source(
-    scope_param: str | None, object_id: str | Callable[..., Awaitable[str | ScopeableMixin]] | None
-) -> ObjectSource:
-    """Pick the object source for a route: the path parameter, the fixed id, the dependency, or none."""
-    if scope_param is not None:
-        return _path_param_source(scope_param)
-    if isinstance(object_id, str):
-        return _fixed_source(object_id)
-    if object_id is not None:
-        return _dependency_source(object_id)
-    return _no_object
 
 
 class Permission:
@@ -121,17 +61,17 @@ class Permission:
         return permission
 
     def _require_permission(
-        self, permission_scope: PermissionScope, object_source: ObjectSource
+        self, permission_scope: PermissionScope, source_dependency: ObjectSource
     ) -> Callable[..., Awaitable[User]]:
         """Build the FastAPI dependency enforcing this permission at ``permission_scope``.
 
         Shared by ``require`` and ``require_in_global_scope``. FastAPI cannot inject the scope or
-        ``object_source`` (they are fixed when the route is declared, not per request), so this
+        ``source_dependency`` (they are fixed when the route is declared, not per request), so this
         returns a closure that captures them and declares only the sub-dependencies FastAPI does
-        resolve: the current user, the DB session, then ``object_source``. The user comes first,
+        resolve: the current user, the DB session, then ``source_dependency``. The user comes first,
         so an unauthenticated request is refused with 401 before any object lookup runs.
 
-        ``object_source`` yields ``(scope_object_id, scope_path)`` for the checked object. The
+        ``source_dependency`` yields ``(scope_object_id, scope_path)`` for the checked object. The
         dependency returns the authenticated ``User`` on success; a failed permission check
         raises 403.
 
@@ -144,7 +84,7 @@ class Permission:
         async def dependency(
             current_user: User = Depends(get_current_user),
             session: AsyncSession = Depends(get_async_session),
-            source: tuple[str | None, str | None] = Depends(object_source),
+            source: tuple[str | None, str | None] = Depends(source_dependency),
         ) -> User:
             scope_object_id, scope_path = source
             if not await can(current_user, self, permission_scope, scope_object_id, session, scope_path):
@@ -169,7 +109,7 @@ class Permission:
         The dependency resolves the current user, checks the permission with no scope object
         id, returns the authenticated ``User`` on success, and raises 403 otherwise.
         """
-        return self._require_permission(GLOBAL, _no_object)
+        return self._require_permission(GLOBAL, get_scope_object_source(None, None))
 
     def require(
         self,
@@ -199,7 +139,7 @@ class Permission:
         ``ValueError`` at definition time.
         """
         permission_scope.validate_object_source(scope_param, object_id)
-        return self._require_permission(permission_scope, _object_source(scope_param, object_id))
+        return self._require_permission(permission_scope, get_scope_object_source(scope_param, object_id))
 
 
 # Every permission the platform knows; Permission.create() registers each one here.
