@@ -6,7 +6,7 @@ stored.
 """
 
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import aiohttp
 import pytest
@@ -24,7 +24,6 @@ from sparkth.plugins.compose.tests.helpers import (
     GOOGLE_OVERLOADED,
     GOOGLE_OVERLOADED_ERROR,
     GOOGLE_UNREACHABLE,
-    classifier_provider,
     failing_model,
     google_client_error,
     seed_conversation,
@@ -102,10 +101,6 @@ class TestAGoogleChatModelFailure:
 
         with (
             locale_context("en"),
-            patch(
-                "sparkth.plugins.compose.classifiers.base.get_provider",
-                return_value=classifier_provider(AsyncMock(return_value={"in_scope": True})),
-            ),
             patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_chat_provider(failure)),
         ):
             response = await client.post(COMPLETIONS_URL, json=body)

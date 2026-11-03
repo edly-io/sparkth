@@ -119,7 +119,7 @@ course using it and cannot be undone, and updates only after the author confirms
 
 The agent's prompt lives in `assets/pxc_activity_builder_prompt.txt` and caps build
 and update attempts at three. A refusal because the activity is placed does not count toward the
-cap. The contract text lives in `assets/about.txt`, and the description the scope gate
+cap. The contract text lives in `assets/about.txt`, and the description the planner
 reads in `assets/pxc_activity_building_description.txt`.
 
 ## Adding an activity
