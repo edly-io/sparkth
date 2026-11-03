@@ -60,6 +60,8 @@ export default function ExamplePlugin() {
   `import { Button } from "@/lib/components/ui/Button";`. Core UI lives in `@/core`,
   and `make lint.frontend` rejects any plugin import from it.
 - Reads the signed-in user and their token with `useAuth` from `@/lib/auth/hooks`.
+- Links to another plugin's page with `pluginPath("<name>")` from `@/lib/plugins/routes`, never by writing the
+  `/dashboard/<name>` route out.
 
 ## 3. Define the Plugin (index.ts)
 
