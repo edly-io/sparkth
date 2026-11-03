@@ -110,11 +110,11 @@ def handing_off_to(agent: Agent) -> dict[str, Any]:
     return planner_answering(hand_off(agent), agent)
 
 
-def routing_to(provider: Any, agent: Agent) -> Callable[..., Any]:
-    """Stand in for the route's ``get_provider``: the planner's small model hands every message to
-    ``agent``, and every other model is ``provider``'s."""
+def planning(provider: Any, reply: AIMessage) -> Callable[..., Any]:
+    """Stand in for the route's ``get_provider``: the planner's small model answers every message
+    with ``reply``, and every other model is ``provider``'s."""
     planner = MagicMock()
-    planner.create_llm.return_value = planner_model(hand_off(agent))
+    planner.create_llm.return_value = planner_model(reply)
 
     def get_provider(provider_name: str, api_key: str, model: str, **kwargs: Any) -> Any:
         return planner if model == small_model_for(provider_name) else provider

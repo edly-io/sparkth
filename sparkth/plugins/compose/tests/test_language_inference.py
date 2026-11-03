@@ -21,7 +21,7 @@ from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
 from sparkth.plugins.compose.models import Conversation
 from sparkth.plugins.compose.prompt import render_system_prompt
-from sparkth.plugins.compose.tests.helpers import answering_model, routing_to
+from sparkth.plugins.compose.tests.helpers import answering_model, hand_off, planning
 from sparkth.plugins.compose.types import ConversationDocuments
 
 
@@ -90,7 +90,9 @@ async def _agent_prompts_for_one_request(client: AsyncClient, seed: _Seeded, age
     provider = MagicMock()
     provider.create_llm.return_value = model
     with (
-        patch("sparkth.plugins.compose.routes.completions.get_provider", side_effect=routing_to(provider, agent)),
+        patch(
+            "sparkth.plugins.compose.routes.completions.get_provider", side_effect=planning(provider, hand_off(agent))
+        ),
         patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_classifier_cls,
     ):
         mock_classifier = MagicMock()

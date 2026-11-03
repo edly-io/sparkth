@@ -211,3 +211,12 @@ threads rather than loop turns.
 ## Migrations
 
 New event types are rows in the existing `raw_events` table. **No migration.**
+
+## Versioning
+
+A change that rows already recorded can't satisfy, such as a new required field or a field that
+changes kind, is a new version, also with no migration. Add a schema class with the same
+`event_type` and the next `version`, and keep the old class registered under its own name (for
+example `ComposeCompletionServedV1`). Explore reads each field from the versions whose schema
+declares it, so dropping the old class would hide the rows already recorded under it. A change old
+rows still satisfy, such as a new optional field, stays in the current version.
