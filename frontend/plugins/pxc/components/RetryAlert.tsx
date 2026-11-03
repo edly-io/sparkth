@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { Alert } from "@/components/ui/Alert";
+import { Alert } from "@/lib/components/ui/Alert";
 import { Button } from "@/lib/components/ui/Button";
 
 // An error alert for a failure that a retry can fix, with the button that runs it.
