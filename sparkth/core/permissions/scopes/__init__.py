@@ -71,7 +71,11 @@ class PermissionScope:
         if scope_path is None:
             _scope_chain = [(self.name, scope_object_id)]
         else:
-            _scope_chain = [_split_segment(segment) for segment in reversed(scope_path.split("/"))]
+            # Each path segment is ``name:id``; split on the first colon so an id may contain ``:``.
+            _scope_chain = [
+                (name, object_id)
+                for name, object_id in (segment.split(":", 1) for segment in reversed(scope_path.split("/")))
+            ]
             if _scope_chain[0] != (self.name, scope_object_id):
                 raise ValueError(
                     f"Scope path {scope_path!r} does not end at the checked object {self.name}:{scope_object_id}"
@@ -132,12 +136,6 @@ class ObjectlessPermissionScope(PermissionScope):
     def _cascade_pairs(self) -> list[tuple[str, str | None]]:
         # A singleton names no object, so it cascades to every descendant with a NULL id.
         return [(self.name, None)]
-
-
-def _split_segment(segment: str) -> tuple[str, str | None]:
-    """Split a ``name:id`` path segment on its first colon."""
-    name, object_id = segment.split(":", 1)
-    return name, object_id
 
 
 # Every scope kind the platform knows; <class>.create() registers each one here.
