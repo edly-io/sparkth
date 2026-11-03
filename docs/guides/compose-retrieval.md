@@ -22,7 +22,7 @@ logged with the reason the model gave and the conversation UUID; the client is t
 skipped, not why.
 
 An empty message with documents attached does not retrieve. A document sent with no words is a
-valid turn — the scope classifier treats it as one — but there is no question to search for.
+valid turn, but there is no question to search for.
 
 ## What gets searched
 
@@ -35,6 +35,3 @@ retrieved from. There is no second source of document ids.
 A classifier failure raises `RAGSearchError`, and the turn ends with an error the user sees and
 that is persisted to the conversation. Retrieval is never guessed at: answering from the model's
 own knowledge while the user believes their document was consulted is worse than an error.
-
-`MessageScopeClassifier` fails closed too: a turn it cannot judge ends with an error and never
-reaches the chat model.
