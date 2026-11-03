@@ -144,7 +144,7 @@ class Permission:
         scope takes exactly one of them. Any other combination is a wiring error and raises
         ``ValueError`` at definition time.
         """
-        permission_scope.validate_scope_object_source(scope_param, scope_object_id)
+        permission_scope.validate_scope_object_id_arguments(scope_param, scope_object_id)
         return self._require_permission(permission_scope, scope_param, scope_object_id)
 
 

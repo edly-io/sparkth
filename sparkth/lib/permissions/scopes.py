@@ -6,7 +6,8 @@ from sparkth.core.permissions.scopes import (
     ObjectlessPermissionScope,
     PermissionScope,
 )
-from sparkth.core.permissions.scopes.mixins import ScopeObjectMixin, build_scope_path
+from sparkth.core.permissions.scopes.mixins import ScopeObjectMixin
+from sparkth.core.permissions.utils import build_scope_path
 
 __all__ = [
     "PermissionScope",

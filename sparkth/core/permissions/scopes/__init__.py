@@ -93,7 +93,7 @@ class PermissionScope:
             logger.warning("Object-bearing scope %r requires an object id", self.name)
             raise InvalidScopeObjectId(self.name, scope_object_id)
 
-    def validate_scope_object_source(self, scope_param: str | None, scope_object_id: object | None) -> None:
+    def validate_scope_object_id_arguments(self, scope_param: str | None, scope_object_id: object | None) -> None:
         """Raise ``ValueError`` unless a route gives exactly one of ``scope_param`` and ``scope_object_id``.
 
         ``scope_param`` names a path parameter; ``scope_object_id`` is a fixed id or a dependency.
@@ -125,7 +125,7 @@ class ObjectlessPermissionScope(PermissionScope):
             logger.warning("Objectless scope %r was given object id %r", self.name, scope_object_id)
             raise InvalidScopeObjectId(self.name, scope_object_id)
 
-    def validate_scope_object_source(self, scope_param: str | None, scope_object_id: object | None) -> None:
+    def validate_scope_object_id_arguments(self, scope_param: str | None, scope_object_id: object | None) -> None:
         if scope_param is not None or scope_object_id is not None:
             raise ValueError(
                 f"Scope {self.name!r} is objectless and names no object; drop the scope_param/scope_object_id"

@@ -10,24 +10,37 @@ from collections.abc import Awaitable, Callable
 from fastapi import Depends, Request
 
 from sparkth.core.permissions.scopes import PermissionScope
-from sparkth.core.permissions.scopes.mixins import ScopeObjectMixin, build_scope_path
+from sparkth.core.permissions.scopes.mixins import ScopeObjectMixin
 from sparkth.lib.log import get_logger
 
 logger = get_logger(__name__)
 
-_ScopeObjectSource = Callable[..., Awaitable[str | None]]
+_ScopePathDependency = Callable[..., Awaitable[str | None]]
 """A FastAPI dependency yielding the checked object's scope path, or ``None`` for an objectless scope."""
 
 
-async def _no_object() -> None:
+def build_scope_path(scope: PermissionScope, scope_id: str, parent_path: str | None = None) -> str:
+    """Return the materialized path of an object: its parent's path, then ``<scope name>:<scope_id>``.
+
+    Segments are joined by ``/``, root first (``org:5/course:123``); a root-level object has no
+    ``parent_path``. A ``scope_id`` containing ``/`` raises ``ValueError``, since it would add
+    ancestor segments to the path.
+    """
+    if "/" in scope_id:
+        raise ValueError(f"Scope id {scope_id!r} must not contain '/'")
+    segment = f"{scope.name}:{scope_id}"
+    return segment if parent_path is None else f"{parent_path}/{segment}"
+
+
+async def _get_scope_path_of_objectless_scope() -> None:
     """The scope path dependency of an objectless scope: no object, so no path."""
     return None
 
 
-def _path_param_source(permission_scope: PermissionScope, scope_param: str) -> _ScopeObjectSource:
+def _get_scope_path_from_path_param(permission_scope: PermissionScope, scope_param: str) -> _ScopePathDependency:
     """A dependency building the scope path from the route's ``scope_param`` path parameter."""
 
-    async def source(request: Request) -> str:
+    async def resolve_scope_path(request: Request) -> str:
         if scope_param not in request.path_params:
             logger.error(
                 "Permission dependency misconfigured: scope_param %r is not among the route's path params %s",
@@ -37,42 +50,42 @@ def _path_param_source(permission_scope: PermissionScope, scope_param: str) -> _
             raise RuntimeError("Permission scope is misconfigured")
         return build_scope_path(permission_scope, request.path_params[scope_param])
 
-    return source
+    return resolve_scope_path
 
 
-def _fixed_source(permission_scope: PermissionScope, object_id: str) -> _ScopeObjectSource:
+def _get_scope_path_from_fixed_id(permission_scope: PermissionScope, object_id: str) -> _ScopePathDependency:
     """A dependency building the scope path of the fixed ``object_id``."""
 
-    async def source() -> str:
+    async def resolve_scope_path() -> str:
         return build_scope_path(permission_scope, object_id)
 
-    return source
+    return resolve_scope_path
 
 
-def _dependency_source(
+def _get_scope_path_from_dependency(
     permission_scope: PermissionScope, object_id: Callable[..., Awaitable[str | ScopeObjectMixin]]
-) -> _ScopeObjectSource:
+) -> _ScopePathDependency:
     """A dependency building the scope path from what the ``object_id`` dependency returns, an id or a record."""
 
-    async def source(resolved: str | ScopeObjectMixin = Depends(object_id)) -> str:
+    async def resolve_scope_path(resolved: str | ScopeObjectMixin = Depends(object_id)) -> str:
         if isinstance(resolved, str):
             return build_scope_path(permission_scope, resolved)
         return resolved.scope_path
 
-    return source
+    return resolve_scope_path
 
 
 def get_scope_path(
     permission_scope: PermissionScope,
     scope_param: str | None,
     scope_object_id: str | Callable[..., Awaitable[str | ScopeObjectMixin]] | None,
-) -> _ScopeObjectSource:
+) -> _ScopePathDependency:
     """Return the dependency that yields a route's scope path, built from the path parameter, the fixed id,
     or the ``object_id`` dependency; an objectless scope has no object and so yields ``None``."""
     if scope_param is not None:
-        return _path_param_source(permission_scope, scope_param)
+        return _get_scope_path_from_path_param(permission_scope, scope_param)
     if isinstance(scope_object_id, str):
-        return _fixed_source(permission_scope, scope_object_id)
+        return _get_scope_path_from_fixed_id(permission_scope, scope_object_id)
     if scope_object_id is not None:
-        return _dependency_source(permission_scope, scope_object_id)
-    return _no_object
+        return _get_scope_path_from_dependency(permission_scope, scope_object_id)
+    return _get_scope_path_of_objectless_scope

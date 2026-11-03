@@ -162,7 +162,7 @@ def test_require_objectless_scope_rejects_scope_param() -> None:
         Permission("assignment.grade").require(GLOBAL, "course_id")
 
 
-def test_require_object_bearing_scope_requires_an_object_source(course_scope: PermissionScope) -> None:
+def test_require_object_bearing_scope_requires_a_scope_param_or_scope_object_id(course_scope: PermissionScope) -> None:
     with pytest.raises(ValueError):
         Permission("assignment.grade").require(course_scope)
 
