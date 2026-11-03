@@ -1,3 +1,7 @@
+from typing import ClassVar
+
+from sqlmodel import Field, SQLModel
+
 from sparkth.core.permissions.exceptions import InvalidScopeObjectId, PermissionScopeNotFound
 from sparkth.lib.hooks import SingleNamedItemHook
 from sparkth.lib.log import get_logger
@@ -54,15 +58,27 @@ class PermissionScope:
             return []
         return [self.parent, *self.parent.get_parents()]
 
-    def scope_chain(self, scope_object_id: str | None) -> list[tuple[str, str | None]]:
+    def scope_chain(self, scope_object_id: str | None, scope_path: str | None = None) -> list[tuple[str, str | None]]:
         """The ``(scope name, object id)`` pairs a grant may occupy to satisfy a check at THIS
         scope with ``scope_object_id``.
 
-        Always includes this scope itself carrying the checked id, then each ancestor's cascade
-        contribution (see :meth:`_cascade_pairs`). The read-side checks (``can`` / ``has_role``)
-        match a user's active assignments against these pairs — a grant at any one authorizes.
+        Without ``scope_path`` the chain is this scope carrying the checked id, then each
+        objectless ancestor with a ``None`` id. With a materialized ``scope_path``
+        (a path built from the scopes' ids) the chain is every ``name:id`` segment of the path, leaf
+        first, then each objectless ancestor of this scope with a ``None`` id. The read-side checks
+        match a user's active assignments against these pairs — a grant at any one authorizes. The
+        path must end at the checked object, ``<this scope name>:<scope_object_id>``; any other
+        leaf raises ``ValueError``.
         """
-        pairs: list[tuple[str, str | None]] = [(self.name, scope_object_id)]
+        pairs: list[tuple[str, str | None]]
+        if scope_path is None:
+            pairs = [(self.name, scope_object_id)]
+        else:
+            pairs = [_split_segment(segment) for segment in reversed(scope_path.split("/"))]
+            if pairs[0] != (self.name, scope_object_id):
+                raise ValueError(
+                    f"Scope path {scope_path!r} does not end at the checked object {self.name}:{scope_object_id}"
+                )
         for ancestor in self.get_parents():
             pairs.extend(ancestor._cascade_pairs())
         return pairs
@@ -78,22 +94,23 @@ class PermissionScope:
             logger.warning("Object-bearing scope %r requires an object id", self.name)
             raise InvalidScopeObjectId(self.name, scope_object_id)
 
-    def validate_scope_param(self, scope_param: str | None) -> None:
-        """Raise ``ValueError`` unless a route names the path parameter carrying the object id.
+    def validate_object_source(self, scope_param: str | None, object_id: object | None) -> None:
+        """Raise ``ValueError`` unless a route names exactly one source for the object id.
 
-        Called by ``Permission.require`` at route-definition/import time so a misconfiguration
-        fails fast at startup rather than as a silent per-request denial.
+        The source is either ``scope_param`` (a path parameter) or ``object_id`` (a fixed id or
+        a dependency). Called by ``Permission.require`` at route-definition/import time so a
+        misconfiguration fails fast at startup rather than as a silent per-request denial.
         """
-        if scope_param is None:
-            raise ValueError(
-                f"Scope {self.name!r} is object-bearing; require() needs a scope_param naming its path parameter"
-            )
+        if scope_param is None and object_id is None:
+            raise ValueError(f"Scope {self.name!r} is object-bearing; require() needs a scope_param or an object_id")
+        if scope_param is not None and object_id is not None:
+            raise ValueError(f"Scope {self.name!r}: pass either scope_param or object_id to require(), not both")
 
     def _cascade_pairs(self) -> list[tuple[str, str | None]]:
         """This scope's contribution to a descendant's :meth:`scope_chain` when it is an ancestor.
 
-        Resolving which ancestor object a descendant belongs to needs a materialized path, so an
-        object-bearing ancestor does not cascade yet (deferred; see issue #420 Phase 2).
+        An object-bearing ancestor contributes nothing here: its object id comes from the
+        descendant's materialized path instead.
         """
         return []
 
@@ -107,15 +124,50 @@ class ObjectlessPermissionScope(PermissionScope):
             logger.warning("Objectless scope %r was given object id %r", self.name, scope_object_id)
             raise InvalidScopeObjectId(self.name, scope_object_id)
 
-    def validate_scope_param(self, scope_param: str | None) -> None:
-        if scope_param is not None:
-            raise ValueError(
-                f"Scope {self.name!r} is objectless and names no object; drop the scope_param {scope_param!r}"
-            )
+    def validate_object_source(self, scope_param: str | None, object_id: object | None) -> None:
+        if scope_param is not None or object_id is not None:
+            raise ValueError(f"Scope {self.name!r} is objectless and names no object; drop the scope_param/object_id")
 
     def _cascade_pairs(self) -> list[tuple[str, str | None]]:
         # A singleton names no object, so it cascades to every descendant with a NULL id.
         return [(self.name, None)]
+
+
+def _split_segment(segment: str) -> tuple[str, str | None]:
+    """Split a ``name:id`` path segment on its first colon."""
+    name, object_id = segment.split(":", 1)
+    return name, object_id
+
+
+def build_scope_path(scope: PermissionScope, scope_id: str, parent_path: str | None = None) -> str:
+    """Return the materialized path of an object: its parent's path, then ``<scope name>:<scope_id>``.
+
+    Segments are joined by ``/``, root first (``org:5/course:123``); a root-level object has no
+    ``parent_path``. A ``scope_id`` containing ``/`` raises ``ValueError``, since it would add
+    ancestor segments to the path.
+    """
+    if "/" in scope_id:
+        raise ValueError(f"Scope id {scope_id!r} must not contain '/'")
+    segment = f"{scope.name}:{scope_id}"
+    return segment if parent_path is None else f"{parent_path}/{segment}"
+
+
+class Scopeable(SQLModel):
+    """Mixin for a table model that is an object of a permission scope.
+
+    The adopting model sets the class-level ``scope`` and stores ``scope_path``, the
+    materialized path of the object, so a role granted at any
+    ancestor object authorizes the object. ``scope_id`` is the object's ``id`` as a string; a
+    model keyed otherwise overrides it.
+    """
+
+    scope: ClassVar[PermissionScope]
+    scope_path: str = Field(index=True)
+
+    @property
+    def scope_id(self) -> str:
+        """The object's id as a string."""
+        return str(getattr(self, "id"))
 
 
 # Every scope kind the platform knows; <class>.create() registers each one here.

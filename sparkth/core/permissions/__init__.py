@@ -34,7 +34,7 @@ from sparkth.core.permissions.models import (
     RoleAssignment,
     RolePermission,
 )
-from sparkth.core.permissions.scopes import GLOBAL, PermissionScope
+from sparkth.core.permissions.scopes import GLOBAL, PermissionScope, Scopeable
 from sparkth.lib.audit import record_event_now
 from sparkth.lib.audit.events import AuditOutcome, AuditTarget, PermissionDeniedAuditEvent
 from sparkth.lib.auth import get_current_user
@@ -44,6 +44,64 @@ from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
 
 logger = get_logger(__name__)
+
+
+ObjectSource = Callable[..., Awaitable[tuple[str | None, str | None]]]
+"""A FastAPI dependency yielding the checked object's ``(scope_object_id, scope_path)``."""
+
+
+async def _no_object() -> tuple[str | None, str | None]:
+    """The object source of an objectless scope: no id and no path."""
+    return None, None
+
+
+def _path_param_source(scope_param: str) -> ObjectSource:
+    """An object source reading the id from the route's ``scope_param`` path parameter."""
+
+    async def source(request: Request) -> tuple[str | None, str | None]:
+        if scope_param not in request.path_params:
+            logger.error(
+                "Permission dependency misconfigured: scope_param %r is not among the route's path params %s",
+                scope_param,
+                list(request.path_params),
+            )
+            raise RuntimeError("Permission scope is misconfigured")
+        return request.path_params[scope_param], None
+
+    return source
+
+
+def _fixed_source(object_id: str) -> ObjectSource:
+    """An object source returning the fixed ``object_id``."""
+
+    async def source() -> tuple[str | None, str | None]:
+        return object_id, None
+
+    return source
+
+
+def _dependency_source(object_id: Callable[..., Awaitable[str | Scopeable]]) -> ObjectSource:
+    """An object source wrapping the ``object_id`` dependency, which returns an id or a record."""
+
+    async def source(resolved: str | Scopeable = Depends(object_id)) -> tuple[str | None, str | None]:
+        if isinstance(resolved, str):
+            return resolved, None
+        return resolved.scope_id, resolved.scope_path
+
+    return source
+
+
+def _object_source(
+    scope_param: str | None, object_id: str | Callable[..., Awaitable[str | Scopeable]] | None
+) -> ObjectSource:
+    """Pick the object source for a route: the path parameter, the fixed id, the dependency, or none."""
+    if scope_param is not None:
+        return _path_param_source(scope_param)
+    if isinstance(object_id, str):
+        return _fixed_source(object_id)
+    if object_id is not None:
+        return _dependency_source(object_id)
+    return _no_object
 
 
 class Permission:
@@ -62,19 +120,19 @@ class Permission:
         return permission
 
     def _require_permission(
-        self, permission_scope: PermissionScope, scope_param: str | None
+        self, permission_scope: PermissionScope, object_source: ObjectSource
     ) -> Callable[..., Awaitable[User]]:
         """Build the FastAPI dependency enforcing this permission at ``permission_scope``.
 
         Shared by ``require`` and ``require_in_global_scope``. FastAPI cannot inject the scope or
-        ``scope_param`` (they are fixed when the route is declared, not per request), so this
+        ``object_source`` (they are fixed when the route is declared, not per request), so this
         returns a closure that captures them and declares only the sub-dependencies FastAPI does
-        resolve (the current user and the DB session).
+        resolve: the current user, the DB session, then ``object_source``. The user comes first,
+        so an unauthenticated request is refused with 401 before any object lookup runs.
 
-        The dependency returns the authenticated ``User`` on success. ``scope_param``, when set,
-        names the path parameter carrying the scope object id, resolved from
-        ``request.path_params`` per request; a ``scope_param`` the route does not provide raises
-        500 (a wiring error, never a silent 403), and a failed permission check raises 403.
+        ``object_source`` yields ``(scope_object_id, scope_path)`` for the checked object. The
+        dependency returns the authenticated ``User`` on success; a failed permission check
+        raises 403.
 
         Before raising the 403 the refusal is recorded as a ``permission.denied`` audit event
         in its own transaction (``record_event_now``), so it survives the request's rollback.
@@ -83,19 +141,12 @@ class Permission:
         """
 
         async def dependency(
-            request: Request,
             current_user: User = Depends(get_current_user),
             session: AsyncSession = Depends(get_async_session),
+            source: tuple[str | None, str | None] = Depends(object_source),
         ) -> User:
-            if scope_param is not None and scope_param not in request.path_params:
-                logger.error(
-                    "Permission dependency misconfigured: scope_param %r is not among the route's path params %s",
-                    scope_param,
-                    list(request.path_params),
-                )
-                raise RuntimeError("Permission scope is misconfigured")
-            scope_object_id = request.path_params.get(scope_param) if scope_param else None
-            if not await can(current_user, self, permission_scope, scope_object_id, session):
+            scope_object_id, scope_path = source
+            if not await can(current_user, self, permission_scope, scope_object_id, session, scope_path):
                 scope_detail = f"scope={permission_scope.name}"
                 if scope_object_id is not None:
                     scope_detail += f":{scope_object_id}"
@@ -117,10 +168,13 @@ class Permission:
         The dependency resolves the current user, checks the permission with no scope object
         id, returns the authenticated ``User`` on success, and raises 403 otherwise.
         """
-        return self._require_permission(GLOBAL, None)
+        return self._require_permission(GLOBAL, _no_object)
 
     def require(
-        self, permission_scope: PermissionScope, scope_param: str | None = None
+        self,
+        permission_scope: PermissionScope,
+        scope_param: str | None = None,
+        object_id: str | Callable[..., Awaitable[str | Scopeable]] | None = None,
     ) -> Callable[..., Awaitable[User]]:
         """Return a FastAPI dependency enforcing this permission at a scope.
 
@@ -130,12 +184,21 @@ class Permission:
                 not its name — this keeps scope references object-based, like the RBAC engine
                 functions, so a typo is an import error rather than a silent lookup miss.
             scope_param: The route path parameter carrying the scope object id, resolved from
-                ``request.path_params`` per request. Omit for an objectless scope (it names no
-                object). Supplying it for an objectless scope, or omitting it for an
-                object-bearing one, is a wiring error and raises ``ValueError`` at definition time.
+                ``request.path_params`` per request. A ``scope_param`` the route does not provide
+                raises 500 (a wiring error, never a silent 403).
+            object_id: Another source for the scope object id: a fixed id string, or an async
+                FastAPI dependency returning the id as a ``str`` or a ``Scopeable`` record. For a
+                record, its ``scope_path`` is passed to the check, so a role granted at an
+                ancestor object authorizes it too. The dependency loads the record itself and
+                raises its own not-found error when it is missing, which runs after
+                authentication and before the permission check.
+
+        An objectless scope takes neither ``scope_param`` nor ``object_id``; an object-bearing
+        scope takes exactly one of them. Any other combination is a wiring error and raises
+        ``ValueError`` at definition time.
         """
-        permission_scope.validate_scope_param(scope_param)
-        return self._require_permission(permission_scope, scope_param)
+        permission_scope.validate_object_source(scope_param, object_id)
+        return self._require_permission(permission_scope, _object_source(scope_param, object_id))
 
 
 # Every permission the platform knows; Permission.create() registers each one here.
@@ -188,52 +251,32 @@ USER_READ = Permission.create("user.read")
 def _scope_clause(
     scope_column: Mapped[str],
     object_id_column: Mapped[str | None],
-    permission_scope: PermissionScope,
-    scope_object_id: str | None,
+    pairs: list[tuple[str, str | None]],
 ) -> ColumnElement[bool]:
-    """WHERE clause matching an assignment table's (scope, object id) columns against the
-    pairs a grant may occupy to satisfy a check at ``permission_scope``.
+    """WHERE clause matching an assignment table's (scope, object id) columns against ``pairs``,
+    the ``(scope name, object id)`` pairs a grant may occupy to satisfy a check.
 
-    The pairs come from ``PermissionScope.scope_chain`` — the scope itself plus any ancestor
-    that cascades (objectless ancestors cascade with a NULL id; object-bearing ancestors need
-    a materialized path and are deferred, see issue #420 Phase 2).
+    The pairs are the checked scope and object, each
+    ancestor object named by the check's scope path, and each objectless ancestor.
 
     Read-side only (``can`` / ``has_role``). The write operations (``assign_role``,
     ``revoke_role``) target the exact assignment row and must NOT use this — they never
     cascade to ancestor scopes.
     """
-    return or_(
-        *(
-            and_(scope_column == name, object_id_column == object_id)
-            for name, object_id in permission_scope.scope_chain(scope_object_id)
-        )
-    )
+    return or_(*(and_(scope_column == name, object_id_column == object_id) for name, object_id in pairs))
 
 
-def _user_role_ids_at_scope(
-    user_id: int | None,
-    permission_scope: PermissionScope,
-    scope_object_id: str | None,
-) -> SelectOfScalar[int]:
-    """Subquery of role ids the user holds via their own active assignments at the scope."""
+def _user_role_ids_at_scope(user_id: int | None, pairs: list[tuple[str, str | None]]) -> SelectOfScalar[int]:
+    """Subquery of role ids the user holds via their own active assignments at any of ``pairs``."""
     return select(RoleAssignment.role_id).where(
         col(RoleAssignment.user_id) == user_id,
         col(RoleAssignment.is_deleted) == False,
-        _scope_clause(
-            col(RoleAssignment.scope),
-            col(RoleAssignment.scope_object_id),
-            permission_scope,
-            scope_object_id,
-        ),
+        _scope_clause(col(RoleAssignment.scope), col(RoleAssignment.scope_object_id), pairs),
     )
 
 
-def _group_role_ids_at_scope(
-    user_id: int | None,
-    permission_scope: PermissionScope,
-    scope_object_id: str | None,
-) -> SelectOfScalar[int]:
-    """Subquery of role ids granted at the scope to any group the user actively belongs to."""
+def _group_role_ids_at_scope(user_id: int | None, pairs: list[tuple[str, str | None]]) -> SelectOfScalar[int]:
+    """Subquery of role ids granted at any of ``pairs`` to a group the user actively belongs to."""
     active_membership_group_ids = select(GroupMembership.group_id).where(
         col(GroupMembership.user_id) == user_id,
         col(GroupMembership.is_deleted) == False,
@@ -241,26 +284,20 @@ def _group_role_ids_at_scope(
     return select(GroupRoleAssignment.role_id).where(
         col(GroupRoleAssignment.group_id).in_(active_membership_group_ids),
         col(GroupRoleAssignment.is_deleted) == False,
-        _scope_clause(
-            col(GroupRoleAssignment.scope),
-            col(GroupRoleAssignment.scope_object_id),
-            permission_scope,
-            scope_object_id,
-        ),
+        _scope_clause(col(GroupRoleAssignment.scope), col(GroupRoleAssignment.scope_object_id), pairs),
     )
 
 
 def _granted_role_ids_clause(
     role_id_column: Mapped[int] | Mapped[int | None],
     user_id: int | None,
-    permission_scope: PermissionScope,
-    scope_object_id: str | None,
+    pairs: list[tuple[str, str | None]],
 ) -> ColumnElement[bool]:
-    """Whether ``role_id_column`` is a role the user holds at the scope — via their own
+    """Whether ``role_id_column`` is a role the user holds at any of ``pairs`` — via their own
     assignments or via an assignment to a group they actively belong to."""
     return or_(
-        role_id_column.in_(_user_role_ids_at_scope(user_id, permission_scope, scope_object_id)),
-        role_id_column.in_(_group_role_ids_at_scope(user_id, permission_scope, scope_object_id)),
+        role_id_column.in_(_user_role_ids_at_scope(user_id, pairs)),
+        role_id_column.in_(_group_role_ids_at_scope(user_id, pairs)),
     )
 
 
@@ -270,13 +307,20 @@ async def can(
     permission_scope: PermissionScope,
     scope_object_id: str | None,
     session: AsyncSession,
+    scope_path: str | None = None,
 ) -> bool:
-    """Return whether user holds permission at the given permission scope."""
+    """Return whether user holds permission at the given permission scope.
+
+    ``scope_path`` is the materialized path of the checked object; when given, a grant at any
+    ancestor object on the path also authorizes. Without it, only the scope itself and its
+    objectless ancestors do.
+    """
+    pairs = permission_scope.scope_chain(scope_object_id, scope_path)
     statement = (
         select(RolePermission.permission)
         .where(
             RolePermission.permission == permission.name,
-            _granted_role_ids_clause(col(RolePermission.role_id), user.id, permission_scope, scope_object_id),
+            _granted_role_ids_clause(col(RolePermission.role_id), user.id, pairs),
         )
         .limit(1)
     )
@@ -290,13 +334,19 @@ async def has_role(
     permission_scope: PermissionScope,
     scope_object_id: str | None,
     session: AsyncSession,
+    scope_path: str | None = None,
 ) -> bool:
-    """Return whether user holds an active assignment of role_name at the given permission scope."""
+    """Return whether user holds an active assignment of role_name at the given permission scope.
+
+    A ``scope_path``, the materialized path of the checked object, also lets a role granted at
+    an ancestor object count.
+    """
+    pairs = permission_scope.scope_chain(scope_object_id, scope_path)
     statement = (
         select(Role.id)
         .where(
             Role.name == role_name,
-            _granted_role_ids_clause(col(Role.id), user.id, permission_scope, scope_object_id),
+            _granted_role_ids_clause(col(Role.id), user.id, pairs),
         )
         .limit(1)
     )

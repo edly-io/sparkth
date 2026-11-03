@@ -6,7 +6,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.core.models.user import User
 from sparkth.core.permissions.models import Group, GroupMembership, GroupRoleAssignment, Role, RolePermission
 from sparkth.lib.permissions import EMAIL_WHITELIST_READ, Permission, can, has_role
-from sparkth.lib.permissions.scopes import GLOBAL, WHITELIST
+from sparkth.lib.permissions.scopes import GLOBAL, WHITELIST, PermissionScope
 
 
 async def make_user(session: AsyncSession, username: str) -> User:
@@ -107,3 +107,14 @@ async def test_has_role_via_group_is_scope_specific(session: AsyncSession) -> No
     role = await make_role(session, "grader", [])
     await make_group_grant(session, user, role, "course", "1")
     assert await has_role(user, "grader", GLOBAL, None, session) is False
+
+
+async def test_group_assignment_cascades_through_scope_path(session: AsyncSession) -> None:
+    org = PermissionScope("org", parent=GLOBAL)
+    course = PermissionScope("course", parent=org)
+    user = await make_user(session, "alice")
+    role = await make_role(session, "grader", ["assignment.grade"])
+    await make_group_grant(session, user, role, "org", "5")
+    permission = Permission("assignment.grade")
+    assert await can(user, permission, course, "123", session, "org:5/course:123") is True
+    assert await can(user, permission, course, "123", session, "org:6/course:123") is False

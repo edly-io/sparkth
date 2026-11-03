@@ -68,11 +68,24 @@ object (`scope_object_id = NULL`). This pairing is enforced in application code 
 calls the scope's `validate_object_id`, raising `InvalidScopeObjectId` on a mismatch), not a
 database `CHECK` constraint.
 
-`can()` and `has_role()` cascade a grant **parent → child**: a grant at an
+`can()` and `has_role()` cascade a grant **parent → child**. A grant at an
 `ObjectlessPermissionScope` ancestor (`global`, `whitelist`) satisfies a check at any of its
-descendants. Object-bearing multi-level cascade (e.g. a grant at one `org` applying to its
-`course`s) needs a materialized path and remains deferred
-([#420](https://github.com/edly-io/sparkth/issues/420) Phase 2).
+descendants. A grant at an object-bearing ancestor (one `org`) also applies to the objects
+beneath it (its `course`s), by way of the checked object's stored **`scope_path`**: the
+materialized path of the object, one `<scope name>:<object id>` segment per level, joined by
+`/`, root first. A quiz inside course 123 of org 5 has the path `org:5/course:123/quiz:777`,
+so a check at that quiz is satisfied by a grant at any of these, nearest first:
+
+```text
+quiz:777 → course:123 → org:5 → global
+```
+
+The caller supplies the path (`can(..., scope_path=...)`, or a `Scopeable` record handed to
+`require()`); without one, only the scope itself and its objectless ancestors count. The path
+must end at the checked object (`quiz:777` for a check at `quiz` with id `777`); any other
+leaf raises `ValueError`. Role
+assignment and revocation never cascade: a grant is stored at exactly the scope it was
+assigned at.
 
 ## Shipped with the app
 
@@ -106,8 +119,7 @@ joins or leaves the set) is a membership edit, not a grant edit.
 - Groups are **flat by design** — no group-in-group nesting. Organizational hierarchy
   ("teachers belong to departments, which belong to universities") is a *scope*-hierarchy
   concern, answered by where in the scope tree a group's grant is placed, not by nesting
-  groups (see [#420](https://github.com/edly-io/sparkth/issues/420) Phase 2 for
-  object-bearing cascade).
+  groups.
 - `can()` / `has_role()` resolve group grants through the **same scope chain** as direct
   assignments — a group grant at `global` cascades to descendant scopes exactly like a
   direct one, and `has_role` counts a role granted through a group as held, like a direct
@@ -262,11 +274,19 @@ await assign_role(user_id, "grader", COURSE, "42", session)
 ```
 
 **Gate an endpoint on a permission** — call `.require_in_global_scope()` or
-`.require(scope, scope_param=None)` on the permission itself. `scope` is a declared
-`PermissionScope` **object** (e.g. `GLOBAL`, `WHITELIST`, your `COURSE`), not its name.
-`scope_param` names the path parameter carrying the scope object id — omit it for an
-objectless scope, supply it for an object-bearing one. Getting this wrong raises `ValueError`
-at import time (a wiring error, never a silent 403).
+`.require(scope, scope_param=None, object_id=None)` on the permission itself. `scope` is a
+declared `PermissionScope` **object** (e.g. `GLOBAL`, `WHITELIST`, your `COURSE`), not its
+name. An objectless scope takes neither `scope_param` nor `object_id`; an object-bearing scope
+takes exactly one of them, so passing both is as much an error as passing neither. A wrong
+combination raises `ValueError` at import time (a wiring error, never a silent 403).
+
+- `scope_param` names the path parameter carrying the object id.
+- `object_id` is a fixed id string, or an async FastAPI dependency returning the id as a `str`
+  or the loaded `Scopeable` record. For a record, its `scope_path` is checked too, so a role
+  granted at an ancestor object authorizes it. A record is checked at its own scope, so to
+  authorize at an owner's scope the dependency returns the owner's record or id, not the
+  child record. The dependency raises its own not-found error
+  for a missing record; it runs after authentication, so an anonymous caller gets 401 first.
 
 ```python
 from fastapi import Depends
@@ -290,6 +310,53 @@ async def list_whitelist(): ...
     "/courses/{course_id}",
     dependencies=[Depends(COURSE_EDIT.require(COURSE, "course_id"))],
 )
+async def edit_course(course_id: int): ...
+```
+
+**Make an object cascade** — a table model that is an object of a scope inherits `Scopeable`,
+sets its `scope`, and stores a `scope_path` built from its parent's path when it is created:
+
+```python
+from sqlmodel import Field
+from sparkth.lib.permissions.scopes import Scopeable, build_scope_path
+
+
+class Course(Scopeable, table=True):
+    scope = COURSE  # the PermissionScope this model is an object of
+
+    id: int | None = Field(default=None, primary_key=True)
+
+
+async def create_course(org: Org, session: AsyncSession) -> Course:
+    course = Course(scope_path="")  # the path needs the id, assigned on flush
+    session.add(course)
+    await session.flush()
+    course.scope_path = build_scope_path(COURSE, course.scope_id, org.scope_path)
+    return course
+```
+
+`scope_id` is the record's `id` as a string; a model keyed otherwise overrides it. An id may
+not contain `/`, since it would add path segments; `build_scope_path` raises `ValueError`. A
+root-level object, whose parent scope is objectless, passes no parent path. **Moving an object
+means rewriting its path** (and the path of everything beneath it): nothing derives it later.
+
+Then gate routes with `object_id`, as a fixed string or as a dependency returning the record:
+
+```python
+# Fixed id: a plugin's routes check the grant held at plugin:grader.
+@router.get("/status", dependencies=[Depends(GRADER_USE.require(PLUGIN, object_id="grader"))])
+async def status(): ...
+
+
+async def load_course(course_id: int, session: AsyncSession = Depends(get_async_session)) -> Course:
+    course = await session.get(Course, course_id)
+    if course is None:
+        raise CourseNotFound(course_id)
+    return course
+
+
+# The record carries its scope_path, so a grant at its org authorizes the edit.
+@router.patch("/courses/{course_id}", dependencies=[Depends(COURSE_EDIT.require(COURSE, object_id=load_course))])
 async def edit_course(course_id: int): ...
 ```
 

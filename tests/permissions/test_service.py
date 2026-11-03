@@ -287,6 +287,58 @@ async def test_can_child_grant_does_not_satisfy_parent_check(session: AsyncSessi
     assert await can(user, EMAIL_WHITELIST_READ, GLOBAL, None, session) is False
 
 
+ORG = PermissionScope("org", parent=GLOBAL)
+COURSE = PermissionScope("course", parent=ORG)
+QUIZ = PermissionScope("quiz", parent=COURSE)
+QUIZ_PATH = "org:5/course:123/quiz:777"
+
+
+async def grant_at(session: AsyncSession, username: str, permission: str, scope: str, object_id: str | None) -> User:
+    user = await make_user(session, username)
+    role = await make_role(session, f"role-{username}", [permission])
+    assert user.id is not None and role.id is not None
+    session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope=scope, scope_object_id=object_id))
+    await session.flush()
+    return user
+
+
+async def test_can_cascades_from_ancestor_object_through_scope_path(session: AsyncSession) -> None:
+    user = await grant_at(session, "alice", "quiz.grade", "org", "5")
+    assert await can(user, Permission("quiz.grade"), QUIZ, "777", session, QUIZ_PATH) is True
+
+
+async def test_can_denies_grant_at_a_different_ancestor_object(session: AsyncSession) -> None:
+    user = await grant_at(session, "alice", "quiz.grade", "org", "6")
+    assert await can(user, Permission("quiz.grade"), QUIZ, "777", session, QUIZ_PATH) is False
+
+
+async def test_can_with_a_path_ending_at_another_object_raises(session: AsyncSession) -> None:
+    user = await grant_at(session, "alice", "quiz.grade", "org", "5")
+    with pytest.raises(ValueError):
+        await can(user, Permission("quiz.grade"), COURSE, "123", session, QUIZ_PATH)
+
+
+async def test_can_does_not_cascade_upward(session: AsyncSession) -> None:
+    user = await grant_at(session, "alice", "quiz.grade", "quiz", "777")
+    assert await can(user, Permission("quiz.grade"), COURSE, "123", session, "org:5/course:123") is False
+
+
+async def test_can_without_path_ignores_object_bearing_grants_on_ancestors(session: AsyncSession) -> None:
+    user = await grant_at(session, "alice", "quiz.grade", "org", "5")
+    assert await can(user, Permission("quiz.grade"), QUIZ, "777", session) is False
+
+
+async def test_can_still_cascades_global_grant_with_path(session: AsyncSession) -> None:
+    user = await grant_at(session, "alice", "quiz.grade", "global", None)
+    assert await can(user, Permission("quiz.grade"), QUIZ, "777", session, QUIZ_PATH) is True
+
+
+async def test_has_role_cascades_from_ancestor_object_through_scope_path(session: AsyncSession) -> None:
+    user = await grant_at(session, "alice", "quiz.grade", "org", "5")
+    assert await has_role(user, "role-alice", QUIZ, "777", session, QUIZ_PATH) is True
+    assert await has_role(user, "role-alice", QUIZ, "777", session) is False
+
+
 def test_facade_exposes_public_surface() -> None:
     from sparkth.core.permissions import PERMISSIONS
     from sparkth.core.permissions.scopes import GLOBAL, PERMISSION_SCOPES, ObjectlessPermissionScope, PermissionScope
