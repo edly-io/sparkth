@@ -6,6 +6,7 @@ import { Spinner } from "@/core/components/ui/Spinner";
 import { usePlugin, usePluginContext } from "@/core/plugins/context";
 import { displayNameOf } from "@/core/plugins/metadata";
 import { getPlugin } from "@/core/plugins/registry";
+import { pluginPath } from "@/core/plugins/routes";
 import PluginRenderer from "@/components/PluginRenderer";
 import Link from "next/link";
 
@@ -23,7 +24,7 @@ export default function PluginPageClient() {
   const displayName = userPlugin ? displayNameOf(userPlugin) : pluginName;
 
   if (!authLoading && !isAuthenticated) {
-    redirect(`/login?redirect=/dashboard/${pluginName}`);
+    redirect(`/login?redirect=${pluginPath(pluginName)}`);
   }
 
   if (authLoading) {
