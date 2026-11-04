@@ -1,5 +1,6 @@
-import { api, ApiRequestError, bearer, type Schema } from "@/lib/api";
+import { api, ApiRequestError, bearer } from "@/lib/api";
 import type {
+  AuthorizationUrlResponse,
   ConnectionStatus,
   DriveBrowseResponse,
   DriveFolder,
@@ -37,7 +38,7 @@ export async function getAuthorizationUrl(token: string): Promise<string> {
     const { data } = await api.GET("/api/v1/google-drive/oauth/authorize", {
       headers: bearer(token),
     });
-    return (data as Schema<"GoogleDriveAuthorizationUrlResponse">).url;
+    return (data as AuthorizationUrlResponse).url;
   } catch (error) {
     toError("Failed to get authorization URL", error);
   }
@@ -168,6 +169,7 @@ export async function browseDrive(
   }
 }
 
+/** The processing status of each file in the synced folder `folderId`. */
 export async function getFolderDocumentStatus(
   folderId: number,
   token: string,

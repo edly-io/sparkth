@@ -14,6 +14,7 @@ interface DocumentStatusIndicatorProps {
   error?: string | null;
 }
 
+/** A file's document status as a colored dot, with its label and any error on hover. */
 export function DocumentStatusIndicator({ fileId, status, error }: DocumentStatusIndicatorProps) {
   const [hovered, setHovered] = useState(false);
   const color = documentStatusColor[status ?? ""] ?? DOCUMENT_STATUS_FALLBACK_COLOR;
