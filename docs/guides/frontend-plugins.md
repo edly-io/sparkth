@@ -343,8 +343,8 @@ export function ExampleSections() {
 Compose's attach menu lists one entry for each source plugins set in the `ATTACHMENT_SOURCES` slot
 (`@/lib/attachments/slots`), while the plugin that set it is turned on. Choosing an entry loads the source's
 picker, which Compose passes the documents already attached as `selected`. The picker hands back the documents the
-user picked through `onSelect`, and Compose attaches them in place of the earlier ones. Google Drive sets its
-source from `plugins/google-drive/attachments.ts`:
+user picked through `onSelect`, and Compose attaches them in place of every document attached earlier, from any
+source; text attachments stay. A plugin sets its source from its own `attachments.ts`, as Google Drive does:
 
 ```ts
 // plugins/example-plugin/attachments.ts
@@ -358,6 +358,26 @@ ATTACHMENT_SOURCES.set("example-plugin", [
     loadPicker: () => import("@/plugins/example-plugin/AttachmentPicker"),
   },
 ]);
+```
+
+The plugin's `index.ts` imports that file, or the source is never set:
+
+```ts
+// plugins/example-plugin/index.ts
+import "@/plugins/example-plugin/attachments";
+```
+
+The picker is the module's default export. It gets the attached documents and two callbacks, and keeps the source's
+own id for each document in `sourceId`, so it can show them selected when it opens again:
+
+```tsx
+// plugins/example-plugin/AttachmentPicker.tsx
+import type { AttachmentPickerProps } from "@/lib/attachments/slots";
+
+export default function AttachmentPicker({ selected, onSelect, onClose }: AttachmentPickerProps) {
+  // Show the source's files with `selected` ticked. On confirm, hand back every picked document:
+  // onSelect([{ documentId, sourceId, name, size }, ...]). On cancel, call onClose().
+}
 ```
 
 ## Settings

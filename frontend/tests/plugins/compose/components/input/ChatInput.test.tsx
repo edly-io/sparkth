@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { afterEach, describe, it, expect, vi, beforeEach } from "vitest";
 
 import { ChatInput } from "@/plugins/compose/components/input/ChatInput";
 import type { AttachmentPickerProps, AttachmentSource } from "@/lib/attachments/slots";
@@ -43,6 +43,8 @@ describe("ChatInput", () => {
     vi.clearAllMocks();
     pickingFrom = null;
   });
+  // Puts back console.error, which the load-failure test silences.
+  afterEach(() => vi.restoreAllMocks());
 
   it("shows the message it is given", () => {
     renderWithIntl(
