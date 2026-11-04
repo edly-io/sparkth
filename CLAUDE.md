@@ -232,6 +232,9 @@ skill — follow it whenever creating or editing a GitHub issue, posting a propo
 opening a pull request, or committing LLM-generated code. Conventional Commits are enforced by
 [`commitlint`](.github/workflows/commitlint.yml) on every PR. Never commit directly to `main`.
 
+Before creating a pull request, review the branch's changes with the
+[`sparkth-code-review`](.claude/skills/sparkth-code-review/SKILL.md) skill and address its findings first.
+
 ## Additional Documentation
 
 | Topic | File |
