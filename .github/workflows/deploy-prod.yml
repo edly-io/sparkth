@@ -84,8 +84,22 @@ jobs:
             exit 1
           fi
           install -d -m 700 ~/.ssh
-          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/infra_deploy_key
+          # A key pasted through a single-line field (e.g. a password manager's
+          # password box) loses its line breaks, and some editors add carriage
+          # returns. Rebuild the PEM layout (base64 body wrapped at 70, as
+          # ssh-keygen writes it), then make sure ssh can read it.
+          begin="-----BEGIN OPENSSH PRIVATE KEY-----"
+          end="-----END OPENSSH PRIVATE KEY-----"
+          body=$(printf '%s' "$DEPLOY_KEY" | tr -d '\r')
+          body=${body#*"$begin"}
+          body=${body%"$end"*}
+          body=$(printf '%s' "$body" | tr -d ' \t\n')
+          { echo "$begin"; printf '%s' "$body" | fold -w 70; echo; echo "$end"; } > ~/.ssh/infra_deploy_key
           chmod 600 ~/.ssh/infra_deploy_key
+          if ! ssh-keygen -y -f ~/.ssh/infra_deploy_key > /dev/null 2>&1; then
+            echo "::error::INFRA_DEPLOY_KEY is not a valid OpenSSH private key (paste the whole key, from -----BEGIN to -----END)"
+            exit 1
+          fi
           # GitHub's published host key (api.github.com/meta), so the push can't be redirected.
           echo "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" > ~/.ssh/known_hosts
           export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/infra_deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
