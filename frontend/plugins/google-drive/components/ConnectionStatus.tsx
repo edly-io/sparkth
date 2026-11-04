@@ -7,11 +7,8 @@ import { useAuth } from "@/lib/auth/hooks";
 import { Button } from "@/lib/components/ui/Button";
 import { Card } from "@/lib/components/ui/Card";
 import GoogleDriveIcon from "@/plugins/google-drive/GoogleDriveIcon";
-import {
-  getAuthorizationUrl,
-  disconnectGoogle,
-  ConnectionStatus as ConnectionStatusType,
-} from "@/plugins/google-drive/client";
+import { getAuthorizationUrl, disconnectGoogle } from "@/plugins/google-drive/client";
+import { ConnectionStatus as ConnectionStatusType } from "@/plugins/google-drive/types";
 
 interface ConnectionStatusProps {
   status: ConnectionStatusType | null;

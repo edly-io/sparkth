@@ -12,14 +12,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/lib/components/ui/Dialog";
-import {
-  listFolders,
-  listFiles,
-  fetchAllPages,
-  DriveFolder,
-  DriveFile,
-  RagStatus,
-} from "@/plugins/google-drive/client";
+import { listFolders, listFiles, fetchAllPages } from "@/plugins/google-drive/client";
+import { DriveFolder, DriveFile, RagStatus } from "@/plugins/google-drive/types";
 import { useRagStatusPolling } from "@/plugins/google-drive/hooks/useRagStatusPolling";
 import { RagStatusIndicator } from "@/plugins/google-drive/components/RagStatusIndicator";
 import GoogleDriveIcon from "@/plugins/google-drive/GoogleDriveIcon";

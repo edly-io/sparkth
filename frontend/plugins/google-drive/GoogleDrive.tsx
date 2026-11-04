@@ -32,11 +32,13 @@ import {
   downloadFile,
   deleteFile,
   refreshFolder,
+} from "@/plugins/google-drive/client";
+import {
   DriveFolder,
   ConnectionStatus as ConnectionStatusType,
-  formatDate,
   RagStatus,
-} from "@/plugins/google-drive/client";
+} from "@/plugins/google-drive/types";
+import { formatDate } from "@/plugins/google-drive/utils";
 
 const ResourceStatus = {
   Ready: "ready",
