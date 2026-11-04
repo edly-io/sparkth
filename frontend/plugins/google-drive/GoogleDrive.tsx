@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef, useMemo } from "react";
-import { useDocumentStatusPolling } from "@/plugins/google-drive/hooks/useDocumentStatusPolling";
+import {
+  useDocumentStatusPolling,
+  type DocumentStatusMap,
+} from "@/plugins/google-drive/hooks/useDocumentStatusPolling";
 import {
   FileText,
   Image as ImageIcon,
@@ -241,7 +244,7 @@ type DriveAction =
   | { type: "SET_CURRENT_PAGE"; payload: number }
   | {
       type: "UPDATE_DOCUMENT_STATUSES";
-      payload: Record<number, { status: DocumentStatus | null; error: string | null }>;
+      payload: DocumentStatusMap;
     }
   | { type: "RELOAD" };
 

@@ -2,19 +2,27 @@ import { useCallback, useEffect, useState } from "react";
 import { getFolderDocumentStatus } from "@/plugins/google-drive/client";
 import { DocumentStatus } from "@/plugins/google-drive/types";
 
+/** Each file's processing status and error, keyed by file id. */
 export type DocumentStatusMap = Record<
   number,
   { status: DocumentStatus | null; error: string | null }
 >;
 
+/** What `useDocumentStatusPolling` returns. */
 export interface DocumentStatusPollingResult {
   documentStatuses: DocumentStatusMap;
+  /** Starts polling again, for example after a folder is refreshed. */
   restart: () => void;
 }
 
 const BASE_DELAY = 5000;
 const MAX_DELAY = 30000;
 
+/**
+ * Polls the document status of every file in the folders `folderIds`, until each file is ready,
+ * failed or has no status. Polls every 5 seconds, doubling the wait after a failed poll up to 30
+ * seconds.
+ */
 export function useDocumentStatusPolling(
   folderIds: number[],
   token: string | null,
