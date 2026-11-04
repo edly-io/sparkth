@@ -338,6 +338,28 @@ export function ExampleSections() {
 }
 ```
 
+### Compose attachment sources
+
+Compose's attach menu lists one entry for each source plugins set in the `ATTACHMENT_SOURCES` slot
+(`@/lib/attachments/slots`), while the plugin that set it is turned on. Choosing an entry loads the source's
+picker, which Compose passes the documents already attached as `selected`. The picker hands back the documents the
+user picked through `onSelect`, and Compose attaches them in place of the earlier ones. Google Drive sets its
+source from `plugins/google-drive/attachments.ts`:
+
+```ts
+// plugins/example-plugin/attachments.ts
+import { ATTACHMENT_SOURCES } from "@/lib/attachments/slots";
+import ExampleIcon from "@/plugins/example-plugin/ExampleIcon";
+
+ATTACHMENT_SOURCES.set("example-plugin", [
+  {
+    label: "Pick from Example",
+    icon: ExampleIcon,
+    loadPicker: () => import("@/plugins/example-plugin/AttachmentPicker"),
+  },
+]);
+```
+
 ## Settings
 
 The **Settings** page lists the one row each plugin sets in the `SETTINGS_ITEMS` slot

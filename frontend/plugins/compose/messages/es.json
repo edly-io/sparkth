@@ -12,6 +12,7 @@
     "optionsTypeElse": "¿Quieres algo más? Escríbelo en el cuadro de mensaje de abajo.",
     "optionsNoneSelected": "No se seleccionó ninguna opción",
     "stopGenerating": "Detener la generación",
+    "pickerFailed": "No se pudo abrir el selector de archivos. Inténtalo de nuevo.",
     "aiKeyMissing": "Todavía no has añadido una clave de IA a Sparkth. Añade una y luego selecciónala en la configuración de Componer.",
     "aiKeyMissingAction": "Añadir una clave de IA",
     "aiKeyNotSelected": "Selecciona tu clave de IA en la configuración de Componer para empezar a crear.",
