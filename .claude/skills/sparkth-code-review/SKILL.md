@@ -82,9 +82,7 @@ failure modes) and run `/security-review` for anything touching auth, permission
 - **Catch-All Exception Swallowing:** Flag `except Exception: pass` or bare `except:` blocks that mask upstream bugs
   and destroy debuggability.
 
-### 5. Pythonic Idioms & PEP 8 Conventions
-- **PEP 8 Compliance:** Proper naming conventions (`snake_case` for functions/variables, `PascalCase` for classes,
-  `SCREAMING_SNAKE_CASE` for module-level constants).
+### 5. Pythonic Idioms
 - **Modern Python Idioms:**
   - Encourage `pathlib.Path` over legacy `os.path`.
   - Encourage modern pattern matching (`match/case`) where chain `elif isinstance(...)` trees exist.
