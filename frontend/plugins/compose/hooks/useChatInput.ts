@@ -4,7 +4,7 @@ import { Dispatch, SetStateAction, useState } from "react";
 import { TextAttachment } from "@/plugins/compose/types";
 import { attachDocument, detachDocument } from "@/plugins/compose/client";
 import { uploadFile, UploadResponse } from "@/lib/file-upload";
-import { SelectedDriveFile } from "@/components/drive/DriveFilePicker";
+import type { AttachedDocument, AttachmentSource } from "@/lib/attachments/slots";
 
 const MAX_FILE_SIZE = 30 * 1024 * 1024; // 30MB
 
@@ -32,7 +32,7 @@ export function useChatInput({
   onSend,
 }: UseChatInputProps) {
   const [showUploadMenu, setShowUploadMenu] = useState(false);
-  const [showDriveFilePicker, setShowDriveFilePicker] = useState(false);
+  const [pickingFrom, setPickingFrom] = useState<AttachmentSource | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const handleUploadAsText = async (file: File) => {
@@ -65,41 +65,41 @@ export function useChatInput({
     }
   };
 
-  const handleDriveFileSelected = (driveFiles: SelectedDriveFile[]) => {
-    setShowDriveFilePicker(false);
+  const handleDocumentsSelected = (documents: AttachedDocument[]) => {
+    setPickingFrom(null);
     setUploadError(null);
 
-    // Snapshot the previous drive attachments before enqueueing the state
+    // Snapshot the previous document attachments before enqueueing the state
     // update so both diff computations read a consistent pre-update view.
     const prevDocumentAttachments = attachments.filter((a) => a.documentId !== undefined);
 
-    const newDriveAttachments = driveFiles.map((file) => ({
-      name: file.name,
-      size: file.size ?? 0,
-      text: `[File: ${file.name}]`,
-      documentId: file.document_id,
+    const newDocumentAttachments = documents.map((document) => ({
+      name: document.name,
+      size: document.size ?? 0,
+      text: `[File: ${document.name}]`,
+      documentId: document.documentId,
     }));
     setAttachments((prev) => {
-      const nonDrive = prev.filter((a) => a.documentId === undefined);
-      return [...nonDrive, ...newDriveAttachments];
+      const nonDocument = prev.filter((a) => a.documentId === undefined);
+      return [...nonDocument, ...newDocumentAttachments];
     });
 
     if (conversationId) {
       const existingIds = new Set(prevDocumentAttachments.map((a) => a.documentId));
-      const addedFiles = driveFiles.filter((f) => !existingIds.has(f.document_id));
-      for (const file of addedFiles) {
-        attachDocument(token, conversationId, file.document_id).catch((err) => {
-          console.warn("Failed to persist drive file attachment:", err);
-          setUploadError(`Failed to attach "${file.name}". Please try again.`);
-          setAttachments((prev) => prev.filter((a) => a.documentId !== file.document_id));
+      const addedDocuments = documents.filter((d) => !existingIds.has(d.documentId));
+      for (const document of addedDocuments) {
+        attachDocument(token, conversationId, document.documentId).catch((err) => {
+          console.warn("Failed to persist document attachment:", err);
+          setUploadError(`Failed to attach "${document.name}". Please try again.`);
+          setAttachments((prev) => prev.filter((a) => a.documentId !== document.documentId));
         });
       }
 
-      const newIds = new Set(driveFiles.map((f) => f.document_id));
+      const newIds = new Set(documents.map((d) => d.documentId));
       const removedAttachments = prevDocumentAttachments.filter((a) => !newIds.has(a.documentId!));
       for (const att of removedAttachments) {
         detachDocument(token, conversationId, att.documentId!).catch((err) => {
-          console.warn("Failed to detach drive file:", err);
+          console.warn("Failed to detach document:", err);
           setUploadError(`Failed to detach "${att.name}". Please try again.`);
           setAttachments((prev) => [...prev, att]);
         });
@@ -158,12 +158,12 @@ export function useChatInput({
   return {
     showUploadMenu,
     setShowUploadMenu,
-    showDriveFilePicker,
-    setShowDriveFilePicker,
+    pickingFrom,
+    setPickingFrom,
     uploadError,
     setUploadError,
     handleUploadAsText,
-    handleDriveFileSelected,
+    handleDocumentsSelected,
     handleRemoveAttachment,
     handleSend,
   };
