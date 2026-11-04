@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef, useMemo } from "react";
-import { useRagStatusPolling } from "@/lib/useRagStatusPolling";
+import { useRagStatusPolling } from "@/plugins/google-drive/hooks/useRagStatusPolling";
 import {
   FileText,
   Image as ImageIcon,
@@ -22,8 +22,8 @@ import { Spinner } from "@/lib/components/ui/Spinner";
 import { useAuth } from "@/lib/auth/hooks";
 import { Button } from "@/lib/components/ui/Button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/Tooltip";
-import ConnectionStatus from "@/components/drive/ConnectionStatus";
-import FolderPicker from "@/components/drive/FolderPicker";
+import ConnectionStatus from "@/plugins/google-drive/components/ConnectionStatus";
+import FolderPicker from "@/plugins/google-drive/components/FolderPicker";
 import {
   getConnectionStatus,
   listFolders,
@@ -36,7 +36,7 @@ import {
   ConnectionStatus as ConnectionStatusType,
   formatDate,
   RagStatus,
-} from "@/lib/drive";
+} from "@/plugins/google-drive/client";
 
 const ResourceStatus = {
   Ready: "ready",
