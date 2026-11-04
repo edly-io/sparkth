@@ -13,11 +13,11 @@ vi.mock("@/plugins/google-drive/client", async (importOriginal) => {
     ...actual,
     listFolders: vi.fn(),
     listFiles: vi.fn(),
-    getFolderRagStatus: vi.fn(),
+    getFolderDocumentStatus: vi.fn(),
   };
 });
 
-import { listFolders, listFiles, getFolderRagStatus } from "@/plugins/google-drive/client";
+import { listFolders, listFiles, getFolderDocumentStatus } from "@/plugins/google-drive/client";
 
 const mockFolder = {
   id: 1,
@@ -58,11 +58,11 @@ const selectFolder = async () => {
   await userEvent.click(folderButton);
 };
 
-describe("DriveFilePicker - RAG Status Column", () => {
+describe("DriveFilePicker - Document Status Column", () => {
   beforeEach(() => {
     vi.mocked(listFolders).mockResolvedValue(paginated([mockFolder]));
     vi.mocked(listFiles).mockResolvedValue(paginated(mockFiles));
-    vi.mocked(getFolderRagStatus).mockResolvedValue({
+    vi.mocked(getFolderDocumentStatus).mockResolvedValue({
       folder_id: 1,
       files: [
         { file_id: 10, name: "doc.pdf", rag_status: "ready", rag_error: null },
@@ -86,7 +86,7 @@ describe("DriveFilePicker - RAG Status Column", () => {
   });
 
   it("renders red circle for failed status", async () => {
-    vi.mocked(getFolderRagStatus).mockResolvedValue({
+    vi.mocked(getFolderDocumentStatus).mockResolvedValue({
       folder_id: 1,
       files: [{ file_id: 10, name: "doc.pdf", rag_status: "failed", rag_error: null }],
     });
@@ -101,7 +101,7 @@ describe("DriveFilePicker - RAG Status Column", () => {
   });
 
   it("renders gray circle for queued status", async () => {
-    vi.mocked(getFolderRagStatus).mockResolvedValue({
+    vi.mocked(getFolderDocumentStatus).mockResolvedValue({
       folder_id: 1,
       files: [{ file_id: 10, name: "doc.pdf", rag_status: "queued", rag_error: null }],
     });
@@ -116,7 +116,7 @@ describe("DriveFilePicker - RAG Status Column", () => {
   });
 
   it("renders gray circle for null status", async () => {
-    vi.mocked(getFolderRagStatus).mockResolvedValue({
+    vi.mocked(getFolderDocumentStatus).mockResolvedValue({
       folder_id: 1,
       files: [{ file_id: 10, name: "doc.pdf", rag_status: null, rag_error: null }],
     });
@@ -142,7 +142,7 @@ describe("DriveFilePicker - File Checkbox Disabled State", () => {
   });
 
   it("enables the checkbox only when rag_status is ready", async () => {
-    vi.mocked(getFolderRagStatus).mockResolvedValue({
+    vi.mocked(getFolderDocumentStatus).mockResolvedValue({
       folder_id: 1,
       files: [
         { file_id: 10, name: "doc.pdf", rag_status: "ready", rag_error: null },
@@ -160,7 +160,7 @@ describe("DriveFilePicker - File Checkbox Disabled State", () => {
   });
 
   it("disables the checkbox for queued files", async () => {
-    vi.mocked(getFolderRagStatus).mockResolvedValue({
+    vi.mocked(getFolderDocumentStatus).mockResolvedValue({
       folder_id: 1,
       files: [{ file_id: 10, name: "doc.pdf", rag_status: "queued", rag_error: null }],
     });
@@ -175,7 +175,7 @@ describe("DriveFilePicker - File Checkbox Disabled State", () => {
   });
 
   it("disables the checkbox for failed files", async () => {
-    vi.mocked(getFolderRagStatus).mockResolvedValue({
+    vi.mocked(getFolderDocumentStatus).mockResolvedValue({
       folder_id: 1,
       files: [{ file_id: 10, name: "doc.pdf", rag_status: "failed", rag_error: null }],
     });
@@ -190,7 +190,7 @@ describe("DriveFilePicker - File Checkbox Disabled State", () => {
   });
 
   it("disables the checkbox for null status", async () => {
-    vi.mocked(getFolderRagStatus).mockResolvedValue({
+    vi.mocked(getFolderDocumentStatus).mockResolvedValue({
       folder_id: 1,
       files: [{ file_id: 10, name: "doc.pdf", rag_status: null, rag_error: null }],
     });
@@ -205,7 +205,7 @@ describe("DriveFilePicker - File Checkbox Disabled State", () => {
   });
 
   it("calls onFileSelected when a ready file is checked and confirmed", async () => {
-    vi.mocked(getFolderRagStatus).mockResolvedValue({
+    vi.mocked(getFolderDocumentStatus).mockResolvedValue({
       folder_id: 1,
       files: [{ file_id: 10, name: "doc.pdf", rag_status: "ready", rag_error: null }],
     });
@@ -226,7 +226,7 @@ describe("DriveFilePicker - File Checkbox Disabled State", () => {
   });
 });
 
-describe("DriveFilePicker - RAG Status Polling", () => {
+describe("DriveFilePicker - Document Status Polling", () => {
   beforeEach(() => {
     vi.mocked(listFolders).mockResolvedValue(paginated([mockFolder]));
     vi.mocked(listFiles).mockResolvedValue(paginated(mockFiles));
@@ -236,8 +236,8 @@ describe("DriveFilePicker - RAG Status Polling", () => {
     vi.restoreAllMocks();
   });
 
-  it("calls getFolderRagStatus on folder open", async () => {
-    vi.mocked(getFolderRagStatus).mockResolvedValue({
+  it("calls getFolderDocumentStatus on folder open", async () => {
+    vi.mocked(getFolderDocumentStatus).mockResolvedValue({
       folder_id: 1,
       files: [{ file_id: 10, name: "doc.pdf", rag_status: "ready", rag_error: null }],
     });
@@ -246,12 +246,12 @@ describe("DriveFilePicker - RAG Status Polling", () => {
     await selectFolder();
 
     await waitFor(() => {
-      expect(getFolderRagStatus).toHaveBeenCalledWith(1, "test-token");
+      expect(getFolderDocumentStatus).toHaveBeenCalledWith(1, "test-token");
     });
   });
 
   it("stops polling when all files reach terminal state", async () => {
-    vi.mocked(getFolderRagStatus).mockResolvedValue({
+    vi.mocked(getFolderDocumentStatus).mockResolvedValue({
       folder_id: 1,
       files: [
         { file_id: 10, name: "doc.pdf", rag_status: "ready", rag_error: null },

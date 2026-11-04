@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef, useMemo } from "react";
-import { useRagStatusPolling } from "@/plugins/google-drive/hooks/useRagStatusPolling";
+import { useDocumentStatusPolling } from "@/plugins/google-drive/hooks/useDocumentStatusPolling";
 import {
   FileText,
   Image as ImageIcon,
@@ -36,7 +36,7 @@ import {
 import {
   DriveFolder,
   ConnectionStatus as ConnectionStatusType,
-  RagStatus,
+  DocumentStatus,
 } from "@/plugins/google-drive/types";
 import { formatDate } from "@/plugins/google-drive/utils";
 
@@ -52,8 +52,8 @@ interface ResourceRow {
   name: string;
   mimeType: string;
   status: ResourceStatus;
-  ragStatus: RagStatus | null;
-  ragError: string | null;
+  documentStatus: DocumentStatus | null;
+  documentError: string | null;
   dateImported: string;
   source: string;
   folderId: number;
@@ -117,17 +117,17 @@ function StatusChip({
 }
 
 /**
- * Combined sync + RAG status chip. Surfaces the earliest non-final state on
+ * Combined sync + document status chip. Surfaces the earliest non-final state on
  * the pipeline: Syncing → Sync Failed | Pending → Queued → Indexing → Index Failed | Indexed.
  */
 function PipelineStatusChip({
   syncStatus,
-  ragStatus,
-  ragError,
+  documentStatus,
+  documentError,
 }: {
   syncStatus: ResourceStatus;
-  ragStatus: RagStatus | null;
-  ragError: string | null;
+  documentStatus: DocumentStatus | null;
+  documentError: string | null;
 }) {
   if (syncStatus === ResourceStatus.Processing) {
     return <StatusChip tone="warning" icon={Clock} label="Syncing" />;
@@ -135,20 +135,20 @@ function PipelineStatusChip({
   if (syncStatus === ResourceStatus.Failed) {
     return <StatusChip tone="error" icon={AlertCircle} label="Sync Failed" />;
   }
-  // Explicit guard so a future ResourceStatus member can't silently fall through to RAG checks.
+  // Explicit guard so a future ResourceStatus member can't silently fall through to document status checks.
   if (syncStatus !== ResourceStatus.Ready) {
     return <StatusChip tone="muted" icon={Clock} label="Unknown" />;
   }
-  if (ragStatus === null) {
+  if (documentStatus === null) {
     return <StatusChip tone="muted" icon={Clock} label="Pending" />;
   }
-  if (ragStatus === RagStatus.Queued) {
+  if (documentStatus === DocumentStatus.Queued) {
     return <StatusChip tone="muted" icon={Clock} label="Queued" />;
   }
-  if (ragStatus === RagStatus.Processing) {
+  if (documentStatus === DocumentStatus.Processing) {
     return <StatusChip tone="warning" icon={Clock} label="Indexing" />;
   }
-  if (ragStatus === RagStatus.Failed) {
+  if (documentStatus === DocumentStatus.Failed) {
     return (
       <Tooltip>
         <TooltipTrigger asChild>
@@ -156,11 +156,13 @@ function PipelineStatusChip({
             <StatusChip tone="error" icon={AlertCircle} label="Failed" />
           </span>
         </TooltipTrigger>
-        <TooltipContent>{ragError ?? "Indexing failed. Try re-syncing the folder."}</TooltipContent>
+        <TooltipContent>
+          {documentError ?? "Indexing failed. Try re-syncing the folder."}
+        </TooltipContent>
       </Tooltip>
     );
   }
-  if (ragStatus === RagStatus.Ready) {
+  if (documentStatus === DocumentStatus.Ready) {
     return <StatusChip tone="success" icon={CheckCircle} label="Indexed" />;
   }
   return (
@@ -238,8 +240,8 @@ type DriveAction =
   | { type: "SET_RESYNCING"; payload: boolean }
   | { type: "SET_CURRENT_PAGE"; payload: number }
   | {
-      type: "UPDATE_RAG_STATUSES";
-      payload: Record<number, { status: RagStatus | null; error: string | null }>;
+      type: "UPDATE_DOCUMENT_STATUSES";
+      payload: Record<number, { status: DocumentStatus | null; error: string | null }>;
     }
   | { type: "RELOAD" };
 
@@ -287,12 +289,16 @@ function driveReducer(state: DriveState, action: DriveAction): DriveState {
       return { ...state, resyncing: action.payload };
     case "SET_CURRENT_PAGE":
       return { ...state, currentPage: action.payload };
-    case "UPDATE_RAG_STATUSES":
+    case "UPDATE_DOCUMENT_STATUSES":
       return {
         ...state,
         resources: state.resources.map((r) =>
           r.id in action.payload
-            ? { ...r, ragStatus: action.payload[r.id].status, ragError: action.payload[r.id].error }
+            ? {
+                ...r,
+                documentStatus: action.payload[r.id].status,
+                documentError: action.payload[r.id].error,
+              }
             : r,
         ),
       };
@@ -420,8 +426,8 @@ function ResourcesTable({
                 <td className="px-5 py-3">
                   <PipelineStatusChip
                     syncStatus={resource.status}
-                    ragStatus={resource.ragStatus}
-                    ragError={resource.ragError}
+                    documentStatus={resource.documentStatus}
+                    documentError={resource.documentError}
                   />
                 </td>
                 <td className="px-5 py-3">
@@ -632,8 +638,8 @@ export default function GoogleDrive() {
                 name: file.name,
                 mimeType: file.mime_type || "",
                 status: mapSyncStatus(folder.sync_status),
-                ragStatus: file.rag_status ?? null,
-                ragError: file.rag_error ?? null,
+                documentStatus: file.rag_status ?? null,
+                documentError: file.rag_error ?? null,
                 dateImported: formatDate(file.last_synced_at || folder.last_synced_at),
                 source: "Google Drive",
                 folderId: folder.id,
@@ -675,25 +681,28 @@ export default function GoogleDrive() {
     }
   }, [currentPage, totalResources, loadPage]);
 
-  // Poll RAG statuses for files that are still queued or processing
+  // Poll document statuses for files that are still queued or processing
   const folderIdsWithNonTerminal = useMemo(() => {
     const nonTerminalStatuses = new Set<string>(["queued", "processing"]);
     const ids = new Set<number>();
     for (const r of resources) {
-      if (r.ragStatus && nonTerminalStatuses.has(r.ragStatus)) {
+      if (r.documentStatus && nonTerminalStatuses.has(r.documentStatus)) {
         ids.add(r.folderId);
       }
     }
     return Array.from(ids);
   }, [resources]);
 
-  const { ragStatuses: polledRagStatuses } = useRagStatusPolling(folderIdsWithNonTerminal, token);
+  const { documentStatuses: polledDocumentStatuses } = useDocumentStatusPolling(
+    folderIdsWithNonTerminal,
+    token,
+  );
 
   useEffect(() => {
-    if (Object.keys(polledRagStatuses).length > 0) {
-      dispatch({ type: "UPDATE_RAG_STATUSES", payload: polledRagStatuses });
+    if (Object.keys(polledDocumentStatuses).length > 0) {
+      dispatch({ type: "UPDATE_DOCUMENT_STATUSES", payload: polledDocumentStatuses });
     }
-  }, [polledRagStatuses]);
+  }, [polledDocumentStatuses]);
 
   const handleDownload = async (resource: ResourceRow) => {
     if (!token) return;
