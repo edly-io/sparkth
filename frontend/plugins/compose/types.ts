@@ -21,7 +21,7 @@ export interface TextAttachment {
   size: number;
   base64Data?: string;
   mediaType?: string;
-  driveFileDbId?: number; // Google Drive file DB ID used only by the picker UI.
+  sourceId?: number; // The attachment source's own id for the document, used only by its picker.
   documentId?: number; // Core Document ID used by chat/RAG.
 }
 

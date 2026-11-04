@@ -16,7 +16,7 @@ describe("PersistedFilesInfo", () => {
     name,
     text: "content",
     size: 1024,
-    driveFileDbId: id,
+    sourceId: id,
     documentId: id,
   });
 

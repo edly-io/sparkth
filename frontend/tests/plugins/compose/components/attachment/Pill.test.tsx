@@ -56,8 +56,8 @@ describe("Pill", () => {
     it('displays "filename + N others" when multiple attachments', () => {
       const attachments: TextAttachment[] = [
         { name: "first.pdf", size: 1024, text: "content" },
-        { name: "second.pdf", size: 2048, text: "content", driveFileDbId: 1 },
-        { name: "third.pdf", size: 3072, text: "content", driveFileDbId: 2 },
+        { name: "second.pdf", size: 2048, text: "content", sourceId: 1 },
+        { name: "third.pdf", size: 3072, text: "content", sourceId: 2 },
       ];
 
       render(
@@ -73,8 +73,8 @@ describe("Pill", () => {
     it('displays "+ N others" indicator for additional files', () => {
       const attachments: TextAttachment[] = [
         { name: "first.pdf", size: 1024, text: "content" },
-        { name: "second.pdf", size: 2048, text: "content", driveFileDbId: 1 },
-        { name: "third.pdf", size: 3072, text: "content", driveFileDbId: 2 },
+        { name: "second.pdf", size: 2048, text: "content", sourceId: 1 },
+        { name: "third.pdf", size: 3072, text: "content", sourceId: 2 },
       ];
 
       render(
@@ -89,20 +89,20 @@ describe("Pill", () => {
       expect(screen.getByText("first.pdf")).toBeInTheDocument();
     });
 
-    it("calls onRemove with driveFileDbId for per-file removal", async () => {
+    it("calls onRemove with the documentId for per-file removal", async () => {
       const attachments: TextAttachment[] = [
         {
           name: "first.pdf",
           size: 1024,
           text: "content",
-          driveFileDbId: 100,
+          sourceId: 100,
           documentId: 200,
         },
         {
           name: "second.pdf",
           size: 2048,
           text: "content",
-          driveFileDbId: 123,
+          sourceId: 123,
           documentId: 223,
         },
       ];
