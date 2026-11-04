@@ -97,12 +97,12 @@ class Permission:
             scope_path: str | None = Depends(get_scope_path(permission_scope, scope_param, scope_object_id)),
         ) -> User:
             if not await can(current_user, self, permission_scope, scope_path, session):
-                await self._refuse(_describe_checked_scope(permission_scope, scope_path))
+                await self._deny(_describe_checked_scope(permission_scope, scope_path))
             return current_user
 
         return dependency
 
-    async def _refuse(self, scope_detail: str) -> NoReturn:
+    async def _deny(self, scope_detail: str) -> NoReturn:
         """Record the refusal as a ``permission.denied`` audit event, then raise 403.
 
         The event is written in its own transaction (``record_event_now``), so it survives the
@@ -138,7 +138,7 @@ class Permission:
         ) -> set[str] | None:
             accessible_ids = await get_accessible_object_ids(current_user, self, permission_scope, session)
             if accessible_ids is not None and not accessible_ids:
-                await self._refuse(_describe_checked_scope(permission_scope, None))
+                await self._deny(_describe_checked_scope(permission_scope, None))
             return accessible_ids
 
         return dependency
