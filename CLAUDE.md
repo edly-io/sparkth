@@ -251,3 +251,4 @@ opening a pull request, or committing LLM-generated code. Conventional Commits a
 | Analytics events: proposing them (agent workflow) | [.claude/skills/analytics-events/SKILL.md](.claude/skills/analytics-events/SKILL.md) |
 | Audit events (what to record, snapshot safety, transaction, fail-closed) | [docs/guides/audit-events.md](docs/guides/audit-events.md) |
 | Audit events: proposing them (agent workflow) | [.claude/skills/audit-events/SKILL.md](.claude/skills/audit-events/SKILL.md) |
+| Code review (Sparkth review rubric and real review examples) | [.claude/skills/sparkth-code-review/SKILL.md](.claude/skills/sparkth-code-review/SKILL.md) |
