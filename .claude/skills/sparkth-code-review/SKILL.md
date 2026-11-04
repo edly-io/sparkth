@@ -162,9 +162,10 @@ Examples table.
 | Testing | 1 |
 
 ### 4. Structural & Architectural Findings
-List issues grouped by file and severity. Use this exact comment template:
+List issues grouped by file and severity. Cite only lines the PR adds or changes (the `+` lines in `gh pr diff`),
+with their new-file line numbers. Use this exact comment template:
 
-> **File:** `path/to/file.py:line_number`
+> **File:** `path/to/file.py:new_file_line_number`
 > **Classification:** `<one category from the Sparkth Review Examples table>`
 > **Severity:** `[Blocker | Warning | Suggestion | Nit]`
 > **Observation:** Explain clearly what structural problem exists and why it hurts maintainability or readability.
@@ -176,6 +177,10 @@ List issues grouped by file and severity. Use this exact comment template:
 > # Proposed Improvement
 > def process(data: Dataset, force_sync: bool = False) -> Result: ...
 > ```
+
+A finding on code the PR leaves untouched, or on the PR as a whole (size, stacking, description), has no diff line to
+cite. Put it in a separate **Notes outside the diff** block after the findings, using the same template without the
+line number.
 
 ### 5. Holistic Refactor Suggestion (Optional)
 If a collection of scattered functions would be significantly cleaner as a cohesive module, pipeline, or pattern
