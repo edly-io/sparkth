@@ -2,7 +2,7 @@ import { render } from "@testing-library/react";
 import { beforeEach, describe, it, expect, vi } from "vitest";
 
 import { ATTACHMENT_SOURCES } from "@/lib/attachments/slots";
-import type { SelectedDriveFile } from "@/components/drive/DriveFilePicker";
+import type { SelectedDriveFile } from "@/plugins/google-drive/components/DriveFilePicker";
 import GoogleDriveIcon from "@/plugins/google-drive/GoogleDriveIcon";
 import "@/plugins/google-drive/attachments";
 
@@ -16,7 +16,7 @@ interface DrivePickerProps {
 // each test, so a test only sees its own render.
 let pickerProps: DrivePickerProps | undefined;
 
-vi.mock("@/components/drive/DriveFilePicker", () => ({
+vi.mock("@/plugins/google-drive/components/DriveFilePicker", () => ({
   default: (props: DrivePickerProps) => {
     pickerProps = props;
     return null;

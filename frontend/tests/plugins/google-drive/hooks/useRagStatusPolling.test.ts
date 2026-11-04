@@ -1,16 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
-import { useRagStatusPolling } from "@/lib/useRagStatusPolling";
+import { useRagStatusPolling } from "@/plugins/google-drive/hooks/useRagStatusPolling";
 
-vi.mock("@/lib/drive", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/drive")>();
+vi.mock("@/plugins/google-drive/client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/plugins/google-drive/client")>();
   return {
     ...actual,
     getFolderRagStatus: vi.fn(),
   };
 });
 
-import { getFolderRagStatus } from "@/lib/drive";
+import { getFolderRagStatus } from "@/plugins/google-drive/client";
 
 beforeEach(() => {
   vi.mocked(getFolderRagStatus).mockReset();

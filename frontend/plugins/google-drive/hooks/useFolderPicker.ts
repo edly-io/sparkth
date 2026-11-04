@@ -1,8 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAuth } from "@/core/auth/hooks";
-import { browseDrive, syncFolder, listFolders, fetchAllPages, DriveBrowseItem } from "@/lib/drive";
+import { useAuth } from "@/lib/auth/hooks";
+import {
+  browseDrive,
+  syncFolder,
+  listFolders,
+  fetchAllPages,
+  DriveBrowseItem,
+} from "@/plugins/google-drive/client";
 
 interface BreadcrumbItem {
   id: string | undefined;
