@@ -3,10 +3,10 @@
 Roles are created and edited here by end users with the ``role.*`` permissions. The endpoints that
 address one role by ``{role_id}`` (get/update/delete and its permission grants) authorize at the
 ``role`` scope (``require(ROLE, "role_id")``), so a grant can be delegated to a single role; a
-global grant still satisfies them via the scope cascade. Listing all roles and creating a role stay
-global. Permissions and scopes themselves are NOT manageable through this API — they are declared in
-code (platform defaults or plugin hooks); this API only assigns the already-registered permissions
-to roles.
+global grant still satisfies them via the scope cascade. Listing returns the roles the caller holds
+``role.read`` at (every role for a global grant); creating a role stays global. Permissions and
+scopes themselves are NOT manageable through this API — they are declared in code (platform
+defaults or plugin hooks); this API only assigns the already-registered permissions to roles.
 """
 
 from fastapi import APIRouter, Depends, status
@@ -15,6 +15,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.api.v1.permissions.schemas import RoleCreate, RolePermissionAdd, RoleResponse, RoleUpdate
 from sparkth.core.permissions import roles as role_engine
 from sparkth.core.permissions.models import Role
+from sparkth.core.permissions.utils import to_object_ids
 from sparkth.lib.db import get_async_session
 from sparkth.lib.permissions import ROLE_CREATE, ROLE_DELETE, ROLE_READ, ROLE_UPDATE
 from sparkth.lib.permissions.scopes import ROLE
@@ -44,19 +45,20 @@ async def _role_to_response(role: Role, session: AsyncSession) -> RoleResponse:
     return _build_role_response(role, permissions)
 
 
-@router.get(
-    "",
-    response_model=list[RoleResponse],
-    dependencies=[Depends(ROLE_READ.require_in_global_scope())],
-)
-async def list_roles(session: AsyncSession = Depends(get_async_session)) -> list[RoleResponse]:
-    """List all roles. Returns a list of RoleResponse (id, name, description, permissions).
+@router.get("", response_model=list[RoleResponse])
+async def list_roles(
+    accessible_ids: set[str] | None = Depends(ROLE_READ.require_accessible(ROLE)),
+    session: AsyncSession = Depends(get_async_session),
+) -> list[RoleResponse]:
+    """List the roles the caller may read. Returns a list of RoleResponse (id, name, description, permissions).
 
-    Grants are fetched for every role in a single batched query.
+    Grants are fetched for every listed role in a single batched query.
     """
-    all_roles = await role_engine.list_roles(session)
-    permissions_by_role = await role_engine.get_permissions_for_roles([_role_id(role) for role in all_roles], session)
-    return [_build_role_response(role, permissions_by_role.get(_role_id(role), [])) for role in all_roles]
+    listed_roles = await role_engine.list_roles(session, to_object_ids(accessible_ids))
+    permissions_by_role = await role_engine.get_permissions_for_roles(
+        [_role_id(role) for role in listed_roles], session
+    )
+    return [_build_role_response(role, permissions_by_role.get(_role_id(role), [])) for role in listed_roles]
 
 
 @router.post(

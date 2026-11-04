@@ -63,7 +63,7 @@ async def test_denied_request_records_permission_denied_event(
     assert event.actor_id == str(user.id)
     assert event.target_type == "permission"
     assert event.target_id == "role.read"
-    assert event.error_detail == "scope=global"
+    assert event.error_detail == "scope=role"
 
 
 async def test_denied_scoped_request_names_the_scope_object(
