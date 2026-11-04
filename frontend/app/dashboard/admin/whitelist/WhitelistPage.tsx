@@ -71,6 +71,10 @@ export default function WhitelistPage() {
   const [state, dispatch] = useReducer(reducer, initialState);
 
   const access = usePermissionCheck(token, "email.whitelist.read", { scope: "whitelist" });
+  const canAdd =
+    usePermissionCheck(token, "email.whitelist.create", { scope: "whitelist" }) === "allowed";
+  const canRemove =
+    usePermissionCheck(token, "email.whitelist.delete", { scope: "whitelist" }) === "allowed";
 
   if (access === "denied") {
     redirect("/dashboard");
@@ -162,27 +166,29 @@ export default function WhitelistPage() {
           </Alert>
         )}
 
-        <form onSubmit={handleAdd} className="flex gap-3 mb-6">
-          <div className="flex-1">
-            <Input
-              name="whitelist-value"
-              type="text"
-              placeholder="Email (user@example.com) or domain (@example.com)"
-              value={state.newValue}
-              onChange={(e) => dispatch({ type: "SET_NEW_VALUE", value: e.target.value })}
-              error={state.addError}
-            />
-          </div>
-          <Button
-            type="submit"
-            loading={state.adding}
-            disabled={!state.newValue.trim()}
-            spinnerLabel="Adding"
-          >
-            <Plus className="w-4 h-4 mr-1" />
-            Add
-          </Button>
-        </form>
+        {canAdd && (
+          <form onSubmit={handleAdd} className="flex gap-3 mb-6">
+            <div className="flex-1">
+              <Input
+                name="whitelist-value"
+                type="text"
+                placeholder="Email (user@example.com) or domain (@example.com)"
+                value={state.newValue}
+                onChange={(e) => dispatch({ type: "SET_NEW_VALUE", value: e.target.value })}
+                error={state.addError}
+              />
+            </div>
+            <Button
+              type="submit"
+              loading={state.adding}
+              disabled={!state.newValue.trim()}
+              spinnerLabel="Adding"
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Add
+            </Button>
+          </form>
+        )}
 
         {state.entries.length > 0 ? (
           <div className="bg-card rounded-lg shadow-sm overflow-hidden border border-border">
@@ -198,7 +204,7 @@ export default function WhitelistPage() {
                   <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground hidden sm:table-cell">
                     Added
                   </th>
-                  <th className="w-12 px-4 py-3" />
+                  {canRemove && <th className="w-12 px-4 py-3" />}
                 </tr>
               </thead>
               <tbody>
@@ -224,17 +230,19 @@ export default function WhitelistPage() {
                     <td className="px-4 py-3 text-sm text-muted-foreground hidden sm:table-cell">
                       {new Date(entry.created_at).toLocaleDateString()}
                     </td>
-                    <td className="px-4 py-3">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => dispatch({ type: "SET_DELETE_TARGET", target: entry })}
-                        aria-label={`Remove ${entry.value}`}
-                        className="text-error-500 hover:text-error-700 hover:bg-error-50 dark:hover:bg-error-900/30"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </td>
+                    {canRemove && (
+                      <td className="px-4 py-3">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => dispatch({ type: "SET_DELETE_TARGET", target: entry })}
+                          aria-label={`Remove ${entry.value}`}
+                          className="text-error-500 hover:text-error-700 hover:bg-error-50 dark:hover:bg-error-900/30"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -250,7 +258,7 @@ export default function WhitelistPage() {
         )}
       </div>
 
-      {state.deleteTarget && (
+      {canRemove && state.deleteTarget && (
         <ConfirmDialog
           title="Remove whitelist entry"
           description={

@@ -46,9 +46,9 @@ describe("WhitelistPage access guard", () => {
 
   it("resets to the checking state on a token change, not showing the prior user's page", async () => {
     auth.token = "token-A";
-    vi.mocked(checkPermission)
-      .mockResolvedValueOnce(true) // A: allowed
-      .mockReturnValueOnce(new Promise<boolean>(() => {})); // B: still pending
+    vi.mocked(checkPermission).mockImplementation(
+      (token) => (token === "token-A" ? Promise.resolve(true) : new Promise<boolean>(() => {})), // B: still pending
+    );
 
     const { rerender } = render(<WhitelistPage />);
     expect(await screen.findByText("Email Whitelist")).toBeInTheDocument();
@@ -87,6 +87,76 @@ async function confirmRemoval() {
   await userEvent.click(await screen.findByRole("button", { name: "Remove @example.com" }));
   await userEvent.click(screen.getByRole("button", { name: "Remove" }));
 }
+
+function grant(...granted: string[]) {
+  vi.mocked(checkPermission).mockImplementation(async (_token, permission) =>
+    granted.includes(permission),
+  );
+}
+
+const ADD_INPUT = /user@example.com/;
+const REMOVE_BUTTON = { name: "Remove @example.com" };
+
+describe("WhitelistPage write controls", () => {
+  beforeEach(() => {
+    vi.mocked(getWhitelist).mockResolvedValue([ENTRY]);
+  });
+
+  it("hides Add and Remove from a user who may only read", async () => {
+    grant("email.whitelist.read");
+
+    render(<WhitelistPage />);
+
+    expect(await screen.findByText("@example.com")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(ADD_INPUT)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", REMOVE_BUTTON)).not.toBeInTheDocument();
+  });
+
+  it("shows only Add to a user who may add but not remove", async () => {
+    grant("email.whitelist.read", "email.whitelist.create");
+
+    render(<WhitelistPage />);
+
+    expect(await screen.findByPlaceholderText(ADD_INPUT)).toBeInTheDocument();
+    expect(screen.queryByRole("button", REMOVE_BUTTON)).not.toBeInTheDocument();
+  });
+
+  it("shows only Remove to a user who may remove but not add", async () => {
+    grant("email.whitelist.read", "email.whitelist.delete");
+
+    render(<WhitelistPage />);
+
+    expect(await screen.findByRole("button", REMOVE_BUTTON)).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(ADD_INPUT)).not.toBeInTheDocument();
+  });
+
+  it("hides both controls while the create and delete checks are pending", async () => {
+    vi.mocked(checkPermission).mockImplementation((_token, permission) =>
+      permission === "email.whitelist.read"
+        ? Promise.resolve(true)
+        : new Promise<boolean>(() => {}),
+    );
+
+    render(<WhitelistPage />);
+
+    expect(await screen.findByText("@example.com")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(ADD_INPUT)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", REMOVE_BUTTON)).not.toBeInTheDocument();
+  });
+
+  it("checks create and delete at the whitelist scope", async () => {
+    grant("email.whitelist.read", "email.whitelist.create", "email.whitelist.delete");
+
+    render(<WhitelistPage />);
+
+    await screen.findByPlaceholderText(ADD_INPUT);
+    for (const permission of ["email.whitelist.create", "email.whitelist.delete"]) {
+      expect(checkPermission).toHaveBeenCalledWith("test-token", permission, {
+        scope: "whitelist",
+      });
+    }
+  });
+});
 
 describe("WhitelistPage removal", () => {
   it("removes an entry after confirming", async () => {
