@@ -2,7 +2,7 @@
 
 ``get_scope_path`` returns the FastAPI dependency that yields the checked object's
 scope path for a route: built from a path parameter, a fixed id, an async dependency returning
-an id or a scope object record, or ``None`` for an objectless scope. ``to_object_ids`` converts
+an id or a scope object record, or ``None`` for an objectless scope. ``convert_to_ints`` converts
 the string object ids of grants to the integer ids of the objects they name.
 """
 
@@ -92,7 +92,7 @@ def get_scope_path(
     return _get_scope_path_of_objectless_scope
 
 
-def to_object_ids(ids: set[str] | None) -> set[int] | None:
+def convert_to_ints(ids: set[str] | None) -> set[int] | None:
     """Return the integer ids among ``ids``, the string object ids of scope grants; ``None`` stays ``None``.
 
     An id that is not a plain integer names no object here, so it is skipped with a warning.
