@@ -21,7 +21,7 @@ code principles, and structural correctness rather than verifying business domai
 2. **Actionable & Educative:** Never write vague comments like "make this cleaner." State the issue, explain the
    architectural/cognitive trade-off, and provide a concrete `diff` or Python snippet demonstrating the fix.
 3. **Proportional Severity:** Distinguish between critical structural bottlenecks and optional stylistic polish using
-   clear labels (`[Architecture]`, `[Smell]`, `[Readability]`, `[Nit]`, `[Praise]`).
+   the severity levels of the finding template (`Blocker`, `Warning`, `Suggestion`, `Nit`).
 4. **Human Empathy:** Acknowledge clean abstractions and smart designs. Phrase critiques collaboratively (e.g.,
    "Consider extracting this..." or "This might cause high coupling because...").
 
