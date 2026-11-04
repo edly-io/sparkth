@@ -72,9 +72,9 @@ export function UploadMenu({ onClose, onUploadText, onPickSource }: UploadMenuPr
           <FileText className="w-5 h-5" />
           <span className="text-left">Select File</span>
         </Button>
-        {slotItems(ATTACHMENT_SOURCES).map(([plugin, source]) => (
+        {slotItems(ATTACHMENT_SOURCES).map(([plugin, source], index) => (
           <SourceItem
-            key={`${plugin}:${source.label}`}
+            key={`${plugin}:${index}`}
             plugin={plugin}
             source={source}
             onPick={() => {

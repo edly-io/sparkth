@@ -66,6 +66,19 @@ export function ChatInput({
   // The chosen source's picker, loaded only once the user picks from it.
   const loadPicker = pickingFrom?.loadPicker;
   const Picker = useMemo(() => (loadPicker ? lazy(loadPicker) : null), [loadPicker]);
+  // The attached documents the picker opens with selected, kept stable across renders.
+  const selectedDocuments = useMemo(
+    () =>
+      attachments
+        .filter((a) => a.sourceId !== undefined && a.documentId !== undefined)
+        .map((a) => ({
+          documentId: a.documentId!,
+          sourceId: a.sourceId!,
+          name: a.name,
+          size: a.size,
+        })),
+    [attachments],
+  );
 
   // Grow with the text. The reset lets the box shrink again when lines are removed, and CSS caps
   // it at five lines, so the cap and the scrollbar cannot disagree.
@@ -174,14 +187,7 @@ export function ChatInput({
             <Picker
               onClose={() => setPickingFrom(null)}
               onSelect={handleDocumentsSelected}
-              selected={attachments
-                .filter((a) => a.sourceId !== undefined && a.documentId !== undefined)
-                .map((a) => ({
-                  documentId: a.documentId!,
-                  sourceId: a.sourceId!,
-                  name: a.name,
-                  size: a.size,
-                }))}
+              selected={selectedDocuments}
             />
           </Suspense>
         </PickerErrorBoundary>
