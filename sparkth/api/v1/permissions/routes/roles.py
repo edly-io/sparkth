@@ -15,7 +15,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.api.v1.permissions.schemas import RoleCreate, RolePermissionAdd, RoleResponse, RoleUpdate
 from sparkth.core.permissions import roles as role_engine
 from sparkth.core.permissions.models import Role
-from sparkth.core.permissions.utils import to_object_ids
+from sparkth.core.permissions.utils import convert_to_ints
 from sparkth.lib.db import get_async_session
 from sparkth.lib.permissions import ROLE_CREATE, ROLE_DELETE, ROLE_READ, ROLE_UPDATE
 from sparkth.lib.permissions.scopes import ROLE
@@ -54,7 +54,7 @@ async def list_roles(
 
     Grants are fetched for every listed role in a single batched query.
     """
-    listed_roles = await role_engine.list_roles(session, to_object_ids(accessible_ids))
+    listed_roles = await role_engine.list_roles(session, convert_to_ints(accessible_ids))
     permissions_by_role = await role_engine.get_permissions_for_roles(
         [_role_id(role) for role in listed_roles], session
     )

@@ -14,7 +14,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.api.v1.permissions.schemas import GroupCreate, GroupResponse, GroupUpdate
 from sparkth.core.permissions import groups as group_engine
 from sparkth.core.permissions.models import Group
-from sparkth.core.permissions.utils import to_object_ids
+from sparkth.core.permissions.utils import convert_to_ints
 from sparkth.lib.db import get_async_session
 from sparkth.lib.permissions import GROUP_CREATE, GROUP_DELETE, GROUP_READ, GROUP_UPDATE
 from sparkth.lib.permissions.scopes import GROUP
@@ -39,7 +39,7 @@ async def list_groups(
     session: AsyncSession = Depends(get_async_session),
 ) -> list[GroupResponse]:
     """List the groups the caller may read. Returns a list of GroupResponse (id, name, description)."""
-    groups = await group_engine.list_groups(session, to_object_ids(accessible_ids))
+    groups = await group_engine.list_groups(session, convert_to_ints(accessible_ids))
     return [_group_to_response(group) for group in groups]
 
 
