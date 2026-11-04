@@ -13,6 +13,7 @@ export default function AttachmentPicker({ selected, onSelect, onClose }: Attach
         name: document.name,
         size: document.size,
       }))}
+      // A file's mime_type is not passed on: Compose attaches a document by its id and name only.
       onFileSelected={(files) =>
         onSelect(
           files.map((file) => ({

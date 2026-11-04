@@ -21,7 +21,10 @@ export interface AttachedDocument {
 export interface AttachmentPickerProps {
   /** The documents already attached, so the picker opens with them selected. */
   selected: AttachedDocument[];
-  /** Replaces the attached documents with the ones the user picked. */
+  /**
+   * Replaces every document attached to the message, from any source, with the ones the user
+   * picked. Text attachments are kept.
+   */
   onSelect: (documents: AttachedDocument[]) => void;
   onClose: () => void;
 }
