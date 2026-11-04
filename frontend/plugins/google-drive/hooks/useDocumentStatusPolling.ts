@@ -1,22 +1,25 @@
 import { useCallback, useEffect, useState } from "react";
-import { getFolderRagStatus } from "@/plugins/google-drive/client";
-import { RagStatus } from "@/plugins/google-drive/types";
+import { getFolderDocumentStatus } from "@/plugins/google-drive/client";
+import { DocumentStatus } from "@/plugins/google-drive/types";
 
-export type RagStatusMap = Record<number, { status: RagStatus | null; error: string | null }>;
+export type DocumentStatusMap = Record<
+  number,
+  { status: DocumentStatus | null; error: string | null }
+>;
 
-export interface RagStatusPollingResult {
-  ragStatuses: RagStatusMap;
+export interface DocumentStatusPollingResult {
+  documentStatuses: DocumentStatusMap;
   restart: () => void;
 }
 
 const BASE_DELAY = 5000;
 const MAX_DELAY = 30000;
 
-export function useRagStatusPolling(
+export function useDocumentStatusPolling(
   folderIds: number[],
   token: string | null,
-): RagStatusPollingResult {
-  const [ragStatuses, setRagStatuses] = useState<RagStatusMap>({});
+): DocumentStatusPollingResult {
+  const [documentStatuses, setDocumentStatuses] = useState<DocumentStatusMap>({});
   const [pollKey, setPollKey] = useState(0);
 
   const restart = useCallback(() => {
@@ -31,7 +34,7 @@ export function useRagStatusPolling(
   useEffect(() => {
     if (!folderIdsKey || !token) return;
 
-    setRagStatuses({});
+    setDocumentStatuses({});
 
     let cancelled = false;
     let allTerminal = false;
@@ -41,21 +44,21 @@ export function useRagStatusPolling(
     const fetchStatuses = async (): Promise<boolean> => {
       const ids = folderIdsKey.split(",").map(Number);
       try {
-        const results = await Promise.all(ids.map((id) => getFolderRagStatus(id, token!)));
+        const results = await Promise.all(ids.map((id) => getFolderDocumentStatus(id, token!)));
         if (!cancelled) {
-          const map: RagStatusMap = {};
+          const map: DocumentStatusMap = {};
           for (const data of results) {
             for (const f of data.files) {
               map[f.file_id] = { status: f.rag_status ?? null, error: f.rag_error ?? null };
             }
           }
-          setRagStatuses(map);
+          setDocumentStatuses(map);
 
           const allFiles = results.flatMap((r) => r.files);
           allTerminal = allFiles.every(
             (f) =>
-              f.rag_status === RagStatus.Ready ||
-              f.rag_status === RagStatus.Failed ||
+              f.rag_status === DocumentStatus.Ready ||
+              f.rag_status === DocumentStatus.Failed ||
               f.rag_status === null,
           );
           delay = BASE_DELAY;
@@ -85,5 +88,5 @@ export function useRagStatusPolling(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [folderIdsKey, token, pollKey]);
 
-  return { ragStatuses, restart };
+  return { documentStatuses, restart };
 }

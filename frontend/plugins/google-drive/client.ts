@@ -3,7 +3,7 @@ import type {
   ConnectionStatus,
   DriveBrowseResponse,
   DriveFolder,
-  FolderRagStatusResponse,
+  FolderDocumentStatusResponse,
   PaginatedFiles,
   PaginatedFolders,
   SyncStatus,
@@ -168,17 +168,17 @@ export async function browseDrive(
   }
 }
 
-export async function getFolderRagStatus(
+export async function getFolderDocumentStatus(
   folderId: number,
   token: string,
-): Promise<FolderRagStatusResponse> {
+): Promise<FolderDocumentStatusResponse> {
   try {
     const { data } = await api.GET("/api/v1/google-drive/folders/{folder_id}/rag-status", {
       params: { path: { folder_id: folderId } },
       headers: bearer(token),
     });
-    return data as FolderRagStatusResponse;
+    return data as FolderDocumentStatusResponse;
   } catch (error) {
-    toError("Failed to get RAG status", error);
+    toError("Failed to get document status", error);
   }
 }

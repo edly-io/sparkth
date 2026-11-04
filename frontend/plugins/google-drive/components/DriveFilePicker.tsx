@@ -13,9 +13,9 @@ import {
   DialogDescription,
 } from "@/lib/components/ui/Dialog";
 import { listFolders, listFiles, fetchAllPages } from "@/plugins/google-drive/client";
-import { DriveFolder, DriveFile, RagStatus } from "@/plugins/google-drive/types";
-import { useRagStatusPolling } from "@/plugins/google-drive/hooks/useRagStatusPolling";
-import { RagStatusIndicator } from "@/plugins/google-drive/components/RagStatusIndicator";
+import { DriveFolder, DriveFile, DocumentStatus } from "@/plugins/google-drive/types";
+import { useDocumentStatusPolling } from "@/plugins/google-drive/hooks/useDocumentStatusPolling";
+import { DocumentStatusIndicator } from "@/plugins/google-drive/components/DocumentStatusIndicator";
 import GoogleDriveIcon from "@/plugins/google-drive/GoogleDriveIcon";
 
 /** A file the user picked, identified by its document, which also keys the picker's selection. */
@@ -100,7 +100,7 @@ export default function DriveFilePicker({
   const { token } = useAuth();
   const [state, dispatch] = useReducer(pickerReducer, initialSelectedFiles, buildInitialState);
   const { folders, files, selectedFolder, loading, selectedFiles } = state;
-  const { ragStatuses } = useRagStatusPolling(
+  const { documentStatuses } = useDocumentStatusPolling(
     selectedFolder?.id != null ? [selectedFolder.id] : [],
     token,
   );
@@ -231,9 +231,10 @@ export default function DriveFilePicker({
             <>
               <ul className="divide-y divide-border">
                 {files.map((file) => {
-                  const ragStatus = ragStatuses[file.id]?.status ?? null;
-                  const ragError = ragStatuses[file.id]?.error ?? null;
-                  const canAttach = ragStatus === RagStatus.Ready && file.document_id != null;
+                  const documentStatus = documentStatuses[file.id]?.status ?? null;
+                  const documentError = documentStatuses[file.id]?.error ?? null;
+                  const canAttach =
+                    documentStatus === DocumentStatus.Ready && file.document_id != null;
                   const isSelected =
                     file.document_id != null && selectedFiles.has(file.document_id);
                   return (
@@ -254,7 +255,11 @@ export default function DriveFilePicker({
                         {file.name}
                       </span>
                       <div className="mx-3 shrink-0">
-                        <RagStatusIndicator fileId={file.id} status={ragStatus} error={ragError} />
+                        <DocumentStatusIndicator
+                          fileId={file.id}
+                          status={documentStatus}
+                          error={documentError}
+                        />
                       </div>
                     </li>
                   );
