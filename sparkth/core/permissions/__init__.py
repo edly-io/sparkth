@@ -129,12 +129,11 @@ class Permission:
         An objectless scope names no objects to list, so passing one raises ``ValueError`` at
         definition time; use ``require_in_global_scope`` or ``require`` for it.
 
-        What the route receives:
-
-        - a set of ids: the caller has the permission on those objects only.
-        - an empty set: the caller has no permission on any object, so the dependency raises 403
-          and the route never sees it.
-        - ``None``: the caller has access to all ids.
+        Returns:
+            - a set of ids: the caller has the permission on those objects only.
+            - an empty set: the caller has no permission on any object, so the dependency raises 403
+              and the route never sees it.
+            - ``None``: the caller has access to all ids.
         """
         if isinstance(permission_scope, ObjectlessPermissionScope):
             raise ValueError(f"Scope {permission_scope.name!r} is objectless and names no objects to list")
