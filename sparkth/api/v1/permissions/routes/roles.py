@@ -47,7 +47,7 @@ async def _role_to_response(role: Role, session: AsyncSession) -> RoleResponse:
 
 @router.get("", response_model=list[RoleResponse])
 async def list_roles(
-    accessible_ids: set[str] | None = Depends(ROLE_READ.require_in_any_scope_object(ROLE)),
+    accessible_ids: set[str] | None = Depends(ROLE_READ.require_for_any_object(ROLE)),
     session: AsyncSession = Depends(get_async_session),
 ) -> list[RoleResponse]:
     """List the roles the caller may read. Returns a list of RoleResponse (id, name, description, permissions).

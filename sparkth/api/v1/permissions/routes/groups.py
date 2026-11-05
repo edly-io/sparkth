@@ -35,7 +35,7 @@ def _group_to_response(group: Group) -> GroupResponse:
 
 @router.get("", response_model=list[GroupResponse])
 async def list_groups(
-    accessible_ids: set[str] | None = Depends(GROUP_READ.require_in_any_scope_object(GROUP)),
+    accessible_ids: set[str] | None = Depends(GROUP_READ.require_for_any_object(GROUP)),
     session: AsyncSession = Depends(get_async_session),
 ) -> list[GroupResponse]:
     """List the groups the caller may read. Returns a list of GroupResponse (id, name, description)."""
