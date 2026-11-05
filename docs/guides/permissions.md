@@ -157,8 +157,9 @@ From application code, use the façade (`sparkth.lib.permissions`): `add_group_m
 Management of one group can be delegated, like the per-role `role` scope. The endpoints that
 address one group by `{group_id}` (get, update, delete) authorize at the `group` scope, so a
 role assigned at `group` with that group's id covers that group only. A `global` grant still
-satisfies them through the cascade. Listing all groups and creating a group stay at `global`.
-The scope object id is the group's numeric id, listed by `GET /api/v1/permissions/groups`:
+satisfies them through the cascade. Listing returns the groups the caller holds `group.read` at
+(every group for a `global` grant), and creating a group stays at `global`. The scope object id
+is the group's numeric id, listed by `GET /api/v1/permissions/groups`:
 
 ```bash
 # let jane manage group 7 only, through a role that holds group.read / group.update
