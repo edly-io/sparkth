@@ -13,12 +13,20 @@ vi.mock("next/navigation", () => ({
 }));
 const checkPermission = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/permissions/client", () => ({ checkPermission }));
+// The plugins installed in the backend build.
+const plugins = vi.hoisted(() => ({ installed: ["compose"] }));
+vi.mock("@/lib/plugins/generated", () => ({
+  get FRONTEND_PLUGIN_NAMES() {
+    return plugins.installed;
+  },
+}));
 
 import AnalyticsLayout from "@/app/dashboard/analytics/layout";
 
 beforeEach(() => {
   vi.clearAllMocks();
   nav.search = "";
+  plugins.installed = ["compose"];
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -33,6 +41,31 @@ describe("AnalyticsLayout", () => {
     expect(await screen.findByText("view body")).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Analytics views" })).toBeInTheDocument();
     expect(checkPermission).toHaveBeenCalledWith("test-token", "analytics.read", {});
+  });
+
+  it("lists Course authoring on the rail while Compose is installed", async () => {
+    checkPermission.mockResolvedValue(true);
+    renderWithIntl(
+      <AnalyticsLayout>
+        <p>view body</p>
+      </AnalyticsLayout>,
+    );
+    expect(await screen.findByRole("link", { name: "Course authoring" })).toHaveAttribute(
+      "href",
+      "/dashboard/analytics/authoring",
+    );
+  });
+
+  it("leaves Course authoring off the rail when Compose is not installed", async () => {
+    plugins.installed = [];
+    checkPermission.mockResolvedValue(true);
+    renderWithIntl(
+      <AnalyticsLayout>
+        <p>view body</p>
+      </AnalyticsLayout>,
+    );
+    expect(await screen.findByRole("link", { name: "Logins" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Course authoring" })).not.toBeInTheDocument();
   });
 
   it("renders no view content while the check is pending", () => {
