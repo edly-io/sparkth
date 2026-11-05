@@ -718,6 +718,11 @@ system-wide or by the user contributes no agent and no tools.
   repeat them. A prompt holds the agent's workflow, plus any language or guardrail rules specific to
   it.
 - **Tools.** The agent gets the tools the request asks for, minus those of a switched-off plugin.
+- **Operations.** The tools of plugins that register no agent, such as the LMS plugins', are
+  Compose's operations. The planner runs them through its operator, on the user's model, and the
+  author sees each tool call but not the operator's text. What an operation returns goes back to
+  the planner, which tells the author or hands the rest of the request to an agent, which reads
+  it too. With no such plugin enabled there are no operations.
 
 Plugin-specific knowledge belongs in a `<prefix>about` tool, not in an agent's `prompt`;
 see the LMS `about` tool [above](#lms-plugins-tools-without-credentials) for the convention.

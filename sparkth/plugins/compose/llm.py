@@ -1,4 +1,5 @@
-"""Run one Compose turn: a planner hands the message to an agent, answers it itself, or refuses it."""
+"""Run one Compose turn: a planner hands the message to an agent, runs operations, answers it itself,
+or refuses it."""
 
 import asyncio
 import json
@@ -30,15 +31,16 @@ from sparkth.lib.audit import ToolFailureKind, tool_failure
 from sparkth.lib.audit.context import AuditSource, ai_audit_context
 from sparkth.lib.audit.events import AuditModelInfo
 from sparkth.lib.audit.exceptions import AuditCaptureError
-from sparkth.lib.compose.constants import REFUSE_TOOL_NAME
+from sparkth.lib.compose.constants import OPERATOR_TOOL_NAME, REFUSE_TOOL_NAME
 from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.i18n import gettext
 from sparkth.lib.llm import BaseChatProvider, to_langchain_messages
 from sparkth.lib.log import get_logger
 from sparkth.lib.plugins import PluginConfigInvalidError, PluginNotConfiguredError
-from sparkth.plugins.compose.constants import TOOL_CALL_LIMIT_NOTICE
+from sparkth.plugins.compose.constants import OPERATOR_PROMPT, TOOL_CALL_LIMIT_NOTICE
 from sparkth.plugins.compose.planner import AgentGraph, TurnRouting, build_planner
 from sparkth.plugins.compose.prompt import render_system_prompt
+from sparkth.plugins.compose.tools import get_tool_registry
 
 logger = get_logger(__name__)
 
@@ -287,8 +289,13 @@ def _planner_for_turn(
     max_tool_executions: int,
 ) -> CompiledStateGraph[Any, AuditModelInfo, Any, Any]:
     """The turn's planner on ``planner_llm``, handing off to ``agents`` that each run on the
-    provider's model with their own prompt and ``tools``."""
+    provider's model with their own prompt and ``tools``.
+
+    Its operator runs on the provider's model with the ``tools`` of plugins that give Compose no
+    agent, and exists only when there are some.
+    """
     agent_llm = provider.create_llm()
+    operations = get_tool_registry().operation_tools(tools)
     return build_planner(
         planner_llm,
         [
@@ -298,7 +305,11 @@ def _planner_for_turn(
             )
             for agent in agents
         ],
-        operator=None,
+        operator=(
+            build_turn_agent(agent_llm, operations, OPERATOR_PROMPT, max_tool_executions, name=OPERATOR_TOOL_NAME)
+            if operations
+            else None
+        ),
     )
 
 
@@ -336,13 +347,15 @@ async def _turn_events(
     """Run one turn on the planner, yielding what happens as it happens.
 
     The planner hands the message to one of ``agents``, each running on the provider's model
-    with its own prompt and ``tools``, answers it itself, or refuses it. Yields ``routed`` with a
-    :class:`TurnRouting` when a hand-off starts or the refusal returns (a call its tool refused
-    never does either), ``token`` for the text the author sees, ``tool_start`` and ``tool_end`` for each
-    tool call, ``limit_reached`` when an agent's calls were blocked, ``usage`` with the tokens of
-    each model reply, the planner's and the agents', and ``final`` with each closing model reply. A
-    call reported as started runs only once this generator is asked for its next event. A refusal
-    arrives as the refusal sentence.
+    with its own prompt and the turn's ``tools``, runs operations on the operator, answers it
+    itself, or refuses it. Yields ``routed`` with a :class:`TurnRouting` when a hand-off or an
+    operation starts or the refusal returns (a call its tool refused never does either),
+    ``token`` for the text the author sees (the operator's text never shows, only its tool calls),
+    ``tool_start`` and ``tool_end`` for each tool call, ``limit_reached`` when an agent's calls
+    were blocked, ``usage`` with the tokens of each model reply, the planner's, the agents' and
+    the operator's, and ``final`` with each closing model reply. A call reported as started runs
+    only once this generator is asked for its next event. A refusal arrives as the refusal
+    sentence.
     """
     planner = _planner_for_turn(agents, tools, provider, planner_llm, max_tool_executions)
     stream = _stream_planner(planner, messages, provider)
@@ -360,8 +373,11 @@ async def _turn_events(
                     for event in _update_events(node, update, max_tool_executions):
                         yield event
             else:
-                message, _metadata = chunk
+                message, metadata = chunk
                 if namespace:
+                    # The operator's text never shows, only its tool calls.
+                    if metadata.get("lc_agent_name") == OPERATOR_TOOL_NAME:
+                        continue
                     for token in turn_text.agent_text(message):
                         yield {"type": "token", "content": token}
                 elif isinstance(message, ToolMessage):
@@ -448,8 +464,9 @@ async def stream_turn(
 
     Yields:
       {"type": "routed",    "routing": TurnRouting}
-                                               — who answers the turn, when a hand-off starts or the
-                                                 refusal returns; never sent when the planner answers
+                                               — who answers the turn, when a hand-off or the operator
+                                                 starts or the refusal returns; never sent when the
+                                                 planner answers
       {"type": "token",     "content": str}   — text to display
       {"type": "tool_start","name": str}       — tool execution beginning
       {"type": "tool_end",  "name": str, "failure": ToolFailureKind | None}
