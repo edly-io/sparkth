@@ -7,7 +7,7 @@ role management lives under ``/permissions/roles`` via the role sub-router, grou
 under ``/permissions/groups`` via the group sub-router.
 """
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.api.v1.permissions.routes import groups, roles
@@ -16,8 +16,12 @@ from sparkth.core.models.user import User
 from sparkth.core.permissions.roles import available_permissions
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
+from sparkth.lib.i18n import _
+from sparkth.lib.log import get_logger
 from sparkth.lib.permissions import PERMISSION_READ, can, get_permission, get_permission_scope
+from sparkth.lib.permissions.scopes import build_scope_path
 
+logger = get_logger(__name__)
 router = APIRouter()
 
 
@@ -46,7 +50,16 @@ async def check_permission(
     precisely. The permission and scope names are resolved against the registered vocabulary
     (unknown → 422) and the decision is delegated to the engine's ``can()``.
     """
-    allowed = await can(current_user, get_permission(permission), get_permission_scope(scope), scope_object_id, session)
+    resolved_permission = get_permission(permission)
+    permission_scope = get_permission_scope(scope)
+    try:
+        scope_path = None if scope_object_id is None else build_scope_path(permission_scope, scope_object_id)
+    except ValueError as exc:
+        logger.warning("Permission check rejected scope_object_id %r for scope %r: %s", scope_object_id, scope, exc)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=_("Invalid scope object id")
+        ) from exc
+    allowed = await can(current_user, resolved_permission, permission_scope, scope_path, session)
     return PermissionCheckResponse(allowed=allowed)
 
 
