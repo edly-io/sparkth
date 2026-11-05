@@ -1,3 +1,9 @@
+"""Model mixins for the objects a permission scope names.
+
+``ScopeObjectMixin`` gives a table model the scope it belongs to and the stored path of the
+object, which a permission check uses to find the grants that cover it.
+"""
+
 from typing import ClassVar
 
 from sqlmodel import Field, SQLModel
