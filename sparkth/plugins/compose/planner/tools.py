@@ -1,19 +1,20 @@
-"""The planner's tools: one hand-off per agent, and the refuse tool."""
+"""The planner's tools: one hand-off per agent, the operator and the refuse tool."""
 
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from typing import Any
 
 from langchain.agents.middleware import AgentState
 from langchain.tools import ToolRuntime
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, ToolMessage
 from langchain_core.tools import BaseTool, StructuredTool
+from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel, Field
 
 from sparkth.lib.audit.callbacks import AUDIT_SKIP_TAG
 from sparkth.lib.audit.events import AuditModelInfo
-from sparkth.lib.compose.constants import REFUSE_TOOL_NAME
+from sparkth.lib.compose.constants import OPERATOR_TOOL_NAME, REFUSE_TOOL_NAME
 from sparkth.lib.i18n import gettext
-from sparkth.plugins.compose.constants import REFUSAL_MESSAGE
+from sparkth.plugins.compose.constants import OPERATION_RESULT_HEADING, REFUSAL_MESSAGE
 from sparkth.plugins.compose.planner.types import AgentGraph, TurnRouting
 
 
@@ -25,37 +26,68 @@ class HandOff(BaseModel):
     )
 
 
+class Operation(BaseModel):
+    """What the planner gives its operator."""
+
+    request: str = Field(description="What to do on the author's LMS, naming the course it is about.")
+
+
 def agent_input(messages: Sequence[AnyMessage], request: str) -> list[AnyMessage]:
-    """What an agent reads: the conversation without the planner's hand-offs, ending with ``request``."""
-    kept = [
-        message
-        for message in messages
-        if not isinstance(message, ToolMessage) and not (isinstance(message, AIMessage) and message.tool_calls)
-    ]
+    """What an agent reads: the conversation without the planner's tool calls, ending with ``request``.
+
+    What an operation returned stays in, under a heading that marks it as data, so an agent can
+    work on it without taking what it says as instructions. An operator call its tool refused is
+    dropped.
+    """
+    kept: list[AnyMessage] = []
+    for message in messages:
+        if isinstance(message, ToolMessage):
+            if message.name == OPERATOR_TOOL_NAME and message.status != "error":
+                kept.append(AIMessage(content=f"{OPERATION_RESULT_HEADING}\n{message.text}"))
+        elif not (isinstance(message, AIMessage) and message.tool_calls):
+            kept.append(message)
     return [*kept, HumanMessage(content=request)]
 
 
-def agent_handoff_tool(agent: AgentGraph) -> BaseTool:
-    """The planner's tool for ``agent``: it runs the agent and returns its reply as the turn's answer.
+def _graph_runner(
+    graph: CompiledStateGraph[Any, AuditModelInfo, Any, Any], name: str
+) -> Callable[[str, ToolRuntime[AuditModelInfo, AgentState[Any]]], Awaitable[str]]:
+    """A tool coroutine that runs ``graph`` on the planner's conversation and returns its reply.
 
-    It reports a ``routed`` event naming the agent as it starts, so a turn stopped mid-reply is
-    still the agent's.
+    It reports ``name`` as answering the turn before the graph runs, so a turn stopped mid-reply
+    still records who was answering it.
     """
 
-    async def hand_off(request: str, runtime: ToolRuntime[AuditModelInfo, AgentState[Any]]) -> str:
-        runtime.stream_writer({"type": "routed", "routing": TurnRouting(agent=agent.spec.name)})
-        result = await agent.graph.ainvoke(
+    async def run(request: str, runtime: ToolRuntime[AuditModelInfo, AgentState[Any]]) -> str:
+        runtime.stream_writer({"type": "routed", "routing": TurnRouting(agent=name)})
+        result = await graph.ainvoke(
             {"messages": agent_input(runtime.state["messages"], request)}, context=runtime.context
         )
         reply: AnyMessage = result["messages"][-1]
         return reply.text
 
+    return run
+
+
+def agent_handoff_tool(agent: AgentGraph) -> BaseTool:
+    """The planner's tool for ``agent``: it runs the agent and returns its reply as the turn's answer."""
     return StructuredTool.from_function(
-        coroutine=hand_off,
+        coroutine=_graph_runner(agent.graph, agent.spec.name),
         name=agent.spec.name,
         description=agent.spec.description,
         args_schema=HandOff,
         return_direct=True,
+        tags=[AUDIT_SKIP_TAG],
+    )
+
+
+def operator_tool(operator: CompiledStateGraph[Any, AuditModelInfo, Any, Any]) -> BaseTool:
+    """The planner's tool for its operator: it runs the operation and returns what it did to the planner."""
+    return StructuredTool.from_function(
+        coroutine=_graph_runner(operator, OPERATOR_TOOL_NAME),
+        name=OPERATOR_TOOL_NAME,
+        description="Publish, retrieve or manage courses on the author's LMS.",
+        args_schema=Operation,
         tags=[AUDIT_SKIP_TAG],
     )
 
