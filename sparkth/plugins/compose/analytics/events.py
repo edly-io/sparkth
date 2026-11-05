@@ -69,8 +69,8 @@ class ComposeCompletionServed(AnalyticsEventSchema):
 class ComposeCompletionServedV2(ComposeCompletionServed):
     """``compose.completion_served`` with the agent that answered the turn.
 
-    ``agent`` is the registered name of the agent that answered, ``None`` when no agent did.
-    ``refused`` is true for a refusal.
+    ``agent`` is the registered name of the agent that answered, ``operator`` when Compose only
+    ran operations, and ``None`` when no agent did. ``refused`` is true for a refusal.
     """
 
     version = 2
