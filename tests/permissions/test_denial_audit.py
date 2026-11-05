@@ -129,7 +129,7 @@ def _object_id_client(
 
     app.dependency_overrides[get_async_session] = db
 
-    app.get("/probe", dependencies=[Depends(Permission("quiz.read").require(scope, None, scope_object_id))])(probe)
+    app.get("/probe", dependencies=[Depends(Permission("quiz.read").require_for_object(scope, scope_object_id))])(probe)
     return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
 
 

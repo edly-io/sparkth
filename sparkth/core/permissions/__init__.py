@@ -118,10 +118,7 @@ class Permission:
         return self._require_permission(GLOBAL, None, None)
 
     def require(
-        self,
-        permission_scope: PermissionScope,
-        scope_param: str | None = None,
-        scope_object_id: str | Callable[..., Awaitable[str | ScopeObjectMixin | None]] | None = None,
+        self, permission_scope: PermissionScope, scope_param: str | None = None
     ) -> Callable[..., Awaitable[User]]:
         """Return a FastAPI dependency enforcing this permission at a scope.
 
@@ -133,22 +130,35 @@ class Permission:
             scope_param: The route path parameter carrying the scope object id, resolved from
                 ``request.path_params`` per request. A ``scope_param`` the route does not provide
                 raises 500 (a wiring error, never a silent 403).
-            scope_object_id: The scope object id when the route has no path parameter for it: a fixed
-                id string, or an async FastAPI dependency returning the id as a ``str``, a
-                ``ScopeObjectMixin`` record, or ``None`` when the object does not exist. For a
-                record, its ``scope_path`` is passed to the check, so a role granted at an ancestor
-                object authorizes it too. ``None`` is checked at the scope itself, so a caller
-                holding the permission only at objects is refused with 403 and cannot tell a
+
+        An objectless scope takes no ``scope_param``; an object-bearing scope needs one. Any other
+        combination is a wiring error and raises ``ValueError`` at definition time. A route whose
+        object does not come from a path parameter uses :meth:`require_for_object`.
+        """
+        permission_scope.validate_names_object(scope_param is not None)
+        return self._require_permission(permission_scope, scope_param, None)
+
+    def require_for_object(
+        self,
+        permission_scope: PermissionScope,
+        scope_object_id: str | Callable[..., Awaitable[str | ScopeObjectMixin | None]],
+    ) -> Callable[..., Awaitable[User]]:
+        """Return a FastAPI dependency enforcing this permission at one object of a scope.
+
+        Args:
+            permission_scope: The object-bearing scope to check at. An objectless scope raises
+                ``ValueError`` at definition time.
+            scope_object_id: A fixed id string, or an async FastAPI dependency returning the id as a
+                ``str``, a ``ScopeObjectMixin`` record, or ``None`` when the object does not exist.
+                For a record, its ``scope_path`` is passed to the check, so a role granted at an
+                ancestor object authorizes it too. ``None`` is checked at the scope itself, so a
+                caller holding the permission only at objects is refused with 403 and cannot tell a
                 missing object from one they may not access; the route then raises its own
                 not-found after the check passes. The dependency runs after authentication and
                 before the permission check.
-
-        An objectless scope takes neither ``scope_param`` nor ``scope_object_id``; an object-bearing
-        scope takes exactly one of them. Any other combination is a wiring error and raises
-        ``ValueError`` at definition time.
         """
-        permission_scope.validate_scope_object_id_arguments(scope_param, scope_object_id)
-        return self._require_permission(permission_scope, scope_param, scope_object_id)
+        permission_scope.validate_names_object(True)
+        return self._require_permission(permission_scope, None, scope_object_id)
 
 
 # Every permission the platform knows; Permission.create() registers each one here.

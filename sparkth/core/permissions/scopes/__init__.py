@@ -104,19 +104,19 @@ class PermissionScope:
             logger.warning("Object-bearing scope %r requires an object id", self.name)
             raise InvalidScopeObjectId(self.name, scope_object_id)
 
-    def validate_scope_object_id_arguments(self, scope_param: str | None, scope_object_id: object | None) -> None:
-        """Raise ``ValueError`` unless a route gives exactly one of ``scope_param`` and ``scope_object_id``.
+    def validate_names_object(self, names_object: bool) -> None:
+        """Raise ``ValueError`` unless a route names the object this scope checks at.
 
-        ``scope_param`` names a path parameter; ``scope_object_id`` is a fixed id or a dependency.
-        Called by ``Permission.require`` at route-definition/import time so a misconfiguration
-        fails fast at startup rather than as a silent per-request denial.
+        An object-bearing scope needs a route that names its object (a path parameter, a fixed id or a
+        dependency). Called by ``Permission.require`` and ``Permission.require_for_object`` at
+        route-definition/import time so a misconfiguration fails fast at startup rather than as a
+        silent per-request denial.
         """
-        if scope_param is None and scope_object_id is None:
+        if not names_object:
             raise ValueError(
-                f"Scope {self.name!r} is object-bearing; require() needs a scope_param or a scope_object_id"
+                f"Scope {self.name!r} is object-bearing; name its object with a scope_param in require() "
+                "or use require_for_object()"
             )
-        if scope_param is not None and scope_object_id is not None:
-            raise ValueError(f"Scope {self.name!r}: pass either scope_param or scope_object_id to require(), not both")
 
     def _cascade_pairs(self) -> list[tuple[str, str | None]]:
         """This scope's contribution to a descendant's :meth:`scope_chain` when it is an ancestor.
@@ -136,10 +136,10 @@ class ObjectlessPermissionScope(PermissionScope):
             logger.warning("Objectless scope %r was given object id %r", self.name, scope_object_id)
             raise InvalidScopeObjectId(self.name, scope_object_id)
 
-    def validate_scope_object_id_arguments(self, scope_param: str | None, scope_object_id: object | None) -> None:
-        if scope_param is not None or scope_object_id is not None:
+    def validate_names_object(self, names_object: bool) -> None:
+        if names_object:
             raise ValueError(
-                f"Scope {self.name!r} is objectless and names no object; drop the scope_param/scope_object_id"
+                f"Scope {self.name!r} is objectless and names no object; use require() without a scope_param"
             )
 
     def _cascade_pairs(self) -> list[tuple[str, str | None]]:

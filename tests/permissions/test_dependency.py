@@ -146,19 +146,14 @@ def test_require_objectless_scope_rejects_scope_param() -> None:
         Permission("assignment.grade").require(GLOBAL, "course_id")
 
 
-def test_require_object_bearing_scope_requires_a_scope_param_or_scope_object_id(course_scope: PermissionScope) -> None:
+def test_require_object_bearing_scope_requires_a_scope_param(course_scope: PermissionScope) -> None:
     with pytest.raises(ValueError):
         Permission("assignment.grade").require(course_scope)
 
 
-def test_require_rejects_both_scope_param_and_object_id(course_scope: PermissionScope) -> None:
+def test_require_for_object_objectless_scope_is_rejected() -> None:
     with pytest.raises(ValueError):
-        Permission("assignment.grade").require(course_scope, "course_id", "5")
-
-
-def test_require_objectless_scope_rejects_object_id() -> None:
-    with pytest.raises(ValueError):
-        Permission("assignment.grade").require(GLOBAL, None, "5")
+        Permission("assignment.grade").require_for_object(GLOBAL, "5")
 
 
 async def test_require_objectless_scope_allows_no_param(session: AsyncSession) -> None:
@@ -172,8 +167,8 @@ async def test_require_objectless_scope_allows_no_param(session: AsyncSession) -
 async def test_require_fixed_object_id(session: AsyncSession, course_scope: PermissionScope) -> None:
     user = await _seed(session, "hank", None)
     await grant_permission_at_scope(session, cast(int, user.id), "assignment.grade", course_scope, "5")
-    granted = Permission("assignment.grade").require(course_scope, None, "5")
-    other = Permission("assignment.grade").require(course_scope, None, "6")
+    granted = Permission("assignment.grade").require_for_object(course_scope, "5")
+    other = Permission("assignment.grade").require_for_object(course_scope, "6")
 
     async with _client(session, user, granted) as client:
         assert (await client.get("/probe")).status_code == 200
@@ -185,8 +180,8 @@ async def test_require_object_id_dependency_returning_str(session: AsyncSession,
     user = await _seed(session, "ivy", None)
     await grant_permission_at_scope(session, cast(int, user.id), "assignment.grade", course_scope, "5")
 
-    granted = Permission("assignment.grade").require(course_scope, None, course_id)
-    other = Permission("assignment.grade").require(course_scope, None, other_id)
+    granted = Permission("assignment.grade").require_for_object(course_scope, course_id)
+    other = Permission("assignment.grade").require_for_object(course_scope, other_id)
     async with _client(session, user, granted) as client:
         assert (await client.get("/probe")).status_code == 200
     async with _client(session, user, other) as client:
@@ -201,8 +196,8 @@ async def test_require_object_id_dependency_returning_a_scope_object_cascades(
         session, cast(int, user.id), "assignment.grade", PermissionScope("org", parent=GLOBAL), "5"
     )
 
-    granted = Permission("assignment.grade").require(course_scope, None, course)
-    other = Permission("assignment.grade").require(course_scope, None, other_course)
+    granted = Permission("assignment.grade").require_for_object(course_scope, course)
+    other = Permission("assignment.grade").require_for_object(course_scope, other_course)
     async with _client(session, user, granted) as client:
         assert (await client.get("/probe")).status_code == 200
     async with _client(session, user, other) as client:
