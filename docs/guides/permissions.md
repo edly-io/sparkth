@@ -343,7 +343,7 @@ async def create_course(org: Org, session: AsyncSession) -> Course:
 ```
 
 `scope_id` is the record's `id` as a string; a model keyed otherwise overrides it. An id may
-not contain `/`, since it would add path segments; `build_scope_path` raises `ValueError`. A
+not contain `/`, since it would add path segments; `build_scope_path` raises `InvalidScopeObjectId`. A
 root-level object, whose parent scope is objectless, passes no parent path. **Moving an object
 means rewriting its path** (and the path of everything beneath it): nothing derives it later.
 

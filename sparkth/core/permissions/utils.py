@@ -9,6 +9,7 @@ from collections.abc import Awaitable, Callable
 
 from fastapi import Depends, Request
 
+from sparkth.core.permissions.exceptions import InvalidScopeObjectId
 from sparkth.core.permissions.scopes import PermissionScope
 from sparkth.core.permissions.scopes.mixins import ScopeObjectMixin
 from sparkth.lib.log import get_logger
@@ -23,11 +24,11 @@ def build_scope_path(scope: PermissionScope, scope_id: str, parent_path: str | N
     """Return the materialized path of an object: its parent's path, then ``<scope name>:<scope_id>``.
 
     Segments are joined by ``/``, root first (``org:5/course:123``); a root-level object has no
-    ``parent_path``. A ``scope_id`` containing ``/`` raises ``ValueError``, since it would add
+    ``parent_path``. A ``scope_id`` containing ``/`` raises ``InvalidScopeObjectId``, since it would add
     ancestor segments to the path.
     """
     if "/" in scope_id:
-        raise ValueError(f"Scope id {scope_id!r} must not contain '/'")
+        raise InvalidScopeObjectId(scope.name, scope_id)
     segment = f"{scope.name}:{scope_id}"
     return segment if parent_path is None else f"{parent_path}/{segment}"
 

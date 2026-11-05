@@ -178,7 +178,7 @@ def test_scope_chain_rejects_a_segment_without_a_colon(scope_path: str) -> None:
 def test_build_scope_path_rejects_an_id_containing_a_slash() -> None:
     org = PermissionScope("org", parent=GLOBAL)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(InvalidScopeObjectId):
         build_scope_path(org, "5/course:9")
 
 
