@@ -1,7 +1,7 @@
 """``convert_to_ints`` turns the string ids of scope grants into integer ids.
 Authored with LLM (Claude) assistance."""
 
-from sparkth.core.permissions.utils import convert_to_ints
+from sparkth.core.permissions.dependencies import convert_to_ints
 
 
 def test_numeric_ids_become_integers() -> None:

@@ -50,6 +50,7 @@ from sparkth.core.db import dispose_engine, get_engine
 from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.core.models.user import User
 from sparkth.core.permissions.models import Role, RoleAssignment, RolePermission
+from sparkth.core.permissions.scopes import GLOBAL, PermissionScope
 from sparkth.lib.auth import bind_request_user, get_current_user
 from sparkth.lib.i18n import LOCALE_DIRS
 from sparkth.lib.mcp.hooks import MCP_TOOLS
@@ -128,15 +129,28 @@ async def session() -> AsyncGenerator[AsyncSession, None]:
         yield s
 
 
-async def grant_global_permission(session: AsyncSession, user_id: int, permission: str) -> None:
-    """Grant ``permission`` to the user globally, through a role named after it."""
+async def grant_permission_at_scope(
+    session: AsyncSession,
+    user_id: int,
+    permission: str,
+    permission_scope: PermissionScope,
+    scope_object_id: str | None = None,
+) -> None:
+    """Grant ``permission`` to the user at ``permission_scope`` and ``scope_object_id``, via a role named after it."""
     role = Role(name=permission)
     session.add(role)
     await session.flush()
     assert role.id is not None
     session.add(RolePermission(role_id=role.id, permission=permission))
-    session.add(RoleAssignment(user_id=user_id, role_id=role.id, scope="global", scope_object_id=None))
+    session.add(
+        RoleAssignment(user_id=user_id, role_id=role.id, scope=permission_scope.name, scope_object_id=scope_object_id)
+    )
     await session.flush()
+
+
+async def grant_global_permission(session: AsyncSession, user_id: int, permission: str) -> None:
+    """Grant ``permission`` to the user globally, through a role named after it."""
+    await grant_permission_at_scope(session, user_id, permission, GLOBAL)
 
 
 # What the audit_events fixture yields: awaited to fetch the rows on demand.

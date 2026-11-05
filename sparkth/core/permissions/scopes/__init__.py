@@ -1,3 +1,4 @@
+from sparkth.core.permissions.constants import SCOPE_PATH_SEPARATOR, SCOPE_SEGMENT_SEPARATOR
 from sparkth.core.permissions.exceptions import InvalidScopeObjectId, PermissionScopeNotFound
 from sparkth.lib.hooks import SingleNamedItemHook
 from sparkth.lib.log import get_logger
@@ -58,29 +59,39 @@ class PermissionScope:
         """The ``(scope name, object id)`` entries, leaf first, where a grant authorizes a check at this scope.
 
         If ``scope_path`` is set, the chain is every ``name:id`` segment of the path, then this scope's
-        objectless ancestors (id ``None``). The path must end at a segment named after this scope,
-        otherwise ``ValueError`` is raised. For ``quiz`` under ``course`` under ``org`` under ``global``,
-        ``quiz.scope_chain("org:5/course:123/quiz:777")`` is
+        objectless ancestors (id ``None``). The path must end at a segment named after this scope, and
+        any segments before it must be this scope's object-bearing ancestors, nearest last. A segment
+        without a ``:``, or a path that breaks either rule, raises ``ValueError``. For ``quiz`` under
+        ``course`` under ``org`` under ``global``, ``quiz.scope_chain("org:5/course:123/quiz:777")`` is
         ``[("quiz", "777"), ("course", "123"), ("org", "5"), ("global", None)]``.
 
         If ``scope_path`` is ``None``, the chain is this scope without an object, then its
         objectless ancestors. For the same ``quiz``, ``quiz.scope_chain(None)`` is
         ``[("quiz", None), ("global", None)]``.
         """
-        _scope_chain: list[tuple[str, str | None]]
+        scope_chain: list[tuple[str, str | None]]
         if scope_path is None:
-            _scope_chain = [(self.name, None)]
+            scope_chain = [(self.name, None)]
         else:
-            # Each path segment is ``name:id``; split on the first colon so an id may contain ``:``.
-            _scope_chain = [
-                (name, object_id)
-                for name, object_id in (segment.split(":", 1) for segment in reversed(scope_path.split("/")))
+            # Each path segment is ``name:id``; split on the first separator so an id may contain it.
+            scope_chain = []
+            for segment in reversed(scope_path.split(SCOPE_PATH_SEPARATOR)):
+                name, separator, object_id = segment.partition(SCOPE_SEGMENT_SEPARATOR)
+                if not separator:
+                    raise ValueError(f"Invalid scope path segment {segment!r} in {scope_path!r}")
+                scope_chain.append((name, object_id))
+            # The names, leaf first, must be this scope then its object-bearing ancestors in order; a
+            # shorter path (down to a single segment) is allowed, a different or extra segment is not.
+            names = [name for name, _ in scope_chain]
+            expected = [
+                self.name,
+                *(p.name for p in self.get_parents() if not isinstance(p, ObjectlessPermissionScope)),
             ]
-            if _scope_chain[0][0] != self.name:
-                raise ValueError(f"Scope path {scope_path!r} does not end at a {self.name!r} object")
+            if names != expected[: len(names)]:
+                raise ValueError(f"Scope path {scope_path!r} does not follow the ancestors of {self.name!r}")
         for ancestor in self.get_parents():
-            _scope_chain.extend(ancestor._cascade_pairs())
-        return _scope_chain
+            scope_chain.extend(ancestor._cascade_pairs())
+        return scope_chain
 
     def validate_object_id(self, scope_object_id: str | None) -> None:
         """Raise ``InvalidScopeObjectId`` unless ``scope_object_id`` names an object.
@@ -93,19 +104,19 @@ class PermissionScope:
             logger.warning("Object-bearing scope %r requires an object id", self.name)
             raise InvalidScopeObjectId(self.name, scope_object_id)
 
-    def validate_scope_object_id_arguments(self, scope_param: str | None, scope_object_id: object | None) -> None:
-        """Raise ``ValueError`` unless a route gives exactly one of ``scope_param`` and ``scope_object_id``.
+    def validate_names_object(self, names_object: bool) -> None:
+        """Raise ``ValueError`` unless a route names the object this scope checks at.
 
-        ``scope_param`` names a path parameter; ``scope_object_id`` is a fixed id or a dependency.
-        Called by ``Permission.require`` at route-definition/import time so a misconfiguration
-        fails fast at startup rather than as a silent per-request denial.
+        An object-bearing scope needs a route that names its object (a path parameter, a fixed id or a
+        dependency). Called by ``Permission.require`` and ``Permission.require_for_object`` at
+        route-definition/import time so a misconfiguration fails fast at startup rather than as a
+        silent per-request denial.
         """
-        if scope_param is None and scope_object_id is None:
+        if not names_object:
             raise ValueError(
-                f"Scope {self.name!r} is object-bearing; require() needs a scope_param or a scope_object_id"
+                f"Scope {self.name!r} is object-bearing; name its object with a scope_param in require() "
+                "or use require_for_object()"
             )
-        if scope_param is not None and scope_object_id is not None:
-            raise ValueError(f"Scope {self.name!r}: pass either scope_param or scope_object_id to require(), not both")
 
     def _cascade_pairs(self) -> list[tuple[str, str | None]]:
         """This scope's contribution to a descendant's :meth:`scope_chain` when it is an ancestor.
@@ -125,15 +136,28 @@ class ObjectlessPermissionScope(PermissionScope):
             logger.warning("Objectless scope %r was given object id %r", self.name, scope_object_id)
             raise InvalidScopeObjectId(self.name, scope_object_id)
 
-    def validate_scope_object_id_arguments(self, scope_param: str | None, scope_object_id: object | None) -> None:
-        if scope_param is not None or scope_object_id is not None:
+    def validate_names_object(self, names_object: bool) -> None:
+        if names_object:
             raise ValueError(
-                f"Scope {self.name!r} is objectless and names no object; drop the scope_param/scope_object_id"
+                f"Scope {self.name!r} is objectless and names no object; use require() without a scope_param"
             )
 
     def _cascade_pairs(self) -> list[tuple[str, str | None]]:
         # A singleton names no object, so it cascades to every descendant with a NULL id.
         return [(self.name, None)]
+
+
+def build_scope_path(scope: PermissionScope, scope_id: str, parent_path: str | None = None) -> str:
+    """Return the materialized path of an object: its parent's path, then ``<scope name>:<scope_id>``.
+
+    Segments are joined by ``/``, root first (``org:5/course:123``); a root-level object has no
+    ``parent_path``. A ``scope_id`` containing ``/`` raises ``InvalidScopeObjectId``, since it would add
+    ancestor segments to the path. ``PermissionScope.scope_chain`` reads the same format back.
+    """
+    if SCOPE_PATH_SEPARATOR in scope_id:
+        raise InvalidScopeObjectId(scope.name, scope_id)
+    segment = f"{scope.name}{SCOPE_SEGMENT_SEPARATOR}{scope_id}"
+    return segment if parent_path is None else f"{parent_path}{SCOPE_PATH_SEPARATOR}{segment}"
 
 
 # Every scope kind the platform knows; <class>.create() registers each one here.
