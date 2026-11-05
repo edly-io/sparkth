@@ -41,3 +41,13 @@ class UnknownAgentTool(Exception):
         self.agent_name = agent_name
         self.tool_name = tool_name
         super().__init__(f"Agent '{agent_name}' names tool '{tool_name}', which its plugin doesn't contribute")
+
+
+class DuplicateAgentTool(Exception):
+    """Raised when two of an agent's tools share a name, or its LangChain tool takes a registered
+    MCP tool's name."""
+
+    def __init__(self, agent_name: str, tool_name: str) -> None:
+        self.agent_name = agent_name
+        self.tool_name = tool_name
+        super().__init__(f"Agent '{agent_name}' has more than one tool named '{tool_name}'")

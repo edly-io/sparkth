@@ -2,6 +2,7 @@ import asyncio
 import json
 import uuid
 from collections.abc import AsyncGenerator, Sequence
+from dataclasses import replace
 from functools import partial
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -74,7 +75,7 @@ def _make_processor(
         tools=tools,
         user_id=user_id,
         turn_id=turn_id,
-        **handing_off_to(STUB_AGENT),
+        **handing_off_to(replace(STUB_AGENT, tools=tuple(tool.name for tool in tools or []))),
     )
 
 

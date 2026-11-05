@@ -643,7 +643,7 @@ without importing compose, by registering an `Agent` with `register_agent` from
 `sparkth.lib.compose.hooks`. A plugin registers one agent, from its `__init__`, keyed by the plugin
 instance.
 
-An `Agent` has five fields:
+An `Agent` has six fields:
 
 - `name` identifies the agent: lowercase letters, digits and underscores, starting with a letter.
   `compose`, `operator` and `refuse` are reserved.
@@ -652,8 +652,11 @@ An `Agent` has five fields:
 - `description` is the text the planner reads to decide whether a message is this agent's.
 - `prompt` is plain text inserted into the system prompt as written, so a brace in it needs no
   escaping.
-- `tools` names the agent's tools. Each one must be one of the plugin's own `MCP_TOOLS`, so
-  register those first.
+- `tools` names the agent's tools among the plugin's own `MCP_TOOLS`, so register those first.
+- `langchain_tools` are LangChain tools that only the agent runs, which no MCP client sees. They
+  run in every request the agent answers, whatever tools the request enables, and are recorded in
+  analytics under the agent's name. Agents compare without them, so a plugin may build them in its
+  `__init__`.
 
 Define the agent in the plugin's `agent.py` and register it from `plugin.py`. For example:
 
@@ -697,7 +700,9 @@ one. `register_agent` raises, from `sparkth.lib.compose.exceptions`:
 - `InvalidAgentName` for a name that breaks the pattern above;
 - `ReservedAgentName` for `compose`, `operator` or `refuse`;
 - `DuplicateAgentName` when another agent, another plugin or a registered MCP tool already holds the name;
-- `UnknownAgentTool` for a tool the plugin doesn't contribute.
+- `UnknownAgentTool` for a tool name the plugin doesn't contribute;
+- `DuplicateAgentTool` when two of the agent's tools share a name, or a LangChain tool takes a
+  registered MCP tool's name.
 
 The loader logs the failed construction and skips that plugin.
 
@@ -713,11 +718,11 @@ system-wide or by the user contributes no agent and no tools.
   with a fixed sentence in the request's language. A refusal is stored like any other reply, and a
   refused first message still starts a conversation.
 - **Agent.** The agent runs on the user's model, with Compose's skeleton wrapped around its
-  `prompt`. The skeleton owns the date, the assistant's identity, the output language, the
-  refusal, injection and offering-choices rules, and Compose's LMS operations, so a prompt must not
-  repeat them. A prompt holds the agent's workflow, plus any language or guardrail rules specific to
-  it.
-- **Tools.** The agent gets the tools the request asks for, minus those of a switched-off plugin.
+  `prompt`. The skeleton owns the date, the assistant's identity, the output language, and the
+  refusal, injection and offering-choices rules, so a prompt must not repeat them. A prompt holds
+  the agent's workflow, plus any language or guardrail rules specific to it.
+- **Tools.** Of the MCP tools the agent names in `tools`, it gets those the request asks for (a
+  switched-off plugin's never are), plus all its `langchain_tools`.
 - **Operations.** The tools of plugins that register no agent, such as the LMS plugins', are
   Compose's operations. The planner runs them through its operator, on the user's model, and the
   author sees each tool call but not the operator's text. What an operation returns goes back to

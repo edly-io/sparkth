@@ -17,7 +17,7 @@ from langchain_core.tools import BaseTool, StructuredTool
 from pydantic import BaseModel, Field, ValidationError, create_model
 
 from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG
-from sparkth.lib.compose.hooks import COMPOSE_AGENTS
+from sparkth.lib.compose.hooks import COMPOSE_AGENTS, Agent
 from sparkth.lib.log import get_logger
 from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
 from sparkth.plugins.compose.constants import UNKNOWN_TOOL_CATEGORY
@@ -74,10 +74,18 @@ class ToolRegistry:
     def category_for(self, tool_name: str) -> str:
         """Return the MCP category a tool was contributed under.
 
-        Unknown names resolve to :data:`UNKNOWN_TOOL_CATEGORY` rather than raising.
+        An agent's LangChain tool is in the category named after the agent. Other unknown names
+        resolve to :data:`UNKNOWN_TOOL_CATEGORY` rather than raising.
         """
         registered = self._discovered().get(tool_name)
-        return registered.category if registered else UNKNOWN_TOOL_CATEGORY
+        if registered:
+            return registered.category
+        owners = (
+            agent.name
+            for _plugin, agent in COMPOSE_AGENTS.iter_items()
+            if any(tool.name == tool_name for tool in agent.langchain_tools)
+        )
+        return next(owners, UNKNOWN_TOOL_CATEGORY)
 
     def plugin_for(self, tool_name: str) -> str | None:
         """Return the name of the plugin that contributed a tool, or ``None`` for an unknown name."""
@@ -95,6 +103,12 @@ class ToolRegistry:
             for tool in enabled
             if (plugin := self.plugin_for(tool.name)) is not None and plugin not in agent_plugins
         ]
+
+
+def agent_tools(agent: Agent, enabled: Sequence[BaseTool]) -> list[BaseTool]:
+    """The tools ``agent`` runs with: the turn's ``enabled`` tools it names, plus its LangChain tools."""
+    by_name = {tool.name: tool for tool in enabled}
+    return [*(by_name[name] for name in agent.tools if name in by_name), *agent.langchain_tools]
 
 
 def discover_plugin_tools() -> dict[str, RegisteredTool]:
