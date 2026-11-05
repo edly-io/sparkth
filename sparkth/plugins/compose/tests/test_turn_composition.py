@@ -205,6 +205,23 @@ class TestOneAssistantPerTurn:
 
         assert _bound_tool_names(complete_turn) == ["openedx_create_xblock", "stub_build"]
 
+    async def test_the_conversation_lists_no_tools(
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
+    ) -> None:
+        """Each agent and the operator get their own tools bound, so no message lists the turn's tools."""
+        config_id = await _seed_llm_config(session, current_user.id or 1)
+        conversation_uuid = await _seed_conversation(session, current_user.id or 1)
+
+        with (
+            patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()),
+            patch("sparkth.plugins.compose.routes.completions.get_tool_registry", return_value=_registry()),
+            patch("sparkth.plugins.compose.routes.completions.complete_turn", new=_turn_answer()) as complete_turn,
+        ):
+            await _turn(client, config_id, conversation_uuid, "*")
+
+        sent = complete_turn.await_args_list[-1].args[0]
+        assert not any("stub_build" in str(message["content"]) for message in sent)
+
 
 async def _switch_stub(session: AsyncSession, user_id: int, system_on: bool, user_on: bool | None) -> None:
     """Seed the ``stub`` plugin's system switch and, when given, this user's own switch."""
