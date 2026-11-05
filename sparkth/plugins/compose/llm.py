@@ -37,7 +37,7 @@ from sparkth.lib.llm import BaseChatProvider, to_langchain_messages
 from sparkth.lib.log import get_logger
 from sparkth.lib.plugins import PluginConfigInvalidError, PluginNotConfiguredError
 from sparkth.plugins.compose.constants import TOOL_CALL_LIMIT_NOTICE
-from sparkth.plugins.compose.planner import AgentGraph, build_planner
+from sparkth.plugins.compose.planner import AgentGraph, TurnRouting, build_planner
 from sparkth.plugins.compose.prompt import render_system_prompt
 
 logger = get_logger(__name__)
@@ -330,12 +330,13 @@ async def _turn_events(
     """Run one turn on the planner, yielding what happens as it happens.
 
     The planner hands the message to one of ``agents``, each running on the provider's model
-    with its own prompt and ``tools``, answers it itself, or refuses it. Yields ``token`` for the
-    text the author sees, ``tool_start`` and ``tool_end`` for each tool call, ``limit_reached``
-    when an agent's calls were blocked, ``usage`` with the tokens of each model reply, the
-    planner's and the agents', and ``final`` with each closing model reply. A call reported as
-    started runs only once this generator is asked for its next event. A refusal arrives as the
-    refusal sentence.
+    with its own prompt and ``tools``, answers it itself, or refuses it. Yields ``routed`` with a
+    :class:`TurnRouting` when a hand-off starts or the refusal returns (a call its tool refused
+    never does either), ``token`` for the text the author sees, ``tool_start`` and ``tool_end`` for each
+    tool call, ``limit_reached`` when an agent's calls were blocked, ``usage`` with the tokens of
+    each model reply, the planner's and the agents', and ``final`` with each closing model reply. A
+    call reported as started runs only once this generator is asked for its next event. A refusal
+    arrives as the refusal sentence.
     """
     planner = _planner_for_turn(agents, tools, provider, planner_llm, max_tool_executions)
     stream = _stream_planner(planner, messages, provider)
@@ -359,7 +360,8 @@ async def _turn_events(
                         yield {"type": "token", "content": token}
                 elif isinstance(message, ToolMessage):
                     # An agent's reply has already streamed; only a refusal is new text.
-                    if message.name == REFUSE_TOOL_NAME:
+                    if message.name == REFUSE_TOOL_NAME and message.status != "error":
+                        yield {"type": "routed", "routing": TurnRouting(refused=True)}
                         yield {"type": "token", "content": message.text}
                 else:
                     turn_text.hold_planner_text(message)
@@ -378,10 +380,12 @@ async def complete_turn(
 ) -> dict[str, Any]:
     """Run one non-streamed turn on the planner and return its answer.
 
-    The answer is the text a streamed turn would have shown, and ``metadata`` lists every tool
-    call the turn made and the tokens of all its model replies, the planner's and the agents'.
+    The answer is the text a streamed turn would have shown, ``routing`` says who answered it,
+    and ``metadata`` lists every tool call the turn made and the tokens of all its model replies,
+    the planner's and the agents'.
     """
     tokens: list[str] = []
+    routing = TurnRouting()
     tool_executions: list[dict[str, Any]] = []
     limit_reached = False
     usage: UsageMetadata | None = None
@@ -389,7 +393,9 @@ async def complete_turn(
     events = _turn_events(messages, tools, provider, max_tool_executions, agents, planner_llm)
     async with aclosing(events):
         async for event in events:
-            if event["type"] == "token":
+            if event["type"] == "routed":
+                routing = event["routing"]
+            elif event["type"] == "token":
                 tokens.append(event["content"])
             elif event["type"] == "tool_end":
                 tool_executions.append(
@@ -412,6 +418,7 @@ async def complete_turn(
         "role": "assistant",
         "model": provider.model,
         "tool_calls": None,
+        "routing": routing,
         "metadata": {
             "tool_executions": tool_executions,
             "num_executions": len(tool_executions),
@@ -434,6 +441,9 @@ async def stream_turn(
     """Stream one turn on the planner as typed event dicts.
 
     Yields:
+      {"type": "routed",    "routing": TurnRouting}
+                                               — who answers the turn, when a hand-off starts or the
+                                                 refusal returns; never sent when the planner answers
       {"type": "token",     "content": str}   — text to display
       {"type": "tool_start","name": str}       — tool execution beginning
       {"type": "tool_end",  "name": str, "failure": ToolFailureKind | None}
@@ -446,7 +456,7 @@ async def stream_turn(
     async with aclosing(events):
         async for event in events:
             match event["type"]:
-                case "token" | "tool_start":
+                case "routed" | "token" | "tool_start":
                     yield event
                 case "tool_end":
                     yield {"type": "tool_end", "name": event["name"], "failure": event["failure"]}

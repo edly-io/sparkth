@@ -38,6 +38,7 @@ from sparkth.plugins.compose.analytics.events import (
     TurnFailureCause,
 )
 from sparkth.plugins.compose.detached import detach
+from sparkth.plugins.compose.planner import TurnRouting
 from sparkth.plugins.compose.tools import get_tool_registry
 
 logger = get_logger(__name__)
@@ -180,6 +181,7 @@ async def emit_completion(
     streamed: bool,
     executed_tools: list[ExecutedTool],
     occurred_at: datetime,
+    routing: TurnRouting,
     stopped_at: StopPoint | None = None,
 ) -> None:
     """Emit one completion and one ``compose.tool_invoked`` per tool it executed.
@@ -196,6 +198,8 @@ async def emit_completion(
             rag_used=rag_used,
             tool_call_count=len(executed_tools),
             stopped_at=stopped_at,
+            agent=routing.agent,
+            refused=routing.refused,
         ),
         *(
             ComposeToolInvoked(
@@ -276,7 +280,13 @@ class ComposeTurnAnalytics:
         )
 
     def schedule_completion(
-        self, *, rag_used: bool, streamed: bool, executed_tools: list[ExecutedTool], occurred_at: datetime
+        self,
+        *,
+        rag_used: bool,
+        streamed: bool,
+        executed_tools: list[ExecutedTool],
+        occurred_at: datetime,
+        routing: TurnRouting,
     ) -> None:
         """Queue the completion and its tool events as one task, through one session."""
         self.background_tasks.add_task(
@@ -288,6 +298,7 @@ class ComposeTurnAnalytics:
             streamed=streamed,
             executed_tools=executed_tools,
             occurred_at=occurred_at,
+            routing=routing,
         )
 
     def schedule_rag_search_completed(self, *, chunks_found: int, document_count: int, occurred_at: datetime) -> None:

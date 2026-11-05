@@ -43,16 +43,8 @@ class ComposeMessageSent(AnalyticsEventSchema):
     has_attachment: bool
 
 
-class ComposeCompletionServed(AnalyticsEventSchema):
-    """A turn's reply was served, including one the author stopped before or during the reply.
-
-    Not every delivered reply emits this: the RAG-no-results and streaming-error branches
-    reply without an LLM completion.
-    ``rag_used`` means retrieval was *decided on*, not that it returned anything.
-    ``tool_call_count`` counts attempts.
-    ``stopped_at`` is where the author's stop landed, or ``None`` for a turn that ran to the
-    end; a ``before_model`` stop persists an empty reply.
-    """
+class ComposeCompletionServedV1(AnalyticsEventSchema):
+    """``compose.completion_served`` without ``agent`` and ``refused``; registered for the rows recorded under it."""
 
     event_type = "compose.completion_served"
     version = 1
@@ -64,6 +56,33 @@ class ComposeCompletionServed(AnalyticsEventSchema):
     rag_used: bool
     tool_call_count: NonNegativeInt
     stopped_at: StopPoint | None
+
+
+class ComposeCompletionServed(AnalyticsEventSchema):
+    """A turn's reply was served, including one the author stopped before or during the reply.
+
+    Not every delivered reply emits this: the RAG-no-results and streaming-error branches
+    reply without an LLM completion.
+    ``rag_used`` means retrieval was *decided on*, not that it returned anything.
+    ``tool_call_count`` counts attempts.
+    ``stopped_at`` is where the author's stop landed, or ``None`` for a turn that ran to the
+    end; a ``before_model`` stop persists an empty reply.
+    ``agent`` is the registered name of the agent that answered, ``None`` when no agent did.
+    ``refused`` is true for a refusal.
+    """
+
+    event_type = "compose.completion_served"
+    version = 2
+
+    conversation_id: str
+    provider: str
+    model: str
+    streamed: bool
+    rag_used: bool
+    tool_call_count: NonNegativeInt
+    stopped_at: StopPoint | None
+    agent: str | None
+    refused: bool
 
 
 class ToolOutcome(StrEnum):
