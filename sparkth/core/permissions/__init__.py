@@ -70,7 +70,7 @@ class Permission:
         self,
         permission_scope: PermissionScope,
         scope_param: str | None,
-        scope_object_id: str | Callable[..., Awaitable[str | ScopeObjectMixin]] | None,
+        scope_object_id: str | Callable[..., Awaitable[str | ScopeObjectMixin | None]] | None,
     ) -> Callable[..., Awaitable[User]]:
         """Build the FastAPI dependency enforcing this permission at ``permission_scope``.
 
@@ -121,7 +121,7 @@ class Permission:
         self,
         permission_scope: PermissionScope,
         scope_param: str | None = None,
-        scope_object_id: str | Callable[..., Awaitable[str | ScopeObjectMixin]] | None = None,
+        scope_object_id: str | Callable[..., Awaitable[str | ScopeObjectMixin | None]] | None = None,
     ) -> Callable[..., Awaitable[User]]:
         """Return a FastAPI dependency enforcing this permission at a scope.
 
@@ -134,11 +134,14 @@ class Permission:
                 ``request.path_params`` per request. A ``scope_param`` the route does not provide
                 raises 500 (a wiring error, never a silent 403).
             scope_object_id: The scope object id when the route has no path parameter for it: a fixed
-                id string, or an async FastAPI dependency returning the id as a ``str`` or a
-                ``ScopeObjectMixin`` record. For a record, its ``scope_path`` is passed to the
-                check, so a role granted at an ancestor object authorizes it too. The dependency
-                loads the record itself and raises its own not-found error when it is missing,
-                which runs after authentication and before the permission check.
+                id string, or an async FastAPI dependency returning the id as a ``str``, a
+                ``ScopeObjectMixin`` record, or ``None`` when the object does not exist. For a
+                record, its ``scope_path`` is passed to the check, so a role granted at an ancestor
+                object authorizes it too. ``None`` is checked at the scope itself, so a caller
+                holding the permission only at objects is refused with 403 and cannot tell a
+                missing object from one they may not access; the route then raises its own
+                not-found after the check passes. The dependency runs after authentication and
+                before the permission check.
 
         An objectless scope takes neither ``scope_param`` nor ``scope_object_id``; an object-bearing
         scope takes exactly one of them. Any other combination is a wiring error and raises

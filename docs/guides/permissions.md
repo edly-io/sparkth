@@ -289,8 +289,11 @@ combination raises `ValueError` at import time (a wiring error, never a silent 4
   a record's own `scope_path` is checked, so a role granted at an ancestor object
   authorizes it. A record is checked at its own scope, so to
   authorize at an owner's scope the dependency returns the owner's record or id, not the
-  child record. The dependency raises its own not-found error
-  for a missing record; it runs after authentication, so an anonymous caller gets 401 first.
+  child record. The dependency returns `None` for a missing record. `None` is checked at the scope
+  itself, so a caller who holds the permission only at objects gets 403 (and a denial audit row)
+  and cannot tell a missing object from one they may not access. A caller who passes the check
+  reaches the route, which raises its own not-found. The dependency runs after authentication, so
+  an anonymous caller gets 401 first.
 
 ```python
 from fastapi import Depends
