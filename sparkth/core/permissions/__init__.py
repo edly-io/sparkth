@@ -26,6 +26,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel.sql.expression import SelectOfScalar
 
 from sparkth.core.models.user import User
+from sparkth.core.permissions.dependencies import get_scope_path
 from sparkth.core.permissions.exceptions import PermissionNotFound
 from sparkth.core.permissions.models import (
     GroupMembership,
@@ -36,7 +37,6 @@ from sparkth.core.permissions.models import (
 )
 from sparkth.core.permissions.scopes import GLOBAL, PermissionScope
 from sparkth.core.permissions.scopes.mixins import ScopeObjectMixin
-from sparkth.core.permissions.utils import get_scope_path
 from sparkth.lib.audit import record_event_now
 from sparkth.lib.audit.events import AuditOutcome, AuditTarget, PermissionDeniedAuditEvent
 from sparkth.lib.auth import get_current_user

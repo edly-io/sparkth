@@ -1,3 +1,4 @@
+from sparkth.core.permissions.constants import SCOPE_PATH_SEPARATOR, SCOPE_SEGMENT_SEPARATOR
 from sparkth.core.permissions.exceptions import InvalidScopeObjectId, PermissionScopeNotFound
 from sparkth.lib.hooks import SingleNamedItemHook
 from sparkth.lib.log import get_logger
@@ -72,10 +73,10 @@ class PermissionScope:
         if scope_path is None:
             scope_chain = [(self.name, None)]
         else:
-            # Each path segment is ``name:id``; split on the first colon so an id may contain ``:``.
+            # Each path segment is ``name:id``; split on the first separator so an id may contain it.
             scope_chain = []
-            for segment in reversed(scope_path.split("/")):
-                name, separator, object_id = segment.partition(":")
+            for segment in reversed(scope_path.split(SCOPE_PATH_SEPARATOR)):
+                name, separator, object_id = segment.partition(SCOPE_SEGMENT_SEPARATOR)
                 if not separator:
                     raise ValueError(f"Invalid scope path segment {segment!r} in {scope_path!r}")
                 scope_chain.append((name, object_id))
@@ -144,6 +145,19 @@ class ObjectlessPermissionScope(PermissionScope):
     def _cascade_pairs(self) -> list[tuple[str, str | None]]:
         # A singleton names no object, so it cascades to every descendant with a NULL id.
         return [(self.name, None)]
+
+
+def build_scope_path(scope: PermissionScope, scope_id: str, parent_path: str | None = None) -> str:
+    """Return the materialized path of an object: its parent's path, then ``<scope name>:<scope_id>``.
+
+    Segments are joined by ``/``, root first (``org:5/course:123``); a root-level object has no
+    ``parent_path``. A ``scope_id`` containing ``/`` raises ``InvalidScopeObjectId``, since it would add
+    ancestor segments to the path. ``PermissionScope.scope_chain`` reads the same format back.
+    """
+    if SCOPE_PATH_SEPARATOR in scope_id:
+        raise InvalidScopeObjectId(scope.name, scope_id)
+    segment = f"{scope.name}{SCOPE_SEGMENT_SEPARATOR}{scope_id}"
+    return segment if parent_path is None else f"{parent_path}{SCOPE_PATH_SEPARATOR}{segment}"
 
 
 # Every scope kind the platform knows; <class>.create() registers each one here.

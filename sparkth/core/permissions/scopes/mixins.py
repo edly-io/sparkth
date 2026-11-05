@@ -8,7 +8,7 @@ from typing import ClassVar
 
 from sqlmodel import Field, SQLModel
 
-from sparkth.core.permissions.scopes import PermissionScope
+from sparkth.core.permissions.scopes import PermissionScope, build_scope_path
 
 
 class ScopeObjectMixin(SQLModel):
@@ -35,7 +35,4 @@ class ScopeObjectMixin(SQLModel):
 
         Only meaningful once the object has an id.
         """
-        # Imported here because the utils module imports this one.
-        from sparkth.core.permissions.utils import build_scope_path
-
         return build_scope_path(self.scope, self.scope_id, self.parent_scope_path)

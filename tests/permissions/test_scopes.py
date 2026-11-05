@@ -7,10 +7,10 @@ from sparkth.core.permissions.scopes import (
     GLOBAL,
     ObjectlessPermissionScope,
     PermissionScope,
+    build_scope_path,
     get_permission_scope,
 )
 from sparkth.core.permissions.scopes.mixins import ScopeObjectMixin
-from sparkth.core.permissions.utils import build_scope_path
 from sparkth.lib.permissions.scopes import GROUP, ROLE, WHITELIST
 
 
