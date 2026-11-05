@@ -1,5 +1,6 @@
 import { PluginDefinition } from "@/lib/plugins/types";
 // This plugin's contributions to core's slots.
+import "./icons";
 import "./settings";
 
 // Display name and description are declared by the backend GoogleDrivePlugin

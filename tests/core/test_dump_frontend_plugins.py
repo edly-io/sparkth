@@ -45,6 +45,7 @@ def test_dump_lists_each_plugins_declared_icon_names_once(dumps: tuple[str, str]
     expected = (
         "export const PLUGIN_ICON_NAMES = {\n"
         '  "compose": ["plus"],\n'
+        '  "google-drive": ["folder"],\n'
         '  "pxc": ["blocks"],\n'
         '  "slack": ["slack"],\n'
         "} as const;\n"

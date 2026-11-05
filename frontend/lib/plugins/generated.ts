@@ -9,6 +9,7 @@ export type FrontendPluginName = (typeof FRONTEND_PLUGIN_NAMES)[number];
 
 export const PLUGIN_ICON_NAMES = {
   "compose": ["plus"],
+  "google-drive": ["folder"],
   "pxc": ["blocks"],
   "slack": ["slack"],
 } as const;
