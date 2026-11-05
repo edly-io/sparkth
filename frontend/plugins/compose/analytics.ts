@@ -1,7 +1,25 @@
-import { buildSeries, type Bucket, type BucketCount } from "@/lib/analytics/series";
-import type { IsoDate } from "@/lib/analytics/dates";
-import type { ComposeActivityPoint } from "@/lib/analytics/types";
+/** Compose's analytics: its activity endpoint and the figures and series its charts show. */
 
+import { buildSeries, type Bucket, type BucketCount, type IsoDate } from "@/lib/analytics";
+import { api, bearer, call, type Schema } from "@/lib/api";
+
+/** One bucket's count of one Compose event, split by dimension and outcome. */
+export type ComposeActivityPoint = Schema<"ComposeActivityPoint">;
+
+/** Compose's events per day for the range, counted by type, dimension and outcome. */
+export async function fetchComposeActivity(
+  token: string,
+  { from, to }: { from: IsoDate; to: IsoDate },
+): Promise<ComposeActivityPoint[]> {
+  return call<ComposeActivityPoint[]>(() =>
+    api.GET("/api/v1/compose/analytics/activity", {
+      params: { query: { from, to, bucket: "day" } },
+      headers: bearer(token),
+    }),
+  );
+}
+
+/** The Compose event types its charts count, by the figure each one feeds. */
 export const COMPOSE_EVENTS = {
   conversations: "compose.conversation_started",
   messages: "compose.message_sent",
@@ -15,6 +33,7 @@ export const COMPOSE_EVENTS = {
 /** The `compose.rag_search_completed` dimension of a search that found nothing. */
 export const EMPTY_SEARCH = "empty";
 
+/** One event type's count per bucket over the range, with empty buckets as 0. */
 export function countSeries(
   rows: ComposeActivityPoint[],
   eventType: string,
@@ -26,6 +45,7 @@ export function countSeries(
   return buildSeries(points, range);
 }
 
+/** The summed count of one event type across all rows. */
 export function totalOf(rows: ComposeActivityPoint[], eventType: string): number {
   return rows.reduce((sum, r) => (r.event_type === eventType ? sum + r.event_count : sum), 0);
 }

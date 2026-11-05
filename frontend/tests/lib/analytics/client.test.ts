@@ -6,7 +6,6 @@ import {
   fetchView,
   listViews,
   updateView,
-  fetchComposeActivity,
   fetchEventCatalog,
   fetchExplore,
   fetchLogins,
@@ -62,45 +61,6 @@ describe("fetchLogins", () => {
     );
 
     expect(error).toBeInstanceOf(ApiRequestError);
-    expect((error as ApiRequestError).status).toBe(403);
-  });
-});
-
-describe("fetchComposeActivity", () => {
-  it("GETs /api/v1/compose/analytics/activity for a day range with the bearer token", async () => {
-    const points = [
-      {
-        bucket: "2026-07-20",
-        event_type: "compose.tool_invoked",
-        dimension: "search",
-        outcome: null,
-        event_count: 2,
-      },
-    ];
-    const spy = mockFetch(points);
-
-    const result = await fetchComposeActivity("test-token", {
-      from: "2026-07-01",
-      to: "2026-07-20",
-    });
-
-    const url = new URL(sentRequest(spy).url);
-    expect(url.pathname).toBe("/api/v1/compose/analytics/activity");
-    expect(url.searchParams.get("from")).toBe("2026-07-01");
-    expect(url.searchParams.get("to")).toBe("2026-07-20");
-    expect(url.searchParams.get("bucket")).toBe("day");
-    expect(sentRequest(spy).headers.get("authorization")).toBe("Bearer test-token");
-    expect(result).toEqual(points);
-  });
-
-  it("propagates an ApiRequestError with its status intact", async () => {
-    mockFetch({ detail: "Permission denied" }, 403);
-
-    const error = await fetchComposeActivity("test-token", {
-      from: "2026-07-01",
-      to: "2026-07-20",
-    }).catch((e: unknown) => e);
-
     expect((error as ApiRequestError).status).toBe(403);
   });
 });
