@@ -3,14 +3,7 @@
 import { useMemo } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { ChartColumn } from "lucide-react";
-import {
-  documentTotals,
-  fetchDriveDocuments,
-  previousPeriod,
-  type BucketCount,
-  type DriveDocumentsPoint,
-  type IsoDate,
-} from "@/lib/analytics";
+import { previousPeriod, type BucketCount, type IsoDate } from "@/lib/analytics";
 import {
   COMPOSE_EVENTS,
   EMPTY_SEARCH,
@@ -21,6 +14,11 @@ import {
   totalOf,
   type ComposeActivityPoint,
 } from "@/plugins/compose/analytics";
+import {
+  documentTotals,
+  fetchDriveDocuments,
+  type DriveDocumentsPoint,
+} from "@/plugins/google-drive/analytics";
 import { LineChart } from "@/components/ui/LineChart";
 import { RankedBar } from "@/components/ui/RankedBar";
 import { StatCard } from "@/components/ui/StatCard";
