@@ -67,22 +67,22 @@ class PermissionScope:
         objectless ancestors. For the same ``quiz``, ``quiz.scope_chain(None)`` is
         ``[("quiz", None), ("global", None)]``.
         """
-        _scope_chain: list[tuple[str, str | None]]
+        scope_chain: list[tuple[str, str | None]]
         if scope_path is None:
-            _scope_chain = [(self.name, None)]
+            scope_chain = [(self.name, None)]
         else:
             # Each path segment is ``name:id``; split on the first colon so an id may contain ``:``.
-            _scope_chain = []
+            scope_chain = []
             for segment in reversed(scope_path.split("/")):
                 name, separator, object_id = segment.partition(":")
                 if not separator:
                     raise ValueError(f"Invalid scope path segment {segment!r} in {scope_path!r}")
-                _scope_chain.append((name, object_id))
-            if _scope_chain[0][0] != self.name:
+                scope_chain.append((name, object_id))
+            if scope_chain[0][0] != self.name:
                 raise ValueError(f"Scope path {scope_path!r} does not end at a {self.name!r} object")
         for ancestor in self.get_parents():
-            _scope_chain.extend(ancestor._cascade_pairs())
-        return _scope_chain
+            scope_chain.extend(ancestor._cascade_pairs())
+        return scope_chain
 
     def validate_object_id(self, scope_object_id: str | None) -> None:
         """Raise ``InvalidScopeObjectId`` unless ``scope_object_id`` names an object.
