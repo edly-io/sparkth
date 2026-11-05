@@ -70,8 +70,8 @@ database `CHECK` constraint.
 
 `can()` and `has_role()` cascade a grant **parent → child**. A grant at an
 `ObjectlessPermissionScope` ancestor (`global`, `whitelist`) satisfies a check at any of its
-descendants. A grant at an object-bearing ancestor (one `org`) also applies to the objects
-beneath it (its `course`s), by way of the checked object's stored **`scope_path`**: the
+descendants. A grant at an ancestor that names an object (one `org`) also applies to the objects
+beneath it (its `course`s), by way of the checked object's **`scope_path`**: the
 materialized path of the object, one `<scope name>:<object id>` segment per level, joined by
 `/`, root first. A quiz inside course 123 of org 5 has the path `org:5/course:123/quiz:777`,
 so a check at that quiz is satisfied by a grant at any of these, nearest first:
@@ -80,13 +80,20 @@ so a check at that quiz is satisfied by a grant at any of these, nearest first:
 quiz:777 → course:123 → org:5 → global
 ```
 
-The caller supplies the path (`can(user, permission, scope, scope_path, session)`, or a `ScopeObjectMixin`
-record handed to `require()`); the path is the only input naming the checked object. Pass `None` for an
-objectless scope. A single-segment path (`quiz:777`) names the object without ancestry, so only a grant
-at that object and the objectless ancestors count. The path must end at a segment named after the checked
-scope (`quiz:777` for a check at `quiz`); any other leaf raises `ValueError`. An object id may not contain
-`/` wherever it becomes a path: `build_scope_path`, the ids given to `require()`, and `scope_object_id` on
-`/permissions/can` (answered with 422).
+The path rules:
+
+- The caller supplies the path: `can(user, permission, scope, scope_path, session)` takes it, and a
+  `ScopeObjectMixin` record handed to `require_for_object()` carries it. It is the only input naming the
+  checked object.
+- Pass `None` for an objectless scope.
+- A single-segment path (`quiz:777`) names the object without ancestry, so only a grant at that object and
+  the objectless ancestors count.
+- The path must end at a segment named after the checked scope (`quiz:777` for a check at `quiz`). Any
+  segments before it must be the ancestors of that scope that name an object, in order
+  (`org:5/course:123/quiz:777`). Any other path raises `ValueError`.
+- An object id may not contain `/` wherever it becomes a path: `build_scope_path`, the ids given to
+  `require_for_object()`, and `scope_object_id` on `/permissions/can` (answered with 422).
+
 Role assignment and revocation never cascade: a grant is stored at exactly the scope it was
 assigned at.
 
@@ -277,21 +284,24 @@ await assign_role(user_id, "grader", GLOBAL, None, session)
 await assign_role(user_id, "grader", COURSE, "42", session)
 ```
 
-**Gate an endpoint on a permission** — call `.require_in_global_scope()` or
-`.require(scope, scope_param=None, scope_object_id=None)` on the permission itself. `scope` is a
+**Gate an endpoint on a permission** — call `.require_in_global_scope()`, `.require(scope, scope_param=None)` or
+`.require_for_object(scope, scope_object_id)` on the permission itself. `scope` is a
 declared `PermissionScope` **object** (e.g. `GLOBAL`, `WHITELIST`, your `COURSE`), not its
-name. An objectless scope takes neither `scope_param` nor `scope_object_id`; an object-bearing scope
-takes exactly one of them, so passing both is as much an error as passing neither. A wrong
-combination raises `ValueError` at import time (a wiring error, never a silent 403).
+name. An objectless scope takes no `scope_param` and cannot use `require_for_object`; an object-bearing
+scope needs a `scope_param` or `require_for_object`. A wrong combination raises `ValueError` at import
+time (a wiring error, never a silent 403).
 
-- `scope_param` names the path parameter carrying the object id.
-- `scope_object_id` is a fixed id string, or an async FastAPI dependency returning the id as a `str`
-  or the loaded `ScopeObjectMixin` record. An id becomes the path of that object at the checked scope;
+- `require(scope, scope_param)`: `scope_param` names the path parameter carrying the object id.
+- `require_for_object(scope, scope_object_id)`: `scope_object_id` is a fixed id string, or an async
+  FastAPI dependency returning the id as a `str` or the loaded `ScopeObjectMixin` record. An id becomes the path of that object at the checked scope;
   a record's own `scope_path` is checked, so a role granted at an ancestor object
   authorizes it. A record is checked at its own scope, so to
   authorize at an owner's scope the dependency returns the owner's record or id, not the
-  child record. The dependency raises its own not-found error
-  for a missing record; it runs after authentication, so an anonymous caller gets 401 first.
+  child record. The dependency returns `None` for a missing record. `None` is checked at the scope
+  itself, so a caller who holds the permission only at objects gets 403 (and a denial audit row)
+  and cannot tell a missing object from one they may not access. A caller who passes the check
+  reaches the route, which raises its own not-found. The dependency runs after authentication, so
+  an anonymous caller gets 401 first.
 
 ```python
 from fastapi import Depends
@@ -348,11 +358,11 @@ async def list_groups(
 ```
 
 **Make an object cascade** — a table model that is an object of a scope inherits `ScopeObjectMixin`,
-sets its `scope`, and stores a `scope_path` built from its parent's path when it is created:
+sets its `scope`, and stores the path of its parent as `parent_scope_path` when it is created:
 
 ```python
 from sqlmodel import Field
-from sparkth.lib.permissions.scopes import ScopeObjectMixin, build_scope_path
+from sparkth.lib.permissions.scopes import ScopeObjectMixin
 
 
 class Course(ScopeObjectMixin, table=True):
@@ -362,35 +372,34 @@ class Course(ScopeObjectMixin, table=True):
 
 
 async def create_course(org: Org, session: AsyncSession) -> Course:
-    course = Course(scope_path="")  # the path needs the id, assigned on flush
+    course = Course(parent_scope_path=org.scope_path)
     session.add(course)
     await session.flush()
-    course.scope_path = build_scope_path(COURSE, course.scope_id, org.scope_path)
-    return course
+    return course  # course.scope_path is now "org:5/course:<id>"
 ```
 
-`scope_id` is the record's `id` as a string; a model keyed otherwise overrides it. An id may
-not contain `/`, since it would add path segments; `build_scope_path` raises `ValueError`. A
-root-level object, whose parent scope is objectless, passes no parent path. **Moving an object
-means rewriting its path** (and the path of everything beneath it): nothing derives it later.
+`scope_path` is the parent's path plus the object's own `<scope name>:<scope_id>` segment, derived
+when read, so the stored column never needs the object's own id (which an autoincrement key only
+gets on insert). `scope_id` is the record's `id` as a string; a model keyed otherwise overrides it.
+An id may not contain `/`, since it would add path segments; building the path raises
+`InvalidScopeObjectId`. A root-level object, whose parent scope is objectless, leaves
+`parent_scope_path` as `None`. **Moving an object means rewriting the `parent_scope_path`** of it
+and of everything beneath it: nothing derives it later.
 
-Then gate routes with `scope_object_id`, as a fixed string or as a dependency returning the record:
+Then gate routes with `require_for_object`, with a fixed string or a dependency returning the record:
 
 ```python
 # Fixed id: a plugin's routes check the grant held at plugin:grader.
-@router.get("/status", dependencies=[Depends(GRADER_USE.require(PLUGIN, scope_object_id="grader"))])
+@router.get("/status", dependencies=[Depends(GRADER_USE.require_for_object(PLUGIN, "grader"))])
 async def status(): ...
 
 
-async def load_course(course_id: int, session: AsyncSession = Depends(get_async_session)) -> Course:
-    course = await session.get(Course, course_id)
-    if course is None:
-        raise CourseNotFound(course_id)
-    return course
+async def load_course(course_id: int, session: AsyncSession = Depends(get_async_session)) -> Course | None:
+    return await session.get(Course, course_id)  # None for a missing course: the check denies, not 404
 
 
-# The record carries its scope_path, so a grant at its org authorizes the edit.
-@router.patch("/courses/{course_id}", dependencies=[Depends(COURSE_EDIT.require(COURSE, scope_object_id=load_course))])
+# The record's scope_path includes its org, so a grant at the org authorizes the edit.
+@router.patch("/courses/{course_id}", dependencies=[Depends(COURSE_EDIT.require_for_object(COURSE, load_course))])
 async def edit_course(course_id: int): ...
 ```
 
