@@ -1,21 +1,48 @@
 import { FileText } from "lucide-react";
 import { useRef } from "react";
+import { ATTACHMENT_SOURCES, type AttachmentSource } from "@/lib/attachments/slots";
 import { Button } from "@/lib/components/ui/Button";
-import GoogleDriveIcon from "@/plugins/google-drive/GoogleDriveIcon";
+import { usePlugin } from "@/lib/plugins/context";
+import { slotItems } from "@/lib/slots";
 
 interface UploadMenuProps {
   onClose: () => void;
   onUploadText: (file: File) => void;
-  isDriveEnabled?: boolean;
-  onPickFromDrive?: () => void;
+  /** Opens the chosen source's picker. */
+  onPickSource: (source: AttachmentSource) => void;
 }
 
-export function UploadMenu({
-  onClose,
-  onUploadText,
-  isDriveEnabled,
-  onPickFromDrive,
-}: UploadMenuProps) {
+function SourceItem({
+  plugin,
+  source,
+  onPick,
+}: {
+  plugin: string;
+  source: AttachmentSource;
+  onPick: () => void;
+}) {
+  const { isEnabled } = usePlugin(plugin);
+  if (!isEnabled) return null;
+
+  const Icon = source.icon;
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={onPick}
+      className="w-full !justify-start gap-3 rounded-none"
+    >
+      <Icon className="w-5 h-5" />
+      <span className="text-left">{source.label}</span>
+    </Button>
+  );
+}
+
+/**
+ * Compose's attach menu: a file from the user's computer, then one entry for each attachment
+ * source whose plugin is enabled.
+ */
+export function UploadMenu({ onClose, onUploadText, onPickSource }: UploadMenuProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   return (
     <>
@@ -45,20 +72,17 @@ export function UploadMenu({
           <FileText className="w-5 h-5" />
           <span className="text-left">Select File</span>
         </Button>
-        {isDriveEnabled && onPickFromDrive && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              onPickFromDrive();
+        {slotItems(ATTACHMENT_SOURCES).map(([plugin, source], index) => (
+          <SourceItem
+            key={`${plugin}:${index}`}
+            plugin={plugin}
+            source={source}
+            onPick={() => {
+              onPickSource(source);
               onClose();
             }}
-            className="w-full !justify-start gap-3 rounded-none"
-          >
-            <GoogleDriveIcon className="w-5 h-5" />
-            <span className="text-left">Pick from Google Drive</span>
-          </Button>
-        )}
+          />
+        ))}
       </div>
     </>
   );
