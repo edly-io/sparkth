@@ -142,7 +142,7 @@ class Permission:
             current_user: User = Depends(get_current_user),
             session: AsyncSession = Depends(get_async_session),
         ) -> set[str] | None:
-            accessible_ids = await get_accessible_object_ids(current_user, self, permission_scope, session)
+            accessible_ids = await get_accessible_scope_object_ids(current_user, self, permission_scope, session)
             if accessible_ids is not None and not accessible_ids:
                 await self._deny(_describe_checked_scope(permission_scope, None))
             return accessible_ids
@@ -359,7 +359,7 @@ def _reduce_grant_rows(grant_rows: list[tuple[str, str | None]], scope_name: str
     return object_ids
 
 
-async def get_accessible_object_ids(
+async def get_accessible_scope_object_ids(
     user: User,
     permission: Permission,
     permission_scope: PermissionScope,
