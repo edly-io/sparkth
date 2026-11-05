@@ -13,5 +13,5 @@ PXC_ACTIVITY_BUILDER = Agent(
     PXC_ACTIVITY_BUILDER_TITLE,
     PXC_ACTIVITY_BUILDER_DESCRIPTION,
     PXC_ACTIVITY_BUILDER_PROMPT,
-    tools=tuple(tool.name for tool in PXC_TOOLS),
+    tools=tuple(PXC_TOOLS),
 )

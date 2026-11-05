@@ -39,7 +39,7 @@ from sparkth.plugins.compose.analytics.events import (
 )
 from sparkth.plugins.compose.detached import detach
 from sparkth.plugins.compose.planner import TurnRouting
-from sparkth.plugins.compose.tools import get_tool_registry
+from sparkth.plugins.compose.tools import tool_category
 
 logger = get_logger(__name__)
 
@@ -205,7 +205,7 @@ async def emit_completion(
             ComposeToolInvoked(
                 conversation_id=conversation_id,
                 tool_name=tool.name,
-                tool_category=get_tool_registry().category_for(tool.name),
+                tool_category=tool_category(tool.name),
                 outcome=ToolOutcome.SUCCEEDED if tool.failure is None else ToolOutcome.FAILED,
                 failure_kind=tool.failure,
             )
