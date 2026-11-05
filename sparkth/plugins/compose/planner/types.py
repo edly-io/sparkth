@@ -19,7 +19,7 @@ class AgentGraph:
 
 @dataclass(frozen=True)
 class TurnRouting:
-    """Who answered a turn: the agent it was handed to, if any, and whether it was refused."""
+    """Who answered a turn: the agent it was handed to or the operator, if any, and whether it was refused."""
 
     agent: str | None = None
     refused: bool = False

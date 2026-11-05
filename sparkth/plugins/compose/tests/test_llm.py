@@ -21,7 +21,7 @@ from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG
 from sparkth.lib.compose.constants import REFUSE_TOOL_NAME
 from sparkth.lib.llm import BaseChatProvider, get_provider
 from sparkth.lib.testing import AddTranslation, ScriptedChatModel
-from sparkth.plugins.compose.constants import PLANNER_TOOL_CALL_LIMIT, REFUSAL_MESSAGE
+from sparkth.plugins.compose.constants import PLANNER_REFUSED_CALL_LIMIT, REFUSAL_MESSAGE
 from sparkth.plugins.compose.llm import complete_turn, stream_turn
 from sparkth.plugins.compose.planner import TurnRouting
 from sparkth.plugins.compose.tests.conftest import STUB_AGENT
@@ -448,11 +448,11 @@ def _calling(name: str, args: dict[str, Any], call_id: str = "c1") -> AIMessage:
             TurnRouting(agent=STUB_AGENT.name),
         ),
         (
-            [_calling("no_such_agent", {"request": "Go"}, f"c{n}") for n in range(PLANNER_TOOL_CALL_LIMIT + 1)],
+            [_calling("no_such_agent", {"request": "Go"}, f"c{n}") for n in range(PLANNER_REFUSED_CALL_LIMIT + 2)],
             TurnRouting(),
         ),
     ],
-    ids=["hand_off", "refusal", "own_answer", "bounced_then_handed_off", "unknown_tool_until_the_limit"],
+    ids=["hand_off", "refusal", "own_answer", "bounced_then_handed_off", "unknown_tool_until_stopped"],
 )
 async def test_the_turn_says_who_answered_it(
     replies: list[AIMessage], expected: TurnRouting, stream: bool, monkeypatch: pytest.MonkeyPatch
