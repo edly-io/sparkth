@@ -81,9 +81,6 @@ class ChatCompletionRequest(BaseModel):
     tool_choice: str | None = Field(
         default="auto", description="How to use tools: 'auto', 'none', or specific tool name"
     )
-    include_system_tools_message: bool = Field(
-        default=True, description="Automatically prepend a system message listing available tools"
-    )
     document_ids: list[int] | None = Field(
         default=None,
         max_length=20,

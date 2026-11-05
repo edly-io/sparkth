@@ -266,10 +266,6 @@ async def compose_completion(
         )
 
         tools = await resolve_tools(request, get_tool_registry(), disabled_plugins)
-        if tools and request.include_system_tools_message:
-            tool_descriptions = [f"- {tool.name}: {tool.description}" for tool in tools]
-            tool_list_message = "You have access to the following tools:\n" + "\n".join(tool_descriptions)
-            messages.insert(0, {"role": "system", "content": tool_list_message})
 
         if request.stream:
             # Gated together so no LLM is built for a turn that will not retrieve.

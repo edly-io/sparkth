@@ -385,7 +385,6 @@ export function useChatStream({
           temperature: 0.7,
           tools: "*",
           tool_choice: "auto",
-          include_system_tools_message: true,
           turn_id: turnId,
           ...(conversationId && { conversation_id: conversationId }),
           ...(documentIds && documentIds.length > 0 && { document_ids: documentIds }),

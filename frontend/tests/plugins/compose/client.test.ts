@@ -25,7 +25,6 @@ const COMPLETION_BODY: ChatCompletionRequestBody = {
   temperature: 0.7,
   tools: "*",
   tool_choice: "auto",
-  include_system_tools_message: true,
 };
 
 function mockFetch(body: unknown, status = 200) {
