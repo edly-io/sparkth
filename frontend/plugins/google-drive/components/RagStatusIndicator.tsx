@@ -6,7 +6,7 @@ import {
   ragStatusLabel,
   RAG_STATUS_FALLBACK_COLOR,
   RAG_STATUS_FALLBACK_LABEL,
-} from "@/lib/rag-status";
+} from "@/plugins/google-drive/ragStatus";
 
 interface RagStatusIndicatorProps {
   fileId: number;

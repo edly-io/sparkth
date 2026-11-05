@@ -2,16 +2,16 @@
 
 import { useCallback, useEffect, useReducer } from "react";
 import { Folder, FileText, ChevronRight } from "lucide-react";
-import { Spinner } from "@/core/components/ui/Spinner";
-import { useAuth } from "@/core/auth/hooks";
-import { Button } from "@/core/components/ui/Button";
+import { Spinner } from "@/lib/components/ui/Spinner";
+import { useAuth } from "@/lib/auth/hooks";
+import { Button } from "@/lib/components/ui/Button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from "@/core/components/ui/Dialog";
+} from "@/lib/components/ui/Dialog";
 import {
   listFolders,
   listFiles,
@@ -19,9 +19,9 @@ import {
   DriveFolder,
   DriveFile,
   RagStatus,
-} from "@/lib/drive";
-import { useRagStatusPolling } from "@/lib/useRagStatusPolling";
-import { RagStatusIndicator } from "./RagStatusIndicator";
+} from "@/plugins/google-drive/client";
+import { useRagStatusPolling } from "@/plugins/google-drive/hooks/useRagStatusPolling";
+import { RagStatusIndicator } from "@/plugins/google-drive/components/RagStatusIndicator";
 import GoogleDriveIcon from "@/plugins/google-drive/GoogleDriveIcon";
 
 export interface SelectedDriveFile {

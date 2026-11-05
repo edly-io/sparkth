@@ -1,16 +1,16 @@
 "use client";
 
 import { Folder, ChevronRight } from "lucide-react";
-import { Spinner } from "@/core/components/ui/Spinner";
-import { Button } from "@/core/components/ui/Button";
+import { Spinner } from "@/lib/components/ui/Spinner";
+import { Button } from "@/lib/components/ui/Button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from "@/core/components/ui/Dialog";
-import { useFolderPicker } from "./useFolderPicker";
+} from "@/lib/components/ui/Dialog";
+import { useFolderPicker } from "@/plugins/google-drive/hooks/useFolderPicker";
 
 interface FolderPickerProps {
   onClose: () => void;

@@ -12,7 +12,7 @@ import {
   listFolders,
   refreshFolder,
   syncFolder,
-} from "@/lib/drive";
+} from "@/plugins/google-drive/client";
 
 vi.mock("@/core/auth/tokens", () => ({
   getStoredToken: vi.fn().mockReturnValue(null),

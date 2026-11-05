@@ -3,15 +3,15 @@
 import { useState } from "react";
 import Link from "next/link";
 import { FolderSync, RefreshCw, Unplug } from "lucide-react";
-import { useAuth } from "@/core/auth/hooks";
-import { Button } from "@/core/components/ui/Button";
-import { Card } from "@/core/components/ui/Card";
+import { useAuth } from "@/lib/auth/hooks";
+import { Button } from "@/lib/components/ui/Button";
+import { Card } from "@/lib/components/ui/Card";
 import GoogleDriveIcon from "@/plugins/google-drive/GoogleDriveIcon";
 import {
   getAuthorizationUrl,
   disconnectGoogle,
   ConnectionStatus as ConnectionStatusType,
-} from "@/lib/drive";
+} from "@/plugins/google-drive/client";
 
 interface ConnectionStatusProps {
   status: ConnectionStatusType | null;

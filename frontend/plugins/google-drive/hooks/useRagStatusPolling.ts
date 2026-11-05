@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { getFolderRagStatus, RagStatus } from "./drive";
+import { getFolderRagStatus, RagStatus } from "@/plugins/google-drive/client";
 
 export type RagStatusMap = Record<number, { status: RagStatus | null; error: string | null }>;
 
