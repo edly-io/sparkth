@@ -1973,12 +1973,6 @@ export interface components {
              */
             document_ids?: number[] | null;
             /**
-             * Include System Tools Message
-             * @description Automatically prepend a system message listing available tools
-             * @default true
-             */
-            include_system_tools_message: boolean;
-            /**
              * Llm Config Id
              * @description ID of the LLMConfig to use for this completion
              */
