@@ -26,7 +26,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel.sql.expression import SelectOfScalar
 
 from sparkth.core.models.user import User
-from sparkth.core.permissions.dependencies import get_scope_path
+from sparkth.core.permissions.dependencies import build_scope_path_dependency
 from sparkth.core.permissions.exceptions import PermissionNotFound
 from sparkth.core.permissions.models import (
     GroupMembership,
@@ -93,7 +93,9 @@ class Permission:
         async def dependency(
             current_user: User = Depends(get_current_user),
             session: AsyncSession = Depends(get_async_session),
-            scope_path: str | None = Depends(get_scope_path(permission_scope, scope_param, scope_object_id)),
+            scope_path: str | None = Depends(
+                build_scope_path_dependency(permission_scope, scope_param, scope_object_id)
+            ),
         ) -> User:
             if not await can(current_user, self, permission_scope, scope_path, session):
                 scope_detail = _describe_checked_scope(permission_scope, scope_path)

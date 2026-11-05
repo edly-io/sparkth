@@ -1,6 +1,6 @@
 """Where a permission check gets the scope path it checks.
 
-``get_scope_path`` returns the FastAPI dependency that yields the checked object's
+``build_scope_path_dependency`` returns the FastAPI dependency that yields the checked object's
 scope path for a route: built from a path parameter, a fixed id, an async dependency returning
 an id or a scope object record, or ``None`` for an objectless scope.
 """
@@ -19,12 +19,12 @@ _ScopePathDependency = Callable[..., Awaitable[str | None]]
 """A FastAPI dependency yielding the checked object's scope path, or ``None`` for an objectless scope."""
 
 
-async def _get_scope_path_of_objectless_scope() -> None:
+async def _resolve_objectless_scope_path() -> None:
     """The scope path dependency of an objectless scope: no object, so no path."""
     return None
 
 
-def _get_scope_path_from_path_param(permission_scope: PermissionScope, scope_param: str) -> _ScopePathDependency:
+def _build_path_param_dependency(permission_scope: PermissionScope, scope_param: str) -> _ScopePathDependency:
     """A dependency building the scope path from the route's ``scope_param`` path parameter."""
 
     async def resolve_scope_path(request: Request) -> str:
@@ -40,7 +40,7 @@ def _get_scope_path_from_path_param(permission_scope: PermissionScope, scope_par
     return resolve_scope_path
 
 
-def _get_scope_path_from_fixed_id(permission_scope: PermissionScope, object_id: str) -> _ScopePathDependency:
+def _build_fixed_id_dependency(permission_scope: PermissionScope, object_id: str) -> _ScopePathDependency:
     """A dependency building the scope path of the fixed ``object_id``."""
 
     async def resolve_scope_path() -> str:
@@ -49,7 +49,7 @@ def _get_scope_path_from_fixed_id(permission_scope: PermissionScope, object_id: 
     return resolve_scope_path
 
 
-def _get_scope_path_from_dependency(
+def _build_object_dependency(
     permission_scope: PermissionScope, object_id: Callable[..., Awaitable[str | ScopeObjectMixin | None]]
 ) -> _ScopePathDependency:
     """A dependency building the scope path from what the ``object_id`` dependency returns: an id, a record,
@@ -65,7 +65,7 @@ def _get_scope_path_from_dependency(
     return resolve_scope_path
 
 
-def get_scope_path(
+def build_scope_path_dependency(
     permission_scope: PermissionScope,
     scope_param: str | None,
     scope_object_id: str | Callable[..., Awaitable[str | ScopeObjectMixin | None]] | None,
@@ -73,9 +73,9 @@ def get_scope_path(
     """Return the dependency that yields a route's scope path, built from the path parameter, the fixed id,
     or the ``object_id`` dependency; an objectless scope has no object and so yields ``None``."""
     if scope_param is not None:
-        return _get_scope_path_from_path_param(permission_scope, scope_param)
+        return _build_path_param_dependency(permission_scope, scope_param)
     if isinstance(scope_object_id, str):
-        return _get_scope_path_from_fixed_id(permission_scope, scope_object_id)
+        return _build_fixed_id_dependency(permission_scope, scope_object_id)
     if scope_object_id is not None:
-        return _get_scope_path_from_dependency(permission_scope, scope_object_id)
-    return _get_scope_path_of_objectless_scope
+        return _build_object_dependency(permission_scope, scope_object_id)
+    return _resolve_objectless_scope_path
