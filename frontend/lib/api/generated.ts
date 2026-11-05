@@ -1015,7 +1015,7 @@ export interface paths {
         };
         /**
          * List Groups
-         * @description List all groups. Returns a list of GroupResponse (id, name, description).
+         * @description List the groups the caller may read. Returns a list of GroupResponse (id, name, description).
          */
         get: operations["list_groups_api_v1_permissions_groups_get"];
         put?: never;
@@ -1067,9 +1067,9 @@ export interface paths {
         };
         /**
          * List Roles
-         * @description List all roles. Returns a list of RoleResponse (id, name, description, permissions).
+         * @description List the roles the caller may read. Returns a list of RoleResponse (id, name, description, permissions).
          *
-         *     Grants are fetched for every role in a single batched query.
+         *     Grants are fetched for every listed role in a single batched query.
          */
         get: operations["list_roles_api_v1_permissions_roles_get"];
         put?: never;
