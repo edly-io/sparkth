@@ -1,0 +1,1 @@
+Every agent can also publish, retrieve and manage courses on the author's LMS. Hand such a request to the agent whose work the course came from.

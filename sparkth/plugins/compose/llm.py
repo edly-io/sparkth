@@ -258,9 +258,9 @@ class _TurnText:
 
 
 def build_turn_agent(
-    llm: BaseChatModel, tools: Sequence[BaseTool], system_prompt: str, max_tool_executions: int
+    llm: BaseChatModel, tools: Sequence[BaseTool], system_prompt: str, max_tool_executions: int, *, name: str
 ) -> CompiledStateGraph[Any, AuditModelInfo, Any, Any]:
-    """Build the agent that runs a turn's tool calls, led by ``system_prompt``.
+    """Build the agent ``name`` that runs a turn's tool calls, led by ``system_prompt``.
 
     Calls run one at a time, in the order the model listed them, and each reports its start and
     end on the agent's stream (see :func:`_chat_tool_call`). Calls past ``max_tool_executions``
@@ -275,7 +275,9 @@ def build_turn_agent(
     )
     # The run context carries the audit identity; the library middlewares never read it.
     middleware: list[AgentMiddleware[Any, Any, Any]] = [_chat_tool_call, limiter, ender]
-    return create_agent(llm, tools, system_prompt=system_prompt, middleware=middleware, context_schema=AuditModelInfo)
+    return create_agent(
+        llm, tools, system_prompt=system_prompt, middleware=middleware, context_schema=AuditModelInfo, name=name
+    )
 
 
 def _planner_for_turn(
@@ -291,9 +293,13 @@ def _planner_for_turn(
     return build_planner(
         planner_llm,
         [
-            AgentGraph(agent, build_turn_agent(agent_llm, tools, render_system_prompt([agent]), max_tool_executions))
+            AgentGraph(
+                agent,
+                build_turn_agent(agent_llm, tools, render_system_prompt([agent]), max_tool_executions, name=agent.name),
+            )
             for agent in agents
         ],
+        operator=None,
     )
 
 
