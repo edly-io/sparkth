@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Iterator, Sequence
 from contextlib import aclosing
 from functools import partial
 from itertools import repeat
@@ -13,12 +13,12 @@ import httpx
 import pytest
 from langchain_core.messages import AIMessage, AIMessageChunk
 from langchain_core.outputs import ChatGenerationChunk
-from langchain_core.tools import StructuredTool
+from langchain_core.tools import BaseTool, StructuredTool
 from pydantic import BaseModel, Field
 
 from sparkth.core.i18n import locale_context
 from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG
-from sparkth.lib.compose.constants import REFUSE_TOOL_NAME
+from sparkth.lib.compose.constants import OPERATOR_TOOL_NAME, REFUSE_TOOL_NAME
 from sparkth.lib.llm import BaseChatProvider, get_provider
 from sparkth.lib.testing import AddTranslation, ScriptedChatModel
 from sparkth.plugins.compose.constants import PLANNER_REFUSED_CALL_LIMIT, REFUSAL_MESSAGE
@@ -421,12 +421,14 @@ async def test_a_refusal_is_the_refusal_sentence(stream: bool, monkeypatch: pyte
     assert reply == REFUSAL_MESSAGE
 
 
-async def _answered_by(planner: dict[str, Any], provider: BaseChatProvider, stream: bool) -> TurnRouting:
-    """Who the turn says answered it; a streamed turn that names nobody leaves the default."""
+async def _answered_by(
+    planner: dict[str, Any], provider: BaseChatProvider, stream: bool, tools: Sequence[BaseTool] = ()
+) -> TurnRouting:
+    """Who the turn on ``tools`` says answered it; a streamed turn that names nobody leaves the default."""
     if not stream:
-        routing: TurnRouting = (await complete_turn(TURN, [], provider, 50, **planner))["routing"]
+        routing: TurnRouting = (await complete_turn(TURN, tools, provider, 50, **planner))["routing"]
         return routing
-    turn = stream_turn(TURN, [], provider, 50, **planner)
+    turn = stream_turn(TURN, tools, provider, 50, **planner)
     routed = [event["routing"] async for event in turn if event["type"] == "routed"]
     return cast(TurnRouting, routed[-1]) if routed else TurnRouting()
 
@@ -434,6 +436,11 @@ async def _answered_by(planner: dict[str, Any], provider: BaseChatProvider, stre
 def _calling(name: str, args: dict[str, Any], call_id: str = "c1") -> AIMessage:
     """A planner reply calling the tool ``name``."""
     return AIMessage("", tool_calls=[{"name": name, "args": args, "id": call_id}])
+
+
+def _planner_replying(*replies: AIMessage) -> dict[str, Any]:
+    """A turn with the stub agent whose planner replies with ``replies`` in turn."""
+    return {"agents": [STUB_AGENT], "planner_llm": ScriptedChatModel(messages=iter(replies), disable_streaming=True)}
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
@@ -459,6 +466,47 @@ async def test_the_turn_says_who_answered_it(
 ) -> None:
     """Only a hand-off or refusal that returned counts; a call its tool refused names nobody."""
     provider = _provider(ScriptedChatModel(messages=repeat(AIMessage("Here is the outline."))), monkeypatch)
-    planner = {"agents": [STUB_AGENT], "planner_llm": ScriptedChatModel(messages=iter(replies), disable_streaming=True)}
+    assert await _answered_by(_planner_replying(*replies), provider, stream) == expected
 
-    assert await _answered_by(planner, provider, stream) == expected
+
+def _operation(request: str = "Record step 1") -> AIMessage:
+    """A planner reply asking the operator to carry out ``request``."""
+    return AIMessage("", tool_calls=[{"name": OPERATOR_TOOL_NAME, "args": {"request": request}, "id": "op_1"}])
+
+
+@pytest.mark.usefixtures("lms_tools")
+async def test_an_operations_tool_cards_show_and_the_operators_text_does_not(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The author sees each of the operator's tool calls, never its own text, only the planner's answer."""
+    runs: list[str] = []
+    provider = _provider(ScriptedChatModel(messages=iter([_calls(1), AIMessage("Recorded step 1.")])), monkeypatch)
+    planner = _planner_replying(_operation(), AIMessage("Step 1 is recorded."))
+
+    turn = stream_turn(TURN, [_record_tool(runs)], provider, 50, **planner)
+    events = [event async for event in turn if event["type"] != "routed"]
+
+    assert events == [TOOL_START, TOOL_END, {"type": "token", "content": "Step 1 is recorded."}]
+    assert runs == ["start 1", "end 1"]
+
+
+@pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
+@pytest.mark.parametrize(
+    ("then", "expected"),
+    [
+        (AIMessage("Step 1 is recorded."), TurnRouting(agent=OPERATOR_TOOL_NAME)),
+        (
+            AIMessage("", tool_calls=[{"name": STUB_AGENT.name, "args": {"request": "An outline"}, "id": "c2"}]),
+            TurnRouting(agent=STUB_AGENT.name),
+        ),
+    ],
+    ids=["operation_only", "operation_then_agent"],
+)
+@pytest.mark.usefixtures("lms_tools")
+async def test_a_turn_with_an_operation_says_who_answered_it_last(
+    then: AIMessage, expected: TurnRouting, stream: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An operation then the planner's own answer is recorded as the operator's turn; an operation then a
+    hand-off as the agent's."""
+    provider = _provider(ScriptedChatModel(messages=repeat(AIMessage("Done."))), monkeypatch)
+    planner = _planner_replying(_operation(), then)
+
+    assert await _answered_by(planner, provider, stream, [_record_tool([])]) == expected
