@@ -1,4 +1,4 @@
-"""``Permission.require_accessible`` gates a route that names no object and hands the handler the
+"""``Permission.require_in_any_scope_object`` gates a route that names no object and hands the handler the
 ids of the objects the caller holds the permission at.
 Authored with LLM (Claude) assistance."""
 
@@ -49,7 +49,7 @@ def _client(session: AsyncSession) -> AsyncClient:
 
     @app.get("/probe")
     async def probe(
-        accessible_ids: set[str] | None = Depends(GROUP_READ.require_accessible(GROUP)),
+        accessible_ids: set[str] | None = Depends(GROUP_READ.require_in_any_scope_object(GROUP)),
     ) -> dict[str, list[str] | None]:
         return {"ids": None if accessible_ids is None else sorted(accessible_ids)}
 
@@ -96,4 +96,4 @@ async def test_unauthenticated_request_is_refused_before_any_check(
 
 def test_an_objectless_scope_is_a_wiring_error() -> None:
     with raises(ValueError):
-        GROUP_READ.require_accessible(GLOBAL)
+        GROUP_READ.require_in_any_scope_object(GLOBAL)
