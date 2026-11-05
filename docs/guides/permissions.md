@@ -317,6 +317,35 @@ async def list_whitelist(): ...
 async def edit_course(course_id: int): ...
 ```
 
+**Gate a route that names no object** — a list or create route has no object to put in the path, so
+`require()` cannot check it at an object-bearing scope. Gate each kind of route as follows:
+
+- **Create** checks at the scope the new object will live in. A root object (a group, a role) lives
+  under `global`, so `require_in_global_scope()` is right. A record the caller will own is created at
+  the caller's own scope, which the caller always holds, so such a route needs no gate for it.
+- **List** uses `.require_in_any_scope_object(scope)`. The dependency returns the ids of the objects of that
+  scope at which the caller holds the permission, as strings, or `None` when a grant at an objectless
+  ancestor (`global`) covers every object. A caller who holds the permission at no object is refused
+  with 403 and a `permission.denied` audit event. The route filters its query by the ids, so a role
+  granted at one object lists that object only.
+- Grants at an object-bearing ancestor are not considered by `require_in_any_scope_object`; only grants at the
+  scope itself and at objectless ancestors are.
+- An objectless scope names no objects to list, so `require_in_any_scope_object` raises `ValueError` for one.
+
+```python
+from sparkth.lib.permissions import GROUP_READ
+from sparkth.lib.permissions.scopes import GROUP
+
+
+@router.get("/groups")
+async def list_groups(
+    accessible_ids: set[str] | None = Depends(GROUP_READ.require_in_any_scope_object(GROUP)),
+    session: AsyncSession = Depends(get_async_session),
+) -> list[GroupResponse]:
+    # None: no filter. Otherwise keep only the groups whose id is in the set (ids are strings).
+    ...
+```
+
 **Make an object cascade** — a table model that is an object of a scope inherits `ScopeObjectMixin`,
 sets its `scope`, and stores a `scope_path` built from its parent's path when it is created:
 

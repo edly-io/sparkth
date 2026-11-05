@@ -207,6 +207,20 @@ async def test_list_groups_returns_all(session: AsyncSession) -> None:
     assert {g.name for g in await groups.list_groups(session)} == {"a", "b"}
 
 
+async def test_list_groups_filters_to_the_given_ids_in_id_order(session: AsyncSession) -> None:
+    first = await groups.create_group("a", None, session)
+    await groups.create_group("b", None, session)
+    third = await groups.create_group("c", None, session)
+    assert first.id is not None and third.id is not None
+    result = await groups.list_groups(session, {third.id, first.id})
+    assert [g.name for g in result] == ["a", "c"]
+
+
+async def test_list_groups_with_an_empty_filter_returns_nothing(session: AsyncSession) -> None:
+    await groups.create_group("a", None, session)
+    assert await groups.list_groups(session, set()) == []
+
+
 async def test_update_group_changes_fields(session: AsyncSession) -> None:
     group = await groups.create_group("cs-staff", None, session)
     assert group.id is not None

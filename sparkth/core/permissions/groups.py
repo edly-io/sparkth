@@ -85,9 +85,12 @@ async def create_group(name: str, description: str | None, session: AsyncSession
     return group
 
 
-async def list_groups(session: AsyncSession) -> list[Group]:
-    """Return every group, oldest first."""
-    return list((await session.exec(select(Group).order_by(col(Group.id)))).all())
+async def list_groups(session: AsyncSession, group_ids: set[int] | None = None) -> list[Group]:
+    """Return the groups named by ``group_ids`` (every group when ``None``), oldest first."""
+    statement = select(Group).order_by(col(Group.id))
+    if group_ids is not None:
+        statement = statement.where(col(Group.id).in_(group_ids))
+    return list((await session.exec(statement)).all())
 
 
 async def get_group(group_id: int, session: AsyncSession, *, for_update: bool = False) -> Group:
