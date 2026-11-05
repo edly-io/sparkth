@@ -345,6 +345,9 @@ its analytics endpoint, the response types and the helpers its charts need, buil
 analytics pages under `app/dashboard/analytics/` import it from there; core's `lib/analytics/` holds no plugin's
 code. Test it in `tests/plugins/<name>/analytics.test.ts`. `plugins/compose/analytics.ts` is an example.
 
+A plugin's analytics page is listed on the analytics rail by an entry in `app/dashboard/analytics/views.ts` that
+names the plugin (`plugin: "<name>"`); the entry shows only while that plugin is installed.
+
 ## Settings
 
 The **Settings** page lists the one row each plugin sets in the `SETTINGS_ITEMS` slot
