@@ -70,7 +70,7 @@ database `CHECK` constraint.
 
 `can()` and `has_role()` cascade a grant **parent → child**. A grant at an
 `ObjectlessPermissionScope` ancestor (`global`, `whitelist`) satisfies a check at any of its
-descendants. A grant at an object-bearing ancestor (one `org`) also applies to the objects
+descendants. A grant at an ancestor that names an object (one `org`) also applies to the objects
 beneath it (its `course`s), by way of the checked object's **`scope_path`**: the
 materialized path of the object, one `<scope name>:<object id>` segment per level, joined by
 `/`, root first. A quiz inside course 123 of org 5 has the path `org:5/course:123/quiz:777`,
@@ -80,14 +80,20 @@ so a check at that quiz is satisfied by a grant at any of these, nearest first:
 quiz:777 → course:123 → org:5 → global
 ```
 
-The caller supplies the path (`can(user, permission, scope, scope_path, session)`, or a `ScopeObjectMixin`
-record handed to `require()`); the path is the only input naming the checked object. Pass `None` for an
-objectless scope. A single-segment path (`quiz:777`) names the object without ancestry, so only a grant
-at that object and the objectless ancestors count. The path must end at a segment named after the checked
-scope (`quiz:777` for a check at `quiz`), and any segments before it must be the scope's object-bearing
-ancestors in order (`org:5/course:123/quiz:777`); any other path raises `ValueError`. An object id may not contain
-`/` wherever it becomes a path: `build_scope_path`, the ids given to `require_for_object()`, and `scope_object_id` on
-`/permissions/can` (answered with 422).
+The path rules:
+
+- The caller supplies the path: `can(user, permission, scope, scope_path, session)` takes it, and a
+  `ScopeObjectMixin` record handed to `require_for_object()` carries it. It is the only input naming the
+  checked object.
+- Pass `None` for an objectless scope.
+- A single-segment path (`quiz:777`) names the object without ancestry, so only a grant at that object and
+  the objectless ancestors count.
+- The path must end at a segment named after the checked scope (`quiz:777` for a check at `quiz`). Any
+  segments before it must be the ancestors of that scope that name an object, in order
+  (`org:5/course:123/quiz:777`). Any other path raises `ValueError`.
+- An object id may not contain `/` wherever it becomes a path: `build_scope_path`, the ids given to
+  `require_for_object()`, and `scope_object_id` on `/permissions/can` (answered with 422).
+
 Role assignment and revocation never cascade: a grant is stored at exactly the scope it was
 assigned at.
 
