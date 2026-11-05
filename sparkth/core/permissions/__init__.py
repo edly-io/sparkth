@@ -118,9 +118,7 @@ class Permission:
         )
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_("Permission denied"))
 
-    def require_in_any_scope_object(
-        self, permission_scope: PermissionScope
-    ) -> Callable[..., Awaitable[set[str] | None]]:
+    def require_for_any_object(self, permission_scope: PermissionScope) -> Callable[..., Awaitable[set[str] | None]]:
         """Return a FastAPI dependency for a route that names no object, such as a list route.
 
         The dependency returns the ids of the ``permission_scope`` objects at which the caller holds
