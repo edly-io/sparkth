@@ -713,13 +713,16 @@ by the user contributes no section, no description and no tools.
   message is stored in the conversation, with the refusal as the assistant's reply. If the
   classification fails, the turn fails with an error and the model is not called. A failed first
   message writes nothing; a failed later message stores the error in the conversation.
-- **System prompt.** The prompt is Compose's skeleton with each enabled agent's prompt under its
-  title. The skeleton owns the date, the assistant's identity, the output language, the
+- **Planner.** A planner on the smallest model of the user's provider reads each message the
+  scope gate let through and hands it to the one agent whose description fits. It answers
+  greetings, questions about what Compose can do, and unclear messages (with a question back)
+  itself.
+- **Agent.** The agent runs on the user's model, with Compose's skeleton wrapped around its
+  `prompt`. The skeleton owns the date, the assistant's identity, the output language, the
   refusal, injection and offering-choices rules, and Compose's LMS operations, so a prompt must not
   repeat them. A prompt holds the agent's workflow, plus any language or guardrail rules specific to
   it.
-- **Tools.** Every turn gets the tools the request asks for, minus those of a switched-off
-  plugin.
+- **Tools.** The agent gets the tools the request asks for, minus those of a switched-off plugin.
 
 Plugin-specific knowledge belongs in a `<prefix>about` tool, not in an agent's `prompt`;
 see the LMS `about` tool [above](#lms-plugins-tools-without-credentials) for the convention.

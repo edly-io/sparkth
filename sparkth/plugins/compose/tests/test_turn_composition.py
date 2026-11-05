@@ -19,6 +19,8 @@ from sparkth.main import app
 from sparkth.plugins.compose.config import ComposeSettings, get_compose_settings
 from sparkth.plugins.compose.constants import REFUSAL_MESSAGE
 from sparkth.plugins.compose.models import Conversation
+from sparkth.plugins.compose.planner import render_planner_prompt
+from sparkth.plugins.compose.prompt import render_system_prompt
 from sparkth.plugins.compose.tests.helpers import CANVAS_CONFIG, OPENEDX_CONFIG, answering_model
 
 COMPLETIONS_URL = "/api/v1/compose/completions"
@@ -53,7 +55,6 @@ async def _seed_conversation(session: AsyncSession, user_id: int) -> str:
 
 def _provider() -> MagicMock:
     provider = MagicMock()
-    provider.system_prompt = ""
     provider.create_llm.return_value = answering_model("On it.")
     return provider
 
@@ -101,13 +102,14 @@ def _bound_tool_names(complete_turn: AsyncMock) -> list[str]:
     return [tool.name for tool in complete_turn.await_args_list[-1].args[1]]
 
 
-def _system_prompt(get_provider: MagicMock) -> str:
-    prompt: str = get_provider.call_args.kwargs["system_prompt"]
-    return prompt
+def _planner_prompt(get_provider: MagicMock) -> str:
+    """The system prompt the turn's planner read, from the model behind ``get_provider``."""
+    return str(get_provider.return_value.create_llm.return_value.seen[0][0].content)
 
 
-def _section(agent: Agent) -> str:
-    return f"## {agent.title}\n{agent.prompt}"
+def _listed(agent: Agent) -> str:
+    """How the planner's prompt lists ``agent``."""
+    return f"## {agent.title}\n{agent.description}"
 
 
 async def _turn(
@@ -143,7 +145,7 @@ class TestOneAssistantPerTurn:
 
         assert response.json()["message"]["content"] == REFUSAL_MESSAGE
 
-    async def test_an_in_scope_message_is_answered_with_every_enabled_section(
+    async def test_an_in_scope_message_is_offered_to_every_enabled_agent(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent, other_agent: Agent
     ) -> None:
         config_id = await _seed_llm_config(session, current_user.id or 1)
@@ -160,10 +162,10 @@ class TestOneAssistantPerTurn:
             response = await _turn(client, config_id, conversation_uuid)
 
         assert response.json()["message"]["content"] == "On it."
-        assert _section(other_agent) in _system_prompt(get_provider)
-        assert _section(stub_agent) in _system_prompt(get_provider)
+        assert _listed(other_agent) in _planner_prompt(get_provider)
+        assert _listed(stub_agent) in _planner_prompt(get_provider)
 
-    async def test_a_first_message_is_answered_with_every_enabled_section(
+    async def test_a_first_message_is_offered_to_every_enabled_agent(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
     ) -> None:
         config_id = await _seed_llm_config(session, current_user.id or 1)
@@ -179,7 +181,7 @@ class TestOneAssistantPerTurn:
             response = await _turn(client, config_id)
 
         assert response.status_code == 200
-        assert _section(stub_agent) in _system_prompt(get_provider)
+        assert _listed(stub_agent) in _planner_prompt(get_provider)
 
     async def test_a_conversation_continues_after_a_plugin_is_switched_off(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
@@ -202,7 +204,7 @@ class TestOneAssistantPerTurn:
 
         assert response.status_code == 200
         assert response.json()["message"]["content"] == "On it."
-        assert _section(stub_agent) not in _system_prompt(get_provider)
+        assert _listed(stub_agent) not in _planner_prompt(get_provider)
 
     async def test_every_requested_tool_is_bound_whatever_the_agent(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
@@ -298,7 +300,7 @@ class TestPluginSwitches:
 
         assert bound == ["openedx_create_xblock"]
 
-    async def test_a_plugin_the_user_switched_off_offers_no_section(
+    async def test_a_plugin_the_user_switched_off_offers_no_agent(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent, other_agent: Agent
     ) -> None:
         config_id = await _seed_llm_config(session, current_user.id or 1)
@@ -314,8 +316,8 @@ class TestPluginSwitches:
         ):
             await _turn(client, config_id, conversation_uuid)
 
-        assert _section(stub_agent) not in _system_prompt(get_provider)
-        assert _section(other_agent) in _system_prompt(get_provider)
+        assert _listed(stub_agent) not in _planner_prompt(get_provider)
+        assert _listed(other_agent) in _planner_prompt(get_provider)
 
     async def test_a_plugin_switched_off_system_wide_binds_none_of_its_tools(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
@@ -447,19 +449,21 @@ class TestPluginSwitches:
         assert stub_agent not in offered
         assert other_agent in offered
 
-    async def test_an_enabled_plugin_contributes_its_tools_and_section(
+    async def test_an_enabled_plugin_contributes_its_tools_and_agent(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
     ) -> None:
         complete_turn, get_provider = await self._lms_turn(client, session, current_user.id or 1, True, True)
 
         assert _bound_tool_names(complete_turn) == ["openedx_create_xblock", "canvas_create_course", "stub_build"]
-        assert _section(stub_agent) in _system_prompt(get_provider)
+        assert stub_agent in complete_turn.await_args_list[-1].kwargs["agents"]
 
     async def test_no_turn_sends_lms_settings_to_the_model(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
     ) -> None:
-        _, get_provider = await self._lms_turn(client, session, current_user.id or 1, True, True)
+        complete_turn, _ = await self._lms_turn(client, session, current_user.id or 1, True, True)
 
-        prompt = _system_prompt(get_provider)
+        call = complete_turn.await_args_list[-1]
+        agents = call.kwargs["agents"]
+        sent = [str(call.args[0]), render_planner_prompt(agents), *(render_system_prompt([agent]) for agent in agents)]
         for value in (*OPENEDX_CONFIG.values(), *CANVAS_CONFIG.values()):
-            assert value not in prompt
+            assert not any(value in text for text in sent)

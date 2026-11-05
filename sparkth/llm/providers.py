@@ -14,6 +14,24 @@ from sparkth.lib.log import get_logger
 logger = get_logger(__name__)
 
 
+def to_langchain_messages(messages: list[dict[str, Any]]) -> list[AnyMessage]:
+    """Convert ``{"role", "content"}`` dicts to LangChain messages; any role but system or assistant is the user's."""
+    langchain_messages: list[AnyMessage] = []
+
+    for msg in messages:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+
+        if role == "system":
+            langchain_messages.append(SystemMessage(content=content))
+        elif role == "assistant":
+            langchain_messages.append(AIMessage(content=content))
+        else:
+            langchain_messages.append(HumanMessage(content=content))
+
+    return langchain_messages
+
+
 class BaseChatProvider(ABC):
     # Stable provider identifier recorded as AI provenance on audit events;
     # subclasses set it to their PROVIDER_REGISTRY key.
@@ -42,23 +60,6 @@ class BaseChatProvider(ABC):
         """Public interface for creating a configured LangChain LLM instance."""
         return self._create_llm(streaming=streaming)
 
-    def convert_messages(self, messages: list[dict[str, Any]]) -> list[AnyMessage]:
-        """Convert dict messages to LangChain message objects."""
-        langchain_messages: list[AnyMessage] = []
-
-        for msg in messages:
-            role = msg.get("role", "user")
-            content = msg.get("content", "")
-
-            if role == "system":
-                langchain_messages.append(SystemMessage(content=content))
-            elif role == "assistant":
-                langchain_messages.append(AIMessage(content=content))
-            else:
-                langchain_messages.append(HumanMessage(content=content))
-
-        return langchain_messages
-
     async def send_message(self, messages: list[dict[str, Any]], max_tokens: int | None = None) -> dict[str, Any]:
         """Send a message and get the model's reply, without tools."""
         try:
@@ -70,7 +71,7 @@ class BaseChatProvider(ABC):
     async def _send_message_simple(self, llm: Any, messages: list[dict[str, Any]]) -> dict[str, Any]:
         """Send a message without tools."""
         langchain_messages: list[BaseMessage] = [SystemMessage(content=self.system_prompt)]
-        langchain_messages.extend(self.convert_messages(messages))
+        langchain_messages.extend(to_langchain_messages(messages))
 
         response = await llm.ainvoke(langchain_messages)
 

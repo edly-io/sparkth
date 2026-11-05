@@ -24,7 +24,8 @@ from sparkth.plugins.compose.analytics import StopPoint
 from sparkth.plugins.compose.routes.utils.live_turns import request_stop
 from sparkth.plugins.compose.routes.utils.stream_processor import ComposeStreamProcessor
 from sparkth.plugins.compose.schemas import ChatMessage
-from sparkth.plugins.compose.tests.helpers import STREAM_TURN, replay_turn
+from sparkth.plugins.compose.tests.conftest import STUB_AGENT
+from sparkth.plugins.compose.tests.helpers import STREAM_TURN, handing_off_to, replay_turn
 
 
 async def _stopping_tool(executed: list[str]) -> str:
@@ -73,6 +74,7 @@ def _make_processor(
         tools=tools,
         user_id=user_id,
         turn_id=turn_id,
+        **handing_off_to(STUB_AGENT),
     )
 
 
@@ -81,14 +83,24 @@ HELLO_WORLD_TURN = partial(replay_turn, [{"type": "token", "content": "Hello"}, 
 
 
 def _failing_turn(
-    error: Exception, messages: list[dict[str, Any]], tools: Sequence[Any], provider: Any, max_tool_executions: int
+    error: Exception,
+    messages: list[dict[str, Any]],
+    tools: Sequence[Any],
+    provider: Any,
+    max_tool_executions: int,
+    **planner: Any,
 ) -> AsyncGenerator[dict[str, Any], None]:
     """A streamed turn that fails with ``error`` before its first event."""
     raise error
 
 
 async def _stopping_between_tools(
-    executed: list[str], messages: list[dict[str, Any]], tools: Sequence[Any], provider: Any, max_tool_executions: int
+    executed: list[str],
+    messages: list[dict[str, Any]],
+    tools: Sequence[Any],
+    provider: Any,
+    max_tool_executions: int,
+    **planner: Any,
 ) -> AsyncGenerator[dict[str, Any], None]:
     """Two tool calls, with Stop pressed between the first finishing and the second starting."""
     yield {"type": "tool_start", "name": "first_tool"}
@@ -102,7 +114,12 @@ async def _stopping_between_tools(
 
 
 async def _stopping_during_a_tool(
-    executed: list[str], messages: list[dict[str, Any]], tools: Sequence[Any], provider: Any, max_tool_executions: int
+    executed: list[str],
+    messages: list[dict[str, Any]],
+    tools: Sequence[Any],
+    provider: Any,
+    max_tool_executions: int,
+    **planner: Any,
 ) -> AsyncGenerator[dict[str, Any], None]:
     """Two tool calls, with Stop pressed while the first one runs."""
     yield {"type": "tool_start", "name": "first_tool"}
@@ -117,7 +134,7 @@ async def _stopping_during_a_tool(
 
 
 async def _stopping_mid_answer(
-    messages: list[dict[str, Any]], tools: Sequence[Any], provider: Any, max_tool_executions: int
+    messages: list[dict[str, Any]], tools: Sequence[Any], provider: Any, max_tool_executions: int, **planner: Any
 ) -> AsyncGenerator[dict[str, Any], None]:
     """An answer whose instructor presses Stop after its second token."""
     yield {"type": "token", "content": "Half a "}
@@ -128,7 +145,12 @@ async def _stopping_mid_answer(
 
 
 async def _setting_stop_mid_answer(
-    stop: asyncio.Event, messages: list[dict[str, Any]], tools: Sequence[Any], provider: Any, max_tool_executions: int
+    stop: asyncio.Event,
+    messages: list[dict[str, Any]],
+    tools: Sequence[Any],
+    provider: Any,
+    max_tool_executions: int,
+    **planner: Any,
 ) -> AsyncGenerator[dict[str, Any], None]:
     """An answer that sets ``stop`` after its first token."""
     yield {"type": "token", "content": "Half"}
@@ -515,7 +537,7 @@ class TestStopHonoured:
             content="",
             tool_calls=[{"name": "first", "args": {}, "id": "call_1"}, {"name": "second", "args": {}, "id": "call_2"}],
         )
-        model = ScriptedChatModel(messages=iter([calls, AIMessage("never")]))
+        model = ScriptedChatModel(messages=iter([calls, AIMessage("never")]), disable_streaming=True)
         monkeypatch.setattr(provider, "_create_llm", lambda streaming=False, callbacks=None: model)
         tools: list[BaseTool] = [
             _no_argument_tool("first", partial(_stopping_tool, executed)),
