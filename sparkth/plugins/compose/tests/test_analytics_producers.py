@@ -117,13 +117,6 @@ def _non_streaming_provider(content: str = "Here is your course outline.") -> Ma
     return provider
 
 
-def _in_scope_classifier() -> AsyncMock:
-    """A MessageScopeClassifier instance mock that judges every message in scope."""
-    classifier = AsyncMock()
-    classifier.in_scope = AsyncMock(return_value=True)
-    return classifier
-
-
 def _ingest_failing_only_for(event_type: str, attempted: list[str] | None = None) -> Callable[..., Awaitable[None]]:
     """An ``ingest_event`` stand-in that fails one event type and lands every other.
 
@@ -168,13 +161,11 @@ async def test_new_conversation_emits_conversation_started(
 
     with (
         patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_non_streaming_provider()),
-        patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_scope_cls,
         # conversation_title.py resolves its own provider for the title-generation background
         # task it schedules on the same create branch; without this it would reach out to the
         # real provider with the fake test API key.
         patch("sparkth.plugins.compose.conversation_title.get_provider", return_value=_non_streaming_provider()),
     ):
-        mock_scope_cls.return_value = _in_scope_classifier()
         response = await client.post(
             COMPLETIONS_URL,
             json={
@@ -209,9 +200,7 @@ async def test_continuing_a_conversation_does_not_re_emit_conversation_started(
 
     with (
         patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_non_streaming_provider()),
-        patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_scope_cls,
     ):
-        mock_scope_cls.return_value = _in_scope_classifier()
         response = await client.post(
             COMPLETIONS_URL,
             json={
@@ -227,41 +216,6 @@ async def test_continuing_a_conversation_does_not_re_emit_conversation_started(
     assert await _events(analytics_session, "compose.conversation_started") == []
 
 
-async def test_refused_first_message_starts_no_conversation_and_emits_nothing(
-    client: AsyncClient,
-    current_user: User,
-    session: AsyncSession,
-    analytics_session: SQLAlchemyAsyncSession,
-) -> None:
-    """An out-of-scope opening message is refused before any conversation is written.
-
-    Nothing at all is emitted for such a turn, so the whole raw-events table stays empty
-    rather than just the conversation-started rows.
-    """
-    config_id = await _seed_llm_config(session, current_user.id or 1)
-
-    refusing = AsyncMock()
-    refusing.in_scope = AsyncMock(return_value=False)
-
-    with (
-        patch("sparkth.plugins.compose.routes.completions.get_provider"),
-        patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_scope_cls,
-    ):
-        mock_scope_cls.return_value = refusing
-        response = await client.post(
-            COMPLETIONS_URL,
-            json={
-                "llm_config_id": config_id,
-                "messages": [{"role": "user", "content": "what is 2+2?"}],
-                "stream": False,
-                "tools": "none",
-            },
-        )
-
-    assert response.status_code == 200
-    assert (await analytics_session.execute(sa_select(raw_events))).mappings().all() == []
-
-
 async def test_instructor_turn_emits_message_sent(
     client: AsyncClient,
     current_user: User,
@@ -273,10 +227,8 @@ async def test_instructor_turn_emits_message_sent(
 
     with (
         patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_non_streaming_provider()),
-        patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_scope_cls,
         patch("sparkth.plugins.compose.conversation_title.get_provider", return_value=_non_streaming_provider()),
     ):
-        mock_scope_cls.return_value = _in_scope_classifier()
         response = await client.post(
             COMPLETIONS_URL,
             json={
@@ -311,9 +263,7 @@ async def test_attachment_turn_emits_message_sent_with_has_attachment(
 
     with (
         patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_non_streaming_provider()),
-        patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_scope_cls,
     ):
-        mock_scope_cls.return_value = _in_scope_classifier()
         response = await client.post(
             COMPLETIONS_URL,
             json={
@@ -351,10 +301,8 @@ async def test_message_sent_payload_carries_no_message_text(
 
     with (
         patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_non_streaming_provider()),
-        patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_scope_cls,
         patch("sparkth.plugins.compose.conversation_title.get_provider", return_value=_non_streaming_provider()),
     ):
-        mock_scope_cls.return_value = _in_scope_classifier()
         response = await client.post(
             COMPLETIONS_URL,
             json={
@@ -391,9 +339,7 @@ async def test_assistant_turns_in_the_request_do_not_emit_message_sent(
 
     with (
         patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_non_streaming_provider()),
-        patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_scope_cls,
     ):
-        mock_scope_cls.return_value = _in_scope_classifier()
         response = await client.post(
             COMPLETIONS_URL,
             json={
@@ -443,10 +389,8 @@ async def test_a_completion_records_who_answered(
             "sparkth.plugins.compose.routes.completions.get_provider",
             side_effect=planning(_non_streaming_provider("Outline ready."), reply),
         ),
-        patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_scope_cls,
         patch("sparkth.plugins.compose.conversation_title.get_provider", return_value=_non_streaming_provider()),
     ):
-        mock_scope_cls.return_value = _in_scope_classifier()
         response = await client.post(
             COMPLETIONS_URL,
             json={
@@ -476,10 +420,8 @@ async def test_non_streaming_completion_emits_completion_served(
             "sparkth.plugins.compose.routes.completions.get_provider",
             return_value=_non_streaming_provider("Outline ready."),
         ),
-        patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_scope_cls,
         patch("sparkth.plugins.compose.conversation_title.get_provider", return_value=_non_streaming_provider()),
     ):
-        mock_scope_cls.return_value = _in_scope_classifier()
         response = await client.post(
             COMPLETIONS_URL,
             json={
@@ -540,10 +482,8 @@ async def test_non_streaming_tool_executions_emit_tool_invoked(
     with (
         patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_non_streaming_provider()),
         patch("sparkth.plugins.compose.routes.completions.complete_turn", new=turn),
-        patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_scope_cls,
         patch("sparkth.plugins.compose.conversation_title.get_provider", return_value=_non_streaming_provider()),
     ):
-        mock_scope_cls.return_value = _in_scope_classifier()
         response = await client.post(
             COMPLETIONS_URL,
             json={
@@ -568,39 +508,6 @@ async def test_non_streaming_tool_executions_emit_tool_invoked(
     for event in invoked:
         assert set(event) == {"conversation_id", "tool_name", "tool_category", "outcome", "failure_kind"}
         assert "Data Privacy" not in str(event)
-
-
-async def test_refused_query_emits_no_completion_served(
-    client: AsyncClient,
-    current_user: User,
-    session: AsyncSession,
-    analytics_session: SQLAlchemyAsyncSession,
-) -> None:
-    """A refusal never reaches the LLM, so it is not a completion."""
-    config_id = await _seed_llm_config(session, current_user.id or 1)
-    conversation_uuid = await _seed_conversation(session, current_user.id or 1, config_id)
-
-    refusing = AsyncMock()
-    refusing.in_scope = AsyncMock(return_value=False)
-
-    with (
-        patch("sparkth.plugins.compose.routes.completions.get_provider"),
-        patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_scope_cls,
-    ):
-        mock_scope_cls.return_value = refusing
-        response = await client.post(
-            COMPLETIONS_URL,
-            json={
-                "llm_config_id": config_id,
-                "conversation_id": conversation_uuid,
-                "messages": [{"role": "user", "content": "what is 2+2?"}],
-                "stream": False,
-                "tools": "none",
-            },
-        )
-
-    assert response.status_code == 200
-    assert await _events(analytics_session, "compose.completion_served") == []
 
 
 async def test_analytics_emission_failure_propagates_from_the_completion(
@@ -629,7 +536,6 @@ async def test_analytics_emission_failure_propagates_from_the_completion(
             "sparkth.plugins.compose.routes.completions.get_provider",
             return_value=_non_streaming_provider("Outline ready."),
         ),
-        patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_scope_cls,
         patch("sparkth.plugins.compose.conversation_title.get_provider", return_value=_non_streaming_provider()),
         patch(
             "sparkth.lib.analytics.ingest_event",
@@ -637,7 +543,6 @@ async def test_analytics_emission_failure_propagates_from_the_completion(
         ),
         pytest.raises(RuntimeError, match="analytics exploded"),
     ):
-        mock_scope_cls.return_value = _in_scope_classifier()
         await client.post(
             COMPLETIONS_URL,
             json={
@@ -702,10 +607,8 @@ async def test_streaming_completion_emits_served_and_tool_invoked(
     with (
         patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=provider),
         patch(STREAM_TURN, turn),
-        patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_scope_cls,
         patch("sparkth.plugins.compose.conversation_title.get_provider", return_value=_non_streaming_provider()),
     ):
-        mock_scope_cls.return_value = _in_scope_classifier()
         response = await client.post(
             COMPLETIONS_URL,
             json={
@@ -754,10 +657,8 @@ async def test_streaming_completion_without_tools_emits_zero_count(
     with (
         patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=provider),
         patch(STREAM_TURN, turn),
-        patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_scope_cls,
         patch("sparkth.plugins.compose.conversation_title.get_provider", return_value=_non_streaming_provider()),
     ):
-        mock_scope_cls.return_value = _in_scope_classifier()
         response = await client.post(
             COMPLETIONS_URL,
             json={
@@ -795,10 +696,8 @@ async def test_a_turn_stopped_mid_stream_records_where_it_stopped(
     with (
         patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=provider),
         patch(STREAM_TURN, turn),
-        patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_scope_cls,
         patch("sparkth.plugins.compose.conversation_title.get_provider", return_value=_non_streaming_provider()),
     ):
-        mock_scope_cls.return_value = _in_scope_classifier()
         response = await client.post(
             COMPLETIONS_URL,
             json={
@@ -851,14 +750,12 @@ async def test_streaming_analytics_failure_does_not_corrupt_the_conversation(
     with (
         patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=provider),
         patch(STREAM_TURN, turn),
-        patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_scope_cls,
         patch("sparkth.plugins.compose.conversation_title.get_provider", return_value=_non_streaming_provider()),
         patch(
             "sparkth.lib.analytics.ingest_event",
             side_effect=_ingest_failing_only_for("compose.completion_served", attempted),
         ),
     ):
-        mock_scope_cls.return_value = _in_scope_classifier()
         response = await client.post(
             COMPLETIONS_URL,
             json={
@@ -913,10 +810,8 @@ async def test_a_streamed_turn_timestamps_its_events_in_the_order_they_happened(
     with (
         patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=provider),
         patch(STREAM_TURN, turn),
-        patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_scope_cls,
         patch("sparkth.plugins.compose.conversation_title.get_provider", return_value=_non_streaming_provider()),
     ):
-        mock_scope_cls.return_value = _in_scope_classifier()
         response = await client.post(
             COMPLETIONS_URL,
             json={
@@ -955,10 +850,8 @@ async def test_event_times_come_from_the_rows_they_describe(
 
     with (
         patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_non_streaming_provider()),
-        patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_scope_cls,
         patch("sparkth.plugins.compose.conversation_title.get_provider", return_value=_non_streaming_provider()),
     ):
-        mock_scope_cls.return_value = _in_scope_classifier()
         response = await client.post(
             COMPLETIONS_URL,
             json={
@@ -1038,10 +931,8 @@ async def test_tool_invoked_records_whether_each_call_succeeded(
             side_effect=planning(provider, hand_off(stub_agent)),
         ),
         patch("sparkth.plugins.compose.routes.completions.resolve_tools", AsyncMock(return_value=tools)),
-        patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_scope_cls,
         patch("sparkth.plugins.compose.conversation_title.get_provider", return_value=_non_streaming_provider()),
     ):
-        mock_scope_cls.return_value = _in_scope_classifier()
         response = await client.post(
             COMPLETIONS_URL,
             json={

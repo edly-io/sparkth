@@ -15,6 +15,7 @@ from pydantic import Field
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.lib.compose.constants import REFUSE_TOOL_NAME
 from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.llm import small_model_for
@@ -97,6 +98,11 @@ def planner_model(reply: AIMessage) -> ScriptedChatModel:
 def hand_off(agent: Agent) -> AIMessage:
     """A planner reply handing the message to ``agent``."""
     return AIMessage("", tool_calls=[{"name": agent.name, "args": {"request": "Go ahead."}, "id": "hand_off"}])
+
+
+def refusal() -> AIMessage:
+    """A planner reply refusing the message."""
+    return AIMessage("", tool_calls=[{"name": REFUSE_TOOL_NAME, "args": {}, "id": "refuse"}])
 
 
 def planner_answering(reply: AIMessage, agent: Agent) -> dict[str, Any]:
