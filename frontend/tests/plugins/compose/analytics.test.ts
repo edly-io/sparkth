@@ -1,13 +1,27 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
+import { ApiRequestError } from "@/lib/api";
 import {
   COMPOSE_EVENTS,
   countSeries,
+  fetchComposeActivity,
   rateSeries,
   toolTotals,
   totalOf,
   type ComposeActivityPoint,
-} from "@/lib/analytics";
+} from "@/plugins/compose/analytics";
+
+import { mockFetch, sentRequest } from "@/tests/lib/test-utils";
+
+// authMiddleware reads the stored token; stub it to null so the explicit bearer
+// header from the client is what we assert on.
+vi.mock("@/core/auth/tokens", () => ({
+  getStoredToken: vi.fn().mockReturnValue(null),
+}));
+
+beforeEach(() => {
+  vi.restoreAllMocks();
+});
 
 const row = (
   bucket: string,
@@ -63,5 +77,44 @@ describe("toolTotals", () => {
       { tool: "search", total: 6, failed: 1 },
       { tool: "outline", total: 5, failed: 0 },
     ]);
+  });
+});
+
+describe("fetchComposeActivity", () => {
+  it("GETs /api/v1/compose/analytics/activity for a day range with the bearer token", async () => {
+    const points = [
+      {
+        bucket: "2026-07-20",
+        event_type: "compose.tool_invoked",
+        dimension: "search",
+        outcome: null,
+        event_count: 2,
+      },
+    ];
+    const spy = mockFetch(points);
+
+    const result = await fetchComposeActivity("test-token", {
+      from: "2026-07-01",
+      to: "2026-07-20",
+    });
+
+    const url = new URL(sentRequest(spy).url);
+    expect(url.pathname).toBe("/api/v1/compose/analytics/activity");
+    expect(url.searchParams.get("from")).toBe("2026-07-01");
+    expect(url.searchParams.get("to")).toBe("2026-07-20");
+    expect(url.searchParams.get("bucket")).toBe("day");
+    expect(sentRequest(spy).headers.get("authorization")).toBe("Bearer test-token");
+    expect(result).toEqual(points);
+  });
+
+  it("propagates an ApiRequestError with its status intact", async () => {
+    mockFetch({ detail: "Permission denied" }, 403);
+
+    const error = await fetchComposeActivity("test-token", {
+      from: "2026-07-01",
+      to: "2026-07-20",
+    }).catch((e: unknown) => e);
+
+    expect((error as ApiRequestError).status).toBe(403);
   });
 });
