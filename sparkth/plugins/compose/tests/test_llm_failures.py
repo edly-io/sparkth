@@ -2,6 +2,7 @@
 
 import logging
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 from typing import Any
 
 import pytest
@@ -48,7 +49,11 @@ async def _first_execution(
     monkeypatch.setattr(provider, "_create_llm", lambda streaming=False, callbacks=None: model)
 
     response = await complete_turn(
-        [{"role": "user", "content": "go"}], [tool], provider, 50, **handing_off_to(STUB_AGENT)
+        [{"role": "user", "content": "go"}],
+        [tool],
+        provider,
+        50,
+        **handing_off_to(replace(STUB_AGENT, tools=(tool_name,))),
     )
 
     execution: dict[str, Any] = response["metadata"]["tool_executions"][0]

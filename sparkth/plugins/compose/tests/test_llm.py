@@ -4,6 +4,7 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator, Iterator, Sequence
 from contextlib import aclosing
+from dataclasses import replace
 from functools import partial
 from itertools import repeat
 from typing import Any, cast
@@ -17,6 +18,7 @@ from langchain_core.tools import BaseTool, StructuredTool
 from pydantic import BaseModel, Field
 
 from sparkth.core.i18n import locale_context
+from sparkth.lib.audit import ToolFailureKind
 from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG
 from sparkth.lib.compose.constants import OPERATOR_TOOL_NAME, REFUSE_TOOL_NAME
 from sparkth.lib.llm import BaseChatProvider, get_provider
@@ -31,6 +33,8 @@ TURN = [{"role": "user", "content": "Record the steps."}]
 LIMIT_NOTICE = (
     "I stopped because I reached the tool-call limit for this turn. You can send another message to continue."
 )
+# An agent whose own tool is ``record``.
+RECORDER = replace(STUB_AGENT, tools=("record",))
 TOOL_START = {"type": "tool_start", "name": "record"}
 TOOL_END = {"type": "tool_end", "name": "record", "failure": None}
 
@@ -104,7 +108,7 @@ async def _events(
     tools: list[StructuredTool], provider: BaseChatProvider, max_tool_executions: int = 50
 ) -> list[dict[str, Any]]:
     """What the author's client receives from one streamed turn: everything but its routing."""
-    turn = stream_turn(TURN, tools, provider, max_tool_executions, **handing_off_to(STUB_AGENT))
+    turn = stream_turn(TURN, tools, provider, max_tool_executions, **handing_off_to(RECORDER))
     return [event async for event in turn if event["type"] != "routed"]
 
 
@@ -125,7 +129,7 @@ async def test_tool_calls_run_one_at_a_time_in_the_order_the_model_listed_them(
             {"type": "token", "content": "recorded"},
         ]
     else:
-        response = await complete_turn(TURN, tools, provider, 50, **handing_off_to(STUB_AGENT))
+        response = await complete_turn(TURN, tools, provider, 50, **handing_off_to(RECORDER))
         assert response["content"] == "Let me record these.\n\nrecorded"
         executions = response["metadata"]["tool_executions"]
         assert [execution["tool_input"] for execution in executions] == [{"step": 1}, {"step": 2}, {"step": 3}]
@@ -140,7 +144,7 @@ async def test_a_consumer_that_stops_at_tool_start_keeps_that_tool_from_running(
     provider = _provider(model, monkeypatch)
 
     starts = 0
-    async with aclosing(stream_turn(TURN, [_record_tool(runs)], provider, 50, **handing_off_to(STUB_AGENT))) as events:
+    async with aclosing(stream_turn(TURN, [_record_tool(runs)], provider, 50, **handing_off_to(RECORDER))) as events:
         async for event in events:
             if event["type"] == "tool_start":
                 starts += 1
@@ -155,7 +159,7 @@ async def test_calls_past_the_limit_are_blocked_and_the_model_answers(monkeypatc
     model = ScriptedChatModel(messages=iter([_calls(1, 2, 3), AIMessage("answer")]))
     provider = _provider(model, monkeypatch)
 
-    response = await complete_turn(TURN, [_record_tool(runs)], provider, 2, **handing_off_to(STUB_AGENT))
+    response = await complete_turn(TURN, [_record_tool(runs)], provider, 2, **handing_off_to(RECORDER))
 
     metadata = response["metadata"]
     assert response["content"] == "answer"
@@ -177,7 +181,7 @@ async def test_a_turn_where_the_model_calls_no_tool_returns_its_answer(
     if stream:
         assert await _events(tools, provider) == [{"type": "token", "content": "hi"}]
         return
-    response = await complete_turn(TURN, tools, provider, 50, **handing_off_to(STUB_AGENT))
+    response = await complete_turn(TURN, tools, provider, 50, **handing_off_to(RECORDER))
     metadata = response["metadata"]
     assert response["content"] == "hi"
     assert metadata["num_executions"] == 0
@@ -231,7 +235,7 @@ async def test_a_content_block_answer_streams_block_by_block(stream: bool, monke
         events = await _events(tools, provider)
         assert [event["content"] for event in events if event["type"] == "token"] == ["Hello ", "there"]
         return
-    response = await complete_turn(TURN, tools, provider, 50, **handing_off_to(STUB_AGENT))
+    response = await complete_turn(TURN, tools, provider, 50, **handing_off_to(RECORDER))
     assert response["content"] == "Hello there"
 
 
@@ -244,7 +248,7 @@ async def test_a_provider_error_leaves_with_its_own_type(stream: bool, monkeypat
         if stream:
             await _events(tools, provider)
         else:
-            await complete_turn(TURN, tools, provider, 50, **handing_off_to(STUB_AGENT))
+            await complete_turn(TURN, tools, provider, 50, **handing_off_to(RECORDER))
 
 
 async def test_a_streamed_turn_at_the_limit_ends_with_the_models_answer(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -262,7 +266,7 @@ async def test_a_model_that_ignores_the_block_ends_the_turn_with_a_notice(monkey
     model = ScriptedChatModel(messages=iter([_calls(1), _calls(2), _calls(3), AIMessage("never")]))
     provider = _provider(model, monkeypatch)
 
-    response = await complete_turn(TURN, [_record_tool([])], provider, 1, **handing_off_to(STUB_AGENT))
+    response = await complete_turn(TURN, [_record_tool([])], provider, 1, **handing_off_to(RECORDER))
 
     assert response["content"] == LIMIT_NOTICE
     assert response["metadata"]["limit_reached"] is True
@@ -288,7 +292,7 @@ async def test_the_limit_notice_is_translated_into_the_active_locale(
     provider = _provider(model, monkeypatch)
 
     with locale_context("es"):
-        response = await complete_turn(TURN, [_record_tool([])], provider, 1, **handing_off_to(STUB_AGENT))
+        response = await complete_turn(TURN, [_record_tool([])], provider, 1, **handing_off_to(RECORDER))
 
     assert response["content"] == "Alcancé el límite de herramientas de este turno."
 
@@ -304,7 +308,7 @@ async def test_a_model_that_batches_calls_gets_one_more_reply_after_the_block(
     if stream:
         await _events([_record_tool([])], provider, 2)
     else:
-        await complete_turn(TURN, [_record_tool([])], provider, 2, **handing_off_to(STUB_AGENT))
+        await complete_turn(TURN, [_record_tool([])], provider, 2, **handing_off_to(RECORDER))
 
     # Reply 1 uses the limit, reply 2 is blocked, and reply 3 asks for tools again: replies 4 and 5
     # are never asked for, however many calls each reply batches.
@@ -326,7 +330,7 @@ async def test_blocked_calls_log_that_the_tool_call_limit_was_reached(
     provider = _provider(model, monkeypatch)
 
     with caplog.at_level(logging.WARNING):
-        await complete_turn(TURN, [_record_tool([])], provider, 2, **handing_off_to(STUB_AGENT))
+        await complete_turn(TURN, [_record_tool([])], provider, 2, **handing_off_to(RECORDER))
 
     assert _turn_warnings(caplog) == ["Tool call limit (2) reached; blocked 1 call(s)"]
 
@@ -338,7 +342,7 @@ async def test_a_turn_ended_for_calling_tools_after_the_block_logs_a_warning(
     provider = _provider(model, monkeypatch)
 
     with caplog.at_level(logging.WARNING):
-        await complete_turn(TURN, [_record_tool([])], provider, 1, **handing_off_to(STUB_AGENT))
+        await complete_turn(TURN, [_record_tool([])], provider, 1, **handing_off_to(RECORDER))
 
     assert _turn_warnings(caplog)[-1] == "Model asked for tools after the limit (1); the turn ends with a notice"
 
@@ -484,6 +488,31 @@ async def test_an_operations_tool_cards_show_and_the_operators_text_does_not(mon
     events = [event async for event in turn if event["type"] != "routed"]
 
     assert events == [TOOL_START, TOOL_END, {"type": "token", "content": "Step 1 is recorded."}]
+    assert runs == ["start 1", "end 1"]
+
+
+async def test_an_agent_gets_no_tool_it_does_not_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The turn enables ``record``, which the stub agent doesn't name, so its call is refused rather than run."""
+    runs: list[str] = []
+    provider = _provider(ScriptedChatModel(messages=iter([_calls(1), AIMessage("Could not record.")])), monkeypatch)
+
+    response = await complete_turn(TURN, [_record_tool(runs)], provider, 50, **handing_off_to(STUB_AGENT))
+
+    assert runs == []
+    assert [execution["failure"] for execution in response["metadata"]["tool_executions"]] == [
+        ToolFailureKind.VALIDATION
+    ]
+
+
+async def test_an_agents_langchain_tool_runs_in_its_turn(monkeypatch: pytest.MonkeyPatch) -> None:
+    runs: list[str] = []
+    agent = replace(STUB_AGENT, langchain_tools=(_record_tool(runs),))
+    provider = _provider(ScriptedChatModel(messages=iter([_calls(1), AIMessage("Recorded.")])), monkeypatch)
+
+    turn = stream_turn(TURN, [], provider, 50, **handing_off_to(agent))
+    events = [event async for event in turn if event["type"] != "routed"]
+
+    assert events == [TOOL_START, TOOL_END, {"type": "token", "content": "Recorded."}]
     assert runs == ["start 1", "end 1"]
 
 

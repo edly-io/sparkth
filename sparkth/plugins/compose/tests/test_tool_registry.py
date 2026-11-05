@@ -1,3 +1,4 @@
+from dataclasses import replace
 from typing import Any, cast
 from unittest.mock import patch
 
@@ -10,6 +11,7 @@ from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.mcp.hooks import Tool
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.plugins.compose.constants import UNKNOWN_TOOL_CATEGORY
+from sparkth.plugins.compose.tests.conftest import STUB_AGENT, registered_agent
 from sparkth.plugins.compose.tools import (
     ToolRegistry,
     build_args_schema_from_handler,
@@ -375,6 +377,17 @@ def _stub_and_lms_hook(mcp_tools: Any) -> None:
         (SparkthPlugin("stub"), Tool(stub_build)),
         (SparkthPlugin("openedx"), Tool(openedx_create_xblock)),
     )
+
+
+class TestAgentToolCategory:
+    def test_an_agents_langchain_tool_is_in_the_agents_category(self) -> None:
+        private = StructuredTool.from_function(func=lambda: "done", name="stub_private", description="Do it.")
+        with patch("sparkth.plugins.compose.tools.MCP_TOOLS") as mcp_tools:
+            _stub_hook(mcp_tools)
+            for agent in registered_agent("stub", replace(STUB_AGENT, langchain_tools=(private,))):
+                category = ToolRegistry().category_for("stub_private")
+
+        assert category == STUB_AGENT.name
 
 
 class TestOperationTools:

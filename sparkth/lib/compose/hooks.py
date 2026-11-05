@@ -9,10 +9,18 @@ by both switches. A plugin registers one agent from its ``__init__``, after its 
     register_agent(self, Agent(NAME, TITLE, DESCRIPTION, PROMPT, tools=(...)))
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+from langchain_core.tools import BaseTool
 
 from sparkth.lib.compose.constants import AGENT_NAME_PATTERN, RESERVED_AGENT_NAMES
-from sparkth.lib.compose.exceptions import DuplicateAgentName, InvalidAgentName, ReservedAgentName, UnknownAgentTool
+from sparkth.lib.compose.exceptions import (
+    DuplicateAgentName,
+    DuplicateAgentTool,
+    InvalidAgentName,
+    ReservedAgentName,
+    UnknownAgentTool,
+)
 from sparkth.lib.hooks import PluginHook
 from sparkth.lib.log import get_logger
 from sparkth.lib.mcp.hooks import MCP_TOOLS
@@ -27,9 +35,12 @@ class Agent:
 
     ``name`` identifies the agent (``^[a-z][a-z0-9_]*$``), ``title`` heads its section of the system
     prompt, ``description`` is what Compose reads to decide a message is the agent's, ``prompt`` is
-    inserted as written, and ``tools`` names the plugin's own MCP tools.
+    inserted as written, ``tools`` names the plugin's own MCP tools, and ``langchain_tools`` are
+    tools only the agent runs, which no MCP client sees. A LangChain tool runs in every turn the
+    agent answers, whatever tools the request enables.
 
     A frozen dataclass, so the copies registered by repeated plugin constructions compare equal.
+    LangChain tools take no part in the comparison, so a plugin may build them on each construction.
     """
 
     name: str
@@ -37,6 +48,7 @@ class Agent:
     description: str
     prompt: str
     tools: tuple[str, ...] = ()
+    langchain_tools: tuple[BaseTool, ...] = field(default=(), compare=False)
 
 
 # One agent per plugin, consumed by the compose plugin. Keyed by plugin instance, so constructing
@@ -53,8 +65,10 @@ def register_agent(plugin: SparkthPlugin, agent: Agent) -> None:
     Raises :class:`~sparkth.lib.compose.exceptions.InvalidAgentName`,
     :class:`~sparkth.lib.compose.exceptions.ReservedAgentName`,
     :class:`~sparkth.lib.compose.exceptions.DuplicateAgentName` when another agent, another
-    plugin or a registered MCP tool holds the name, or
-    :class:`~sparkth.lib.compose.exceptions.UnknownAgentTool` for a tool the plugin doesn't own.
+    plugin or a registered MCP tool holds the name,
+    :class:`~sparkth.lib.compose.exceptions.UnknownAgentTool` for a tool name the plugin doesn't own,
+    or :class:`~sparkth.lib.compose.exceptions.DuplicateAgentTool` when two of the agent's tools
+    share a name or a LangChain tool takes a registered MCP tool's name.
     """
     if not AGENT_NAME_PATTERN.fullmatch(agent.name):
         logger.error("Agent name '%s' is not a valid tool name", agent.name)
@@ -78,6 +92,13 @@ def register_agent(plugin: SparkthPlugin, agent: Agent) -> None:
                 "Agent '%s' names tool '%s', which plugin '%s' doesn't own", agent.name, tool_name, plugin.name
             )
             raise UnknownAgentTool(agent.name, tool_name)
+    langchain_names = [tool.name for tool in agent.langchain_tools]
+    names = [*agent.tools, *langchain_names]
+    mcp_names = {tool.name for _owner, tool in MCP_TOOLS.iter_items()}
+    for tool_name in names:
+        if names.count(tool_name) > 1 or (tool_name in langchain_names and tool_name in mcp_names):
+            logger.error("Agent '%s' has more than one tool named '%s'", agent.name, tool_name)
+            raise DuplicateAgentTool(agent.name, tool_name)
     COMPOSE_AGENTS.add_item(plugin, agent)
 
 
