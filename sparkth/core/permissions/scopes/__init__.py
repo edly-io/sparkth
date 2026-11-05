@@ -58,9 +58,10 @@ class PermissionScope:
         """The ``(scope name, object id)`` entries, leaf first, where a grant authorizes a check at this scope.
 
         If ``scope_path`` is set, the chain is every ``name:id`` segment of the path, then this scope's
-        objectless ancestors (id ``None``). A segment without a ``:``, or a path that does not end at a
-        segment named after this scope, raises ``ValueError``. For ``quiz`` under ``course`` under ``org``
-        under ``global``, ``quiz.scope_chain("org:5/course:123/quiz:777")`` is
+        objectless ancestors (id ``None``). The path must end at a segment named after this scope, and
+        any segments before it must be this scope's object-bearing ancestors, nearest last. A segment
+        without a ``:``, or a path that breaks either rule, raises ``ValueError``. For ``quiz`` under
+        ``course`` under ``org`` under ``global``, ``quiz.scope_chain("org:5/course:123/quiz:777")`` is
         ``[("quiz", "777"), ("course", "123"), ("org", "5"), ("global", None)]``.
 
         If ``scope_path`` is ``None``, the chain is this scope without an object, then its
@@ -78,8 +79,15 @@ class PermissionScope:
                 if not separator:
                     raise ValueError(f"Invalid scope path segment {segment!r} in {scope_path!r}")
                 scope_chain.append((name, object_id))
-            if scope_chain[0][0] != self.name:
-                raise ValueError(f"Scope path {scope_path!r} does not end at a {self.name!r} object")
+            # The names, leaf first, must be this scope then its object-bearing ancestors in order; a
+            # shorter path (down to a single segment) is allowed, a different or extra segment is not.
+            names = [name for name, _ in scope_chain]
+            expected = [
+                self.name,
+                *(p.name for p in self.get_parents() if not isinstance(p, ObjectlessPermissionScope)),
+            ]
+            if names != expected[: len(names)]:
+                raise ValueError(f"Scope path {scope_path!r} does not follow the ancestors of {self.name!r}")
         for ancestor in self.get_parents():
             scope_chain.extend(ancestor._cascade_pairs())
         return scope_chain

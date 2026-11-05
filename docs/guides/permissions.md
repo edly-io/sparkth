@@ -84,7 +84,8 @@ The caller supplies the path (`can(user, permission, scope, scope_path, session)
 record handed to `require()`); the path is the only input naming the checked object. Pass `None` for an
 objectless scope. A single-segment path (`quiz:777`) names the object without ancestry, so only a grant
 at that object and the objectless ancestors count. The path must end at a segment named after the checked
-scope (`quiz:777` for a check at `quiz`); any other leaf raises `ValueError`. An object id may not contain
+scope (`quiz:777` for a check at `quiz`), and any segments before it must be the scope's object-bearing
+ancestors in order (`org:5/course:123/quiz:777`); any other path raises `ValueError`. An object id may not contain
 `/` wherever it becomes a path: `build_scope_path`, the ids given to `require()`, and `scope_object_id` on
 `/permissions/can` (answered with 422).
 Role assignment and revocation never cascade: a grant is stored at exactly the scope it was

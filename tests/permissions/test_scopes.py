@@ -167,6 +167,36 @@ def test_scope_chain_rejects_a_path_ending_at_another_object() -> None:
         quiz.scope_chain("org:5")
 
 
+@pytest.mark.parametrize(
+    "scope_path",
+    [
+        "group:1/quiz:777",  # group is not an ancestor of quiz
+        "org:5/quiz:777",  # skips the course between org and quiz
+        "course:123/org:5/quiz:777",  # ancestors in the wrong order
+        "org:5/course:123/course:9/quiz:777",  # an ancestor repeated
+    ],
+)
+def test_scope_chain_rejects_a_path_that_does_not_follow_the_scope_ancestors(scope_path: str) -> None:
+    org = PermissionScope("org", parent=GLOBAL)
+    course = PermissionScope("course", parent=org)
+    quiz = PermissionScope("quiz", parent=course)
+
+    with pytest.raises(ValueError, match="does not follow the ancestors"):
+        quiz.scope_chain(scope_path)
+
+
+def test_scope_chain_skips_objectless_ancestors_when_matching_the_path() -> None:
+    org = PermissionScope("org", parent=WHITELIST)
+    course = PermissionScope("course", parent=org)
+
+    assert course.scope_chain("org:5/course:123") == [
+        ("course", "123"),
+        ("org", "5"),
+        ("whitelist", None),
+        ("global", None),
+    ]
+
+
 @pytest.mark.parametrize("scope_path", ["", "5", "org:5/course"])
 def test_scope_chain_rejects_a_segment_without_a_colon(scope_path: str) -> None:
     course = PermissionScope("course", parent=GLOBAL)

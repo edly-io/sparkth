@@ -63,13 +63,13 @@ def _client(
 
 @pytest.fixture
 def course_scope(monkeypatch: pytest.MonkeyPatch) -> PermissionScope:
-    """Register a 'course' scope on the global hook for the duration of one test.
+    """Register a 'course' scope, under an 'org' scope, on the global hook for the duration of one test.
 
     PERMISSION_SCOPES is a process-wide singleton with no reset and a duplicate guard, so
     patch its backing dict via monkeypatch (auto-restored) rather than calling create()/
     add_item(), which would leak the scope into every later test.
     """
-    scope = PermissionScope("course", parent=GLOBAL)
+    scope = PermissionScope("course", parent=PermissionScope("org", parent=GLOBAL))
     monkeypatch.setitem(PERMISSION_SCOPES._items, "course", scope)
     return scope
 
