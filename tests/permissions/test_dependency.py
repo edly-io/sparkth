@@ -16,6 +16,7 @@ from sparkth.lib.permissions.scopes import GLOBAL
 
 
 class _Course(ScopeObjectMixin):
+    scope = PermissionScope("course", parent=GLOBAL)
     id: int
 
 
@@ -32,11 +33,11 @@ async def other_id() -> str:
 
 
 async def course() -> _Course:
-    return _Course(id=42, scope_path="org:5/course:42")
+    return _Course(id=42, parent_scope_path="org:5")
 
 
 async def other_course() -> _Course:
-    return _Course(id=42, scope_path="org:6/course:42")
+    return _Course(id=42, parent_scope_path="org:6")
 
 
 def _client(

@@ -71,7 +71,7 @@ database `CHECK` constraint.
 `can()` and `has_role()` cascade a grant **parent → child**. A grant at an
 `ObjectlessPermissionScope` ancestor (`global`, `whitelist`) satisfies a check at any of its
 descendants. A grant at an object-bearing ancestor (one `org`) also applies to the objects
-beneath it (its `course`s), by way of the checked object's stored **`scope_path`**: the
+beneath it (its `course`s), by way of the checked object's **`scope_path`**: the
 materialized path of the object, one `<scope name>:<object id>` segment per level, joined by
 `/`, root first. A quiz inside course 123 of org 5 has the path `org:5/course:123/quiz:777`,
 so a check at that quiz is satisfied by a grant at any of these, nearest first:
@@ -321,11 +321,11 @@ async def edit_course(course_id: int): ...
 ```
 
 **Make an object cascade** — a table model that is an object of a scope inherits `ScopeObjectMixin`,
-sets its `scope`, and stores a `scope_path` built from its parent's path when it is created:
+sets its `scope`, and stores the path of its parent as `parent_scope_path` when it is created:
 
 ```python
 from sqlmodel import Field
-from sparkth.lib.permissions.scopes import ScopeObjectMixin, build_scope_path
+from sparkth.lib.permissions.scopes import ScopeObjectMixin
 
 
 class Course(ScopeObjectMixin, table=True):
@@ -335,17 +335,19 @@ class Course(ScopeObjectMixin, table=True):
 
 
 async def create_course(org: Org, session: AsyncSession) -> Course:
-    course = Course(scope_path="")  # the path needs the id, assigned on flush
+    course = Course(parent_scope_path=org.scope_path)
     session.add(course)
     await session.flush()
-    course.scope_path = build_scope_path(COURSE, course.scope_id, org.scope_path)
-    return course
+    return course  # course.scope_path is now "org:5/course:<id>"
 ```
 
-`scope_id` is the record's `id` as a string; a model keyed otherwise overrides it. An id may
-not contain `/`, since it would add path segments; `build_scope_path` raises `InvalidScopeObjectId`. A
-root-level object, whose parent scope is objectless, passes no parent path. **Moving an object
-means rewriting its path** (and the path of everything beneath it): nothing derives it later.
+`scope_path` is the parent's path plus the object's own `<scope name>:<scope_id>` segment, derived
+when read, so the stored column never needs the object's own id (which an autoincrement key only
+gets on insert). `scope_id` is the record's `id` as a string; a model keyed otherwise overrides it.
+An id may not contain `/`, since it would add path segments; building the path raises
+`InvalidScopeObjectId`. A root-level object, whose parent scope is objectless, leaves
+`parent_scope_path` as `None`. **Moving an object means rewriting the `parent_scope_path`** of it
+and of everything beneath it: nothing derives it later.
 
 Then gate routes with `scope_object_id`, as a fixed string or as a dependency returning the record:
 
@@ -355,14 +357,11 @@ Then gate routes with `scope_object_id`, as a fixed string or as a dependency re
 async def status(): ...
 
 
-async def load_course(course_id: int, session: AsyncSession = Depends(get_async_session)) -> Course:
-    course = await session.get(Course, course_id)
-    if course is None:
-        raise CourseNotFound(course_id)
-    return course
+async def load_course(course_id: int, session: AsyncSession = Depends(get_async_session)) -> Course | None:
+    return await session.get(Course, course_id)  # None for a missing course: the check denies, not 404
 
 
-# The record carries its scope_path, so a grant at its org authorizes the edit.
+# The record's scope_path includes its org, so a grant at the org authorizes the edit.
 @router.patch("/courses/{course_id}", dependencies=[Depends(COURSE_EDIT.require(COURSE, scope_object_id=load_course))])
 async def edit_course(course_id: int): ...
 ```

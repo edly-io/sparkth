@@ -189,14 +189,26 @@ class _Widget(ScopeObjectMixin, table=True):
     id: int | None = Field(default=None, primary_key=True)
 
 
-async def test_scope_object_round_trips_scope_path_and_scope_id(session: AsyncSession) -> None:
-    widget = _Widget(id=7, scope_path=build_scope_path(_Widget.scope, "7"))
+async def test_scope_object_derives_scope_path_from_its_id_and_parent_path(session: AsyncSession) -> None:
+    root = _Widget(id=7)
+    nested = _Widget(id=8, parent_scope_path="org:5")
+    session.add_all([root, nested])
+    await session.flush()
+    session.expunge_all()
+
+    loaded_root = await session.get(_Widget, 7)
+    loaded_nested = await session.get(_Widget, 8)
+
+    assert loaded_root is not None
+    assert loaded_root.scope_path == "widget:7"
+    assert loaded_root.scope_id == "7"
+    assert loaded_nested is not None
+    assert loaded_nested.scope_path == "org:5/widget:8"
+
+
+async def test_scope_object_without_an_id_yet_can_be_inserted_with_a_parent_path(session: AsyncSession) -> None:
+    widget = _Widget(parent_scope_path="org:5")
     session.add(widget)
     await session.flush()
-    session.expunge(widget)
 
-    loaded = await session.get(_Widget, 7)
-
-    assert loaded is not None
-    assert loaded.scope_path == "widget:7"
-    assert loaded.scope_id == "7"
+    assert widget.scope_path == f"org:5/widget:{widget.id}"
