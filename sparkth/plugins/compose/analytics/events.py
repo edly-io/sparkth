@@ -67,8 +67,8 @@ class ComposeCompletionServed(AnalyticsEventSchema):
     ``tool_call_count`` counts attempts.
     ``stopped_at`` is where the author's stop landed, or ``None`` for a turn that ran to the
     end; a ``before_model`` stop persists an empty reply.
-    ``agent`` is the registered name of the agent that answered, ``None`` when no agent did.
-    ``refused`` is true for a refusal.
+    ``agent`` is the registered name of the agent that answered, ``operator`` when Compose only
+    ran operations, and ``None`` when no agent did. ``refused`` is true for a refusal.
     """
 
     event_type = "compose.completion_served"
