@@ -2,22 +2,23 @@
 
 import { useState } from "react";
 import {
-  ragStatusColor,
-  ragStatusLabel,
-  RAG_STATUS_FALLBACK_COLOR,
-  RAG_STATUS_FALLBACK_LABEL,
-} from "@/plugins/google-drive/ragStatus";
+  documentStatusColor,
+  documentStatusLabel,
+  DOCUMENT_STATUS_FALLBACK_COLOR,
+  DOCUMENT_STATUS_FALLBACK_LABEL,
+} from "@/plugins/google-drive/documentStatus";
 
-interface RagStatusIndicatorProps {
+interface DocumentStatusIndicatorProps {
   fileId: number;
   status: string | null;
   error?: string | null;
 }
 
-export function RagStatusIndicator({ fileId, status, error }: RagStatusIndicatorProps) {
+/** A file's document status as a colored dot, with its label and any error on hover. */
+export function DocumentStatusIndicator({ fileId, status, error }: DocumentStatusIndicatorProps) {
   const [hovered, setHovered] = useState(false);
-  const color = ragStatusColor[status ?? ""] ?? RAG_STATUS_FALLBACK_COLOR;
-  const label = ragStatusLabel[status ?? ""] ?? RAG_STATUS_FALLBACK_LABEL;
+  const color = documentStatusColor[status ?? ""] ?? DOCUMENT_STATUS_FALLBACK_COLOR;
+  const label = documentStatusLabel[status ?? ""] ?? DOCUMENT_STATUS_FALLBACK_LABEL;
 
   return (
     <div className="relative inline-flex items-center justify-center">
