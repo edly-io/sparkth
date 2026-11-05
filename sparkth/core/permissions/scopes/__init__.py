@@ -58,9 +58,9 @@ class PermissionScope:
         """The ``(scope name, object id)`` entries, leaf first, where a grant authorizes a check at this scope.
 
         If ``scope_path`` is set, the chain is every ``name:id`` segment of the path, then this scope's
-        objectless ancestors (id ``None``). The path must end at a segment named after this scope,
-        otherwise ``ValueError`` is raised. For ``quiz`` under ``course`` under ``org`` under ``global``,
-        ``quiz.scope_chain("org:5/course:123/quiz:777")`` is
+        objectless ancestors (id ``None``). A segment without a ``:``, or a path that does not end at a
+        segment named after this scope, raises ``ValueError``. For ``quiz`` under ``course`` under ``org``
+        under ``global``, ``quiz.scope_chain("org:5/course:123/quiz:777")`` is
         ``[("quiz", "777"), ("course", "123"), ("org", "5"), ("global", None)]``.
 
         If ``scope_path`` is ``None``, the chain is this scope without an object, then its
@@ -72,10 +72,12 @@ class PermissionScope:
             _scope_chain = [(self.name, None)]
         else:
             # Each path segment is ``name:id``; split on the first colon so an id may contain ``:``.
-            _scope_chain = [
-                (name, object_id)
-                for name, object_id in (segment.split(":", 1) for segment in reversed(scope_path.split("/")))
-            ]
+            _scope_chain = []
+            for segment in reversed(scope_path.split("/")):
+                name, separator, object_id = segment.partition(":")
+                if not separator:
+                    raise ValueError(f"Invalid scope path segment {segment!r} in {scope_path!r}")
+                _scope_chain.append((name, object_id))
             if _scope_chain[0][0] != self.name:
                 raise ValueError(f"Scope path {scope_path!r} does not end at a {self.name!r} object")
         for ancestor in self.get_parents():

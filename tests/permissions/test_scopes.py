@@ -167,6 +167,14 @@ def test_scope_chain_rejects_a_path_ending_at_another_object() -> None:
         quiz.scope_chain("org:5")
 
 
+@pytest.mark.parametrize("scope_path", ["", "5", "org:5/course"])
+def test_scope_chain_rejects_a_segment_without_a_colon(scope_path: str) -> None:
+    course = PermissionScope("course", parent=GLOBAL)
+
+    with pytest.raises(ValueError, match="Invalid scope path segment"):
+        course.scope_chain(scope_path)
+
+
 def test_build_scope_path_rejects_an_id_containing_a_slash() -> None:
     org = PermissionScope("org", parent=GLOBAL)
 
