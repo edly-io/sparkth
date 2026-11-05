@@ -17,6 +17,7 @@ from sparkth.core.permissions.roles import available_permissions
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
 from sparkth.lib.permissions import PERMISSION_READ, can, get_permission, get_permission_scope
+from sparkth.lib.permissions.scopes import build_scope_path
 
 router = APIRouter()
 
@@ -46,7 +47,10 @@ async def check_permission(
     precisely. The permission and scope names are resolved against the registered vocabulary
     (unknown → 422) and the decision is delegated to the engine's ``can()``.
     """
-    allowed = await can(current_user, get_permission(permission), get_permission_scope(scope), scope_object_id, session)
+    resolved_permission = get_permission(permission)
+    permission_scope = get_permission_scope(scope)
+    scope_path = None if scope_object_id is None else build_scope_path(permission_scope, scope_object_id)
+    allowed = await can(current_user, resolved_permission, permission_scope, scope_path, session)
     return PermissionCheckResponse(allowed=allowed)
 
 

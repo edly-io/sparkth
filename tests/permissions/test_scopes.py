@@ -1,12 +1,16 @@
 import pytest
+from sqlmodel import Field
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.permissions.exceptions import InvalidScopeObjectId, PermissionScopeNotFound
 from sparkth.core.permissions.scopes import (
     GLOBAL,
     ObjectlessPermissionScope,
     PermissionScope,
+    build_scope_path,
     get_permission_scope,
 )
+from sparkth.core.permissions.scopes.mixins import ScopeObjectMixin
 from sparkth.lib.permissions.scopes import GROUP, ROLE, WHITELIST
 
 
@@ -41,13 +45,13 @@ def test_role_scope_registered_under_global() -> None:
     assert ROLE.parent is GLOBAL
     assert ROLE.get_parents() == [GLOBAL]
     # A global grant cascades to a role-scoped check; the role itself carries the checked id.
-    assert ROLE.scope_chain("5") == [("role", "5"), ("global", None)]
+    assert ROLE.scope_chain("role:5") == [("role", "5"), ("global", None)]
 
 
 def test_group_scope_registered_under_global() -> None:
     # A grant at group:<id> covers one group; a global grant cascades down to it.
     assert get_permission_scope("group") is GROUP
-    assert GROUP.scope_chain("5") == [("group", "5"), ("global", None)]
+    assert GROUP.scope_chain("group:5") == [("group", "5"), ("global", None)]
 
 
 class TestPermissionScope:
@@ -59,12 +63,12 @@ class TestPermissionScope:
         with pytest.raises(InvalidScopeObjectId):
             PermissionScope("s").validate_object_id(None)
 
-    def test_validate_scope_param_accepts_param(self) -> None:
-        PermissionScope("s").validate_scope_param("thing_id")  # no raise
+    def test_validate_names_object_accepts_naming_an_object(self) -> None:
+        PermissionScope("s").validate_names_object(True)  # no raise
 
-    def test_validate_scope_param_rejects_none(self) -> None:
+    def test_validate_names_object_rejects_naming_none(self) -> None:
         with pytest.raises(ValueError):
-            PermissionScope("s").validate_scope_param(None)
+            PermissionScope("s").validate_names_object(False)
 
 
 class TestObjectlessPermissionScope:
@@ -75,12 +79,12 @@ class TestObjectlessPermissionScope:
         with pytest.raises(InvalidScopeObjectId):
             ObjectlessPermissionScope("s").validate_object_id("42")
 
-    def test_validate_scope_param_accepts_none(self) -> None:
-        ObjectlessPermissionScope("s").validate_scope_param(None)  # no raise
+    def test_validate_names_object_accepts_naming_none(self) -> None:
+        ObjectlessPermissionScope("s").validate_names_object(False)  # no raise
 
-    def test_validate_scope_param_rejects_param(self) -> None:
+    def test_validate_names_object_rejects_naming_an_object(self) -> None:
         with pytest.raises(ValueError):
-            ObjectlessPermissionScope("s").validate_scope_param("thing_id")
+            ObjectlessPermissionScope("s").validate_names_object(True)
 
 
 class TestScopeChain:
@@ -91,12 +95,139 @@ class TestScopeChain:
     def test_object_target_under_objectless_ancestor(self) -> None:
         course = PermissionScope("course", parent=GLOBAL)
         # The course itself carries the checked id; its objectless ancestor cascades with NULL.
-        assert course.scope_chain("5") == [("course", "5"), ("global", None)]
+        assert course.scope_chain("course:5") == [("course", "5"), ("global", None)]
 
-    def test_object_bearing_ancestor_does_not_cascade_yet(self) -> None:
-        # activity -> course -> global. The object-bearing `course` ancestor contributes nothing
-        # (resolving its id needs a materialized path; deferred, #420 Phase 2); only the objectless
-        # GLOBAL root cascades. So a course-level grant does NOT reach an activity yet.
+    def test_object_bearing_ancestor_does_not_cascade_from_a_single_segment_path(self) -> None:
+        # activity -> course -> global. The path names only the activity, and the object-bearing
+        # `course` ancestor contributes nothing of its own; only the objectless GLOBAL root cascades.
+        # So a course-level grant does NOT reach an activity named by a single-segment path.
         course = PermissionScope("course", parent=GLOBAL)
         activity = PermissionScope("activity", parent=course)
-        assert activity.scope_chain("Y") == [("activity", "Y"), ("global", None)]
+        assert activity.scope_chain("activity:Y") == [("activity", "Y"), ("global", None)]
+
+    def test_no_path_gives_the_scope_itself_without_an_object_then_objectless_ancestors(self) -> None:
+        course = PermissionScope("course", parent=GLOBAL)
+        assert course.scope_chain(None) == [("course", None), ("global", None)]
+
+
+def test_build_scope_path_for_root_level_object() -> None:
+    org = PermissionScope("org", parent=GLOBAL)
+
+    assert build_scope_path(org, "5") == "org:5"
+
+
+def test_build_scope_path_appends_to_parent_path() -> None:
+    org = PermissionScope("org", parent=GLOBAL)
+    course = PermissionScope("course", parent=org)
+    quiz = PermissionScope("quiz", parent=course)
+
+    assert build_scope_path(quiz, "777", "org:5/course:123") == "org:5/course:123/quiz:777"
+
+
+def test_scope_chain_from_path_returns_pairs_leaf_to_root_then_objectless_ancestors() -> None:
+    org = PermissionScope("org", parent=GLOBAL)
+    course = PermissionScope("course", parent=org)
+    quiz = PermissionScope("quiz", parent=course)
+
+    assert quiz.scope_chain("org:5/course:123/quiz:777") == [
+        ("quiz", "777"),
+        ("course", "123"),
+        ("org", "5"),
+        ("global", None),
+    ]
+
+
+def test_scope_chain_from_path_keeps_whitelist_style_objectless_ancestors() -> None:
+    thing = PermissionScope("thing", parent=WHITELIST)
+
+    assert thing.scope_chain("thing:1") == [("thing", "1"), ("whitelist", None), ("global", None)]
+
+
+def test_scope_chain_rejects_a_path_ending_at_another_object() -> None:
+    org = PermissionScope("org", parent=GLOBAL)
+    course = PermissionScope("course", parent=org)
+    quiz = PermissionScope("quiz", parent=course)
+
+    with pytest.raises(ValueError):
+        course.scope_chain("org:5/course:123/quiz:777")
+    with pytest.raises(ValueError):
+        GLOBAL.scope_chain("org:5")
+    with pytest.raises(ValueError):
+        quiz.scope_chain("org:5")
+
+
+@pytest.mark.parametrize(
+    "scope_path",
+    [
+        "group:1/quiz:777",  # group is not an ancestor of quiz
+        "org:5/quiz:777",  # skips the course between org and quiz
+        "course:123/org:5/quiz:777",  # ancestors in the wrong order
+        "org:5/course:123/course:9/quiz:777",  # an ancestor repeated
+    ],
+)
+def test_scope_chain_rejects_a_path_that_does_not_follow_the_scope_ancestors(scope_path: str) -> None:
+    org = PermissionScope("org", parent=GLOBAL)
+    course = PermissionScope("course", parent=org)
+    quiz = PermissionScope("quiz", parent=course)
+
+    with pytest.raises(ValueError, match="does not follow the ancestors"):
+        quiz.scope_chain(scope_path)
+
+
+def test_scope_chain_skips_objectless_ancestors_when_matching_the_path() -> None:
+    org = PermissionScope("org", parent=WHITELIST)
+    course = PermissionScope("course", parent=org)
+
+    assert course.scope_chain("org:5/course:123") == [
+        ("course", "123"),
+        ("org", "5"),
+        ("whitelist", None),
+        ("global", None),
+    ]
+
+
+@pytest.mark.parametrize("scope_path", ["", "5", "org:5/course"])
+def test_scope_chain_rejects_a_segment_without_a_colon(scope_path: str) -> None:
+    course = PermissionScope("course", parent=GLOBAL)
+
+    with pytest.raises(ValueError, match="Invalid scope path segment"):
+        course.scope_chain(scope_path)
+
+
+def test_build_scope_path_rejects_an_id_containing_a_slash() -> None:
+    org = PermissionScope("org", parent=GLOBAL)
+
+    with pytest.raises(InvalidScopeObjectId):
+        build_scope_path(org, "5/course:9")
+
+
+class _Widget(ScopeObjectMixin, table=True):
+    __tablename__ = "test_scope_object_widget"
+    scope = PermissionScope("widget", parent=GLOBAL)
+
+    id: int | None = Field(default=None, primary_key=True)
+
+
+async def test_scope_object_derives_scope_path_from_its_id_and_parent_path(session: AsyncSession) -> None:
+    root = _Widget(id=7)
+    nested = _Widget(id=8, parent_scope_path="org:5")
+    session.add_all([root, nested])
+    await session.flush()
+    session.expunge_all()
+
+    loaded_root = await session.get(_Widget, 7)
+    loaded_nested = await session.get(_Widget, 8)
+
+    assert loaded_root is not None
+    assert loaded_root.scope_path == "widget:7"
+    assert loaded_root.scope_id == "7"
+    assert loaded_nested is not None
+    assert loaded_nested.scope_path == "org:5/widget:8"
+
+
+async def test_scope_object_without_an_id_yet_can_be_inserted_with_a_parent_path(session: AsyncSession) -> None:
+    widget = _Widget(parent_scope_path="org:5")
+    session.add(widget)
+    await session.flush()
+
+    assert widget.scope_path == f"org:5/widget:{widget.id}"

@@ -3,6 +3,9 @@
 write is fail-closed. Granted requests and the ``/permissions/can`` probe
 record nothing."""
 
+from collections.abc import Callable
+
+import pytest
 from httpx import AsyncClient
 from pytest import MonkeyPatch, raises
 from sqlalchemy.exc import SQLAlchemyError
@@ -10,7 +13,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.user import User
 from sparkth.core.permissions.models import Role, RoleAssignment, RolePermission
+from sparkth.core.permissions.scopes import PERMISSION_SCOPES, PermissionScope
 from sparkth.core.security import create_access_token
+from sparkth.lib.permissions import Permission
+from sparkth.lib.permissions.scopes import GLOBAL
 from sparkth.lib.testing import AuditEventsFetcher
 
 ROLES_URL = "/api/v1/permissions/roles"
@@ -104,3 +110,82 @@ async def test_denial_is_fail_closed_when_audit_write_fails(
 
     with raises(SQLAlchemyError):
         await client.get(ROLES_URL, headers=_auth(user))
+
+
+@pytest.fixture
+def quiz_scope(monkeypatch: MonkeyPatch) -> PermissionScope:
+    scope = PermissionScope("quiz", parent=GLOBAL)
+    monkeypatch.setitem(PERMISSION_SCOPES._items, "quiz", scope)
+    return scope
+
+
+async def missing_quiz() -> None:
+    return None
+
+
+async def quiz_id() -> str:
+    return "7"
+
+
+async def test_missing_object_is_denied_and_recorded(
+    session: AsyncSession,
+    quiz_scope: PermissionScope,
+    audit_events: AuditEventsFetcher,
+    gated_client: Callable[..., AsyncClient],
+) -> None:
+    user = await _user(session, "notfound-fay")
+
+    async with gated_client(Permission("quiz.read").require_for_object(quiz_scope, missing_quiz)) as client:
+        response = await client.get("/probe", headers=_auth(user))
+
+    assert response.status_code == 403
+    (event,) = await audit_events()
+    assert event.target_id == "quiz.read"
+    assert event.error_detail == "scope=quiz"
+
+
+async def test_missing_object_passes_the_gate_for_a_global_holder(
+    session: AsyncSession,
+    quiz_scope: PermissionScope,
+    audit_events: AuditEventsFetcher,
+    gated_client: Callable[..., AsyncClient],
+) -> None:
+    user = await _user(session, "notfound-gus", "quiz.read")
+
+    async with gated_client(Permission("quiz.read").require_for_object(quiz_scope, missing_quiz)) as client:
+        response = await client.get("/probe", headers=_auth(user))
+
+    assert response.status_code == 200
+    assert await audit_events() == []
+
+
+async def test_unauthenticated_request_is_401_before_the_object_id_dependency(
+    session: AsyncSession, quiz_scope: PermissionScope, gated_client: Callable[..., AsyncClient]
+) -> None:
+    ran: list[bool] = []
+
+    async def recording_quiz_id() -> str:
+        ran.append(True)
+        return "7"
+
+    async with gated_client(Permission("quiz.read").require_for_object(quiz_scope, recording_quiz_id)) as client:
+        response = await client.get("/probe")
+
+    assert response.status_code == 401
+    assert ran == []
+
+
+async def test_denial_names_the_object_id_the_check_ran_at(
+    session: AsyncSession,
+    quiz_scope: PermissionScope,
+    audit_events: AuditEventsFetcher,
+    gated_client: Callable[..., AsyncClient],
+) -> None:
+    user = await _user(session, "denied-gus")
+
+    async with gated_client(Permission("quiz.read").require_for_object(quiz_scope, quiz_id)) as client:
+        response = await client.get("/probe", headers=_auth(user))
+
+    assert response.status_code == 403
+    (event,) = await audit_events()
+    assert event.error_detail == "scope=quiz:7"
