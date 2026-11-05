@@ -1,4 +1,5 @@
 from collections.abc import Awaitable, Callable
+from typing import cast
 
 import pytest
 from fastapi import Depends, FastAPI
@@ -6,13 +7,14 @@ from httpx import ASGITransport, AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.user import User
-from sparkth.core.permissions.models import Role, RoleAssignment, RolePermission
+from sparkth.core.permissions.models import Role, RoleAssignment
 from sparkth.core.permissions.scopes import PERMISSION_SCOPES, PermissionScope
 from sparkth.core.permissions.scopes.mixins import ScopeObjectMixin
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
 from sparkth.lib.permissions import Permission
 from sparkth.lib.permissions.scopes import GLOBAL
+from sparkth.lib.testing import grant_global_permission, grant_permission_at_scope
 
 
 class _Course(ScopeObjectMixin):
@@ -82,27 +84,8 @@ async def _seed(session: AsyncSession, username: str, permission: str | None) ->
     session.add(user)
     await session.flush()
     if permission is not None:
-        assert user.id is not None
-        role = Role(name=f"{username}-role")
-        session.add(role)
-        await session.flush()
-        assert role.id is not None
-        session.add(RolePermission(role_id=role.id, permission=permission))
-        session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope=GLOBAL.name, scope_object_id=None))
-        await session.flush()
+        await grant_global_permission(session, cast(int, user.id), permission)
     return user
-
-
-async def _grant(session: AsyncSession, user: User, scope: str, scope_object_id: str) -> None:
-    """Give ``user`` a role holding ``assignment.grade`` at ``scope``/``scope_object_id``."""
-    assert user.id is not None
-    role = Role(name=f"{user.username}-{scope}-{scope_object_id}")
-    session.add(role)
-    await session.flush()
-    assert role.id is not None
-    session.add(RolePermission(role_id=role.id, permission="assignment.grade"))
-    session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope=scope, scope_object_id=scope_object_id))
-    await session.flush()
 
 
 async def test_dependency_allows_when_granted(session: AsyncSession) -> None:
@@ -121,7 +104,7 @@ async def test_dependency_denies_without_permission(session: AsyncSession) -> No
 
 async def test_dependency_resolves_scope_from_path_params(session: AsyncSession, course_scope: PermissionScope) -> None:
     user = await _seed(session, "carol", None)
-    await _grant(session, user, "course", "5")
+    await grant_permission_at_scope(session, cast(int, user.id), "assignment.grade", course_scope, "5")
     dep = Permission("assignment.grade").require(course_scope, "course_id")
 
     async with _client(session, user, dep, "/c/{course_id}") as client:
@@ -188,7 +171,7 @@ async def test_require_objectless_scope_allows_no_param(session: AsyncSession) -
 
 async def test_require_fixed_object_id(session: AsyncSession, course_scope: PermissionScope) -> None:
     user = await _seed(session, "hank", None)
-    await _grant(session, user, "course", "5")
+    await grant_permission_at_scope(session, cast(int, user.id), "assignment.grade", course_scope, "5")
     granted = Permission("assignment.grade").require(course_scope, None, "5")
     other = Permission("assignment.grade").require(course_scope, None, "6")
 
@@ -200,7 +183,7 @@ async def test_require_fixed_object_id(session: AsyncSession, course_scope: Perm
 
 async def test_require_object_id_dependency_returning_str(session: AsyncSession, course_scope: PermissionScope) -> None:
     user = await _seed(session, "ivy", None)
-    await _grant(session, user, "course", "5")
+    await grant_permission_at_scope(session, cast(int, user.id), "assignment.grade", course_scope, "5")
 
     granted = Permission("assignment.grade").require(course_scope, None, course_id)
     other = Permission("assignment.grade").require(course_scope, None, other_id)
@@ -214,7 +197,9 @@ async def test_require_object_id_dependency_returning_a_scope_object_cascades(
     session: AsyncSession, course_scope: PermissionScope
 ) -> None:
     user = await _seed(session, "jay", None)
-    await _grant(session, user, "org", "5")
+    await grant_permission_at_scope(
+        session, cast(int, user.id), "assignment.grade", PermissionScope("org", parent=GLOBAL), "5"
+    )
 
     granted = Permission("assignment.grade").require(course_scope, None, course)
     other = Permission("assignment.grade").require(course_scope, None, other_course)
