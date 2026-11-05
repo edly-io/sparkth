@@ -109,4 +109,5 @@ async def test_can_resolves_the_permission_before_the_scope(client: AsyncClient,
     await _user_with_role_grant(session, client)
 
     resp = await client.get(URL, params={"permission": "does.not.exist", "scope": "nope"})
+    assert resp.status_code == 422
     assert "does.not.exist" in str(resp.json()["detail"])
