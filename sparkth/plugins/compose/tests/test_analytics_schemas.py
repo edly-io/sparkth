@@ -413,9 +413,8 @@ class TestSchedulingATurnEvent:
         attribution = AnalyticsAttribution(provider="anthropic", actor_id="9")
         with (
             patch("sparkth.plugins.compose.analytics.utils.emit_events", new_callable=AsyncMock) as emit,
-            patch("sparkth.plugins.compose.analytics.utils.get_tool_registry") as get_registry,
+            patch("sparkth.plugins.compose.analytics.utils.tool_category", return_value="openedx-course"),
         ):
-            get_registry.return_value.category_for.return_value = "openedx-course"
             await emit_completion(
                 conversation_id="conv-2",
                 attribution=attribution,

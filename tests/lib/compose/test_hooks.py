@@ -1,13 +1,14 @@
 import gc
 from collections.abc import Iterator
+from dataclasses import replace
 
 import pytest
 
 from sparkth.lib.compose.exceptions import (
     DuplicateAgentName,
+    DuplicateAgentTool,
     InvalidAgentName,
     ReservedAgentName,
-    UnknownAgentTool,
 )
 from sparkth.lib.compose.hooks import COMPOSE_AGENTS, Agent, enabled_agents, register_agent
 from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
@@ -19,6 +20,11 @@ STUB = Agent("stub_hook", "Stub", "Stub description.", "Stub prompt")
 async def stub_tool() -> str:
     """A tool the stub plugin owns."""
     return "ok"
+
+
+def _tooled_agent() -> Agent:
+    """An agent of the tooled plugin with its tool built afresh, as a plugin's ``__init__`` might."""
+    return Agent("tooled", "Tooled", "Tooled description.", "Tooled prompt", tools=(Tool(stub_tool),))
 
 
 @pytest.fixture
@@ -83,20 +89,40 @@ def tooled_plugin() -> Iterator[SparkthPlugin]:
     gc.collect()
 
 
-def test_an_agent_may_use_its_own_plugins_tools(tooled_plugin: SparkthPlugin) -> None:
-    agent = Agent("tooled", "Tooled", "Tooled description.", "Tooled prompt", tools=("stub_tool",))
+def test_an_agent_may_use_a_tool_its_plugin_also_gives_the_mcp_server(tooled_plugin: SparkthPlugin) -> None:
+    shared = next(tool for owner, tool in MCP_TOOLS.iter_items() if owner is tooled_plugin)
+    agent = Agent("tooled", "Tooled", "Tooled description.", "Tooled prompt", tools=(shared,))
 
     register_agent(tooled_plugin, agent)
 
     assert agent in enabled_agents(set())
 
 
-def test_an_agent_may_not_use_another_plugins_tools(tooled_plugin: SparkthPlugin) -> None:
-    with pytest.raises(UnknownAgentTool):
-        register_agent(
-            SparkthPlugin("other"),
-            Agent("other", "Other", "Other description.", "Other prompt", tools=("stub_tool",)),
-        )
+def test_an_agent_may_use_a_tool_no_mcp_client_sees() -> None:
+    plugin = SparkthPlugin("tooled")
+    agent = _tooled_agent()
+
+    register_agent(plugin, agent)
+
+    assert agent in enabled_agents(set())
+    assert all(tool.name != "stub_tool" for _owner, tool in MCP_TOOLS.iter_items())
+
+
+def test_a_plugin_building_its_agents_tools_each_time_offers_its_agent_once() -> None:
+    """A tool built twice is a different object, so agents compare without their tools."""
+    first = SparkthPlugin("tooled")
+    register_agent(first, _tooled_agent())
+    second = SparkthPlugin("tooled")
+    register_agent(second, _tooled_agent())
+
+    assert [agent.name for agent in enabled_agents(set())].count("tooled") == 1
+
+
+def test_an_agent_with_two_tools_of_one_name_is_refused() -> None:
+    agent = replace(_tooled_agent(), tools=(Tool(stub_tool), Tool(stub_tool)))
+
+    with pytest.raises(DuplicateAgentTool):
+        register_agent(SparkthPlugin("tooled"), agent)
 
 
 def test_an_agent_named_like_a_registered_tool_is_refused(tooled_plugin: SparkthPlugin) -> None:

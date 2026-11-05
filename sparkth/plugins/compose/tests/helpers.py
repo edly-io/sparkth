@@ -15,7 +15,7 @@ from pydantic import Field
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.lib.compose.constants import REFUSE_TOOL_NAME
+from sparkth.lib.compose.constants import OPERATOR_TOOL_NAME, REFUSE_TOOL_NAME
 from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.llm import small_model_for
@@ -119,8 +119,20 @@ def handing_off_to(agent: Agent) -> dict[str, Any]:
 def planning(provider: Any, reply: AIMessage) -> Callable[..., Any]:
     """Stand in for the route's ``get_provider``: the planner's small model answers every message
     with ``reply``, and every other model is ``provider``'s."""
+    return _planning(provider, repeat(reply))
+
+
+def operating(provider: Any) -> Callable[..., Any]:
+    """:func:`planning` with a planner that runs one operation, then says it is done."""
+    operation = AIMessage("", tool_calls=[{"name": OPERATOR_TOOL_NAME, "args": {"request": "Go"}, "id": "op"}])
+    return _planning(provider, iter([operation, AIMessage("Done.")]))
+
+
+def _planning(provider: Any, replies: Iterator[AIMessage]) -> Callable[..., Any]:
+    """Stand in for the route's ``get_provider``: the planner's small model answers with ``replies`` in
+    turn, and every other model is ``provider``'s."""
     planner = MagicMock()
-    planner.create_llm.return_value = planner_model(reply)
+    planner.create_llm.return_value = ScriptedChatModel(messages=replies, disable_streaming=True)
 
     def get_provider(provider_name: str, api_key: str, model: str, **kwargs: Any) -> Any:
         return planner if model == small_model_for(provider_name) else provider

@@ -90,7 +90,8 @@ class ComposeToolInvoked(AnalyticsEventSchema):
     """One tool execution — the authoring-output event.
 
     Counts attempts; ``outcome`` says whether the call succeeded. ``failure_kind`` is
-    ``None`` exactly when it did; a tool that raised is ``unknown``.
+    ``None`` exactly when it did; a tool that raised is ``unknown``. ``tool_category`` is the
+    category the tool was contributed under, or its agent's name for an agent's tool that has none.
     """
 
     event_type = "compose.tool_invoked"

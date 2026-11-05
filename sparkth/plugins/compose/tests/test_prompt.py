@@ -42,10 +42,8 @@ class TestRenderSystemPrompt:
 
 
 class TestLmsOperations:
-    def test_the_system_prompt_carries_lms_operations_without_any_agent(self) -> None:
-        prompt = render_system_prompt([])
-
-        assert f"## {LMS_HEADING}\nPublish, retrieve, and manage courses on LMS platforms" in prompt
+    def test_no_agent_is_told_it_runs_lms_operations(self) -> None:
+        assert LMS_HEADING not in render_system_prompt([STUB_AGENT])
 
     def test_the_scope_gate_takes_lms_requests_without_any_agent(self) -> None:
         prompt = render_scope_classifier_prompt([])

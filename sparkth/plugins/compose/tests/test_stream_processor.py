@@ -2,17 +2,17 @@ import asyncio
 import json
 import uuid
 from collections.abc import AsyncGenerator, Sequence
+from dataclasses import replace
 from functools import partial
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain_core.messages import AIMessage
-from langchain_core.tools import BaseTool, StructuredTool
-from pydantic import BaseModel, Field
+from pydantic import Field
 
-from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG
 from sparkth.lib.llm import get_provider
+from sparkth.lib.mcp.hooks import Tool
 from sparkth.lib.rag import (
     DocumentNotFoundError,
     RAGNotReadyError,
@@ -41,10 +41,6 @@ async def _next_tool(executed: list[str]) -> str:
     return "ok"
 
 
-class _NoArguments(BaseModel):
-    pass
-
-
 class _SilentChatModel(ScriptedChatModel):
     """A chat model whose reply never arrives. ``waiting`` fills when a call starts and
     ``cancelled`` when that call is cancelled."""
@@ -68,14 +64,15 @@ async def _stop_once_waiting(model: _SilentChatModel, turn_id: str) -> None:
     request_stop(turn_id, 1)
 
 
-def _no_argument_tool(name: str, handler: partial[Any]) -> StructuredTool:
-    return StructuredTool(
-        name=name,
-        description=f"The {name} tool.",
-        coroutine=handler,
-        args_schema=_NoArguments,
-        tags=[AUDIT_AT_HANDLER_TAG],
-    )
+def _no_argument_tool(name: str, handler: partial[Any]) -> Tool:
+    """A tool named ``name`` that takes no arguments and runs ``handler``."""
+
+    async def run() -> str:
+        return str(await handler())
+
+    run.__name__ = name
+    run.__doc__ = f"The {name} tool."
+    return Tool(run)
 
 
 def _make_processor(
@@ -83,7 +80,7 @@ def _make_processor(
     provider: Any = None,
     turn_id: str | None = None,
     user_id: int | None = None,
-    tools: list[BaseTool] | None = None,
+    agent_tools: tuple[Tool, ...] = (),
 ) -> ComposeStreamProcessor:
     conversation = MagicMock()
     conversation.id = 1
@@ -95,10 +92,10 @@ def _make_processor(
         messages=messages if messages is not None else [],
         conversation=conversation,
         service=service,
-        tools=tools,
+        tools=None,
         user_id=user_id,
         turn_id=turn_id,
-        **handing_off_to(STUB_AGENT),
+        **handing_off_to(replace(STUB_AGENT, tools=agent_tools)),
     )
 
 
@@ -594,11 +591,11 @@ class TestStopHonoured:
         )
         model = ScriptedChatModel(messages=iter([calls, AIMessage("never")]), disable_streaming=True)
         monkeypatch.setattr(provider, "_create_llm", lambda streaming=False, callbacks=None: model)
-        tools: list[BaseTool] = [
+        tools = (
             _no_argument_tool("first", partial(_stopping_tool, executed)),
             _no_argument_tool("second", partial(_next_tool, executed)),
-        ]
-        processor = _make_processor(provider=provider, turn_id="turn-7", user_id=1, tools=tools)
+        )
+        processor = _make_processor(provider=provider, turn_id="turn-7", user_id=1, agent_tools=tools)
 
         payloads = [json.loads(chunk.removeprefix("data: ")) async for chunk in processor.stream()]
 

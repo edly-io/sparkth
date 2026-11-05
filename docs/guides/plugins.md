@@ -652,30 +652,17 @@ An `Agent` has five fields:
 - `description` is the text the planner reads to decide whether a message is this agent's.
 - `prompt` is plain text inserted into the system prompt as written, so a brace in it needs no
   escaping.
-- `tools` names the agent's tools. Each one must be one of the plugin's own `MCP_TOOLS`, so
-  register those first.
+- `tools` are the `Tool`s the agent runs, built like the ones for `MCP_TOOLS`. A tool given only
+  to the agent is private to it: no MCP client sees it. To offer a tool on the MCP server as well,
+  add the same `Tool` to `MCP_TOOLS`. Agents compare without their tools, so a plugin may build
+  them in its `__init__`.
 
 Define the agent in the plugin's `agent.py` and register it from `plugin.py`. For example:
 
 ```python
 # sparkth/plugins/myappplugin/agent.py
 from sparkth.lib.compose.hooks import Agent
-
-MY_AGENT = Agent(
-    "my_app",
-    "My App builder",
-    "Requests to build or change things in My App.",
-    "Ask which My App item the author wants, then build it with the My App tools.",
-    tools=("my_app_build",),
-)
-```
-
-```python
-# sparkth/plugins/myappplugin/plugin.py
-from sparkth.lib.compose.hooks import register_agent
-from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
-from sparkth.lib.plugins import SparkthPlugin
-from sparkth.plugins.myappplugin.agent import MY_AGENT
+from sparkth.lib.mcp.hooks import Tool
 
 
 async def my_app_build(title: str) -> str:
@@ -683,10 +670,30 @@ async def my_app_build(title: str) -> str:
     ...
 
 
+MY_APP_BUILD = Tool(my_app_build)
+
+MY_AGENT = Agent(
+    "my_app",
+    "My App builder",
+    "Requests to build or change things in My App.",
+    "Ask which My App item the author wants, then build it with the My App tools.",
+    tools=(MY_APP_BUILD,),
+)
+```
+
+```python
+# sparkth/plugins/myappplugin/plugin.py
+from sparkth.lib.compose.hooks import register_agent
+from sparkth.lib.mcp.hooks import MCP_TOOLS
+from sparkth.lib.plugins import SparkthPlugin
+from sparkth.plugins.myappplugin.agent import MY_AGENT, MY_APP_BUILD
+
+
 class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
         super().__init__("my-app")
-        MCP_TOOLS.add_item(self, Tool(my_app_build))
+        # Only when MCP clients should see the tool too.
+        MCP_TOOLS.add_item(self, MY_APP_BUILD)
         register_agent(self, MY_AGENT)
 ```
 
@@ -697,7 +704,7 @@ one. `register_agent` raises, from `sparkth.lib.compose.exceptions`:
 - `InvalidAgentName` for a name that breaks the pattern above;
 - `ReservedAgentName` for `compose`, `operator` or `refuse`;
 - `DuplicateAgentName` when another agent, another plugin or a registered MCP tool already holds the name;
-- `UnknownAgentTool` for a tool the plugin doesn't contribute.
+- `DuplicateAgentTool` when two of the agent's tools share a name.
 
 The loader logs the failed construction and skips that plugin.
 
@@ -713,11 +720,11 @@ system-wide or by the user contributes no agent and no tools.
   with a fixed sentence in the request's language. A refusal is stored like any other reply, and a
   refused first message still starts a conversation.
 - **Agent.** The agent runs on the user's model, with Compose's skeleton wrapped around its
-  `prompt`. The skeleton owns the date, the assistant's identity, the output language, the
-  refusal, injection and offering-choices rules, and Compose's LMS operations, so a prompt must not
-  repeat them. A prompt holds the agent's workflow, plus any language or guardrail rules specific to
-  it.
-- **Tools.** The agent gets the tools the request asks for, minus those of a switched-off plugin.
+  `prompt`. The skeleton owns the date, the assistant's identity, the output language, and the
+  refusal, injection and offering-choices rules, so a prompt must not repeat them. A prompt holds
+  the agent's workflow, plus any language or guardrail rules specific to it.
+- **Tools.** The agent runs with its own `tools` and no others. A tool call is recorded in
+  analytics under the tool's category, or under the agent's name when the tool has none.
 - **Operations.** The tools of plugins that register no agent, such as the LMS plugins', are
   Compose's operations. The planner runs them through its operator, on the user's model, and the
   author sees each tool call but not the operator's text. What an operation returns goes back to

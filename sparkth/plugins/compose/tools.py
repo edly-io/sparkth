@@ -97,6 +97,16 @@ class ToolRegistry:
         ]
 
 
+def tool_category(tool_name: str) -> str:
+    """The category of ``tool_name``: the one it was contributed under, or its agent's name for an
+    agent's tool that has none."""
+    for _plugin, agent in COMPOSE_AGENTS.iter_items():
+        for tool in agent.tools:
+            if tool.name == tool_name:
+                return tool.category or agent.name
+    return get_tool_registry().category_for(tool_name)
+
+
 def discover_plugin_tools() -> dict[str, RegisteredTool]:
     """Convert every plugin-contributed MCP tool, returning each one's record by tool name.
 

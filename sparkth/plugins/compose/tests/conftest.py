@@ -2,6 +2,7 @@
 
 import gc
 from collections.abc import AsyncIterator, Iterator
+from contextlib import contextmanager
 
 import pytest
 
@@ -25,6 +26,7 @@ async def drain_detached_emits() -> AsyncIterator[None]:
     await join_live_tasks()
 
 
+@contextmanager
 def registered_agent(plugin_name: str, agent: Agent) -> Iterator[Agent]:
     """Register ``agent`` on a throwaway plugin; the entry goes when the plugin is collected."""
     plugin = SparkthPlugin(plugin_name)
@@ -37,13 +39,15 @@ def registered_agent(plugin_name: str, agent: Agent) -> Iterator[Agent]:
 @pytest.fixture
 def stub_agent() -> Iterator[Agent]:
     """An enabled agent, gone when its plugin is collected."""
-    yield from registered_agent("stub", STUB_AGENT)
+    with registered_agent("stub", STUB_AGENT) as agent:
+        yield agent
 
 
 @pytest.fixture
 def other_agent() -> Iterator[Agent]:
     """An enabled agent of a second plugin, gone when its plugin is collected."""
-    yield from registered_agent("other", OTHER_AGENT)
+    with registered_agent("other", OTHER_AGENT) as agent:
+        yield agent
 
 
 @pytest.fixture

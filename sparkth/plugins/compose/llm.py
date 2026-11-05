@@ -41,7 +41,7 @@ from sparkth.plugins.compose.constants import OPERATOR_PROMPT, TOOL_CALL_LIMIT_N
 from sparkth.plugins.compose.enums import TurnEventType
 from sparkth.plugins.compose.planner import AgentGraph, TurnRouting, build_planner
 from sparkth.plugins.compose.prompt import render_system_prompt
-from sparkth.plugins.compose.tools import get_tool_registry
+from sparkth.plugins.compose.tools import convert_mcp_to_langchain_tool, get_tool_registry
 
 logger = get_logger(__name__)
 
@@ -290,10 +290,10 @@ def _planner_for_turn(
     max_tool_executions: int,
 ) -> CompiledStateGraph[Any, AuditModelInfo, Any, Any]:
     """The turn's planner on ``planner_llm``, handing off to ``agents`` that each run on the
-    provider's model with their own prompt and ``tools``.
+    provider's model with their own prompt and their own tools.
 
-    Its operator runs on the provider's model with the ``tools`` of plugins that give Compose no
-    agent, and exists only when there are some.
+    Its operator runs on the provider's model with the turn's ``tools`` of plugins that give
+    Compose no agent, and exists only when there are some.
     """
     agent_llm = provider.create_llm()
     operations = get_tool_registry().operation_tools(tools)
@@ -302,7 +302,13 @@ def _planner_for_turn(
         [
             AgentGraph(
                 agent,
-                build_turn_agent(agent_llm, tools, render_system_prompt([agent]), max_tool_executions, name=agent.name),
+                build_turn_agent(
+                    agent_llm,
+                    [convert_mcp_to_langchain_tool(tool) for tool in agent.tools],
+                    render_system_prompt([agent]),
+                    max_tool_executions,
+                    name=agent.name,
+                ),
             )
             for agent in agents
         ],
@@ -348,15 +354,15 @@ async def _turn_events(
     """Run one turn on the planner, yielding what happens as it happens.
 
     The planner hands the message to one of ``agents``, each running on the provider's model
-    with its own prompt and the turn's ``tools``, runs operations on the operator, answers it
-    itself, or refuses it. Yields ``routed`` with a :class:`TurnRouting` when a hand-off or an
-    operation starts or the refusal returns (a call its tool refused never does either),
-    ``token`` for the text the author sees (the operator's text never shows, only its tool calls),
-    ``tool_start`` and ``tool_end`` for each tool call, ``limit_reached`` when an agent's calls
-    were blocked, ``usage`` with the tokens of each model reply, the planner's, the agents' and
-    the operator's, and ``final`` with each closing model reply. A call reported as started runs
-    only once this generator is asked for its next event. A refusal arrives as the refusal
-    sentence.
+    with its own prompt and its own tools, runs operations on the operator with the turn's
+    ``tools``, answers it itself, or refuses it. Yields ``routed`` with a :class:`TurnRouting`
+    when a hand-off or an operation starts or the refusal returns (a call its tool refused never
+    does either), ``token`` for the text the author sees (the operator's text never shows, only its
+    tool calls), ``tool_start`` and ``tool_end`` for each tool call, ``limit_reached`` when an
+    agent's calls were blocked, ``usage`` with the tokens of each model reply, the planner's, the
+    agents' and the operator's, and ``final`` with each closing model reply. A call reported as
+    started runs only once this generator is asked for its next event. A refusal arrives as the
+    refusal sentence.
     """
     planner = _planner_for_turn(agents, tools, provider, planner_llm, max_tool_executions)
     stream = _stream_planner(planner, messages, provider)
