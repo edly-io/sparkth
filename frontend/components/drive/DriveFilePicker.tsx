@@ -24,8 +24,8 @@ import { useRagStatusPolling } from "@/lib/useRagStatusPolling";
 import { RagStatusIndicator } from "./RagStatusIndicator";
 import GoogleDriveIcon from "@/plugins/google-drive/GoogleDriveIcon";
 
+/** A file the user picked, identified by its document, which also keys the picker's selection. */
 export interface SelectedDriveFile {
-  id: number;
   document_id: number;
   name: string;
   mime_type?: string;
@@ -45,8 +45,8 @@ interface PickerState {
   files: DriveFile[];
   selectedFolder: DriveFolder | null;
   loading: boolean;
-  selectedFileIds: Set<number>;
-  selectedFilesMap: Map<number, SelectedDriveFile>;
+  /** The picked files, keyed by `document_id`. */
+  selectedFiles: Map<number, SelectedDriveFile>;
 }
 
 type PickerAction =
@@ -71,41 +71,30 @@ function pickerReducer(state: PickerState, action: PickerAction): PickerState {
       return { ...state, selectedFolder: null, files: [] };
     case "TOGGLE_FILE_SELECTION": {
       const { file } = action;
-      const newIds = new Set(state.selectedFileIds);
-      const newMap = new Map(state.selectedFilesMap);
-      if (newIds.has(file.id)) {
-        newIds.delete(file.id);
-        newMap.delete(file.id);
+      if (file.document_id == null) return state;
+      const selected = new Map(state.selectedFiles);
+      if (selected.has(file.document_id)) {
+        selected.delete(file.document_id);
       } else {
-        if (file.document_id == null) return state;
-        newIds.add(file.id);
-        newMap.set(file.id, {
-          id: file.id,
+        selected.set(file.document_id, {
           document_id: file.document_id,
           name: file.name,
           mime_type: file.mime_type ?? undefined,
           size: file.size ?? undefined,
         });
       }
-      return { ...state, selectedFileIds: newIds, selectedFilesMap: newMap };
+      return { ...state, selectedFiles: selected };
     }
   }
 }
 
 function buildInitialState(initialSelectedFiles: SelectedDriveFile[]): PickerState {
-  const ids = new Set<number>();
-  const map = new Map<number, SelectedDriveFile>();
-  for (const f of initialSelectedFiles) {
-    ids.add(f.id);
-    map.set(f.id, f);
-  }
   return {
     folders: [],
     files: [],
     selectedFolder: null,
     loading: true,
-    selectedFileIds: ids,
-    selectedFilesMap: map,
+    selectedFiles: new Map(initialSelectedFiles.map((f) => [f.document_id, f])),
   };
 }
 
@@ -116,7 +105,7 @@ export default function DriveFilePicker({
 }: DriveFilePickerProps) {
   const { token } = useAuth();
   const [state, dispatch] = useReducer(pickerReducer, initialSelectedFiles, buildInitialState);
-  const { folders, files, selectedFolder, loading, selectedFileIds, selectedFilesMap } = state;
+  const { folders, files, selectedFolder, loading, selectedFiles } = state;
   const { ragStatuses } = useRagStatusPolling(
     selectedFolder?.id != null ? [selectedFolder.id] : [],
     token,
@@ -173,14 +162,7 @@ export default function DriveFilePicker({
   };
 
   const handleConfirmSelection = () => {
-    const selectedFiles = Array.from(selectedFilesMap.values()).map((f) => ({
-      id: f.id,
-      document_id: f.document_id,
-      name: f.name,
-      mime_type: f.mime_type,
-      size: f.size,
-    }));
-    onFileSelected(selectedFiles);
+    onFileSelected([...selectedFiles.values()]);
   };
 
   return (
@@ -258,7 +240,8 @@ export default function DriveFilePicker({
                   const ragStatus = ragStatuses[file.id]?.status ?? null;
                   const ragError = ragStatuses[file.id]?.error ?? null;
                   const canAttach = ragStatus === RagStatus.Ready && file.document_id != null;
-                  const isSelected = selectedFileIds.has(file.id);
+                  const isSelected =
+                    file.document_id != null && selectedFiles.has(file.document_id);
                   return (
                     <li
                       key={file.id}
@@ -290,7 +273,7 @@ export default function DriveFilePicker({
                 <Button
                   variant="primary"
                   onClick={handleConfirmSelection}
-                  disabled={selectedFileIds.size === 0}
+                  disabled={selectedFiles.size === 0 && initialSelectedFiles.length === 0}
                   className="flex-1"
                 >
                   Confirm selection

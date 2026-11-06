@@ -16,15 +16,20 @@ vi.mock("@/lib/plugins/context", () => ({
   usePlugin: () => ({ isEnabled: false, loading: false, config: {} }),
 }));
 
+// The props ChatInput hands the Drive picker, captured on render.
+const picker = vi.hoisted(() => ({ open: false, props: undefined as unknown }));
 vi.mock("@/components/drive/DriveFilePicker", () => ({
-  default: () => null,
+  default: (props: unknown) => {
+    picker.props = props;
+    return null;
+  },
 }));
 
 vi.mock("@/plugins/compose/hooks/useChatInput", () => ({
   useChatInput: () => ({
     showUploadMenu: false,
     setShowUploadMenu: vi.fn(),
-    showDriveFilePicker: false,
+    showDriveFilePicker: picker.open,
     setShowDriveFilePicker: vi.fn(),
     uploadError: null,
     setUploadError: vi.fn(),
@@ -36,7 +41,37 @@ vi.mock("@/plugins/compose/hooks/useChatInput", () => ({
 }));
 
 describe("ChatInput", () => {
-  beforeEach(() => handleSend.mockClear());
+  beforeEach(() => {
+    handleSend.mockClear();
+    picker.open = false;
+    picker.props = undefined;
+  });
+
+  it("opens the Drive picker with every attached document selected, restored ones included", () => {
+    picker.open = true;
+    renderWithIntl(
+      <ChatInput
+        message=""
+        setMessage={vi.fn()}
+        attachments={[
+          // Restored from the conversation: it carries only its document id.
+          { name: "doc.pdf", size: 1024, text: "[File: doc.pdf]", documentId: 100 },
+          { name: "pasted.txt", size: 12, text: "pasted text" },
+        ]}
+        setAttachments={vi.fn()}
+        onSend={vi.fn()}
+        conversationId="conv-1"
+        isStreaming={false}
+        isStopping={false}
+        onStop={vi.fn()}
+      />,
+      composeEn,
+    );
+
+    expect(picker.props).toMatchObject({
+      initialSelectedFiles: [{ document_id: 100, name: "doc.pdf", size: 1024 }],
+    });
+  });
 
   it("shows the message it is given", () => {
     renderWithIntl(
