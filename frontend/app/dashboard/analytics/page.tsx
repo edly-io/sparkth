@@ -20,7 +20,7 @@ import {
 } from "@/lib/analytics";
 import { LineChart } from "@/core/components/ui/LineChart";
 import { StatCard } from "@/core/components/ui/StatCard";
-import { isInstalled } from "@/lib/plugins/installed";
+import { isInstalled } from "@/core/plugins/installed";
 import { ANALYTICS_VIEWS } from "@/core/analytics/components/layout/AnalyticsNav";
 import { PeriodView, useComparison, type PeriodRange } from "./PeriodView";
 

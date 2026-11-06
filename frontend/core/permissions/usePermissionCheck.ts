@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { checkPermission } from "@/lib/permissions/client";
-import type { PermissionName } from "@/lib/permissions/types";
+import { checkPermission } from "@/core/permissions/client";
+import type { PermissionName } from "@/core/permissions/types";
 
 /** Where a permission check stands: still in flight, granted, or refused (including on error). */
 export type Access = "checking" | "allowed" | "denied";

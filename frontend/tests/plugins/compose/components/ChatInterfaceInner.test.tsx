@@ -7,7 +7,6 @@ import ChatInterfaceInner from "@/plugins/compose/components/ChatInterfaceInner"
 import composeEn from "@/plugins/compose/messages/en.json";
 import en from "@/messages/en.json";
 import { fetchLLMConfigs } from "@/lib/llm/client";
-import type { LLMConfigListResponse } from "@/lib/llm/types";
 
 // usePlugin is mocked to read this directly, so a test sets it before rendering.
 let pluginConfig: Record<string, unknown> = {};
@@ -152,7 +151,7 @@ describe("ChatInterfaceInner — AI key guidance", () => {
 
   it("shares one in-flight check across two overlapping sends", async () => {
     pluginConfig = {};
-    let resolveFetch!: (value: LLMConfigListResponse) => void;
+    let resolveFetch!: (value: Awaited<ReturnType<typeof fetchLLMConfigs>>) => void;
     mockedFetchLLMConfigs.mockReturnValue(
       new Promise((resolve) => {
         resolveFetch = resolve;
