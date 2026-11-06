@@ -24,8 +24,8 @@ import { Switch } from "@/core/components/ui/Switch";
 import { Label } from "@/core/components/ui/Label";
 import { LLMConfigSelect } from "@/core/settings/components/ui/LLMConfigSelect";
 import { useAuth } from "@/core/auth/hooks";
-import { fetchLLMConfigs, fetchProviderCatalog } from "@/lib/llm/client";
-import type { LLMConfig, ProviderInfo } from "@/lib/llm/types";
+import { fetchLLMConfigs, fetchProviderCatalog } from "@/core/llm/client";
+import type { LLMConfig, ProviderInfo } from "@/core/llm/types";
 import type { ConfigWidgetProps } from "@/lib/settings/slots";
 
 /**

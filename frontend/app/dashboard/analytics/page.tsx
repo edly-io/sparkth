@@ -22,7 +22,7 @@ import {
 } from "@/plugins/compose/analytics";
 import { LineChart } from "@/core/analytics/components/ui/LineChart";
 import { StatCard } from "@/core/analytics/components/ui/StatCard";
-import { isInstalled } from "@/lib/plugins/installed";
+import { isInstalled } from "@/core/plugins/installed";
 import { PeriodView, useComparison, type PeriodRange } from "./PeriodView";
 import { ANALYTICS_VIEWS } from "./views";
 

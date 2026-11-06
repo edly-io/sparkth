@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 
-import { downloadBlob } from "@/lib/download";
+import { downloadBlob } from "@/core/download";
 
 afterEach(() => {
   vi.restoreAllMocks();

@@ -1,4 +1,4 @@
-import { FRONTEND_PLUGIN_NAMES } from "./generated";
+import { FRONTEND_PLUGIN_NAMES } from "@/lib/plugins/generated";
 
 /**
  * Whether the plugin is installed in the backend build. Analytics follow this, not the viewer's
