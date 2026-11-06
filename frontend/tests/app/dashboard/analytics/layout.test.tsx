@@ -12,7 +12,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn() }),
 }));
 const checkPermission = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/permissions/client", () => ({ checkPermission }));
+vi.mock("@/core/permissions/client", () => ({ checkPermission }));
 
 import AnalyticsLayout from "@/app/dashboard/analytics/layout";
 

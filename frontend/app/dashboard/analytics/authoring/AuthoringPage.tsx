@@ -22,7 +22,7 @@ import {
 import { LineChart } from "@/core/components/ui/LineChart";
 import { RankedBar } from "@/core/components/ui/RankedBar";
 import { StatCard } from "@/core/components/ui/StatCard";
-import { isInstalled } from "@/lib/plugins/installed";
+import { isInstalled } from "@/core/plugins/installed";
 import { PeriodView, bothPeriods, useComparison, type PeriodData } from "../PeriodView";
 
 type DocumentsData = { current: DriveDocumentsPoint[]; previous: DriveDocumentsPoint[] } | null;

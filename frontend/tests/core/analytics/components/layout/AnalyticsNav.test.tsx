@@ -19,7 +19,7 @@ vi.mock("@/lib/plugins/generated", () => ({
 
 vi.mock("@/core/auth/hooks", () => ({ useAuth: () => ({ token: "test-token" }) }));
 const access = vi.hoisted(() => ({ userRead: "allowed" }));
-vi.mock("@/lib/permissions/usePermissionCheck", () => ({
+vi.mock("@/core/permissions/usePermissionCheck", () => ({
   usePermissionCheck: () => access.userRead,
 }));
 vi.mock("@/lib/analytics", async (importOriginal) => {

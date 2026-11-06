@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, screen } from "@testing-library/react";
 
 vi.mock("@/core/auth/hooks", () => ({ useAuth: () => ({ token: "t" }) }));
-vi.mock("@/lib/llm/client", () => ({
+vi.mock("@/core/llm/client", () => ({
   fetchLLMConfigs: vi.fn(),
   fetchProviderCatalog: vi.fn(),
   setLLMConfigActive: vi.fn(),
@@ -12,7 +12,7 @@ vi.mock("@/lib/llm/client", () => ({
   rotateLLMConfigKey: vi.fn(),
 }));
 
-import { fetchLLMConfigs, fetchProviderCatalog, setLLMConfigActive } from "@/lib/llm/client";
+import { fetchLLMConfigs, fetchProviderCatalog, setLLMConfigActive } from "@/core/llm/client";
 import LLMConfigurePage from "@/app/dashboard/llm/configure/page";
 import { renderWithIntl } from "@/tests/intl-test-utils";
 

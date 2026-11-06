@@ -201,7 +201,7 @@ it. Settle these before declaring one:
   every current admin as soon as the release is migrated. Left ungranted, an operator grants
   it at runtime through the role-management API.
 - **Does the UI check it?** The frontend checks a permission with `checkPermission`, which
-  accepts only names in the `PermissionName` union in `frontend/lib/permissions/types.ts`. That
+  accepts only names in the `PermissionName` union in `frontend/core/permissions/types.ts`. That
   union mirrors the whole vocabulary by hand, so every new permission is added to it.
 
 ## Extending the permission system
