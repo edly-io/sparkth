@@ -8,7 +8,7 @@ vi.mock("@/core/auth/hooks", () => ({
   useAuth: () => ({ isAuthenticated: false, logout: vi.fn() }),
 }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
-vi.mock("@/components/SparkthHeader", () => ({ default: () => null }));
+vi.mock("@/core/components/layout/SparkthHeader", () => ({ default: () => null }));
 
 describe("HomeClient", () => {
   it("renders the localized landing copy", () => {
