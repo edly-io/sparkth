@@ -22,7 +22,7 @@ import {
   type AuditOutcome,
 } from "@/lib/audit/types";
 import { downloadBlob } from "@/lib/download";
-import { Forbidden } from "@/components/Forbidden";
+import { Forbidden } from "@/core/components/layout/Forbidden";
 import { Spinner } from "@/core/components/ui/Spinner";
 import { Alert } from "@/core/components/ui/Alert";
 import { Button } from "@/core/components/ui/Button";

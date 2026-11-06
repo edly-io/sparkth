@@ -11,12 +11,12 @@ import {
   ApiRequestError,
 } from "@/lib/api";
 import { useAuth } from "@/core/auth/hooks";
-import { SparkthLogo } from "@/components/SparkthLogo";
+import { SparkthLogo } from "@/core/components/ui/SparkthLogo";
 import { Button } from "@/core/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Alert } from "@/core/components/ui/Alert";
 import { Card } from "@/core/components/ui/Card";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { ThemeToggle } from "@/core/components/ui/ThemeToggle";
 
 type ResendStatus = "idle" | "sending" | "sent" | "rate_limited" | "error";
 

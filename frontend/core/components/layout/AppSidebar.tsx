@@ -19,11 +19,11 @@ import {
 import { usePluginContext } from "@/core/plugins/context";
 import { sidebarItemsFrom, type SidebarItem } from "./sidebarItems";
 import { resolvePluginIcon } from "@/core/components/ui/icons";
-import { GATED_NAV } from "@/components/NavItem/gatedNav";
-import { NavItem } from "@/components/NavItem/NavItem";
+import { GATED_NAV } from "@/core/components/layout/NavItem/gatedNav";
+import { NavItem } from "@/core/components/layout/NavItem/NavItem";
 import Image from "next/image";
 import { Spinner } from "@/core/components/ui/Spinner";
-import { SparkthLogo } from "@/components/SparkthLogo";
+import { SparkthLogo } from "@/core/components/ui/SparkthLogo";
 import { Button } from "@/core/components/ui/Button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/core/components/ui/Tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/core/components/ui/Popover";

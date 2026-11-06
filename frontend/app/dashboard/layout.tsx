@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import "@/app/plugins";
 import { useAuth } from "@/core/auth/hooks";
-import { resolveNavPermissions } from "@/components/NavItem/gatedNav";
+import { resolveNavPermissions } from "@/core/components/layout/NavItem/gatedNav";
 import { PluginProvider } from "@/core/plugins/context";
 import AppSidebar from "@/core/components/layout/AppSidebar";
 import MobileSidebar from "@/core/components/layout/MobileSidebar";
@@ -13,8 +13,8 @@ import { redirect } from "next/navigation";
 import { Menu } from "lucide-react";
 import { Spinner } from "@/core/components/ui/Spinner";
 import { Button } from "@/core/components/ui/Button";
-import { SparkthLogo } from "@/components/SparkthLogo";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { SparkthLogo } from "@/core/components/ui/SparkthLogo";
+import { ThemeToggle } from "@/core/components/ui/ThemeToggle";
 
 function MobileHeader() {
   const { toggle } = useSidebar();

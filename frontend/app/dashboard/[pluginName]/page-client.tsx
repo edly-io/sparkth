@@ -7,7 +7,7 @@ import { usePlugin, usePluginContext } from "@/core/plugins/context";
 import { displayNameOf } from "@/core/plugins/metadata";
 import { getPlugin } from "@/core/plugins/registry";
 import { pluginPath } from "@/core/plugins/routes";
-import PluginRenderer from "@/components/PluginRenderer";
+import PluginRenderer from "@/core/components/plugins/PluginRenderer";
 import Link from "next/link";
 
 export default function PluginPageClient() {

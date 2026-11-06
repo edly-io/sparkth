@@ -4,8 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/core/components/ui/Button";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { SparkthLogo } from "./SparkthLogo";
+import { ThemeToggle } from "@/core/components/ui/ThemeToggle";
+import { SparkthLogo } from "@/core/components/ui/SparkthLogo";
 
 interface HeaderProps {
   isAuthenticated: boolean;

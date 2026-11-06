@@ -22,7 +22,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Select } from "@/components/ui/Select";
 import { Switch } from "@/components/ui/Switch";
 import { Label } from "@/components/ui/Label";
-import { LLMConfigSelect } from "@/components/LLMConfigSelect";
+import { LLMConfigSelect } from "@/core/components/settings/LLMConfigSelect";
 import { useAuth } from "@/core/auth/hooks";
 import { fetchLLMConfigs, fetchProviderCatalog } from "@/lib/llm/client";
 import type { LLMConfig, ProviderInfo } from "@/lib/llm/types";
