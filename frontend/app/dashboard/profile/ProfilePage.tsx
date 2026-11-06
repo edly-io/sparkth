@@ -7,7 +7,7 @@ import { ApiRequestError, changePassword, updateCurrentUser, type CurrentUser } 
 import { Alert } from "@/core/components/ui/Alert";
 import { Button } from "@/core/components/ui/Button";
 import { Card } from "@/core/components/ui/Card";
-import { Input } from "@/components/ui/Input";
+import { Input } from "@/core/components/ui/Input";
 import { Spinner } from "@/core/components/ui/Spinner";
 import {
   emptyNewPassword,

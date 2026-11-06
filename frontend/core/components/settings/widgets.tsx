@@ -17,11 +17,11 @@
 
 import { ComponentType, useEffect, useState } from "react";
 
-import { Input } from "@/components/ui/Input";
-import { Textarea } from "@/components/ui/Textarea";
-import { Select } from "@/components/ui/Select";
-import { Switch } from "@/components/ui/Switch";
-import { Label } from "@/components/ui/Label";
+import { Input } from "@/core/components/ui/Input";
+import { Textarea } from "@/core/components/ui/Textarea";
+import { Select } from "@/core/components/ui/Select";
+import { Switch } from "@/core/components/ui/Switch";
+import { Label } from "@/core/components/ui/Label";
 import { LLMConfigSelect } from "@/core/components/settings/LLMConfigSelect";
 import { useAuth } from "@/core/auth/hooks";
 import { fetchLLMConfigs, fetchProviderCatalog } from "@/lib/llm/client";

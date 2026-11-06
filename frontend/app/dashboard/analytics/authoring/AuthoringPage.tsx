@@ -19,9 +19,9 @@ import {
   type DriveDocumentsPoint,
   type IsoDate,
 } from "@/lib/analytics";
-import { LineChart } from "@/components/ui/LineChart";
-import { RankedBar } from "@/components/ui/RankedBar";
-import { StatCard } from "@/components/ui/StatCard";
+import { LineChart } from "@/core/components/ui/LineChart";
+import { RankedBar } from "@/core/components/ui/RankedBar";
+import { StatCard } from "@/core/components/ui/StatCard";
 import { isInstalled } from "@/lib/plugins/installed";
 import { PeriodView, bothPeriods, useComparison, type PeriodData } from "../PeriodView";
 

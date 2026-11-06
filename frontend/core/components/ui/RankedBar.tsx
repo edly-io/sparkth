@@ -1,5 +1,5 @@
-import { ChartTable } from "@/components/ui/ChartTable";
-import type { BarChartDatum } from "@/components/ui/BarChart";
+import { ChartTable } from "@/core/components/ui/ChartTable";
+import type { BarChartDatum } from "@/core/components/ui/BarChart";
 import { twMerge } from "tailwind-merge";
 
 interface RankedBarProps<D extends BarChartDatum> {

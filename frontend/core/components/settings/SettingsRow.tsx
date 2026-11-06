@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Switch } from "@/components/ui/Switch";
+import { Switch } from "@/core/components/ui/Switch";
 
 // The row's on/off status, coloured by whether it's on.
 function StatusBadge({ active, label }: { active: boolean; label: string }) {
