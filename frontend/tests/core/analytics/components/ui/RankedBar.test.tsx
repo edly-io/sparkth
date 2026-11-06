@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import { RankedBar } from "@/components/ui/RankedBar";
+import { RankedBar } from "@/core/analytics/components/ui/RankedBar";
 
 describe("RankedBar", () => {
   const data = [

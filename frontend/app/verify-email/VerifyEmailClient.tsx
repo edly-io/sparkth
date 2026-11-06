@@ -9,7 +9,7 @@ import { ThemeToggle } from "@/core/theme/components/ui/ThemeToggle";
 import { Alert } from "@/core/components/ui/Alert";
 import { Button } from "@/core/components/ui/Button";
 import { Card } from "@/core/components/ui/Card";
-import { Input } from "@/components/ui/Input";
+import { Input } from "@/core/components/ui/Input";
 import { ApiRequestError, resendVerificationEmail, verifyEmail } from "@/lib/api";
 
 type Status = "loading" | "success" | "expired" | "invalid";

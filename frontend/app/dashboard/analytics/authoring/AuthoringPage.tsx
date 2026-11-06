@@ -19,9 +19,9 @@ import {
   fetchDriveDocuments,
   type DriveDocumentsPoint,
 } from "@/plugins/google-drive/analytics";
-import { LineChart } from "@/components/ui/LineChart";
-import { RankedBar } from "@/components/ui/RankedBar";
-import { StatCard } from "@/components/ui/StatCard";
+import { LineChart } from "@/core/analytics/components/ui/LineChart";
+import { RankedBar } from "@/core/analytics/components/ui/RankedBar";
+import { StatCard } from "@/core/analytics/components/ui/StatCard";
 import { isInstalled } from "@/lib/plugins/installed";
 import { PeriodView, bothPeriods, useComparison, type PeriodData } from "../PeriodView";
 

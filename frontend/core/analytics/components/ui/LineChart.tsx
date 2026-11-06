@@ -1,5 +1,5 @@
-import { ChartTable } from "@/components/ui/ChartTable";
-import type { BarChartDatum } from "@/components/ui/BarChart";
+import { ChartTable } from "@/core/analytics/components/ui/ChartTable";
+import type { BarChartDatum } from "@/core/analytics/components/ui/BarChart";
 
 const VIEW_W = 600;
 const VIEW_H = 200;
