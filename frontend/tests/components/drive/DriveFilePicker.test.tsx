@@ -221,8 +221,99 @@ describe("DriveFilePicker - File Checkbox Disabled State", () => {
     await userEvent.click(screen.getByRole("button", { name: "Confirm selection" }));
 
     expect(onFileSelected).toHaveBeenCalledWith([
-      expect.objectContaining({ id: 10, name: "doc.pdf" }),
+      expect.objectContaining({ document_id: 100, name: "doc.pdf" }),
     ]);
+  });
+});
+
+describe("DriveFilePicker - Initial selection", () => {
+  beforeEach(() => {
+    vi.mocked(listFolders).mockResolvedValue(paginated([mockFolder]));
+    vi.mocked(listFiles).mockResolvedValue(paginated(mockFiles));
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("opens with a file ticked when its document is already selected", async () => {
+    vi.mocked(getFolderRagStatus).mockResolvedValue({
+      folder_id: 1,
+      files: [{ file_id: 10, name: "doc.pdf", rag_status: "ready", rag_error: null }],
+    });
+    vi.mocked(listFiles).mockResolvedValue(paginated([mockFiles[0]]));
+
+    render(
+      <DriveFilePicker
+        onClose={vi.fn()}
+        onFileSelected={vi.fn()}
+        initialSelectedFiles={[{ document_id: 100, name: "doc.pdf", size: 1024 }]}
+      />,
+    );
+    await selectFolder();
+
+    expect(await screen.findByLabelText("Select doc.pdf")).toBeChecked();
+  });
+
+  it("keeps an already selected document when another file is ticked and confirmed", async () => {
+    vi.mocked(getFolderRagStatus).mockResolvedValue({
+      folder_id: 1,
+      files: [{ file_id: 20, name: "notes.txt", rag_status: "ready", rag_error: null }],
+    });
+    vi.mocked(listFiles).mockResolvedValue(paginated([mockFiles[1]]));
+
+    const onFileSelected = vi.fn();
+    render(
+      <DriveFilePicker
+        onClose={vi.fn()}
+        onFileSelected={onFileSelected}
+        initialSelectedFiles={[{ document_id: 100, name: "doc.pdf", size: 1024 }]}
+      />,
+    );
+    await selectFolder();
+
+    const checkbox = await screen.findByLabelText("Select notes.txt");
+    await waitFor(() => expect(checkbox).not.toBeDisabled());
+    await userEvent.click(checkbox);
+    await userEvent.click(screen.getByRole("button", { name: "Confirm selection" }));
+
+    expect(onFileSelected).toHaveBeenCalledWith([
+      expect.objectContaining({ document_id: 100, name: "doc.pdf" }),
+      expect.objectContaining({ document_id: 200, name: "notes.txt" }),
+    ]);
+  });
+
+  it("lets the user untick the last selected document and confirm, to detach it", async () => {
+    vi.mocked(getFolderRagStatus).mockResolvedValue({
+      folder_id: 1,
+      files: [{ file_id: 10, name: "doc.pdf", rag_status: "ready", rag_error: null }],
+    });
+    vi.mocked(listFiles).mockResolvedValue(paginated([mockFiles[0]]));
+
+    const onFileSelected = vi.fn();
+    render(
+      <DriveFilePicker
+        onClose={vi.fn()}
+        onFileSelected={onFileSelected}
+        initialSelectedFiles={[{ document_id: 100, name: "doc.pdf", size: 1024 }]}
+      />,
+    );
+    await selectFolder();
+
+    const checkbox = await screen.findByLabelText("Select doc.pdf");
+    await waitFor(() => expect(checkbox).not.toBeDisabled());
+    await userEvent.click(checkbox);
+    await userEvent.click(screen.getByRole("button", { name: "Confirm selection" }));
+
+    expect(onFileSelected).toHaveBeenCalledWith([]);
+  });
+
+  it("keeps Confirm disabled while nothing is selected or was selected", async () => {
+    vi.mocked(getFolderRagStatus).mockResolvedValue({ folder_id: 1, files: [] });
+    render(<DriveFilePicker onClose={vi.fn()} onFileSelected={vi.fn()} />);
+    await selectFolder();
+
+    expect(await screen.findByRole("button", { name: "Confirm selection" })).toBeDisabled();
   });
 });
 

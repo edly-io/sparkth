@@ -77,7 +77,6 @@ export function useChatInput({
       name: file.name,
       size: file.size ?? 0,
       text: `[File: ${file.name}]`,
-      driveFileDbId: file.id,
       documentId: file.document_id,
     }));
     setAttachments((prev) => {
