@@ -15,8 +15,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/core/components/ui/Dialog";
-import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
+import { Input } from "@/core/components/ui/Input";
+import { Select } from "@/core/components/ui/Select";
 import { SettingsList, SettingsPage } from "@/core/components/settings/SettingsPage";
 import { SettingsRow } from "@/core/components/settings/SettingsRow";
 import { useAuth } from "@/core/auth/hooks";

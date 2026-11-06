@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { Input } from "@/components/ui/Input";
+import { Input } from "@/core/components/ui/Input";
 
 /** The two values a new-password form collects: the password and its confirmation. */
 export type NewPasswordValues = { next: string; confirm: string };
