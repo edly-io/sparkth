@@ -24,7 +24,7 @@ from sqlalchemy import ColumnElement, and_, or_
 from sqlalchemy.orm import Mapped
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
-from sqlmodel.sql.expression import SelectOfScalar
+from sqlmodel.sql.expression import Select, SelectOfScalar
 
 from sparkth.core.models.user import User
 from sparkth.core.permissions.dependencies import build_scope_path_dependency
@@ -374,6 +374,22 @@ def _reduce_grant_rows(grant_rows: list[tuple[str, str | None]], scope_name: str
     return object_ids
 
 
+def _grants_with_permission(
+    model: type[RoleAssignment] | type[GroupRoleAssignment],
+    owner: ColumnElement[bool],
+    roles_with_permission: SelectOfScalar[int],
+    scope_names: set[str],
+) -> Select[tuple[str, str | None]]:
+    """Select the ``(scope, object id)`` of the active ``model`` rows held by ``owner`` that grant a role in
+    ``roles_with_permission`` at one of ``scope_names``."""
+    return select(col(model.scope), col(model.scope_object_id)).where(
+        owner,
+        col(model.is_deleted) == False,
+        col(model.role_id).in_(roles_with_permission),
+        col(model.scope).in_(scope_names),
+    )
+
+
 async def get_accessible_scope_object_ids(
     user: User,
     permission: Permission,
@@ -390,17 +406,14 @@ async def get_accessible_scope_object_ids(
     scope_name = permission_scope.name
     scope_names = {name for name, _ in permission_scope.scope_chain(None)}
     roles_with_permission = select(RolePermission.role_id).where(RolePermission.permission == permission.name)
-    own_grants = select(col(RoleAssignment.scope), col(RoleAssignment.scope_object_id)).where(
-        col(RoleAssignment.user_id) == user.id,
-        col(RoleAssignment.is_deleted) == False,
-        col(RoleAssignment.role_id).in_(roles_with_permission),
-        col(RoleAssignment.scope).in_(scope_names),
+    own_grants = _grants_with_permission(
+        RoleAssignment, col(RoleAssignment.user_id) == user.id, roles_with_permission, scope_names
     )
-    group_grants = select(col(GroupRoleAssignment.scope), col(GroupRoleAssignment.scope_object_id)).where(
+    group_grants = _grants_with_permission(
+        GroupRoleAssignment,
         col(GroupRoleAssignment.group_id).in_(_active_membership_group_ids(user.id)),
-        col(GroupRoleAssignment.is_deleted) == False,
-        col(GroupRoleAssignment.role_id).in_(roles_with_permission),
-        col(GroupRoleAssignment.scope).in_(scope_names),
+        roles_with_permission,
+        scope_names,
     )
     grants = own_grants.union_all(group_grants).subquery()
     result = await session.exec(select(grants.c.scope, grants.c.scope_object_id))
