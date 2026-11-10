@@ -16,7 +16,7 @@ The public surface is re-exported from ``sparkth.lib.permissions`` — applicati
 and plugins import from there, never from this module directly.
 """
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from typing import NoReturn
 
 from fastapi import Depends, HTTPException, status
@@ -359,17 +359,16 @@ async def has_role(
     return result.first() is not None
 
 
-def _reduce_grant_rows(grant_rows: list[tuple[str, str | None]], scope_name: str) -> set[str] | None:
+def _reduce_grant_rows(grant_rows: Sequence[tuple[str, str | None]], scope_name: str) -> set[str] | None:
     """Reduce the ``(scope, object id)`` rows of a user's grants to the ids they cover at ``scope_name``.
 
     A row at an objectless ancestor (NULL object id) covers every object, so it returns ``None``.
     """
     object_ids: set[str] = set()
     for scope, object_id in grant_rows:
-        if scope != scope_name:
-            if object_id is None:
-                return None
-        elif object_id is not None:
+        if object_id is None and scope != scope_name:
+            return None
+        if object_id is not None and scope == scope_name:
             object_ids.add(object_id)
     return object_ids
 
@@ -417,4 +416,4 @@ async def get_accessible_scope_object_ids(
     )
     grants = own_grants.union_all(group_grants).subquery()
     result = await session.exec(select(grants.c.scope, grants.c.scope_object_id))
-    return _reduce_grant_rows([(scope, object_id) for scope, object_id in result.all()], scope_name)
+    return _reduce_grant_rows(result.all(), scope_name)
