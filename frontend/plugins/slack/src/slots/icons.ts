@@ -1,5 +1,5 @@
 import { PLUGIN_ICONS } from "@/lib/icons/slots";
-import SlackIcon from "./SlackIcon";
+import SlackIcon from "@/plugins/slack/src/components/ui/SlackIcon";
 
 // The backend Slack plugin declares its metadata with icon name "slack";
 // the brand icon component itself ships with this frontend plugin.

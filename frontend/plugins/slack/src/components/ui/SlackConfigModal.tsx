@@ -2,7 +2,7 @@
 
 import PluginConfigModal from "@/lib/components/settings/ConfigModal";
 import type { ConfigModalProps } from "@/lib/settings/slots";
-import DocSourcesWidget from "./components/DocSourcesWidget";
+import DocSourcesWidget from "@/plugins/slack/src/components/ui/DocSourcesWidget";
 
 // Slack's own controls, by the `widget` hint its backend config fields use.
 const CONTROLS = { "doc-sources": DocSourcesWidget };

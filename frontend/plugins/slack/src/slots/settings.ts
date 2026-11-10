@@ -5,5 +5,5 @@ import { SETTINGS_ITEMS } from "@/lib/settings/slots";
 // `allowed_sources` field, which the backend marks with the `doc-sources` widget hint.
 SETTINGS_ITEMS.set("slack", {
   listItem: SettingsListItem,
-  loadConfigModal: () => import("./SlackConfigModal"),
+  loadConfigModal: () => import("@/plugins/slack/src/components/ui/SlackConfigModal"),
 });

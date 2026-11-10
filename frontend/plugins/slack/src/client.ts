@@ -5,7 +5,7 @@ import type {
   FetchLogsOptions,
   LogsResponse,
   RagSourcesResponse,
-} from "@/plugins/slack/types";
+} from "@/plugins/slack/src/types";
 
 // This module's public contract is plain Error objects with action-prefixed
 // messages, except disconnectSlack, which rejects with the ApiRequestError itself;

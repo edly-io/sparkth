@@ -7,9 +7,9 @@ import { googleDrivePlugin } from "@/plugins/google-drive";
 import "@/plugins/moodle/src";
 import "@/plugins/openedx/src";
 import { pxc } from "@/plugins/pxc/src";
-import { slackPlugin } from "@/plugins/slack";
+import { slack } from "@/plugins/slack/src";
 
 registerPlugin(composePlugin);
 registerPlugin(googleDrivePlugin);
 registerPlugin(pxc);
-registerPlugin(slackPlugin);
+registerPlugin(slack);
