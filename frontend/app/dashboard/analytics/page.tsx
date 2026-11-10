@@ -5,24 +5,26 @@ import { useSearchParams } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import { ChartColumn } from "lucide-react";
 import {
-  COMPOSE_EVENTS,
   buildSeries,
-  countSeries,
-  fetchComposeActivity,
   fetchLogins,
   fetchSummary,
   previousPeriod,
   type BucketCount,
-  type ComposeActivityPoint,
   type IsoDate,
   type LoginsPoint,
   type SummaryCount,
 } from "@/lib/analytics";
+import {
+  COMPOSE_EVENTS,
+  countSeries,
+  fetchComposeActivity,
+  type ComposeActivityPoint,
+} from "@/plugins/compose/analytics";
 import { LineChart } from "@/components/ui/LineChart";
 import { StatCard } from "@/components/ui/StatCard";
 import { isInstalled } from "@/lib/plugins/installed";
-import { ANALYTICS_VIEWS } from "@/core/analytics/components/layout/AnalyticsNav";
 import { PeriodView, useComparison, type PeriodRange } from "./PeriodView";
+import { ANALYTICS_VIEWS } from "./views";
 
 /** Everything the Overview loads for the period and the one before it. */
 type OverviewData = {

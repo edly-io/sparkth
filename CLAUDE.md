@@ -232,6 +232,9 @@ skill — follow it whenever creating or editing a GitHub issue, posting a propo
 opening a pull request, or committing LLM-generated code. Conventional Commits are enforced by
 [`commitlint`](.github/workflows/commitlint.yml) on every PR. Never commit directly to `main`.
 
+Before creating a pull request, review the branch's changes with the
+[`sparkth-code-review`](.claude/skills/sparkth-code-review/SKILL.md) skill and address its findings first.
+
 ## Additional Documentation
 
 | Topic | File |
@@ -251,3 +254,4 @@ opening a pull request, or committing LLM-generated code. Conventional Commits a
 | Analytics events: proposing them (agent workflow) | [.claude/skills/analytics-events/SKILL.md](.claude/skills/analytics-events/SKILL.md) |
 | Audit events (what to record, snapshot safety, transaction, fail-closed) | [docs/guides/audit-events.md](docs/guides/audit-events.md) |
 | Audit events: proposing them (agent workflow) | [.claude/skills/audit-events/SKILL.md](.claude/skills/audit-events/SKILL.md) |
+| Code review (Sparkth review rubric and real review examples) | [.claude/skills/sparkth-code-review/SKILL.md](.claude/skills/sparkth-code-review/SKILL.md) |

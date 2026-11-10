@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Alert } from "@/components/ui/Alert";
+import { Alert } from "@/lib/components/ui/Alert";
 import { Spinner } from "@/lib/components/ui/Spinner";
 import { useAuth } from "@/lib/auth/hooks";
 import { getConnectionStatus } from "@/plugins/slack/client";

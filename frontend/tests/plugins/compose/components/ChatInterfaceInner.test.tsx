@@ -20,10 +20,6 @@ vi.mock("@/lib/plugins/context", () => ({
   usePlugin: () => ({ isEnabled: false, loading: false, config: pluginConfig }),
 }));
 
-vi.mock("@/components/drive/DriveFilePicker", () => ({
-  default: () => null,
-}));
-
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
 }));

@@ -6,7 +6,7 @@ import { RefreshCw } from "lucide-react";
 import { useAuth } from "@/core/auth/hooks";
 import { previousPeriod, type Bucket, type IsoDate } from "@/lib/analytics";
 import { ApiRequestError } from "@/lib/api";
-import { Alert } from "@/components/ui/Alert";
+import { Alert } from "@/core/components/ui/Alert";
 import { Button } from "@/core/components/ui/Button";
 import { Forbidden } from "@/components/Forbidden";
 import { Spinner } from "@/core/components/ui/Spinner";

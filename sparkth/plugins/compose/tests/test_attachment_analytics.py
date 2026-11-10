@@ -22,6 +22,7 @@ from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
 from sparkth.plugins.compose.models import Conversation
+from sparkth.plugins.compose.tests.helpers import answering_model
 
 COMPLETIONS_URL = "/api/v1/compose/completions"
 
@@ -89,7 +90,7 @@ def _provider() -> MagicMock:
     provider = MagicMock()
     provider.model = "gpt-4o"
     provider.system_prompt = ""
-    provider.send_message = AsyncMock(return_value={"content": "Outline ready.", "metadata": {}})
+    provider.create_llm.return_value = answering_model("Outline ready.")
     return provider
 
 

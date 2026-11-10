@@ -16,8 +16,8 @@ from langchain_core.exceptions import LangChainException
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel, ValidationError
 
-from sparkth.lib.llm import get_provider_catalog
-from sparkth.plugins.compose.classifiers.base import SMALL_MODELS, BaseClassifier, small_model_for
+from sparkth.lib.llm import small_model_for
+from sparkth.plugins.compose.classifiers.base import BaseClassifier
 from sparkth.plugins.compose.exceptions import ClassifierError
 
 _SYSTEM_PROMPT = "Decide whether the colour is warm."
@@ -81,7 +81,7 @@ class TestModelSelection:
         with patch(_GET_PROVIDER) as mock_get_provider:
             _ColourClassifier(provider_name, "user-key")
 
-        assert mock_get_provider.call_args.args == (provider_name, "user-key", SMALL_MODELS[provider_name])
+        assert mock_get_provider.call_args.args == (provider_name, "user-key", small_model_for(provider_name))
 
     def test_the_model_is_asked_for_at_temperature_zero(self) -> None:
         """A classification is a verdict, not prose: the same turn should not get two answers."""
@@ -93,12 +93,6 @@ class TestModelSelection:
     def test_an_unsupported_provider_raises(self) -> None:
         with pytest.raises(ValueError, match="Unsupported provider"):
             _ColourClassifier("cohere")
-
-    def test_every_provider_the_facade_supports_has_a_small_model(self) -> None:
-        """SMALL_MODELS is plugin-local, while the facade's registry is what a stored LLMConfig is
-        validated against. A provider added there with no entry here raises for every chat request
-        from a user who selected it, before their conversation is even resolved."""
-        assert {entry["id"] for entry in get_provider_catalog()} == set(SMALL_MODELS)
 
     def test_small_model_for_reports_the_same_model_the_instance_uses(self) -> None:
         """The resolved name is readable on the instance, so a subclass can log which model

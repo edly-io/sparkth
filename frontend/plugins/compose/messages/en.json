@@ -12,6 +12,7 @@
     "optionsTypeElse": "Want something else? Type it in the message box below.",
     "optionsNoneSelected": "No option selected",
     "stopGenerating": "Stop generating",
+    "pickerFailed": "Couldn't open the file picker. Please try again.",
     "aiKeyMissing": "You have not added an AI key to Sparkth yet. Add one, then select it in Compose's configuration.",
     "aiKeyMissingAction": "Add an AI key",
     "aiKeyNotSelected": "Select your AI key in Compose's configuration to start creating.",

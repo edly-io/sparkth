@@ -11,7 +11,7 @@ import {
   useNewPasswordMismatch,
   type NewPasswordValues,
 } from "@/components/NewPasswordFields";
-import { Alert } from "@/components/ui/Alert";
+import { Alert } from "@/core/components/ui/Alert";
 import { Button } from "@/core/components/ui/Button";
 import { ApiRequestError, confirmPasswordReset } from "@/lib/api";
 

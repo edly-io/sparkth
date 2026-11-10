@@ -9,6 +9,7 @@ import { Forbidden } from "@/components/Forbidden";
 import { Spinner } from "@/core/components/ui/Spinner";
 import { AnalyticsNav } from "@/core/analytics/components/layout/AnalyticsNav";
 import { PeriodSelector } from "./PeriodSelector";
+import { ANALYTICS_VIEWS } from "./views";
 
 export default function AnalyticsLayout({ children }: { children: React.ReactNode }) {
   const { token } = useAuth();
@@ -31,7 +32,7 @@ export default function AnalyticsLayout({ children }: { children: React.ReactNod
         {access === "allowed" && (
           <Suspense fallback={null}>
             <div className="flex flex-col gap-6 lg:flex-row">
-              <AnalyticsNav />
+              <AnalyticsNav views={ANALYTICS_VIEWS} />
               <div className="min-w-0 flex-1 space-y-6">
                 <PeriodSelector />
                 {children}

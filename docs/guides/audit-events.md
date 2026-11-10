@@ -181,7 +181,8 @@ Do not hand-write audit code in a tool. Three seams record every execution:
   chat registry.
 - `AuditToolCallbackHandler`, active process-wide, covers any tool LangChain runs (the RAG agent).
   A tool already audited at the handler level carries `AUDIT_AT_HANDLER_TAG` so it is not recorded
-  twice.
+  twice. A tool that acts on no system, such as Compose handing a message to one of its agents,
+  carries `AUDIT_SKIP_TAG`; the tools that agent calls are still recorded.
 - The FastMCP `ToolCallAuditMiddleware` records protocol-level failures that never reach a
   handler (unknown tool, invalid input).
 

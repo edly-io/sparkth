@@ -3,7 +3,14 @@
 import sparkth.plugins.googledrive.models  # noqa: F401 - registers tables in SQLModel metadata
 from sparkth.lib.analytics import register_event_schemas
 from sparkth.lib.config.hooks import CONFIG_SCHEMAS
-from sparkth.lib.frontend.hooks import DISPLAY_INFO, FRONTEND_APPS, DisplayInfo, FrontendApp
+from sparkth.lib.frontend.hooks import (
+    DISPLAY_INFO,
+    FRONTEND_APPS,
+    SIDEBAR_ENTRIES,
+    DisplayInfo,
+    FrontendApp,
+    SidebarEntry,
+)
 from sparkth.lib.i18n import gettext_noop
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.lib.routes import register_router
@@ -27,6 +34,6 @@ class GoogleDrivePlugin(SparkthPlugin):
             self,
             DisplayInfo(gettext_noop("Google Drive"), gettext_noop("All imported files from your connected plugins")),
         )
-        # Ships a frontend page but no sidebar entry.
+        SIDEBAR_ENTRIES.add_item(self, SidebarEntry(gettext_noop("Resources"), icon="folder", order=4))
         FRONTEND_APPS.add_item(self, FrontendApp())
         register_event_schemas(self, events)

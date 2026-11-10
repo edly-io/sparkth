@@ -4,8 +4,7 @@
 them as source material. See [Supported integrations](index.md#supported-integrations) for the
 drives Sparkth connects to.
 
-Until you turn on a drive plugin in [Settings](plugins.md), the page shows
-"No plugins connected".
+**Resources** appears in the sidebar once a drive plugin is turned on in [Settings](plugins.md).
 
 ## Connect your drive
 

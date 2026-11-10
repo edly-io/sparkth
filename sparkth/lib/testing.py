@@ -11,6 +11,7 @@ Plugin-specific environment (e.g. ``SLACK_*``) belongs in that plugin's own
 conftest, not here.
 """
 
+import asyncio
 import os
 
 # Set test environment variables BEFORE importing app modules.
@@ -76,32 +77,37 @@ async def _db_schema(monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[None]:
 
     Disposing the engines afterwards means the next ``get_engine()`` /
     ``get_analytics_engine()`` rebuilds an empty database; that disposal *is* the
-    test isolation, not rollback.
+    test isolation, not rollback. A lock per database makes sessions opened at once,
+    such as a request's background writes, create the schema only once.
     """
     real_open_session = core_db.open_session
     real_open_analytics_session = analytics_db.open_analytics_session
     schema_created = False
     analytics_schema_created = False
+    schema_lock = asyncio.Lock()
+    analytics_schema_lock = asyncio.Lock()
 
     @asynccontextmanager
     async def _open_session(expire_on_commit: bool = False) -> AsyncGenerator[AsyncSession]:
         nonlocal schema_created
-        if not schema_created:
-            async with get_engine().begin() as conn:
-                await conn.run_sync(lambda c: SQLModel.metadata.create_all(c, checkfirst=False))
-            schema_created = True
+        async with schema_lock:
+            if not schema_created:
+                async with get_engine().begin() as conn:
+                    await conn.run_sync(lambda c: SQLModel.metadata.create_all(c, checkfirst=False))
+                schema_created = True
         async with real_open_session(expire_on_commit=expire_on_commit) as s:
             yield s
 
     @asynccontextmanager
     async def _open_analytics_session(expire_on_commit: bool = False) -> AsyncGenerator[SQLAlchemyAsyncSession]:
         nonlocal analytics_schema_created
-        if not analytics_schema_created:
-            from sparkth.core.analytics.models import analytics_metadata
+        async with analytics_schema_lock:
+            if not analytics_schema_created:
+                from sparkth.core.analytics.models import analytics_metadata
 
-            async with analytics_db.get_analytics_engine().begin() as conn:
-                await conn.run_sync(lambda c: analytics_metadata.create_all(c, checkfirst=False))
-            analytics_schema_created = True
+                async with analytics_db.get_analytics_engine().begin() as conn:
+                    await conn.run_sync(lambda c: analytics_metadata.create_all(c, checkfirst=False))
+                analytics_schema_created = True
         async with real_open_analytics_session(expire_on_commit=expire_on_commit) as s:
             yield s
 

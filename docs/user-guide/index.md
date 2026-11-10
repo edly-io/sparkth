@@ -13,7 +13,7 @@ After you sign in, the sidebar on the left takes you everywhere:
 | Sidebar entry | What it opens |
 |---|---|
 | **Compose** | The AI assistant that writes your course. Shown once Compose is turned on in **Settings**. |
-| **Resources** | Files you have imported from an online drive for the assistant to use. |
+| **Resources** | Files you have imported from an online drive for the assistant to use. Shown once a drive plugin is turned on in **Settings**. |
 | **Settings** | Turn features on and configure them. The **Settings** link in your user menu opens the same page. |
 | **AI Keys** | The keys Sparkth uses to call your AI provider. |
 | **Analytics** | [Usage figures](analytics.md). Shown only if your account has the [required permission](analytics.md#required-permissions). |

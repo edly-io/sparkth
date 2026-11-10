@@ -10,10 +10,16 @@ const onOptionCheck = vi.fn();
 const TYPE_ELSE = composeEn.compose.optionsTypeElse;
 const NONE_SELECTED = composeEn.compose.optionsNoneSelected;
 
-function renderPrompt(interactive = true, selected: string[] = [], answered = false) {
+function renderPrompt(
+  interactive = true,
+  selected: string[] = [],
+  answered = false,
+  single = false,
+) {
   return renderWithIntl(
     <OptionsPrompt
       options={OPTIONS}
+      single={single}
       interactive={interactive}
       selected={selected}
       answered={answered}
@@ -71,5 +77,37 @@ describe("OptionsPrompt — read-only", () => {
   it("says no option was selected when the answer matches none", () => {
     renderPrompt(false, [], true);
     expect(screen.getByText(NONE_SELECTED)).toBeInTheDocument();
+  });
+});
+
+describe("OptionsPrompt — single choice", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("renders a radio per option and no checkboxes", () => {
+    renderPrompt(true, [], false, true);
+    expect(screen.getAllByRole("radio")).toHaveLength(3);
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  });
+
+  it("hands the first pick over with no previous option", async () => {
+    renderPrompt(true, [], false, true);
+    await userEvent.click(screen.getByLabelText("Students"));
+    expect(onOptionCheck).toHaveBeenCalledWith("Students", undefined);
+    expect(screen.getByLabelText("Students")).toBeChecked();
+  });
+
+  it("hands over the previous option when the pick changes, leaving one checked", async () => {
+    renderPrompt(true, [], false, true);
+    await userEvent.click(screen.getByLabelText("Students"));
+    await userEvent.click(screen.getByLabelText("Beginners"));
+    expect(onOptionCheck).toHaveBeenLastCalledWith("Beginners", "Students");
+    expect(screen.getByLabelText("Beginners")).toBeChecked();
+    expect(screen.getByLabelText("Students")).not.toBeChecked();
+  });
+
+  it("shows the answered radio, disabled", () => {
+    renderPrompt(false, ["Professionals"], true, true);
+    expect(screen.getByLabelText("Professionals")).toBeChecked();
+    for (const radio of screen.getAllByRole("radio")) expect(radio).toBeDisabled();
   });
 });

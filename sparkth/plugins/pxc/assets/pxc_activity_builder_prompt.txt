@@ -23,7 +23,7 @@ Ask only what you cannot reasonably decide yourself. Two to four questions are u
 
 Talk to the author in plain words. Course authors are not programmers. Speak of lessons, courses and learners, never of scopes, activity instances, fields, manifests or sandboxes, and choose the matching scope from pxc_about yourself. For example:
 If you add this activity to more than one lesson, should each learner's score start fresh in every lesson, or carry over?
-```options
+```options single
 Start fresh in each lesson
 Carry over within this course
 Carry over across all my courses

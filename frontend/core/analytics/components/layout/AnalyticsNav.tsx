@@ -1,29 +1,32 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Bookmark, Compass, LayoutDashboard, LogIn, PenLine } from "lucide-react";
+import { Bookmark } from "lucide-react";
 import { PERIOD_KEYS, listViews, type AnalyticsView } from "@/lib/analytics";
+import type { Messages } from "@/lib/i18n/messages";
 import { useAuth } from "@/core/auth/hooks";
 import { isInstalled } from "@/lib/plugins/installed";
 import { usePermissionCheck } from "@/lib/permissions/usePermissionCheck";
 import { twMerge } from "tailwind-merge";
 
-// The Insights-style rail: one entry per view. A view's entry lands with the view. A view read
-// from a plugin's route names that plugin, and its entry shows while that plugin is installed.
-export const ANALYTICS_VIEWS = [
-  { key: "overview", href: "/dashboard/analytics", icon: LayoutDashboard },
-  { key: "logins", href: "/dashboard/analytics/logins", icon: LogIn },
-  { key: "authoring", href: "/dashboard/analytics/authoring", icon: PenLine, plugin: "compose" },
-  { key: "explore", href: "/dashboard/analytics/explore", icon: Compass },
-] as const;
+/** One entry on the analytics rail. */
+export interface AnalyticsNavView {
+  /** Its label's key under `analytics.nav`, whose other keys label the rail itself. */
+  key: Exclude<keyof Messages["analytics"]["nav"], "label" | "savedViews">;
+  href: string;
+  icon: ComponentType<{ className?: string }>;
+  /** The plugin the view reads from; the entry shows only while that plugin is installed. */
+  plugin?: string;
+}
 
 /** Window event that makes the rail reload the saved views after one is saved, renamed or deleted. */
 export const VIEWS_CHANGED = "analytics:views-changed";
 
-const EXPLORE = "/dashboard/analytics/explore";
+/** Explore's route; its entry and the saved views show only to viewers with `user.read`. */
+export const EXPLORE = "/dashboard/analytics/explore";
 
 function itemClass(active: boolean) {
   return twMerge(
@@ -35,10 +38,10 @@ function itemClass(active: boolean) {
 }
 
 /**
- * The analytics rail: the built-in views, then the viewer's saved Explore views. Explore and the
- * saved views show only to viewers with `user.read`, which Explore needs.
+ * The analytics rail: the views it is given, then the viewer's saved Explore views. Explore and
+ * the saved views show only to viewers with `user.read`, which Explore needs.
  */
-export function AnalyticsNav() {
+export function AnalyticsNav({ views }: { views: readonly AnalyticsNavView[] }) {
   const t = useTranslations("analytics.nav");
   const pathname = usePathname()?.replace(/\/$/, "");
   const params = useSearchParams();
@@ -49,8 +52,8 @@ export function AnalyticsNav() {
   const { token } = useAuth();
   const canExplore = usePermissionCheck(token, "user.read") === "allowed";
   const [saved, setSaved] = useState<AnalyticsView[]>([]);
-  const views = ANALYTICS_VIEWS.filter(
-    (v) => (!("plugin" in v) || isInstalled(v.plugin)) && (v.href !== EXPLORE || canExplore),
+  const shown = views.filter(
+    (v) => (!v.plugin || isInstalled(v.plugin)) && (v.href !== EXPLORE || canExplore),
   );
 
   useEffect(() => {
@@ -74,7 +77,7 @@ export function AnalyticsNav() {
     <nav aria-label={t("label")} className="lg:w-48 lg:shrink-0">
       {/* Wraps into tabs on narrow screens; a vertical rail from lg up. */}
       <ul className="flex flex-wrap gap-1 border-b border-border pb-2 lg:flex-col lg:border-b-0 lg:pb-0">
-        {views.map(({ key, href, icon: Icon }) => {
+        {shown.map(({ key, href, icon: Icon }) => {
           // A view is current only on its own path, and Explore only when no saved view is open.
           const active = pathname === href && !openView;
           return (

@@ -4,14 +4,13 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { Button } from "@/lib/components/ui/Button";
-import { Card } from "@/components/ui/Card";
+import { Card } from "@/lib/components/ui/Card";
 import { Spinner } from "@/lib/components/ui/Spinner";
 import { useAuth } from "@/lib/auth/hooks";
+import { pluginPath } from "@/lib/plugins/routes";
 import { listActivities, type ActivitySummary } from "@/plugins/pxc/client";
 import { DeleteActivityDialog } from "@/plugins/pxc/components/DeleteActivityDialog";
 import { RetryAlert } from "@/plugins/pxc/components/RetryAlert";
-
-const COMPOSE_PATH = "/dashboard/compose";
 
 function ActivityRow({
   activity,
@@ -70,7 +69,7 @@ function EmptyState(): React.JSX.Element {
       <h3 className="text-lg font-semibold text-foreground">{t("emptyTitle")}</h3>
       <p className="mb-4 text-sm text-muted-foreground">{t("emptyBody")}</p>
       <Button asChild size="sm">
-        <Link href={COMPOSE_PATH}>{t("openCompose")}</Link>
+        <Link href={pluginPath("compose")}>{t("openCompose")}</Link>
       </Button>
     </div>
   );

@@ -1,16 +1,15 @@
 "use client";
 
-import { Dispatch, SetStateAction, useEffect, useRef } from "react";
+import { Dispatch, SetStateAction, Suspense, lazy, useEffect, useMemo, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { Paperclip, ArrowUp, Square, X } from "lucide-react";
-import { UploadMenu } from "./UploadMenu";
-import { TextAttachment } from "../../types";
-import { PersistedFilesInfo } from "../attachment/PersistedFilesInfo";
+import { UploadMenu } from "@/plugins/compose/components/input/UploadMenu";
+import { TextAttachment } from "@/plugins/compose/types";
+import { PersistedFilesInfo } from "@/plugins/compose/components/attachment/PersistedFilesInfo";
+import { PickerErrorBoundary } from "@/plugins/compose/components/input/PickerErrorBoundary";
 import { Button } from "@/lib/components/ui/Button";
 import { useAuth } from "@/lib/auth/hooks";
-import { usePlugin } from "@/lib/plugins/context";
-import DriveFilePicker from "@/components/drive/DriveFilePicker";
-import { useChatInput } from "../../hooks/useChatInput";
+import { useChatInput } from "@/plugins/compose/hooks/useChatInput";
 
 interface ChatInputProps {
   message: string;
@@ -46,12 +45,12 @@ export function ChatInput({
   const {
     showUploadMenu,
     setShowUploadMenu,
-    showDriveFilePicker,
-    setShowDriveFilePicker,
+    pickingFrom,
+    setPickingFrom,
     uploadError,
     setUploadError,
     handleUploadAsText,
-    handleDriveFileSelected,
+    handleDocumentsSelected,
     handleRemoveAttachment,
     handleSend,
   } = useChatInput({
@@ -64,7 +63,19 @@ export function ChatInput({
     onSend,
   });
 
-  const { isEnabled: isDriveEnabled } = usePlugin("google-drive");
+  // The chosen source's picker, loaded only once the user picks from it.
+  const loadPicker = pickingFrom?.loadPicker;
+  const Picker = useMemo(() => (loadPicker ? lazy(loadPicker) : null), [loadPicker]);
+  // The attached documents the picker opens with selected, kept stable across renders.
+  const selectedDocuments = useMemo(
+    () =>
+      attachments.flatMap((a) =>
+        a.documentId === undefined
+          ? []
+          : [{ documentId: a.documentId, name: a.name, size: a.size }],
+      ),
+    [attachments],
+  );
 
   // Grow with the text. The reset lets the box shrink again when lines are removed, and CSS caps
   // it at five lines, so the cap and the scrollbar cannot disagree.
@@ -88,7 +99,7 @@ export function ChatInput({
           </div>
         )}
 
-        {/* Persisted Drive-file info line */}
+        {/* Persisted document info line */}
         <PersistedFilesInfo attachments={attachments} onDetachFile={handleRemoveAttachment} />
 
         {/* Input box */}
@@ -123,8 +134,7 @@ export function ChatInput({
                 <UploadMenu
                   onClose={() => setShowUploadMenu(false)}
                   onUploadText={handleUploadAsText}
-                  isDriveEnabled={isDriveEnabled}
-                  onPickFromDrive={() => setShowDriveFilePicker(true)}
+                  onPickSource={setPickingFrom}
                 />
               )}
             </div>
@@ -163,19 +173,21 @@ export function ChatInput({
         </div>
       </div>
 
-      {showDriveFilePicker && (
-        <DriveFilePicker
-          onClose={() => setShowDriveFilePicker(false)}
-          onFileSelected={handleDriveFileSelected}
-          initialSelectedFiles={attachments
-            .filter((a) => a.driveFileDbId !== undefined)
-            .map((a) => ({
-              id: a.driveFileDbId!,
-              document_id: a.documentId!,
-              name: a.name,
-              size: a.size,
-            }))}
-        />
+      {Picker && (
+        <PickerErrorBoundary
+          onError={() => {
+            setPickingFrom(null);
+            setUploadError(t("pickerFailed"));
+          }}
+        >
+          <Suspense fallback={null}>
+            <Picker
+              onClose={() => setPickingFrom(null)}
+              onSelect={handleDocumentsSelected}
+              selected={selectedDocuments}
+            />
+          </Suspense>
+        </PickerErrorBoundary>
       )}
     </div>
   );
