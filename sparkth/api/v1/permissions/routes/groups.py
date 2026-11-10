@@ -38,7 +38,7 @@ async def list_groups(
     session: AsyncSession = Depends(get_async_session),
 ) -> list[GroupResponse]:
     """List the groups the caller may read. Returns a list of GroupResponse (id, name, description)."""
-    groups = await group_engine.list_groups(session, convert_to_ints(accessible_ids))
+    groups = await group_engine.list_groups(convert_to_ints(accessible_ids), session)
     return [_group_to_response(group) for group in groups]
 
 

@@ -67,7 +67,7 @@ async def test_get_role_missing_raises(session: AsyncSession) -> None:
 async def test_list_roles_returns_all(session: AsyncSession) -> None:
     await roles.create_role("a", None, session)
     await roles.create_role("b", None, session)
-    result = await roles.list_roles(session)
+    result = await roles.list_roles(None, session)
     assert {r.name for r in result} == {"a", "b"}
 
 
@@ -76,13 +76,13 @@ async def test_list_roles_filters_to_the_given_ids_in_id_order(session: AsyncSes
     await roles.create_role("b", None, session)
     third = await roles.create_role("c", None, session)
     assert first.id is not None and third.id is not None
-    result = await roles.list_roles(session, {third.id, first.id})
+    result = await roles.list_roles({third.id, first.id}, session)
     assert [r.name for r in result] == ["a", "c"]
 
 
 async def test_list_roles_with_an_empty_filter_returns_nothing(session: AsyncSession) -> None:
     await roles.create_role("a", None, session)
-    assert await roles.list_roles(session, set()) == []
+    assert await roles.list_roles(set(), session) == []
 
 
 async def test_update_role_changes_fields(session: AsyncSession) -> None:
