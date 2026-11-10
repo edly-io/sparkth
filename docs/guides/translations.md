@@ -237,7 +237,7 @@ no locale URL prefix. The locale is resolved on the client.
    inherent to client-side locale resolution). A chunk that fails to load
    logs and falls back to its English counterpart.
 3. The provider records the locale it actually renders, and its catalog, in
-   `frontend/lib/i18n/active-locale.ts`. The cookie stores the *preference*;
+   `frontend/lib/i18n/activeLocale.ts`. The cookie stores the *preference*;
    the active locale tracks what is on screen, and the two diverge when the
    catalog load fails outright and the UI stays on English.
 4. The API client echoes the active locale as an `Accept-Language` header on

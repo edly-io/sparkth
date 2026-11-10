@@ -1,6 +1,6 @@
 import { createTranslator } from "next-intl";
 
-import { getActiveLocale, getActiveMessages } from "@/lib/i18n/active-locale";
+import { getActiveLocale, getActiveMessages } from "@/lib/i18n/activeLocale";
 
 export interface ValidationError {
   loc: (string | number)[];
