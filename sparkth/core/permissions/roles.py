@@ -66,7 +66,7 @@ async def create_role(name: str, description: str | None, session: AsyncSession)
     return role
 
 
-async def list_roles(session: AsyncSession, role_ids: set[int] | None = None) -> list[Role]:
+async def list_roles(role_ids: set[int] | None, session: AsyncSession) -> list[Role]:
     """Return the roles named by ``role_ids`` (every role when ``None``), oldest first."""
     statement = select(Role).order_by(col(Role.id))
     if role_ids is not None:

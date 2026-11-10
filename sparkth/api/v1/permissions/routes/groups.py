@@ -39,7 +39,7 @@ def _group_to_response(group: Group) -> GroupResponse:
 )
 async def list_groups(session: AsyncSession = Depends(get_async_session)) -> list[GroupResponse]:
     """List all groups. Returns a list of GroupResponse (id, name, description)."""
-    return [_group_to_response(group) for group in await group_engine.list_groups(session)]
+    return [_group_to_response(group) for group in await group_engine.list_groups(None, session)]
 
 
 @router.post(
