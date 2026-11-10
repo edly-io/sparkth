@@ -5,7 +5,7 @@ import {
   documentTotals,
   fetchDriveDocuments,
   type DriveDocumentsPoint,
-} from "@/plugins/google-drive/analytics";
+} from "@/plugins/googledrive/src/analytics";
 
 import { mockFetch, sentRequest } from "@/tests/lib/test-utils";
 

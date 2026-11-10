@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { getFolderDocumentStatus } from "@/plugins/google-drive/client";
-import { DocumentStatus } from "@/plugins/google-drive/types";
+import { getFolderDocumentStatus } from "@/plugins/googledrive/src/client";
+import { DocumentStatus } from "@/plugins/googledrive/src/types";
 
 /** Each file's processing status and error, keyed by file id. */
 export type DocumentStatusMap = Record<

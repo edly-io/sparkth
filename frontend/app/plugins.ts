@@ -3,13 +3,13 @@
 import { registerPlugin } from "@/core/plugins/registry";
 import "@/plugins/canvas/src";
 import { composePlugin } from "@/plugins/compose";
-import { googleDrivePlugin } from "@/plugins/google-drive";
+import { googledrive } from "@/plugins/googledrive/src";
 import "@/plugins/moodle/src";
 import "@/plugins/openedx/src";
 import { pxc } from "@/plugins/pxc/src";
 import { slack } from "@/plugins/slack/src";
 
 registerPlugin(composePlugin);
-registerPlugin(googleDrivePlugin);
+registerPlugin(googledrive);
 registerPlugin(pxc);
 registerPlugin(slack);

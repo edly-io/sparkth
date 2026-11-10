@@ -11,8 +11,8 @@ vi.mock("@/core/auth/hooks", () => ({
 }));
 
 // Analytics data access: keep the real types and helpers, stub the fetches.
-vi.mock("@/plugins/google-drive/analytics", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/plugins/google-drive/analytics")>();
+vi.mock("@/plugins/googledrive/src/analytics", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/plugins/googledrive/src/analytics")>();
   return { ...actual, fetchDriveDocuments: vi.fn() };
 });
 vi.mock("@/plugins/compose/analytics", async (importOriginal) => {
@@ -41,7 +41,7 @@ import {
   fetchComposeActivity,
   type ComposeActivityPoint,
 } from "@/plugins/compose/analytics";
-import { fetchDriveDocuments, type DriveDocumentsPoint } from "@/plugins/google-drive/analytics";
+import { fetchDriveDocuments, type DriveDocumentsPoint } from "@/plugins/googledrive/src/analytics";
 import AuthoringPage from "@/app/dashboard/analytics/authoring/AuthoringPage";
 
 // Answers by period: the current period ends on the pinned "today".

@@ -44,14 +44,15 @@ A plugin creates only the folders it needs: one with no page has just `src/index
 
 ## 1. Defining a new plugin
 
-Create a new folder named like the backend plugin's package: lowercase, with no hyphens (`googledrive`, not
-`google-drive`):
+Create a new folder named after the backend plugin's package, so `sparkth/plugins/<pluginname>/` and
+`frontend/plugins/<pluginname>/` hold the two halves of one plugin. Like the package, it is lowercase with
+no hyphens (`googledrive`, not `google-drive`):
 
     plugins/<pluginname>/
 
-**Example:**
+**Example:** Google Drive's backend lives in `sparkth/plugins/googledrive/`, so its frontend lives in
 
-    plugins/exampleplugin/
+    plugins/googledrive/
 
 Declare the plugin's name once, in `src/constants.ts`, as the name its backend plugin declares, and use the constant
 wherever the plugin names itself: its definition, its slot entries and links to its own page. Translation
@@ -134,7 +135,9 @@ export const examplePlugin: PluginDefinition = {
 
 A `PluginDefinition` holds only what the frontend alone can own:
 
-- `name` – unique plugin identifier (must match folder and route, **and** the backend plugin's declared name (see "Plugin Names" in the [backend plugin development guide](plugins.md)), so the UI resolves to the right backend plugin)
+- `name` – unique plugin identifier, used for its route (`dashboard/<name>`) and its slot entries. It must match
+  the backend plugin's declared name (see "Plugin Names" in the
+  [backend plugin development guide](plugins.md)), so the UI resolves to the right backend plugin
 - `loadComponent` – lazy-loaded UI component
 
 The display name, description, icon, and sidebar entry are **declared by the

@@ -8,7 +8,7 @@ import type {
   PaginatedFiles,
   PaginatedFolders,
   SyncStatus,
-} from "@/plugins/google-drive/types";
+} from "@/plugins/googledrive/src/types";
 
 // This module's public contract is plain Error objects with action-prefixed
 // messages (logged before throwing); network failures propagate untouched.

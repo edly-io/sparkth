@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-import ConnectionStatus from "@/plugins/google-drive/components/ConnectionStatus";
+import ConnectionStatus from "@/plugins/googledrive/src/components/ui/ConnectionStatus";
 
 vi.mock("@/lib/auth/hooks", () => ({ useAuth: () => ({ token: "t" }) }));
 

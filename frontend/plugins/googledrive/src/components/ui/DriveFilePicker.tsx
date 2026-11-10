@@ -12,11 +12,11 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/lib/components/ui/Dialog";
-import { listFolders, listFiles, fetchAllPages } from "@/plugins/google-drive/client";
-import { DriveFolder, DriveFile, DocumentStatus } from "@/plugins/google-drive/types";
-import { useDocumentStatusPolling } from "@/plugins/google-drive/hooks/useDocumentStatusPolling";
-import { DocumentStatusIndicator } from "@/plugins/google-drive/components/DocumentStatusIndicator";
-import GoogleDriveIcon from "@/plugins/google-drive/GoogleDriveIcon";
+import { listFolders, listFiles, fetchAllPages } from "@/plugins/googledrive/src/client";
+import { DriveFolder, DriveFile, DocumentStatus } from "@/plugins/googledrive/src/types";
+import { useDocumentStatusPolling } from "@/plugins/googledrive/src/hooks/useDocumentStatusPolling";
+import { DocumentStatusIndicator } from "@/plugins/googledrive/src/components/ui/DocumentStatusIndicator";
+import GoogleDriveIcon from "@/plugins/googledrive/src/components/ui/GoogleDriveIcon";
 
 /** A file the user picked, identified by its document, which also keys the picker's selection. */
 export interface SelectedDriveFile {
