@@ -1,12 +1,19 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { afterEach, describe, it, expect, vi, beforeEach } from "vitest";
 
 import { ChatInput } from "@/plugins/compose/components/input/ChatInput";
+import type { AttachmentPickerProps, AttachmentSource } from "@/lib/attachments/slots";
+import type { TextAttachment } from "@/plugins/compose/types";
 import composeEn from "@/plugins/compose/messages/en.json";
 import { renderWithIntl } from "@/tests/intl-test-utils";
 
 const handleSend = vi.fn();
+const setPickingFrom = vi.fn();
+const setUploadError = vi.fn();
+const handleDocumentsSelected = vi.fn();
+// useChatInput is mocked to read this directly, so a test sets it before rendering.
+let pickingFrom: AttachmentSource | null = null;
 
 vi.mock("@/lib/auth/hooks", () => ({
   useAuth: () => ({ token: "test-token" }),
@@ -16,25 +23,16 @@ vi.mock("@/lib/plugins/context", () => ({
   usePlugin: () => ({ isEnabled: false, loading: false, config: {} }),
 }));
 
-// The props ChatInput hands the Drive picker, captured on render.
-const picker = vi.hoisted(() => ({ open: false, props: undefined as unknown }));
-vi.mock("@/components/drive/DriveFilePicker", () => ({
-  default: (props: unknown) => {
-    picker.props = props;
-    return null;
-  },
-}));
-
 vi.mock("@/plugins/compose/hooks/useChatInput", () => ({
   useChatInput: () => ({
     showUploadMenu: false,
     setShowUploadMenu: vi.fn(),
-    showDriveFilePicker: picker.open,
-    setShowDriveFilePicker: vi.fn(),
+    pickingFrom,
+    setPickingFrom,
     uploadError: null,
-    setUploadError: vi.fn(),
+    setUploadError,
     handleUploadAsText: vi.fn(),
-    handleDriveFileSelected: vi.fn(),
+    handleDocumentsSelected,
     handleRemoveAttachment: vi.fn(),
     handleSend,
   }),
@@ -42,36 +40,11 @@ vi.mock("@/plugins/compose/hooks/useChatInput", () => ({
 
 describe("ChatInput", () => {
   beforeEach(() => {
-    handleSend.mockClear();
-    picker.open = false;
-    picker.props = undefined;
+    vi.clearAllMocks();
+    pickingFrom = null;
   });
-
-  it("opens the Drive picker with every attached document selected, restored ones included", () => {
-    picker.open = true;
-    renderWithIntl(
-      <ChatInput
-        message=""
-        setMessage={vi.fn()}
-        attachments={[
-          // Restored from the conversation: it carries only its document id.
-          { name: "doc.pdf", size: 1024, text: "[File: doc.pdf]", documentId: 100 },
-          { name: "pasted.txt", size: 12, text: "pasted text" },
-        ]}
-        setAttachments={vi.fn()}
-        onSend={vi.fn()}
-        conversationId="conv-1"
-        isStreaming={false}
-        isStopping={false}
-        onStop={vi.fn()}
-      />,
-      composeEn,
-    );
-
-    expect(picker.props).toMatchObject({
-      initialSelectedFiles: [{ document_id: 100, name: "doc.pdf", size: 1024 }],
-    });
-  });
+  // Puts back console.error, which the load-failure test silences.
+  afterEach(() => vi.restoreAllMocks());
 
   it("shows the message it is given", () => {
     renderWithIntl(
@@ -235,5 +208,88 @@ describe("ChatInput", () => {
       target: { value: "Beginners" },
     });
     expect(setMessage).toHaveBeenCalledWith("Beginners");
+  });
+
+  describe("picking documents from a source", () => {
+    const picked = { documentId: 8, name: "slides.pdf", size: 2048 };
+
+    function FilesPicker({ selected, onSelect, onClose }: AttachmentPickerProps) {
+      return (
+        <div>
+          <p>Selected: {selected.map((document) => document.name).join(", ")}</p>
+          <button onClick={() => onSelect([picked])}>Attach</button>
+          <button onClick={() => onClose()}>Cancel</button>
+        </div>
+      );
+    }
+
+    function pickFrom(loadPicker: AttachmentSource["loadPicker"]) {
+      pickingFrom = { label: "Pick from Files", icon: () => null, loadPicker };
+    }
+
+    const attachments: TextAttachment[] = [
+      // Restored from the conversation: it carries only its document id.
+      { name: "notes.pdf", size: 1024, text: "[File: notes.pdf]", documentId: 7 },
+      { name: "draft.txt", size: 10, text: "typed text" },
+    ];
+
+    function renderInput() {
+      renderWithIntl(
+        <ChatInput
+          message=""
+          setMessage={vi.fn()}
+          attachments={attachments}
+          setAttachments={vi.fn()}
+          onSend={vi.fn()}
+          conversationId={null}
+          isStreaming={false}
+          isStopping={false}
+          onStop={vi.fn()}
+        />,
+        composeEn,
+      );
+    }
+
+    it("opens the chosen source's picker with the documents already attached", async () => {
+      pickFrom(() => Promise.resolve({ default: FilesPicker }));
+      renderInput();
+
+      expect(await screen.findByText("Selected: notes.pdf")).toBeInTheDocument();
+    });
+
+    it("attaches the documents the picker hands back", async () => {
+      pickFrom(() => Promise.resolve({ default: FilesPicker }));
+      renderInput();
+
+      await userEvent.click(await screen.findByRole("button", { name: "Attach" }));
+
+      expect(handleDocumentsSelected).toHaveBeenCalledWith([picked]);
+    });
+
+    it("closes the picker when the picker closes", async () => {
+      pickFrom(() => Promise.resolve({ default: FilesPicker }));
+      renderInput();
+
+      await userEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+
+      expect(setPickingFrom).toHaveBeenCalledWith(null);
+    });
+
+    it("keeps the input and reports an error when the picker fails to load", async () => {
+      // React logs the error the boundary catches; keep the test output clean.
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      pickFrom(() => Promise.reject(new Error("chunk failed")));
+      renderInput();
+
+      await waitFor(() => expect(setPickingFrom).toHaveBeenCalledWith(null));
+      expect(setUploadError).toHaveBeenCalledWith(composeEn.compose.pickerFailed);
+      expect(screen.getByPlaceholderText(composeEn.compose.inputPlaceholder)).toBeInTheDocument();
+    });
+
+    it("shows no picker while no source is chosen", () => {
+      renderInput();
+
+      expect(screen.queryByText(/Selected:/)).not.toBeInTheDocument();
+    });
   });
 });
