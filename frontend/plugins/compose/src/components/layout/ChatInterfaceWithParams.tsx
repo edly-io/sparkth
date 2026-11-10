@@ -1,8 +1,8 @@
 "use client";
 
-import HistoryColumn from "@/plugins/compose/components/history/HistoryColumn";
+import HistoryColumn from "@/plugins/compose/src/components/ui/history/HistoryColumn";
 import { useActiveConversationId } from "@/plugins/compose/src/hooks/useActiveConversationId";
-import ChatInterfaceInner from "@/plugins/compose/components/ChatInterfaceInner";
+import ChatInterfaceInner from "@/plugins/compose/src/components/layout/ChatInterfaceInner";
 
 export default function ChatInterfaceWithParams() {
   const conversationId = useActiveConversationId();

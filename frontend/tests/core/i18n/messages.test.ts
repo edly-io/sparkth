@@ -7,7 +7,7 @@ import { getAllPlugins, registerPlugin, unregisterPlugin } from "@/core/plugins/
 import coreEn from "@/messages/en.json";
 import coreEs from "@/messages/es.json";
 import coreFr from "@/messages/fr.json";
-import composeEs from "@/plugins/compose/messages/es.json";
+import composeEs from "@/plugins/compose/src/i18n/es.json";
 
 const CORE_CATALOGS = { en: coreEn, es: coreEs, fr: coreFr } as const;
 

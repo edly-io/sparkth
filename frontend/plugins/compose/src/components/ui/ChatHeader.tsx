@@ -1,4 +1,4 @@
-import HistoryPanel from "@/plugins/compose/components/history/HistoryPanel";
+import HistoryPanel from "@/plugins/compose/src/components/ui/history/HistoryPanel";
 
 export function ChatHeader() {
   return (

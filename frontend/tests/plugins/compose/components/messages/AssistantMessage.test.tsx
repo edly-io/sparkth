@@ -1,8 +1,8 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { AssistantMessage } from "@/plugins/compose/components/messages/AssistantMessage";
-import composeEn from "@/plugins/compose/messages/en.json";
+import { AssistantMessage } from "@/plugins/compose/src/components/ui/messages/AssistantMessage";
+import composeEn from "@/plugins/compose/src/i18n/en.json";
 import { renderWithIntl } from "@/tests/intl-test-utils";
 import type { ChatMessage } from "@/plugins/compose/src/types";
 
