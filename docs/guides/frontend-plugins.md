@@ -13,19 +13,39 @@ The plugin system is designed to be:
 
 ## Plugin Directory
 
-All plugins live under:
+All plugins live under `plugins/`, and every plugin keeps its code in the same layout:
 
-    plugins/
+```
+plugins/<pluginname>/
+  src/
+    index.ts        # the plugin's single entry point
+    routes/         # its pages
+    client.ts       # its backend API calls
+    analytics.ts    # its analytics fetch and chart helpers
+    components/
+      layout/       # the frame around a page: headers, columns, side panels
+      ui/           # everything shown inside the frame
+    hooks/
+    slots/          # what it contributes to core's slots: icons.ts, settings.ts, ...
+    types.ts
+```
+
+A route is the page itself and decides what it shows. `components/layout/` holds only the parts that frame a page,
+such as a header or a side column, and the views and pieces placed inside the frame go in `components/ui/`, even
+when one fills the whole page.
+
+A plugin creates only the folders it needs: one with no page has just `src/index.ts` and `src/slots/`.
 
 ## 1. Defining a new plugin
 
-Create a new folder using the plugin’s **kebab-case** name:
+Create a new folder named like the backend plugin's package: lowercase, with no hyphens (`googledrive`, not
+`google-drive`):
 
-    plugins/<plugin-name>/
+    plugins/<pluginname>/
 
 **Example:**
 
-    plugins/example-plugin/
+    plugins/exampleplugin/
 
 ## 2. Create the Plugin UI Component
 
@@ -33,7 +53,7 @@ Inside the new plugin directory, create a React component that represents the pl
 
 **File**
 
-    plugins/<plugin-name>/<PluginName>.tsx
+    plugins/<pluginname>/src/routes/<PluginName>.tsx
 
 **Example:**
 
@@ -60,25 +80,27 @@ export default function ExamplePlugin() {
   `import { Button } from "@/lib/components/ui/Button";`. Core UI lives in `@/core`,
   and `make lint.frontend` rejects any plugin import from it.
 - Reads the signed-in user and their token with `useAuth` from `@/lib/auth/hooks`.
-- Links to another plugin's page with `pluginPath("<name>")` from `@/lib/plugins/routes`, never by writing the
-  `/dashboard/<name>` route out.
+- Links to another plugin's page with `pluginPath("<pluginname>")` from `@/lib/plugins/routes`, never by writing the
+  `/dashboard/<pluginname>` route out.
 
 ## 3. Define the Plugin (index.ts)
 
-Each plugin must export a `PluginDefinition` from its own `index.ts`.
+Each plugin with a page must export a `PluginDefinition` from its own `src/index.ts`.
 
 **Example Plugin Structure**
 
 ```
 plugins/
- └─ compose/
-    ├─ ChatInterface.tsx
-    └─ index.ts
+ └─ exampleplugin/
+    └─ src/
+       ├─ index.ts
+       └─ routes/
+          └─ ExamplePlugin.tsx
 ```
 
 **File**
 
-    plugins/<plugin-name>/index.ts
+    plugins/<pluginname>/src/index.ts
 
 **Example**
 
@@ -86,8 +108,8 @@ plugins/
 import { PluginDefinition } from "@/lib/plugins/types";
 
 export const examplePlugin: PluginDefinition = {
-  name: "example-plugin",
-  loadComponent: () => import("./ExamplePlugin"),
+  name: "exampleplugin",
+  loadComponent: () => import("@/plugins/exampleplugin/src/routes/ExamplePlugin"),
 };
 ```
 
@@ -113,17 +135,17 @@ as a string can still arrive as an array or a number. Narrow at the read site.
 
 Icons cross the wire as names, such as a [lucide](https://lucide.dev/icons/) icon name or a brand name. Each plugin
 sets the component for every icon name its backend declares in the `PLUGIN_ICONS` slot (see
-[Slots](#slots-optional)), from its `icons.ts`, which its `index.ts` imports. A name is looked up only among the
-icons of the plugin that declares it, so two plugins can both declare `plus`. Core keeps no icon map of its own, so
-an icon name its plugin did not set renders without an icon, and the resolver logs a `console.warn` outside
-production to surface the gap:
+[Slots](#slots-optional)), from its `src/slots/icons.ts`, which its `src/index.ts` imports. A name is looked up
+only among the icons of the plugin that declares it, so two plugins can both declare `plus`. Core keeps no icon map
+of its own, so an icon name its plugin did not set renders without an icon, and the resolver logs a `console.warn`
+outside production to surface the gap:
 
 ```ts
-// plugins/example-plugin/icons.ts
+// plugins/exampleplugin/src/slots/icons.ts
 import { Plus } from "lucide-react";
 import { PLUGIN_ICONS } from "@/lib/icons/slots";
 
-PLUGIN_ICONS.set("example-plugin", [{ name: "plus", component: Plus }]);
+PLUGIN_ICONS.set("exampleplugin", [{ name: "plus", component: Plus }]);
 ```
 
 For more details, see the `PluginDefinition` type in
@@ -131,8 +153,8 @@ For more details, see the `PluginDefinition` type in
 
 ## 4. Register the Plugin
 
-Import the plugin's `index.ts` in `app/plugins.ts`, once, and register its `PluginDefinition` with the plugin
-registry. Importing the `index.ts` also runs any slot files it imports, such as `settings.ts`.
+Import the plugin's `src/index.ts` in `app/plugins.ts`, once, and register its `PluginDefinition` with the plugin
+registry. Importing the `src/index.ts` also runs any slot files it imports, such as `src/slots/settings.ts`.
 
 **File**
 
@@ -141,7 +163,7 @@ registry. Importing the `index.ts` also runs any slot files it imports, such as 
 ```ts
 import { registerPlugin } from "@/core/plugins/registry";
 import { composePlugin } from "@/plugins/compose"; // already existing
-import { examplePlugin } from "@/plugins/example-plugin";
+import { examplePlugin } from "@/plugins/exampleplugin/src";
 
 registerPlugin(composePlugin); // already existing
 registerPlugin(examplePlugin);
@@ -197,13 +219,13 @@ single top-level namespace equal to the plugin name.
 
 **1. Create the catalogs**
 
-    plugins/example-plugin/messages/en.json
-    plugins/example-plugin/messages/es.json
-    plugins/example-plugin/messages/fr.json
+    plugins/exampleplugin/messages/en.json
+    plugins/exampleplugin/messages/es.json
+    plugins/exampleplugin/messages/fr.json
 
 ```json
 {
-  "example-plugin": {
+  "exampleplugin": {
     "greeting": "Hello from the example plugin"
   }
 }
@@ -217,14 +239,14 @@ Every locale in `lib/i18n/config.ts` needs a file, all carrying the same keys.
 import type { Locale } from "@/lib/i18n/config";
 
 const messageCatalogs: Record<Locale, () => Promise<{ default: Record<string, unknown> }>> = {
-  en: () => import("./messages/en.json"),
-  es: () => import("./messages/es.json"),
-  fr: () => import("./messages/fr.json"),
+  en: () => import("@/plugins/exampleplugin/messages/en.json"),
+  es: () => import("@/plugins/exampleplugin/messages/es.json"),
+  fr: () => import("@/plugins/exampleplugin/messages/fr.json"),
 };
 
 export const examplePlugin: PluginDefinition = {
-  name: "example-plugin",
-  loadComponent: () => import("./ExamplePlugin"),
+  name: "exampleplugin",
+  loadComponent: () => import("@/plugins/exampleplugin/src/routes/ExamplePlugin"),
   loadMessages: (locale) => messageCatalogs[locale]().then((catalog) => catalog.default),
 };
 ```
@@ -241,8 +263,8 @@ TypeScript merges every plugin's declaration into that interface, so unknown
 keys fail the typecheck, and core names no plugin:
 
 ```ts
-// plugins/example-plugin/i18n/messages.d.ts
-import type catalog from "@/plugins/example-plugin/messages/en.json";
+// plugins/exampleplugin/i18n/messages.d.ts
+import type catalog from "@/plugins/exampleplugin/messages/en.json";
 
 type Catalog = typeof catalog;
 
@@ -256,7 +278,7 @@ Removing the plugin's directory removes its declaration with it.
 **4. Use the namespace in components**
 
 ```tsx
-const t = useTranslations("example-plugin");
+const t = useTranslations("exampleplugin");
 
 <p>{t("greeting")}</p>
 ```
@@ -299,20 +321,23 @@ the plugin's name. Setting them again replaces them, so the dev server's hot rel
 nothing twice:
 
 ```ts
-// plugins/example-plugin/sections.ts
+// plugins/exampleplugin/src/slots/sections.ts
 import { EXAMPLE_SECTIONS } from "@/lib/example/slots";
 
-EXAMPLE_SECTIONS.set("example-plugin", [
-  { title: "Example", loadComponent: () => import("./ExampleSection") },
+EXAMPLE_SECTIONS.set("exampleplugin", [
+  {
+    title: "Example",
+    loadComponent: () => import("@/plugins/exampleplugin/src/components/ui/ExampleSection"),
+  },
 ]);
 ```
 
-A file runs only when something imports it, so the plugin's `index.ts` imports it, and the file runs when
+A file runs only when something imports it, so the plugin's `src/index.ts` imports it, and the file runs when
 `app/plugins.ts` imports the plugin:
 
 ```ts
-// plugins/example-plugin/index.ts
-import "./sections";
+// plugins/exampleplugin/src/index.ts
+import "@/plugins/exampleplugin/src/slots/sections";
 ```
 
 **3. Core reads the slot** where its items are rendered. `slotItems` returns each item with the plugin that set
@@ -344,51 +369,52 @@ Compose's attach menu lists one entry for each source plugins set in the `ATTACH
 (`@/lib/attachments/slots`), while the plugin that set it is turned on. Choosing an entry loads the source's
 picker, which Compose passes the documents already attached as `selected`. The picker hands back the documents the
 user picked through `onSelect`, and Compose attaches them in place of every document attached earlier, from any
-source; text attachments stay. A plugin sets its source from its own `attachments.ts`, as Google Drive does:
+source; text attachments stay. A plugin sets its source from its own `src/slots/attachments.ts`, as Google Drive does:
 
 ```ts
-// plugins/example-plugin/attachments.ts
+// plugins/exampleplugin/src/slots/attachments.ts
 import { ATTACHMENT_SOURCES } from "@/lib/attachments/slots";
-import ExampleIcon from "@/plugins/example-plugin/ExampleIcon";
+import ExampleIcon from "@/plugins/exampleplugin/src/components/ui/ExampleIcon";
 
-ATTACHMENT_SOURCES.set("example-plugin", [
+ATTACHMENT_SOURCES.set("exampleplugin", [
   {
     label: "Pick from Example",
     icon: ExampleIcon,
-    loadPicker: () => import("@/plugins/example-plugin/components/AttachmentPicker"),
+    loadPicker: () => import("@/plugins/exampleplugin/src/components/ui/AttachmentPicker"),
   },
 ]);
 ```
 
-The plugin's `index.ts` imports that file, or the source is never set:
+The plugin's `src/index.ts` imports that file, or the source is never set:
 
 ```ts
-// plugins/example-plugin/index.ts
-import "@/plugins/example-plugin/attachments";
+// plugins/exampleplugin/src/index.ts
+import "@/plugins/exampleplugin/src/slots/attachments";
 ```
 
-The picker is the module's default export. It gets the attached documents and two callbacks, and keeps the source's
-own id for each document in `sourceId`, so it can show them selected when it opens again:
+The picker is the module's default export. It gets the attached documents and two callbacks, and finds each one
+among its files by `documentId`, so it can show them selected when it opens again:
 
 ```tsx
-// plugins/example-plugin/components/AttachmentPicker.tsx
+// plugins/exampleplugin/src/components/ui/AttachmentPicker.tsx
 import type { AttachmentPickerProps } from "@/lib/attachments/slots";
 
 export default function AttachmentPicker({ selected, onSelect, onClose }: AttachmentPickerProps) {
   // Show the source's files with `selected` ticked. On confirm, hand back every picked document:
-  // onSelect([{ documentId, sourceId, name, size }, ...]). On cancel, call onClose().
+  // onSelect([{ documentId, name, size }, ...]). On cancel, call onClose().
 }
 ```
 
 ## Analytics (Optional)
 
-A plugin that records analytics events keeps their frontend code in `plugins/<name>/analytics.ts`: the fetch for
-its analytics endpoint, the response types and the helpers its charts need, built on `@/lib/analytics` (the
-date type, the bucket sizes and `buildSeries`). The analytics pages under `app/dashboard/analytics/` import it from
-there; core's analytics code in `core/analytics/` holds no plugin's code. `plugins/compose/analytics.ts` is an example.
+A plugin that records analytics events keeps their frontend code in `plugins/<pluginname>/src/analytics.ts`: the
+fetch for its analytics endpoint, the response types and the helpers its charts need, built on `@/lib/analytics`
+(the date type, the bucket sizes and `buildSeries`). The analytics pages under `app/dashboard/analytics/` import it
+from there; core's analytics code in `core/analytics/` holds no plugin's code. Compose's `analytics.ts` is an
+example.
 
 A plugin's analytics page is listed on the analytics rail by an entry in `app/dashboard/analytics/views.ts` that
-names the plugin (`plugin: "<name>"`); the entry shows only while that plugin is installed.
+names the plugin (`plugin: "<pluginname>"`); the entry shows only while that plugin is installed.
 
 ## Settings
 
@@ -400,15 +426,16 @@ frontend part sets no row does not appear on the page.
 A row is a `listItem` component and, when the plugin has config, a `loadConfigModal` that loads the modal editing it.
 Core ships both: `SettingsListItem` (`@/lib/components/settings/SettingsListItem`) shows the plugin's name,
 description and on/off switch, and the config modal (`@/lib/components/settings/ConfigModal`) builds its form from the
-config class the backend plugin declares. Set the row from the plugin's `settings.ts`, under the backend plugin's
-name, and import that file from the plugin's `index.ts` (`import "./settings";`):
+config class the backend plugin declares. Set the row from the plugin's `src/slots/settings.ts`, under the backend
+plugin's name, and import that file from the plugin's `src/index.ts`
+(`import "@/plugins/exampleplugin/src/slots/settings";`):
 
 ```ts
-// plugins/example-plugin/settings.ts
+// plugins/exampleplugin/src/slots/settings.ts
 import { SettingsListItem } from "@/lib/components/settings/SettingsListItem";
 import { SETTINGS_ITEMS } from "@/lib/settings/slots";
 
-SETTINGS_ITEMS.set("example-plugin", {
+SETTINGS_ITEMS.set("exampleplugin", {
   listItem: SettingsListItem,
   loadConfigModal: () => import("@/lib/components/settings/ConfigModal"),
 });
@@ -419,9 +446,9 @@ even when the config has no fields yet: adding or removing fields on the backend
 While the modal loads, the page passes the row `configuring`, and `SettingsListItem` shows a spinner on its configure
 button.
 
-A backend plugin with no page still needs a frontend part for its row: its `settings.ts` and an `index.ts` that
-only imports it, with no `PluginDefinition`. `app/plugins.ts` imports that `index.ts` like any other plugin's, as
-`import "@/plugins/canvas";` does for Canvas.
+A backend plugin with no page still needs a frontend part for its row: its `src/slots/settings.ts` and a
+`src/index.ts` that only imports it, with no `PluginDefinition`. `app/plugins.ts` imports that `src/index.ts` like any
+other plugin's, as `import "@/plugins/canvas/src";` does for Canvas.
 
 **Field controls.** A backend field picks its control with a `widget` hint (`sparkth/core/plugins/widgets.py`), and a
 field with no hint gets a control from its type. Core ships controls for text, URLs, passwords, numbers, text areas,
@@ -432,7 +459,7 @@ passes the control to core's modal under the hint's name. The control receives `
 ```tsx
 import PluginConfigModal from "@/lib/components/settings/ConfigModal";
 import type { ConfigModalProps } from "@/lib/settings/slots";
-import ExamplePicker from "./components/ExamplePicker";
+import ExamplePicker from "@/plugins/exampleplugin/src/components/ui/ExamplePicker";
 
 const CONTROLS = { "example-picker": ExamplePicker };
 
@@ -441,7 +468,7 @@ export default function ExampleConfigModal(props: ConfigModalProps) {
 }
 ```
 
-The plugin's row then loads that modal: `loadConfigModal: () => import("./ExampleConfigModal")`. Core's modal renders a
+The plugin's row then loads that modal from `src/components/ui/ExampleConfigModal.tsx`. Core's modal renders a
 field with the plugin's control for its hint, then with a built-in control, and falls back to a text input.
 
 ## Plugin Loading Flow (Summary)
@@ -466,7 +493,7 @@ Rendered plugin UI
 
 **Plugin not showing?**
 
-- Ensure `app/plugins.ts` imports its `index.ts` and registers it
+- Ensure `app/plugins.ts` imports its `src/index.ts` and registers it
 
 **Plugin page blank?**
 
