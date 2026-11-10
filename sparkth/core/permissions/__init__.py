@@ -107,9 +107,9 @@ class Permission:
     async def _deny(self, scope_detail: str) -> NoReturn:
         """Record the refusal as a ``permission.denied`` audit event, then raise 403.
 
-        The event is written in its own transaction (``record_event_now``), so it survives the
-        request's rollback. The write is fail-closed: if it fails, the error propagates and the
-        request fails instead of returning 403.
+        The event is written in its own transaction, so it survives the request's rollback. The
+        write is fail-closed: if it fails, the error propagates and the request fails instead of
+        returning 403.
         """
         await record_event_now(
             PermissionDeniedAuditEvent(
@@ -129,13 +129,12 @@ class Permission:
         event. The route filters its query by the returned ids.
 
         An objectless scope names no objects to list, so passing one raises ``ValueError`` at
-        definition time; use ``require_in_global_scope`` or ``require`` for it.
+        definition time.
 
         Returns:
-            - a set of ids: the caller has the permission on those objects only.
-            - an empty set: the caller has no permission on any object, so the dependency raises 403
-              and the route never sees it.
-            - ``None``: the caller has access to all ids.
+            The ids of the objects the caller holds the permission at, or ``None`` when a grant at an
+            objectless ancestor covers every object. A caller who holds it nowhere is refused with
+            403, so the route never receives an empty set.
         """
         if isinstance(permission_scope, ObjectlessPermissionScope):
             raise ValueError(f"Scope {permission_scope.name!r} is objectless and names no objects to list")
