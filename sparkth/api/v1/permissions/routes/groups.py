@@ -13,8 +13,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.api.v1.permissions.schemas import GroupCreate, GroupResponse, GroupUpdate
 from sparkth.core.permissions import groups as group_engine
+from sparkth.core.permissions.dependencies import convert_to_ints
 from sparkth.core.permissions.models import Group
-from sparkth.core.permissions.utils import convert_to_ints
 from sparkth.lib.db import get_async_session
 from sparkth.lib.permissions import GROUP_CREATE, GROUP_DELETE, GROUP_READ, GROUP_UPDATE
 from sparkth.lib.permissions.scopes import GROUP
