@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { UploadMenu } from "@/plugins/compose/src/components/ui/input/UploadMenu";
-import { ATTACHMENT_SOURCES, type AttachmentSource } from "@/lib/attachments/slots";
+import { ATTACHMENT_SOURCES, type AttachmentSource } from "@/plugins/compose/lib";
 
 // usePlugin is mocked to read this directly, so a test sets it before rendering.
 let enabledPlugins = new Set<string>();

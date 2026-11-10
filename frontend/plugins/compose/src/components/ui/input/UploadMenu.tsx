@@ -1,6 +1,6 @@
 import { FileText } from "lucide-react";
 import { useRef } from "react";
-import { ATTACHMENT_SOURCES, type AttachmentSource } from "@/lib/attachments/slots";
+import { ATTACHMENT_SOURCES, type AttachmentSource } from "@/plugins/compose/src/slots/attachments";
 import { Button } from "@/lib/components/ui/Button";
 import { usePlugin } from "@/lib/plugins/context";
 import { slotItems } from "@/lib/slots";

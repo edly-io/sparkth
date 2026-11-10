@@ -26,7 +26,7 @@ plugins/<pluginname>/
       layout/       # the shell that arranges a page's regions
       ui/           # the regions and everything in them, grouped by feature
     hooks/
-    slots/          # what it contributes to core's slots: icons.ts, settings.ts, ...
+    slots/          # what it contributes to slots (icons.ts, settings.ts, ...) and any slot it owns
     i18n/           # its message catalogs and their type
     types.ts
     constants.ts    # its plugin name
@@ -320,11 +320,17 @@ of a backend hook, such as the one behind [Compose agents](plugins.md#compose-ag
 so it is not confused with a React hook.
 
 A slot keeps each plugin's items under the plugin's name. The code that reads the slot decides which plugins'
-items to show, for example only the plugins the user has turned on. Slots are defined in `lib`, the way
-backend hooks are defined in `sparkth/lib/`, so core and plugins import a slot from the same path and no plugin
-imports another.
+items to show, for example only the plugins the user has turned on. A slot core reads is defined in `lib`, the way
+backend hooks are defined in `sparkth/lib/`, so core and plugins import it from the same path. A slot one plugin
+reads belongs to that plugin: it declares the slot in its own `src/slots/` and exports it from its `lib/`, and other
+plugins import it from that `lib/` only, as Compose's [attachment sources](#compose-attachment-sources) are.
 
-**1. Declare the slot** in `lib/<area>/slots.ts`, with the type of item it holds:
+A file in `src/slots/` usually contributes to a slot owned elsewhere. A file there that declares a slot the plugin owns
+says so in its opening comment, so the two kinds are told apart at a glance: Compose's `src/slots/attachments.ts`
+declares its attachment slot, while Google Drive's file of the same name contributes a source to it.
+
+**1. Declare the slot** with the type of item it holds: a slot core reads in `lib/<area>/slots.ts`, a slot a
+plugin owns in its `src/slots/`, exported from its `lib/`:
 
 ```ts
 import type { ComponentType } from "react";
@@ -388,15 +394,16 @@ export function ExampleSections() {
 
 ### Compose attachment sources
 
-Compose's attach menu lists one entry for each source plugins set in the `ATTACHMENT_SOURCES` slot
-(`@/lib/attachments/slots`), while the plugin that set it is turned on. Choosing an entry loads the source's
-picker, which Compose passes the documents already attached as `selected`. The picker hands back the documents the
-user picked through `onSelect`, and Compose attaches them in place of every document attached earlier, from any
-source; text attachments stay. A plugin sets its source from its own `src/slots/attachments.ts`, as Google Drive does:
+Compose's attach menu lists one entry for each source plugins set in its `ATTACHMENT_SOURCES` slot, which Compose
+exports from its `lib/` (`@/plugins/compose/lib`), while the plugin that set it is turned on. Choosing an entry
+loads the source's picker, which Compose passes the documents already attached as `selected`. The picker hands back
+the documents the user picked through `onSelect`, and Compose attaches them in place of every document attached
+earlier, from any source; text attachments stay. A plugin sets its source from its own `src/slots/attachments.ts`,
+as Google Drive does:
 
 ```ts
 // plugins/exampleplugin/src/slots/attachments.ts
-import { ATTACHMENT_SOURCES } from "@/lib/attachments/slots";
+import { ATTACHMENT_SOURCES } from "@/plugins/compose/lib";
 import ExampleIcon from "@/plugins/exampleplugin/src/components/ui/ExampleIcon";
 import { EXAMPLEPLUGIN_PLUGIN_NAME } from "@/plugins/exampleplugin/src/constants";
 
@@ -421,7 +428,7 @@ among its files by `documentId`, so it can show them selected when it opens agai
 
 ```tsx
 // plugins/exampleplugin/src/components/ui/AttachmentPicker.tsx
-import type { AttachmentPickerProps } from "@/lib/attachments/slots";
+import type { AttachmentPickerProps } from "@/plugins/compose/lib";
 
 export default function AttachmentPicker({ selected, onSelect, onClose }: AttachmentPickerProps) {
   // Show the source's files with `selected` ticked. On confirm, hand back every picked document:
