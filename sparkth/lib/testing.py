@@ -50,7 +50,14 @@ from sparkth.core.cache import get_cache_service
 from sparkth.core.db import dispose_engine, get_engine
 from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.core.models.user import User
-from sparkth.core.permissions.models import Role, RoleAssignment, RolePermission
+from sparkth.core.permissions.models import (
+    Group,
+    GroupMembership,
+    GroupRoleAssignment,
+    Role,
+    RoleAssignment,
+    RolePermission,
+)
 from sparkth.core.permissions.scopes import GLOBAL, PermissionScope
 from sparkth.lib.auth import bind_request_user, get_current_user
 from sparkth.lib.i18n import LOCALE_DIRS
@@ -157,6 +164,52 @@ async def grant_permission_at_scope(
 async def grant_global_permission(session: AsyncSession, user_id: int, permission: str) -> None:
     """Grant ``permission`` to the user globally, through a role named after it."""
     await grant_permission_at_scope(session, user_id, permission, GLOBAL)
+
+
+async def make_user(session: AsyncSession, username: str) -> User:
+    """Create and flush a user named ``username`` with a placeholder password."""
+    user = User(name="T", username=username, email=f"{username}@example.com", hashed_password="x")
+    session.add(user)
+    await session.flush()
+    return user
+
+
+async def make_role(session: AsyncSession, name: str, permissions: list[str]) -> Role:
+    """Create and flush a role named ``name`` that holds each of ``permissions``."""
+    role = Role(name=name)
+    session.add(role)
+    await session.flush()
+    assert role.id is not None
+    for permission in permissions:
+        session.add(RolePermission(role_id=role.id, permission=permission))
+    await session.flush()
+    return role
+
+
+async def assign(
+    session: AsyncSession, user: User, role: Role, scope: str, scope_object_id: str | None
+) -> RoleAssignment:
+    """Assign ``role`` to ``user`` at ``scope`` and ``scope_object_id``."""
+    assert user.id is not None and role.id is not None
+    assignment = RoleAssignment(user_id=user.id, role_id=role.id, scope=scope, scope_object_id=scope_object_id)
+    session.add(assignment)
+    await session.flush()
+    return assignment
+
+
+async def assign_through_group(
+    session: AsyncSession, user: User, role: Role, scope: str, scope_object_id: str | None
+) -> GroupMembership:
+    """Grant ``role`` at ``scope`` and ``scope_object_id`` to a new group that ``user`` belongs to."""
+    group = Group(name=f"grp-{user.username}-{role.name}-{scope}-{scope_object_id}")
+    session.add(group)
+    await session.flush()
+    assert group.id is not None and user.id is not None and role.id is not None
+    membership = GroupMembership(user_id=user.id, group_id=group.id)
+    session.add(membership)
+    session.add(GroupRoleAssignment(group_id=group.id, role_id=role.id, scope=scope, scope_object_id=scope_object_id))
+    await session.flush()
+    return membership
 
 
 # What the audit_events fixture yields: awaited to fetch the rows on demand.

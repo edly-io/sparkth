@@ -4,27 +4,10 @@ Authored with LLM (Claude) assistance."""
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.user import User
-from sparkth.core.permissions.models import Group, GroupMembership, GroupRoleAssignment, Role, RolePermission
+from sparkth.core.permissions.models import Group, GroupMembership, GroupRoleAssignment, Role
 from sparkth.lib.permissions import EMAIL_WHITELIST_READ, Permission, can, has_role
 from sparkth.lib.permissions.scopes import GLOBAL, WHITELIST, PermissionScope
-
-
-async def make_user(session: AsyncSession, username: str) -> User:
-    user = User(name="T", username=username, email=f"{username}@example.com", hashed_password="x")
-    session.add(user)
-    await session.flush()
-    return user
-
-
-async def make_role(session: AsyncSession, name: str, permissions: list[str]) -> Role:
-    role = Role(name=name)
-    session.add(role)
-    await session.flush()
-    assert role.id is not None
-    for permission in permissions:
-        session.add(RolePermission(role_id=role.id, permission=permission))
-    await session.flush()
-    return role
+from sparkth.lib.testing import make_role, make_user
 
 
 async def make_group_grant(

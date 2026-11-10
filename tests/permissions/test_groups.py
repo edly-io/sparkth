@@ -10,7 +10,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.models.user import User
 from sparkth.core.permissions import groups
 from sparkth.core.permissions.exceptions import (
     GroupAlreadyExists,
@@ -22,12 +21,11 @@ from sparkth.core.permissions.models import (
     Group,
     GroupMembership,
     GroupRoleAssignment,
-    Role,
     RoleAssignment,
-    RolePermission,
 )
 from sparkth.lib.permissions import Permission, can
 from sparkth.lib.permissions.scopes import GLOBAL
+from sparkth.lib.testing import make_role, make_user
 
 
 async def test_group_round_trips(session: AsyncSession) -> None:
@@ -101,24 +99,6 @@ async def test_duplicate_active_group_assignment_is_rejected(session: AsyncSessi
     with pytest.raises(IntegrityError):
         async with session.begin_nested():
             session.add(GroupRoleAssignment(group_id=group.id, role_id=1, scope=GLOBAL.name, scope_object_id=None))
-
-
-async def make_user(session: AsyncSession, username: str) -> User:
-    user = User(name="T", username=username, email=f"{username}@example.com", hashed_password="x")
-    session.add(user)
-    await session.flush()
-    return user
-
-
-async def make_role(session: AsyncSession, name: str, permissions: list[str]) -> Role:
-    role = Role(name=name)
-    session.add(role)
-    await session.flush()
-    assert role.id is not None
-    for permission in permissions:
-        session.add(RolePermission(role_id=role.id, permission=permission))
-    await session.flush()
-    return role
 
 
 _EMPTY_RESULT = SimpleNamespace(first=lambda: None)

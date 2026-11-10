@@ -11,7 +11,7 @@ from sparkth.core.permissions.scopes import PERMISSION_SCOPES, PermissionScope
 from sparkth.core.permissions.scopes.mixins import ScopeObjectMixin
 from sparkth.lib.permissions import Permission
 from sparkth.lib.permissions.scopes import GLOBAL
-from sparkth.lib.testing import grant_global_permission, grant_permission_at_scope
+from sparkth.lib.testing import grant_global_permission, grant_permission_at_scope, make_user
 
 
 class _Course(ScopeObjectMixin):
@@ -49,14 +49,7 @@ def course_scope(monkeypatch: pytest.MonkeyPatch) -> PermissionScope:
 
 
 async def _seed(session: AsyncSession, username: str, permission: str | None) -> User:
-    user = User(
-        name="T",
-        username=username,
-        email=f"{username}@e.com",
-        hashed_password="x",
-    )
-    session.add(user)
-    await session.flush()
+    user = await make_user(session, username)
     if permission is not None:
         await grant_global_permission(session, cast(int, user.id), permission)
     return user

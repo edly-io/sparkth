@@ -3,60 +3,10 @@ Authored with LLM (Claude) assistance."""
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.models.user import User
 from sparkth.core.permissions.engine import get_accessible_scope_object_ids
-from sparkth.core.permissions.models import (
-    Group,
-    GroupMembership,
-    GroupRoleAssignment,
-    Role,
-    RoleAssignment,
-    RolePermission,
-)
 from sparkth.lib.permissions import GROUP_READ
 from sparkth.lib.permissions.scopes import GLOBAL, GROUP, ROLE
-
-
-async def make_user(session: AsyncSession, username: str) -> User:
-    user = User(name="T", username=username, email=f"{username}@example.com", hashed_password="x")
-    session.add(user)
-    await session.flush()
-    return user
-
-
-async def make_role(session: AsyncSession, name: str, permissions: list[str]) -> Role:
-    role = Role(name=name)
-    session.add(role)
-    await session.flush()
-    assert role.id is not None
-    for permission in permissions:
-        session.add(RolePermission(role_id=role.id, permission=permission))
-    await session.flush()
-    return role
-
-
-async def assign(
-    session: AsyncSession, user: User, role: Role, scope: str, scope_object_id: str | None
-) -> RoleAssignment:
-    assert user.id is not None and role.id is not None
-    assignment = RoleAssignment(user_id=user.id, role_id=role.id, scope=scope, scope_object_id=scope_object_id)
-    session.add(assignment)
-    await session.flush()
-    return assignment
-
-
-async def assign_through_group(
-    session: AsyncSession, user: User, role: Role, scope: str, scope_object_id: str | None
-) -> GroupMembership:
-    group = Group(name=f"grp-{user.username}-{role.name}-{scope}-{scope_object_id}")
-    session.add(group)
-    await session.flush()
-    assert group.id is not None and user.id is not None and role.id is not None
-    membership = GroupMembership(user_id=user.id, group_id=group.id)
-    session.add(membership)
-    session.add(GroupRoleAssignment(group_id=group.id, role_id=role.id, scope=scope, scope_object_id=scope_object_id))
-    await session.flush()
-    return membership
+from sparkth.lib.testing import assign, assign_through_group, make_role, make_user
 
 
 async def test_returns_object_ids_of_own_assignments(session: AsyncSession) -> None:
