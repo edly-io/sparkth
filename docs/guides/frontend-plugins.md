@@ -60,6 +60,8 @@ export default function ExamplePlugin() {
   `import { Button } from "@/lib/components/ui/Button";`. Core UI lives in `@/core`,
   and `make lint.frontend` rejects any plugin import from it.
 - Reads the signed-in user and their token with `useAuth` from `@/lib/auth/hooks`.
+- Links to another plugin's page with `pluginPath("<name>")` from `@/lib/plugins/routes`, never by writing the
+  `/dashboard/<name>` route out.
 
 ## 3. Define the Plugin (index.ts)
 
@@ -233,15 +235,23 @@ back to the plugin's English one.
 
 **3. Bind the types**
 
-Intersect the plugin's English catalog into the `PluginMessages` type in
-`lib/i18n/messages.ts` (type-only, so the plugin stays a self-contained
-runtime unit):
+Add an `i18n/messages.d.ts` to the plugin that extends the `PluginMessages`
+interface in `lib/i18n/messages.ts` with the plugin's English catalog.
+TypeScript merges every plugin's declaration into that interface, so unknown
+keys fail the typecheck, and core names no plugin:
 
 ```ts
-import type examplePluginMessages from "@/plugins/example-plugin/messages/en.json";
+// plugins/example-plugin/i18n/messages.d.ts
+import type catalog from "@/plugins/example-plugin/messages/en.json";
 
-type PluginMessages = typeof composeMessages & typeof examplePluginMessages;
+type Catalog = typeof catalog;
+
+declare module "@/lib/i18n/messages" {
+  interface PluginMessages extends Catalog {}
+}
 ```
+
+Removing the plugin's directory removes its declaration with it.
 
 **4. Use the namespace in components**
 
@@ -327,6 +337,58 @@ export function ExampleSections() {
   );
 }
 ```
+
+### Compose attachment sources
+
+Compose's attach menu lists one entry for each source plugins set in the `ATTACHMENT_SOURCES` slot
+(`@/lib/attachments/slots`), while the plugin that set it is turned on. Choosing an entry loads the source's
+picker, which Compose passes the documents already attached as `selected`. The picker hands back the documents the
+user picked through `onSelect`, and Compose attaches them in place of every document attached earlier, from any
+source; text attachments stay. A plugin sets its source from its own `attachments.ts`, as Google Drive does:
+
+```ts
+// plugins/example-plugin/attachments.ts
+import { ATTACHMENT_SOURCES } from "@/lib/attachments/slots";
+import ExampleIcon from "@/plugins/example-plugin/ExampleIcon";
+
+ATTACHMENT_SOURCES.set("example-plugin", [
+  {
+    label: "Pick from Example",
+    icon: ExampleIcon,
+    loadPicker: () => import("@/plugins/example-plugin/components/AttachmentPicker"),
+  },
+]);
+```
+
+The plugin's `index.ts` imports that file, or the source is never set:
+
+```ts
+// plugins/example-plugin/index.ts
+import "@/plugins/example-plugin/attachments";
+```
+
+The picker is the module's default export. It gets the attached documents and two callbacks, and keeps the source's
+own id for each document in `sourceId`, so it can show them selected when it opens again:
+
+```tsx
+// plugins/example-plugin/components/AttachmentPicker.tsx
+import type { AttachmentPickerProps } from "@/lib/attachments/slots";
+
+export default function AttachmentPicker({ selected, onSelect, onClose }: AttachmentPickerProps) {
+  // Show the source's files with `selected` ticked. On confirm, hand back every picked document:
+  // onSelect([{ documentId, sourceId, name, size }, ...]). On cancel, call onClose().
+}
+```
+
+## Analytics (Optional)
+
+A plugin that records analytics events keeps their frontend code in `plugins/<name>/analytics.ts`: the fetch for
+its analytics endpoint, the response types and the helpers its charts need, built on `@/lib/analytics`. The
+analytics pages under `app/dashboard/analytics/` import it from there; core's `lib/analytics/` holds no plugin's
+code. `plugins/compose/analytics.ts` is an example.
+
+A plugin's analytics page is listed on the analytics rail by an entry in `app/dashboard/analytics/views.ts` that
+names the plugin (`plugin: "<name>"`); the entry shows only while that plugin is installed.
 
 ## Settings
 

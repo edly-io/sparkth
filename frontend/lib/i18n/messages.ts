@@ -4,17 +4,17 @@ import type { PluginDefinition } from "@/core/plugins/types";
 import { defaultLocale, type Locale } from "./config";
 
 import en from "@/messages/en.json";
-import type composeMessages from "@/plugins/compose/messages/en.json";
-import type pxcMessages from "@/plugins/pxc/messages/en.json";
 
 type CoreMessages = typeof en;
-type PluginMessages = typeof composeMessages & typeof pxcMessages;
+
+/**
+ * One namespace per plugin that ships messages. Empty here: each such plugin
+ * adds its English catalog's type from its own `i18n/messages.d.ts`.
+ */
+export interface PluginMessages {}
 
 // The full catalog shape next-intl's types are bound to: the core catalog
-// plus one namespace per plugin that ships messages. A plugin that adds
-// catalogs intersects its `en.json` type into PluginMessages above
-// (type-only, so the plugin stays a self-contained runtime unit); the
-// step-by-step wiring lives in docs/guides/frontend-plugins.md.
+// plus every plugin's namespace.
 export type Messages = CoreMessages & PluginMessages;
 
 // What the loader actually delivers: plugin namespaces can be absent while

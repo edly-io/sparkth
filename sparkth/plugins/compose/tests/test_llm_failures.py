@@ -15,6 +15,8 @@ from sparkth.lib.llm import get_provider
 from sparkth.lib.plugins import PluginNotConfiguredError
 from sparkth.lib.testing import ScriptedChatModel
 from sparkth.plugins.compose.llm import complete_turn
+from sparkth.plugins.compose.tests.conftest import STUB_AGENT
+from sparkth.plugins.compose.tests.helpers import handing_off_to
 
 
 async def lookup_course(course_id: int) -> dict[str, Any]:
@@ -42,10 +44,12 @@ async def _first_execution(
     """The recorded execution of the one call a non-streamed turn makes to ``tool_name``."""
     provider = get_provider("anthropic", "test-key", "claude-sonnet-5")
     call = AIMessage(content="", tool_calls=[{"name": tool_name, "args": args, "id": "call_1"}])
-    model = ScriptedChatModel(messages=iter([call, AIMessage("done")]))
+    model = ScriptedChatModel(messages=iter([call, AIMessage("done")]), disable_streaming=True)
     monkeypatch.setattr(provider, "_create_llm", lambda streaming=False, callbacks=None: model)
 
-    response = await complete_turn([{"role": "user", "content": "go"}], [tool], provider, 50)
+    response = await complete_turn(
+        [{"role": "user", "content": "go"}], [tool], provider, 50, **handing_off_to(STUB_AGENT)
+    )
 
     execution: dict[str, Any] = response["metadata"]["tool_executions"][0]
     return execution

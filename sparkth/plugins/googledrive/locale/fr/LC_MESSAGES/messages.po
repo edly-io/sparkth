@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: sparkth 0.1.11\n"
 "Report-Msgid-Bugs-To: https://github.com/edly-io/sparkth/issues\n"
-"POT-Creation-Date: 2026-10-28 15:00+0500\n"
+"POT-Creation-Date: 2026-11-05 14:30+0500\n"
 "PO-Revision-Date: 2026-08-14 07:25+0500\n"
 "Last-Translator: Hamza Shafique <hamza.shafique1@arbisoft.com>\n"
 "Language: fr\n"
@@ -18,13 +18,17 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: sparkth/plugins/googledrive/plugin.py:28
+#: sparkth/plugins/googledrive/plugin.py:35
 msgid "Google Drive"
 msgstr "Google Drive"
 
-#: sparkth/plugins/googledrive/plugin.py:28
+#: sparkth/plugins/googledrive/plugin.py:35
 msgid "All imported files from your connected plugins"
 msgstr "Tous les fichiers importés depuis vos plugins connectés"
+
+#: sparkth/plugins/googledrive/plugin.py:37
+msgid "Resources"
+msgstr "Ressources"
 
 #: sparkth/plugins/googledrive/utils.py:234
 msgid "Unsupported file type"

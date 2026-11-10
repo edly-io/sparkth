@@ -10,6 +10,7 @@ from sparkth.lib.plugins import SparkthPlugin
 from sparkth.plugins.compose.detached import join_live_tasks
 
 STUB_AGENT = Agent("stub", "Stub agent", "Stub scope text.", "STUB SECTION")
+OTHER_AGENT = Agent("other", "Other agent", "Other scope text.", "OTHER SECTION")
 
 
 @pytest.fixture(autouse=True)
@@ -23,11 +24,22 @@ async def drain_detached_emits() -> AsyncIterator[None]:
     await join_live_tasks()
 
 
-@pytest.fixture
-def stub_agent() -> Iterator[Agent]:
-    """A second enabled agent beside course design, gone when its plugin is collected."""
-    plugin = SparkthPlugin("stub")
-    register_agent(plugin, STUB_AGENT)
-    yield STUB_AGENT
+def registered_agent(plugin_name: str, agent: Agent) -> Iterator[Agent]:
+    """Register ``agent`` on a throwaway plugin; the entry goes when the plugin is collected."""
+    plugin = SparkthPlugin(plugin_name)
+    register_agent(plugin, agent)
+    yield agent
     del plugin
     gc.collect()
+
+
+@pytest.fixture
+def stub_agent() -> Iterator[Agent]:
+    """An enabled agent, gone when its plugin is collected."""
+    yield from registered_agent("stub", STUB_AGENT)
+
+
+@pytest.fixture
+def other_agent() -> Iterator[Agent]:
+    """An enabled agent of a second plugin, gone when its plugin is collected."""
+    yield from registered_agent("other", OTHER_AGENT)

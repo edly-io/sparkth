@@ -28,6 +28,7 @@ from sparkth.plugins.compose.schemas import (
     ConversationResponse,
 )
 from sparkth.plugins.compose.service import ComposeService, get_compose_service
+from sparkth.plugins.compose.tests.helpers import answering_model
 
 # ===========================================================================
 # Conversation model — UUID field
@@ -265,8 +266,8 @@ class TestConversationUUIDRoutes:
             mock_classifier = AsyncMock()
             mock_classifier.in_scope = AsyncMock(return_value=True)
             mock_classifier_cls.return_value = mock_classifier
-            mock_provider = AsyncMock()
-            mock_provider.send_message = AsyncMock(return_value=mock_response)
+            mock_provider = MagicMock()
+            mock_provider.create_llm.return_value = answering_model(mock_response["content"])
             mock_get_provider.return_value = mock_provider
             mock_add_message.return_value = mock_message
 
@@ -317,8 +318,8 @@ class TestConversationUUIDRoutes:
             mock_classifier = AsyncMock()
             mock_classifier.in_scope = AsyncMock(return_value=True)
             mock_classifier_cls.return_value = mock_classifier
-            mock_provider = AsyncMock()
-            mock_provider.send_message = AsyncMock(return_value=mock_response)
+            mock_provider = MagicMock()
+            mock_provider.create_llm.return_value = answering_model(mock_response["content"])
             mock_get_provider.return_value = mock_provider
             mock_add_message.return_value = mock_message
 

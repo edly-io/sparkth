@@ -10,10 +10,14 @@ vi.mock("@/core/auth/hooks", () => ({
   useAuth: () => ({ token: "test-token" }),
 }));
 
-// Analytics data access: keep the real types and helpers, stub the fetch.
-vi.mock("@/lib/analytics", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/analytics")>();
-  return { ...actual, fetchComposeActivity: vi.fn(), fetchDriveDocuments: vi.fn() };
+// Analytics data access: keep the real types and helpers, stub the fetches.
+vi.mock("@/plugins/google-drive/analytics", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/plugins/google-drive/analytics")>();
+  return { ...actual, fetchDriveDocuments: vi.fn() };
+});
+vi.mock("@/plugins/compose/analytics", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/plugins/compose/analytics")>();
+  return { ...actual, fetchComposeActivity: vi.fn() };
 });
 
 // The plugins installed in the backend build. No PluginProvider is mounted: analytics must not
@@ -35,10 +39,9 @@ import {
   COMPOSE_EVENTS,
   EMPTY_SEARCH,
   fetchComposeActivity,
-  fetchDriveDocuments,
   type ComposeActivityPoint,
-  type DriveDocumentsPoint,
-} from "@/lib/analytics";
+} from "@/plugins/compose/analytics";
+import { fetchDriveDocuments, type DriveDocumentsPoint } from "@/plugins/google-drive/analytics";
 import AuthoringPage from "@/app/dashboard/analytics/authoring/AuthoringPage";
 
 // Answers by period: the current period ends on the pinned "today".

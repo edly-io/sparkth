@@ -23,14 +23,13 @@ def get_asset(file_name: str) -> str:
 
 
 SYSTEM_PROMPT_SKELETON = get_asset("system_prompt_skeleton.txt")
-COURSE_DESIGN_PROMPT = get_asset("course_design_prompt.txt")
 RAG_CONTEXT_PROMPT = get_asset("rag_context_replacement_prompt.txt")
 MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT = get_asset("message_scope_classifier_system_prompt.txt")
 RAG_SEARCH_CLASSIFIER_SYSTEM_PROMPT = get_asset("rag_search_classifier_system_prompt.txt")
-COURSE_DESIGN_SCOPE = get_asset("course_design_scope.txt")
+PLANNER_PROMPT = get_asset("planner_prompt.txt")
 
-# The heading course design's section is rendered under in the system prompt.
-COURSE_DESIGN_TITLE = "Course design"
+# How many tool calls Compose's planner may make in one turn before it is stopped.
+PLANNER_TOOL_CALL_LIMIT = 3
 
 # How many prior turns reach the scope classifier.
 MESSAGE_SCOPE_CLASSIFIER_CONVERSATION_HISTORY = 6
@@ -40,6 +39,11 @@ MESSAGE_SCOPE_CLASSIFIER_CONVERSATION_HISTORY = 6
 # LazyString allows. It is rendered with gettext() at each of those boundaries.
 REFUSAL_MESSAGE: str = gettext_noop(
     "I'm a course creation assistant and can only help with designing and building courses."
+)
+
+# The reply that ends a turn stopped for calling too many tools.
+TOOL_CALL_LIMIT_NOTICE: str = gettext_noop(
+    "I stopped because I reached the tool-call limit for this turn. You can send another message to continue."
 )
 
 LLM_PROVIDER_API_ERRORS = (

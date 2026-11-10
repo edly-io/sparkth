@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { SparkthLogo } from "@/components/SparkthLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { Card } from "@/components/ui/Card";
+import { Card } from "@/core/components/ui/Card";
 
 /** The centred, logo-topped card the signed-out pages (password reset and friends) render in. */
 export function AuthCard({ children }: { children: ReactNode }) {

@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { Unplug } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
-import { Card } from "@/components/ui/Card";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { Card } from "@/lib/components/ui/Card";
+import { ConfirmDialog } from "@/lib/components/ui/ConfirmDialog";
 import { useAuth } from "@/lib/auth/hooks";
 import SlackIcon from "@/plugins/slack/SlackIcon";
 import { getAuthorizationUrl, disconnectSlack } from "@/plugins/slack/client";

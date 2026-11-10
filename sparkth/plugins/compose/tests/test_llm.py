@@ -2,24 +2,28 @@
 
 import asyncio
 import logging
-from collections.abc import AsyncGenerator, Iterator
+from collections.abc import AsyncIterator, Iterator
 from contextlib import aclosing
 from functools import partial
 from typing import Any
-from unittest.mock import MagicMock
 
 import anthropic
 import httpx
 import pytest
 from langchain_core.messages import AIMessage, AIMessageChunk
+from langchain_core.outputs import ChatGenerationChunk
 from langchain_core.tools import StructuredTool
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from sparkth.core.i18n import locale_context
 from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG
+from sparkth.lib.compose.constants import REFUSE_TOOL_NAME
 from sparkth.lib.llm import BaseChatProvider, get_provider
 from sparkth.lib.testing import AddTranslation, ScriptedChatModel
+from sparkth.plugins.compose.constants import REFUSAL_MESSAGE
 from sparkth.plugins.compose.llm import complete_turn, stream_turn
+from sparkth.plugins.compose.tests.conftest import STUB_AGENT
+from sparkth.plugins.compose.tests.helpers import handing_off_to, planner_answering
 
 TURN = [{"role": "user", "content": "Record the steps."}]
 LIMIT_NOTICE = (
@@ -51,27 +55,41 @@ def _record_tool(runs: list[str]) -> StructuredTool:
     )
 
 
-def _calls(*steps: int, text: str = "") -> AIMessage:
+def _calls(*steps: int, text: str = "", usage: dict[str, int] | None = None) -> AIMessage:
     """A model reply asking for one ``record`` call per step."""
     return AIMessage(
-        content=text, tool_calls=[{"name": "record", "args": {"step": step}, "id": f"call_{step}"} for step in steps]
+        content=text,
+        tool_calls=[{"name": "record", "args": {"step": step}, "id": f"call_{step}"} for step in steps],
+        usage_metadata=usage,
     )
 
 
-def _provider(model: ScriptedChatModel, monkeypatch: pytest.MonkeyPatch) -> BaseChatProvider:
+def _provider(
+    model: ScriptedChatModel, monkeypatch: pytest.MonkeyPatch, *, streaming: bool = False
+) -> BaseChatProvider:
+    """A provider whose model is ``model``, answering whole messages unless ``streaming``.
+
+    The fake model drops tool calls when it streams, so a model that calls tools answers whole.
+    """
+    model.disable_streaming = not streaming
     provider = get_provider("anthropic", "test-key", "claude-sonnet-5")
     monkeypatch.setattr(provider, "_create_llm", lambda streaming=False, callbacks=None: model)
     return provider
 
 
-async def _counted_reply(reads: list[str], messages: Any) -> AsyncGenerator[AIMessageChunk, None]:
-    """A three-chunk model reply that records each chunk read, and when its stream is closed."""
-    try:
-        for text in ("one ", "two ", "three"):
-            reads.append(text)
-            yield AIMessageChunk(content=text)
-    finally:
-        reads.append("closed")
+class _StalledModel(ScriptedChatModel):
+    """A model that streams one chunk, then waits for a next one that never arrives, recording each chunk
+    read and when its stream is closed."""
+
+    reads: list[str] = Field(default_factory=list)
+
+    async def _astream(self, *args: Any, **kwargs: Any) -> AsyncIterator[ChatGenerationChunk]:
+        try:
+            self.reads.append("one ")
+            yield ChatGenerationChunk(message=AIMessageChunk(content="one ", id="reply"))
+            await asyncio.Event().wait()
+        finally:
+            self.reads.append("closed")
 
 
 def _connection_lost() -> Iterator[AIMessage]:
@@ -83,7 +101,9 @@ def _connection_lost() -> Iterator[AIMessage]:
 async def _events(
     tools: list[StructuredTool], provider: BaseChatProvider, max_tool_executions: int = 50
 ) -> list[dict[str, Any]]:
-    return [event async for event in stream_turn(TURN, tools, provider, max_tool_executions)]
+    return [
+        event async for event in stream_turn(TURN, tools, provider, max_tool_executions, **handing_off_to(STUB_AGENT))
+    ]
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
@@ -97,12 +117,14 @@ async def test_tool_calls_run_one_at_a_time_in_the_order_the_model_listed_them(
 
     if stream:
         assert await _events(tools, provider) == [
+            {"type": "token", "content": "Let me record these."},
             *[TOOL_START, TOOL_END] * 3,
+            {"type": "token", "content": "\n\n"},
             {"type": "token", "content": "recorded"},
         ]
     else:
-        response = await complete_turn(TURN, tools, provider, 50)
-        assert response["content"] == "recorded"
+        response = await complete_turn(TURN, tools, provider, 50, **handing_off_to(STUB_AGENT))
+        assert response["content"] == "Let me record these.\n\nrecorded"
         executions = response["metadata"]["tool_executions"]
         assert [execution["tool_input"] for execution in executions] == [{"step": 1}, {"step": 2}, {"step": 3}]
     assert runs == ["start 1", "end 1", "start 2", "end 2", "start 3", "end 3"]
@@ -116,7 +138,7 @@ async def test_a_consumer_that_stops_at_tool_start_keeps_that_tool_from_running(
     provider = _provider(model, monkeypatch)
 
     starts = 0
-    async with aclosing(stream_turn(TURN, [_record_tool(runs)], provider, 50)) as events:
+    async with aclosing(stream_turn(TURN, [_record_tool(runs)], provider, 50, **handing_off_to(STUB_AGENT))) as events:
         async for event in events:
             if event["type"] == "tool_start":
                 starts += 1
@@ -131,7 +153,7 @@ async def test_calls_past_the_limit_are_blocked_and_the_model_answers(monkeypatc
     model = ScriptedChatModel(messages=iter([_calls(1, 2, 3), AIMessage("answer")]))
     provider = _provider(model, monkeypatch)
 
-    response = await complete_turn(TURN, [_record_tool(runs)], provider, 2)
+    response = await complete_turn(TURN, [_record_tool(runs)], provider, 2, **handing_off_to(STUB_AGENT))
 
     metadata = response["metadata"]
     assert response["content"] == "answer"
@@ -153,12 +175,43 @@ async def test_a_turn_where_the_model_calls_no_tool_returns_its_answer(
     if stream:
         assert await _events(tools, provider) == [{"type": "token", "content": "hi"}]
         return
-    response = await complete_turn(TURN, tools, provider, 50)
+    response = await complete_turn(TURN, tools, provider, 50, **handing_off_to(STUB_AGENT))
     metadata = response["metadata"]
     assert response["content"] == "hi"
     assert metadata["num_executions"] == 0
     assert metadata["limit_reached"] is False
     assert metadata["usage_metadata"]["total_tokens"] == 2
+
+
+def _usage(total: int) -> dict[str, int]:
+    return {"input_tokens": total - 1, "output_tokens": 1, "total_tokens": total}
+
+
+async def test_a_turn_counts_the_tokens_of_every_model_reply(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The planner's hand-off and both of the agent's replies are each a model call the turn paid for."""
+    agent_model = ScriptedChatModel(
+        messages=iter([_calls(1, text="", usage=_usage(3)), AIMessage("recorded", usage_metadata=_usage(4))])
+    )
+    hand_off = AIMessage(
+        "",
+        tool_calls=[{"name": STUB_AGENT.name, "args": {"request": "Go"}, "id": "go"}],
+        usage_metadata=_usage(5),
+    )
+
+    response = await complete_turn(
+        TURN, [_record_tool([])], _provider(agent_model, monkeypatch), 50, **planner_answering(hand_off, STUB_AGENT)
+    )
+
+    assert response["metadata"]["usage_metadata"]["total_tokens"] == 12
+
+
+async def test_a_turn_the_planner_answers_counts_its_tokens(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = _provider(ScriptedChatModel(messages=iter([])), monkeypatch)
+    greeting = AIMessage("Hello!", usage_metadata=_usage(6))
+
+    response = await complete_turn(TURN, [], provider, 50, **planner_answering(greeting, STUB_AGENT))
+
+    assert response["metadata"]["usage_metadata"]["total_tokens"] == 6
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
@@ -176,7 +229,7 @@ async def test_a_content_block_answer_streams_block_by_block(stream: bool, monke
         events = await _events(tools, provider)
         assert [event["content"] for event in events if event["type"] == "token"] == ["Hello ", "there"]
         return
-    response = await complete_turn(TURN, tools, provider, 50)
+    response = await complete_turn(TURN, tools, provider, 50, **handing_off_to(STUB_AGENT))
     assert response["content"] == "Hello there"
 
 
@@ -189,7 +242,7 @@ async def test_a_provider_error_leaves_with_its_own_type(stream: bool, monkeypat
         if stream:
             await _events(tools, provider)
         else:
-            await complete_turn(TURN, tools, provider, 50)
+            await complete_turn(TURN, tools, provider, 50, **handing_off_to(STUB_AGENT))
 
 
 async def test_a_streamed_turn_at_the_limit_ends_with_the_models_answer(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -207,7 +260,7 @@ async def test_a_model_that_ignores_the_block_ends_the_turn_with_a_notice(monkey
     model = ScriptedChatModel(messages=iter([_calls(1), _calls(2), _calls(3), AIMessage("never")]))
     provider = _provider(model, monkeypatch)
 
-    response = await complete_turn(TURN, [_record_tool([])], provider, 1)
+    response = await complete_turn(TURN, [_record_tool([])], provider, 1, **handing_off_to(STUB_AGENT))
 
     assert response["content"] == LIMIT_NOTICE
     assert response["metadata"]["limit_reached"] is True
@@ -233,7 +286,7 @@ async def test_the_limit_notice_is_translated_into_the_active_locale(
     provider = _provider(model, monkeypatch)
 
     with locale_context("es"):
-        response = await complete_turn(TURN, [_record_tool([])], provider, 1)
+        response = await complete_turn(TURN, [_record_tool([])], provider, 1, **handing_off_to(STUB_AGENT))
 
     assert response["content"] == "Alcancé el límite de herramientas de este turno."
 
@@ -249,7 +302,7 @@ async def test_a_model_that_batches_calls_gets_one_more_reply_after_the_block(
     if stream:
         await _events([_record_tool([])], provider, 2)
     else:
-        await complete_turn(TURN, [_record_tool([])], provider, 2)
+        await complete_turn(TURN, [_record_tool([])], provider, 2, **handing_off_to(STUB_AGENT))
 
     # Reply 1 uses the limit, reply 2 is blocked, and reply 3 asks for tools again: replies 4 and 5
     # are never asked for, however many calls each reply batches.
@@ -271,7 +324,7 @@ async def test_blocked_calls_log_that_the_tool_call_limit_was_reached(
     provider = _provider(model, monkeypatch)
 
     with caplog.at_level(logging.WARNING):
-        await complete_turn(TURN, [_record_tool([])], provider, 2)
+        await complete_turn(TURN, [_record_tool([])], provider, 2, **handing_off_to(STUB_AGENT))
 
     assert _turn_warnings(caplog) == ["Tool call limit (2) reached; blocked 1 call(s)"]
 
@@ -283,33 +336,73 @@ async def test_a_turn_ended_for_calling_tools_after_the_block_logs_a_warning(
     provider = _provider(model, monkeypatch)
 
     with caplog.at_level(logging.WARNING):
-        await complete_turn(TURN, [_record_tool([])], provider, 1)
+        await complete_turn(TURN, [_record_tool([])], provider, 1, **handing_off_to(STUB_AGENT))
 
     assert _turn_warnings(caplog)[-1] == "Model asked for tools after the limit (1); the turn ends with a notice"
 
 
-async def test_a_streamed_turn_without_tools_arrives_token_by_token(monkeypatch: pytest.MonkeyPatch) -> None:
-    provider = _provider(ScriptedChatModel(messages=iter([AIMessage("Hello there friend")])), monkeypatch)
+async def test_closing_a_streamed_turn_stops_reading_the_agents_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A stop closes the turn, so the agent's model must stop being read, not run on in the background."""
+    model = _StalledModel(messages=iter([]))
+    provider = _provider(model, monkeypatch, streaming=True)
+
+    async with (
+        asyncio.timeout(5),
+        aclosing(stream_turn(TURN, [], provider, 50, **handing_off_to(STUB_AGENT))) as events,
+    ):
+        first_token = await anext(event async for event in events if event["type"] == "token")
+        assert first_token == {"type": "token", "content": "one "}
+
+    assert model.reads == ["one ", "closed"]
+
+
+async def test_an_agents_reply_streams_token_by_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = _provider(
+        ScriptedChatModel(messages=iter([AIMessage("Hello there friend")])), monkeypatch, streaming=True
+    )
 
     events = await _events([], provider)
 
     assert events == [{"type": "token", "content": token} for token in ["Hello", " ", "there", " ", "friend"]]
 
 
-async def test_a_provider_error_without_tools_leaves_with_its_own_type(monkeypatch: pytest.MonkeyPatch) -> None:
-    provider = _provider(ScriptedChatModel(messages=_connection_lost()), monkeypatch)
+async def _reply(planner: dict[str, Any], provider: BaseChatProvider, stream: bool) -> str:
+    """The text the author sees for one turn."""
+    if not stream:
+        response = await complete_turn(TURN, [], provider, 50, **planner)
+        return str(response["content"])
+    turn = stream_turn(TURN, [], provider, 50, **planner)
+    return "".join([event["content"] async for event in turn if event["type"] == "token"])
 
-    with pytest.raises(anthropic.APIConnectionError):
-        await _events([], provider)
+
+@pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
+async def test_the_planners_own_answer_is_the_reply(stream: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = _provider(ScriptedChatModel(messages=iter([])), monkeypatch)
+
+    reply = await _reply(
+        planner_answering(AIMessage("Hello! I can help you design courses."), STUB_AGENT), provider, stream
+    )
+
+    assert reply == "Hello! I can help you design courses."
 
 
-async def test_closing_a_streamed_turn_without_tools_stops_reading_the_model(monkeypatch: pytest.MonkeyPatch) -> None:
-    reads: list[str] = []
-    provider = get_provider("anthropic", "test-key", "claude-sonnet-5")
-    model = MagicMock(astream=partial(_counted_reply, reads))
-    monkeypatch.setattr(provider, "_create_llm", lambda streaming=False: model)
+@pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
+async def test_a_lead_in_to_a_hand_off_never_shows(stream: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = _provider(ScriptedChatModel(messages=iter([AIMessage("Here is the outline.")])), monkeypatch)
+    hand_off = AIMessage(
+        "Sure, passing this on.", tool_calls=[{"name": STUB_AGENT.name, "args": {"request": "An outline"}, "id": "c1"}]
+    )
 
-    async with aclosing(stream_turn(TURN, [], provider, 50)) as events:
-        assert await anext(events) == {"type": "token", "content": "one "}
+    reply = await _reply(planner_answering(hand_off, STUB_AGENT), provider, stream)
 
-    assert reads == ["one ", "closed"]
+    assert reply == "Here is the outline."
+
+
+@pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
+async def test_a_refusal_is_the_refusal_sentence(stream: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = _provider(ScriptedChatModel(messages=iter([])), monkeypatch)
+    refusal = AIMessage("", tool_calls=[{"name": REFUSE_TOOL_NAME, "args": {}, "id": "c1"}])
+
+    reply = await _reply(planner_answering(refusal, STUB_AGENT), provider, stream)
+
+    assert reply == REFUSAL_MESSAGE

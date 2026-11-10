@@ -1,6 +1,6 @@
 import { HTMLAttributes, forwardRef } from "react";
 import { twMerge } from "tailwind-merge";
-import { Card } from "@/components/ui/Card";
+import { Card } from "@/core/components/ui/Card";
 
 interface StatCardProps extends HTMLAttributes<HTMLDivElement> {
   title: string;

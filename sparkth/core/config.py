@@ -141,6 +141,7 @@ PLUGINS = [
     "sparkth.plugins.canvas.plugin:CanvasPlugin",
     "sparkth.plugins.openedx.plugin:OpenEdxPlugin",
     "sparkth.plugins.compose.plugin:ComposePlugin",
+    "sparkth.plugins.course_design.plugin:CourseDesignPlugin",
     "sparkth.plugins.googledrive.plugin:GoogleDrivePlugin",
     "sparkth.plugins.slack.plugin:Slack",
     "sparkth.plugins.moodle.plugin:MoodlePlugin",

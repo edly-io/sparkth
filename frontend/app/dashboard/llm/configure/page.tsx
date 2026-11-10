@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { KeyRound, Pencil, Plus, RotateCw, Save, Trash2 } from "lucide-react";
 
 import { Spinner } from "@/core/components/ui/Spinner";
-import { Alert } from "@/components/ui/Alert";
+import { Alert } from "@/core/components/ui/Alert";
 import { Button } from "@/core/components/ui/Button";
 import {
   Dialog,
@@ -14,7 +14,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/Dialog";
+} from "@/core/components/ui/Dialog";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { SettingsList, SettingsPage } from "@/core/components/settings/SettingsPage";

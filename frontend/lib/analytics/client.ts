@@ -4,8 +4,6 @@ import type { ExploreConfig } from "@/lib/analytics/explore";
 import type { Bucket } from "@/lib/analytics/series";
 import type {
   AnalyticsView,
-  ComposeActivityPoint,
-  DriveDocumentsPoint,
   EventCatalogEntry,
   ExploreResult,
   LoginsPoint,
@@ -19,31 +17,6 @@ export async function fetchLogins(
 ): Promise<LoginsPoint[]> {
   return call<LoginsPoint[]>(() =>
     api.GET("/api/v1/analytics/logins", {
-      params: { query: { from, to, bucket: "day" } },
-      headers: bearer(token),
-    }),
-  );
-}
-
-export async function fetchComposeActivity(
-  token: string,
-  { from, to }: { from: IsoDate; to: IsoDate },
-): Promise<ComposeActivityPoint[]> {
-  return call<ComposeActivityPoint[]>(() =>
-    api.GET("/api/v1/compose/analytics/activity", {
-      params: { query: { from, to, bucket: "day" } },
-      headers: bearer(token),
-    }),
-  );
-}
-
-/** Processed Drive documents per day and outcome, with summed seconds to final, for the period. */
-export async function fetchDriveDocuments(
-  token: string,
-  { from, to }: { from: IsoDate; to: IsoDate },
-): Promise<DriveDocumentsPoint[]> {
-  return call<DriveDocumentsPoint[]>(() =>
-    api.GET("/api/v1/google-drive/analytics/documents", {
       params: { query: { from, to, bucket: "day" } },
       headers: bearer(token),
     }),

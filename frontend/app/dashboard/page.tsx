@@ -2,6 +2,7 @@
 
 import { usePluginContext } from "@/core/plugins/context";
 import { displayNameOf } from "@/core/plugins/metadata";
+import { pluginPath } from "@/core/plugins/routes";
 import { resolvePluginIcon } from "@/core/components/ui/icons";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
@@ -43,7 +44,7 @@ export default function DashboardPage() {
               return (
                 <Link
                   key={plugin.plugin_name}
-                  href={`/dashboard/${plugin.plugin_name}`}
+                  href={pluginPath(plugin.plugin_name)}
                   className="block p-4 sm:p-6 bg-card rounded-lg border border-border hover:border-primary-500 hover:shadow-md transition-all"
                 >
                   <div className="flex items-start justify-between mb-3">

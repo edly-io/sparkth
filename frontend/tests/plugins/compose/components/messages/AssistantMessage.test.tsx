@@ -248,6 +248,12 @@ describe("AssistantMessage — options widget", () => {
     expect(screen.queryByText("```options")).not.toBeInTheDocument();
   });
 
+  it("renders an `options single` block as radio buttons", () => {
+    renderMessage({ content: "One course or two?\n\n```options single\nOne\nTwo\n```" });
+    expect(screen.getAllByRole("radio")).toHaveLength(2);
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  });
+
   it("hands a checked option to onOptionCheck", async () => {
     renderMessage({ content: OPTIONS_REPLY });
     await userEvent.click(screen.getByLabelText("Professionals"));

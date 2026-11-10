@@ -9,7 +9,7 @@ so they register in ``__init__``.
 
 from fastapi import APIRouter, status
 
-from sparkth.lib.compose.hooks import Agent, register_agent
+from sparkth.lib.compose.hooks import register_agent
 from sparkth.lib.content.hooks import ContentContributor, register_content_contributor
 from sparkth.lib.exceptions.handlers import register_exception_handler
 from sparkth.lib.frontend.hooks import (
@@ -21,17 +21,11 @@ from sparkth.lib.frontend.hooks import (
     SidebarEntry,
 )
 from sparkth.lib.i18n import gettext_noop
-from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
+from sparkth.lib.mcp.hooks import MCP_TOOLS
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.lib.routes import register_router
-from sparkth.plugins.pxc import tools as pxc_tools
-from sparkth.plugins.pxc.constants import (
-    PXC_ACTIVITY_BUILDER_PROMPT,
-    PXC_ACTIVITY_BUILDER_SCOPE,
-    PXC_ACTIVITY_BUILDER_TITLE,
-    PXC_CORS_HEADERS,
-    PXC_TOOL_CATEGORY,
-)
+from sparkth.plugins.pxc.agent import PXC_ACTIVITY_BUILDER
+from sparkth.plugins.pxc.constants import PXC_CORS_HEADERS
 from sparkth.plugins.pxc.contributor import build_pxc_block, list_pxc_options, record_pxc_placement
 from sparkth.plugins.pxc.exceptions import (
     PxcActionRejected,
@@ -44,6 +38,7 @@ from sparkth.plugins.pxc.exceptions import (
 )
 from sparkth.plugins.pxc.routes import router as learner_router
 from sparkth.plugins.pxc.routes.activities import router as activity_router
+from sparkth.plugins.pxc.tools import PXC_TOOLS
 
 # A bad launch token is 401: the token is the learner's only credential here, and the caller
 # can get a fresh one by reloading the page. A duplicate activity name is 500 — it is a broken
@@ -64,28 +59,6 @@ register_exception_handler(PxcDuplicateActivityName, status.HTTP_500_INTERNAL_SE
 pxc_router = APIRouter()
 pxc_router.include_router(learner_router)
 pxc_router.include_router(activity_router)
-
-PXC_TOOLS = [
-    Tool(handler, PXC_TOOL_CATEGORY)
-    for handler in (
-        pxc_tools.pxc_about,
-        pxc_tools.pxc_build_activity,
-        pxc_tools.pxc_list_activities,
-        pxc_tools.pxc_get_activity_source,
-        pxc_tools.pxc_update_activity,
-        pxc_tools.pxc_get_activity_failures,
-        pxc_tools.pxc_run_activity,
-    )
-]
-
-# The Compose agent that builds activities.
-PXC_ACTIVITY_BUILDER = Agent(
-    "pxc_activities",
-    PXC_ACTIVITY_BUILDER_TITLE,
-    PXC_ACTIVITY_BUILDER_SCOPE,
-    PXC_ACTIVITY_BUILDER_PROMPT,
-    tools=tuple(tool.name for tool in PXC_TOOLS),
-)
 
 
 class PxcPlugin(SparkthPlugin):

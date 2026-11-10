@@ -29,7 +29,6 @@ from sparkth.lib.i18n import gettext
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
 from sparkth.lib.testing import AddTranslation
-from sparkth.plugins.compose.capabilities import COURSE_DESIGN
 from sparkth.plugins.compose.constants import REFUSAL_MESSAGE
 from sparkth.plugins.compose.models import Conversation
 from sparkth.plugins.compose.prompt import render_system_prompt
@@ -159,7 +158,7 @@ class TestRefusalInTheSystemPrompt:
         source even under a non-default locale — not the locale-rendered string."""
         translation_catalog(REFUSAL_MESSAGE, SPANISH)
         with locale_context("es"):
-            prompt = render_system_prompt([COURSE_DESIGN])
+            prompt = render_system_prompt([])
         assert REFUSAL_MESSAGE in prompt
         assert SPANISH not in prompt
 

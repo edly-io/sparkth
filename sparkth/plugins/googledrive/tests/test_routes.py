@@ -32,6 +32,29 @@ class TestGetAuthorizationUrl:
         assert "accounts.google.com" in data["url"]
 
 
+class TestCallback:
+    @pytest.mark.asyncio
+    async def test_redirects_to_the_drive_page(self, drive_client: AsyncClient, test_user: User) -> None:
+        """GET /oauth/callback should send the user back to the Google Drive page once connected."""
+        token_data = {"access_token": "access", "refresh_token": "refresh", "expires_in": 3600, "scope": ""}
+        with (
+            patch("sparkth.plugins.googledrive.routes.oauth.decode_state", return_value={"user_id": test_user.id}),
+            patch(
+                "sparkth.plugins.googledrive.routes.oauth.exchange_code_for_tokens",
+                new_callable=AsyncMock,
+                return_value=token_data,
+            ),
+        ):
+            response = await drive_client.get(
+                "/api/v1/google-drive/oauth/callback",
+                params={"code": "code", "state": "state"},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == status.HTTP_307_TEMPORARY_REDIRECT
+        assert response.headers["location"] == "/dashboard/google-drive?connected=true"
+
+
 class TestConnectionStatus:
     @pytest.mark.asyncio
     async def test_not_connected(self, drive_client: AsyncClient) -> None:

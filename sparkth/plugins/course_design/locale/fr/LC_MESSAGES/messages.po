@@ -1,0 +1,30 @@
+# French translations for sparkth.
+# Copyright (C) 2026 Edly
+# This file is distributed under the same license as the sparkth project.
+# Zaira Bibi <zaira.bibi@arbisoft.com>, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: sparkth 0.2.0\n"
+"Report-Msgid-Bugs-To: https://github.com/edly-io/sparkth/issues\n"
+"POT-Creation-Date: 2026-11-02 18:37+0500\n"
+"PO-Revision-Date: 2026-11-02 18:37+0500\n"
+"Last-Translator: Zaira Bibi <zaira.bibi@arbisoft.com>\n"
+"Language: fr\n"
+"Language-Team: fr <https://github.com/edly-io/sparkth/issues>\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/course_design/plugin.py:14
+msgid "Course design"
+msgstr "Conception de cours"
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/course_design/plugin.py:15
+msgid "Design courses, lessons and written assessments"
+msgstr "Concevez des cours, des leçons et des évaluations écrites"
+

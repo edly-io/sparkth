@@ -3,7 +3,7 @@
 import { X } from "lucide-react";
 import { TextAttachment } from "@/plugins/compose/types";
 import { Button } from "@/lib/components/ui/Button";
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/Popover";
+import { Popover, PopoverTrigger, PopoverContent } from "@/lib/components/ui/Popover";
 import { truncate, RAG_DISPLAY_NAME_MAX_CHARS } from "@/plugins/compose/utils";
 
 interface PersistedFilesInfoProps {

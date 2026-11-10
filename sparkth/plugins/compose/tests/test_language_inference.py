@@ -14,13 +14,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.language import SUPPORTED_LANGUAGES
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
-from sparkth.plugins.compose.capabilities import COURSE_DESIGN
 from sparkth.plugins.compose.models import Conversation
 from sparkth.plugins.compose.prompt import render_system_prompt
+from sparkth.plugins.compose.tests.helpers import answering_model, routing_to
 from sparkth.plugins.compose.types import ConversationDocuments
 
 
@@ -82,40 +83,19 @@ def _other_supported_language_names(excluding_tag: str) -> set[str]:
     return {info.name for tag, info in SUPPORTED_LANGUAGES.items() if tag != excluding_tag}
 
 
-async def _system_prompt_for_one_request(client: AsyncClient, seed: _Seeded) -> str:
-    """Send one completion request; return the system prompt handed to the provider."""
+async def _agent_prompts_for_one_request(client: AsyncClient, seed: _Seeded, agent: Agent) -> list[str]:
+    """Send one completion request the planner hands to ``agent``; return the system prompt of each
+    call the agent made."""
+    model = answering_model("Sure.")
+    provider = MagicMock()
+    provider.create_llm.return_value = model
     with (
-        patch("sparkth.plugins.compose.routes.completions.get_provider") as mock_get_provider,
+        patch("sparkth.plugins.compose.routes.completions.get_provider", side_effect=routing_to(provider, agent)),
         patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_classifier_cls,
-        patch("sparkth.plugins.compose.service.ComposeService.add_message", new_callable=AsyncMock) as mock_add_message,
-        patch(
-            "sparkth.plugins.compose.service.ComposeService.get_conversation_messages",
-            new_callable=AsyncMock,
-            return_value=[],
-        ),
-        patch(
-            "sparkth.plugins.compose.service.ComposeService.list_conversation_attachments",
-            new_callable=AsyncMock,
-            return_value=ConversationDocuments(ready=[], unusable=[]),
-        ),
-        patch("sparkth.plugins.compose.routes.completions.ComposeStreamProcessor") as mock_processor_cls,
     ):
         mock_classifier = MagicMock()
         mock_classifier.in_scope = AsyncMock(return_value=True)
         mock_classifier_cls.return_value = mock_classifier
-
-        mock_message = MagicMock()
-        mock_message.id = 1
-        mock_add_message.return_value = mock_message
-
-        mock_provider = MagicMock()
-        mock_provider.system_prompt = ""
-        mock_provider.create_llm.return_value = MagicMock()
-        mock_get_provider.return_value = mock_provider
-
-        mock_processor = MagicMock()
-        mock_processor.stream.return_value = _fake_stream()
-        mock_processor_cls.return_value = mock_processor
 
         response = await client.post(
             "/api/v1/compose/completions",
@@ -123,13 +103,13 @@ async def _system_prompt_for_one_request(client: AsyncClient, seed: _Seeded) -> 
                 "llm_config_id": seed.llm_config_id,
                 "messages": [{"role": "user", "content": "Create a course on data privacy"}],
                 "conversation_id": seed.conversation_uuid,
-                "stream": True,
+                "stream": False,
                 "tools": "none",
             },
         )
 
     assert response.status_code == 200
-    return str(mock_get_provider.call_args.kwargs["system_prompt"])
+    return [str(call[0].content) for call in model.seen]
 
 
 async def _scheduled_title_task_kwargs(client: AsyncClient, llm_config_id: int) -> dict[str, object]:
@@ -166,7 +146,6 @@ async def _scheduled_title_task_kwargs(client: AsyncClient, llm_config_id: int) 
         mock_add_message.return_value = mock_message
 
         mock_provider = MagicMock()
-        mock_provider.system_prompt = ""
         mock_provider.create_llm.return_value = MagicMock()
         mock_get_provider.return_value = mock_provider
 
@@ -200,7 +179,7 @@ class TestOutputLanguageDirective:
         appears unconditionally. The remaining names are the discriminating ones — if
         any of them is present, something is still resolving and injecting a tag.
         """
-        prompt = render_system_prompt([COURSE_DESIGN])
+        prompt = render_system_prompt([])
         assert "{language_name}" not in prompt
         injectable = {info.name for info in SUPPORTED_LANGUAGES.values() if info.name != "English"}
         assert not any(name in prompt for name in injectable)
@@ -215,13 +194,16 @@ class TestNoStoredPreferenceReachesThePrompt:
         client: AsyncClient,
         current_user: User,
         session: AsyncSession,
+        stub_agent: Agent,
     ) -> None:
         seed = await _seed(session, current_user.id or 1)
         current_user.language = "es"
 
-        prompt = await _system_prompt_for_one_request(client, seed)
+        prompts = await _agent_prompts_for_one_request(client, seed, stub_agent)
 
-        assert not any(name in prompt for name in _other_supported_language_names("en"))
+        assert prompts
+        injected = _other_supported_language_names("en")
+        assert not any(name in prompt for prompt in prompts for name in injected)
 
 
 class TestTitleSchedulingCarriesNoLanguage:

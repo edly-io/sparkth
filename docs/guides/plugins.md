@@ -646,7 +646,7 @@ instance.
 An `Agent` has five fields:
 
 - `name` identifies the agent: lowercase letters, digits and underscores, starting with a letter.
-  `compose` and `operator` are reserved.
+  `compose`, `operator` and `refuse` are reserved.
 - `title` is the heading the agent appears under, both in the system prompt and in the scope
   gate's list.
 - `description` is the text the scope gate judges a message against.
@@ -655,19 +655,11 @@ An `Agent` has five fields:
 - `tools` names the agent's tools. Each one must be one of the plugin's own `MCP_TOOLS`, so
   register those first.
 
-For example:
+Define the agent in the plugin's `agent.py` and register it from `plugin.py`. For example:
 
 ```python
-# sparkth/plugins/myappplugin/plugin.py
-from sparkth.lib.compose.hooks import Agent, register_agent
-from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
-from sparkth.lib.plugins import SparkthPlugin
-
-
-async def my_app_build(title: str) -> str:
-    """Build a My App item and return its id."""
-    ...
-
+# sparkth/plugins/myappplugin/agent.py
+from sparkth.lib.compose.hooks import Agent
 
 MY_AGENT = Agent(
     "my_app",
@@ -676,6 +668,19 @@ MY_AGENT = Agent(
     "Ask which My App item the author wants, then build it with the My App tools.",
     tools=("my_app_build",),
 )
+```
+
+```python
+# sparkth/plugins/myappplugin/plugin.py
+from sparkth.lib.compose.hooks import register_agent
+from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
+from sparkth.lib.plugins import SparkthPlugin
+from sparkth.plugins.myappplugin.agent import MY_AGENT
+
+
+async def my_app_build(title: str) -> str:
+    """Build a My App item and return its id."""
+    ...
 
 
 class MyAppPlugin(SparkthPlugin):
@@ -690,7 +695,7 @@ is harmless: the loader and a plugin's own tests each build an instance, and equ
 one. `register_agent` raises, from `sparkth.lib.compose.exceptions`:
 
 - `InvalidAgentName` for a name that breaks the pattern above;
-- `ReservedAgentName` for `compose` or `operator`;
+- `ReservedAgentName` for `compose`, `operator` or `refuse`;
 - `DuplicateAgentName` when another agent, another plugin or a registered MCP tool already holds the name;
 - `UnknownAgentTool` for a tool the plugin doesn't contribute.
 
@@ -699,20 +704,25 @@ The loader logs the failed construction and skips that plugin.
 ### How Compose uses agents
 
 On every request Compose reads the agents of the plugins enabled for the requesting user, in
-plugin-name order. Compose contributes its own, course design. A plugin switched off system-wide or
+plugin-name order. Course design comes from the course design plugin. A plugin switched off system-wide or
 by the user contributes no section, no description and no tools.
 
-- **Scope gate.** Each message is judged against every enabled description. A message that fits none
-  is refused with a fixed sentence before the model runs. A refused first message writes nothing; a refused later message is stored in the
-  conversation, with the refusal as the assistant's reply. If the classification fails, the turn
-  fails with an error and the model is not called. A failed first message writes nothing; a
-  failed later message stores the error in the conversation.
-- **System prompt.** The prompt is Compose's skeleton with each enabled agent's prompt under its
-  title. The skeleton owns the date, the assistant's identity, the output language, the
-  refusal, injection and offering-choices rules, so a prompt must not repeat them. A prompt
-  holds the agent's workflow, plus any language or guardrail rules specific to it.
-- **Tools.** Every turn gets the tools the request asks for, minus those of a switched-off
-  plugin.
+- **Scope gate.** Each message is judged against every enabled description and Compose's own LMS
+  operations (publishing, retrieving and managing courses). A message that fits none is refused with
+  a fixed sentence before the model runs. A refused first message writes nothing; a refused later
+  message is stored in the conversation, with the refusal as the assistant's reply. If the
+  classification fails, the turn fails with an error and the model is not called. A failed first
+  message writes nothing; a failed later message stores the error in the conversation.
+- **Planner.** A planner on the smallest model of the user's provider reads each message the
+  scope gate let through and hands it to the one agent whose description fits. It answers
+  greetings, questions about what Compose can do, and unclear messages (with a question back)
+  itself.
+- **Agent.** The agent runs on the user's model, with Compose's skeleton wrapped around its
+  `prompt`. The skeleton owns the date, the assistant's identity, the output language, the
+  refusal, injection and offering-choices rules, and Compose's LMS operations, so a prompt must not
+  repeat them. A prompt holds the agent's workflow, plus any language or guardrail rules specific to
+  it.
+- **Tools.** The agent gets the tools the request asks for, minus those of a switched-off plugin.
 
 Plugin-specific knowledge belongs in a `<prefix>about` tool, not in an agent's `prompt`;
 see the LMS `about` tool [above](#lms-plugins-tools-without-credentials) for the convention.

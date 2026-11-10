@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Alert } from "@/components/ui/Alert";
+import { Alert } from "@/lib/components/ui/Alert";
 import { Button } from "@/lib/components/ui/Button";
 import { Spinner } from "@/lib/components/ui/Spinner";
 import { ApiRequestError } from "@/lib/api";
