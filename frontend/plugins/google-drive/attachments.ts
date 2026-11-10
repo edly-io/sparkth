@@ -5,6 +5,6 @@ ATTACHMENT_SOURCES.set("google-drive", [
   {
     label: "Pick from Google Drive",
     icon: GoogleDriveIcon,
-    loadPicker: () => import("@/plugins/google-drive/AttachmentPicker"),
+    loadPicker: () => import("@/plugins/google-drive/components/AttachmentPicker"),
   },
 ]);

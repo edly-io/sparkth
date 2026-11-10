@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-import ConnectionStatus from "@/components/drive/ConnectionStatus";
+import ConnectionStatus from "@/plugins/google-drive/components/ConnectionStatus";
 
-vi.mock("@/core/auth/hooks", () => ({ useAuth: () => ({ token: "t" }) }));
+vi.mock("@/lib/auth/hooks", () => ({ useAuth: () => ({ token: "t" }) }));
 
 describe("ConnectionStatus", () => {
   it("links to the privacy policy before Drive is connected", () => {

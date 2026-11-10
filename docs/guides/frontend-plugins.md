@@ -355,7 +355,7 @@ ATTACHMENT_SOURCES.set("example-plugin", [
   {
     label: "Pick from Example",
     icon: ExampleIcon,
-    loadPicker: () => import("@/plugins/example-plugin/AttachmentPicker"),
+    loadPicker: () => import("@/plugins/example-plugin/components/AttachmentPicker"),
   },
 ]);
 ```
@@ -371,7 +371,7 @@ The picker is the module's default export. It gets the attached documents and tw
 own id for each document in `sourceId`, so it can show them selected when it opens again:
 
 ```tsx
-// plugins/example-plugin/AttachmentPicker.tsx
+// plugins/example-plugin/components/AttachmentPicker.tsx
 import type { AttachmentPickerProps } from "@/lib/attachments/slots";
 
 export default function AttachmentPicker({ selected, onSelect, onClose }: AttachmentPickerProps) {
