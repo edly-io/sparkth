@@ -4,7 +4,7 @@ import { Fragment, useCallback, useEffect, useRef, useState, type SubmitEvent } 
 import { ChevronDown, ChevronRight, Download, ScrollText } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import { useAuth } from "@/core/auth/hooks";
-import { usePermissionCheck } from "@/core/permissions/usePermissionCheck";
+import { usePermissionCheck } from "@/core/permissions/hooks";
 import { ApiRequestError } from "@/lib/api";
 import {
   exportAuditEvents,

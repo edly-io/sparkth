@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 
 import { checkPermission } from "@/core/permissions/client";
-import { usePermissionCheck } from "@/core/permissions/usePermissionCheck";
+import { usePermissionCheck } from "@/core/permissions/hooks";
 
 vi.mock("@/core/permissions/client", () => ({ checkPermission: vi.fn() }));
 
