@@ -3,9 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { ApiRequestError } from "@/lib/api";
-import { ActivityPreview } from "@/plugins/pxc/components/ActivityPreview";
-import { getActivityEmbedUrl } from "@/plugins/pxc/client";
-import pxcEn from "@/plugins/pxc/messages/en.json";
+import { ActivityPreview } from "@/plugins/pxc/src/components/ui/ActivityPreview";
+import { getActivityEmbedUrl } from "@/plugins/pxc/src/client";
+import pxcEn from "@/plugins/pxc/src/i18n/en.json";
 import { renderWithIntl } from "@/tests/intl-test-utils";
 
 const replace = vi.hoisted(() => vi.fn());
@@ -18,7 +18,7 @@ vi.mock("@/lib/auth/hooks", () => ({
   useAuth: () => ({ token: "test-token" }),
 }));
 
-vi.mock("@/plugins/pxc/client", () => ({
+vi.mock("@/plugins/pxc/src/client", () => ({
   getActivityEmbedUrl: vi.fn(),
 }));
 

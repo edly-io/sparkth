@@ -1,8 +1,8 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { ActivityList } from "@/plugins/pxc/components/ActivityList";
-import { ActivityPreview } from "@/plugins/pxc/components/ActivityPreview";
+import { ActivityList } from "@/plugins/pxc/src/components/ui/ActivityList";
+import { ActivityPreview } from "@/plugins/pxc/src/components/ui/ActivityPreview";
 
 // The `/dashboard/pxc` page: the list, or one activity's preview when `?activity=<id>` is set.
 // `&as=edit` opens the preview in the Author view.

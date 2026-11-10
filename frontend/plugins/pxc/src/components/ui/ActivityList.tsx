@@ -8,9 +8,9 @@ import { Card } from "@/lib/components/ui/Card";
 import { Spinner } from "@/lib/components/ui/Spinner";
 import { useAuth } from "@/lib/auth/hooks";
 import { pluginPath } from "@/lib/plugins/routes";
-import { listActivities, type ActivitySummary } from "@/plugins/pxc/client";
-import { DeleteActivityDialog } from "@/plugins/pxc/components/DeleteActivityDialog";
-import { RetryAlert } from "@/plugins/pxc/components/RetryAlert";
+import { listActivities, type ActivitySummary } from "@/plugins/pxc/src/client";
+import { DeleteActivityDialog } from "@/plugins/pxc/src/components/ui/DeleteActivityDialog";
+import { RetryAlert } from "@/plugins/pxc/src/components/ui/RetryAlert";
 
 function ActivityRow({
   activity,

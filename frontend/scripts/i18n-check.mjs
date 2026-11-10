@@ -26,11 +26,16 @@ function check(localesDir, sourcePaths) {
 
 let failed = check("messages", ["app", "components", "core", "lib", "hooks"]) !== 0;
 
+// A plugin keeps its catalogs in src/i18n and is checked against its src. A plugin not yet in that
+// layout keeps them in messages/ and is checked against the whole plugin.
 for (const entry of readdirSync("plugins", { withFileTypes: true })) {
   if (!entry.isDirectory()) continue;
-  const catalogDir = `plugins/${entry.name}/messages`;
-  if (!existsSync(catalogDir)) continue;
-  failed = check(catalogDir, [`plugins/${entry.name}`]) !== 0 || failed;
+  const plugin = `plugins/${entry.name}`;
+  if (existsSync(`${plugin}/src/i18n`)) {
+    failed = check(`${plugin}/src/i18n`, [`${plugin}/src`]) !== 0 || failed;
+  } else if (existsSync(`${plugin}/messages`)) {
+    failed = check(`${plugin}/messages`, [plugin]) !== 0 || failed;
+  }
 }
 
 process.exit(failed ? 1 : 0);

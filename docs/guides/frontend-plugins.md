@@ -27,6 +27,7 @@ plugins/<pluginname>/
       ui/           # everything shown inside the frame
     hooks/
     slots/          # what it contributes to core's slots: icons.ts, settings.ts, ...
+    i18n/           # its message catalogs and their type
     types.ts
     constants.ts    # its plugin name
   lib/
@@ -236,9 +237,9 @@ single top-level namespace equal to the plugin name.
 
 **1. Create the catalogs**
 
-    plugins/exampleplugin/messages/en.json
-    plugins/exampleplugin/messages/es.json
-    plugins/exampleplugin/messages/fr.json
+    plugins/exampleplugin/src/i18n/en.json
+    plugins/exampleplugin/src/i18n/es.json
+    plugins/exampleplugin/src/i18n/fr.json
 
 ```json
 {
@@ -256,9 +257,9 @@ Every locale in `lib/i18n/config.ts` needs a file, all carrying the same keys.
 import type { Locale } from "@/lib/i18n/config";
 
 const messageCatalogs: Record<Locale, () => Promise<{ default: Record<string, unknown> }>> = {
-  en: () => import("@/plugins/exampleplugin/messages/en.json"),
-  es: () => import("@/plugins/exampleplugin/messages/es.json"),
-  fr: () => import("@/plugins/exampleplugin/messages/fr.json"),
+  en: () => import("@/plugins/exampleplugin/src/i18n/en.json"),
+  es: () => import("@/plugins/exampleplugin/src/i18n/es.json"),
+  fr: () => import("@/plugins/exampleplugin/src/i18n/fr.json"),
 };
 
 export const examplePlugin: PluginDefinition = {
@@ -274,14 +275,14 @@ back to the plugin's English one.
 
 **3. Bind the types**
 
-Add an `i18n/messages.d.ts` to the plugin that extends the `PluginMessages`
+Add a `src/i18n/messages.d.ts` to the plugin that extends the `PluginMessages`
 interface in `lib/i18n/messages.ts` with the plugin's English catalog.
 TypeScript merges every plugin's declaration into that interface, so unknown
 keys fail the typecheck, and core names no plugin:
 
 ```ts
-// plugins/exampleplugin/i18n/messages.d.ts
-import type catalog from "@/plugins/exampleplugin/messages/en.json";
+// plugins/exampleplugin/src/i18n/messages.d.ts
+import type catalog from "@/plugins/exampleplugin/src/i18n/en.json";
 
 type Catalog = typeof catalog;
 
@@ -301,8 +302,8 @@ const t = useTranslations("exampleplugin");
 ```
 
 Plugin components use only their own namespace, never a core one. The catalog
-drift guard (`make test.frontend.i18n`) picks the new `messages/` directory up
-automatically and checks it against the plugin's own sources, and
+drift guard (`make test.frontend.i18n`) picks the new `src/i18n/` directory up
+automatically and checks it against the plugin's own `src/`, and
 `frontend/tests/core/i18n/messages.test.ts` enforces the namespace containment.
 In component tests, pass the plugin catalog to the intl helper:
 `renderWithIntl(<ExamplePlugin />, exampleEn)`. See the

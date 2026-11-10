@@ -286,7 +286,7 @@ format.dateTime(new Date(`${day}T00:00:00Z`), { dateStyle: "medium", timeZone: "
 
 A frontend plugin owns its catalogs, mirroring the backend containment rule:
 the core `frontend/messages/` files carry no plugin namespace, and a plugin
-that has user-facing strings ships `messages/<locale>.json` files in its own
+that has user-facing strings ships `src/i18n/<locale>.json` files in its own
 directory, scoped to a single top-level namespace equal to the plugin name.
 The plugin declares a `loadMessages` loader on its `PluginDefinition`, and
 `loadMessages` in `frontend/core/i18n/messages.ts` merges every registered
@@ -301,11 +301,11 @@ step-by-step wiring; the containment is guarded by
 `make test.frontend.i18n` (part of `make test.frontend`, so it runs in CI)
 runs [i18n-check](https://github.com/lingualdev/i18n-check) once per catalog
 (`frontend/scripts/i18n-check.mjs`): the core `frontend/messages/` catalog is
-checked against the core sources, and each `frontend/plugins/*/messages/`
-catalog against that plugin's own sources. Each run fails on keys missing
+checked against the core sources, and each `frontend/plugins/*/src/i18n/`
+catalog against that plugin's own `src/`. Each run fails on keys missing
 from any locale file, keys whose ICU placeholders diverge from the source,
 catalog entries no component uses, and keys used in code but defined in no
-catalog. A plugin opts in simply by having a `messages/` directory; the
+catalog. A plugin opts in simply by having a `src/i18n/` directory; the
 script picks it up automatically. The
 [`i18n-translator`](https://github.com/edly-io/sparkth/blob/main/.claude/agents/i18n-translator.md)
 Claude Code agent fills in the missing or invalid keys the check reports.
@@ -317,7 +317,7 @@ Wrap the component in the English catalog with `renderWithIntl` from
 working unchanged:
 
 ```tsx
-import { renderWithIntl } from "../intl-test-utils";
+import { renderWithIntl } from "@/tests/intl-test-utils";
 
 renderWithIntl(<HomeClient />);
 expect(screen.getByRole("link", { name: "Get Started" })).toBeInTheDocument();
@@ -327,9 +327,9 @@ A plugin component test passes the plugin's English catalog as the second
 argument, since the helper's default carries only the core catalog:
 
 ```tsx
-import composeEn from "@/plugins/compose/messages/en.json";
+import pxcEn from "@/plugins/pxc/src/i18n/en.json";
 
-renderWithIntl(<ChatInput ... />, composeEn);
+renderWithIntl(<ActivityList />, pxcEn);
 ```
 
 ### Adding a language

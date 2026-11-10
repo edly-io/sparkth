@@ -1,9 +1,9 @@
 import { screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-import PxcActivities from "@/plugins/pxc/PxcActivities";
-import { getActivityEmbedUrl, listActivities } from "@/plugins/pxc/client";
-import pxcEn from "@/plugins/pxc/messages/en.json";
+import PxcActivities from "@/plugins/pxc/src/routes/PxcActivities";
+import { getActivityEmbedUrl, listActivities } from "@/plugins/pxc/src/client";
+import pxcEn from "@/plugins/pxc/src/i18n/en.json";
 import { renderWithIntl } from "@/tests/intl-test-utils";
 
 const searchParams = vi.hoisted(() => ({ value: new URLSearchParams() }));
@@ -17,7 +17,7 @@ vi.mock("@/lib/auth/hooks", () => ({
   useAuth: () => ({ token: "test-token" }),
 }));
 
-vi.mock("@/plugins/pxc/client", () => ({
+vi.mock("@/plugins/pxc/src/client", () => ({
   listActivities: vi.fn(),
   getActivityEmbedUrl: vi.fn(),
 }));

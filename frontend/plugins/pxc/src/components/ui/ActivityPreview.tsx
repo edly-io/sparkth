@@ -9,8 +9,8 @@ import { Button } from "@/lib/components/ui/Button";
 import { Spinner } from "@/lib/components/ui/Spinner";
 import { ApiRequestError } from "@/lib/api";
 import { useAuth } from "@/lib/auth/hooks";
-import { getActivityEmbedUrl, type LaunchPermission } from "@/plugins/pxc/client";
-import { RetryAlert } from "@/plugins/pxc/components/RetryAlert";
+import { getActivityEmbedUrl, type LaunchPermission } from "@/plugins/pxc/src/client";
+import { RetryAlert } from "@/plugins/pxc/src/components/ui/RetryAlert";
 
 const ACTIVITIES_PATH = "/dashboard/pxc";
 
