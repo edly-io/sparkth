@@ -41,6 +41,14 @@ describe("AppSidebar permission-gated nav", () => {
   });
 });
 
+describe("AppSidebar plugin entries", () => {
+  it("shows no Resources entry when no plugin declares one", () => {
+    render(<AppSidebar user={{ name: "A" }} />);
+
+    expect(screen.queryByText("Resources")).not.toBeInTheDocument();
+  });
+});
+
 describe("AppSidebar documentation link", () => {
   it("opens the documentation home page in a new tab", () => {
     render(<AppSidebar user={{ name: "A" }} />);
