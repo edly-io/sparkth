@@ -107,9 +107,9 @@ class TestThePreflightCheckSeesTheWholeTurn:
 
         with (
             locale_context("en"),
-            patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as MockClassifier,
+            patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_classifier,
         ):
-            MockClassifier.return_value.in_scope = AsyncMock(return_value=False)
+            mock_classifier.return_value.in_scope = AsyncMock(return_value=False)
             response = await client.post(
                 "/api/v1/compose/completions",
                 json={
@@ -132,7 +132,7 @@ class TestThePreflightCheckSeesTheWholeTurn:
             )
 
         assert response.status_code == 200
-        query, _history, attachments, _uuid = MockClassifier.return_value.in_scope.await_args.args
+        query, _history, attachments, _uuid = mock_classifier.return_value.in_scope.await_args.args
         assert query == ""
         assert attachments == ["syllabus.pdf"]
 
@@ -167,10 +167,10 @@ class TestAnExistingConversationSeesTheWholeTurnToo:
 
         with (
             locale_context("en"),
-            patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as MockClassifier,
+            patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_classifier,
             patch("sparkth.plugins.compose.service.ComposeService.add_message", new_callable=AsyncMock),
         ):
-            MockClassifier.return_value.in_scope = AsyncMock(return_value=False)
+            mock_classifier.return_value.in_scope = AsyncMock(return_value=False)
             response = await client.post(
                 "/api/v1/compose/completions",
                 json={
@@ -194,7 +194,7 @@ class TestAnExistingConversationSeesTheWholeTurnToo:
             )
 
         assert response.status_code == 200
-        query, _history, attachments, _uuid = MockClassifier.return_value.in_scope.await_args.args
+        query, _history, attachments, _uuid = mock_classifier.return_value.in_scope.await_args.args
         assert query == ""
         assert attachments == ["syllabus.pdf"]
 

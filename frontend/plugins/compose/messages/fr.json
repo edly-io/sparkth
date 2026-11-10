@@ -12,6 +12,7 @@
     "optionsTypeElse": "Vous voulez autre chose ? Écrivez-le dans la zone de message ci-dessous.",
     "optionsNoneSelected": "Aucune option sélectionnée",
     "stopGenerating": "Arrêter la génération",
+    "pickerFailed": "Impossible d'ouvrir le sélecteur de fichiers. Veuillez réessayer.",
     "aiKeyMissing": "Vous n'avez pas encore ajouté de clé d'IA à Sparkth. Ajoutez-en une, puis sélectionnez-la dans la configuration de Composer.",
     "aiKeyMissingAction": "Ajouter une clé d'IA",
     "aiKeyNotSelected": "Sélectionnez votre clé d'IA dans la configuration de Composer pour commencer à créer.",

@@ -1,6 +1,7 @@
 """Helpers shared by the Compose plugin's tests: seeded rows, LMS configs, mocked providers and Google's errors."""
 
-from collections.abc import AsyncGenerator, Sequence
+from collections.abc import AsyncGenerator, Callable, Iterator, Sequence
+from itertools import repeat
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID
@@ -8,13 +9,18 @@ from uuid import UUID
 import aiohttp
 import pytest
 from google.genai import errors as google_genai_errors
+from langchain_core.messages import AIMessage, BaseMessage
 from langchain_google_genai.chat_models import ChatGoogleGenerativeAIError
+from pydantic import Field
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.encryption import get_encryption_service
+from sparkth.lib.llm import small_model_for
 from sparkth.lib.models import LLMConfig
 from sparkth.lib.settings import get_settings
+from sparkth.lib.testing import ScriptedChatModel
 from sparkth.plugins.compose.models import Conversation, Message
 
 GOOGLE_INVALID_KEY = "Invalid API key. Please check your Google API key in AI Keys."
@@ -40,6 +46,9 @@ async def replay_turn(
     tools: Sequence[Any],
     provider: Any,
     max_tool_executions: int,
+    *,
+    agents: Sequence[Agent],
+    planner_llm: Any,
 ) -> AsyncGenerator[dict[str, Any], None]:
     """Stand in for ``stream_turn`` with a turn that streams ``events``.
 
@@ -48,6 +57,69 @@ async def replay_turn(
     """
     for event in events:
         yield event
+
+
+class RecordingChatModel(ScriptedChatModel):
+    """A scripted chat model that keeps the messages of every call it gets in ``seen``."""
+
+    seen: list[list[BaseMessage]] = Field(default_factory=list)
+
+    def _generate(self, messages: list[BaseMessage], *args: Any, **kwargs: Any) -> Any:
+        self.seen.append(messages)
+        return super()._generate(messages, *args, **kwargs)
+
+
+def answering_model(content: str, total_tokens: int | None = None) -> RecordingChatModel:
+    """A chat model that answers every call with ``content``, reporting ``total_tokens`` when given."""
+    usage = (
+        {"input_tokens": 0, "output_tokens": total_tokens, "total_tokens": total_tokens}
+        if total_tokens is not None
+        else None
+    )
+    return RecordingChatModel(messages=repeat(AIMessage(content=content, usage_metadata=usage)))
+
+
+def _raising(failure: Exception) -> Iterator[AIMessage]:
+    raise failure
+    yield AIMessage(content="never")
+
+
+def failing_model(failure: Exception) -> ScriptedChatModel:
+    """A chat model whose first call raises ``failure``."""
+    return ScriptedChatModel(messages=_raising(failure))
+
+
+def planner_model(reply: AIMessage) -> ScriptedChatModel:
+    """A planner's model answering every message with ``reply``, whole: the fake drops tool calls when it streams."""
+    return ScriptedChatModel(messages=repeat(reply), disable_streaming=True)
+
+
+def hand_off(agent: Agent) -> AIMessage:
+    """A planner reply handing the message to ``agent``."""
+    return AIMessage("", tool_calls=[{"name": agent.name, "args": {"request": "Go ahead."}, "id": "hand_off"}])
+
+
+def planner_answering(reply: AIMessage, agent: Agent) -> dict[str, Any]:
+    """The ``agents`` and ``planner_llm`` of a turn offering ``agent``, whose planner answers every message
+    with ``reply``."""
+    return {"agents": [agent], "planner_llm": planner_model(reply)}
+
+
+def handing_off_to(agent: Agent) -> dict[str, Any]:
+    """The ``agents`` and ``planner_llm`` of a turn whose planner hands every message to ``agent``."""
+    return planner_answering(hand_off(agent), agent)
+
+
+def routing_to(provider: Any, agent: Agent) -> Callable[..., Any]:
+    """Stand in for the route's ``get_provider``: the planner's small model hands every message to
+    ``agent``, and every other model is ``provider``'s."""
+    planner = MagicMock()
+    planner.create_llm.return_value = planner_model(hand_off(agent))
+
+    def get_provider(provider_name: str, api_key: str, model: str, **kwargs: Any) -> Any:
+        return planner if model == small_model_for(provider_name) else provider
+
+    return get_provider
 
 
 async def seed_llm_config(session: AsyncSession, user_id: int) -> int:

@@ -130,9 +130,9 @@ class DocxExtractor(BaseExtractor):
         style = para.style
         while style is not None:
             if style.element is not None:
-                pPr = style.element.find(qn("w:pPr"))
-                if pPr is not None:
-                    num_pr = pPr.find(qn("w:numPr"))
+                ppr = style.element.find(qn("w:pPr"))
+                if ppr is not None:
+                    num_pr = ppr.find(qn("w:numPr"))
                     if num_pr is not None:
                         return num_pr
             style = style.base_style  # may be None at the top

@@ -93,6 +93,8 @@ class TestNoUnauditedConstructionSites:
         Path("rag/mcp/agent_tools.py"),  # plain coroutines; runs recorded by the callback handler
         Path("rag/retrieval/agent.py"),  # consumes build_search_tools only
         Path("plugins/compose/llm.py"),  # runs the chat registry's handler-audited, tagged tools
+        Path("plugins/compose/planner/graph.py"),  # builds the planner graph; its tools are skip-tagged
+        Path("plugins/compose/planner/tools.py"),  # hand-offs and refusals act on no system; skip-tagged
         Path("mcp/server.py"),  # direct @mcp.tool registrations, wrapped explicitly
     }
 

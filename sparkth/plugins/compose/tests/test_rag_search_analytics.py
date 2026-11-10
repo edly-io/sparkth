@@ -25,10 +25,14 @@ from sparkth.plugins.compose.routes.utils.message_assembly import assemble_provi
 from sparkth.plugins.compose.routes.utils.rag_search import resolve_document_blocks
 from sparkth.plugins.compose.routes.utils.stream_processor import ComposeStreamProcessor
 from sparkth.plugins.compose.schemas import ChatCompletionRequest, ChatMessage
-from sparkth.plugins.compose.tests.helpers import STREAM_TURN, replay_turn
+from sparkth.plugins.compose.tests.conftest import STUB_AGENT
+from sparkth.plugins.compose.tests.helpers import STREAM_TURN, handing_off_to, replay_turn
 
 EVENT = "compose.rag_search_completed"
 CONVERSATION = uuid.UUID("550e8400-e29b-41d4-a716-446655440000")
+
+# The turns here are replayed, so the planner never runs.
+PLANNER = handing_off_to(STUB_AGENT)
 
 
 def _chunk(section: str = "Intro") -> RetrievedChunk:
@@ -90,6 +94,7 @@ async def _stream(retrieve: AsyncMock, service: MagicMock | None = None) -> None
             MagicMock(),
             True,
             analytics=AnalyticsAttribution(provider="openai", actor_id="1"),
+            **PLANNER,
         ).stream():
             pass
     await join_live_tasks()  # the stream task emits after its sentinel
@@ -146,6 +151,7 @@ async def test_streamed_turn_without_search_records_nothing(analytics_session: S
             _service(),
             None,
             analytics=AnalyticsAttribution(provider="openai", actor_id="1"),
+            **PLANNER,
         ).stream():
             pass
     await join_live_tasks()

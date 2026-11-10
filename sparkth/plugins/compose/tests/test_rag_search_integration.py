@@ -18,7 +18,7 @@ from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
 from sparkth.plugins.compose.exceptions import RAGSearchError
 from sparkth.plugins.compose.models import Conversation
-from sparkth.plugins.compose.tests.helpers import STREAM_TURN, replay_turn
+from sparkth.plugins.compose.tests.helpers import STREAM_TURN, answering_model, replay_turn
 from sparkth.plugins.compose.types import ConversationDocuments
 
 
@@ -128,15 +128,7 @@ class TestIntentRouterIntegration:
             # Provider returns a simple response
             mock_provider = MagicMock()
             mock_provider.system_prompt = ""
-            mock_provider.create_llm.return_value = MagicMock()
-            mock_provider.send_message = AsyncMock(
-                return_value={
-                    "content": "Here is the summary.",
-                    "role": "assistant",
-                    "tool_calls": None,
-                    "metadata": {"usage_metadata": {"total_tokens": 50}},
-                }
-            )
+            mock_provider.create_llm.return_value = answering_model("Here is the summary.", total_tokens=50)
             mock_get_provider.return_value = mock_provider
             mock_add_msg.return_value = mock_msg
 
@@ -492,15 +484,7 @@ def _configure_base_mocks(
 
     mock_provider = MagicMock()
     mock_provider.system_prompt = ""
-    mock_provider.create_llm.return_value = MagicMock()
-    mock_provider.send_message = AsyncMock(
-        return_value={
-            "content": "OK.",
-            "role": "assistant",
-            "tool_calls": None,
-            "metadata": {"usage_metadata": {"total_tokens": 10}},
-        }
-    )
+    mock_provider.create_llm.return_value = answering_model("OK.", total_tokens=10)
     mock_get_provider.return_value = mock_provider
 
 

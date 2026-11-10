@@ -61,7 +61,7 @@ def test_the_same_agent_from_another_plugin_is_refused(stub_plugin: SparkthPlugi
         register_agent(SparkthPlugin("other"), STUB)
 
 
-@pytest.mark.parametrize("name", ["compose", "operator"])
+@pytest.mark.parametrize("name", ["compose", "operator", "refuse"])
 def test_a_reserved_name_is_refused(name: str) -> None:
     with pytest.raises(ReservedAgentName):
         register_agent(SparkthPlugin("other"), Agent(name, "Other", "Other description.", "Other prompt"))

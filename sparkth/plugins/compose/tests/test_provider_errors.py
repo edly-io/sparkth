@@ -25,6 +25,7 @@ from sparkth.plugins.compose.tests.helpers import (
     GOOGLE_OVERLOADED_ERROR,
     GOOGLE_UNREACHABLE,
     classifier_provider,
+    failing_model,
     google_client_error,
     seed_conversation,
     seed_llm_config,
@@ -76,7 +77,7 @@ def _chat_provider(failure: Exception) -> MagicMock:
     provider = MagicMock()
     provider.model = "gpt-4o"
     provider.system_prompt = ""
-    provider.send_message = AsyncMock(side_effect=failure)
+    provider.create_llm.return_value = failing_model(failure)
     return provider
 
 

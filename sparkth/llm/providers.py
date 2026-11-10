@@ -14,6 +14,24 @@ from sparkth.lib.log import get_logger
 logger = get_logger(__name__)
 
 
+def to_langchain_messages(messages: list[dict[str, Any]]) -> list[AnyMessage]:
+    """Convert ``{"role", "content"}`` dicts to LangChain messages; any role but system or assistant is the user's."""
+    langchain_messages: list[AnyMessage] = []
+
+    for msg in messages:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+
+        if role == "system":
+            langchain_messages.append(SystemMessage(content=content))
+        elif role == "assistant":
+            langchain_messages.append(AIMessage(content=content))
+        else:
+            langchain_messages.append(HumanMessage(content=content))
+
+    return langchain_messages
+
+
 class BaseChatProvider(ABC):
     # Stable provider identifier recorded as AI provenance on audit events;
     # subclasses set it to their PROVIDER_REGISTRY key.
@@ -42,23 +60,6 @@ class BaseChatProvider(ABC):
         """Public interface for creating a configured LangChain LLM instance."""
         return self._create_llm(streaming=streaming)
 
-    def convert_messages(self, messages: list[dict[str, Any]]) -> list[AnyMessage]:
-        """Convert dict messages to LangChain message objects."""
-        langchain_messages: list[AnyMessage] = []
-
-        for msg in messages:
-            role = msg.get("role", "user")
-            content = msg.get("content", "")
-
-            if role == "system":
-                langchain_messages.append(SystemMessage(content=content))
-            elif role == "assistant":
-                langchain_messages.append(AIMessage(content=content))
-            else:
-                langchain_messages.append(HumanMessage(content=content))
-
-        return langchain_messages
-
     async def send_message(self, messages: list[dict[str, Any]], max_tokens: int | None = None) -> dict[str, Any]:
         """Send a message and get the model's reply, without tools."""
         try:
@@ -70,7 +71,7 @@ class BaseChatProvider(ABC):
     async def _send_message_simple(self, llm: Any, messages: list[dict[str, Any]]) -> dict[str, Any]:
         """Send a message without tools."""
         langchain_messages: list[BaseMessage] = [SystemMessage(content=self.system_prompt)]
-        langchain_messages.extend(self.convert_messages(messages))
+        langchain_messages.extend(to_langchain_messages(messages))
 
         response = await llm.ainvoke(langchain_messages)
 
@@ -155,12 +156,20 @@ PROVIDER_MODELS: dict[str, list[str]] = {
     ],
 }
 
+# Smallest capable model per provider, for quick calls such as classifying or routing a message.
+SMALL_MODELS: dict[str, str] = {
+    "openai": "gpt-4o-mini",
+    "anthropic": "claude-haiku-4-5",
+    "google": "gemini-2.0-flash",
+}
+
 _registry_only = set(PROVIDER_REGISTRY) - set(PROVIDER_MODELS)
 _models_only = set(PROVIDER_MODELS) - set(PROVIDER_REGISTRY)
-if _registry_only or _models_only:
+_without_small_model = set(PROVIDER_REGISTRY) - set(SMALL_MODELS)
+if _registry_only or _models_only or _without_small_model:
     raise ValueError(
-        f"PROVIDER_REGISTRY and PROVIDER_MODELS are out of sync. "
-        f"Registry only: {_registry_only}, Models only: {_models_only}"
+        f"PROVIDER_REGISTRY, PROVIDER_MODELS and SMALL_MODELS are out of sync. Registry only: {_registry_only}, "
+        f"Models only: {_models_only}, No small model: {_without_small_model}"
     )
 
 
@@ -180,6 +189,18 @@ def get_provider(
         raise ValueError(f"Unsupported provider: {provider_name}. Supported providers: {supported}")
 
     return provider_class(api_key, model, system_prompt, temperature, max_retries)
+
+
+def small_model_for(provider_name: str) -> str:
+    """Return the smallest model registered for ``provider_name``.
+
+    Raises:
+        ValueError: no small model is registered for that provider.
+    """
+    model = SMALL_MODELS.get(provider_name)
+    if model is None:
+        raise ValueError(f"Unsupported provider for a small model: {provider_name!r}")
+    return model
 
 
 def get_supported_providers() -> list[str]:

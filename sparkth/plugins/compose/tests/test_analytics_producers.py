@@ -26,6 +26,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.analytics.models import raw_events
 from sparkth.lib.analytics import ingest_event as real_ingest_event
+from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.llm import get_provider
 from sparkth.lib.mcp.hooks import Tool
@@ -35,7 +36,7 @@ from sparkth.lib.testing import ScriptedChatModel
 from sparkth.plugins.compose.detached import join_live_tasks
 from sparkth.plugins.compose.models import Conversation, Message
 from sparkth.plugins.compose.routes.utils.live_turns import request_stop
-from sparkth.plugins.compose.tests.helpers import STREAM_TURN, replay_turn
+from sparkth.plugins.compose.tests.helpers import STREAM_TURN, answering_model, replay_turn, routing_to
 from sparkth.plugins.compose.tools import convert_mcp_to_langchain_tool
 
 COMPLETIONS_URL = "/api/v1/compose/completions"
@@ -103,14 +104,13 @@ async def _occurred_at(analytics_session: SQLAlchemyAsyncSession, event_type: st
     return [_as_utc(row["occurred_at"]) for row in rows if row["event_type"] == event_type]
 
 
-def _non_streaming_provider(
-    content: str = "Here is your course outline.", metadata: dict[str, Any] | None = None
-) -> MagicMock:
-    """A provider mock standing in for the non-streaming send_message path."""
+def _non_streaming_provider(content: str = "Here is your course outline.") -> MagicMock:
+    """A provider mock whose model answers ``content``; its ``send_message`` writes conversation titles."""
     provider = MagicMock()
     provider.model = "gpt-4o"
     provider.system_prompt = ""
-    provider.send_message = AsyncMock(return_value={"content": content, "metadata": metadata or {}})
+    provider.create_llm.return_value = answering_model(content)
+    provider.send_message = AsyncMock(return_value={"content": content, "metadata": {}})
     return provider
 
 
@@ -465,27 +465,30 @@ async def test_non_streaming_tool_executions_emit_tool_invoked(
     """The non-streaming path reads metadata["tool_executions"], keyed "tool"."""
     config_id = await _seed_llm_config(session, current_user.id or 1)
 
-    provider = _non_streaming_provider(
-        "Created the course run and an xblock.",
-        {
-            "num_executions": 2,
-            "tool_executions": [
-                {
-                    "tool": "openedx_create_course_run",
-                    "tool_input": {"title": "Data Privacy"},
-                    "output": "course-v1:X+Y+Z",
-                },
-                {
-                    "tool": "openedx_create_xblock",
-                    "tool_input": {"category": "html"},
-                    "output": "block-v1:...",
-                },
-            ],
-        },
+    turn = AsyncMock(
+        return_value={
+            "content": "Created the course run and an xblock.",
+            "metadata": {
+                "num_executions": 2,
+                "tool_executions": [
+                    {
+                        "tool": "openedx_create_course_run",
+                        "tool_input": {"title": "Data Privacy"},
+                        "output": "course-v1:X+Y+Z",
+                    },
+                    {
+                        "tool": "openedx_create_xblock",
+                        "tool_input": {"category": "html"},
+                        "output": "block-v1:...",
+                    },
+                ],
+            },
+        }
     )
 
     with (
-        patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=provider),
+        patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_non_streaming_provider()),
+        patch("sparkth.plugins.compose.routes.completions.complete_turn", new=turn),
         patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_scope_cls,
         patch("sparkth.plugins.compose.conversation_title.get_provider", return_value=_non_streaming_provider()),
     ):
@@ -610,6 +613,7 @@ async def _stopping_mid_answer(
     tools: Sequence[Any],
     provider: Any,
     max_tool_executions: int,
+    **planner: Any,
 ) -> AsyncGenerator[dict[str, Any], None]:
     """A streamed turn whose instructor presses Stop after the first token."""
     yield {"type": "token", "content": "Half a "}
@@ -956,7 +960,9 @@ def _tool_calling_model() -> ScriptedChatModel:
         ],
     )
     usage = {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}
-    return ScriptedChatModel(messages=iter([calls, AIMessage(content="Done.", usage_metadata=usage)]))
+    return ScriptedChatModel(
+        messages=iter([calls, AIMessage(content="Done.", usage_metadata=usage)]), disable_streaming=True
+    )
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
@@ -966,6 +972,7 @@ async def test_tool_invoked_records_whether_each_call_succeeded(
     current_user: User,
     session: AsyncSession,
     analytics_session: SQLAlchemyAsyncSession,
+    stub_agent: Agent,
 ) -> None:
     """Real tools through the real provider: a success, a returned error, and a raise."""
     config_id = await _seed_llm_config(session, current_user.id or 1)
@@ -975,7 +982,7 @@ async def test_tool_invoked_records_whether_each_call_succeeded(
 
     with (
         patch.object(provider, "_create_llm", lambda streaming=False, callbacks=None: llm),
-        patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=provider),
+        patch("sparkth.plugins.compose.routes.completions.get_provider", side_effect=routing_to(provider, stub_agent)),
         patch("sparkth.plugins.compose.routes.completions.resolve_tools", AsyncMock(return_value=tools)),
         patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_scope_cls,
         patch("sparkth.plugins.compose.conversation_title.get_provider", return_value=_non_streaming_provider()),

@@ -3,7 +3,8 @@ from sparkth.lib.frontend import plugin_has_frontend
 from sparkth.lib.frontend.hooks import DISPLAY_INFO, SIDEBAR_ENTRIES, SidebarEntry
 from sparkth.lib.mcp.hooks import MCP_TOOLS
 from sparkth.lib.plugins import get_plugin_loader
-from sparkth.plugins.pxc.plugin import PXC_ACTIVITY_BUILDER, PxcPlugin
+from sparkth.plugins.pxc.agent import PXC_ACTIVITY_BUILDER
+from sparkth.plugins.pxc.plugin import PxcPlugin
 
 
 def test_the_plugin_is_named_pxc() -> None:

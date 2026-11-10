@@ -24,6 +24,7 @@ from sparkth.llm.providers import (
     get_provider,
     get_provider_catalog,
     get_supported_providers,
+    small_model_for,
 )
 from sparkth.plugins.compose.routes.utils.stream_processor import streaming_error_message
 
@@ -364,3 +365,9 @@ class TestMaxRetriesForwarding:
         assert provider.max_retries == 2
         llm = provider._create_llm()
         assert llm.max_retries == 2
+
+
+def test_every_provider_has_a_small_model_it_offers() -> None:
+    """The planner and classifiers run on it, so it must be a model the provider lists."""
+    for provider in PROVIDER_REGISTRY:
+        assert small_model_for(provider) in PROVIDER_MODELS[provider]

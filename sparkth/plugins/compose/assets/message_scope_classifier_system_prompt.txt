@@ -6,6 +6,10 @@ IMPORTANT: Judge the message using the full conversation, not the latest message
 
 CAPABILITIES:
 
+CAPABILITY "Publishing and managing courses on your LMS":
+- Publishing, managing, or retrieving courses on an LMS — including creating, reading, listing, updating, or deleting courses, modules, pages, quizzes, and other course components via available tools
+- Publishing to an LMS or platform that is not yet supported
+
 {capabilities}
 
 Set in_scope to true when the message belongs to at least one capability above, and to false when it belongs to none of them.

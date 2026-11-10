@@ -14,8 +14,8 @@ import { useAuth } from "@/core/auth/hooks";
 import { SparkthLogo } from "@/components/SparkthLogo";
 import { Button } from "@/core/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Alert } from "@/components/ui/Alert";
-import { Card } from "@/components/ui/Card";
+import { Alert } from "@/core/components/ui/Alert";
+import { Card } from "@/core/components/ui/Card";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 type ResendStatus = "idle" | "sending" | "sent" | "rate_limited" | "error";

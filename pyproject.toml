@@ -95,10 +95,12 @@ select = [
     "I",    # isort
     "INT",  # flake8-gettext (misuse inside gettext calls, e.g. _(f"..."))
     "PLE",  # pylint errors
+    "N",    # pep8-naming
 ]
 ignore = [
     "E711", # none-comparison
     "E712", # true-false-comparison
+    "N818", # error-suffix-on-exception-name (domain exceptions are named for the failure, e.g. RoleNotFound)
 ]
 
 [tool.pydantic-mypy]

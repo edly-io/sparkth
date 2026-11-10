@@ -1,4 +1,4 @@
-"""Run one chat turn against the model: with tools on a LangChain agent, without tools as a plain model call."""
+"""Run one Compose turn: a planner hands the message to an agent, answers it itself, or refuses it."""
 
 import asyncio
 import json
@@ -17,8 +17,11 @@ from langchain.agents.middleware import (
     wrap_tool_call,
 )
 from langchain.agents.middleware.tool_call_limit import ToolCallLimitState
-from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
+from langchain_core.messages.ai import UsageMetadata, add_usage
 from langchain_core.tools import BaseTool
+from langgraph.graph.state import CompiledStateGraph
 from langgraph.runtime import Runtime
 from langgraph.types import Command
 from pydantic import BaseModel, ValidationError
@@ -27,10 +30,15 @@ from sparkth.lib.audit import ToolFailureKind, tool_failure
 from sparkth.lib.audit.context import AuditSource, ai_audit_context
 from sparkth.lib.audit.events import AuditModelInfo
 from sparkth.lib.audit.exceptions import AuditCaptureError
-from sparkth.lib.i18n import _
-from sparkth.lib.llm import BaseChatProvider
+from sparkth.lib.compose.constants import REFUSE_TOOL_NAME
+from sparkth.lib.compose.hooks import Agent
+from sparkth.lib.i18n import gettext
+from sparkth.lib.llm import BaseChatProvider, to_langchain_messages
 from sparkth.lib.log import get_logger
 from sparkth.lib.plugins import PluginConfigInvalidError, PluginNotConfiguredError
+from sparkth.plugins.compose.constants import TOOL_CALL_LIMIT_NOTICE
+from sparkth.plugins.compose.planner import AgentGraph, build_planner
+from sparkth.plugins.compose.prompt import render_system_prompt
 
 logger = get_logger(__name__)
 
@@ -190,69 +198,74 @@ def _end_after_a_block(limit: int, state: ToolCallLimitState[Any], runtime: Runt
     if counted <= limit or not (isinstance(reply, AIMessage) and reply.tool_calls):
         return None
     logger.warning("Model asked for tools after the limit (%s); the turn ends with a notice", limit)
-    notice = _(
-        "I stopped because I reached the tool-call limit for this turn. You can send another message to continue."
-    )
-    return {"jump_to": "end", "messages": [AIMessage(content=notice)]}
+    return {"jump_to": "end", "messages": [AIMessage(content=gettext(TOOL_CALL_LIMIT_NOTICE))]}
 
 
-def _update_events(
-    node: str, update: dict[str, Any] | None, limiter: ToolCallLimitMiddleware[Any, Any]
-) -> list[dict[str, Any]]:
-    """The agent events one graph node's update stands for: blocked calls, or the closing reply.
+def _update_events(node: str, update: dict[str, Any] | None, max_tool_executions: int) -> list[dict[str, Any]]:
+    """The events one graph node's update stands for: blocked calls, the tokens of each model
+    reply, and the closing reply.
 
-    The tool-call ``limiter`` adds messages only when it blocks calls, and each time it does it
-    is logged.
+    The tool call limiter adds messages only when it blocks calls, and each time it does it is
+    logged.
     """
     messages = (update or {}).get("messages", [])
-    if node == f"{limiter.name}.after_model" and messages:
-        logger.warning("Tool call limit (%s) reached; blocked %d call(s)", limiter.run_limit, len(messages))
+    if node == f"{ToolCallLimitMiddleware.__name__}.after_model" and messages:
+        logger.warning("Tool call limit (%s) reached; blocked %d call(s)", max_tool_executions, len(messages))
         return [{"type": "limit_reached"}]
-    if node in ("model", f"{_END_HOOK}.after_model"):
-        return [
-            {"type": "final", "message": message}
-            for message in messages
-            if isinstance(message, AIMessage) and not message.tool_calls
-        ]
-    return []
+    if node not in ("model", f"{_END_HOOK}.after_model"):
+        return []
+    replies = [message for message in messages if isinstance(message, AIMessage)]
+    return [
+        *({"type": "usage", "usage": reply.usage_metadata} for reply in replies if reply.usage_metadata),
+        *({"type": "final", "message": reply} for reply in replies if not reply.tool_calls),
+    ]
 
 
-def _streamed_events(event: dict[str, Any]) -> list[dict[str, Any]]:
-    """What :func:`stream_turn` yields for one agent event."""
-    match event["type"]:
-        case "tool_start":
-            return [event]
-        case "tool_end":
-            return [{"type": "tool_end", "name": event["name"], "failure": event["failure"]}]
-        case "final":
-            return [{"type": "token", "content": text} for text in _text_blocks(event["message"].content)]
-        case _:
+class _TurnText:
+    """The text a turn shows the author, sorted from the planner's and the agents' messages.
+
+    An agent's text shows as it is written, with a blank line between its messages. The planner's
+    is held until the turn ends, and a message of its that hands off never shows.
+    """
+
+    def __init__(self) -> None:
+        self._held: dict[str | None, list[str]] = {}
+        self._handing_off: set[str | None] = set()
+        self._last_agent_message: str | None = None
+        self._agent_spoke = False
+
+    def agent_text(self, message: BaseMessage) -> list[str]:
+        """The text of an agent's ``message`` to show now, after a blank line when it starts a new message."""
+        texts = [] if isinstance(message, ToolMessage) else _text_blocks(message.content)
+        if not texts:
             return []
+        gap = ["\n\n"] if self._agent_spoke and message.id != self._last_agent_message else []
+        self._last_agent_message, self._agent_spoke = message.id, True
+        return [*gap, *texts]
+
+    def hold_planner_text(self, message: BaseMessage) -> None:
+        """Hold the text of the planner's ``message``, noting whether it hands off."""
+        if getattr(message, "tool_call_chunks", None) or getattr(message, "tool_calls", None):
+            self._handing_off.add(message.id)
+        self._held.setdefault(message.id, []).extend(_text_blocks(message.content))
+
+    def unsent(self) -> list[str]:
+        """The planner's held text from its messages that didn't hand off."""
+        return [
+            text for message_id, texts in self._held.items() if message_id not in self._handing_off for text in texts
+        ]
 
 
-async def _stream_tokens(
-    messages: list[dict[str, Any]], provider: BaseChatProvider
-) -> AsyncGenerator[dict[str, Any], None]:
-    """Stream the model's reply to a turn without tools, one token event per text block of each chunk."""
-    llm = provider.create_llm()
-    chunks = llm.astream([SystemMessage(content=provider.system_prompt), *provider.convert_messages(messages)])
-    async with aclosing(chunks):
-        async for chunk in chunks:
-            for text in _text_blocks(chunk.content):
-                yield {"type": "token", "content": text}
+def build_turn_agent(
+    llm: BaseChatModel, tools: Sequence[BaseTool], system_prompt: str, max_tool_executions: int
+) -> CompiledStateGraph[Any, AuditModelInfo, Any, Any]:
+    """Build the agent that runs a turn's tool calls, led by ``system_prompt``.
 
-
-async def _agent_events(
-    messages: list[dict[str, Any]], tools: Sequence[BaseTool], provider: BaseChatProvider, max_tool_executions: int
-) -> AsyncGenerator[dict[str, Any], None]:
-    """Run a turn with tools on a LangChain agent, yielding what happens as it happens.
-
-    Yields ``tool_start`` and ``tool_end`` for each call, ``limit_reached`` when calls past
-    ``max_tool_executions`` were blocked, and ``final`` with the model's closing reply.
-    Calls run one at a time, in the order the model listed them, and a call reported as
-    started runs only once this generator is asked for its next event. A blocked call
-    tells the model to stop calling tools so it answers instead; a model that asks for tools
-    again after that ends the turn with a notice instead of an answer (see :func:`_end_after_a_block`).
+    Calls run one at a time, in the order the model listed them, and each reports its start and
+    end on the agent's stream (see :func:`_chat_tool_call`). Calls past ``max_tool_executions``
+    are blocked and the model is told to answer instead; a model that asks for tools again after
+    that ends the turn with a notice instead of an answer (see :func:`_end_after_a_block`). The
+    run's context is the :class:`AuditModelInfo` of the model the turn runs on.
     """
     limiter = ToolCallLimitMiddleware(run_limit=max_tool_executions, exit_behavior="continue")
     # The hook is listed after the limiter so that it runs first for each reply.
@@ -261,61 +274,141 @@ async def _agent_events(
     )
     # The run context carries the audit identity; the library middlewares never read it.
     middleware: list[AgentMiddleware[Any, Any, Any]] = [_chat_tool_call, limiter, ender]
-    agent = create_agent(provider.create_llm(), tools, middleware=middleware, context_schema=AuditModelInfo)
-    # With several stream modes, each item is a (mode, chunk) pair.
-    stream = cast(
-        AsyncGenerator[tuple[str, Any], None],
-        agent.astream(
-            {"messages": [SystemMessage(content=provider.system_prompt), *provider.convert_messages(messages)]},
+    return create_agent(llm, tools, system_prompt=system_prompt, middleware=middleware, context_schema=AuditModelInfo)
+
+
+def _planner_for_turn(
+    agents: Sequence[Agent],
+    tools: Sequence[BaseTool],
+    provider: BaseChatProvider,
+    planner_llm: BaseChatModel,
+    max_tool_executions: int,
+) -> CompiledStateGraph[Any, AuditModelInfo, Any, Any]:
+    """The turn's planner on ``planner_llm``, handing off to ``agents`` that each run on the
+    provider's model with their own prompt and ``tools``."""
+    agent_llm = provider.create_llm()
+    return build_planner(
+        planner_llm,
+        [
+            AgentGraph(agent, build_turn_agent(agent_llm, tools, render_system_prompt([agent]), max_tool_executions))
+            for agent in agents
+        ],
+    )
+
+
+def _stream_planner(
+    planner: CompiledStateGraph[Any, AuditModelInfo, Any, Any],
+    messages: list[dict[str, Any]],
+    provider: BaseChatProvider,
+) -> AsyncGenerator[tuple[tuple[str, ...], str, Any], None]:
+    """Stream ``planner`` over ``messages``, its agents included, with the provider's model as
+    the run's audit identity.
+
+    Each item is a (namespace, mode, chunk) triple; the namespace is empty for the planner and
+    names the hand-off for an agent's run.
+    """
+    return cast(
+        AsyncGenerator[tuple[tuple[str, ...], str, Any], None],
+        planner.astream(
+            {"messages": to_langchain_messages(messages)},
             {"max_concurrency": 1},
             context=AuditModelInfo(provider.provider_name, provider.model),
-            stream_mode=["custom", "updates"],
+            stream_mode=["custom", "messages", "updates"],
+            subgraphs=True,
         ),
     )
+
+
+async def _turn_events(
+    messages: list[dict[str, Any]],
+    tools: Sequence[BaseTool],
+    provider: BaseChatProvider,
+    max_tool_executions: int,
+    agents: Sequence[Agent],
+    planner_llm: BaseChatModel,
+) -> AsyncGenerator[dict[str, Any], None]:
+    """Run one turn on the planner, yielding what happens as it happens.
+
+    The planner hands the message to one of ``agents``, each running on the provider's model
+    with its own prompt and ``tools``, answers it itself, or refuses it. Yields ``token`` for the
+    text the author sees, ``tool_start`` and ``tool_end`` for each tool call, ``limit_reached``
+    when an agent's calls were blocked, ``usage`` with the tokens of each model reply, the
+    planner's and the agents', and ``final`` with each closing model reply. A call reported as
+    started runs only once this generator is asked for its next event. A refusal arrives as the
+    refusal sentence.
+    """
+    planner = _planner_for_turn(agents, tools, provider, planner_llm, max_tool_executions)
+    stream = _stream_planner(planner, messages, provider)
+    turn_text = _TurnText()
     async with aclosing(stream):
-        async for mode, chunk in stream:
+        async for namespace, mode, chunk in stream:
             if mode == "custom":
                 go = chunk.pop("go", None)
                 yield chunk
                 # The tool reported as started runs only now, once the next event is asked for.
                 if go is not None:
                     go.set()
-                continue
-            for node, update in chunk.items():
-                for event in _update_events(node, update, limiter):
-                    yield event
+            elif mode == "updates":
+                for node, update in chunk.items():
+                    for event in _update_events(node, update, max_tool_executions):
+                        yield event
+            else:
+                message, _metadata = chunk
+                if namespace:
+                    for token in turn_text.agent_text(message):
+                        yield {"type": "token", "content": token}
+                elif isinstance(message, ToolMessage):
+                    # An agent's reply has already streamed; only a refusal is new text.
+                    if message.name == REFUSE_TOOL_NAME:
+                        yield {"type": "token", "content": message.text}
+                else:
+                    turn_text.hold_planner_text(message)
+    for token in turn_text.unsent():
+        yield {"type": "token", "content": token}
 
 
 async def complete_turn(
-    messages: list[dict[str, Any]], tools: Sequence[BaseTool], provider: BaseChatProvider, max_tool_executions: int
+    messages: list[dict[str, Any]],
+    tools: Sequence[BaseTool],
+    provider: BaseChatProvider,
+    max_tool_executions: int,
+    *,
+    agents: Sequence[Agent],
+    planner_llm: BaseChatModel,
 ) -> dict[str, Any]:
-    """Run one non-streamed chat turn to its end and return the model's answer.
+    """Run one non-streamed turn on the planner and return its answer.
 
-    Without tools this is the provider's plain ``send_message``. With tools the turn runs on
-    the agent in :func:`_agent_events`, and ``metadata`` lists every tool call it made.
+    The answer is the text a streamed turn would have shown, and ``metadata`` lists every tool
+    call the turn made and the tokens of all its model replies, the planner's and the agents'.
     """
-    if not tools:
-        return await provider.send_message(messages)
+    tokens: list[str] = []
     tool_executions: list[dict[str, Any]] = []
     limit_reached = False
+    usage: UsageMetadata | None = None
     final: AIMessage | None = None
-    async for event in _agent_events(messages, tools, provider, max_tool_executions):
-        if event["type"] == "tool_end":
-            tool_executions.append(
-                {
-                    "tool": event["name"],
-                    "tool_input": event["tool_input"],
-                    "output": event["output"][:500],
-                    "failure": event["failure"],
-                }
-            )
-        elif event["type"] == "limit_reached":
-            limit_reached = True
-        elif event["type"] == "final":
-            final = event["message"]
+    events = _turn_events(messages, tools, provider, max_tool_executions, agents, planner_llm)
+    async with aclosing(events):
+        async for event in events:
+            if event["type"] == "token":
+                tokens.append(event["content"])
+            elif event["type"] == "tool_end":
+                tool_executions.append(
+                    {
+                        "tool": event["name"],
+                        "tool_input": event["tool_input"],
+                        "output": event["output"][:500],
+                        "failure": event["failure"],
+                    }
+                )
+            elif event["type"] == "limit_reached":
+                limit_reached = True
+            elif event["type"] == "usage":
+                usage = add_usage(usage, event["usage"])
+            elif event["type"] == "final":
+                final = event["message"]
 
     return {
-        "content": "".join(_text_blocks(final.content)) if final else "",
+        "content": "".join(tokens),
         "role": "assistant",
         "model": provider.model,
         "tool_calls": None,
@@ -324,15 +417,21 @@ async def complete_turn(
             "num_executions": len(tool_executions),
             "limit_reached": limit_reached,
             "response_metadata": final.response_metadata if final else {},
-            "usage_metadata": final.usage_metadata if final else {},
+            "usage_metadata": usage or {},
         },
     }
 
 
 async def stream_turn(
-    messages: list[dict[str, Any]], tools: Sequence[BaseTool], provider: BaseChatProvider, max_tool_executions: int
+    messages: list[dict[str, Any]],
+    tools: Sequence[BaseTool],
+    provider: BaseChatProvider,
+    max_tool_executions: int,
+    *,
+    agents: Sequence[Agent],
+    planner_llm: BaseChatModel,
 ) -> AsyncGenerator[dict[str, Any], None]:
-    """Stream one chat turn as typed event dicts.
+    """Stream one turn on the planner as typed event dicts.
 
     Yields:
       {"type": "token",     "content": str}   — text to display
@@ -340,18 +439,14 @@ async def stream_turn(
       {"type": "tool_end",  "name": str, "failure": ToolFailureKind | None}
                                                — tool execution finished, and how it failed
 
-    Without tools the model's reply streams as it is generated, one token per text block of each
-    chunk. With tools the turn runs on the agent in :func:`_agent_events`: a call reported by
-    ``tool_start`` runs only once the reader asks for the next event, so a reader that stops on
-    ``tool_start`` keeps that tool from running. The model's closing reply then arrives as one
-    token per text block.
+    A call reported by ``tool_start`` runs only once the reader asks for the next event, so a
+    reader that stops on ``tool_start`` keeps that tool from running.
     """
-    if not tools:
-        async with aclosing(_stream_tokens(messages, provider)) as tokens:
-            async for event in tokens:
-                yield event
-        return
-    async with aclosing(_agent_events(messages, tools, provider, max_tool_executions)) as events:
+    events = _turn_events(messages, tools, provider, max_tool_executions, agents, planner_llm)
+    async with aclosing(events):
         async for event in events:
-            for streamed in _streamed_events(event):
-                yield streamed
+            match event["type"]:
+                case "token" | "tool_start":
+                    yield event
+                case "tool_end":
+                    yield {"type": "tool_end", "name": event["name"], "failure": event["failure"]}
