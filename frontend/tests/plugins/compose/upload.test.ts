@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-import { uploadFile } from "@/plugins/compose/upload";
+import { uploadFile } from "@/plugins/compose/src/upload";
 
 vi.mock("@/core/auth/tokens", () => ({
   getStoredToken: vi.fn().mockReturnValue(null),

@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AssistantMessage } from "@/plugins/compose/components/messages/AssistantMessage";
 import composeEn from "@/plugins/compose/messages/en.json";
 import { renderWithIntl } from "@/tests/intl-test-utils";
-import type { ChatMessage } from "@/plugins/compose/types";
+import type { ChatMessage } from "@/plugins/compose/src/types";
 
 const defaultProps = {
   setPreviewOpen: vi.fn(),

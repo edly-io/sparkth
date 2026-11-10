@@ -1,13 +1,13 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-import { useChatStream } from "@/plugins/compose/hooks/useChatStream";
-import type { ChatMessage } from "@/plugins/compose/types";
+import { useChatStream } from "@/plugins/compose/src/hooks/useChatStream";
+import type { ChatMessage } from "@/plugins/compose/src/types";
 
 const requestChatCompletionStream = vi.fn();
 const stopChatTurn = vi.fn().mockResolvedValue(undefined);
 
-vi.mock("@/plugins/compose/client", () => ({
+vi.mock("@/plugins/compose/src/client", () => ({
   requestChatCompletionStream: (...args: unknown[]) => requestChatCompletionStream(...args),
   stopChatTurn: (...args: unknown[]) => stopChatTurn(...args),
 }));

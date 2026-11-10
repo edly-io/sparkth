@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import { ChatMessages } from "@/plugins/compose/components/messages/ChatMessages";
 import composeEn from "@/plugins/compose/messages/en.json";
 import { renderWithIntl } from "@/tests/intl-test-utils";
-import type { ChatMessage } from "@/plugins/compose/types";
+import type { ChatMessage } from "@/plugins/compose/src/types";
 
 // jsdom has no scrollIntoView implementation; ChatMessages calls it on mount.
 Element.prototype.scrollIntoView = vi.fn();

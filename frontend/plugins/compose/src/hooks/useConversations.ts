@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { listConversations } from "@/plugins/compose/client";
-import type { ConversationSummary } from "@/plugins/compose/types";
+import { listConversations } from "@/plugins/compose/src/client";
+import type { ConversationSummary } from "@/plugins/compose/src/types";
 
 interface UseConversationsResult {
   conversations: ConversationSummary[];

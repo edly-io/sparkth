@@ -7,9 +7,9 @@ import { useFormatter, useTranslations } from "next-intl";
 import { Spinner } from "@/lib/components/ui/Spinner";
 import { Alert } from "@/lib/components/ui/Alert";
 import { useAuth } from "@/lib/auth/hooks";
-import type { ConversationSummary } from "@/plugins/compose/types";
-import { useActiveConversationId } from "@/plugins/compose/hooks/useActiveConversationId";
-import { useConversations } from "@/plugins/compose/hooks/useConversations";
+import type { ConversationSummary } from "@/plugins/compose/src/types";
+import { useActiveConversationId } from "@/plugins/compose/src/hooks/useActiveConversationId";
+import { useConversations } from "@/plugins/compose/src/hooks/useConversations";
 
 const DAY_MS = 86_400_000;
 const RELATIVE_DAYS = 7;

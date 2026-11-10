@@ -9,7 +9,7 @@ import {
   toolTotals,
   totalOf,
   type ComposeActivityPoint,
-} from "@/plugins/compose/analytics";
+} from "@/plugins/compose/src/analytics";
 
 import { mockFetch, sentRequest } from "@/tests/lib/test-utils";
 

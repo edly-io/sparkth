@@ -9,8 +9,8 @@ import {
   getLastMessage,
   listConversations,
   requestChatCompletionStream,
-} from "@/plugins/compose/client";
-import type { ChatCompletionRequestBody } from "@/plugins/compose/types";
+} from "@/plugins/compose/src/client";
+import type { ChatCompletionRequestBody } from "@/plugins/compose/src/types";
 
 vi.mock("@/core/auth/tokens", () => ({
   getStoredToken: vi.fn().mockReturnValue(null),

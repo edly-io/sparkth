@@ -1,9 +1,9 @@
 "use client";
 
 import { Suspense } from "react";
-import ChatInterfaceWithParams from "./components/ChatInterfaceWithParams";
+import ChatInterfaceWithParams from "@/plugins/compose/components/ChatInterfaceWithParams";
 
-export default function ChatInterface() {
+export default function Compose() {
   return (
     <Suspense
       fallback={

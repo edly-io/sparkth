@@ -15,8 +15,8 @@ vi.mock("@/plugins/googledrive/src/analytics", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/plugins/googledrive/src/analytics")>();
   return { ...actual, fetchDriveDocuments: vi.fn() };
 });
-vi.mock("@/plugins/compose/analytics", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/plugins/compose/analytics")>();
+vi.mock("@/plugins/compose/src/analytics", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/plugins/compose/src/analytics")>();
   return { ...actual, fetchComposeActivity: vi.fn() };
 });
 
@@ -40,7 +40,7 @@ import {
   EMPTY_SEARCH,
   fetchComposeActivity,
   type ComposeActivityPoint,
-} from "@/plugins/compose/analytics";
+} from "@/plugins/compose/src/analytics";
 import { fetchDriveDocuments, type DriveDocumentsPoint } from "@/plugins/googledrive/src/analytics";
 import AuthoringPage from "@/app/dashboard/analytics/authoring/AuthoringPage";
 

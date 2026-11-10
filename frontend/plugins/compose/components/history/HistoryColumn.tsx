@@ -7,7 +7,7 @@ import { Button } from "@/lib/components/ui/Button";
 import { ActionTooltip } from "@/plugins/compose/components/history/ActionTooltip";
 import HistoryList from "@/plugins/compose/components/history/HistoryList";
 import { NewChatLink } from "@/plugins/compose/components/history/NewChatLink";
-import { useHistoryCollapsed } from "@/plugins/compose/hooks/useHistoryCollapsed";
+import { useHistoryCollapsed } from "@/plugins/compose/src/hooks/useHistoryCollapsed";
 
 interface ToggleProps {
   label: string;

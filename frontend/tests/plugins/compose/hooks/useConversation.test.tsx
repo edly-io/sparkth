@@ -1,8 +1,8 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 
-import type { ApiMessage } from "@/plugins/compose/types";
-import { useConversation } from "@/plugins/compose/hooks/useConversation";
+import type { ApiMessage } from "@/plugins/compose/src/types";
+import { useConversation } from "@/plugins/compose/src/hooks/useConversation";
 
 const turn = (id: number, role: ApiMessage["role"], content: string): ApiMessage => ({
   id,
@@ -18,7 +18,7 @@ const turn = (id: number, role: ApiMessage["role"], content: string): ApiMessage
   stopped: false,
 });
 
-vi.mock("@/plugins/compose/client", () => ({
+vi.mock("@/plugins/compose/src/client", () => ({
   getConversation: vi.fn(() =>
     Promise.resolve({
       messages: [

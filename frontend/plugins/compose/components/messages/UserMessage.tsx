@@ -1,5 +1,5 @@
-import { ChatMessage, TextAttachment } from "../../types";
-import { Pill } from "../attachment/Pill";
+import { ChatMessage, TextAttachment } from "@/plugins/compose/src/types";
+import { Pill } from "@/plugins/compose/components/attachment/Pill";
 
 interface UserMessageProps {
   message: ChatMessage;

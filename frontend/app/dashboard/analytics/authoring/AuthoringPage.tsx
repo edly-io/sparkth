@@ -13,7 +13,7 @@ import {
   toolTotals,
   totalOf,
   type ComposeActivityPoint,
-} from "@/plugins/compose/analytics";
+} from "@/plugins/compose/src/analytics";
 import {
   documentTotals,
   fetchDriveDocuments,
