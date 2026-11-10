@@ -14,10 +14,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.api.v1.permissions.schemas import RoleCreate, RolePermissionAdd, RoleResponse, RoleUpdate
 from sparkth.core.permissions import roles as role_engine
-from sparkth.core.permissions.dependencies import convert_to_ints
 from sparkth.core.permissions.models import Role
 from sparkth.lib.db import get_async_session
-from sparkth.lib.permissions import ROLE_CREATE, ROLE_DELETE, ROLE_READ, ROLE_UPDATE
+from sparkth.lib.permissions import ROLE_CREATE, ROLE_DELETE, ROLE_READ, ROLE_UPDATE, convert_to_ints
 from sparkth.lib.permissions.scopes import ROLE
 
 router = APIRouter()
