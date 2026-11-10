@@ -380,6 +380,13 @@ export default function AttachmentPicker({ selected, onSelect, onClose }: Attach
 }
 ```
 
+## Analytics (Optional)
+
+A plugin that records analytics events keeps their frontend code in `plugins/<name>/analytics.ts`: the fetch for
+its analytics endpoint, the response types and the helpers its charts need, built on `@/lib/analytics`. The
+analytics pages under `app/dashboard/analytics/` import it from there; core's `lib/analytics/` holds no plugin's
+code. `plugins/compose/analytics.ts` is an example.
+
 ## Settings
 
 The **Settings** page lists the one row each plugin sets in the `SETTINGS_ITEMS` slot

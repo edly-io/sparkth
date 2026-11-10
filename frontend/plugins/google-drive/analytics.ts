@@ -1,4 +1,26 @@
-import type { DriveDocumentsPoint } from "@/lib/analytics/types";
+/** Google Drive's analytics: its processed-documents endpoint and the totals its charts show. */
+
+import type { IsoDate } from "@/lib/analytics";
+import { api, bearer, call, type Schema } from "@/lib/api";
+
+/**
+ * One bucket's count of processed Drive documents with one outcome, whether that outcome left them
+ * ready, and their summed seconds to final.
+ */
+export type DriveDocumentsPoint = Schema<"DriveDocumentsPoint">;
+
+/** Processed Drive documents per day and outcome, with summed seconds to final, for the period. */
+export async function fetchDriveDocuments(
+  token: string,
+  { from, to }: { from: IsoDate; to: IsoDate },
+): Promise<DriveDocumentsPoint[]> {
+  return call<DriveDocumentsPoint[]>(() =>
+    api.GET("/api/v1/google-drive/analytics/documents", {
+      params: { query: { from, to, bucket: "day" } },
+      headers: bearer(token),
+    }),
+  );
+}
 
 /**
  * Documents processed, how many became ready (by the server's `ready` flag), their average
