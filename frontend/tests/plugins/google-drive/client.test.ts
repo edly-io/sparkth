@@ -7,7 +7,7 @@ import {
   downloadFile,
   getAuthorizationUrl,
   getConnectionStatus,
-  getFolderRagStatus,
+  getFolderDocumentStatus,
   listFiles,
   listFolders,
   refreshFolder,
@@ -200,7 +200,7 @@ describe("browseDrive", () => {
   });
 });
 
-describe("getFolderRagStatus", () => {
+describe("getFolderDocumentStatus", () => {
   it("calls the correct endpoint and returns parsed response", async () => {
     const mockResponse = {
       folder_id: 42,
@@ -211,7 +211,7 @@ describe("getFolderRagStatus", () => {
     };
     const spy = mockFetch(mockResponse);
 
-    const result = await getFolderRagStatus(42, "test-token");
+    const result = await getFolderDocumentStatus(42, "test-token");
 
     const request = sentRequest(spy);
     expect(new URL(request.url).pathname).toBe("/api/v1/google-drive/folders/42/rag-status");
@@ -223,6 +223,8 @@ describe("getFolderRagStatus", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     mockFetch({ detail: "Not found" }, 404);
 
-    await expect(getFolderRagStatus(99, "test-token")).rejects.toThrow("Failed to get RAG status");
+    await expect(getFolderDocumentStatus(99, "test-token")).rejects.toThrow(
+      "Failed to get document status",
+    );
   });
 });

@@ -1,33 +1,14 @@
-import { api, ApiRequestError, bearer, type Schema } from "@/lib/api";
-
-export type ConnectionStatus = Schema<"GoogleDriveConnectionStatusResponse">;
-export type DriveFolder = Schema<"DriveFolderResponse">;
-export type DriveFile = Schema<"DriveFileResponse">;
-export type DriveBrowseItem = Schema<"DriveBrowseItem">;
-export type DriveBrowseResponse = Schema<"DriveBrowseResponse">;
-export type SyncStatus = Schema<"SyncStatusResponse">;
-export type FolderRagStatusResponse = Schema<"FolderRagStatusResponse">;
-
-// openapi-typescript emits one monomorphic paginated schema per item type,
-// so each page shape is aliased directly (like every other type above) rather
-// than reconstructed as a hand-written generic that could drift.
-export type PaginatedFolders = Schema<"PaginatedResponse_DriveFolderResponse_">;
-export type PaginatedFiles = Schema<"PaginatedResponse_DriveFileResponse_">;
-
-// TODO: rename the frontend's RagStatus terminology to match the backend's
-// Document API naming (DocumentStatus) in a follow-up, separate from this
-// mechanical client conversion.
-//
-// The generated client only emits types (erased at runtime), so the runtime
-// values live here; `satisfies` checks them against the generated union, so
-// any backend enum change fails the type check after regeneration.
-export const RagStatus = {
-  Queued: "queued",
-  Processing: "processing",
-  Ready: "ready",
-  Failed: "failed",
-} as const satisfies Record<string, Schema<"DocumentStatus">>;
-export type RagStatus = Schema<"DocumentStatus">;
+import { api, ApiRequestError, bearer } from "@/lib/api";
+import type {
+  AuthorizationUrlResponse,
+  ConnectionStatus,
+  DriveBrowseResponse,
+  DriveFolder,
+  FolderDocumentStatusResponse,
+  PaginatedFiles,
+  PaginatedFolders,
+  SyncStatus,
+} from "@/plugins/google-drive/types";
 
 // This module's public contract is plain Error objects with action-prefixed
 // messages (logged before throwing); network failures propagate untouched.
@@ -57,7 +38,7 @@ export async function getAuthorizationUrl(token: string): Promise<string> {
     const { data } = await api.GET("/api/v1/google-drive/oauth/authorize", {
       headers: bearer(token),
     });
-    return (data as Schema<"GoogleDriveAuthorizationUrlResponse">).url;
+    return (data as AuthorizationUrlResponse).url;
   } catch (error) {
     toError("Failed to get authorization URL", error);
   }
@@ -188,23 +169,18 @@ export async function browseDrive(
   }
 }
 
-export async function getFolderRagStatus(
+/** The processing status of each file in the synced folder `folderId`. */
+export async function getFolderDocumentStatus(
   folderId: number,
   token: string,
-): Promise<FolderRagStatusResponse> {
+): Promise<FolderDocumentStatusResponse> {
   try {
     const { data } = await api.GET("/api/v1/google-drive/folders/{folder_id}/rag-status", {
       params: { path: { folder_id: folderId } },
       headers: bearer(token),
     });
-    return data as FolderRagStatusResponse;
+    return data as FolderDocumentStatusResponse;
   } catch (error) {
-    toError("Failed to get RAG status", error);
+    toError("Failed to get document status", error);
   }
-}
-
-// Helper functions
-export function formatDate(dateString?: string | null): string {
-  if (!dateString) return "-";
-  return new Date(dateString).toLocaleDateString();
 }
