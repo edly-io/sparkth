@@ -17,8 +17,8 @@ import {
 } from "@/core/components/ui/Dialog";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import { SettingsList, SettingsPage } from "@/core/components/settings/SettingsPage";
-import { SettingsRow } from "@/core/components/settings/SettingsRow";
+import { SettingsList, SettingsPage } from "@/core/settings/components/layout/SettingsPage";
+import { SettingsRow } from "@/core/settings/components/ui/SettingsRow";
 import { useAuth } from "@/core/auth/hooks";
 import { validateLLMConfigName } from "@/core/llm/validation";
 import {

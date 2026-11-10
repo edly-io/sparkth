@@ -16,13 +16,13 @@ import {
   BookOpen,
 } from "lucide-react";
 import { usePluginContext } from "@/core/plugins/context";
-import { sidebarItemsFrom, type SidebarItem } from "./sidebarItems";
+import { sidebarItemsFrom, type SidebarItem } from "@/core/sidebar/sidebarItems";
 import { resolvePluginIcon } from "@/core/components/ui/icons";
-import { GATED_NAV } from "@/components/NavItem/gatedNav";
-import { NavItem } from "@/components/NavItem/NavItem";
+import { GATED_NAV } from "@/core/sidebar/components/ui/NavItem/gatedNav";
+import { NavItem } from "@/core/sidebar/components/ui/NavItem/NavItem";
 import Image from "next/image";
 import { Spinner } from "@/core/components/ui/Spinner";
-import { SparkthLogo } from "@/components/SparkthLogo";
+import { SparkthLogo } from "@/core/components/ui/SparkthLogo";
 import { Button } from "@/core/components/ui/Button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/core/components/ui/Tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/core/components/ui/Popover";

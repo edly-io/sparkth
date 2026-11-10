@@ -6,7 +6,7 @@ import { displayNameOf } from "@/core/plugins/metadata";
 import type { SettingsListItemProps } from "@/lib/settings/slots";
 import { Button } from "@/core/components/ui/Button";
 import { Spinner } from "@/core/components/ui/Spinner";
-import { SettingsRow } from "./SettingsRow";
+import { SettingsRow } from "@/core/settings/components/ui/SettingsRow";
 
 /**
  * A plugin's row on the settings page: its name, description, masked keys, status and on/off

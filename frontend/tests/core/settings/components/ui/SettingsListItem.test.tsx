@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { fireEvent, screen } from "@testing-library/react";
 
-import { SettingsListItem } from "@/core/components/settings/SettingsListItem";
+import { SettingsListItem } from "@/core/settings/components/ui/SettingsListItem";
 import type { UserPluginState } from "@/core/plugins/types";
 import { renderWithIntl } from "@/tests/intl-test-utils";
 

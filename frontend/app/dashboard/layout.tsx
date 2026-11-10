@@ -3,18 +3,18 @@
 import { useState, useEffect } from "react";
 import "@/app/plugins";
 import { useAuth } from "@/core/auth/hooks";
-import { resolveNavPermissions } from "@/components/NavItem/gatedNav";
+import { resolveNavPermissions } from "@/core/sidebar/components/ui/NavItem/gatedNav";
 import { PluginProvider } from "@/core/plugins/context";
-import AppSidebar from "@/core/components/layout/AppSidebar";
-import MobileSidebar from "@/core/components/layout/MobileSidebar";
+import AppSidebar from "@/core/sidebar/components/layout/AppSidebar";
+import MobileSidebar from "@/core/sidebar/components/layout/MobileSidebar";
 import { SidebarProvider } from "@/core/sidebar/context";
 import { useSidebar } from "@/core/sidebar/hooks";
 import { redirect } from "next/navigation";
 import { Menu } from "lucide-react";
 import { Spinner } from "@/core/components/ui/Spinner";
 import { Button } from "@/core/components/ui/Button";
-import { SparkthLogo } from "@/components/SparkthLogo";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { SparkthLogo } from "@/core/components/ui/SparkthLogo";
+import { ThemeToggle } from "@/core/theme/components/ui/ThemeToggle";
 
 function MobileHeader() {
   const { toggle } = useSidebar();

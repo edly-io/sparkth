@@ -3,7 +3,7 @@
 import { useState, type SubmitEvent } from "react";
 import { useTranslations } from "next-intl";
 
-import { AuthCard, AuthHeading, AuthLink } from "@/components/AuthCard";
+import { AuthCard, AuthHeading, AuthLink } from "@/core/auth/components/layout/AuthCard";
 import { Alert } from "@/core/components/ui/Alert";
 import { Button } from "@/core/components/ui/Button";
 import { Input } from "@/components/ui/Input";

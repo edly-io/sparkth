@@ -2,7 +2,7 @@ import type { ComponentType } from "react";
 import { afterEach, describe, it, expect, vi } from "vitest";
 import { fireEvent, screen } from "@testing-library/react";
 
-import { PluginSettingsList } from "@/core/components/settings/PluginSettingsList";
+import { PluginSettingsList } from "@/core/settings/components/ui/PluginSettingsList";
 import type { UserPluginState } from "@/core/plugins/types";
 import {
   SETTINGS_ITEMS,

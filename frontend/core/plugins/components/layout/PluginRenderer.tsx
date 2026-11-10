@@ -5,7 +5,7 @@ import { Spinner } from "@/core/components/ui/Spinner";
 import { PluginDefinition } from "@/core/plugins/types";
 import { displayNameOf } from "@/core/plugins/metadata";
 import { usePlugin, usePluginContext } from "@/core/plugins/context";
-import { PluginErrorBoundary } from "./PluginErrorBoundary";
+import { PluginErrorBoundary } from "@/core/plugins/components/layout/PluginErrorBoundary";
 
 interface PluginRendererProps {
   pluginName: string;

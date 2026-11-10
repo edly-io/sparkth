@@ -20,15 +20,15 @@ vi.mock("next/navigation", () => ({ redirect: vi.fn(), usePathname: () => "/dash
 vi.mock("@/core/plugins/context", () => ({
   PluginProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
-vi.mock("@/core/components/layout/MobileSidebar", () => ({ default: () => null }));
-vi.mock("@/core/components/layout/AppSidebar", () => ({
+vi.mock("@/core/sidebar/components/layout/MobileSidebar", () => ({ default: () => null }));
+vi.mock("@/core/sidebar/components/layout/AppSidebar", () => ({
   default: ({ navPermissions }: { navPermissions?: Record<string, boolean> }) => (
     <div data-testid="nav-permissions">{JSON.stringify(navPermissions ?? null)}</div>
   ),
 }));
 
 const resolveNavPermissions = vi.hoisted(() => vi.fn());
-vi.mock("@/components/NavItem/gatedNav", () => ({ resolveNavPermissions }));
+vi.mock("@/core/sidebar/components/ui/NavItem/gatedNav", () => ({ resolveNavPermissions }));
 
 describe("DashboardLayout nav permission gating", () => {
   beforeEach(() => {

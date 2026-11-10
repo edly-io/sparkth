@@ -30,7 +30,7 @@ import { Input } from "@/components/ui/Input";
 import { LineChart } from "@/components/ui/LineChart";
 import { RankedBar } from "@/components/ui/RankedBar";
 import { Select } from "@/components/ui/Select";
-import { Forbidden } from "@/components/Forbidden";
+import { Forbidden } from "@/core/components/layout/Forbidden";
 import { Spinner } from "@/core/components/ui/Spinner";
 import { PeriodView, useComparison, type PeriodRange } from "../PeriodView";
 import { SavedViewActions } from "./SavedViewActions";
