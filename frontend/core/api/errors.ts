@@ -3,16 +3,19 @@ import { createTranslator } from "next-intl";
 import { getActiveLocale, getActiveMessages } from "@/core/i18n/activeLocale";
 import { ApiRequestError, type FormattedError, type StructuredErrorDetail } from "@/lib/api/errors";
 
+/** One field error in a 422 response: where it is (`loc`), its message and its kind. */
 export interface ValidationError {
   loc: (string | number)[];
   msg: string;
   type: string;
 }
 
+/** A backend error response: a message, a list of field errors, or a structured detail with a code. */
 export interface ApiError {
   detail: string | ValidationError[] | StructuredErrorDetail;
 }
 
+/** Whether an error's `detail` is a structured detail (an object with a string `code`). */
 export function isStructuredDetail(value: unknown): value is StructuredErrorDetail {
   return (
     typeof value === "object" &&
@@ -22,6 +25,10 @@ export function isStructuredDetail(value: unknown): value is StructuredErrorDeta
   );
 }
 
+/**
+ * Turns an error response into one message plus a message per invalid field. Field errors map
+ * to their field, and the rest join into the message; a structured detail's message is its code.
+ */
 export function formatApiError(error: ApiError): FormattedError {
   if (typeof error.detail === "string") {
     return { message: error.detail, fieldErrors: {} };
@@ -56,9 +63,11 @@ export function formatApiError(error: ApiError): FormattedError {
   return { message: "An unexpected error occurred", fieldErrors: {} };
 }
 
-// errorMiddleware turns every non-ok response into an ApiRequestError; aborts are
-// flow control and pass through unwrapped; anything else rejecting at a call site
-// is a transport failure (DNS, refused connection, ...).
+/**
+ * Rethrows an API call's failure in the shape callers expect: an `ApiRequestError` (an error
+ * response) and an abort pass through unchanged, and anything else is a failed connection, thrown
+ * as an `ApiRequestError` with a translated "couldn't connect" message.
+ */
 export function rethrowOrWrapConnectionError(error: unknown): never {
   if (error instanceof ApiRequestError) throw error;
   if (error instanceof DOMException && error.name === "AbortError") throw error;
