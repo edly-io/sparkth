@@ -704,13 +704,12 @@ class TestStreamHeartbeat:
 
         chunks = [chunk async for chunk in processor.stream()]
 
-        # The stream is: "Hello", the quiet gap, " world", then the done event.
-        quiet_gap = chunks[1:-2]
-        assert json.loads(chunks[0].removeprefix("data: "))["token"] == "Hello"
-        assert json.loads(chunks[-2].removeprefix("data: "))["token"] == " world"
-        assert json.loads(chunks[-1].removeprefix("data: "))["done"] is True
-        assert quiet_gap
-        assert set(quiet_gap) == {SSE_HEARTBEAT}
+        # A slow start may put heartbeats before "Hello" too, so the events are located, not indexed.
+        hello, world, done = [chunk for chunk in chunks if chunk != SSE_HEARTBEAT]
+        assert json.loads(hello.removeprefix("data: "))["token"] == "Hello"
+        assert json.loads(world.removeprefix("data: "))["token"] == " world"
+        assert json.loads(done.removeprefix("data: "))["done"] is True
+        assert SSE_HEARTBEAT in chunks[chunks.index(hello) : chunks.index(world)]
 
     @pytest.mark.asyncio
     async def test_a_busy_stream_sends_no_heartbeats(self, monkeypatch: pytest.MonkeyPatch) -> None:
