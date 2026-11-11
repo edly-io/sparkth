@@ -9,13 +9,14 @@ from langchain_core.language_models import BaseChatModel
 from langgraph.graph.state import CompiledStateGraph
 
 from sparkth.lib.audit.events import AuditModelInfo
-from sparkth.lib.compose.constants import PLANNER_NAME
+from sparkth.lib.compose.constants import PLANNER_AGENT_NAME
 from sparkth.lib.compose.hooks import Agent
 from sparkth.plugins.compose.constants import PLANNER_OPERATIONS, PLANNER_PROMPT, PLANNER_WITHOUT_OPERATIONS
 from sparkth.plugins.compose.planner.middleware import (
-    bounce_refused_calls,
+    end_at_repeat_hand_off,
+    enforce_rejected_call_limit,
+    enforce_step_limit,
     first_hand_off_only,
-    stop_after_too_many_calls,
 )
 from sparkth.plugins.compose.planner.tools import REFUSE_TOOL, build_handoff_tool, build_operator_tool
 from sparkth.plugins.compose.planner.types import AgentGraph
@@ -36,22 +37,18 @@ def build_planner(
     *,
     operator: CompiledStateGraph[Any, AuditModelInfo, Any, Any] | None,
 ) -> CompiledStateGraph[Any, AuditModelInfo, Any, Any]:
-    """Build the planner on ``llm``, with one hand-off tool per agent, the refuse tool, and the
-    ``operator`` tool when there is an operator, which runs operations such as publishing a course.
+    """Build the planner on ``llm``. It gives steps to ``agents``, and to ``operator`` when there is one.
 
-    An operation's result goes back to the planner, so it can tell the author or hand the rest to
-    an agent; a hand-off's result is the turn's answer.
-
-    The run's context is the :class:`AuditModelInfo` of the model the agents run on, which each
-    hand-off passes on to its agent. An agent's tool call waits for its reader to ask for the next
-    event, so the planner must be streamed with ``stream_mode`` including ``"custom"`` and
-    ``subgraphs=True``, and the reader must set each ``tool_start`` event's ``go``. A call its tool
-    refuses goes back to the planner, and the run stops after a few calls.
+    Stream it with ``stream_mode`` including ``"custom"`` and ``subgraphs=True``. Each step and tool
+    call waits until the reader sets the ``go`` of its ``routed`` or ``tool_start`` event.
     """
+    # After-model hooks run in reverse order: a reply is trimmed to one call, checked against each limit,
+    # then checked for a repeat hand-off.
     middleware: list[AgentMiddleware[Any, Any, Any]] = [
+        end_at_repeat_hand_off,
+        enforce_step_limit,
+        enforce_rejected_call_limit,
         first_hand_off_only,
-        bounce_refused_calls,
-        stop_after_too_many_calls,
     ]
     operator_tools = [build_operator_tool(operator)] if operator is not None else []
     return create_agent(
@@ -60,5 +57,5 @@ def build_planner(
         system_prompt=render_planner_prompt([agent.spec for agent in agents], operations=operator is not None),
         middleware=middleware,
         context_schema=AuditModelInfo,
-        name=PLANNER_NAME,
+        name=PLANNER_AGENT_NAME,
     )
