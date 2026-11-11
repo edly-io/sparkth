@@ -21,7 +21,7 @@ import {
 } from "@/lib/analytics";
 import { ApiRequestError } from "@/lib/api";
 import { useAuth } from "@/core/auth/hooks";
-import { usePermissionCheck } from "@/lib/permissions/usePermissionCheck";
+import { usePermissionCheck } from "@/core/permissions/hooks";
 import { Alert } from "@/core/components/ui/Alert";
 import { BarChart } from "@/core/analytics/components/ui/BarChart";
 import { Button } from "@/core/components/ui/Button";
@@ -34,8 +34,8 @@ import { Forbidden } from "@/core/components/layout/Forbidden";
 import { Spinner } from "@/core/components/ui/Spinner";
 import { PeriodView, useComparison, type PeriodRange } from "../PeriodView";
 import { SavedViewActions } from "./SavedViewActions";
-import { configQuery, useSavedView } from "./useSavedView";
-import { usePeriod, useReplaceQuery } from "../usePeriod";
+import { configQuery, useSavedView } from "@/app/dashboard/analytics/explore/hooks";
+import { usePeriod, useReplaceQuery } from "@/app/dashboard/analytics/hooks";
 
 const MEASURES: Measure[] = ["count", "distinct_actors"];
 const CHARTS: ChartKind[] = ["line", "bar", "table"];

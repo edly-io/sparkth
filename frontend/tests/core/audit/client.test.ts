@@ -5,8 +5,8 @@ import {
   fetchAuditCategories,
   fetchAuditEvent,
   fetchAuditEvents,
-} from "@/lib/audit/client";
-import { AUDIT_OUTCOMES, AUDIT_SOURCES } from "@/lib/audit/types";
+} from "@/core/audit/client";
+import { AUDIT_OUTCOMES, AUDIT_SOURCES } from "@/core/audit/types";
 import { ApiRequestError } from "@/lib/api";
 
 import { mockFetch, sentRequest } from "@/tests/lib/test-utils";

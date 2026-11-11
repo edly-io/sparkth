@@ -6,7 +6,7 @@ import type {
   AuditExportFormat,
   AuditFilters,
   ListQuery,
-} from "@/lib/audit/types";
+} from "@/core/audit/types";
 
 function activeFilters(filters: AuditFilters): ListQuery {
   return Object.fromEntries(

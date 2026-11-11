@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { ChartColumn } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/core/auth/hooks";
-import { usePermissionCheck } from "@/lib/permissions/usePermissionCheck";
+import { usePermissionCheck } from "@/core/permissions/hooks";
 import { Forbidden } from "@/core/components/layout/Forbidden";
 import { Spinner } from "@/core/components/ui/Spinner";
 import { AnalyticsNav } from "@/core/analytics/components/layout/AnalyticsNav";

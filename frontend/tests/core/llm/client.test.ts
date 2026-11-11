@@ -9,7 +9,7 @@ import {
   rotateLLMConfigKey,
   setLLMConfigActive,
   updateLLMConfig,
-} from "@/lib/llm/client";
+} from "@/core/llm/client";
 
 import { mockFetch, sentRequest } from "@/tests/lib/test-utils";
 

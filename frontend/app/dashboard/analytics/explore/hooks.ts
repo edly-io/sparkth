@@ -16,7 +16,7 @@ import {
 import { ApiRequestError } from "@/lib/api";
 import { useAuth } from "@/core/auth/hooks";
 import { VIEWS_CHANGED } from "@/core/analytics/components/layout/AnalyticsNav";
-import { useReplaceQuery } from "../usePeriod";
+import { useReplaceQuery } from "@/app/dashboard/analytics/hooks";
 
 // Explore's URL keys that outlive a config change: the period and the open saved view.
 const KEPT_KEYS = [...PERIOD_KEYS, "view"];

@@ -6,14 +6,14 @@ const auth = vi.hoisted(() => ({ token: "test-token" }));
 vi.mock("@/core/auth/hooks", () => ({
   useAuth: () => ({ token: auth.token, user: { name: "A" } }),
 }));
-vi.mock("@/lib/permissions/client", () => ({ checkPermission: vi.fn() }));
+vi.mock("@/core/permissions/client", () => ({ checkPermission: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("@/lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api")>();
   return { ...actual, getWhitelist: vi.fn().mockResolvedValue([]), removeWhitelistEntry: vi.fn() };
 });
 
-import { checkPermission } from "@/lib/permissions/client";
+import { checkPermission } from "@/core/permissions/client";
 import { ApiRequestError, getWhitelist, removeWhitelistEntry } from "@/lib/api";
 import { redirect } from "next/navigation";
 import WhitelistPage from "@/app/dashboard/admin/whitelist/WhitelistPage";

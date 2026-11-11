@@ -25,7 +25,7 @@ vi.mock("@/lib/analytics", async (importOriginal) => {
 });
 
 const access = vi.hoisted(() => ({ userRead: "allowed" }));
-vi.mock("@/lib/permissions/usePermissionCheck", () => ({
+vi.mock("@/core/permissions/hooks", () => ({
   usePermissionCheck: () => access.userRead,
 }));
 

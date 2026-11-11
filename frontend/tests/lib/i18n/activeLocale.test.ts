@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 
-import { getActiveLocale, setActiveLocale } from "@/lib/i18n/active-locale";
+import { getActiveLocale, setActiveLocale } from "@/lib/i18n/activeLocale";
 import { defaultLocale } from "@/lib/i18n/config";
 
 describe("active locale", () => {

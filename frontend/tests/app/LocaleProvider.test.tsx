@@ -5,7 +5,7 @@ import { renderToString } from "react-dom/server";
 
 import { LocaleProvider } from "@/app/LocaleProvider";
 import { rethrowOrWrapConnectionError } from "@/lib/api";
-import { getActiveLocale, setActiveLocale, setActiveMessages } from "@/lib/i18n/active-locale";
+import { getActiveLocale, setActiveLocale, setActiveMessages } from "@/lib/i18n/activeLocale";
 import { defaultLocale, LOCALE_COOKIE, type Locale } from "@/lib/i18n/config";
 import en from "@/messages/en.json";
 

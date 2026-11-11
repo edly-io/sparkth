@@ -5,7 +5,7 @@ import { setAuthTokens } from "@/core/auth/tokens";
 import { SparkthLogo } from "@/core/components/ui/SparkthLogo";
 import { Spinner } from "@/core/components/ui/Spinner";
 import Link from "next/link";
-import { useCallbackParams } from "./useCallbackParams";
+import { useCallbackParams } from "@/app/login/callback/hooks";
 
 function LoadingSpinner() {
   return (
