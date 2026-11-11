@@ -22,12 +22,12 @@ const access = vi.hoisted(() => ({ userRead: "allowed" }));
 vi.mock("@/core/permissions/hooks", () => ({
   usePermissionCheck: () => access.userRead,
 }));
-vi.mock("@/lib/analytics", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/analytics")>();
+vi.mock("@/core/analytics", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/core/analytics")>();
   return { ...actual, listViews: vi.fn() };
 });
 
-import { listViews, type AnalyticsView } from "@/lib/analytics";
+import { listViews, type AnalyticsView } from "@/core/analytics";
 import {
   AnalyticsNav,
   EXPLORE,

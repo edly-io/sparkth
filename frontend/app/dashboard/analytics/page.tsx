@@ -13,7 +13,7 @@ import {
   type IsoDate,
   type LoginsPoint,
   type SummaryCount,
-} from "@/lib/analytics";
+} from "@/core/analytics";
 import {
   COMPOSE_EVENTS,
   countSeries,

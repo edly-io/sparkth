@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { ChartColumn } from "lucide-react";
-import { previousPeriod, type BucketCount, type IsoDate } from "@/lib/analytics";
+import { previousPeriod, type BucketCount, type IsoDate } from "@/core/analytics";
 import {
   COMPOSE_EVENTS,
   EMPTY_SEARCH,

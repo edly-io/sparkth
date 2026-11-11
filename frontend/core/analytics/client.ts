@@ -1,14 +1,14 @@
 import { api, bearer, call } from "@/lib/api";
-import type { IsoDate } from "@/lib/analytics/dates";
-import type { ExploreConfig } from "@/lib/analytics/explore";
-import type { Bucket } from "@/lib/analytics/series";
+import type { IsoDate } from "@/core/analytics/dates";
+import type { ExploreConfig } from "@/core/analytics/explore";
+import type { Bucket } from "@/core/analytics/series";
 import type {
   AnalyticsView,
   EventCatalogEntry,
   ExploreResult,
   LoginsPoint,
   SummaryCount,
-} from "@/lib/analytics/types";
+} from "@/core/analytics/types";
 
 /** Logins per day for the range; the page rolls days up itself, so a bucket change doesn't refetch. */
 export async function fetchLogins(

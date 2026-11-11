@@ -5,7 +5,7 @@ import {
   presetPeriod,
   previousPeriod,
   validateRange,
-} from "@/lib/analytics";
+} from "@/core/analytics";
 
 const TODAY = "2026-07-24";
 const q = (s: string) => new URLSearchParams(s);

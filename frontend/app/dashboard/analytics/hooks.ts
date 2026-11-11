@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { PERIOD_KEYS, parsePeriod, periodQuery, toIsoDate, type Period } from "@/lib/analytics";
+import { PERIOD_KEYS, parsePeriod, periodQuery, toIsoDate, type Period } from "@/core/analytics";
 
 // The last query written but not yet in the URL, shared by every writer on the page:
 // router.replace lands after a commit, so a second change made before then, by the same control

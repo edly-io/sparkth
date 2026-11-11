@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { addDays, daysInclusive, parseIsoDate, toIsoDate } from "@/lib/analytics";
+import { addDays, daysInclusive, parseIsoDate, toIsoDate } from "@/core/analytics";
 
 describe("UTC date helpers", () => {
   it("takes the calendar date in UTC, not local time", () => {

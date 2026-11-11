@@ -10,7 +10,7 @@ import {
   summarize,
   type IsoDate,
   type LoginsPoint,
-} from "@/lib/analytics";
+} from "@/core/analytics";
 import { LineChart } from "@/core/analytics/components/ui/LineChart";
 import { RankedBar } from "@/core/analytics/components/ui/RankedBar";
 import { StatCard } from "@/core/analytics/components/ui/StatCard";

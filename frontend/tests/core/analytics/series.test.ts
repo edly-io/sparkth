@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 
-import { buildSeries, bucketStart, summarize } from "@/lib/analytics";
+import { buildSeries, bucketStart, summarize } from "@/core/analytics";
 
 describe("summarize", () => {
   it("derives total logins and the busiest day from a windowed series", () => {

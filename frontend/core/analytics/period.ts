@@ -1,5 +1,5 @@
-import { addDays, daysInclusive, parseIsoDate, type IsoDate } from "@/lib/analytics/dates";
-import type { Bucket } from "@/lib/analytics/series";
+import { addDays, daysInclusive, parseIsoDate, type IsoDate } from "@/core/analytics/dates";
+import type { Bucket } from "@/core/analytics/series";
 
 export const PRESETS = { "7d": 7, "30d": 30, "90d": 90, "12m": 365 } as const;
 export type Preset = keyof typeof PRESETS;

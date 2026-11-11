@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 
-import { loadMessages } from "@/lib/i18n/messages";
+import { loadMessages } from "@/core/i18n/messages";
 import { locales } from "@/lib/i18n/config";
 import "@/app/plugins";
 import { getAllPlugins, registerPlugin, unregisterPlugin } from "@/core/plugins/registry";
@@ -62,7 +62,7 @@ describe("core catalog failure", () => {
     });
     // The module reset empties the registry, so register the plugins again.
     await import("@/app/plugins");
-    const { loadMessages: loadWithBrokenCore } = await import("@/lib/i18n/messages");
+    const { loadMessages: loadWithBrokenCore } = await import("@/core/i18n/messages");
 
     const messages = await loadWithBrokenCore("es");
 

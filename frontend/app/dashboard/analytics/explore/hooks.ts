@@ -12,7 +12,7 @@ import {
   updateView,
   type AnalyticsView,
   type ExploreConfig,
-} from "@/lib/analytics";
+} from "@/core/analytics";
 import { ApiRequestError } from "@/lib/api";
 import { useAuth } from "@/core/auth/hooks";
 import { VIEWS_CHANGED } from "@/core/analytics/components/layout/AnalyticsNav";

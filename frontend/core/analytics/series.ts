@@ -1,4 +1,4 @@
-import { addDays, parseIsoDate, toIsoDate, type IsoDate } from "@/lib/analytics/dates";
+import { addDays, parseIsoDate, toIsoDate, type IsoDate } from "@/core/analytics/dates";
 
 // One bucket of a series: its start date (`YYYY-MM-DD`: the day itself, the Monday of its
 // week, or the 1st of its month) and its total. Kept structurally identical to the chart's

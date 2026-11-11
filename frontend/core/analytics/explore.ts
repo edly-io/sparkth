@@ -1,5 +1,5 @@
 import type { Schema } from "@/lib/api";
-import type { EventCatalogEntry } from "@/lib/analytics/types";
+import type { EventCatalogEntry } from "@/core/analytics/types";
 
 /** What an Explore chart counts: events, or distinct actors. */
 export type Measure = Schema<"Measure">;
