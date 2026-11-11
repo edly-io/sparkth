@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 
 import { renderWithIntl } from "@/tests/intl-test-utils";
-import en from "@/messages/en.json";
+import en from "@/core/i18n/catalogs/en";
 
 vi.mock("@/core/auth/hooks", () => ({
   useAuth: () => ({ token: "test-token" }),

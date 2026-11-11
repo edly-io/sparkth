@@ -1,0 +1,17 @@
+{
+  "home": {
+    "title": "Bienvenue sur <brand>Sparkth</brand>",
+    "tagline": "Votre plateforme propulsée par l'IA pour créer des contenus pédagogiques attrayants. Transformez vos ressources en cours en toute simplicité.",
+    "getStarted": "Commencer",
+    "signIn": "Se connecter",
+    "privacyPolicy": "Politique de confidentialité"
+  },
+  "forbidden": {
+    "title": "Vous n'avez pas accès à cette page",
+    "message": "Demandez l'accès à un administrateur si nécessaire.",
+    "back": "Retour au tableau de bord"
+  },
+  "api": {
+    "connectionFailed": "Impossible de se connecter au serveur : {detail}"
+  }
+}

@@ -1,4 +1,4 @@
-import en from "@/messages/en.json";
+import en from "@/core/i18n/catalogs/en";
 
 import { defaultLocale, type Locale } from "@/lib/i18n/config";
 import type { LoadedMessages } from "@/lib/i18n/messages";

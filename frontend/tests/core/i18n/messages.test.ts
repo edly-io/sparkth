@@ -4,9 +4,9 @@ import { loadMessages } from "@/core/i18n/messages";
 import { locales } from "@/lib/i18n/config";
 import "@/app/plugins";
 import { getAllPlugins, registerPlugin, unregisterPlugin } from "@/core/plugins/registry";
-import coreEn from "@/messages/en.json";
-import coreEs from "@/messages/es.json";
-import coreFr from "@/messages/fr.json";
+import coreEn from "@/core/i18n/catalogs/en";
+import coreEs from "@/core/i18n/catalogs/es";
+import coreFr from "@/core/i18n/catalogs/fr";
 import composeEs from "@/plugins/compose/src/i18n/es.json";
 
 const CORE_CATALOGS = { en: coreEn, es: coreEs, fr: coreFr } as const;
@@ -49,7 +49,7 @@ describe("plugin catalog containment", () => {
 
 describe("core catalog failure", () => {
   afterEach(() => {
-    vi.doUnmock("@/messages/es.json");
+    vi.doUnmock("@/core/i18n/catalogs/es");
     vi.resetModules();
     vi.restoreAllMocks();
   });
@@ -57,7 +57,7 @@ describe("core catalog failure", () => {
   it("falls back to the English core catalog and keeps plugin catalogs when the core chunk fails", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     vi.resetModules();
-    vi.doMock("@/messages/es.json", () => {
+    vi.doMock("@/core/i18n/catalogs/es", () => {
       throw new Error("core chunk load failed");
     });
     // The module reset empties the registry, so register the plugins again.

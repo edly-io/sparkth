@@ -1,0 +1,166 @@
+{
+  "analytics": {
+    "title": "Analyses",
+    "loading": "Chargement des analyses…",
+    "loadError": "Nous n'avons pas pu charger les analyses. Veuillez réessayer.",
+    "retry": "Réessayer",
+    "logins": {
+      "title": "Connexions",
+      "subtitle": "Activité de connexion, {range} (UTC).",
+      "empty": "Aucune connexion sur cette période.",
+      "totalLogins": "Connexions totales",
+      "busiestBucket": "{bucket, select, day {Jour le plus actif} week {Semaine la plus active} other {Mois le plus actif}}",
+      "chartCaption": "Connexions, {range}",
+      "noPrevious": "Aucune connexion sur la période précédente",
+      "byMethod": "Méthode de connexion",
+      "methodChartCaption": "Connexions par méthode, {range}",
+      "methodValue": "{count} ({share})",
+      "methods": {
+        "password": "E-mail et mot de passe",
+        "google": "Google"
+      }
+    },
+    "authoring": {
+      "title": "Création de cours",
+      "subtitle": "Activité de création de cours des formateurs, {range} (UTC).",
+      "empty": "Aucune activité de création de cours sur cette période.",
+      "conversations": "Conversations démarrées",
+      "messages": "Messages envoyés",
+      "failedTurns": "Messages en échec",
+      "failedHint": "{rate} des messages · {change}",
+      "documentsAttached": "Documents joints",
+      "searches": "Recherches dans les documents",
+      "searchesHint": "{rate} sans résultat · {change}",
+      "detachedHint": "{count} retirés · {change}",
+      "messagesCaption": "Messages envoyés, {range}",
+      "conversationsCaption": "Conversations démarrées, {range}",
+      "failedTurnsCaption": "Messages en échec, {range}",
+      "failureRateCaption": "Taux d'échec, {range}",
+      "tools": "Outils utilisés",
+      "toolsCaption": "Appels par outil, {range}",
+      "toolValue": "{total} ({failed} en échec)",
+      "lowerBound": "Les comptes sont des minimums : l'activité n'est parfois pas enregistrée.",
+      "noPrevious": "Aucune activité sur la période précédente",
+      "documentsProcessed": "Documents traités",
+      "documentsHint": "{ready} prêts · {time} en moyenne avant d'être prêts · {change}",
+      "documentsHintNoneReady": "Aucun prêt · {change}",
+      "notUsable": "Pourquoi certains documents n'étaient pas utilisables",
+      "notUsableCaption": "Documents inutilisables, par motif, {range}",
+      "outcomes": {
+        "too_large": "Trop volumineux",
+        "unsupported_type": "Type de fichier non pris en charge",
+        "scanned_pdf": "PDF numérisé",
+        "drive_error": "Erreur Google Drive",
+        "failed": "Échec du traitement"
+      }
+    },
+    "compare": {
+      "weekOf": "Semaine du {date}",
+      "vsPrevious": "{change} par rapport à la période précédente",
+      "comparisonLegend": "Ligne pointillée : période précédente"
+    },
+    "table": {
+      "date": "Date",
+      "activity": "Activité",
+      "logins": "Connexions",
+      "method": "Méthode",
+      "previousPeriod": "Période précédente",
+      "tool": "Outil",
+      "calls": "Appels",
+      "messages": "Messages",
+      "conversations": "Conversations",
+      "failedTurns": "Messages en échec",
+      "failureRate": "Taux d'échec",
+      "reason": "Motif",
+      "documents": "Documents"
+    },
+    "nav": {
+      "label": "Vues des analyses",
+      "overview": "Vue d'ensemble",
+      "logins": "Connexions",
+      "authoring": "Création de cours",
+      "explore": "Explorer",
+      "savedViews": "Vues enregistrées"
+    },
+    "period": {
+      "range": "Période",
+      "presets": {
+        "7d": "7 derniers jours",
+        "30d": "30 derniers jours",
+        "90d": "90 derniers jours",
+        "12m": "12 derniers mois",
+        "custom": "Plage personnalisée"
+      },
+      "from": "Date de début",
+      "to": "Date de fin",
+      "apply": "Appliquer",
+      "bucket": "Regrouper par",
+      "buckets": {
+        "day": "Jour",
+        "week": "Semaine",
+        "month": "Mois"
+      },
+      "errors": {
+        "invalidDate": "Saisissez des dates de début et de fin valides.",
+        "startAfterEnd": "La date de début doit être antérieure ou égale à la date de fin.",
+        "inFuture": "La date de fin ne peut pas être dans le futur.",
+        "tooLong": "La période ne peut pas dépasser {days} jours."
+      }
+    },
+    "overview": {
+      "title": "Vue d'ensemble",
+      "subtitle": "Activité de la plateforme, {range} (UTC).",
+      "empty": "Aucune activité sur cette période.",
+      "new": "Nouveau sur cette période",
+      "trend": "Activité",
+      "trendCaption": "Connexions et messages envoyés, {range}"
+    },
+    "explore": {
+      "title": "Explorer",
+      "description": "Créez un graphique à partir de n'importe quel événement enregistré. Les événements, champs et valeurs s'affichent tels qu'enregistrés.",
+      "subtitle": "{range} (UTC).",
+      "event": "Événement",
+      "pickEvent": "Choisissez un événement",
+      "actorId": "ID de l'acteur",
+      "actor": "Acteur",
+      "measure": "Mesure",
+      "measures": {
+        "count": "Événements",
+        "distinct_actors": "Acteurs distincts"
+      },
+      "groupBy": "Ventiler par",
+      "noGroup": "Aucune ventilation",
+      "chart": "Graphique",
+      "charts": {
+        "line": "Courbe",
+        "bar": "Barres",
+        "table": "Tableau"
+      },
+      "filters": "Filtres",
+      "field": "Champ",
+      "pickField": "Choisissez un champ",
+      "value": "Valeur",
+      "addFilter": "Ajouter un filtre",
+      "removeFilter": "Retirer le filtre {filter}",
+      "start": "Choisissez un événement pour créer un graphique.",
+      "empty": "Aucun événement correspondant sur cette période.",
+      "stale": "Cette vue mentionnait des événements, des champs ou des valeurs qui n'existent plus ; ils ont été ignorés.",
+      "truncated": "Les 20 premiers groupes sont affichés ; il y en a d'autres.",
+      "none": "(aucun)",
+      "chartCaption": "{event}, {range}",
+      "groupCaption": "{event} par {group}, {range}",
+      "saveView": "Enregistrer la vue",
+      "save": "Enregistrer",
+      "saveAsNew": "Enregistrer comme nouvelle",
+      "rename": "Renommer",
+      "delete": "Supprimer",
+      "renameView": "Renommer la vue",
+      "viewName": "Nom",
+      "nameTaken": "Vous avez déjà une vue portant ce nom.",
+      "saveError": "Impossible d'enregistrer les modifications de la vue. Veuillez réessayer.",
+      "saved": "Vue enregistrée.",
+      "confirmDelete": "Supprimer la vue « {name} » ?",
+      "viewMissing": "Cette vue enregistrée n'existe pas ou ne vous appartient pas."
+    }
+  }
+}

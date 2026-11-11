@@ -11,7 +11,7 @@ changing anything.
 ## Ground rules
 
 - English is the source language. Never invent or edit English source strings:
-  backend `msgid`s come from the code and `frontend/messages/en.json` (and each
+  backend `msgid`s come from the code and each `frontend/core/*/i18n/en.json` (and each
   `frontend/plugins/*/src/i18n/en.json`) is written by hand by the feature author.
   You only fill the non-English catalogs.
 - The supported languages are the keys of `SUPPORTED_LANGUAGES` in
@@ -48,12 +48,15 @@ changing anything.
 ## Frontend (next-intl)
 
 1. Run `make test.frontend.i18n` (it runs `bun run i18n:check` once per catalog:
-   the core `frontend/messages/` catalog and each `frontend/plugins/*/src/i18n/`
+   core's catalogs, `frontend/core/*/i18n/`, merged, and each `frontend/plugins/*/src/i18n/`
    catalog).
 2. For every **missing key** it reports, add the key to the failing locale file in
    the same position and structure as in that catalog's `en.json`, translated per
    the ground rules. For every **invalid key** (diverged ICU placeholders), fix the
-   translation so its placeholders match the source.
+   translation so its placeholders match the source. Core's check runs on a merged
+   copy in a temporary folder, so for a core key edit the feature file that holds its
+   top-level namespace: the `frontend/core/*/i18n/<lang>.json` beside the `en.json`
+   that defines it.
 3. Do not add keys that are absent from the catalog's `en.json`. **Unused** or
    **undefined** key findings mean the source code or `en.json` is wrong; report
    them to the caller instead of papering over them.

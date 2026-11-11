@@ -1,7 +1,7 @@
 import { render } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 
-import en from "@/messages/en.json";
+import en from "@/core/i18n/catalogs/en";
 import type { Messages } from "@/lib/i18n/messages";
 
 // Renders inside NextIntlClientProvider with the English catalog in UTC, so component
