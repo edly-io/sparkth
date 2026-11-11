@@ -1,11 +1,9 @@
 import { getAllPlugins } from "@/core/plugins/registry";
 import type { PluginDefinition } from "@/core/plugins/types";
 import { defaultLocale, type Locale } from "@/lib/i18n/config";
-import type { LoadedMessages } from "@/lib/i18n/messages";
+import type { CoreMessages, LoadedMessages } from "@/lib/i18n/messages";
 
 import en from "@/messages/en.json";
-
-type CoreMessages = typeof en;
 
 // Dynamic imports so each locale becomes its own chunk and only the active one is fetched.
 const catalogs: Record<Locale, () => Promise<{ default: CoreMessages }>> = {

@@ -1,6 +1,7 @@
 import en from "@/messages/en.json";
 
-type CoreMessages = typeof en;
+/** The core catalog's shape: every core namespace, without any plugin's. */
+export type CoreMessages = typeof en;
 
 /**
  * One namespace per plugin that ships messages. Empty here: each such plugin
