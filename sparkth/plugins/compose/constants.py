@@ -22,6 +22,9 @@ def get_asset(file_name: str) -> str:
     return (Path(__file__).parent / "assets" / file_name).read_text(encoding="utf-8").strip()
 
 
+# An SSE comment line: clients ignore it, and it keeps an idle stream from looking dead to a proxy.
+SSE_HEARTBEAT = ": keepalive\n\n"
+
 SYSTEM_PROMPT_SKELETON = get_asset("system_prompt_skeleton.txt")
 RAG_CONTEXT_PROMPT = get_asset("rag_context_replacement_prompt.txt")
 MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT = get_asset("message_scope_classifier_system_prompt.txt")

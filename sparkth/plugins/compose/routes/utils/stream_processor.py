@@ -42,7 +42,7 @@ from sparkth.plugins.compose.analytics import (
     record_turn_failed,
 )
 from sparkth.plugins.compose.config import get_compose_settings
-from sparkth.plugins.compose.constants import LLM_PROVIDER_API_ERRORS, RAG_CONTEXT_PROMPT
+from sparkth.plugins.compose.constants import LLM_PROVIDER_API_ERRORS, RAG_CONTEXT_PROMPT, SSE_HEARTBEAT
 from sparkth.plugins.compose.detached import detach
 from sparkth.plugins.compose.enums import TurnEventType
 from sparkth.plugins.compose.llm import stream_turn
@@ -241,6 +241,7 @@ class ComposeStreamProcessor:
         self.max_tool_executions = max_tool_executions
         self.conversation_id: int = cast(int, conversation.id)
         self.conversation_uuid: str = str(conversation.uuid)
+        self.heartbeat_seconds: float = get_compose_settings().stream_heartbeat_seconds
         self.queue: asyncio.Queue[str | None] = asyncio.Queue()
         self.disconnected: asyncio.Event = asyncio.Event()
 
@@ -660,11 +661,19 @@ class ComposeStreamProcessor:
         """Processing runs on a detached task so a client disconnect (CancelledError on the generator)
         does not cancel the DB write mid-flight. The task outlives the stream — the analytics emits
         run after the SSE sentinel — so callers join it with ``join_live_tasks``.
+
+        While the turn has nothing to send, an SSE comment goes out every ``heartbeat_seconds``.
+        A proxy between the server and the browser drops a connection that stays idle too long,
+        and a model writing a long tool call emits no event for longer than that.
         """
         detach(self._process_and_stream())
         try:
             while True:
-                payload = await self.queue.get()
+                try:
+                    payload = await asyncio.wait_for(self.queue.get(), self.heartbeat_seconds)
+                except TimeoutError:
+                    yield SSE_HEARTBEAT
+                    continue
                 if payload is None:
                     break
                 yield f"data: {payload}\n\n"
