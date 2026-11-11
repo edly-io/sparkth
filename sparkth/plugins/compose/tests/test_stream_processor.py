@@ -21,6 +21,7 @@ from sparkth.lib.rag import (
 )
 from sparkth.lib.testing import ScriptedChatModel
 from sparkth.plugins.compose.analytics import StopPoint
+from sparkth.plugins.compose.constants import SSE_HEARTBEAT
 from sparkth.plugins.compose.routes.utils.live_turns import request_stop
 from sparkth.plugins.compose.routes.utils.stream_processor import ComposeStreamProcessor
 from sparkth.plugins.compose.schemas import ChatMessage
@@ -682,3 +683,40 @@ class TestStopPoint:
 
         assert completion is not None
         assert completion.stopped_at is None
+
+
+async def _pausing_between_tokens(
+    messages: list[dict[str, Any]], tools: Sequence[Any], provider: Any, max_tool_executions: int, **planner: Any
+) -> AsyncGenerator[dict[str, Any], None]:
+    """An answer that goes quiet between its two tokens, as a model writing a long tool call does."""
+    yield {"type": "token", "content": "Hello"}
+    await asyncio.sleep(0.2)
+    yield {"type": "token", "content": " world"}
+
+
+class TestStreamHeartbeat:
+    @pytest.mark.asyncio
+    async def test_a_quiet_stream_sends_heartbeats_between_events(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A proxy that drops idle connections must see bytes while the turn has nothing to say."""
+        monkeypatch.setattr(STREAM_TURN, _pausing_between_tokens)
+        processor = _make_processor()
+        processor.heartbeat_seconds = 0.02
+
+        chunks = [chunk async for chunk in processor.stream()]
+
+        # The stream is: "Hello", the quiet gap, " world", then the done event.
+        quiet_gap = chunks[1:-2]
+        assert json.loads(chunks[0].removeprefix("data: "))["token"] == "Hello"
+        assert json.loads(chunks[-2].removeprefix("data: "))["token"] == " world"
+        assert json.loads(chunks[-1].removeprefix("data: "))["done"] is True
+        assert quiet_gap
+        assert set(quiet_gap) == {SSE_HEARTBEAT}
+
+    @pytest.mark.asyncio
+    async def test_a_busy_stream_sends_no_heartbeats(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(STREAM_TURN, HELLO_WORLD_TURN)
+        processor = _make_processor()
+
+        chunks = [chunk async for chunk in processor.stream()]
+
+        assert all(chunk.startswith("data: ") for chunk in chunks)
