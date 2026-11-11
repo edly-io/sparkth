@@ -1,4 +1,4 @@
-import { ChartTable } from "@/components/ui/ChartTable";
+import { ChartTable } from "@/core/analytics/components/ui/ChartTable";
 
 export interface BarChartDatum {
   label: string;

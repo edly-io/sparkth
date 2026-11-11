@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import { LineChart } from "@/components/ui/LineChart";
+import { LineChart } from "@/core/analytics/components/ui/LineChart";
 
 const data = [
   { label: "Jul 1", value: 2 },

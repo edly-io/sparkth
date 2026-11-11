@@ -26,8 +26,8 @@ import { Forbidden } from "@/core/components/layout/Forbidden";
 import { Spinner } from "@/core/components/ui/Spinner";
 import { Alert } from "@/core/components/ui/Alert";
 import { Button } from "@/core/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
+import { Input } from "@/core/components/ui/Input";
+import { Select } from "@/core/components/ui/Select";
 
 interface FilterForm {
   from: string;

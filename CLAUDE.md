@@ -106,11 +106,11 @@ Tests live next to the code they own, so each plugin stays a self-contained, por
 named for what they hold, so which one a new test belongs in is never a guess:
 
 - **Unit (vitest)** → [`frontend/tests/`](frontend/tests/), a single central mirror of the source
-  file's path: `components/ui/BarChart.tsx` → `frontend/tests/components/ui/BarChart.test.tsx`,
-  and the `lib` suite sits under `frontend/tests/lib/` (e.g. `lib/analytics/series.ts` →
-  `frontend/tests/lib/analytics/series.test.ts`). The mirror is enforced by `include:
-  ["tests/**/*.test.{ts,tsx}"]` in `frontend/vitest.config.ts` — a unit test placed anywhere
-  else is silently never run.
+  file's path: `core/components/ui/Input.tsx` →
+  `frontend/tests/core/components/ui/Input.test.tsx`, and the `lib` suite sits under
+  `frontend/tests/lib/` (e.g. `lib/slots.ts` → `frontend/tests/lib/slots.test.ts`). The mirror is
+  enforced by `include: ["tests/**/*.test.{ts,tsx}"]` in `frontend/vitest.config.ts` — a unit test
+  placed anywhere else is silently never run.
   - A browser script that lives outside `frontend/` mirrors its repo path under
     `frontend/tests/`: `sparkth/plugins/pxc/static/sparkth-pxc.js` →
     `frontend/tests/sparkth/plugins/pxc/static/sparkth-pxc.test.ts`. Such a test imports the

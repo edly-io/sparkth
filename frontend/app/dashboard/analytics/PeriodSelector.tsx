@@ -14,8 +14,8 @@ import {
   type RangeError,
 } from "@/lib/analytics";
 import { Button } from "@/core/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
+import { Input } from "@/core/components/ui/Input";
+import { Select } from "@/core/components/ui/Select";
 import { usePeriod } from "./usePeriod";
 
 const PRESET_KEYS = Object.keys(PRESETS) as Preset[];
