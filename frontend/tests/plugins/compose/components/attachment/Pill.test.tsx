@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { Pill } from "@/plugins/compose/src/components/ui/attachment/Pill";
-import { TooltipProvider } from "@/core/components/ui/Tooltip";
+import { TooltipProvider } from "@/lib/components/ui/Tooltip";
 import { TextAttachment } from "@/plugins/compose/src/types";
 
 describe("Pill", () => {

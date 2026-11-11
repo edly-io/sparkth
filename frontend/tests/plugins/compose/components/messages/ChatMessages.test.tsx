@@ -2,7 +2,7 @@ import { screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { ChatMessages } from "@/plugins/compose/src/components/ui/messages/ChatMessages";
 import composeEn from "@/plugins/compose/src/i18n/en.json";
-import { renderWithIntl } from "@/tests/intl-test-utils";
+import { renderWithIntl } from "@/lib/testing/intl";
 import type { ChatMessage } from "@/plugins/compose/src/types";
 
 // jsdom has no scrollIntoView implementation; ChatMessages calls it on mount.

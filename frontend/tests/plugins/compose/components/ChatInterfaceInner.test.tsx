@@ -1,11 +1,10 @@
 import { act, fireEvent, screen } from "@testing-library/react";
 import { render } from "@testing-library/react";
-import { NextIntlClientProvider } from "next-intl";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import ChatInterfaceInner from "@/plugins/compose/src/components/layout/ChatInterfaceInner";
 import composeEn from "@/plugins/compose/src/i18n/en.json";
-import en from "@/messages/en.json";
+import { IntlTestProvider } from "@/lib/testing/intl";
 import { fetchLLMConfigs } from "@/lib/llm/client";
 
 // usePlugin is mocked to read this directly, so a test sets it before rendering.
@@ -67,9 +66,9 @@ Element.prototype.scrollIntoView = vi.fn();
 // and picks up a mid-test change to `pluginConfig`.
 function chatTree() {
   return (
-    <NextIntlClientProvider locale="en" messages={{ ...en, ...composeEn }}>
+    <IntlTestProvider messages={composeEn}>
       <ChatInterfaceInner conversationId={null} />
-    </NextIntlClientProvider>
+    </IntlTestProvider>
   );
 }
 

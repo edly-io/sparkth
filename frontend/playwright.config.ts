@@ -13,7 +13,10 @@ import "dotenv/config";
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
 
 export default defineConfig({
-  testDir: "./e2e-tests",
+  // Core specs live in e2e-tests/, and a plugin keeps its own in plugins/<name>/tests/e2e/. testMatch is
+  // explicit so the vitest unit tests (*.test.ts) elsewhere in the tree are never picked up.
+  testDir: ".",
+  testMatch: ["e2e-tests/**/*.spec.ts", "plugins/*/tests/e2e/**/*.spec.ts"],
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
@@ -31,7 +34,7 @@ export default defineConfig({
   },
 
   projects: [
-    { name: "setup", testMatch: /.*\.setup\.ts/ },
+    { name: "setup", testMatch: "e2e-tests/**/*.setup.ts" },
 
     {
       name: "chromium",

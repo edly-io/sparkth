@@ -309,9 +309,22 @@ Plugin components use only their own namespace, never a core one. The catalog
 drift guard (`make test.frontend.i18n`) picks the new `src/i18n/` directory up
 automatically and checks it against the plugin's own `src/`, and
 `frontend/tests/core/i18n/messages.test.ts` enforces the namespace containment.
-In component tests, pass the plugin catalog to the intl helper:
+In component tests, pass the plugin catalog to the intl helper from `@/lib/testing/intl`:
 `renderWithIntl(<ExamplePlugin />, exampleEn)`. See the
 [translations guide](translations.md#plugin-catalogs) for the full picture.
+
+## Tests
+
+A plugin keeps its tests in its own folder, so it moves or leaves as one unit: unit tests in
+`plugins/<plugin-name>/tests/`, mirroring the plugin's paths, and Playwright specs in
+`plugins/<plugin-name>/tests/e2e/`. Both runners pick them up without further setup.
+
+Take test helpers from `@/lib/testing/`, never from core's `frontend/tests/` or `@/core`:
+
+- `renderWithIntl(ui, catalog)` and `IntlTestProvider` (`@/lib/testing/intl`) render with the English core catalog
+  and the plugin's own.
+- `mockFetch(body, status)` and `sentRequest(spy)` (`@/lib/testing/fetch`) stub the API client's `fetch` and read
+  back the request it sent.
 
 ## Slots (Optional)
 

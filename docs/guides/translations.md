@@ -313,11 +313,11 @@ Claude Code agent fills in the missing or invalid keys the check reports.
 ### Testing translated components
 
 Wrap the component in the English catalog with `renderWithIntl` from
-`frontend/tests/intl-test-utils.tsx`; assertions against English text keep
+`frontend/lib/testing/intl.tsx`; assertions against English text keep
 working unchanged:
 
 ```tsx
-import { renderWithIntl } from "@/tests/intl-test-utils";
+import { renderWithIntl } from "@/lib/testing/intl";
 
 renderWithIntl(<HomeClient />);
 expect(screen.getByRole("link", { name: "Get Started" })).toBeInTheDocument();
