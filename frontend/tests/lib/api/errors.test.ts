@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { rethrowOrWrapConnectionError } from "@/lib/api";
-import { setActiveLocale, setActiveMessages } from "@/lib/i18n/activeLocale";
+import { setActiveLocale, setActiveMessages } from "@/core/i18n/activeLocale";
 import { defaultLocale } from "@/lib/i18n/config";
 import en from "@/messages/en.json";
 import fr from "@/messages/fr.json";

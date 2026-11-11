@@ -229,7 +229,7 @@ export const examplePlugin: PluginDefinition = {
 };
 ```
 
-`loadMessages` in `lib/i18n/messages.ts` merges every registered plugin's
+`loadMessages` in `core/i18n/messages.ts` merges every registered plugin's
 catalog into the core one at load time; a catalog that fails to load falls
 back to the plugin's English one.
 
@@ -264,7 +264,7 @@ const t = useTranslations("example-plugin");
 Plugin components use only their own namespace, never a core one. The catalog
 drift guard (`make test.frontend.i18n`) picks the new `messages/` directory up
 automatically and checks it against the plugin's own sources, and
-`frontend/tests/lib/i18n/messages.test.ts` enforces the namespace containment.
+`frontend/tests/core/i18n/messages.test.ts` enforces the namespace containment.
 In component tests, pass the plugin catalog to the intl helper:
 `renderWithIntl(<ExamplePlugin />, exampleEn)`. See the
 [translations guide](translations.md#plugin-catalogs) for the full picture.
@@ -383,9 +383,9 @@ export default function AttachmentPicker({ selected, onSelect, onClose }: Attach
 ## Analytics (Optional)
 
 A plugin that records analytics events keeps their frontend code in `plugins/<name>/analytics.ts`: the fetch for
-its analytics endpoint, the response types and the helpers its charts need, built on `@/lib/analytics`. The
-analytics pages under `app/dashboard/analytics/` import it from there; core's `lib/analytics/` holds no plugin's
-code. `plugins/compose/analytics.ts` is an example.
+its analytics endpoint, the response types and the helpers its charts need, built on `@/lib/analytics` (the
+date type, the bucket sizes and `buildSeries`). The analytics pages under `app/dashboard/analytics/` import it from
+there; core's analytics code in `core/analytics/` holds no plugin's code. `plugins/compose/analytics.ts` is an example.
 
 A plugin's analytics page is listed on the analytics rail by an entry in `app/dashboard/analytics/views.ts` that
 names the plugin (`plugin: "<name>"`); the entry shows only while that plugin is installed.

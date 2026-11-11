@@ -18,7 +18,7 @@ import {
   type ExploreConfig,
   type ExploreResult,
   type Measure,
-} from "@/lib/analytics";
+} from "@/core/analytics";
 import { ApiRequestError } from "@/lib/api";
 import { useAuth } from "@/core/auth/hooks";
 import { usePermissionCheck } from "@/core/permissions/hooks";

@@ -7,7 +7,7 @@ import {
   pruneConfig,
   type EventCatalogEntry,
   type ExploreConfig,
-} from "@/lib/analytics";
+} from "@/core/analytics";
 
 const config: ExploreConfig = {
   event: "compose.tool_invoked",

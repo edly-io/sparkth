@@ -11,7 +11,7 @@ import {
   fetchLogins,
   fetchSummary,
   type ExploreConfig,
-} from "@/lib/analytics";
+} from "@/core/analytics";
 import { ApiRequestError } from "@/lib/api";
 
 import { mockFetch, sentRequest } from "@/tests/lib/test-utils";

@@ -15,8 +15,8 @@ vi.mock("@/core/auth/hooks", () => ({
 }));
 
 // Analytics data access: keep the real types, stub the fetch.
-vi.mock("@/lib/analytics", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/analytics")>();
+vi.mock("@/core/analytics", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/core/analytics")>();
   return { ...actual, fetchLogins: vi.fn() };
 });
 
@@ -27,7 +27,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/dashboard/analytics/logins",
 }));
 
-import { fetchLogins, type LoginsPoint } from "@/lib/analytics";
+import { fetchLogins, type LoginsPoint } from "@/core/analytics";
 import LoginsPage from "@/app/dashboard/analytics/logins/LoginsPage";
 
 // rerender must re-wrap, since renderWithIntl returns the bare RTL result.

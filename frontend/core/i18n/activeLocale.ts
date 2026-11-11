@@ -1,7 +1,7 @@
 import en from "@/messages/en.json";
 
-import { defaultLocale, type Locale } from "./config";
-import type { LoadedMessages } from "./messages";
+import { defaultLocale, type Locale } from "@/lib/i18n/config";
+import type { LoadedMessages } from "@/lib/i18n/messages";
 
 // The locale the UI is rendering right now, maintained by LocaleProvider. The
 // NEXT_LOCALE cookie stores the *preference*; this tracks what is on screen, and the

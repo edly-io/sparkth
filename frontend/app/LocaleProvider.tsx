@@ -6,9 +6,10 @@ import { useEffect, useState } from "react";
 import en from "@/messages/en.json";
 // Registers the plugins whose catalogs loadMessages merges in.
 import "@/app/plugins";
-import { setActiveLocale, setActiveMessages } from "@/lib/i18n/activeLocale";
+import { setActiveLocale, setActiveMessages } from "@/core/i18n/activeLocale";
 import { defaultLocale, readLocaleCookie, type Locale } from "@/lib/i18n/config";
-import { loadMessages, type LoadedMessages } from "@/lib/i18n/messages";
+import { loadMessages } from "@/core/i18n/messages";
+import type { LoadedMessages } from "@/lib/i18n/messages";
 
 export function LocaleProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<{ locale: Locale; messages: LoadedMessages }>({

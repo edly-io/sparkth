@@ -12,7 +12,7 @@ import {
   type Bucket,
   type Preset,
   type RangeError,
-} from "@/lib/analytics";
+} from "@/core/analytics";
 import { Button } from "@/core/components/ui/Button";
 import { Input } from "@/core/components/ui/Input";
 import { Select } from "@/core/components/ui/Select";

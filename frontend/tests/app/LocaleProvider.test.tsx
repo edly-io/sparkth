@@ -5,15 +5,15 @@ import { renderToString } from "react-dom/server";
 
 import { LocaleProvider } from "@/app/LocaleProvider";
 import { rethrowOrWrapConnectionError } from "@/lib/api";
-import { getActiveLocale, setActiveLocale, setActiveMessages } from "@/lib/i18n/activeLocale";
+import { getActiveLocale, setActiveLocale, setActiveMessages } from "@/core/i18n/activeLocale";
 import { defaultLocale, LOCALE_COOKIE, type Locale } from "@/lib/i18n/config";
 import en from "@/messages/en.json";
 
 // Lets the failure test make the catalog import reject while every other test
 // exercises the real loader.
 const failLoad = vi.hoisted(() => ({ value: false }));
-vi.mock("@/lib/i18n/messages", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/i18n/messages")>();
+vi.mock("@/core/i18n/messages", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/core/i18n/messages")>();
   return {
     ...actual,
     loadMessages: (locale: Locale) =>
