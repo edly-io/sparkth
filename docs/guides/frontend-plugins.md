@@ -94,8 +94,8 @@ export default function ExamplePlugin() {
 - Reads its own state and config with `usePlugin` from `@/lib/plugins/context`
 - This component is lazy-loaded
 - Takes shared UI components from `@/lib/components/ui/<Name>`, for example
-  `import { Button } from "@/lib/components/ui/Button";`. Core UI lives in `@/core`,
-  and `make lint.frontend` rejects any plugin import from it.
+  `import { Button } from "@/lib/components/ui/Button";`. Core UI lives in `@/core`, which a plugin may not
+  import (see [Import Rules](#import-rules)).
 - Reads the signed-in user and their token with `useAuth` from `@/lib/auth/hooks`.
 - Links to another plugin's page with `pluginPath("<pluginname>")` from `@/lib/plugins/routes`, never by writing the
   `/dashboard/<pluginname>` route out.
@@ -195,6 +195,10 @@ registerPlugin(exampleplugin);
 registered on every page before their catalogs load.
 
 > ⚠️ If a plugin is not imported and registered here, it will not load, not render, and not appear in the sidebar.
+
+Also give the plugin its own override in `frontend/.oxlintrc.json`, copied from another plugin's with the folder
+name changed, so the lint check applies the [import rules](#import-rules) to it.
+`frontend/tests/oxlintrc.test.ts` fails until it has one.
 
 ## 5. Regenerate the Plugin Route List
 
@@ -312,6 +316,19 @@ automatically and checks it against the plugin's own `src/`, and
 In component tests, pass the plugin catalog to the intl helper:
 `renderWithIntl(<ExamplePlugin />, exampleEn)`. See the
 [translations guide](translations.md#plugin-catalogs) for the full picture.
+
+## Import Rules
+
+`make lint.frontend` (part of `make test.frontend`, so it runs in CI) enforces where code may import from, with the
+`no-restricted-imports` overrides in `frontend/.oxlintrc.json`:
+
+- **A plugin** imports core code only through `@/lib/...`, never from `@/core/...` or `@/app/...`.
+- **A plugin** imports another plugin only through that plugin's `lib/`, its public surface, never its other files.
+- **Core and `lib`** never import a plugin. A plugin reaches them through a [slot](#slots-optional); only `app/`,
+  which wires core and plugins together, imports plugins.
+
+A failing import names the rule it breaks. `frontend/tests/oxlintrc.test.ts` checks that each rule fires and that
+every plugin has its override.
 
 ## Slots (Optional)
 
