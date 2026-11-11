@@ -12,11 +12,7 @@ from sparkth.lib.audit.events import AuditModelInfo
 from sparkth.lib.compose.constants import PLANNER_NAME
 from sparkth.lib.compose.hooks import Agent
 from sparkth.plugins.compose.constants import PLANNER_OPERATIONS, PLANNER_PROMPT, PLANNER_WITHOUT_OPERATIONS
-from sparkth.plugins.compose.planner.middleware import (
-    bounce_refused_calls,
-    first_hand_off_only,
-    stop_after_too_many_calls,
-)
+from sparkth.plugins.compose.planner.middleware import first_hand_off_only, limit_steps
 from sparkth.plugins.compose.planner.tools import REFUSE_TOOL, build_handoff_tool, build_operator_tool
 from sparkth.plugins.compose.planner.types import AgentGraph
 
@@ -39,20 +35,18 @@ def build_planner(
     """Build the planner on ``llm``, with one hand-off tool per agent, the refuse tool, and the
     ``operator`` tool when there is an operator, which runs operations such as publishing a course.
 
-    An operation's result goes back to the planner, so it can tell the author or hand the rest to
-    an agent; a hand-off's result is the turn's answer.
+    What a hand-off or an operation returns goes back to the planner, which runs the next step the
+    author asked for or ends the turn. A turn runs a limited number of steps, a call its tool
+    refuses goes back to the planner, and the agent that has just answered is not run again.
 
     The run's context is the :class:`AuditModelInfo` of the model the agents run on, which each
-    hand-off passes on to its agent. An agent's tool call waits for its reader to ask for the next
-    event, so the planner must be streamed with ``stream_mode`` including ``"custom"`` and
-    ``subgraphs=True``, and the reader must set each ``tool_start`` event's ``go``. A call its tool
-    refuses goes back to the planner, and the run stops after a few calls.
+    hand-off passes on to its agent. A step, and each tool call inside it, waits for its reader to
+    ask for the next event, so the planner must be streamed with ``stream_mode`` including
+    ``"custom"`` and ``subgraphs=True``, and the reader must set the ``go`` of each ``routed`` and
+    ``tool_start`` event.
     """
-    middleware: list[AgentMiddleware[Any, Any, Any]] = [
-        first_hand_off_only,
-        bounce_refused_calls,
-        stop_after_too_many_calls,
-    ]
+    # After-model hooks run in reverse order: a reply is trimmed to one call, then checked against the limits.
+    middleware: list[AgentMiddleware[Any, Any, Any]] = [limit_steps, first_hand_off_only]
     operator_tools = [build_operator_tool(operator)] if operator is not None else []
     return create_agent(
         llm,

@@ -730,6 +730,15 @@ system-wide or by the user contributes no agent and no tools.
   author sees each tool call but not the operator's text. What an operation returns goes back to
   the planner, which tells the author or hands the rest of the request to an agent, which reads
   it too. With no such plugin enabled there are no operations.
+- **Steps.** A request can need several kinds of work, such as writing a lesson, building an
+  activity for it and publishing both. What each agent or operation returns goes back to the
+  planner, which runs the next part the author asked for, at most five steps a message, without
+  asking between them. Each agent's reply streams as it is written, and a later step reads what
+  earlier steps wrote and returned. After an agent's reply the planner adds nothing, so an agent's
+  question or choices are the last thing the author reads, and their answer continues that work;
+  after an operation it says briefly what was done. All of a turn's replies are stored as one
+  reply, which lists its steps; when a step fails, what was written before it is kept as a reply
+  marked as interrupted, followed by the error.
 
 Plugin-specific knowledge belongs in a `<prefix>about` tool, not in an agent's `prompt`;
 see the LMS `about` tool [above](#lms-plugins-tools-without-credentials) for the convention.

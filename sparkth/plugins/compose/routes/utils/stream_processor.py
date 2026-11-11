@@ -73,14 +73,46 @@ class StreamedCompletion:
     routing: TurnRouting
 
 
+def _reply_metadata(
+    rag_sections: list[dict[str, str | None]],
+    tool_calls: list[dict[str, str]],
+    steps: Sequence[str],
+    *,
+    stopped: bool,
+    interrupted: bool,
+) -> dict[str, Any]:
+    """What a stored reply notes besides its text, leaving out what it doesn't have: the sections it drew on,
+    its tool calls, its steps, and whether the author stopped it or a failure cut it off."""
+    metadata: dict[str, Any] = {}
+    if rag_sections:
+        metadata["rag_sections"] = rag_sections
+    if tool_calls:
+        metadata["tool_calls"] = tool_calls
+    if steps:
+        metadata["steps"] = list(steps)
+    if stopped:
+        metadata["stopped"] = True
+    if interrupted:
+        metadata["interrupted"] = True
+    return metadata
+
+
+def _tool_call_names(tool_calls: list[dict[str, Any]]) -> list[dict[str, str]]:
+    """The stored and streamed shape of a turn's tool calls: their names only. A failure reaches analytics
+    through the executed-tools list, not through the reply."""
+    return [{"name": call["name"]} for call in tool_calls]
+
+
 @dataclass(frozen=True)
 class CollectedReply:
-    """What a turn streamed: its text, its tool calls, whether the author stopped it, and who answered."""
+    """What a turn streamed: its text, its tool calls, whether the author stopped it, who answered last,
+    and the agents and operator that ran its steps, in order."""
 
     text: str
     tool_calls: list[dict[str, Any]]
     stopped: bool
     routing: TurnRouting
+    steps: list[str]
 
 
 @dataclass(frozen=True)
@@ -457,12 +489,14 @@ class ComposeStreamProcessor:
         that tool's ``tool_end``.
 
         The stop check reads the event *before* deciding whether to act on it. A ``tool_start``
-        is not yet in flight — ``stream_turn`` is suspended at that very ``yield``, before the
-        tool runs — so a stop pending there breaks before the event is processed at all,
-        which is what keeps the next tool from ever starting. A ``tool_end`` or ``token``, by
-        contrast, already happened: the tool ran (and its writes already landed, for a
-        ``tool_end``) before the event was yielded, so that event is still recorded before
-        breaking. Either way, the loop never calls the generator again after this iteration.
+        or ``routed`` is not yet in flight — ``stream_turn`` is suspended at that very ``yield``,
+        before the tool or the step runs — so a stop pending there breaks before the event is
+        processed at all, which is what keeps the next tool or step from ever starting. A
+        ``tool_end`` or ``token``, by contrast, already happened: the tool ran (and its writes
+        already landed, for a ``tool_end``) before the event was yielded, so that event is still
+        recorded before breaking. Either way, the loop never calls the generator again after this
+        iteration. A failure keeps the text written before it as a reply of its own, marked as
+        interrupted, before the error.
         """
         full_response = ""
         completed_tool_calls: list[dict[str, Any]] = []
@@ -470,6 +504,7 @@ class ComposeStreamProcessor:
         tool_running = False
         # A turn stopped before a hand-off returned has no agent.
         routing = TurnRouting()
+        steps: list[str] = []
         max_tool_executions = self.max_tool_executions
         if max_tool_executions is None:
             max_tool_executions = get_compose_settings().max_tool_executions
@@ -484,11 +519,13 @@ class ComposeStreamProcessor:
             )
             while (event := await self._next_event_unless_stopped(turn, tool_running=tool_running)) is not None:
                 stopping = self._stop_is_requested()
-                if stopping and event["type"] == TurnEventType.TOOL_START:
+                if stopping and event["type"] in (TurnEventType.TOOL_START, TurnEventType.ROUTED):
                     stopped = True
                     break
                 if event["type"] == TurnEventType.ROUTED:
                     routing = event["routing"]
+                    if routing.agent is not None:
+                        steps.append(routing.agent)
                 elif event["type"] == TurnEventType.TOKEN:
                     token = event["content"]
                     full_response += token
@@ -509,19 +546,38 @@ class ComposeStreamProcessor:
                     break
             else:
                 stopped = self._stop_is_requested()
-            return CollectedReply(text=full_response, tool_calls=completed_tool_calls, stopped=stopped, routing=routing)
+            return CollectedReply(
+                text=full_response, tool_calls=completed_tool_calls, stopped=stopped, routing=routing, steps=steps
+            )
         except LLM_PROVIDER_API_ERRORS as e:
             logger.error("Streaming failed: %s", e)
+            await self._persist_partial_reply(full_response, completed_tool_calls, steps, bg_session)
             await self._persist_and_emit_error(
                 streaming_error_message(e), bg_session, TurnFailureCause.PROVIDER_API_ERROR
             )
             return None
         except (OSError, LangChainException) as e:
             logger.exception("Unexpected streaming error: %s", e)
+            await self._persist_partial_reply(full_response, completed_tool_calls, steps, bg_session)
             await self._persist_and_emit_error(
                 "An error occurred while generating a response. Please try again.", bg_session
             )
             return None
+
+    async def _persist_partial_reply(
+        self, text: str, tool_calls: list[dict[str, Any]], steps: list[str], bg_session: AsyncSession
+    ) -> None:
+        """Store what a failed turn wrote before it failed, if anything, as a reply of its own, marked as
+        interrupted: its last step may have been cut off mid-sentence."""
+        if not text:
+            return
+        await self.service.add_message(
+            session=bg_session,
+            conversation_id=self.conversation_id,
+            role="assistant",
+            content=text,
+            metadata=_reply_metadata([], _tool_call_names(tool_calls), steps, stopped=False, interrupted=True),
+        )
 
     async def _persist_and_emit_done(
         self,
@@ -531,6 +587,7 @@ class ComposeStreamProcessor:
         bg_session: AsyncSession,
         stopped_at: StopPoint | None = None,
         routing: TurnRouting = TurnRouting(),
+        steps: Sequence[str] = (),
     ) -> StreamedCompletion:
         """Persist the assistant message, emit the done SSE, and return what it completed.
 
@@ -538,24 +595,17 @@ class ComposeStreamProcessor:
         state without a separate fetch after the stream closes. ``stopped_at`` marks a turn
         that ended early because the author asked it to, so a boolean ``stopped`` is written
         into the message metadata (for a page reload to still show it) and onto the done
-        payload itself. ``routing`` is who answered the turn; nobody has before the model runs.
+        payload itself. ``routing`` is who answered the turn last, and ``steps`` the agents and
+        operator that ran, in order; nobody has before the model runs.
 
         Returns:
             The tools this completion executed and when the reply was stored, for the
             caller to emit once the stream is closed. See :meth:`_process_and_stream` for
             why they are returned rather than emitted here.
         """
-        metadata: dict[str, Any] = {}
-        if confirmed_rag_sections:
-            metadata["rag_sections"] = confirmed_rag_sections
-        # The stored and streamed tool calls keep their name-only shape; the failure reaches
-        # analytics through the executed-tools list, not through this payload.
-        tool_calls = [{"name": call["name"]} for call in completed_tool_calls]
-        if tool_calls:
-            metadata["tool_calls"] = tool_calls
+        tool_calls = _tool_call_names(completed_tool_calls)
         stopped = stopped_at is not None
-        if stopped:
-            metadata["stopped"] = True
+        metadata = _reply_metadata(confirmed_rag_sections, tool_calls, steps, stopped=stopped, interrupted=False)
         assistant_message = await self.service.add_message(
             session=bg_session,
             conversation_id=self.conversation_id,
@@ -614,6 +664,7 @@ class ComposeStreamProcessor:
             bg_session,
             stopped_at=StopPoint.STREAMING if reply.stopped else None,
             routing=reply.routing,
+            steps=reply.steps,
         )
 
     async def _run(self, bg_session: AsyncSession) -> StreamedCompletion | None:
