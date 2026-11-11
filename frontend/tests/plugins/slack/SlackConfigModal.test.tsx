@@ -2,8 +2,8 @@ import { describe, it, expect, vi } from "vitest";
 import { screen } from "@testing-library/react";
 
 import SlackConfigModal from "@/plugins/slack/src/components/ui/SlackConfigModal";
-import type { UserPluginState } from "@/core/plugins/types";
-import { renderWithIntl } from "@/tests/intl-test-utils";
+import type { UserPluginState } from "@/lib/plugins/types";
+import { renderWithIntl } from "@/lib/testing/intl";
 
 vi.mock("@/lib/auth/hooks", () => ({
   useAuth: () => ({ token: "test-token" }),

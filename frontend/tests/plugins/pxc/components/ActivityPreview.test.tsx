@@ -6,7 +6,7 @@ import { ApiRequestError } from "@/lib/api";
 import { ActivityPreview } from "@/plugins/pxc/src/components/ui/ActivityPreview";
 import { getActivityEmbedUrl } from "@/plugins/pxc/src/client";
 import pxcEn from "@/plugins/pxc/src/i18n/en.json";
-import { renderWithIntl } from "@/tests/intl-test-utils";
+import { renderWithIntl } from "@/lib/testing/intl";
 
 const replace = vi.hoisted(() => vi.fn());
 

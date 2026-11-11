@@ -8,10 +8,6 @@ import {
   getConnectionStatus,
 } from "@/plugins/slack/src/client";
 
-vi.mock("@/core/auth/tokens", () => ({
-  getStoredToken: vi.fn().mockReturnValue(null),
-}));
-
 function mockFetch(body: unknown, status = 200) {
   const response =
     status === 204

@@ -2,11 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { ApiRequestError } from "@/lib/api";
 import { deleteActivity, getActivityEmbedUrl, listActivities } from "@/plugins/pxc/src/client";
-import { mockFetch, sentRequest } from "@/tests/lib/test-utils";
-
-vi.mock("@/core/auth/tokens", () => ({
-  getStoredToken: vi.fn().mockReturnValue(null),
-}));
+import { mockFetch, sentRequest } from "@/lib/testing/fetch";
 
 beforeEach(() => {
   vi.restoreAllMocks();

@@ -11,14 +11,10 @@ import {
   type ComposeActivityPoint,
 } from "@/plugins/compose/src/analytics";
 
-import { mockFetch, sentRequest } from "@/tests/lib/test-utils";
+import { mockFetch, sentRequest } from "@/lib/testing/fetch";
 
 // authMiddleware reads the stored token; stub it to null so the explicit bearer
 // header from the client is what we assert on.
-vi.mock("@/core/auth/tokens", () => ({
-  getStoredToken: vi.fn().mockReturnValue(null),
-}));
-
 beforeEach(() => {
   vi.restoreAllMocks();
 });

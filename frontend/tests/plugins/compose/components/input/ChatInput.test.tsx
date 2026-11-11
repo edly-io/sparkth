@@ -9,7 +9,7 @@ import type {
 } from "@/plugins/compose/src/slots/attachments";
 import type { TextAttachment } from "@/plugins/compose/src/types";
 import composeEn from "@/plugins/compose/src/i18n/en.json";
-import { renderWithIntl } from "@/tests/intl-test-utils";
+import { renderWithIntl } from "@/lib/testing/intl";
 
 const handleSend = vi.fn();
 const setPickingFrom = vi.fn();
