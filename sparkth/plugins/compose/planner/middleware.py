@@ -4,7 +4,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from langchain.agents.middleware import AgentState, ToolCallRequest, after_model, wrap_tool_call
-from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.messages import AIMessage, ToolCall, ToolMessage
 from langgraph.runtime import Runtime
 from langgraph.types import Command
 
@@ -20,6 +20,23 @@ from sparkth.plugins.compose.constants import (
 logger = get_logger(__name__)
 
 
+def _with_calls(reply: AIMessage, kept: list[ToolCall]) -> AIMessage:
+    """``reply`` asking only for the ``kept`` tool calls.
+
+    Some providers repeat each call as a block of the reply's content and reject a call that gets
+    no result, so the blocks of the calls left out go too.
+    """
+    kept_ids = {call["id"] for call in kept}
+    content: str | list[str | dict[str, Any]] = reply.content
+    if isinstance(content, list):
+        content = [
+            block
+            for block in content
+            if not (isinstance(block, dict) and block.get("type") == "tool_use" and block.get("id") not in kept_ids)
+        ]
+    return reply.model_copy(update={"tool_calls": kept, "content": content})
+
+
 @after_model(name="first_hand_off_only")
 def first_hand_off_only(state: AgentState[Any], runtime: Runtime[AuditModelInfo]) -> dict[str, Any] | None:
     """Keep only the first tool call of a planner reply, so one hand-off or operation runs at a time."""
@@ -27,7 +44,7 @@ def first_hand_off_only(state: AgentState[Any], runtime: Runtime[AuditModelInfo]
     if not (isinstance(reply, AIMessage) and len(reply.tool_calls) > 1):
         return None
     logger.warning("Planner asked for %d tool calls in one reply; only the first runs", len(reply.tool_calls))
-    return {"messages": [reply.model_copy(update={"tool_calls": reply.tool_calls[:1]})]}
+    return {"messages": [_with_calls(reply, reply.tool_calls[:1])]}
 
 
 @wrap_tool_call
