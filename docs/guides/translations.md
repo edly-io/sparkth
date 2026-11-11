@@ -241,7 +241,7 @@ no locale URL prefix. The locale is resolved on the client.
    the active locale tracks what is on screen, and the two diverge when the
    catalog load fails outright and the UI stays on English.
 4. The API client echoes the active locale as an `Accept-Language` header on
-   every request (`localeMiddleware` in `frontend/lib/api/middleware.ts`), so
+   every request (`localeMiddleware` in `frontend/core/api/middleware.ts`), so
    backend responses arrive in the language the frontend renders, cookie or
    not. A caller-supplied `Accept-Language` header wins over the default.
 

@@ -1,4 +1,5 @@
-import { api, bearer, rethrowOrWrapConnectionError } from "@/lib/api";
+import { rethrowOrWrapConnectionError } from "@/core/api/errors";
+import { api, bearer } from "@/lib/api";
 import type {
   CreateLLMConfigPayload,
   LLMConfig,

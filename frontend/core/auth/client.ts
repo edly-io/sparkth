@@ -1,11 +1,5 @@
-import {
-  api,
-  ApiRequestError,
-  bearer,
-  call,
-  rethrowOrWrapConnectionError,
-  type Schema,
-} from "@/lib/api";
+import { rethrowOrWrapConnectionError } from "@/core/api/errors";
+import { api, ApiRequestError, bearer, call, type Schema } from "@/lib/api";
 
 /** A username and its password. */
 export type LoginRequest = Schema<"UserLogin">;

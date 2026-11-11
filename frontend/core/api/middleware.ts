@@ -1,13 +1,8 @@
 import type { Middleware } from "openapi-fetch";
 import { getStoredToken } from "@/core/auth/tokens";
 import { getActiveLocale } from "@/core/i18n/activeLocale";
-import {
-  ApiRequestError,
-  formatApiError,
-  isStructuredDetail,
-  type ApiError,
-  type StructuredErrorDetail,
-} from "./errors";
+import { ApiRequestError, type StructuredErrorDetail } from "@/lib/api/errors";
+import { formatApiError, isStructuredDetail, type ApiError } from "@/core/api/errors";
 
 export const authMiddleware: Middleware = {
   async onRequest({ request }) {
