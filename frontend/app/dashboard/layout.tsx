@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import "@/app/plugins";
 import { useAuth } from "@/core/auth/hooks";
-import { resolveNavPermissions } from "@/core/sidebar/components/ui/NavItem/gatedNav";
+import { resolveNavPermissions } from "@/core/sidebar/gatedNav";
 import { PluginProvider } from "@/core/plugins/context";
 import AppSidebar from "@/core/sidebar/components/layout/AppSidebar";
 import MobileSidebar from "@/core/sidebar/components/layout/MobileSidebar";

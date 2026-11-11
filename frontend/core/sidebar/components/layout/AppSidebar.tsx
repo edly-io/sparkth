@@ -18,7 +18,7 @@ import {
 import { usePluginContext } from "@/core/plugins/context";
 import { sidebarItemsFrom, type SidebarItem } from "@/core/sidebar/sidebarItems";
 import { resolvePluginIcon } from "@/core/components/ui/icons";
-import { GATED_NAV } from "@/core/sidebar/components/ui/NavItem/gatedNav";
+import { GATED_NAV } from "@/core/sidebar/gatedNav";
 import { NavItem } from "@/core/sidebar/components/ui/NavItem/NavItem";
 import Image from "next/image";
 import { Spinner } from "@/core/components/ui/Spinner";

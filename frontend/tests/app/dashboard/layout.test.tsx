@@ -28,7 +28,7 @@ vi.mock("@/core/sidebar/components/layout/AppSidebar", () => ({
 }));
 
 const resolveNavPermissions = vi.hoisted(() => vi.fn());
-vi.mock("@/core/sidebar/components/ui/NavItem/gatedNav", () => ({ resolveNavPermissions }));
+vi.mock("@/core/sidebar/gatedNav", () => ({ resolveNavPermissions }));
 
 describe("DashboardLayout nav permission gating", () => {
   beforeEach(() => {
