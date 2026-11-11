@@ -4,12 +4,8 @@ import { Suspense, useEffect, useState, type SubmitEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "@tanstack/react-form";
-import {
-  login as loginApi,
-  getGoogleLoginUrl,
-  resendVerificationEmail,
-  ApiRequestError,
-} from "@/lib/api";
+import { ApiRequestError } from "@/lib/api";
+import { login as loginApi, getGoogleLoginUrl, resendVerificationEmail } from "@/core/auth/client";
 import { useAuth } from "@/core/auth/hooks";
 import { SparkthLogo } from "@/core/components/ui/SparkthLogo";
 import { Button } from "@/core/components/ui/Button";

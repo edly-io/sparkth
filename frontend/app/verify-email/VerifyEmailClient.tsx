@@ -10,7 +10,8 @@ import { Alert } from "@/core/components/ui/Alert";
 import { Button } from "@/core/components/ui/Button";
 import { Card } from "@/core/components/ui/Card";
 import { Input } from "@/core/components/ui/Input";
-import { ApiRequestError, resendVerificationEmail, verifyEmail } from "@/lib/api";
+import { ApiRequestError } from "@/lib/api";
+import { resendVerificationEmail, verifyEmail } from "@/core/auth/client";
 
 type Status = "loading" | "success" | "expired" | "invalid";
 type ResendStatus = "idle" | "sending" | "sent" | "rate_limited" | "error";

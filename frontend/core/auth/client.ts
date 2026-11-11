@@ -1,12 +1,11 @@
-import { api, bearer, call, type Schema } from "./client";
-import { ApiRequestError, rethrowOrWrapConnectionError } from "./errors";
+import { api, bearer, call, type Schema } from "@/lib/api/client";
+import { ApiRequestError, rethrowOrWrapConnectionError } from "@/lib/api/errors";
 
 export type LoginRequest = Schema<"UserLogin">;
 export type LoginResponse = Schema<"Token">;
 export type RegisterRequest = Schema<"UserCreate">;
 export type RegisterResponse = Schema<"User">;
 export type GoogleAuthUrlResponse = Schema<"GoogleAuthUrl">;
-export type WhitelistEntry = Schema<"WhitelistedEmailResponse">;
 export type CurrentUser = Schema<"User">;
 export type UserUpdate = Schema<"UserUpdate">;
 export type PasswordChange = Schema<"PasswordChange">;
@@ -22,25 +21,6 @@ export async function register(data: RegisterRequest): Promise<RegisterResponse>
 
 export async function getGoogleLoginUrl(): Promise<GoogleAuthUrlResponse> {
   return call<GoogleAuthUrlResponse>(() => api.GET("/api/v1/auth/google/authorize"));
-}
-
-export async function getWhitelist(token: string): Promise<WhitelistEntry[]> {
-  return call<WhitelistEntry[]>(() => api.GET("/api/v1/whitelist/", { headers: bearer(token) }));
-}
-
-export async function addWhitelistEntry(token: string, value: string): Promise<WhitelistEntry> {
-  return call<WhitelistEntry>(() =>
-    api.POST("/api/v1/whitelist/", { body: { value }, headers: bearer(token) }),
-  );
-}
-
-export async function removeWhitelistEntry(token: string, id: number): Promise<void> {
-  return call<void>(() =>
-    api.DELETE("/api/v1/whitelist/{entry_id}", {
-      params: { path: { entry_id: id } },
-      headers: bearer(token),
-    }),
-  );
 }
 
 export async function verifyEmail(token: string): Promise<void> {

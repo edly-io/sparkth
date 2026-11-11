@@ -2,7 +2,8 @@
 
 import { createContext, useState, useEffect, useMemo, ReactNode, useCallback } from "react";
 import { setAuthTokens, clearAuthTokens, getStoredToken } from "@/core/auth/tokens";
-import { ApiRequestError, getCurrentUser, type CurrentUser } from "@/lib/api";
+import { ApiRequestError } from "@/lib/api";
+import { getCurrentUser, type CurrentUser } from "@/core/auth/client";
 
 export interface AuthContextType {
   token: string | null;
