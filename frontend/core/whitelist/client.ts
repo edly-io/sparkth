@@ -1,4 +1,4 @@
-import { api, bearer, call, type Schema } from "@/lib/api/client";
+import { api, bearer, call, type Schema } from "@/lib/api";
 
 /** An entry on the registration email whitelist: one address or one domain. */
 export type WhitelistEntry = Schema<"WhitelistedEmailResponse">;
