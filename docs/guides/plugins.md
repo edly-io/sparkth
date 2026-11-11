@@ -57,7 +57,12 @@ credentials or accept them in the chat. The chat system prompt holds no LMS rule
 them only while that LMS's tools are bound. When there are no settings, the `PluginNotConfiguredError`
 message tells the model to send the user to the Settings page.
 
-An LMS plugin should also ship a zero-argument `<prefix>about` tool (e.g. `mylms_about`) returning `{"about": <text>}` that explains the LMS's course structure, its vocabulary, and what "publish" means there, with the text kept in the plugin's `assets/about.txt`. LMSs use the same words for different things (Canvas "publish" makes content visible; Moodle has no publish step), so the chat LLM reads this before acting. See `canvas_about`, `openedx_about` and `moodle_about`.
+An LMS plugin should also ship a zero-argument `<prefix>about` tool (e.g. `mylms_about`) returning
+`{"about": <text>}` that explains the LMS's course structure, its vocabulary, and what "publish" means there,
+with the text kept in the plugin's `assets/about.txt` and read with `read_asset(__file__, "about.txt")` from
+`sparkth.lib.assets`, which reads any file in a plugin's `assets/` as UTF-8 text stripped of surrounding
+whitespace. LMSs use the same words for different things (Canvas "publish" makes content visible; Moodle has
+no publish step), so the chat LLM reads this before acting. See `canvas_about`, `openedx_about` and `moodle_about`.
 
 ### Secret fields
 
@@ -651,7 +656,8 @@ An `Agent` has five fields:
   list.
 - `description` is the text the planner reads to decide whether a message is this agent's.
 - `prompt` is plain text inserted into the system prompt as written, so a brace in it needs no
-  escaping.
+  escaping. Keep it in the plugin's `assets/` and load it with `read_asset(__file__, "<name>.txt")` from
+  `sparkth.lib.assets`.
 - `tools` names the agent's tools. Each one must be one of the plugin's own `MCP_TOOLS`, so
   register those first.
 

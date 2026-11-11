@@ -11,6 +11,7 @@ from typing import Annotated
 from pxc.lib.manifest_types import PxcActivityManifest
 from pydantic import Field, TypeAdapter
 
+from sparkth.lib.assets import read_asset
 from sparkth.lib.auth import current_user_id
 from sparkth.lib.db import session_scope
 from sparkth.lib.log import get_logger
@@ -18,7 +19,7 @@ from sparkth.lib.mcp.hooks import Tool
 from sparkth.plugins.pxc.activities import activity_dir, parse_activity_id, preview_url
 from sparkth.plugins.pxc.builder import build_activity, update_activity
 from sparkth.plugins.pxc.config import get_pxc_settings
-from sparkth.plugins.pxc.constants import PXC_ASSET_DIR, PXC_TOOL_CATEGORY
+from sparkth.plugins.pxc.constants import PXC_TOOL_CATEGORY
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound, PxcManifestInvalid
 from sparkth.plugins.pxc.revisions import live_revision
 from sparkth.plugins.pxc.schemas import ActivitySource, TrialStep
@@ -34,11 +35,7 @@ async def pxc_about() -> dict[str, str]:
 
     Call this before writing any activity code, and follow its rules exactly.
     """
-    rules = (
-        (PXC_ASSET_DIR / "about.txt")
-        .read_text(encoding="utf-8")
-        .format(max_source_chars=get_pxc_settings().max_source_chars)
-    )
+    rules = read_asset(__file__, "about.txt").format(max_source_chars=get_pxc_settings().max_source_chars)
     schema = json.dumps(PxcActivityManifest.model_json_schema(), indent=2)
     return {"about": f"{rules}\n\n--- manifest JSON schema ---\n{schema}"}
 
