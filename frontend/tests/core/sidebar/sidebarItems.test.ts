@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 
-import { sidebarItemsFrom } from "@/core/components/layout/sidebarItems";
+import { sidebarItemsFrom } from "@/core/sidebar/sidebarItems";
 import type { UserPluginState } from "@/core/plugins/types";
 
 function state(overrides: Partial<UserPluginState> & { plugin_name: string }): UserPluginState {

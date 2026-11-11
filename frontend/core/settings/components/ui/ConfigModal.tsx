@@ -12,8 +12,8 @@ import {
   payloadOf,
   validateField,
   validateFields,
-} from "./schema";
-import { configWidgetFor } from "./widgets";
+} from "@/core/settings/schema";
+import { configWidgetFor } from "@/core/settings/components/ui/widgets";
 import { Button } from "@/core/components/ui/Button";
 import { Alert } from "@/core/components/ui/Alert";
 import {

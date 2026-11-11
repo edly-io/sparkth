@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { SparkthLogo } from "@/components/SparkthLogo";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { SparkthLogo } from "@/core/components/ui/SparkthLogo";
+import { ThemeToggle } from "@/core/theme/components/ui/ThemeToggle";
 import { Alert } from "@/core/components/ui/Alert";
 import { Button } from "@/core/components/ui/Button";
 import { Card } from "@/core/components/ui/Card";

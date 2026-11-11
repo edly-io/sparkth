@@ -3,12 +3,12 @@
 import { lazy, Suspense, useMemo, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 
-import { PluginErrorBoundary } from "@/components/PluginErrorBoundary";
+import { PluginErrorBoundary } from "@/core/plugins/components/layout/PluginErrorBoundary";
 import { usePluginContext } from "@/core/plugins/context";
 import type { UserPluginState } from "@/core/plugins/types";
 import { SETTINGS_ITEMS, type SettingsItem } from "@/lib/settings/slots";
-import { configFieldsOf } from "./schema";
-import { SettingsList } from "./SettingsPage";
+import { configFieldsOf } from "@/core/settings/schema";
+import { SettingsList } from "@/core/settings/components/layout/SettingsPage";
 
 interface PluginSettingsRowProps {
   plugin: UserPluginState;

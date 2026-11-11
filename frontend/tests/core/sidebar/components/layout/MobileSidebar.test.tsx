@@ -1,12 +1,12 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 
-import MobileSidebar from "@/core/components/layout/MobileSidebar";
+import MobileSidebar from "@/core/sidebar/components/layout/MobileSidebar";
 
 const sidebar = vi.hoisted(() => ({ isOpen: false, close: vi.fn() }));
 
 vi.mock("@/core/sidebar/hooks", () => ({ useSidebar: () => sidebar }));
-vi.mock("@/core/components/layout/AppSidebar", () => ({
+vi.mock("@/core/sidebar/components/layout/AppSidebar", () => ({
   default: ({ variant, onNavigate }: { variant: string; onNavigate?: () => void }) => (
     <button onClick={onNavigate}>{`sidebar ${variant}`}</button>
   ),

@@ -13,7 +13,7 @@ import {
   emptyNewPassword,
   NewPasswordFields,
   useNewPasswordMismatch,
-} from "@/components/NewPasswordFields";
+} from "@/core/auth/components/ui/NewPasswordFields";
 
 /** Mirrors the backend's `user.name` limit. */
 const NAME_MAX_LENGTH = 30;

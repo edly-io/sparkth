@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 
-import { SparkthLogo } from "@/components/SparkthLogo";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { SparkthLogo } from "@/core/components/ui/SparkthLogo";
+import { ThemeToggle } from "@/core/theme/components/ui/ThemeToggle";
 import { Card } from "@/core/components/ui/Card";
 
 /** The centred, logo-topped card the signed-out pages (password reset and friends) render in. */

@@ -2,7 +2,7 @@
 
 import { Sheet, SheetContent } from "@/core/components/ui/Sheet";
 import { useSidebar } from "@/core/sidebar/hooks";
-import AppSidebar from "@/core/components/layout/AppSidebar";
+import AppSidebar from "@/core/sidebar/components/layout/AppSidebar";
 
 interface MobileSidebarProps {
   user?: {
