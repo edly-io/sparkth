@@ -8,5 +8,5 @@ import "@/plugins/googledrive/src/slots/settings";
 // and arrive via the user-plugins API.
 export const googledrive: PluginDefinition = {
   name: "google-drive",
-  loadComponent: () => import("@/plugins/googledrive/src/routes/GoogleDrive"),
+  loadComponent: () => import("@/plugins/googledrive/src/pages/GoogleDrive"),
 };
