@@ -110,6 +110,11 @@ under `/api/v1/permissions` (gated by `role.*` / `permission.read`). See the RES
 (`/docs`) for the endpoints. Permissions and scope kinds themselves are **not** editable
 there — they are declared in code.
 
+Management of one role can be delegated through the `role` scope, the way a group's can (see
+[Groups](#groups)): a role assigned at `role` with that role's id covers that role only. Listing
+returns the roles the caller holds `role.read` at (every role for a `global` grant). A caller who
+holds `role.read` nowhere gets 403, not an empty list. Creating a role stays at `global`.
+
 Roles shipped with the app are **non-deletable** (`deletable = false`): deleting one returns `409`.
 Roles created through the API are deletable. A migration that seeds a new shipped role sets
 `deletable = false` on it. Deleting a role also removes every user and group assignment of it

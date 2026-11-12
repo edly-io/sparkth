@@ -2,7 +2,7 @@
 
 Structural definition only — membership and group-role grants are CLI-managed, mirroring
 how user-role assignment is CLI-only. The endpoints that address one group by ``{group_id}``
-(get/update/delete) authorize at the ``group`` scope (``require(GROUP, "group_id")``), so a
+(get/update/delete) authorize at the ``group`` scope, so a
 grant can be delegated to a single group; a global grant still satisfies them via the scope
 cascade. Listing returns the groups the caller holds ``group.read`` at (every group for a global
 grant); creating a group stays global. Authored with LLM (Claude) assistance.
