@@ -12,7 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.core.models.user import User
 from sparkth.lib.permissions import GROUP_READ
 from sparkth.lib.permissions.scopes import GLOBAL, GROUP
-from sparkth.lib.testing import AuditEventsFetcher, assign, make_role, make_user
+from sparkth.lib.testing import AuditEventsFetcher, add_role_assignment, make_role, make_user
 
 
 async def _user_with_grants(session: AsyncSession, username: str, grants: list[tuple[str, str | None]]) -> User:
@@ -20,7 +20,7 @@ async def _user_with_grants(session: AsyncSession, username: str, grants: list[t
     user = await make_user(session, username)
     for scope, scope_object_id in grants:
         role = await make_role(session, f"{username}-{scope}-{scope_object_id}", ["group.read"])
-        await assign(session, user, role, scope, scope_object_id)
+        await add_role_assignment(session, user, role, scope, scope_object_id)
     await session.commit()
     await session.refresh(user)
     return user
