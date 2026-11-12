@@ -18,6 +18,7 @@ import { Alert } from "@/lib/components/ui/Alert";
 import { useConversation } from "@/plugins/compose/src/hooks/useConversation";
 import { useChatStream } from "@/plugins/compose/src/hooks/useChatStream";
 import { pluginPath } from "@/lib/plugins/routes";
+import { COMPOSE_PLUGIN_NAME } from "@/plugins/compose/src/constants";
 
 // Only reached when no key is selected, so a correctly configured author never pays for it.
 async function readAiKeyProblem(token: string): Promise<AiKeyProblem> {
@@ -33,7 +34,7 @@ async function readAiKeyProblem(token: string): Promise<AiKeyProblem> {
 
 export default function ChatInterfaceInner({ conversationId }: { conversationId: string | null }) {
   const { token } = useAuth();
-  const { config: composeConfig } = usePlugin("compose");
+  const { config: composeConfig } = usePlugin(COMPOSE_PLUGIN_NAME);
   const t = useTranslations("compose");
 
   const rawId = composeConfig?.llm_config_id;
@@ -77,7 +78,7 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
   const onNewConversation = useCallback(
     (id: string) => {
       skipNextLoadRef.current = true;
-      router.replace(`${pluginPath("compose")}?id=${id}`);
+      router.replace(`${pluginPath(COMPOSE_PLUGIN_NAME)}?id=${id}`);
       // Sync any drive files that were selected before the conversation existed
       for (const att of inputAttachments) {
         if (att.documentId !== undefined) {
