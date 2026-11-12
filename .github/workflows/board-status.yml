@@ -1,29 +1,35 @@
-name: Move Linked Issues to QA
+name: Sync Board Status
 
 # Runs in the base repository's context and never checks out pull request code,
 # so the project token is safe to use for pull requests from forks.
 on:
   pull_request_target:
-    types: [closed]
+    types: [opened, reopened, ready_for_review, edited, closed]
 
 permissions: {}
 
 jobs:
-  move-to-qa:
-    name: Move Linked Issues to QA
-    if: github.event.pull_request.merged
+  move-linked-issues:
+    name: Move Linked Issues
+    # A merge moves the linked issues to QA. Any other event on an open,
+    # non-draft pull request moves them to Code Review.
+    if: >-
+      (github.event.action == 'closed' && github.event.pull_request.merged) ||
+      (github.event.action != 'closed' && github.event.pull_request.state == 'open'
+      && !github.event.pull_request.draft)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
       # Needs write access to the organization's projects.
       GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
       PR_NODE_ID: ${{ github.event.pull_request.node_id }}
-      # The Sparkth board, its Status field and that field's QA option.
+      # The Sparkth board and its Status field.
       PROJECT_ID: PVT_kwDOAtoUSc4A6l3T
       STATUS_FIELD_ID: PVTSSF_lADOAtoUSc4A6l3TzgvI9_I
-      QA_OPTION_ID: 8b1d1180
+      # The Status field's QA option on a merge, else its Code Review option.
+      STATUS_OPTION_ID: ${{ github.event.action == 'closed' && '8b1d1180' || '454b1eea' }}
     steps:
-      - name: Set the board status of each linked issue to QA
+      - name: Set the board status of each linked issue
         run: |
           gh api graphql -f pr="$PR_NODE_ID" -f query='
             query($pr: ID!) {
@@ -38,5 +44,5 @@ jobs:
               | select(.project.id == env.PROJECT_ID) | .id' |
           while read -r item_id; do
             gh project item-edit --id "$item_id" --project-id "$PROJECT_ID" \
-              --field-id "$STATUS_FIELD_ID" --single-select-option-id "$QA_OPTION_ID"
+              --field-id "$STATUS_FIELD_ID" --single-select-option-id "$STATUS_OPTION_ID"
           done
