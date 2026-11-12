@@ -2,8 +2,9 @@
 
 Holds the :class:`Permission` class and the ``PERMISSIONS`` hook (the permission
 vocabulary), the shipped core permissions, the ``Permission.require*`` FastAPI
-dependency layer, and the read-side checks (``can``, ``has_role``) together with the
-``get_permission`` / ``get_permission_scope`` lookups. The checks resolve a user's roles as
+dependency layer, and the read-side checks (whether a user holds a permission or role at a scope, and
+at which objects of a scope) together with the ``get_permission`` / ``get_permission_scope``
+lookups. The checks resolve a user's roles as
 their own active assignments plus the assignments of any group they actively
 belong to, both matched against the same scope chain.
 
@@ -260,8 +261,7 @@ def _scope_clause(
     The pairs are the checked scope and object, each
     ancestor object named by the check's scope path, and each objectless ancestor.
 
-    Read-side only (``can`` / ``has_role``). The write operations (``assign_role``,
-    ``revoke_role``) target the exact assignment row and must NOT use this — they never
+    Read-side only. Writes target the exact assignment row and must NOT use this — they never
     cascade to ancestor scopes.
     """
     return or_(*(and_(scope_column == name, object_id_column == object_id) for name, object_id in scope_chain))
