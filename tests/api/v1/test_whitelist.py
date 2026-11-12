@@ -9,25 +9,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.core.models.user import User
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.permissions.scopes import WHITELIST
-from sparkth.lib.testing import make_user_with_permissions
+from sparkth.lib.testing import make_user, make_user_with_permissions
 
 _WHITELIST_PERMISSIONS = ["email.whitelist.read", "email.whitelist.create", "email.whitelist.delete"]
 
 
 def _uniq(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:8]}"
-
-
-async def _create_regular_user(session: AsyncSession) -> User:
-    user = User(
-        name="Regular",
-        username=_uniq("regular"),
-        email=f"{_uniq('regular')}@example.com",
-        hashed_password="fakehash",
-    )
-    session.add(user)
-    await session.flush()
-    return user
 
 
 def _override_current_user(client: AsyncClient, user: User) -> None:
@@ -61,7 +49,7 @@ class TestListWhitelist:
         assert isinstance(response.json(), list)
 
     async def test_regular_user_gets_403(self, client: AsyncClient, session: AsyncSession) -> None:
-        user = await _create_regular_user(session)
+        user = await make_user(session, _uniq("regular"))
         _override_current_user(client, user)
 
         response = await client.get("/api/v1/whitelist/")
@@ -117,7 +105,7 @@ class TestAddWhitelist:
         assert response.status_code == 403
 
     async def test_regular_user_gets_403(self, client: AsyncClient, session: AsyncSession) -> None:
-        user = await _create_regular_user(session)
+        user = await make_user(session, _uniq("regular"))
         _override_current_user(client, user)
 
         response = await client.post("/api/v1/whitelist/", json={"value": "a@b.com"})
@@ -145,7 +133,7 @@ class TestRemoveWhitelist:
         assert response.json()["detail"] == "Whitelist entry not found: 999999"
 
     async def test_regular_user_gets_403(self, client: AsyncClient, session: AsyncSession) -> None:
-        user = await _create_regular_user(session)
+        user = await make_user(session, _uniq("regular"))
         _override_current_user(client, user)
 
         response = await client.delete("/api/v1/whitelist/1")
