@@ -118,6 +118,13 @@ class PermissionScope:
                 "or use require_for_object()"
             )
 
+    def validate_listable(self) -> None:
+        """Raise ``ValueError`` unless this scope has objects to list.
+
+        An object-bearing scope has objects, so there is nothing to refuse. Called by
+        ``Permission.require_for_any_object`` at route-definition time.
+        """
+
     def _cascade_pairs(self) -> list[tuple[str, str | None]]:
         """This scope's contribution to a descendant's :meth:`scope_chain` when it is an ancestor.
 
@@ -141,6 +148,9 @@ class ObjectlessPermissionScope(PermissionScope):
             raise ValueError(
                 f"Scope {self.name!r} is objectless and names no object; use require() without a scope_param"
             )
+
+    def validate_listable(self) -> None:
+        raise ValueError(f"Scope {self.name!r} is objectless and names no objects to list")
 
     def _cascade_pairs(self) -> list[tuple[str, str | None]]:
         # A singleton names no object, so it cascades to every descendant with a NULL id.
