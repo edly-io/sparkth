@@ -10,6 +10,7 @@ import { getConnectionStatus } from "@/plugins/slack/src/client";
 import type { ConnectionStatus } from "@/plugins/slack/src/types";
 import SlackConnectionCard from "@/plugins/slack/src/components/ui/SlackConnectionCard";
 import LogStream from "@/plugins/slack/src/components/ui/LogStream";
+import { SLACK_PLUGIN_NAME } from "@/plugins/slack/src/constants";
 
 export default function Slack() {
   const { token } = useAuth();
@@ -45,7 +46,7 @@ export default function Slack() {
   useEffect(() => {
     if (searchParams?.get("connected") === "true") {
       setJustConnected(true);
-      router.replace(pluginPath("slack"));
+      router.replace(pluginPath(SLACK_PLUGIN_NAME));
       const timer = setTimeout(() => setJustConnected(false), 4000);
       return () => clearTimeout(timer);
     }

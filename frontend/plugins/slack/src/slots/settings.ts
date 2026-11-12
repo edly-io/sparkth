@@ -1,9 +1,10 @@
 import { SettingsListItem } from "@/lib/components/settings/SettingsListItem";
 import { SETTINGS_ITEMS } from "@/lib/settings/slots";
+import { SLACK_PLUGIN_NAME } from "@/plugins/slack/src/constants";
 
 // Slack's row on the settings page. Its config modal adds Slack's own control for the
 // `allowed_sources` field, which the backend marks with the `doc-sources` widget hint.
-SETTINGS_ITEMS.set("slack", {
+SETTINGS_ITEMS.set(SLACK_PLUGIN_NAME, {
   listItem: SettingsListItem,
   loadConfigModal: () => import("@/plugins/slack/src/components/ui/SlackConfigModal"),
 });
