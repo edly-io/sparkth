@@ -28,6 +28,7 @@ plugins/<pluginname>/
     hooks/
     slots/          # what it contributes to core's slots: icons.ts, settings.ts, ...
     types.ts
+    constants.ts    # its plugin name
   lib/
     index.ts        # its public surface: the only part another plugin may import
   tests/            # its unit tests, mirroring src/, and its Playwright specs in tests/e2e/
@@ -37,8 +38,8 @@ A page decides what it shows. `components/layout/` holds only the parts that fra
 such as a header or a side column, and the views and pieces placed inside the frame go in `components/ui/`, even
 when one fills the whole page.
 
-A plugin creates only the folders it needs: one with no page has just `src/index.ts` and `src/slots/`, and only a
-plugin that offers something to other plugins has a `lib/`.
+A plugin creates only the folders it needs: one with no page has just `src/index.ts`, `src/constants.ts` and
+`src/slots/`, and only a plugin that offers something to other plugins has a `lib/`.
 
 ## 1. Defining a new plugin
 
@@ -50,6 +51,16 @@ Create a new folder named like the backend plugin's package: lowercase, with no 
 **Example:**
 
     plugins/exampleplugin/
+
+Declare the plugin's name once, in `src/constants.ts`, as the name its backend plugin declares, and use the constant
+wherever the plugin names itself: its definition, its slot entries and links to its own page. Translation
+namespaces stay written out (`useTranslations("exampleplugin")`), because the catalog check reads them as plain
+strings.
+
+```ts
+// plugins/exampleplugin/src/constants.ts
+export const EXAMPLEPLUGIN_PLUGIN_NAME = "exampleplugin";
+```
 
 ## 2. Create the Plugin UI Component
 
@@ -110,9 +121,10 @@ plugins/
 
 ```ts
 import { PluginDefinition } from "@/lib/plugins/types";
+import { EXAMPLEPLUGIN_PLUGIN_NAME } from "@/plugins/exampleplugin/src/constants";
 
 export const examplePlugin: PluginDefinition = {
-  name: "exampleplugin",
+  name: EXAMPLEPLUGIN_PLUGIN_NAME,
   loadComponent: () => import("@/plugins/exampleplugin/src/pages/ExamplePlugin"),
 };
 ```
@@ -148,8 +160,9 @@ outside production to surface the gap:
 // plugins/exampleplugin/src/slots/icons.ts
 import { Plus } from "lucide-react";
 import { PLUGIN_ICONS } from "@/lib/icons/slots";
+import { EXAMPLEPLUGIN_PLUGIN_NAME } from "@/plugins/exampleplugin/src/constants";
 
-PLUGIN_ICONS.set("exampleplugin", [{ name: "plus", component: Plus }]);
+PLUGIN_ICONS.set(EXAMPLEPLUGIN_PLUGIN_NAME, [{ name: "plus", component: Plus }]);
 ```
 
 For more details, see the `PluginDefinition` type in
@@ -249,7 +262,7 @@ const messageCatalogs: Record<Locale, () => Promise<{ default: Record<string, un
 };
 
 export const examplePlugin: PluginDefinition = {
-  name: "exampleplugin",
+  name: EXAMPLEPLUGIN_PLUGIN_NAME,
   loadComponent: () => import("@/plugins/exampleplugin/src/pages/ExamplePlugin"),
   loadMessages: (locale) => messageCatalogs[locale]().then((catalog) => catalog.default),
 };
@@ -327,8 +340,9 @@ nothing twice:
 ```ts
 // plugins/exampleplugin/src/slots/sections.ts
 import { EXAMPLE_SECTIONS } from "@/lib/example/slots";
+import { EXAMPLEPLUGIN_PLUGIN_NAME } from "@/plugins/exampleplugin/src/constants";
 
-EXAMPLE_SECTIONS.set("exampleplugin", [
+EXAMPLE_SECTIONS.set(EXAMPLEPLUGIN_PLUGIN_NAME, [
   {
     title: "Example",
     loadComponent: () => import("@/plugins/exampleplugin/src/components/ui/ExampleSection"),
@@ -379,8 +393,9 @@ source; text attachments stay. A plugin sets its source from its own `src/slots/
 // plugins/exampleplugin/src/slots/attachments.ts
 import { ATTACHMENT_SOURCES } from "@/lib/attachments/slots";
 import ExampleIcon from "@/plugins/exampleplugin/src/components/ui/ExampleIcon";
+import { EXAMPLEPLUGIN_PLUGIN_NAME } from "@/plugins/exampleplugin/src/constants";
 
-ATTACHMENT_SOURCES.set("exampleplugin", [
+ATTACHMENT_SOURCES.set(EXAMPLEPLUGIN_PLUGIN_NAME, [
   {
     label: "Pick from Example",
     icon: ExampleIcon,
@@ -438,8 +453,9 @@ plugin's name, and import that file from the plugin's `src/index.ts`
 // plugins/exampleplugin/src/slots/settings.ts
 import { SettingsListItem } from "@/lib/components/settings/SettingsListItem";
 import { SETTINGS_ITEMS } from "@/lib/settings/slots";
+import { EXAMPLEPLUGIN_PLUGIN_NAME } from "@/plugins/exampleplugin/src/constants";
 
-SETTINGS_ITEMS.set("exampleplugin", {
+SETTINGS_ITEMS.set(EXAMPLEPLUGIN_PLUGIN_NAME, {
   listItem: SettingsListItem,
   loadConfigModal: () => import("@/lib/components/settings/ConfigModal"),
 });
