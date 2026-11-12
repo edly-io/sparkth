@@ -8,6 +8,7 @@ here, which is what every call site imports from.
 from sparkth.plugins.compose.analytics.events import (
     ComposeAttachmentUnusable,
     ComposeCompletionServed,
+    ComposeCompletionServedV2,
     ComposeConversationStarted,
     ComposeDocumentAttached,
     ComposeDocumentDetached,
@@ -45,6 +46,7 @@ __all__ = [
     "ComposeAttachmentUnusable",
     "ComposeClassifierAnalytics",
     "ComposeCompletionServed",
+    "ComposeCompletionServedV2",
     "ComposeConversationStarted",
     "ComposeDocumentAttached",
     "ComposeDocumentDetached",

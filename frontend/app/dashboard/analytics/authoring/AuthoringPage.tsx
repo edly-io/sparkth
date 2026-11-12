@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { ChartColumn } from "lucide-react";
-import { previousPeriod, type BucketCount, type IsoDate } from "@/lib/analytics";
+import { previousPeriod, type BucketCount, type IsoDate } from "@/core/analytics";
 import {
   COMPOSE_EVENTS,
   EMPTY_SEARCH,
@@ -19,10 +19,10 @@ import {
   fetchDriveDocuments,
   type DriveDocumentsPoint,
 } from "@/plugins/google-drive/analytics";
-import { LineChart } from "@/components/ui/LineChart";
-import { RankedBar } from "@/components/ui/RankedBar";
-import { StatCard } from "@/components/ui/StatCard";
-import { isInstalled } from "@/lib/plugins/installed";
+import { LineChart } from "@/core/analytics/components/ui/LineChart";
+import { RankedBar } from "@/core/analytics/components/ui/RankedBar";
+import { StatCard } from "@/core/analytics/components/ui/StatCard";
+import { isInstalled } from "@/core/plugins/installed";
 import { PeriodView, bothPeriods, useComparison, type PeriodData } from "../PeriodView";
 
 type DocumentsData = { current: DriveDocumentsPoint[]; previous: DriveDocumentsPoint[] } | null;

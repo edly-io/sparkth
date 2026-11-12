@@ -1,6 +1,6 @@
-export * from "@/lib/analytics/types";
-export * from "@/lib/analytics/client";
-export * from "@/lib/analytics/dates";
-export * from "@/lib/analytics/series";
-export * from "@/lib/analytics/period";
-export * from "@/lib/analytics/explore";
+/**
+ * What a plugin's analytics code may use from core's analytics: the ISO date type, the chart
+ * bucket sizes, and the helper that fills a bucketed series for a chart.
+ */
+export { type IsoDate } from "@/core/analytics/dates";
+export { buildSeries, type Bucket, type BucketCount } from "@/core/analytics/series";

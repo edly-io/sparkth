@@ -16,6 +16,7 @@ from web_fragments.fragment import Fragment
 from xblock.core import XBlock
 from xblock.fields import Scope, String
 
+from sparkth_pxc.constants import RESIZE_SCRIPT
 from sparkth_pxc.tokens import mint_launch_token
 
 
@@ -31,6 +32,9 @@ def build_embed_iframe(
 ) -> str:
     """The sandboxed iframe that loads one activity for one learner from Sparkth.
 
+    Its height is only a starting point: the activity reports its real height once it has
+    rendered, and the resize script, which finds the frame by its marker attribute, applies it.
+
     A module-level function rather than a method so it is testable without an XBlock runtime.
     """
     token = mint_launch_token(activity, activity_instance, course_id, user_id, permission, secret, ttl)
@@ -38,10 +42,17 @@ def build_embed_iframe(
     # No allow-same-origin: the frame keeps an opaque origin, so activity code in it cannot reach
     # the storage of the origin that serves it.
     return (
-        f'<iframe src="{base}/api/v1/pxc/embed?token={token}"'
-        ' style="width:100%;border:none;display:block;min-height:24em"'
+        f'<iframe data-sparkth-pxc src="{base}/api/v1/pxc/embed?token={token}"'
+        ' style="width:100%;border:none;display:block;height:24em"'
         ' sandbox="allow-scripts allow-forms"></iframe>'
     )
+
+
+def build_activity_fragment(html: str) -> Fragment:
+    """A fragment of ``html`` holding an activity's iframe, with the script that sizes it."""
+    fragment = Fragment(html)
+    fragment.add_javascript(RESIZE_SCRIPT)
+    return fragment
 
 
 # Inline rather than a stylesheet: this package ships no static assets, so an Open edX image
@@ -107,7 +118,7 @@ class SparkthPxcXBlock(XBlock):
         """Render the activity for a learner in play mode, or a notice when the block has none."""
         if not self._has_activity():
             return Fragment(_NO_ACTIVITY_NOTICE)
-        return Fragment(
+        return build_activity_fragment(
             build_embed_iframe(
                 str(settings.SPARKTH_PXC_BASE_URL),
                 str(self.activity),
@@ -132,7 +143,7 @@ class SparkthPxcXBlock(XBlock):
         """
         if not self._has_activity():
             return Fragment(_NO_ACTIVITY_NOTICE)
-        return Fragment(
+        return build_activity_fragment(
             build_editor_html(
                 str(settings.SPARKTH_PXC_BASE_URL),
                 str(self.activity),

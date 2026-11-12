@@ -94,20 +94,12 @@ def _provider() -> MagicMock:
     return provider
 
 
-def _in_scope_classifier() -> AsyncMock:
-    classifier = AsyncMock()
-    classifier.in_scope = AsyncMock(return_value=True)
-    return classifier
-
-
 async def _complete_turn(client: AsyncClient, config_id: int, conversation_uuid: str, **extra: Any) -> Any:
     """Drive one non-streaming turn on an existing conversation."""
     with (
         patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()),
-        patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_scope_cls,
         patch("sparkth.plugins.compose.routes.completions.RAGSearchClassifier") as mock_search_cls,
     ):
-        mock_scope_cls.return_value = _in_scope_classifier()
         search = MagicMock()
         search.requires_search = AsyncMock(return_value=False)
         mock_search_cls.return_value = search

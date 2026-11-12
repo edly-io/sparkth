@@ -13,16 +13,16 @@ import {
   type IsoDate,
   type LoginsPoint,
   type SummaryCount,
-} from "@/lib/analytics";
+} from "@/core/analytics";
 import {
   COMPOSE_EVENTS,
   countSeries,
   fetchComposeActivity,
   type ComposeActivityPoint,
 } from "@/plugins/compose/analytics";
-import { LineChart } from "@/components/ui/LineChart";
-import { StatCard } from "@/components/ui/StatCard";
-import { isInstalled } from "@/lib/plugins/installed";
+import { LineChart } from "@/core/analytics/components/ui/LineChart";
+import { StatCard } from "@/core/analytics/components/ui/StatCard";
+import { isInstalled } from "@/core/plugins/installed";
 import { PeriodView, useComparison, type PeriodRange } from "./PeriodView";
 import { ANALYTICS_VIEWS } from "./views";
 

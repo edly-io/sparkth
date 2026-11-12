@@ -647,9 +647,9 @@ An `Agent` has five fields:
 
 - `name` identifies the agent: lowercase letters, digits and underscores, starting with a letter.
   `compose`, `operator` and `refuse` are reserved.
-- `title` is the heading the agent appears under, both in the system prompt and in the scope
-  gate's list.
-- `description` is the text the scope gate judges a message against.
+- `title` is the heading the agent appears under, both in the system prompt and in the planner's
+  list.
+- `description` is the text the planner reads to decide whether a message is this agent's.
 - `prompt` is plain text inserted into the system prompt as written, so a brace in it needs no
   escaping.
 - `tools` names the agent's tools. Each one must be one of the plugin's own `MCP_TOOLS`, so
@@ -704,19 +704,14 @@ The loader logs the failed construction and skips that plugin.
 ### How Compose uses agents
 
 On every request Compose reads the agents of the plugins enabled for the requesting user, in
-plugin-name order. Course design comes from the course design plugin. A plugin switched off system-wide or
-by the user contributes no section, no description and no tools.
+plugin-name order. Course design comes from the course design plugin. A plugin switched off
+system-wide or by the user contributes no agent and no tools.
 
-- **Scope gate.** Each message is judged against every enabled description and Compose's own LMS
-  operations (publishing, retrieving and managing courses). A message that fits none is refused with
-  a fixed sentence before the model runs. A refused first message writes nothing; a refused later
-  message is stored in the conversation, with the refusal as the assistant's reply. If the
-  classification fails, the turn fails with an error and the model is not called. A failed first
-  message writes nothing; a failed later message stores the error in the conversation.
-- **Planner.** A planner on the smallest model of the user's provider reads each message the
-  scope gate let through and hands it to the one agent whose description fits. It answers
-  greetings, questions about what Compose can do, and unclear messages (with a question back)
-  itself.
+- **Planner.** A planner on the smallest model of the user's provider reads each message and hands
+  it to the one agent whose description fits. It answers greetings, questions about what Compose
+  can do, and unclear messages (with a question back) itself, and refuses a message no agent covers
+  with a fixed sentence in the request's language. A refusal is stored like any other reply, and a
+  refused first message still starts a conversation.
 - **Agent.** The agent runs on the user's model, with Compose's skeleton wrapped around its
   `prompt`. The skeleton owns the date, the assistant's identity, the output language, the
   refusal, injection and offering-choices rules, and Compose's LMS operations, so a prompt must not

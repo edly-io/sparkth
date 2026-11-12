@@ -27,7 +27,6 @@ from sparkth.plugins.compose.models import Conversation, ConversationAttachment
 from sparkth.plugins.compose.tests.helpers import (
     STREAM_TURN,
     answering_model,
-    classifier_provider,
     failing_model,
     seed_conversation,
     seed_llm_config,
@@ -78,13 +77,6 @@ def _dropped_connection_turn(
     raise OSError("the connection dropped mid-stream")
 
 
-def _scope_verdict(in_scope: bool) -> MagicMock:
-    verdict = MagicMock()
-    verdict.in_scope = in_scope
-    verdict.refusal_reason = "the instructor asked about the Schrems II ruling"
-    return verdict
-
-
 def _search_verdict(requires_search: bool) -> MagicMock:
     verdict = MagicMock()
     verdict.requires_search = requires_search
@@ -111,137 +103,6 @@ async def _turn(
     return await client.post(COMPLETIONS_URL, json=body)
 
 
-async def test_an_admitted_turn_records_the_scope_decision(
-    client: AsyncClient,
-    current_user: User,
-    session: AsyncSession,
-    analytics_session: SQLAlchemyAsyncSession,
-) -> None:
-    """Emitted on every classification, not only refusals — that is the denominator."""
-    config_id = await seed_llm_config(session, current_user.id or 1)
-    conversation_uuid = await seed_conversation(session, current_user.id or 1)
-
-    with (
-        patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()),
-        patch("sparkth.plugins.compose.classifiers.base.get_provider"),
-        patch(
-            "sparkth.plugins.compose.classifiers.message_scope.MessageScopeClassifier.classify",
-            new_callable=AsyncMock,
-            return_value=_scope_verdict(True),
-        ),
-    ):
-        response = await _turn(client, config_id, conversation_uuid=conversation_uuid)
-
-    assert response.status_code == 200
-    (decision,) = await _events(analytics_session, "compose.scope_classified")
-    assert decision["verdict"] == "in_scope"
-    assert decision["conversation_id"] == conversation_uuid
-    assert decision["provider"] == "openai"
-    assert decision["query_length"] == len("Create a course on data privacy")
-
-
-async def test_a_refused_turn_records_the_refusal_as_the_verdict(
-    client: AsyncClient,
-    current_user: User,
-    session: AsyncSession,
-    analytics_session: SQLAlchemyAsyncSession,
-) -> None:
-    config_id = await seed_llm_config(session, current_user.id or 1)
-    conversation_uuid = await seed_conversation(session, current_user.id or 1)
-
-    with (
-        patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()),
-        patch("sparkth.plugins.compose.classifiers.base.get_provider"),
-        patch(
-            "sparkth.plugins.compose.classifiers.message_scope.MessageScopeClassifier.classify",
-            new_callable=AsyncMock,
-            return_value=_scope_verdict(False),
-        ),
-    ):
-        response = await _turn(client, config_id, conversation_uuid=conversation_uuid, content="what is 2+2?")
-
-    assert response.status_code == 200
-    (decision,) = await _events(analytics_session, "compose.scope_classified")
-    assert decision["verdict"] == "out_of_scope"
-
-
-async def test_a_first_message_refusal_is_recorded_without_a_conversation(
-    client: AsyncClient,
-    current_user: User,
-    session: AsyncSession,
-    analytics_session: SQLAlchemyAsyncSession,
-) -> None:
-    """The case that is most invisible today: judged before any conversation row exists."""
-    config_id = await seed_llm_config(session, current_user.id or 1)
-
-    with (
-        patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()),
-        patch("sparkth.plugins.compose.classifiers.base.get_provider"),
-        patch(
-            "sparkth.plugins.compose.classifiers.message_scope.MessageScopeClassifier.classify",
-            new_callable=AsyncMock,
-            return_value=_scope_verdict(False),
-        ),
-    ):
-        response = await _turn(client, config_id, content="what is 2+2?")
-
-    assert response.status_code == 200
-    (decision,) = await _events(analytics_session, "compose.scope_classified")
-    assert decision["verdict"] == "out_of_scope"
-    assert decision["conversation_id"] is None
-
-
-async def test_an_unreadable_scope_answer_records_a_failed_turn_and_no_decision(
-    client: AsyncClient,
-    current_user: User,
-    session: AsyncSession,
-    analytics_session: SQLAlchemyAsyncSession,
-) -> None:
-    """The answer fails the schema in the real classify, so the turn fails and is recorded once."""
-    config_id = await seed_llm_config(session, current_user.id or 1)
-    conversation_uuid = await seed_conversation(session, current_user.id or 1)
-
-    with (
-        patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()),
-        patch(
-            "sparkth.plugins.compose.classifiers.base.get_provider",
-            return_value=classifier_provider(AsyncMock(return_value={"in_scope": "maybe"})),
-        ),
-    ):
-        response = await _turn(client, config_id, conversation_uuid=conversation_uuid)
-        await join_live_tasks()
-
-    assert response.status_code == 502
-    (failure,) = await _events(analytics_session, "compose.turn_failed")
-    assert failure["cause"] == "scope_classification_error"
-    assert await _events(analytics_session, "compose.scope_classified") == []
-
-
-async def test_a_new_conversation_records_exactly_one_scope_decision(
-    client: AsyncClient,
-    current_user: User,
-    session: AsyncSession,
-    analytics_session: SQLAlchemyAsyncSession,
-) -> None:
-    """The route skips the second check on a new conversation; the emit must not double."""
-    config_id = await seed_llm_config(session, current_user.id or 1)
-
-    with (
-        patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()),
-        patch("sparkth.plugins.compose.classifiers.base.get_provider"),
-        patch("sparkth.plugins.compose.conversation_title.get_provider", return_value=_provider()),
-        patch(
-            "sparkth.plugins.compose.classifiers.message_scope.MessageScopeClassifier.classify",
-            new_callable=AsyncMock,
-            return_value=_scope_verdict(True),
-        ),
-    ):
-        response = await _turn(client, config_id)
-
-    assert response.status_code == 200
-    assert len(await _events(analytics_session, "compose.scope_classified")) == 1
-
-
 async def test_the_search_decision_is_recorded_when_the_classifier_is_consulted(
     client: AsyncClient,
     current_user: User,
@@ -255,11 +116,6 @@ async def test_the_search_decision_is_recorded_when_the_classifier_is_consulted(
     with (
         patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()),
         patch("sparkth.plugins.compose.classifiers.base.get_provider"),
-        patch(
-            "sparkth.plugins.compose.classifiers.message_scope.MessageScopeClassifier.classify",
-            new_callable=AsyncMock,
-            return_value=_scope_verdict(True),
-        ),
         patch(
             "sparkth.plugins.compose.classifiers.rag_search.RAGSearchClassifier.classify",
             new_callable=AsyncMock,
@@ -293,11 +149,6 @@ async def test_no_search_decision_is_recorded_when_there_is_nothing_to_search(
     with (
         patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()),
         patch("sparkth.plugins.compose.classifiers.base.get_provider"),
-        patch(
-            "sparkth.plugins.compose.classifiers.message_scope.MessageScopeClassifier.classify",
-            new_callable=AsyncMock,
-            return_value=_scope_verdict(True),
-        ),
     ):
         await _turn(client, config_id, conversation_uuid=conversation_uuid)
 
@@ -318,11 +169,6 @@ async def test_documents_whose_structure_cannot_be_read_are_counted(
     with (
         patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()),
         patch("sparkth.plugins.compose.classifiers.base.get_provider"),
-        patch(
-            "sparkth.plugins.compose.classifiers.message_scope.MessageScopeClassifier.classify",
-            new_callable=AsyncMock,
-            return_value=_scope_verdict(True),
-        ),
         patch(
             "sparkth.plugins.compose.classifiers.rag_search.RAGSearchClassifier.classify",
             new_callable=AsyncMock,
@@ -395,11 +241,6 @@ async def test_a_provider_failure_records_a_failed_turn(
     with (
         patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=provider),
         patch("sparkth.plugins.compose.classifiers.base.get_provider"),
-        patch(
-            "sparkth.plugins.compose.classifiers.message_scope.MessageScopeClassifier.classify",
-            new_callable=AsyncMock,
-            return_value=_scope_verdict(True),
-        ),
     ):
         response = await _turn(client, config_id, conversation_uuid=conversation_uuid)
         await join_live_tasks()
@@ -413,66 +254,6 @@ async def test_a_provider_failure_records_a_failed_turn(
     # The instructor's message was stored before the route raised, so it still counts.
     (sent,) = await _events(analytics_session, "compose.message_sent")
     assert sent["conversation_id"] == conversation_uuid
-
-
-async def test_a_failed_scope_check_on_a_first_message_records_a_failed_turn(
-    client: AsyncClient,
-    current_user: User,
-    session: AsyncSession,
-    analytics_session: AsyncSession,
-) -> None:
-    """Raised before any conversation exists, so the row carries none, and no decision is recorded."""
-    config_id = await seed_llm_config(session, current_user.id or 1)
-
-    with (
-        patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()),
-        patch("sparkth.plugins.compose.classifiers.base.get_provider"),
-        patch(
-            "sparkth.plugins.compose.classifiers.message_scope.MessageScopeClassifier.classify",
-            new_callable=AsyncMock,
-            side_effect=openai.APIConnectionError(request=_OPENAI_REQUEST),
-        ),
-    ):
-        response = await _turn(client, config_id)
-        await join_live_tasks()
-
-    assert response.status_code == 502
-    (failure,) = await _events(analytics_session, "compose.turn_failed")
-    assert failure["cause"] == "scope_classification_error"
-    assert failure["conversation_id"] is None
-    assert failure["provider"] == "openai"
-    assert failure["model"] == "gpt-4o"
-    assert failure["streamed"] is False
-    assert await _events(analytics_session, "compose.scope_classified") == []
-
-
-async def test_a_failed_scope_check_on_a_later_turn_records_one_failed_turn(
-    client: AsyncClient,
-    current_user: User,
-    session: AsyncSession,
-    analytics_session: AsyncSession,
-) -> None:
-    """Exactly one row: the route's provider-error handler must not record the failure again."""
-    config_id = await seed_llm_config(session, current_user.id or 1)
-    conversation_uuid = await seed_conversation(session, current_user.id or 1)
-
-    with (
-        patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()),
-        patch("sparkth.plugins.compose.classifiers.base.get_provider"),
-        patch(
-            "sparkth.plugins.compose.classifiers.message_scope.MessageScopeClassifier.classify",
-            new_callable=AsyncMock,
-            side_effect=openai.APIConnectionError(request=_OPENAI_REQUEST),
-        ),
-    ):
-        response = await _turn(client, config_id, conversation_uuid=conversation_uuid)
-        await join_live_tasks()
-
-    assert response.status_code == 502
-    (failure,) = await _events(analytics_session, "compose.turn_failed")
-    assert failure["cause"] == "scope_classification_error"
-    assert failure["conversation_id"] == conversation_uuid
-    assert await _events(analytics_session, "compose.scope_classified") == []
 
 
 async def test_a_search_classifier_provider_failure_keeps_its_own_cause(
@@ -489,11 +270,6 @@ async def test_a_search_classifier_provider_failure_keeps_its_own_cause(
     with (
         patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()),
         patch("sparkth.plugins.compose.classifiers.base.get_provider"),
-        patch(
-            "sparkth.plugins.compose.classifiers.message_scope.MessageScopeClassifier.classify",
-            new_callable=AsyncMock,
-            return_value=_scope_verdict(True),
-        ),
         patch(
             "sparkth.plugins.compose.classifiers.rag_search.RAGSearchClassifier.classify",
             new_callable=AsyncMock,
@@ -525,40 +301,11 @@ async def test_a_successful_turn_records_no_failure(
     with (
         patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()),
         patch("sparkth.plugins.compose.classifiers.base.get_provider"),
-        patch(
-            "sparkth.plugins.compose.classifiers.message_scope.MessageScopeClassifier.classify",
-            new_callable=AsyncMock,
-            return_value=_scope_verdict(True),
-        ),
     ):
         await _turn(client, config_id, conversation_uuid=conversation_uuid)
         await join_live_tasks()
 
     assert await _events(analytics_session, "compose.turn_failed") == []
-
-
-async def test_no_classifier_reason_reaches_any_payload(
-    client: AsyncClient,
-    current_user: User,
-    session: AsyncSession,
-    analytics_session: SQLAlchemyAsyncSession,
-) -> None:
-    """Both classifiers produce a model-authored reason that can quote the instructor."""
-    config_id = await seed_llm_config(session, current_user.id or 1)
-    conversation_uuid = await seed_conversation(session, current_user.id or 1)
-
-    with (
-        patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()),
-        patch("sparkth.plugins.compose.classifiers.base.get_provider"),
-        patch(
-            "sparkth.plugins.compose.classifiers.message_scope.MessageScopeClassifier.classify",
-            new_callable=AsyncMock,
-            return_value=_scope_verdict(False),
-        ),
-    ):
-        await _turn(client, config_id, conversation_uuid=conversation_uuid, content="what is 2+2?")
-
-    assert "Schrems" not in await _all_payloads(analytics_session)
 
 
 @pytest.mark.parametrize("streamed", [True, False])
@@ -602,11 +349,6 @@ async def test_a_streaming_failure_records_a_failed_turn(
         patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()),
         patch(STREAM_TURN, _dropped_connection_turn),
         patch("sparkth.plugins.compose.classifiers.base.get_provider"),
-        patch(
-            "sparkth.plugins.compose.classifiers.message_scope.MessageScopeClassifier.classify",
-            new_callable=AsyncMock,
-            return_value=_scope_verdict(True),
-        ),
     ):
         response = await client.post(
             COMPLETIONS_URL,

@@ -10,10 +10,10 @@ import {
   summarize,
   type IsoDate,
   type LoginsPoint,
-} from "@/lib/analytics";
-import { LineChart } from "@/components/ui/LineChart";
-import { RankedBar } from "@/components/ui/RankedBar";
-import { StatCard } from "@/components/ui/StatCard";
+} from "@/core/analytics";
+import { LineChart } from "@/core/analytics/components/ui/LineChart";
+import { RankedBar } from "@/core/analytics/components/ui/RankedBar";
+import { StatCard } from "@/core/analytics/components/ui/StatCard";
 import type { Messages } from "@/lib/i18n/messages";
 import { PeriodView, bothPeriods, useComparison, type PeriodData } from "../PeriodView";
 

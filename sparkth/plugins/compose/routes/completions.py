@@ -12,7 +12,7 @@ from sparkth.lib.auth import get_current_user
 from sparkth.lib.compose.hooks import enabled_agents
 from sparkth.lib.db import get_async_session
 from sparkth.lib.documents import Document, DocumentStatus
-from sparkth.lib.i18n import _, gettext
+from sparkth.lib.i18n import _
 from sparkth.lib.llm import (
     LLMConfigInactiveError,
     LLMConfigModelNotSetError,
@@ -33,11 +33,11 @@ from sparkth.plugins.compose.analytics import (
     executed_tools_from,
     record_turn_failed,
 )
-from sparkth.plugins.compose.classifiers import MessageScopeClassifier, RAGSearchClassifier
+from sparkth.plugins.compose.classifiers import RAGSearchClassifier
 from sparkth.plugins.compose.config import ComposeSettings, get_compose_settings
-from sparkth.plugins.compose.constants import LLM_PROVIDER_API_ERRORS, REFUSAL_MESSAGE
+from sparkth.plugins.compose.constants import LLM_PROVIDER_API_ERRORS
 from sparkth.plugins.compose.conversation_title import extract_title_from_messages, schedule_title_generation
-from sparkth.plugins.compose.exceptions import RAGSearchError, ScopeCheckError
+from sparkth.plugins.compose.exceptions import RAGSearchError
 from sparkth.plugins.compose.llm import complete_turn
 from sparkth.plugins.compose.messages import get_last_user_text
 from sparkth.plugins.compose.routes.utils import resolve_tools
@@ -45,14 +45,12 @@ from sparkth.plugins.compose.routes.utils.live_turns import request_stop
 from sparkth.plugins.compose.routes.utils.message_assembly import assemble_provider_messages
 from sparkth.plugins.compose.routes.utils.stream_processor import (
     ComposeStreamProcessor,
-    stream_out_of_scope_refusal,
     streaming_error_message,
 )
 from sparkth.plugins.compose.schemas import (
     ChatCompletionRequest,
     ChatCompletionResponse,
     ChatMessage,
-    HistoryTurn,
 )
 from sparkth.plugins.compose.service import ComposeService, get_compose_service
 from sparkth.plugins.compose.tools import get_tool_registry
@@ -76,54 +74,6 @@ def _unusable_status(document: Document) -> Literal["queued", "processing", "fai
             return "failed"
         case _ as unhandled:
             assert_never(unhandled)
-
-
-def _refusal_response(
-    stream: bool,
-    conversation_uuid: UUID | None,
-    model: str,
-    provider_name: str,
-) -> StreamingResponse | ChatCompletionResponse:
-    """The refusal that ends the turn, in the shape the client asked for.
-
-    The refusal sentence is ``REFUSAL_MESSAGE`` rendered under the request locale.
-    ``conversation_uuid`` is None when the turn was refused before any conversation was
-    written, which is the answer the client gets rather than a missing field.
-    """
-    if stream:
-        return StreamingResponse(stream_out_of_scope_refusal(), media_type="text/event-stream")
-    return ChatCompletionResponse(
-        message=ChatMessage(role="assistant", content=gettext(REFUSAL_MESSAGE)),
-        conversation_id=conversation_uuid,
-        model=model,
-        provider=provider_name,
-    )
-
-
-def _fail_first_message_scope_check(
-    exc: ScopeCheckError,
-    user_id: int,
-    provider_name: str,
-    model: str,
-    streamed: bool,
-) -> HTTPException:
-    """Fail a first message whose scope could not be judged, and return the 502 for the caller to raise.
-
-    No turn reaches the chat model unjudged. The user reads a provider-specific message where one
-    exists, and the generic one otherwise. No conversation exists yet, and none is created to hold
-    the error, so nothing is stored.
-    """
-    detail = streaming_error_message(exc.cause)
-    logger.error("Scope check failed for user %s on a first message: %s", user_id, exc)
-    record_turn_failed(
-        conversation_id=None,
-        provider=provider_name,
-        model=model,
-        cause=TurnFailureCause.SCOPE_CLASSIFICATION_ERROR,
-        streamed=streamed,
-        actor_id=str(user_id),
-    )
-    return HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=detail)
 
 
 # The handler returns ChatCompletionResponse (stream=false) or an SSE
@@ -196,24 +146,6 @@ async def compose_completion(
     )
     # The tool filter and the agent list share one set of switched-off plugins.
     agents = enabled_agents(disabled_plugins)
-    scope_classifier = MessageScopeClassifier(agents, provider_name, api_key, user_id, classifier_analytics)
-
-    # A file uploaded with the message is base64 content, not a Document row, so its name exists
-    # only here — both scope checks below need it.
-    request_attachment_names = [m.attachment.name for m in request.messages if m.attachment]
-
-    # Judged above get_or_create_conversation so an out-of-scope first message writes no row.
-    _skip_main_scope_check = False
-    if not conversation_uuid:
-        # Nothing is persisted yet, and there is no uuid to log a refusal against.
-        try:
-            in_scope = await scope_classifier.in_scope(query_text, [], request_attachment_names, None)
-        except ScopeCheckError as exc:
-            raise _fail_first_message_scope_check(exc, user_id, provider_name, model, request.stream) from exc
-        if not in_scope:
-            return _refusal_response(request.stream, None, model, provider_name)
-        # Already judged, so the check below would spend a second call on the same message.
-        _skip_main_scope_check = True
 
     conversation, conversation_was_created = await service.get_or_create_conversation(
         session,
@@ -289,13 +221,11 @@ async def compose_completion(
     db_messages = await service.get_conversation_messages(session=session, conversation_id=conversation_id)
 
     try:
-        # Both classifiers need these: scope, to know documents are in play, and search, to
-        # judge the message against them.
+        # The search classifier judges the message against these.
         conversation_documents = await service.list_conversation_attachments(
             session=session, conversation_id=conversation_id
         )
         attached_documents = conversation_documents.ready
-        attached_document_names = [document.name for document in attached_documents]
         for unusable in conversation_documents.unusable:
             # Attached as far as the instructor is concerned, but not ingestible, so this
             # turn runs as though it were not there. Stamped here: nothing records the
@@ -305,27 +235,6 @@ async def compose_completion(
                 status=_unusable_status(unusable),
                 occurred_at=datetime.now(timezone.utc),
             )
-
-        if not _skip_main_scope_check:
-            prior_history: list[HistoryTurn] = [
-                {"role": m.role, "content": m.content}
-                for m in db_messages
-                if m is not db_messages[-1] or not (m.role == "user" and m.content == query_text)
-            ]
-            # Ingested documents plus anything uploaded with this message, which has no row.
-            turn_attachment_names = list(dict.fromkeys(attached_document_names + request_attachment_names))
-            in_scope = await scope_classifier.in_scope(
-                query_text, prior_history, turn_attachment_names or None, conversation.uuid
-            )
-            if not in_scope:
-                await service.add_message(
-                    session=session,
-                    conversation_id=conversation_id,
-                    role="assistant",
-                    content=gettext(REFUSAL_MESSAGE),
-                    message_type="text",
-                )
-                return _refusal_response(request.stream, conversation.uuid, model, provider_name)
 
         provider = get_provider(
             provider_name=provider_name,
@@ -420,6 +329,7 @@ async def compose_completion(
                 streamed=False,
                 executed_tools=executed_tools_from(executions),
                 occurred_at=assistant_message.created_at,
+                routing=response["routing"],
             )
 
             return ChatCompletionResponse(
@@ -435,15 +345,12 @@ async def compose_completion(
                 metadata=response.get("metadata", {}),
             )
 
-    except (RAGSearchError, ScopeCheckError, *LLM_PROVIDER_API_ERRORS) as exc:
+    except (RAGSearchError, *LLM_PROVIDER_API_ERRORS) as exc:
         # Each is an upstream service failing the turn: the user is told, and the conversation
         # keeps the message so a reload still shows what happened.
         if isinstance(exc, RAGSearchError):
             detail = _("Failed to determine retrieval intent. Please try again.")
             cause = TurnFailureCause.RAG_SEARCH_ERROR
-        elif isinstance(exc, ScopeCheckError):
-            detail = streaming_error_message(exc.cause)
-            cause = TurnFailureCause.SCOPE_CLASSIFICATION_ERROR
         else:
             detail = streaming_error_message(exc)
             cause = TurnFailureCause.PROVIDER_API_ERROR

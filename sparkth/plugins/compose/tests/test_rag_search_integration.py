@@ -94,7 +94,6 @@ class TestIntentRouterIntegration:
 
         with (
             patch("sparkth.plugins.compose.routes.completions.get_provider") as mock_get_provider,
-            patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_cls_cls,
             patch("sparkth.plugins.compose.routes.completions.RAGSearchClassifier") as mock_router_cls,
             patch(
                 "sparkth.plugins.compose.service.ComposeService.list_conversation_attachments",
@@ -109,11 +108,6 @@ class TestIntentRouterIntegration:
                 new_callable=AsyncMock,
             ) as mock_add_msg,
         ):
-            # Scope classifier says in-scope
-            mock_scope = AsyncMock()
-            mock_scope.in_scope = AsyncMock(return_value=True)
-            mock_cls_cls.return_value = mock_scope
-
             # Router says retrieve=True
             mock_router = MagicMock()
             mock_router.requires_search = AsyncMock(return_value=True)
@@ -166,7 +160,6 @@ class TestIntentRouterIntegration:
 
         with (
             patch("sparkth.plugins.compose.routes.completions.get_provider") as mock_get_provider,
-            patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_cls_cls,
             patch("sparkth.plugins.compose.routes.completions.RAGSearchClassifier") as mock_router_cls,
             patch(
                 "sparkth.plugins.compose.service.ComposeService.list_conversation_attachments",
@@ -185,10 +178,6 @@ class TestIntentRouterIntegration:
             # passes rag_search_declined to ComposeStreamProcessor.
             patch("sparkth.plugins.compose.routes.completions.ComposeStreamProcessor") as mock_processor_cls,
         ):
-            mock_scope = AsyncMock()
-            mock_scope.in_scope = AsyncMock(return_value=True)
-            mock_cls_cls.return_value = mock_scope
-
             mock_router = MagicMock()
             mock_router.requires_search = AsyncMock(return_value=False)
             mock_router_cls.return_value = mock_router
@@ -249,7 +238,6 @@ class TestIntentRouterIntegration:
 
         with (
             patch("sparkth.plugins.compose.routes.completions.get_provider") as mock_get_provider,
-            patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_cls_cls,
             patch("sparkth.plugins.compose.routes.completions.RAGSearchClassifier") as mock_router_cls,
             patch(
                 "sparkth.plugins.compose.service.ComposeService.list_conversation_attachments",
@@ -263,10 +251,6 @@ class TestIntentRouterIntegration:
                 new_callable=AsyncMock,
             ) as mock_add_msg,
         ):
-            mock_scope = AsyncMock()
-            mock_scope.in_scope = AsyncMock(return_value=True)
-            mock_cls_cls.return_value = mock_scope
-
             mock_router = MagicMock()
             mock_router.requires_search = AsyncMock(return_value=True)
             mock_router_cls.return_value = mock_router
@@ -327,7 +311,6 @@ class TestIntentRouterIntegration:
         with (
             patch("sparkth.plugins.compose.routes.completions.get_provider") as mock_get_provider,
             patch(STREAM_TURN, partial(replay_turn, [{"type": "token", "content": "Hi!"}])),
-            patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_cls_cls,
             patch("sparkth.plugins.compose.routes.completions.RAGSearchClassifier") as mock_router_cls,
             patch(
                 "sparkth.plugins.compose.service.ComposeService.list_conversation_attachments",
@@ -338,10 +321,6 @@ class TestIntentRouterIntegration:
                 new_callable=AsyncMock,
             ) as mock_add_msg,
         ):
-            mock_scope = AsyncMock()
-            mock_scope.in_scope = AsyncMock(return_value=True)
-            mock_cls_cls.return_value = mock_scope
-
             mock_router_cls.return_value = MagicMock()
             mock_list_attachments.return_value = ConversationDocuments(ready=[], unusable=[])
 
@@ -382,7 +361,6 @@ class TestIntentRouterIntegration:
 
         with (
             patch("sparkth.plugins.compose.routes.completions.get_provider") as mock_get_provider,
-            patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_cls_cls,
             patch("sparkth.plugins.compose.routes.completions.RAGSearchClassifier") as mock_router_cls,
             patch(
                 "sparkth.plugins.compose.service.ComposeService.list_conversation_attachments",
@@ -397,10 +375,6 @@ class TestIntentRouterIntegration:
                 new_callable=AsyncMock,
             ) as mock_get_msgs,
         ):
-            mock_scope = AsyncMock()
-            mock_scope.in_scope = AsyncMock(return_value=True)
-            mock_cls_cls.return_value = mock_scope
-
             mock_router = MagicMock()
             mock_router.requires_search = AsyncMock(side_effect=RAGSearchError("LLM call failed"))
             mock_router_cls.return_value = mock_router
@@ -450,7 +424,6 @@ def _mock_attachment(document_id: int = 1) -> MagicMock:
 def _base_patches() -> tuple[Any, ...]:
     """Return the common patch stack shared by ownership-check tests."""
     return (
-        patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier"),
         patch("sparkth.plugins.compose.service.ComposeService.list_conversation_attachments", new_callable=AsyncMock),
         patch(
             "sparkth.plugins.compose.service.ComposeService.attach_document",
@@ -466,15 +439,11 @@ def _base_patches() -> tuple[Any, ...]:
 
 
 def _configure_base_mocks(
-    mock_cls_cls: MagicMock,
     mock_list: AsyncMock,
     mock_add_msg: AsyncMock,
     mock_get_msgs: AsyncMock,
     mock_get_provider: MagicMock,
 ) -> None:
-    mock_scope = MagicMock()
-    mock_scope.in_scope = AsyncMock(return_value=True)
-    mock_cls_cls.return_value = mock_scope
     mock_list.return_value = ConversationDocuments(ready=[], unusable=[])
     mock_get_msgs.return_value = []
     mock_msg = MagicMock()
@@ -509,7 +478,6 @@ class TestDocumentIdsOwnershipCheck:
         document2_id = await _seed_document(session, current_user.id or 1, "doc2.pdf")
 
         with (
-            patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_cls_cls,
             patch(
                 "sparkth.plugins.compose.service.ComposeService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -529,7 +497,7 @@ class TestDocumentIdsOwnershipCheck:
             ) as mock_get_msgs,
             patch("sparkth.plugins.compose.routes.completions.get_provider") as mock_get_provider,
         ):
-            _configure_base_mocks(mock_cls_cls, mock_list, mock_add_msg, mock_get_msgs, mock_get_provider)
+            _configure_base_mocks(mock_list, mock_add_msg, mock_get_msgs, mock_get_provider)
 
             response = await client.post(
                 "/api/v1/compose/completions",
@@ -560,7 +528,6 @@ class TestDocumentIdsOwnershipCheck:
         unowned_id = 9999  # does not exist in the DB
 
         with (
-            patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_cls_cls,
             patch(
                 "sparkth.plugins.compose.service.ComposeService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -580,7 +547,7 @@ class TestDocumentIdsOwnershipCheck:
             ) as mock_get_msgs,
             patch("sparkth.plugins.compose.routes.completions.get_provider") as mock_get_provider,
         ):
-            _configure_base_mocks(mock_cls_cls, mock_list, mock_add_msg, mock_get_msgs, mock_get_provider)
+            _configure_base_mocks(mock_list, mock_add_msg, mock_get_msgs, mock_get_provider)
 
             response = await client.post(
                 "/api/v1/compose/completions",
@@ -610,7 +577,6 @@ class TestDocumentIdsOwnershipCheck:
         seed = await _seed(session, current_user.id or 1)
 
         with (
-            patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_cls_cls,
             patch(
                 "sparkth.plugins.compose.service.ComposeService.list_conversation_attachments",
                 new_callable=AsyncMock,
@@ -630,7 +596,7 @@ class TestDocumentIdsOwnershipCheck:
             ) as mock_get_msgs,
             patch("sparkth.plugins.compose.routes.completions.get_provider") as mock_get_provider,
         ):
-            _configure_base_mocks(mock_cls_cls, mock_list, mock_add_msg, mock_get_msgs, mock_get_provider)
+            _configure_base_mocks(mock_list, mock_add_msg, mock_get_msgs, mock_get_provider)
 
             response = await client.post(
                 "/api/v1/compose/completions",
@@ -674,7 +640,6 @@ class TestProviderApiErrorPersistence:
 
         with (
             patch("sparkth.plugins.compose.routes.completions.get_provider") as mock_get_provider,
-            patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_cls_cls,
             patch("sparkth.plugins.compose.routes.completions.RAGSearchClassifier") as mock_router_cls,
             patch(
                 "sparkth.plugins.compose.service.ComposeService.list_conversation_attachments",
@@ -689,10 +654,6 @@ class TestProviderApiErrorPersistence:
                 new_callable=AsyncMock,
             ) as mock_get_msgs,
         ):
-            mock_scope = AsyncMock()
-            mock_scope.in_scope = AsyncMock(return_value=True)
-            mock_cls_cls.return_value = mock_scope
-
             mock_router = MagicMock()
             mock_router.requires_search = AsyncMock(side_effect=overloaded_exc)
             mock_router_cls.return_value = mock_router
@@ -736,7 +697,6 @@ class TestProviderApiErrorPersistence:
 
         with (
             patch("sparkth.plugins.compose.routes.completions.get_provider") as mock_get_provider,
-            patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_cls_cls,
             patch("sparkth.plugins.compose.routes.completions.RAGSearchClassifier") as mock_router_cls,
             patch(
                 "sparkth.plugins.compose.service.ComposeService.list_conversation_attachments",
@@ -751,10 +711,6 @@ class TestProviderApiErrorPersistence:
                 new_callable=AsyncMock,
             ) as mock_get_msgs,
         ):
-            mock_scope = AsyncMock()
-            mock_scope.in_scope = AsyncMock(return_value=True)
-            mock_cls_cls.return_value = mock_scope
-
             mock_router = MagicMock()
             mock_router.requires_search = AsyncMock(side_effect=RAGSearchError("router failed"))
             mock_router_cls.return_value = mock_router

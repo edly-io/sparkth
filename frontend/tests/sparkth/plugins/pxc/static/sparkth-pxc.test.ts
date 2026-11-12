@@ -303,4 +303,61 @@ describe("SparkthPXC", () => {
       expect(notice()).toBe("Your session has expired. Reload this page to continue."),
     );
   });
+
+  describe("inside another page's iframe", () => {
+    let resizeBody: () => void;
+    const embeddingPage = { postMessage: vi.fn() };
+
+    beforeEach(() => {
+      embeddingPage.postMessage.mockClear();
+      vi.stubGlobal("parent", embeddingPage);
+      vi.stubGlobal(
+        "ResizeObserver",
+        class {
+          constructor(callback: () => void) {
+            resizeBody = callback;
+          }
+          observe(): void {}
+        },
+      );
+    });
+
+    function setBodyHeight(height: number): void {
+      vi.spyOn(document.body, "getBoundingClientRect").mockReturnValue({ height } as DOMRect);
+    }
+
+    it("tells the embedding page how tall its content is", () => {
+      mountActivity();
+      setBodyHeight(612.4);
+
+      resizeBody();
+
+      expect(embeddingPage.postMessage).toHaveBeenLastCalledWith(
+        { type: "pxc:resize", height: 613 },
+        "*",
+      );
+    });
+
+    it("reports again when the content changes height", () => {
+      mountActivity();
+      setBodyHeight(400);
+      resizeBody();
+      setBodyHeight(900);
+
+      resizeBody();
+
+      expect(embeddingPage.postMessage).toHaveBeenLastCalledWith(
+        { type: "pxc:resize", height: 900 },
+        "*",
+      );
+    });
+  });
+
+  it("reports no height when it is not inside an iframe", () => {
+    const post = vi.spyOn(window, "postMessage");
+
+    mountActivity();
+
+    expect(post).not.toHaveBeenCalled();
+  });
 });

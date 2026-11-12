@@ -4,13 +4,13 @@ import { useState, type SubmitEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 
-import { AuthCard, AuthHeading, AuthLink } from "@/components/AuthCard";
+import { AuthCard, AuthHeading, AuthLink } from "@/core/auth/components/layout/AuthCard";
 import {
   emptyNewPassword,
   NewPasswordFields,
   useNewPasswordMismatch,
   type NewPasswordValues,
-} from "@/components/NewPasswordFields";
+} from "@/core/auth/components/ui/NewPasswordFields";
 import { Alert } from "@/core/components/ui/Alert";
 import { Button } from "@/core/components/ui/Button";
 import { ApiRequestError, confirmPasswordReset } from "@/lib/api";

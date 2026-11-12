@@ -26,6 +26,9 @@
 // disconnect notice already up stays instead, since it is the one asking for a reload. The action
 // notice comes down when the learner sends the next action, and shows again if that one fails too.
 //
+// A sixth: inside another page's iframe, it posts its content height to that page as
+// { type: "pxc:resize", height }, so the page can size the iframe to fit and nothing scrolls.
+//
 // The configuration is a <script type="application/json"> child of the element, written by the
 // embed route; nothing is fetched for it.
 //
@@ -60,6 +63,9 @@ const DISCONNECTED_NOTICE =
 const ACTION_NOTICE =
   "Your last action did not go through. Try again, and tell your instructor if it keeps happening.";
 
+// The message that tells an embedding page how tall this page's content is, in pixels.
+const RESIZE_MESSAGE = "pxc:resize";
+
 // A POST refused with this failed for good (the action was refused, or the sandbox failed running
 // it), so retrying it would only block the queue. A proxy never sends it, unlike a 5xx.
 const ACTION_FAILURE_STATUS = 422;
@@ -87,10 +93,26 @@ export class SparkthPXC extends PXC {
 
     this._initShadow();
     this.render();
+    this._watchHeight();
     // Before _loadScript: _pushAction reads this._ws.readyState, which throws if the
     // activity's own script calls sendAction before a socket object exists.
     this._connectWebSocket();
     await this._loadScript(config.ui_url);
+  }
+
+  // Reports the page's height to the page embedding it, now and whenever it changes. Does
+  // nothing when the page is opened on its own.
+  _watchHeight() {
+    if (window.parent === window) return;
+    new ResizeObserver(() => this._reportHeight()).observe(document.body);
+  }
+
+  // The body's own height, not the document's: the document is never shorter than the iframe,
+  // so it could not report that the content shrank. "*" because the embedding page's origin is
+  // not known here, and a height is not a secret.
+  _reportHeight() {
+    const height = Math.ceil(document.body.getBoundingClientRect().height);
+    window.parent.postMessage({ type: RESIZE_MESSAGE, height }, "*");
   }
 
   // Overrides PXC's own _pushAction(), which writes to IndexedDB.

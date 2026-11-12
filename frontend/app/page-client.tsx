@@ -4,8 +4,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/core/auth/hooks";
-import SparkthHeader from "@/components/SparkthHeader";
-import { SparkthLogo } from "@/components/SparkthLogo";
+import SparkthHeader from "@/core/components/layout/SparkthHeader";
+import { SparkthLogo } from "@/core/components/ui/SparkthLogo";
 
 export default function HomeClient() {
   const { isAuthenticated, logout } = useAuth();

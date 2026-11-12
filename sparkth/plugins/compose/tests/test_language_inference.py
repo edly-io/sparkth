@@ -21,7 +21,7 @@ from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
 from sparkth.plugins.compose.models import Conversation
 from sparkth.plugins.compose.prompt import render_system_prompt
-from sparkth.plugins.compose.tests.helpers import answering_model, routing_to
+from sparkth.plugins.compose.tests.helpers import answering_model, hand_off, planning
 from sparkth.plugins.compose.types import ConversationDocuments
 
 
@@ -90,13 +90,10 @@ async def _agent_prompts_for_one_request(client: AsyncClient, seed: _Seeded, age
     provider = MagicMock()
     provider.create_llm.return_value = model
     with (
-        patch("sparkth.plugins.compose.routes.completions.get_provider", side_effect=routing_to(provider, agent)),
-        patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_classifier_cls,
+        patch(
+            "sparkth.plugins.compose.routes.completions.get_provider", side_effect=planning(provider, hand_off(agent))
+        ),
     ):
-        mock_classifier = MagicMock()
-        mock_classifier.in_scope = AsyncMock(return_value=True)
-        mock_classifier_cls.return_value = mock_classifier
-
         response = await client.post(
             "/api/v1/compose/completions",
             json={
@@ -122,7 +119,6 @@ async def _scheduled_title_task_kwargs(client: AsyncClient, llm_config_id: int) 
     """
     with (
         patch("sparkth.plugins.compose.routes.completions.get_provider") as mock_get_provider,
-        patch("sparkth.plugins.compose.routes.completions.MessageScopeClassifier") as mock_classifier_cls,
         patch("sparkth.plugins.compose.service.ComposeService.add_message", new_callable=AsyncMock) as mock_add_message,
         patch(
             "sparkth.plugins.compose.service.ComposeService.get_conversation_messages",
@@ -137,10 +133,6 @@ async def _scheduled_title_task_kwargs(client: AsyncClient, llm_config_id: int) 
         patch("sparkth.plugins.compose.routes.completions.ComposeStreamProcessor") as mock_processor_cls,
         patch("sparkth.plugins.compose.conversation_title.generate_conversation_title") as mock_generate_title,
     ):
-        mock_classifier = MagicMock()
-        mock_classifier.in_scope = AsyncMock(return_value=True)
-        mock_classifier_cls.return_value = mock_classifier
-
         mock_message = MagicMock()
         mock_message.id = 1
         mock_add_message.return_value = mock_message

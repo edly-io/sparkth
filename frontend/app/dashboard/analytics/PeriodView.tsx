@@ -4,13 +4,13 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { RefreshCw } from "lucide-react";
 import { useAuth } from "@/core/auth/hooks";
-import { previousPeriod, type Bucket, type IsoDate } from "@/lib/analytics";
+import { previousPeriod, type Bucket, type IsoDate } from "@/core/analytics";
 import { ApiRequestError } from "@/lib/api";
 import { Alert } from "@/core/components/ui/Alert";
 import { Button } from "@/core/components/ui/Button";
-import { Forbidden } from "@/components/Forbidden";
+import { Forbidden } from "@/core/components/layout/Forbidden";
 import { Spinner } from "@/core/components/ui/Spinner";
-import { usePeriod } from "./usePeriod";
+import { usePeriod } from "@/app/dashboard/analytics/hooks";
 
 /** The selected period. */
 export interface PeriodRange {
