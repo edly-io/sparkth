@@ -31,20 +31,12 @@ async def _create_user_with_permissions(
     user = User(name="Admin", username=_uniq("admin"), email=f"{_uniq('admin')}@example.com", hashed_password="x")
     session.add(user)
     await session.flush()
-    assert user.id is not None
-    role = Role(name=_uniq("role"))
-    session.add(role)
-    await session.flush()
-    assert role.id is not None
-    for permission in permissions:
-        session.add(RolePermission(role_id=role.id, permission=permission))
-    session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope=scope, scope_object_id=scope_object_id))
-    await session.flush()
+    await _grant_permissions(session, user, permissions, scope, scope_object_id)
     return user
 
 
 async def _grant_permissions(
-    session: AsyncSession, user: User, permissions: list[str], scope: str, scope_object_id: str
+    session: AsyncSession, user: User, permissions: list[str], scope: str, scope_object_id: str | None
 ) -> None:
     """Give ``user`` one more role holding ``permissions`` at ``scope``/``scope_object_id``."""
     assert user.id is not None
