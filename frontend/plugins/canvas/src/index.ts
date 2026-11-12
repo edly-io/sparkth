@@ -1,2 +1,2 @@
 // Canvas has no page, so its frontend part is only its contributions to core's slots.
-import "./settings";
+import "@/plugins/canvas/src/slots/settings";
