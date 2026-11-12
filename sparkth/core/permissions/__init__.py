@@ -20,7 +20,7 @@ from sparkth.core.models.user import User
 from sparkth.core.permissions.dependencies import build_scope_path_dependency
 from sparkth.core.permissions.engine import can, get_accessible_scope_object_ids
 from sparkth.core.permissions.exceptions import PermissionNotFound
-from sparkth.core.permissions.scopes import GLOBAL, ObjectlessPermissionScope, PermissionScope
+from sparkth.core.permissions.scopes import GLOBAL, PermissionScope
 from sparkth.core.permissions.scopes.mixins import ScopeObjectMixin
 from sparkth.lib.audit import record_event_now
 from sparkth.lib.audit.events import AuditOutcome, AuditTarget, PermissionDeniedAuditEvent
@@ -120,8 +120,7 @@ class Permission:
             objectless ancestor covers every object. A caller who holds it nowhere is refused with
             403, so the route never receives an empty set.
         """
-        if isinstance(permission_scope, ObjectlessPermissionScope):
-            raise ValueError(f"Scope {permission_scope.name!r} is objectless and names no objects to list")
+        permission_scope.validate_listable()
 
         async def dependency(
             current_user: User = Depends(get_current_user),
