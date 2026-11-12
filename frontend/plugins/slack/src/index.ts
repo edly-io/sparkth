@@ -5,5 +5,5 @@ import "@/plugins/slack/src/slots/settings";
 
 export const slack: PluginDefinition = {
   name: "slack",
-  loadComponent: () => import("@/plugins/slack/src/routes/Slack"),
+  loadComponent: () => import("@/plugins/slack/src/pages/Slack"),
 };
