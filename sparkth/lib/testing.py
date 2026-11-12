@@ -13,6 +13,7 @@ conftest, not here.
 
 import asyncio
 import os
+import uuid
 
 # Set test environment variables BEFORE importing app modules.
 # This must happen before sparkth/core/config.py calls get_settings(), which caches
@@ -195,6 +196,26 @@ async def add_role_assignment(
     session.add(assignment)
     await session.flush()
     return assignment
+
+
+async def grant_permissions(
+    session: AsyncSession, user: User, permissions: list[str], scope: str, scope_object_id: str | None
+) -> None:
+    """Give ``user`` a new role holding ``permissions`` at ``scope`` and ``scope_object_id``."""
+    role = await make_role(session, f"role_{uuid.uuid4().hex[:8]}", permissions)
+    await add_role_assignment(session, user, role, scope, scope_object_id)
+
+
+async def make_user_with_permissions(
+    session: AsyncSession,
+    permissions: list[str],
+    scope: str = GLOBAL.name,
+    scope_object_id: str | None = None,
+) -> User:
+    """Create a user who holds ``permissions`` at ``scope`` and ``scope_object_id``, globally by default."""
+    user = await make_user(session, f"user_{uuid.uuid4().hex[:8]}")
+    await grant_permissions(session, user, permissions, scope, scope_object_id)
+    return user
 
 
 async def assign_through_group(
