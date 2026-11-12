@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from langchain_core.messages import AIMessage
 from langchain_core.tools import BaseTool, StructuredTool
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG
 from sparkth.lib.llm import get_provider
@@ -43,6 +43,29 @@ async def _next_tool(executed: list[str]) -> str:
 
 class _NoArguments(BaseModel):
     pass
+
+
+class _SilentChatModel(ScriptedChatModel):
+    """A chat model whose reply never arrives. ``waiting`` fills when a call starts and
+    ``cancelled`` when that call is cancelled."""
+
+    waiting: list[bool] = Field(default_factory=list)
+    cancelled: list[bool] = Field(default_factory=list)
+
+    async def _agenerate(self, *args: Any, **kwargs: Any) -> Any:
+        self.waiting.append(True)
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            self.cancelled.append(True)
+            raise
+
+
+async def _stop_once_waiting(model: _SilentChatModel, turn_id: str) -> None:
+    """Ask ``turn_id`` to stop once ``model`` is waiting on its reply."""
+    while not model.waiting:
+        await asyncio.sleep(0.01)
+    request_stop(turn_id, 1)
 
 
 def _no_argument_tool(name: str, handler: partial[Any]) -> StructuredTool:
@@ -143,6 +166,39 @@ async def _stopping_mid_answer(
     request_stop("turn-2", 1)
     yield {"type": "token", "content": " that still arrives"}
     yield {"type": "token", "content": " but this one never does"}
+
+
+async def _silent_after_a_token(
+    closed: list[bool],
+    messages: list[dict[str, Any]],
+    tools: Sequence[Any],
+    provider: Any,
+    max_tool_executions: int,
+    **planner: Any,
+) -> AsyncGenerator[dict[str, Any], None]:
+    """An answer whose model sends one token and then nothing, as one writing a long reply does."""
+    try:
+        yield {"type": "token", "content": "Half"}
+        await asyncio.Event().wait()
+    finally:
+        closed.append(True)
+
+
+async def _silent_during_a_tool(
+    executed: list[str],
+    release: asyncio.Event,
+    messages: list[dict[str, Any]],
+    tools: Sequence[Any],
+    provider: Any,
+    max_tool_executions: int,
+    **planner: Any,
+) -> AsyncGenerator[dict[str, Any], None]:
+    """A tool that runs until ``release`` is set, then a model that never replies."""
+    yield {"type": "tool_start", "name": "slow_tool"}
+    await release.wait()
+    executed.append("slow_tool")
+    yield {"type": "tool_end", "name": "slow_tool"}
+    await asyncio.Event().wait()
 
 
 async def _setting_stop_mid_answer(
@@ -552,6 +608,22 @@ class TestStopHonoured:
         assert done["message"]["tool_calls"] == [{"name": "first"}]
 
     @pytest.mark.asyncio
+    async def test_a_stop_while_the_model_writes_cancels_the_model_call(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The real provider, not a fake: a stop pressed while the agent's model is still
+        writing ends the turn and cancels that model call."""
+        provider = get_provider("anthropic", "test-key", "claude-sonnet-5")
+        model = _SilentChatModel(messages=iter([]), disable_streaming=True)
+        monkeypatch.setattr(provider, "_create_llm", lambda streaming=False, callbacks=None: model)
+        processor = _make_processor(provider=provider, turn_id="turn-10", user_id=1)
+
+        async with asyncio.timeout(5), asyncio.TaskGroup() as group:
+            group.create_task(_stop_once_waiting(model, "turn-10"))
+            payloads = [json.loads(chunk.removeprefix("data: ")) async for chunk in processor.stream()]
+
+        assert payloads[-1]["stopped"] is True
+        assert model.cancelled == [True]
+
+    @pytest.mark.asyncio
     async def test_a_stopped_turn_runs_no_further_tools(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """The stop lands between events, so the first tool completes and the second never starts."""
         executed: list[str] = []
@@ -601,6 +673,49 @@ class TestStopHonoured:
         done = payloads[-1]
         assert done["message"]["content"] == "Half a sentence that still arrives"
         assert done["stopped"] is True
+
+    @pytest.mark.asyncio
+    async def test_a_stop_while_the_model_is_silent_ends_the_turn(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A stop pressed while the turn waits on the model ends it there, with what was shown,
+        and closes the turn so the model call is cancelled."""
+        closed: list[bool] = []
+        monkeypatch.setattr(STREAM_TURN, partial(_silent_after_a_token, closed))
+        processor = _make_processor(turn_id="turn-8", user_id=1)
+
+        payloads = []
+        async with asyncio.timeout(5):
+            async for chunk in processor.stream():
+                payloads.append(json.loads(chunk.removeprefix("data: ")))
+                if payloads[-1].get("token") == "Half":
+                    request_stop("turn-8", 1)
+
+        done = payloads[-1]
+        assert done["stopped"] is True
+        assert done["message"]["content"] == "Half"
+        assert closed == [True]
+
+    @pytest.mark.asyncio
+    async def test_a_stop_while_a_tool_runs_waits_for_the_tool(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A stop pressed while a tool runs lets the tool finish, then ends the turn without
+        waiting for the model's next reply."""
+        executed: list[str] = []
+        release = asyncio.Event()
+        monkeypatch.setattr(STREAM_TURN, partial(_silent_during_a_tool, executed, release))
+        processor = _make_processor(turn_id="turn-9", user_id=1)
+
+        payloads = []
+        async with asyncio.timeout(5):
+            async for chunk in processor.stream():
+                payloads.append(json.loads(chunk.removeprefix("data: ")))
+                if payloads[-1].get("tool_status") == "running":
+                    request_stop("turn-9", 1)
+                    # Long enough for a stop that cut the tool off to have ended the turn.
+                    asyncio.get_running_loop().call_later(0.05, release.set)
+
+        assert executed == ["slow_tool"]
+        done = payloads[-1]
+        assert done["stopped"] is True
+        assert done["message"]["tool_calls"] == [{"name": "slow_tool"}]
 
     @pytest.mark.asyncio
     async def test_an_uninterrupted_turn_is_not_marked_stopped(self, monkeypatch: pytest.MonkeyPatch) -> None:

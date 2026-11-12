@@ -1,6 +1,6 @@
 import asyncio
 import json
-from collections.abc import AsyncGenerator, Sequence
+from collections.abc import AsyncGenerator, AsyncIterator, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, cast
@@ -190,8 +190,9 @@ class ComposeStreamProcessor:
     does not interrupt the DB write; the generator side only drains a queue.
 
     ``turn_id`` makes the turn stoppable: the background task registers it with the
-    live-turns registry, polls the event it gets back between steps (never mid-tool-call) so
-    a stop lands at a safe boundary, and releases it when the task ends, whatever the reason.
+    live-turns registry and watches the event it gets back, and releases it when the task ends,
+    whatever the reason. A stop ends the turn at once while it waits on the model, and after
+    the running tool finishes while a tool runs, so a tool call is never cut off.
     A turn stopped this way still persists what it produced, with a ``stopped`` marker.
     """
 
@@ -305,6 +306,31 @@ class ComposeStreamProcessor:
     def _stop_is_requested(self) -> bool:
         """Whether the author has asked for this turn to stop."""
         return self.stop_requested is not None and self.stop_requested.is_set()
+
+    async def _next_event_unless_stopped(
+        self, events: AsyncIterator[dict[str, Any]], *, tool_running: bool
+    ) -> dict[str, Any] | None:
+        """The turn's next event, or None when the turn has ended or a stop arrived first.
+
+        A stop that arrives first cancels the wait, which closes the turn and its model call.
+        While ``tool_running``, the stop is left for the caller to act on after the tool's end.
+        """
+        if self.stop_requested is None or tool_running:
+            return await anext(events, None)
+        next_event = asyncio.ensure_future(anext(events, None))
+        stop = asyncio.ensure_future(self.stop_requested.wait())
+        try:
+            await asyncio.wait({next_event, stop}, return_when=asyncio.FIRST_COMPLETED)
+        finally:
+            stop.cancel()
+            arrived = next_event.done()
+            if not arrived:
+                next_event.cancel()
+        if arrived:
+            return next_event.result()
+        # Wait for the cancelled turn to close its stream.
+        await asyncio.wait({next_event})
+        return None
 
     async def _persist_and_emit_error(
         self,
@@ -426,6 +452,10 @@ class ComposeStreamProcessor:
     async def _collect_stream_response(self, bg_session: AsyncSession) -> CollectedReply | None:
         """Returns None when a streaming error is handled; the error SSE and DB write are already done.
 
+        A stop that arrives while the turn waits on the model ends the turn there, with the
+        text and tool calls collected so far. A stop that arrives while a tool runs waits for
+        that tool's ``tool_end``.
+
         The stop check reads the event *before* deciding whether to act on it. A ``tool_start``
         is not yet in flight — ``stream_turn`` is suspended at that very ``yield``, before the
         tool runs — so a stop pending there breaks before the event is processed at all,
@@ -437,6 +467,7 @@ class ComposeStreamProcessor:
         full_response = ""
         completed_tool_calls: list[dict[str, Any]] = []
         stopped = False
+        tool_running = False
         # A turn stopped before a hand-off returned has no agent.
         routing = TurnRouting()
         max_tool_executions = self.max_tool_executions
@@ -451,7 +482,7 @@ class ComposeStreamProcessor:
                 agents=self.agents,
                 planner_llm=self.planner_llm,
             )
-            async for event in turn:
+            while (event := await self._next_event_unless_stopped(turn, tool_running=tool_running)) is not None:
                 stopping = self._stop_is_requested()
                 if stopping and event["type"] == TurnEventType.TOOL_START:
                     stopped = True
@@ -463,10 +494,12 @@ class ComposeStreamProcessor:
                     full_response += token
                     await self._emit({"token": token, "done": False})
                 elif event["type"] == TurnEventType.TOOL_START:
+                    tool_running = True
                     await self._emit(
                         {"status": "tool_call", "tool_name": event["name"], "tool_status": "running", "done": False}
                     )
                 elif event["type"] == TurnEventType.TOOL_END:
+                    tool_running = False
                     completed_tool_calls.append({"name": event["name"], "failure": event.get("failure")})
                     await self._emit(
                         {"status": "tool_call", "tool_name": event["name"], "tool_status": "done", "done": False}
@@ -474,6 +507,8 @@ class ComposeStreamProcessor:
                 if self._stop_is_requested():
                     stopped = True
                     break
+            else:
+                stopped = self._stop_is_requested()
             return CollectedReply(text=full_response, tool_calls=completed_tool_calls, stopped=stopped, routing=routing)
         except LLM_PROVIDER_API_ERRORS as e:
             logger.error("Streaming failed: %s", e)
@@ -585,8 +620,8 @@ class ComposeStreamProcessor:
         """What the turn completed, or None when it produced no completion at all — RAG
         answered the turn, or it failed.
 
-        A stop is checked before each phase starts, not mid-phase (the LLM phase polls its
-        own loop internally) — a stop that lands before RAG or before the LLM call still
+        A stop is checked before each phase starts, not mid-phase (the LLM phase watches for
+        one itself) — a stop that lands before RAG or before the LLM call still
         persists a turn, just an empty one carrying the ``stopped`` marker.
         """
         if self._stop_is_requested():
