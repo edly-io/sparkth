@@ -19,7 +19,7 @@ All plugins live under `plugins/`, and every plugin keeps its code in the same l
 plugins/<pluginname>/
   src/
     index.ts        # the plugin's single entry point
-    routes/         # its pages
+    pages/          # its pages
     client.ts       # its backend API calls
     analytics.ts    # its analytics fetch and chart helpers
     components/
@@ -33,7 +33,7 @@ plugins/<pluginname>/
   tests/            # its unit tests, mirroring src/, and its Playwright specs in tests/e2e/
 ```
 
-A route is the page itself and decides what it shows. `components/layout/` holds only the parts that frame a page,
+A page decides what it shows. `components/layout/` holds only the parts that frame a page,
 such as a header or a side column, and the views and pieces placed inside the frame go in `components/ui/`, even
 when one fills the whole page.
 
@@ -57,7 +57,7 @@ Inside the new plugin directory, create a React component that represents the pl
 
 **File**
 
-    plugins/<pluginname>/src/routes/<PluginName>.tsx
+    plugins/<pluginname>/src/pages/<PluginName>.tsx
 
 **Example:**
 
@@ -98,7 +98,7 @@ plugins/
  └─ exampleplugin/
     └─ src/
        ├─ index.ts
-       └─ routes/
+       └─ pages/
           └─ ExamplePlugin.tsx
 ```
 
@@ -113,7 +113,7 @@ import { PluginDefinition } from "@/lib/plugins/types";
 
 export const examplePlugin: PluginDefinition = {
   name: "exampleplugin",
-  loadComponent: () => import("@/plugins/exampleplugin/src/routes/ExamplePlugin"),
+  loadComponent: () => import("@/plugins/exampleplugin/src/pages/ExamplePlugin"),
 };
 ```
 
@@ -250,7 +250,7 @@ const messageCatalogs: Record<Locale, () => Promise<{ default: Record<string, un
 
 export const examplePlugin: PluginDefinition = {
   name: "exampleplugin",
-  loadComponent: () => import("@/plugins/exampleplugin/src/routes/ExamplePlugin"),
+  loadComponent: () => import("@/plugins/exampleplugin/src/pages/ExamplePlugin"),
   loadMessages: (locale) => messageCatalogs[locale]().then((catalog) => catalog.default),
 };
 ```
