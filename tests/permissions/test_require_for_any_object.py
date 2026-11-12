@@ -37,7 +37,7 @@ async def test_holder_at_two_objects_gets_exactly_those_ids(
     session: AsyncSession, gated_client: Callable[..., AsyncClient]
 ) -> None:
     user = await _user_with_grants(session, "alice", [("group", "7"), ("group", "13")])
-    async with gated_client(None, user, endpoint=ids_route) as client:
+    async with gated_client(user=user, endpoint=ids_route) as client:
         response = await client.get("/probe")
     assert response.status_code == 200
     assert response.json() == {"ids": ["13", "7"]}
@@ -47,7 +47,7 @@ async def test_global_holder_gets_no_restriction(
     session: AsyncSession, gated_client: Callable[..., AsyncClient]
 ) -> None:
     user = await _user_with_grants(session, "bob", [(GLOBAL.name, None)])
-    async with gated_client(None, user, endpoint=ids_route) as client:
+    async with gated_client(user=user, endpoint=ids_route) as client:
         response = await client.get("/probe")
     assert response.status_code == 200
     assert response.json() == {"ids": None}
@@ -57,7 +57,7 @@ async def test_holder_nowhere_is_refused_and_the_refusal_is_audited(
     session: AsyncSession, gated_client: Callable[..., AsyncClient], audit_events: AuditEventsFetcher
 ) -> None:
     user = await _user_with_grants(session, "carol", [])
-    async with gated_client(None, user, endpoint=ids_route) as client:
+    async with gated_client(user=user, endpoint=ids_route) as client:
         response = await client.get("/probe")
     assert response.status_code == 403
     (event,) = await audit_events()
@@ -69,7 +69,7 @@ async def test_holder_nowhere_is_refused_and_the_refusal_is_audited(
 async def test_unauthenticated_request_is_refused_before_any_check(
     gated_client: Callable[..., AsyncClient], audit_events: AuditEventsFetcher
 ) -> None:
-    async with gated_client(None, endpoint=ids_route) as client:
+    async with gated_client(endpoint=ids_route) as client:
         response = await client.get("/probe")
     assert response.status_code == 401
     assert await audit_events() == []
