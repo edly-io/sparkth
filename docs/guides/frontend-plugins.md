@@ -28,13 +28,17 @@ plugins/<pluginname>/
     hooks/
     slots/          # what it contributes to core's slots: icons.ts, settings.ts, ...
     types.ts
+  lib/
+    index.ts        # its public surface: the only part another plugin may import
+  tests/            # its unit tests, mirroring src/, and its Playwright specs in tests/e2e/
 ```
 
 A route is the page itself and decides what it shows. `components/layout/` holds only the parts that frame a page,
 such as a header or a side column, and the views and pieces placed inside the frame go in `components/ui/`, even
 when one fills the whole page.
 
-A plugin creates only the folders it needs: one with no page has just `src/index.ts` and `src/slots/`.
+A plugin creates only the folders it needs: one with no page has just `src/index.ts` and `src/slots/`, and only a
+plugin that offers something to other plugins has a `lib/`.
 
 ## 1. Defining a new plugin
 
