@@ -103,7 +103,8 @@ export default function ExamplePlugin() {
 ## 3. Define the Plugin (index.ts)
 
 Each plugin with a page must export a `PluginDefinition` from its own `src/index.ts`, named after the plugin
-(`compose`, `pxc`, `exampleplugin`).
+(`compose`, `pxc`, `exampleplugin`), and set it in the `PLUGINS` slot under its name. The slot is how the plugin tells
+core it exists: core registers every definition set there, so it never names a plugin.
 
 **Example Plugin Structure**
 
@@ -124,12 +125,15 @@ plugins/
 
 ```ts
 import { PluginDefinition } from "@/lib/plugins/types";
+import { PLUGINS } from "@/lib/plugins/slots";
 import { EXAMPLEPLUGIN_PLUGIN_NAME } from "@/plugins/exampleplugin/src/constants";
 
 export const exampleplugin: PluginDefinition = {
   name: EXAMPLEPLUGIN_PLUGIN_NAME,
   loadComponent: () => import("@/plugins/exampleplugin/src/pages/ExamplePlugin"),
 };
+
+PLUGINS.set(exampleplugin.name, exampleplugin);
 ```
 
 **Note**
@@ -175,26 +179,23 @@ For more details, see the `PluginDefinition` type in
 
 ## 4. Register the Plugin
 
-Import the plugin's `src/index.ts` in `app/plugins.ts`, once, and register its `PluginDefinition` with the plugin
-registry. Importing the `src/index.ts` also runs any slot files it imports, such as `src/slots/settings.ts`.
+Import the plugin's `src/index.ts` in `app/plugins.ts`, once. Importing it runs the plugin's
+`PLUGINS.set(...)` and any slot files it imports, such as `src/slots/settings.ts`, and `app/plugins.ts` then
+registers every definition in the `PLUGINS` slot with the plugin registry.
 
 **File**
 
     app/plugins.ts
 
 ```ts
-import { registerPlugin } from "@/core/plugins/registry";
-import { compose } from "@/plugins/compose/src"; // already existing
-import { exampleplugin } from "@/plugins/exampleplugin/src";
-
-registerPlugin(compose); // already existing
-registerPlugin(exampleplugin);
+import "@/plugins/compose/src"; // already existing
+import "@/plugins/exampleplugin/src";
 ```
 
 `app/LocaleProvider.tsx` and the dashboard layout import this module, so the plugins are
 registered on every page before their catalogs load.
 
-> ⚠️ If a plugin is not imported and registered here, it will not load, not render, and not appear in the sidebar.
+> ⚠️ If a plugin is not imported here, it will not load, not render, and not appear in the sidebar.
 
 ## 5. Regenerate the Plugin Route List
 
@@ -479,8 +480,8 @@ While the modal loads, the page passes the row `configuring`, and `SettingsListI
 button.
 
 A backend plugin with no page still needs a frontend part for its row: its `src/slots/settings.ts` and a
-`src/index.ts` that only imports it, with no `PluginDefinition`. `app/plugins.ts` imports that `src/index.ts` like any
-other plugin's, as `import "@/plugins/canvas/src";` does for Canvas.
+`src/index.ts` that only imports it, with no `PluginDefinition` and no entry in the `PLUGINS` slot. `app/plugins.ts`
+imports that `src/index.ts` like any other plugin's, as `import "@/plugins/canvas/src";` does for Canvas.
 
 **Field controls.** A backend field picks its control with a `widget` hint (`sparkth/core/plugins/widgets.py`), and a
 field with no hint gets a control from its type. Core ships controls for text, URLs, passwords, numbers, text areas,
@@ -508,9 +509,9 @@ field with the plugin's control for its hint, then with a built-in control, and 
 ```
 plugins/<plugin>
    ↓
-PluginDefinition
+PluginDefinition, set in the PLUGINS slot
    ↓
-registerPlugin()
+registerPlugin() in app/plugins.ts
    ↓
 Plugin registry
    ↓
@@ -525,7 +526,7 @@ Rendered plugin UI
 
 **Plugin not showing?**
 
-- Ensure `app/plugins.ts` imports its `src/index.ts` and registers it
+- Ensure `app/plugins.ts` imports its `src/index.ts`, and the `src/index.ts` sets its definition in the `PLUGINS` slot
 
 **Plugin page blank?**
 
