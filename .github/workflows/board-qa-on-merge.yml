@@ -1,0 +1,42 @@
+name: Move Linked Issues to QA
+
+# Runs in the base repository's context and never checks out pull request code,
+# so the project token is safe to use for pull requests from forks.
+on:
+  pull_request_target:
+    types: [closed]
+
+permissions: {}
+
+jobs:
+  move-to-qa:
+    name: Move Linked Issues to QA
+    if: github.event.pull_request.merged
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      # Needs write access to the organization's projects.
+      GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+      PR_NODE_ID: ${{ github.event.pull_request.node_id }}
+      # The Sparkth board, its Status field and that field's QA option.
+      PROJECT_ID: PVT_kwDOAtoUSc4A6l3T
+      STATUS_FIELD_ID: PVTSSF_lADOAtoUSc4A6l3TzgvI9_I
+      QA_OPTION_ID: 8b1d1180
+    steps:
+      - name: Set the board status of each linked issue to QA
+        run: |
+          gh api graphql -f pr="$PR_NODE_ID" -f query='
+            query($pr: ID!) {
+              node(id: $pr) {
+                ... on PullRequest {
+                  closingIssuesReferences(first: 20) {
+                    nodes { projectItems(first: 20) { nodes { id project { id } } } }
+                  }
+                }
+              }
+            }' --jq '.data.node.closingIssuesReferences.nodes[].projectItems.nodes[]
+              | select(.project.id == env.PROJECT_ID) | .id' |
+          while read -r item_id; do
+            gh project item-edit --id "$item_id" --project-id "$PROJECT_ID" \
+              --field-id "$STATUS_FIELD_ID" --single-select-option-id "$QA_OPTION_ID"
+          done
