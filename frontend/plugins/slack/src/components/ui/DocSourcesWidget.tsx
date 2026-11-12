@@ -5,7 +5,7 @@
  */
 
 import type { ConfigWidgetProps } from "@/lib/settings/slots";
-import DocSourcePicker from "./DocSourcePicker";
+import DocSourcePicker from "@/plugins/slack/src/components/ui/DocSourcePicker";
 
 export default function DocSourcesWidget({ field, value, disabled, onChange }: ConfigWidgetProps) {
   const selected = Array.isArray(value)

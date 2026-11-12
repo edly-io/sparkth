@@ -3,15 +3,15 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { ApiRequestError } from "@/lib/api";
-import { disconnectSlack } from "@/plugins/slack/client";
-import SlackConnectionCard from "@/plugins/slack/components/SlackConnectionCard";
+import { disconnectSlack } from "@/plugins/slack/src/client";
+import SlackConnectionCard from "@/plugins/slack/src/components/ui/SlackConnectionCard";
 
 const auth = vi.hoisted(() => ({ token: "test-token" as string | null }));
 vi.mock("@/lib/auth/hooks", () => ({
   useAuth: () => ({ token: auth.token }),
 }));
 
-vi.mock("@/plugins/slack/client", () => ({
+vi.mock("@/plugins/slack/src/client", () => ({
   getAuthorizationUrl: vi.fn(),
   disconnectSlack: vi.fn(),
 }));

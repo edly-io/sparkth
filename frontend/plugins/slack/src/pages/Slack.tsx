@@ -5,13 +5,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Alert } from "@/lib/components/ui/Alert";
 import { Spinner } from "@/lib/components/ui/Spinner";
 import { useAuth } from "@/lib/auth/hooks";
-import { getConnectionStatus } from "@/plugins/slack/client";
-import type { ConnectionStatus } from "@/plugins/slack/types";
-import SlackConnectionCard from "@/plugins/slack/components/SlackConnectionCard";
-import LogStream from "@/plugins/slack/components/LogStream";
-import { SLACK_PLUGIN_PATH } from "@/plugins/slack";
+import { pluginPath } from "@/lib/plugins/routes";
+import { getConnectionStatus } from "@/plugins/slack/src/client";
+import type { ConnectionStatus } from "@/plugins/slack/src/types";
+import SlackConnectionCard from "@/plugins/slack/src/components/ui/SlackConnectionCard";
+import LogStream from "@/plugins/slack/src/components/ui/LogStream";
+import { SLACK_PLUGIN_NAME } from "@/plugins/slack/src/constants";
 
-export default function SlackPlugin() {
+export default function Slack() {
   const { token } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -45,7 +46,7 @@ export default function SlackPlugin() {
   useEffect(() => {
     if (searchParams?.get("connected") === "true") {
       setJustConnected(true);
-      router.replace(SLACK_PLUGIN_PATH);
+      router.replace(pluginPath(SLACK_PLUGIN_NAME));
       const timer = setTimeout(() => setJustConnected(false), 4000);
       return () => clearTimeout(timer);
     }

@@ -6,7 +6,7 @@ import {
   fetchRagSources,
   getAuthorizationUrl,
   getConnectionStatus,
-} from "@/plugins/slack/client";
+} from "@/plugins/slack/src/client";
 
 vi.mock("@/core/auth/tokens", () => ({
   getStoredToken: vi.fn().mockReturnValue(null),
