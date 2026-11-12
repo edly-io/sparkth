@@ -10,6 +10,10 @@ with that token. Sparkth verifies the token's signature, resolves the learner's 
 its claims, and serves the activity; all activity state (answers, scores, progress) is stored
 and stays in Sparkth, and never reaches the Open edX gradebook.
 
+The iframe sizes itself to the activity. The activity's page reports its content height to the
+unit page, and a small script the block sends inline with its markup sets the iframe to that
+height, so the whole activity shows and nothing scrolls inside the frame.
+
 A block copied in Studio, with Duplicate or with Copy then Paste, gets a new activity instance id, so the
 copy keeps its own activity data instead of sharing the original's. The copy starts from the
 activity's defaults, not from the original's configuration, and the editing view's notice tells

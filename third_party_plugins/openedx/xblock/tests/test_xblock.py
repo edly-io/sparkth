@@ -11,6 +11,7 @@ from unittest.mock import MagicMock
 
 import jwt
 import pytest
+from sparkth_pxc.constants import RESIZE_SCRIPT
 from sparkth_pxc.xblock import _EDITOR_NOTICE, SparkthPxcXBlock, build_editor_html, build_embed_iframe
 from xblock.fields import ScopeIds
 from xblock.test.toy_runtime import ToyRuntime
@@ -163,3 +164,28 @@ def test_a_copied_block_leaves_children_to_studio(
     block: SparkthPxcXBlock, copy_hook: Callable[[SparkthPxcXBlock, MagicMock], bool]
 ) -> None:
     assert copy_hook(block, MagicMock()) is False
+
+
+def scripts_in(fragment: Any) -> list[str]:
+    """The inline scripts this fragment asks the page to run."""
+    return [resource.data for resource in fragment.resources if resource.mimetype == "application/javascript"]
+
+
+@pytest.mark.parametrize("view", VIEWS)
+def test_a_view_ships_the_script_that_sizes_its_iframe(
+    block: SparkthPxcXBlock, view: Callable[[SparkthPxcXBlock], Any]
+) -> None:
+    fragment = view(block)
+
+    assert scripts_in(fragment) == [RESIZE_SCRIPT]
+    # The script only resizes iframes carrying this marker.
+    assert "<iframe data-sparkth-pxc " in str(fragment.content)
+
+
+@pytest.mark.parametrize("view", VIEWS)
+def test_a_view_with_no_activity_ships_no_script(
+    block: SparkthPxcXBlock, view: Callable[[SparkthPxcXBlock], Any]
+) -> None:
+    block.activity = ""
+
+    assert scripts_in(view(block)) == []
