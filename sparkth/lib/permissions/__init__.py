@@ -34,6 +34,7 @@ from sparkth.core.permissions import (
     get_permission,
     has_role,
 )
+from sparkth.core.permissions.dependencies import object_id_str_to_int
 from sparkth.core.permissions.grants import assign_role, revoke_role
 from sparkth.core.permissions.groups import (
     add_group_member,
@@ -49,6 +50,7 @@ __all__ = [
     "assign_role",
     "assign_role_to_group",
     "can",
+    "object_id_str_to_int",
     "get_group_by_name",
     "get_permission",
     "get_permission_scope",

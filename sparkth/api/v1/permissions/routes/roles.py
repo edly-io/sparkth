@@ -54,7 +54,7 @@ async def list_roles(session: AsyncSession = Depends(get_async_session)) -> list
 
     Grants are fetched for every role in a single batched query.
     """
-    all_roles = await role_engine.list_roles(session)
+    all_roles = await role_engine.list_roles(None, session)
     permissions_by_role = await role_engine.get_permissions_for_roles([_role_id(role) for role in all_roles], session)
     return [_build_role_response(role, permissions_by_role.get(_role_id(role), [])) for role in all_roles]
 

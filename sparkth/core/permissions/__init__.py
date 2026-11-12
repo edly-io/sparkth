@@ -2,8 +2,9 @@
 
 Holds the :class:`Permission` class and the ``PERMISSIONS`` hook (the permission
 vocabulary), the shipped core permissions, the ``Permission.require*`` FastAPI
-dependency layer, and the read-side checks (``can``, ``has_role``) together with the
-``get_permission`` / ``get_permission_scope`` lookups. The checks resolve a user's roles as
+dependency layer, and the read-side checks (whether a user holds a permission or role at a scope, and
+at which objects of a scope) together with the ``get_permission`` / ``get_permission_scope``
+lookups. The checks resolve a user's roles as
 their own active assignments plus the assignments of any group they actively
 belong to, both matched against the same scope chain.
 
@@ -16,14 +17,15 @@ The public surface is re-exported from ``sparkth.lib.permissions`` — applicati
 and plugins import from there, never from this module directly.
 """
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
+from typing import NoReturn
 
 from fastapi import Depends, HTTPException, status
 from sqlalchemy import ColumnElement, and_, or_
 from sqlalchemy.orm import Mapped
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
-from sqlmodel.sql.expression import SelectOfScalar
+from sqlmodel.sql.expression import Select, SelectOfScalar
 
 from sparkth.core.models.user import User
 from sparkth.core.permissions.dependencies import build_scope_path_dependency
@@ -85,7 +87,7 @@ class Permission:
         raises 403.
 
         Before raising the 403 the refusal is recorded as a ``permission.denied`` audit event
-        in its own transaction (``record_event_now``), so it survives the request's rollback.
+        in its own transaction, so it survives the request's rollback.
         The write is fail-closed: if it fails, the error propagates and the request fails
         instead of returning 403.
         """
@@ -98,16 +100,53 @@ class Permission:
             ),
         ) -> User:
             if not await can(current_user, self, permission_scope, scope_path, session):
-                scope_detail = _describe_checked_scope(permission_scope, scope_path)
-                await record_event_now(
-                    PermissionDeniedAuditEvent(
-                        outcome=AuditOutcome.DENIED,
-                        target=AuditTarget(type="permission", id=self.name),
-                        error_detail=scope_detail,
-                    )
-                )
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_("Permission denied"))
+                await self._deny(_describe_checked_scope(permission_scope, scope_path))
             return current_user
+
+        return dependency
+
+    async def _deny(self, scope_detail: str) -> NoReturn:
+        """Record the refusal as a ``permission.denied`` audit event, then raise 403.
+
+        The event is written in its own transaction, so it survives the request's rollback. The
+        write is fail-closed: if it fails, the error propagates and the request fails instead of
+        returning 403.
+        """
+        await record_event_now(
+            PermissionDeniedAuditEvent(
+                outcome=AuditOutcome.DENIED,
+                target=AuditTarget(type="permission", id=self.name),
+                error_detail=scope_detail,
+            )
+        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_("Permission denied"))
+
+    def require_for_any_object(self, permission_scope: PermissionScope) -> Callable[..., Awaitable[set[str] | None]]:
+        """Return a FastAPI dependency for a route that names no object, such as a list route.
+
+        The dependency returns the ids of the ``permission_scope`` objects at which the caller holds
+        this permission, or ``None`` when a grant at an objectless ancestor covers every object. A
+        caller who holds it at no object is refused with 403 and a ``permission.denied`` audit
+        event. The route filters its query by the returned ids.
+
+        An objectless scope names no objects to list, so passing one raises ``ValueError`` at
+        definition time.
+
+        Returns:
+            The ids of the objects the caller holds the permission at, or ``None`` when a grant at an
+            objectless ancestor covers every object. A caller who holds it nowhere is refused with
+            403, so the route never receives an empty set.
+        """
+        permission_scope.validate_listable()
+
+        async def dependency(
+            current_user: User = Depends(get_current_user),
+            session: AsyncSession = Depends(get_async_session),
+        ) -> set[str] | None:
+            accessible_ids = await get_accessible_scope_object_ids(current_user, self, permission_scope, session)
+            if accessible_ids is not None and not accessible_ids:
+                await self._deny(_describe_checked_scope(permission_scope, None))
+            return accessible_ids
 
         return dependency
 
@@ -221,8 +260,7 @@ def _scope_clause(
     The pairs are the checked scope and object, each
     ancestor object named by the check's scope path, and each objectless ancestor.
 
-    Read-side only (``can`` / ``has_role``). The write operations (``assign_role``,
-    ``revoke_role``) target the exact assignment row and must NOT use this — they never
+    Read-side only. Writes target the exact assignment row and must NOT use this — they never
     cascade to ancestor scopes.
     """
     return or_(*(and_(scope_column == name, object_id_column == object_id) for name, object_id in scope_chain))
@@ -237,14 +275,18 @@ def _user_role_ids_at_scope(user_id: int | None, scope_chain: list[tuple[str, st
     )
 
 
-def _group_role_ids_at_scope(user_id: int | None, scope_chain: list[tuple[str, str | None]]) -> SelectOfScalar[int]:
-    """Subquery of role ids granted at any of ``scope_chain`` to a group the user actively belongs to."""
-    active_membership_group_ids = select(GroupMembership.group_id).where(
+def _active_membership_group_ids(user_id: int | None) -> SelectOfScalar[int]:
+    """Subquery of the ids of the groups the user actively belongs to."""
+    return select(GroupMembership.group_id).where(
         col(GroupMembership.user_id) == user_id,
         col(GroupMembership.is_deleted) == False,
     )
+
+
+def _group_role_ids_at_scope(user_id: int | None, scope_chain: list[tuple[str, str | None]]) -> SelectOfScalar[int]:
+    """Subquery of role ids granted at any of ``scope_chain`` to a group the user actively belongs to."""
     return select(GroupRoleAssignment.role_id).where(
-        col(GroupRoleAssignment.group_id).in_(active_membership_group_ids),
+        col(GroupRoleAssignment.group_id).in_(_active_membership_group_ids(user_id)),
         col(GroupRoleAssignment.is_deleted) == False,
         _scope_clause(col(GroupRoleAssignment.scope), col(GroupRoleAssignment.scope_object_id), scope_chain),
     )
@@ -313,3 +355,63 @@ async def has_role(
     )
     result = await session.exec(statement)
     return result.first() is not None
+
+
+def _reduce_grant_rows(grant_rows: Sequence[tuple[str, str | None]], scope_name: str) -> set[str] | None:
+    """Reduce the ``(scope, object id)`` rows of a user's grants to the ids they cover at ``scope_name``.
+
+    A row at an objectless ancestor (NULL object id) covers every object, so it returns ``None``.
+    """
+    object_ids: set[str] = set()
+    for scope, object_id in grant_rows:
+        if object_id is None and scope != scope_name:
+            return None
+        if object_id is not None and scope == scope_name:
+            object_ids.add(object_id)
+    return object_ids
+
+
+def _grants_with_permission(
+    model: type[RoleAssignment] | type[GroupRoleAssignment],
+    owner: ColumnElement[bool],
+    roles_with_permission: SelectOfScalar[int],
+    scope_names: set[str],
+) -> Select[tuple[str, str | None]]:
+    """Select the ``(scope, object id)`` of the active ``model`` rows held by ``owner`` that grant a role in
+    ``roles_with_permission`` at one of ``scope_names``."""
+    return select(col(model.scope), col(model.scope_object_id)).where(
+        owner,
+        col(model.is_deleted) == False,
+        col(model.role_id).in_(roles_with_permission),
+        col(model.scope).in_(scope_names),
+    )
+
+
+async def get_accessible_scope_object_ids(
+    user: User,
+    permission: Permission,
+    permission_scope: PermissionScope,
+    session: AsyncSession,
+) -> set[str] | None:
+    """Return the ids of the ``permission_scope`` objects at which ``user`` holds ``permission``.
+
+    Grants come from the user's own active assignments and from active assignments of the groups
+    they actively belong to. Returns ``None`` when a grant at an objectless ancestor (``global``)
+    covers every object, otherwise the set of object ids, empty when the user holds the permission
+    nowhere. Grants at an object-bearing ancestor are not considered.
+    """
+    scope_name = permission_scope.name
+    scope_names = {name for name, _ in permission_scope.scope_chain(None)}
+    roles_with_permission = select(RolePermission.role_id).where(RolePermission.permission == permission.name)
+    own_grants = _grants_with_permission(
+        RoleAssignment, col(RoleAssignment.user_id) == user.id, roles_with_permission, scope_names
+    )
+    group_grants = _grants_with_permission(
+        GroupRoleAssignment,
+        col(GroupRoleAssignment.group_id).in_(_active_membership_group_ids(user.id)),
+        roles_with_permission,
+        scope_names,
+    )
+    grants = own_grants.union_all(group_grants).subquery()
+    result = await session.exec(select(grants.c.scope, grants.c.scope_object_id))
+    return _reduce_grant_rows(result.all(), scope_name)
