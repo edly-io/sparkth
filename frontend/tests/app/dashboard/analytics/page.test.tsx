@@ -13,13 +13,12 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/dashboard/analytics",
 }));
 
-// The plugins installed in the backend build. No PluginProvider is mounted: analytics must not
-// depend on the viewer's own plugin switches.
+// The plugins registered with core, which is what counts as installed. No PluginProvider is
+// mounted: analytics must not depend on the viewer's own plugin switches.
 const plugins = vi.hoisted(() => ({ installed: ["compose"] }));
-vi.mock("@/lib/plugins/generated", () => ({
-  get FRONTEND_PLUGIN_NAMES() {
-    return plugins.installed;
-  },
+vi.mock("@/core/plugins/registry", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/core/plugins/registry")>()),
+  getPlugin: (name: string) => (plugins.installed.includes(name) ? { name } : undefined),
 }));
 
 vi.mock("@/core/analytics", async (orig) => ({

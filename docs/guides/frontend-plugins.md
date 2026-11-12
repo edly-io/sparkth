@@ -193,41 +193,21 @@ Vite's `import.meta.glob`; the two must keep matching `plugins/*/src/index.ts`.
 > ⚠️ A plugin whose entry point is not `src/index.ts` is not loaded: it will not render, and not appear in the
 > sidebar.
 
-## 5. Regenerate the Plugin Route List
+## 5. The Plugin's Page
 
-Each plugin is rendered under:
+Each plugin with a page is rendered under:
 
     dashboard/<pluginName>
 
-The static routes are **generated from the backend declarations**, not
-hand-maintained: `generateStaticParams` in
-`app/dashboard/[pluginName]/page.tsx` reads `FRONTEND_PLUGIN_NAMES` from
-`lib/plugins/generated.ts`, which lists every backend plugin that registered
-the `FRONTEND_APPS` hook. The same file lists, as `PLUGIN_ICON_NAMES`, the icon
-names each plugin declares in `DISPLAY_INFO` and `SIDEBAR_ENTRIES`. After
-declaring (or removing) a frontend app, or changing a declared icon, on the
-backend plugin, regenerate the file:
+The static export builds that page for every plugin registered with core: `generateStaticParams` in
+`app/dashboard/[pluginName]/page.tsx` loads the plugins and returns one page per registered `PluginDefinition`,
+so a plugin folder gets its page on the next build with nothing to regenerate. `PluginPageClient` then loads the
+plugin's component.
 
-```bash
-make frontend.build.plugins
-```
-
-**Notes**
-
-- Do not edit `lib/plugins/generated.ts` by hand. The dump script is its sole
-  formatter, so the file is listed in `.oxfmtrc.json` `ignorePatterns` (as
-  `lib/api/generated.ts` already is) — otherwise `make format` would rewrite it
-  and break the byte-exact backend gate
-- To inspect the dump without touching the committed file, run the script with
-  no arguments and it prints to stdout:
-  `uv run python scripts/dump_frontend_plugins.py`. The make target passes
-  `-o frontend/lib/plugins/generated.ts`, which writes atomically, so a failed
-  dump leaves the committed file intact
-- Tests on both tiers fail when the committed file drifts from the backend
-  declarations (`tests/core/test_dump_frontend_plugins.py`), when the
-  frontend registry does not match it, or when a plugin sets no component for
-  an icon name its backend declares (`frontend/tests/app/plugins.test.ts`)
-- `PluginPageClient` handles loading the correct plugin dynamically
+The display name, description, icon and sidebar entry stay **declared by the backend plugin** and arrive on the
+user-plugins API. A plugin must set a component for every icon name its backend declares (see above); the e2e suite
+reads the declared icons from that API and checks each one shows on the plugin's dashboard card and sidebar link,
+and that every plugin's page opens (`e2e-tests/dashboard.spec.ts`).
 
 ## Translations (Optional)
 
