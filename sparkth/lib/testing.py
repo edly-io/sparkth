@@ -187,7 +187,7 @@ async def make_role(session: AsyncSession, name: str, permissions: list[str]) ->
     return role
 
 
-async def assign(
+async def add_role_assignment(
     session: AsyncSession, user: User, role: Role, scope: str, scope_object_id: str | None
 ) -> RoleAssignment:
     """Assign ``role`` to ``user`` at ``scope`` and ``scope_object_id``."""

@@ -6,14 +6,14 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.core.permissions.engine import get_accessible_scope_object_ids
 from sparkth.lib.permissions import GROUP_READ, GROUP_UPDATE
 from sparkth.lib.permissions.scopes import GLOBAL, GROUP, ROLE
-from sparkth.lib.testing import assign, assign_through_group, make_role, make_user
+from sparkth.lib.testing import add_role_assignment, assign_through_group, make_role, make_user
 
 
 async def test_returns_object_ids_of_own_assignments(session: AsyncSession) -> None:
     user = await make_user(session, "alice")
     role = await make_role(session, "reader", [GROUP_READ.name])
-    await assign(session, user, role, GROUP.name, "7")
-    await assign(session, user, role, GROUP.name, "13")
+    await add_role_assignment(session, user, role, GROUP.name, "7")
+    await add_role_assignment(session, user, role, GROUP.name, "13")
     assert await get_accessible_scope_object_ids(user, GROUP_READ, GROUP, session) == {"7", "13"}
 
 
@@ -27,7 +27,7 @@ async def test_returns_ids_granted_through_a_group_the_user_belongs_to(session: 
 async def test_global_grant_returns_none(session: AsyncSession) -> None:
     user = await make_user(session, "alice")
     role = await make_role(session, "reader", [GROUP_READ.name])
-    await assign(session, user, role, GLOBAL.name, None)
+    await add_role_assignment(session, user, role, GLOBAL.name, None)
     assert await get_accessible_scope_object_ids(user, GROUP_READ, GROUP, session) is None
 
 
@@ -41,8 +41,8 @@ async def test_global_grant_through_a_group_returns_none(session: AsyncSession) 
 async def test_global_grant_wins_over_object_grants(session: AsyncSession) -> None:
     user = await make_user(session, "alice")
     role = await make_role(session, "reader", [GROUP_READ.name])
-    await assign(session, user, role, GLOBAL.name, None)
-    await assign(session, user, role, GROUP.name, "7")
+    await add_role_assignment(session, user, role, GLOBAL.name, None)
+    await add_role_assignment(session, user, role, GROUP.name, "7")
     assert await get_accessible_scope_object_ids(user, GROUP_READ, GROUP, session) is None
 
 
@@ -50,8 +50,8 @@ async def test_other_scope_and_other_permission_are_ignored(session: AsyncSessio
     user = await make_user(session, "alice")
     reader = await make_role(session, "reader", [GROUP_READ.name])
     writer = await make_role(session, "writer", [GROUP_UPDATE.name])
-    await assign(session, user, reader, ROLE.name, "3")
-    await assign(session, user, writer, GROUP.name, "7")
+    await add_role_assignment(session, user, reader, ROLE.name, "3")
+    await add_role_assignment(session, user, writer, GROUP.name, "7")
     assert await get_accessible_scope_object_ids(user, GROUP_READ, GROUP, session) == set()
 
 
@@ -59,14 +59,14 @@ async def test_other_users_grants_are_ignored(session: AsyncSession) -> None:
     user = await make_user(session, "alice")
     other = await make_user(session, "bob")
     role = await make_role(session, "reader", [GROUP_READ.name])
-    await assign(session, other, role, GROUP.name, "7")
+    await add_role_assignment(session, other, role, GROUP.name, "7")
     assert await get_accessible_scope_object_ids(user, GROUP_READ, GROUP, session) == set()
 
 
 async def test_revoked_assignment_contributes_nothing(session: AsyncSession) -> None:
     user = await make_user(session, "alice")
     role = await make_role(session, "reader", [GROUP_READ.name])
-    assignment = await assign(session, user, role, GROUP.name, "7")
+    assignment = await add_role_assignment(session, user, role, GROUP.name, "7")
     assignment.soft_delete()
     await session.flush()
     assert await get_accessible_scope_object_ids(user, GROUP_READ, GROUP, session) == set()
@@ -93,7 +93,7 @@ async def test_revoked_group_role_assignment_contributes_nothing(session: AsyncS
 async def test_null_object_row_at_the_scope_is_ignored(session: AsyncSession) -> None:
     user = await make_user(session, "alice")
     role = await make_role(session, "reader", [GROUP_READ.name])
-    await assign(session, user, role, GROUP.name, None)
+    await add_role_assignment(session, user, role, GROUP.name, None)
     assert await get_accessible_scope_object_ids(user, GROUP_READ, GROUP, session) == set()
 
 
