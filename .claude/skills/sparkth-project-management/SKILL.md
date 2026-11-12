@@ -149,6 +149,10 @@ Every PR description MUST follow the template in
 [.github/PULL_REQUEST_TEMPLATE.md](../../../.github/PULL_REQUEST_TEMPLATE.md).
 It auto-populates on GitHub; fill in every section:
 
+- **Issue link** — the first line links the PR's issue behind a closing keyword: `Closes`, `Fixes` or
+  `Resolves` (format below). GitHub links a PR to an issue only through one of these keywords, and the
+  project board moves an issue with its PR only when the two are linked. Any other wording, such as
+  `Part of` or `Refs`, leaves the PR unlinked. A PR that covers only part of an issue uses a keyword too.
 - **What** — one sentence: what changed and why.
 - **Changes** — bullet list of `<type>(<scope>): short description`.
 - **How to Test** — numbered, reproducible verification steps.
@@ -157,6 +161,10 @@ It auto-populates on GitHub; fill in every section:
   diffs list them. Leave the list empty when the PR changes no variable. The list
   tracks every variable change between DEV and PROD releases.
 - **Notes** — migrations, breaking changes, dependency bumps (or "none").
+
+```markdown
+## Fixes: [Plugin routes return 404 when get_route_prefix is unset](https://github.com/edly-io/sparkth/issues/123)
+```
 
 ```markdown
 ## Environment Variables
