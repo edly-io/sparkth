@@ -199,17 +199,21 @@ async def assign(
 
 async def assign_through_group(
     session: AsyncSession, user: User, role: Role, scope: str, scope_object_id: str | None
-) -> GroupMembership:
-    """Grant ``role`` at ``scope`` and ``scope_object_id`` to a new group that ``user`` belongs to."""
+) -> tuple[GroupMembership, GroupRoleAssignment]:
+    """Grant ``role`` at ``scope`` and ``scope_object_id`` to a new group that ``user`` belongs to.
+
+    Returns the user's membership of the group and the group's role assignment.
+    """
     group = Group(name=f"grp-{user.username}-{role.name}-{scope}-{scope_object_id}")
     session.add(group)
     await session.flush()
     assert group.id is not None and user.id is not None and role.id is not None
     membership = GroupMembership(user_id=user.id, group_id=group.id)
+    assignment = GroupRoleAssignment(group_id=group.id, role_id=role.id, scope=scope, scope_object_id=scope_object_id)
     session.add(membership)
-    session.add(GroupRoleAssignment(group_id=group.id, role_id=role.id, scope=scope, scope_object_id=scope_object_id))
+    session.add(assignment)
     await session.flush()
-    return membership
+    return membership, assignment
 
 
 # What the audit_events fixture yields: awaited to fetch the rows on demand.

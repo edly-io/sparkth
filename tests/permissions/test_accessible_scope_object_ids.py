@@ -1,11 +1,9 @@
 """Engine tests: get_accessible_scope_object_ids returning where a user holds a permission.
 Authored with LLM (Claude) assistance."""
 
-from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.permissions.engine import get_accessible_scope_object_ids
-from sparkth.core.permissions.models import GroupRoleAssignment
 from sparkth.lib.permissions import GROUP_READ, GROUP_UPDATE
 from sparkth.lib.permissions.scopes import GLOBAL, GROUP, ROLE
 from sparkth.lib.testing import assign, assign_through_group, make_role, make_user
@@ -77,7 +75,7 @@ async def test_revoked_assignment_contributes_nothing(session: AsyncSession) -> 
 async def test_removed_membership_contributes_nothing(session: AsyncSession) -> None:
     user = await make_user(session, "alice")
     role = await make_role(session, "reader", [GROUP_READ.name])
-    membership = await assign_through_group(session, user, role, GROUP.name, "7")
+    membership, _ = await assign_through_group(session, user, role, GROUP.name, "7")
     membership.soft_delete()
     await session.flush()
     assert await get_accessible_scope_object_ids(user, GROUP_READ, GROUP, session) == set()
@@ -86,11 +84,8 @@ async def test_removed_membership_contributes_nothing(session: AsyncSession) -> 
 async def test_revoked_group_role_assignment_contributes_nothing(session: AsyncSession) -> None:
     user = await make_user(session, "alice")
     role = await make_role(session, "reader", [GROUP_READ.name])
-    membership = await assign_through_group(session, user, role, GROUP.name, "7")
-    grant = (
-        await session.exec(select(GroupRoleAssignment).where(GroupRoleAssignment.group_id == membership.group_id))
-    ).one()
-    grant.soft_delete()
+    _, assignment = await assign_through_group(session, user, role, GROUP.name, "7")
+    assignment.soft_delete()
     await session.flush()
     assert await get_accessible_scope_object_ids(user, GROUP_READ, GROUP, session) == set()
 
