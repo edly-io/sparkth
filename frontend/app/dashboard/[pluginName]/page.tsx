@@ -1,10 +1,11 @@
 import PluginPageClient from "./page-client";
-import { FRONTEND_PLUGIN_NAMES } from "@/lib/plugins/generated";
+import "@/app/plugins";
+import { getAllPlugins } from "@/core/plugins/registry";
 
-// Static routes come from the backend-declared frontend plugins; regenerate
-// the list with `make frontend.build.plugins` after changing declarations.
+// One static page per plugin that registered with core, so the export builds a page for every
+// plugin folder.
 export function generateStaticParams() {
-  return FRONTEND_PLUGIN_NAMES.map((pluginName) => ({ pluginName }));
+  return getAllPlugins().map((plugin) => ({ pluginName: plugin.name }));
 }
 
 export default function PluginPage() {
