@@ -3,8 +3,8 @@
 Holds the :class:`Permission` class and the ``PERMISSIONS`` hook (the permission
 vocabulary), the shipped core permissions, the ``Permission.require*`` FastAPI
 dependency layer, and the ``get_permission`` / ``get_permission_scope`` lookups. The gate
-asks the engine in ``sparkth.core.permissions.engine`` whether a user holds a permission.
-Assigning and revoking roles lives in ``sparkth.core.permissions.grants``.
+asks the read-side engine whether a user holds a permission. Assigning and revoking roles
+lives apart from this module.
 
 The public surface is re-exported from ``sparkth.lib.permissions`` — application code
 and plugins import from there, never from this module directly.
