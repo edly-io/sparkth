@@ -5,11 +5,11 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Bookmark } from "lucide-react";
-import { PERIOD_KEYS, listViews, type AnalyticsView } from "@/lib/analytics";
+import { PERIOD_KEYS, listViews, type AnalyticsView } from "@/core/analytics";
 import type { Messages } from "@/lib/i18n/messages";
 import { useAuth } from "@/core/auth/hooks";
-import { isInstalled } from "@/lib/plugins/installed";
-import { usePermissionCheck } from "@/lib/permissions/usePermissionCheck";
+import { isInstalled } from "@/core/plugins/installed";
+import { usePermissionCheck } from "@/core/permissions/hooks";
 import { twMerge } from "tailwind-merge";
 
 /** One entry on the analytics rail. */

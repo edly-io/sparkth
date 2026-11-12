@@ -21,6 +21,7 @@ from sparkth.lib.rag import (
 )
 from sparkth.lib.testing import ScriptedChatModel
 from sparkth.plugins.compose.analytics import StopPoint
+from sparkth.plugins.compose.constants import SSE_HEARTBEAT
 from sparkth.plugins.compose.routes.utils.live_turns import request_stop
 from sparkth.plugins.compose.routes.utils.stream_processor import ComposeStreamProcessor
 from sparkth.plugins.compose.schemas import ChatMessage
@@ -440,10 +441,9 @@ class TestCollectStreamResponse:
         processor = _make_processor()
         result = await processor._collect_stream_response(MagicMock())
         assert result is not None
-        full_response, tool_calls, stopped = result
-        assert full_response == "Hello world"
-        assert tool_calls == []
-        assert stopped is False
+        assert result.text == "Hello world"
+        assert result.tool_calls == []
+        assert result.stopped is False
 
     @pytest.mark.asyncio
     async def test_collects_tool_call_names(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -456,9 +456,8 @@ class TestCollectStreamResponse:
         processor = _make_processor()
         result = await processor._collect_stream_response(MagicMock())
         assert result is not None
-        _, tool_calls, stopped = result
-        assert tool_calls == [{"name": "search_web", "failure": None}]
-        assert stopped is False
+        assert result.tool_calls == [{"name": "search_web", "failure": None}]
+        assert result.stopped is False
 
     @pytest.mark.asyncio
     async def test_returns_none_on_provider_api_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -684,3 +683,39 @@ class TestStopPoint:
 
         assert completion is not None
         assert completion.stopped_at is None
+
+
+async def _pausing_between_tokens(
+    messages: list[dict[str, Any]], tools: Sequence[Any], provider: Any, max_tool_executions: int, **planner: Any
+) -> AsyncGenerator[dict[str, Any], None]:
+    """An answer that goes quiet between its two tokens, as a model writing a long tool call does."""
+    yield {"type": "token", "content": "Hello"}
+    await asyncio.sleep(0.2)
+    yield {"type": "token", "content": " world"}
+
+
+class TestStreamHeartbeat:
+    @pytest.mark.asyncio
+    async def test_a_quiet_stream_sends_heartbeats_between_events(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A proxy that drops idle connections must see bytes while the turn has nothing to say."""
+        monkeypatch.setattr(STREAM_TURN, _pausing_between_tokens)
+        processor = _make_processor()
+        processor.heartbeat_seconds = 0.02
+
+        chunks = [chunk async for chunk in processor.stream()]
+
+        # A slow start may put heartbeats before "Hello" too, so the events are located, not indexed.
+        hello, world, done = [chunk for chunk in chunks if chunk != SSE_HEARTBEAT]
+        assert json.loads(hello.removeprefix("data: "))["token"] == "Hello"
+        assert json.loads(world.removeprefix("data: "))["token"] == " world"
+        assert json.loads(done.removeprefix("data: "))["done"] is True
+        assert SSE_HEARTBEAT in chunks[chunks.index(hello) : chunks.index(world)]
+
+    @pytest.mark.asyncio
+    async def test_a_busy_stream_sends_no_heartbeats(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(STREAM_TURN, HELLO_WORLD_TURN)
+        processor = _make_processor()
+
+        chunks = [chunk async for chunk in processor.stream()]
+
+        assert all(chunk.startswith("data: ") for chunk in chunks)

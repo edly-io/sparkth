@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { ApiRequestError } from "@/lib/api";
 import { api } from "@/lib/api/client";
-import { setActiveLocale } from "@/lib/i18n/active-locale";
+import { setActiveLocale } from "@/core/i18n/activeLocale";
 import { defaultLocale, LOCALE_COOKIE } from "@/lib/i18n/config";
 
 vi.mock("@/core/auth/tokens", () => ({

@@ -4,14 +4,14 @@ import { Fragment, useCallback, useEffect, useRef, useState, type SubmitEvent } 
 import { ChevronDown, ChevronRight, Download, ScrollText } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import { useAuth } from "@/core/auth/hooks";
-import { usePermissionCheck } from "@/lib/permissions/usePermissionCheck";
+import { usePermissionCheck } from "@/core/permissions/hooks";
 import { ApiRequestError } from "@/lib/api";
 import {
   exportAuditEvents,
   fetchAuditCategories,
   fetchAuditEvent,
   fetchAuditEvents,
-} from "@/lib/audit/client";
+} from "@/core/audit/client";
 import {
   AUDIT_OUTCOMES,
   AUDIT_SOURCES,
@@ -20,14 +20,14 @@ import {
   type AuditExportFormat,
   type AuditFilters,
   type AuditOutcome,
-} from "@/lib/audit/types";
-import { downloadBlob } from "@/lib/download";
-import { Forbidden } from "@/components/Forbidden";
+} from "@/core/audit/types";
+import { downloadBlob } from "@/core/download";
+import { Forbidden } from "@/core/components/layout/Forbidden";
 import { Spinner } from "@/core/components/ui/Spinner";
 import { Alert } from "@/core/components/ui/Alert";
 import { Button } from "@/core/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
+import { Input } from "@/core/components/ui/Input";
+import { Select } from "@/core/components/ui/Select";
 
 interface FilterForm {
   from: string;

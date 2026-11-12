@@ -237,7 +237,7 @@ no locale URL prefix. The locale is resolved on the client.
    inherent to client-side locale resolution). A chunk that fails to load
    logs and falls back to its English counterpart.
 3. The provider records the locale it actually renders, and its catalog, in
-   `frontend/lib/i18n/active-locale.ts`. The cookie stores the *preference*;
+   `frontend/core/i18n/activeLocale.ts`. The cookie stores the *preference*;
    the active locale tracks what is on screen, and the two diverge when the
    catalog load fails outright and the UI stays on English.
 4. The API client echoes the active locale as an `Accept-Language` header on
@@ -289,12 +289,12 @@ the core `frontend/messages/` files carry no plugin namespace, and a plugin
 that has user-facing strings ships `messages/<locale>.json` files in its own
 directory, scoped to a single top-level namespace equal to the plugin name.
 The plugin declares a `loadMessages` loader on its `PluginDefinition`, and
-`loadMessages` in `frontend/lib/i18n/messages.ts` merges every registered
+`loadMessages` in `frontend/core/i18n/messages.ts` merges every registered
 plugin's catalog into the core one at load time (a plugin catalog that fails
 to load falls back to that plugin's English catalog). See the
 [frontend plugin guide](frontend-plugins.md#translations-optional) for the
 step-by-step wiring; the containment is guarded by
-`frontend/tests/lib/i18n/messages.test.ts`.
+`frontend/tests/core/i18n/messages.test.ts`.
 
 ### Catalog drift guard
 

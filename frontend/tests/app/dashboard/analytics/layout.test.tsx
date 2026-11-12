@@ -12,7 +12,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn() }),
 }));
 const checkPermission = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/permissions/client", () => ({ checkPermission }));
+vi.mock("@/core/permissions/client", () => ({ checkPermission }));
 // The plugins installed in the backend build.
 const plugins = vi.hoisted(() => ({ installed: ["compose"] }));
 vi.mock("@/lib/plugins/generated", () => ({

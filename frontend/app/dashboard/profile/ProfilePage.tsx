@@ -7,13 +7,13 @@ import { ApiRequestError, changePassword, updateCurrentUser, type CurrentUser } 
 import { Alert } from "@/core/components/ui/Alert";
 import { Button } from "@/core/components/ui/Button";
 import { Card } from "@/core/components/ui/Card";
-import { Input } from "@/components/ui/Input";
+import { Input } from "@/core/components/ui/Input";
 import { Spinner } from "@/core/components/ui/Spinner";
 import {
   emptyNewPassword,
   NewPasswordFields,
   useNewPasswordMismatch,
-} from "@/components/NewPasswordFields";
+} from "@/core/auth/components/ui/NewPasswordFields";
 
 /** Mirrors the backend's `user.name` limit. */
 const NAME_MAX_LENGTH = 30;
