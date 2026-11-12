@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/lib/components/ui/Dialog";
-import { useFolderPicker } from "@/plugins/google-drive/hooks/useFolderPicker";
+import { useFolderPicker } from "@/plugins/googledrive/src/hooks/useFolderPicker";
 
 interface FolderPickerProps {
   onClose: () => void;

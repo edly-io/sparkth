@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import DriveFilePicker from "@/plugins/google-drive/components/DriveFilePicker";
+import DriveFilePicker from "@/plugins/googledrive/src/components/ui/DriveFilePicker";
 
 vi.mock("@/lib/auth/hooks", () => ({
   useAuth: () => ({ token: "test-token" }),
 }));
 
-vi.mock("@/plugins/google-drive/client", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/plugins/google-drive/client")>();
+vi.mock("@/plugins/googledrive/src/client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/plugins/googledrive/src/client")>();
   return {
     ...actual,
     listFolders: vi.fn(),
@@ -17,7 +17,7 @@ vi.mock("@/plugins/google-drive/client", async (importOriginal) => {
   };
 });
 
-import { listFolders, listFiles, getFolderDocumentStatus } from "@/plugins/google-drive/client";
+import { listFolders, listFiles, getFolderDocumentStatus } from "@/plugins/googledrive/src/client";
 
 const mockFolder = {
   id: 1,

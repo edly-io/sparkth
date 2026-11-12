@@ -6,9 +6,9 @@ import { FolderSync, RefreshCw, Unplug } from "lucide-react";
 import { useAuth } from "@/lib/auth/hooks";
 import { Button } from "@/lib/components/ui/Button";
 import { Card } from "@/lib/components/ui/Card";
-import GoogleDriveIcon from "@/plugins/google-drive/GoogleDriveIcon";
-import { getAuthorizationUrl, disconnectGoogle } from "@/plugins/google-drive/client";
-import { ConnectionStatus as ConnectionStatusType } from "@/plugins/google-drive/types";
+import GoogleDriveIcon from "@/plugins/googledrive/src/components/ui/GoogleDriveIcon";
+import { getAuthorizationUrl, disconnectGoogle } from "@/plugins/googledrive/src/client";
+import { ConnectionStatus as ConnectionStatusType } from "@/plugins/googledrive/src/types";
 
 interface ConnectionStatusProps {
   status: ConnectionStatusType | null;

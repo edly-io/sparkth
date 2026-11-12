@@ -6,7 +6,7 @@ import {
   documentStatusLabel,
   DOCUMENT_STATUS_FALLBACK_COLOR,
   DOCUMENT_STATUS_FALLBACK_LABEL,
-} from "@/plugins/google-drive/documentStatus";
+} from "@/plugins/googledrive/src/documentStatus";
 
 interface DocumentStatusIndicatorProps {
   fileId: number;

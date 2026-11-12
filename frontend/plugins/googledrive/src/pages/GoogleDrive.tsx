@@ -4,7 +4,7 @@ import { useCallback, useEffect, useReducer, useRef, useMemo } from "react";
 import {
   useDocumentStatusPolling,
   type DocumentStatusMap,
-} from "@/plugins/google-drive/hooks/useDocumentStatusPolling";
+} from "@/plugins/googledrive/src/hooks/useDocumentStatusPolling";
 import {
   FileText,
   Image as ImageIcon,
@@ -25,8 +25,8 @@ import { Spinner } from "@/lib/components/ui/Spinner";
 import { useAuth } from "@/lib/auth/hooks";
 import { Button } from "@/lib/components/ui/Button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/Tooltip";
-import ConnectionStatus from "@/plugins/google-drive/components/ConnectionStatus";
-import FolderPicker from "@/plugins/google-drive/components/FolderPicker";
+import ConnectionStatus from "@/plugins/googledrive/src/components/ui/ConnectionStatus";
+import FolderPicker from "@/plugins/googledrive/src/components/ui/FolderPicker";
 import {
   getConnectionStatus,
   listFolders,
@@ -35,13 +35,13 @@ import {
   downloadFile,
   deleteFile,
   refreshFolder,
-} from "@/plugins/google-drive/client";
+} from "@/plugins/googledrive/src/client";
 import {
   DriveFolder,
   ConnectionStatus as ConnectionStatusType,
   DocumentStatus,
-} from "@/plugins/google-drive/types";
-import { formatDate } from "@/plugins/google-drive/utils";
+} from "@/plugins/googledrive/src/types";
+import { formatDate } from "@/plugins/googledrive/src/dates";
 
 const ResourceStatus = {
   Ready: "ready",

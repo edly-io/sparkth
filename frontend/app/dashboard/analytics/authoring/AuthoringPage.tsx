@@ -18,7 +18,7 @@ import {
   documentTotals,
   fetchDriveDocuments,
   type DriveDocumentsPoint,
-} from "@/plugins/google-drive/analytics";
+} from "@/plugins/googledrive/src/analytics";
 import { LineChart } from "@/core/analytics/components/ui/LineChart";
 import { RankedBar } from "@/core/analytics/components/ui/RankedBar";
 import { StatCard } from "@/core/analytics/components/ui/StatCard";
