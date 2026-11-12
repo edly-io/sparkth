@@ -2,7 +2,7 @@
 
 Roles are created and edited here by end users with the ``role.*`` permissions. The endpoints that
 address one role by ``{role_id}`` (get/update/delete and its permission grants) authorize at the
-``role`` scope (``require(ROLE, "role_id")``), so a grant can be delegated to a single role; a
+``role`` scope, so a grant can be delegated to a single role; a
 global grant still satisfies them via the scope cascade. Listing returns the roles the caller holds
 ``role.read`` at (every role for a global grant); creating a role stays global. Permissions and
 scopes themselves are NOT manageable through this API — they are declared in code (platform
