@@ -1,9 +1,9 @@
 """The read-side permission engine: resolves which grants satisfy a check.
 
 A user's roles are their own active assignments plus the assignments of any group they actively
-belong to, both matched against the same scope chain. ``can`` and ``has_role`` answer a check at one
-scope object, and ``get_accessible_scope_object_ids`` answers which objects of a scope a permission
-is held at. The write operations (assigning and revoking roles) never cascade and live elsewhere.
+belong to, both matched against the same scope chain. It answers whether a permission or role is held
+at one scope object, and at which objects of a scope a permission is held. The write operations
+(assigning and revoking roles) never cascade and live elsewhere.
 """
 
 from collections.abc import Sequence
