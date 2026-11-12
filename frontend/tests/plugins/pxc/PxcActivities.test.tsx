@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-import PxcActivities from "@/plugins/pxc/src/routes/PxcActivities";
+import PxcActivities from "@/plugins/pxc/src/pages/PxcActivities";
 import { getActivityEmbedUrl, listActivities } from "@/plugins/pxc/src/client";
 import pxcEn from "@/plugins/pxc/src/i18n/en.json";
 import { renderWithIntl } from "@/tests/intl-test-utils";

@@ -15,6 +15,6 @@ const messageCatalogs: Record<Locale, () => Promise<{ default: Record<string, un
 // backend PxcPlugin and arrive via the user-plugins API.
 export const pxc: PluginDefinition = {
   name: "pxc",
-  loadComponent: () => import("@/plugins/pxc/src/routes/PxcActivities"),
+  loadComponent: () => import("@/plugins/pxc/src/pages/PxcActivities"),
   loadMessages: (locale) => messageCatalogs[locale]().then((catalog) => catalog.default),
 };
