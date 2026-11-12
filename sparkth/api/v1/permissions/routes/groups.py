@@ -15,7 +15,7 @@ from sparkth.api.v1.permissions.schemas import GroupCreate, GroupResponse, Group
 from sparkth.core.permissions import groups as group_engine
 from sparkth.core.permissions.models import Group
 from sparkth.lib.db import get_async_session
-from sparkth.lib.permissions import GROUP_CREATE, GROUP_DELETE, GROUP_READ, GROUP_UPDATE, convert_to_ints
+from sparkth.lib.permissions import GROUP_CREATE, GROUP_DELETE, GROUP_READ, GROUP_UPDATE, object_id_str_to_int
 from sparkth.lib.permissions.scopes import GROUP
 
 router = APIRouter()
@@ -38,7 +38,7 @@ async def list_groups(
     session: AsyncSession = Depends(get_async_session),
 ) -> list[GroupResponse]:
     """List the groups the caller may read. Returns a list of GroupResponse (id, name, description)."""
-    groups = await group_engine.list_groups(convert_to_ints(accessible_ids), session)
+    groups = await group_engine.list_groups(object_id_str_to_int(accessible_ids), session)
     return [_group_to_response(group) for group in groups]
 
 
