@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { ConfirmDialog } from "@/lib/components/ui/ConfirmDialog";
 import { ApiRequestError } from "@/lib/api";
 import { useAuth } from "@/lib/auth/hooks";
-import { deleteActivity, type ActivitySummary } from "@/plugins/pxc/client";
+import { deleteActivity, type ActivitySummary } from "@/plugins/pxc/src/client";
 
 /**
  * Confirmation dialog for permanently deleting a PXC activity.

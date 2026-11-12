@@ -3,9 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { ApiRequestError } from "@/lib/api";
-import { deleteActivity } from "@/plugins/pxc/client";
-import { DeleteActivityDialog } from "@/plugins/pxc/components/DeleteActivityDialog";
-import pxcEn from "@/plugins/pxc/messages/en.json";
+import { deleteActivity } from "@/plugins/pxc/src/client";
+import { DeleteActivityDialog } from "@/plugins/pxc/src/components/ui/DeleteActivityDialog";
+import pxcEn from "@/plugins/pxc/src/i18n/en.json";
 import { renderWithIntl } from "@/tests/intl-test-utils";
 
 const auth = vi.hoisted(() => ({ token: "test-token" as string | null }));
@@ -13,7 +13,7 @@ vi.mock("@/lib/auth/hooks", () => ({
   useAuth: () => ({ token: auth.token }),
 }));
 
-vi.mock("@/plugins/pxc/client", () => ({
+vi.mock("@/plugins/pxc/src/client", () => ({
   deleteActivity: vi.fn(),
 }));
 

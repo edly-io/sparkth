@@ -6,10 +6,10 @@ import { composePlugin } from "@/plugins/compose";
 import { googleDrivePlugin } from "@/plugins/google-drive";
 import "@/plugins/moodle/src";
 import "@/plugins/openedx/src";
-import { pxcPlugin } from "@/plugins/pxc";
+import { pxc } from "@/plugins/pxc/src";
 import { slackPlugin } from "@/plugins/slack";
 
 registerPlugin(composePlugin);
 registerPlugin(googleDrivePlugin);
-registerPlugin(pxcPlugin);
+registerPlugin(pxc);
 registerPlugin(slackPlugin);
