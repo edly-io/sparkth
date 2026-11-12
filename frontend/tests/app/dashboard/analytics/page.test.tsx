@@ -27,13 +27,13 @@ vi.mock("@/core/analytics", async (orig) => ({
   fetchSummary: vi.fn(),
   fetchLogins: vi.fn(),
 }));
-vi.mock("@/plugins/compose/analytics", async (orig) => ({
-  ...(await orig<typeof import("@/plugins/compose/analytics")>()),
+vi.mock("@/plugins/compose/src/analytics", async (orig) => ({
+  ...(await orig<typeof import("@/plugins/compose/src/analytics")>()),
   fetchComposeActivity: vi.fn(),
 }));
 
 import { fetchLogins, fetchSummary, type SummaryCount } from "@/core/analytics";
-import { fetchComposeActivity } from "@/plugins/compose/analytics";
+import { fetchComposeActivity } from "@/plugins/compose/src/analytics";
 import OverviewPage from "@/app/dashboard/analytics/page";
 
 const summary = vi.mocked(fetchSummary);

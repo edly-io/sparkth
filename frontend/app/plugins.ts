@@ -2,14 +2,14 @@
 // slots, and a plugin with a page is registered with core.
 import { registerPlugin } from "@/core/plugins/registry";
 import "@/plugins/canvas/src";
-import { composePlugin } from "@/plugins/compose";
+import { compose } from "@/plugins/compose/src";
 import { googledrive } from "@/plugins/googledrive/src";
 import "@/plugins/moodle/src";
 import "@/plugins/openedx/src";
 import { pxc } from "@/plugins/pxc/src";
 import { slack } from "@/plugins/slack/src";
 
-registerPlugin(composePlugin);
+registerPlugin(compose);
 registerPlugin(googledrive);
 registerPlugin(pxc);
 registerPlugin(slack);

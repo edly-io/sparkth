@@ -4,7 +4,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import {
   HISTORY_COLLAPSED_KEY,
   useHistoryCollapsed,
-} from "@/plugins/compose/hooks/useHistoryCollapsed";
+} from "@/plugins/compose/src/hooks/useHistoryCollapsed";
 
 describe("useHistoryCollapsed", () => {
   afterEach(() => {

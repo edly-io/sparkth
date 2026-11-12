@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { Pill } from "@/plugins/compose/components/attachment/Pill";
 import { TooltipProvider } from "@/core/components/ui/Tooltip";
-import { TextAttachment } from "@/plugins/compose/types";
+import { TextAttachment } from "@/plugins/compose/src/types";
 
 describe("Pill", () => {
   const mockOnPreview = vi.fn();

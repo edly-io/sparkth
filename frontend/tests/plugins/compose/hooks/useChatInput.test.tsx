@@ -2,12 +2,12 @@ import { useState } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, it, expect, vi, beforeEach } from "vitest";
 
-import { useChatInput } from "@/plugins/compose/hooks/useChatInput";
-import { attachDocument, detachDocument } from "@/plugins/compose/client";
-import type { TextAttachment } from "@/plugins/compose/types";
+import { useChatInput } from "@/plugins/compose/src/hooks/useChatInput";
+import { attachDocument, detachDocument } from "@/plugins/compose/src/client";
+import type { TextAttachment } from "@/plugins/compose/src/types";
 import type { AttachmentSource } from "@/lib/attachments/slots";
 
-vi.mock("@/plugins/compose/client", () => ({
+vi.mock("@/plugins/compose/src/client", () => ({
   attachDocument: vi.fn(() => Promise.resolve()),
   detachDocument: vi.fn(() => Promise.resolve()),
 }));

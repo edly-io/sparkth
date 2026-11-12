@@ -23,7 +23,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
 }));
 
-vi.mock("@/plugins/compose/hooks/useConversation", () => ({
+vi.mock("@/plugins/compose/src/hooks/useConversation", () => ({
   useConversation: () => ({
     loading: false,
     messages: [],
@@ -38,7 +38,7 @@ vi.mock("@/plugins/compose/hooks/useConversation", () => ({
 }));
 
 const mockHandleSend = vi.fn();
-vi.mock("@/plugins/compose/hooks/useChatStream", () => ({
+vi.mock("@/plugins/compose/src/hooks/useChatStream", () => ({
   useChatStream: () => ({
     handleSend: mockHandleSend,
     stopGeneration: vi.fn(),

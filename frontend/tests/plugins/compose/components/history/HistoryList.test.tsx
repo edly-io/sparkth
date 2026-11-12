@@ -2,8 +2,8 @@ import { afterEach, describe, it, expect, vi } from "vitest";
 import { fireEvent, screen } from "@testing-library/react";
 
 import HistoryList from "@/plugins/compose/components/history/HistoryList";
-import { useConversations } from "@/plugins/compose/hooks/useConversations";
-import type { ConversationSummary } from "@/plugins/compose/types";
+import { useConversations } from "@/plugins/compose/src/hooks/useConversations";
+import type { ConversationSummary } from "@/plugins/compose/src/types";
 import composeEn from "@/plugins/compose/messages/en.json";
 import { renderWithIntl } from "../../../../intl-test-utils";
 
@@ -13,7 +13,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(nav.query),
 }));
 vi.mock("@/lib/auth/hooks", () => ({ useAuth: () => ({ token: "t" }) }));
-vi.mock("@/plugins/compose/hooks/useConversations", () => ({ useConversations: vi.fn() }));
+vi.mock("@/plugins/compose/src/hooks/useConversations", () => ({ useConversations: vi.fn() }));
 
 const mockedUseConversations = vi.mocked(useConversations);
 

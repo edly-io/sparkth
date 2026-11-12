@@ -1,7 +1,7 @@
 import { AlertCircle, Bot } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Card } from "@/lib/components/ui/Card";
-import { ChatMessage, StreamStatusPhase, TextAttachment } from "@/plugins/compose/types";
+import { ChatMessage, StreamStatusPhase, TextAttachment } from "@/plugins/compose/src/types";
 import { Pill } from "@/plugins/compose/components/attachment/Pill";
 import { OptionsPrompt } from "@/plugins/compose/components/messages/OptionsPrompt";
 import {
@@ -10,7 +10,7 @@ import {
 } from "@/plugins/compose/components/messages/optionsBlock";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { truncate, RAG_DISPLAY_NAME_MAX_CHARS } from "@/plugins/compose/utils";
+import { truncate, RAG_DISPLAY_NAME_MAX_CHARS } from "@/plugins/compose/src/displayName";
 
 function ThinkingDots() {
   return (

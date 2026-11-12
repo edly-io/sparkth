@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 
-import { truncate } from "@/plugins/compose/utils";
+import { truncate } from "@/plugins/compose/src/displayName";
 
 describe("truncate", () => {
   it("returns text at or under the limit unchanged", () => {

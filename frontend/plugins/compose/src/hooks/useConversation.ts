@@ -3,13 +3,18 @@ import {
   getConversation,
   getConversationAttachments,
   getLastMessage,
-} from "@/plugins/compose/client";
-import { type ApiMessage, ChatMessage, ChatRole, TextAttachment } from "@/plugins/compose/types";
+} from "@/plugins/compose/src/client";
+import {
+  type ApiMessage,
+  ChatMessage,
+  ChatRole,
+  TextAttachment,
+} from "@/plugins/compose/src/types";
 import {
   clearStreamProgress,
   getRestoredStreamData,
   RECOVERY_PLACEHOLDER_IDS,
-} from "@/plugins/compose/hooks/useChatStream";
+} from "@/plugins/compose/src/hooks/useChatStream";
 
 function mergeConsecutiveAttachmentMessages(messages: ChatMessage[]): ChatMessage[] {
   const result: ChatMessage[] = [];

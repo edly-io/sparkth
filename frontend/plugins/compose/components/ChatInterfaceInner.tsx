@@ -8,15 +8,15 @@ import { ChatHeader } from "@/plugins/compose/components/ChatHeader";
 import { ChatMessages } from "@/plugins/compose/components/messages/ChatMessages";
 import { ChatInput } from "@/plugins/compose/components/input/ChatInput";
 import { appendLine, replaceLine } from "@/plugins/compose/components/messages/optionsBlock";
-import { AiKeyProblem, TextAttachment } from "@/plugins/compose/types";
+import { AiKeyProblem, TextAttachment } from "@/plugins/compose/src/types";
 import { Preview } from "@/plugins/compose/components/attachment/Preview";
 import { useAuth } from "@/lib/auth/hooks";
-import { attachDocument } from "@/plugins/compose/client";
+import { attachDocument } from "@/plugins/compose/src/client";
 import { fetchLLMConfigs } from "@/lib/llm/client";
 import { usePlugin } from "@/lib/plugins/context";
 import { Alert } from "@/lib/components/ui/Alert";
-import { useConversation } from "@/plugins/compose/hooks/useConversation";
-import { useChatStream } from "@/plugins/compose/hooks/useChatStream";
+import { useConversation } from "@/plugins/compose/src/hooks/useConversation";
+import { useChatStream } from "@/plugins/compose/src/hooks/useChatStream";
 
 // Only reached when no key is selected, so a correctly configured author never pays for it.
 async function readAiKeyProblem(token: string): Promise<AiKeyProblem> {

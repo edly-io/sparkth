@@ -3,15 +3,15 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 
 import { TooltipProvider } from "@/core/components/ui/Tooltip";
 import HistoryColumn from "@/plugins/compose/components/history/HistoryColumn";
-import { useConversations } from "@/plugins/compose/hooks/useConversations";
-import { HISTORY_COLLAPSED_KEY } from "@/plugins/compose/hooks/useHistoryCollapsed";
-import type { ConversationSummary } from "@/plugins/compose/types";
+import { useConversations } from "@/plugins/compose/src/hooks/useConversations";
+import { HISTORY_COLLAPSED_KEY } from "@/plugins/compose/src/hooks/useHistoryCollapsed";
+import type { ConversationSummary } from "@/plugins/compose/src/types";
 import composeEn from "@/plugins/compose/messages/en.json";
 import { renderWithIntl } from "../../../../intl-test-utils";
 
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams() }));
 vi.mock("@/lib/auth/hooks", () => ({ useAuth: () => ({ token: "t" }) }));
-vi.mock("@/plugins/compose/hooks/useConversations", () => ({ useConversations: vi.fn() }));
+vi.mock("@/plugins/compose/src/hooks/useConversations", () => ({ useConversations: vi.fn() }));
 
 function renderColumn(): ReturnType<typeof renderWithIntl> {
   return renderWithIntl(

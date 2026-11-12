@@ -102,7 +102,8 @@ export default function ExamplePlugin() {
 
 ## 3. Define the Plugin (index.ts)
 
-Each plugin with a page must export a `PluginDefinition` from its own `src/index.ts`.
+Each plugin with a page must export a `PluginDefinition` from its own `src/index.ts`, named after the plugin
+(`compose`, `pxc`, `exampleplugin`).
 
 **Example Plugin Structure**
 
@@ -125,7 +126,7 @@ plugins/
 import { PluginDefinition } from "@/lib/plugins/types";
 import { EXAMPLEPLUGIN_PLUGIN_NAME } from "@/plugins/exampleplugin/src/constants";
 
-export const examplePlugin: PluginDefinition = {
+export const exampleplugin: PluginDefinition = {
   name: EXAMPLEPLUGIN_PLUGIN_NAME,
   loadComponent: () => import("@/plugins/exampleplugin/src/pages/ExamplePlugin"),
 };
@@ -183,11 +184,11 @@ registry. Importing the `src/index.ts` also runs any slot files it imports, such
 
 ```ts
 import { registerPlugin } from "@/core/plugins/registry";
-import { composePlugin } from "@/plugins/compose"; // already existing
-import { examplePlugin } from "@/plugins/exampleplugin/src";
+import { compose } from "@/plugins/compose/src"; // already existing
+import { exampleplugin } from "@/plugins/exampleplugin/src";
 
-registerPlugin(composePlugin); // already existing
-registerPlugin(examplePlugin);
+registerPlugin(compose); // already existing
+registerPlugin(exampleplugin);
 ```
 
 `app/LocaleProvider.tsx` and the dashboard layout import this module, so the plugins are
@@ -265,7 +266,7 @@ const messageCatalogs: Record<Locale, () => Promise<{ default: Record<string, un
   fr: () => import("@/plugins/exampleplugin/src/i18n/fr.json"),
 };
 
-export const examplePlugin: PluginDefinition = {
+export const exampleplugin: PluginDefinition = {
   name: EXAMPLEPLUGIN_PLUGIN_NAME,
   loadComponent: () => import("@/plugins/exampleplugin/src/pages/ExamplePlugin"),
   loadMessages: (locale) => messageCatalogs[locale]().then((catalog) => catalog.default),

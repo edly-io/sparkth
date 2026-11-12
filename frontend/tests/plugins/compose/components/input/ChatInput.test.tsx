@@ -4,7 +4,7 @@ import { afterEach, describe, it, expect, vi, beforeEach } from "vitest";
 
 import { ChatInput } from "@/plugins/compose/components/input/ChatInput";
 import type { AttachmentPickerProps, AttachmentSource } from "@/lib/attachments/slots";
-import type { TextAttachment } from "@/plugins/compose/types";
+import type { TextAttachment } from "@/plugins/compose/src/types";
 import composeEn from "@/plugins/compose/messages/en.json";
 import { renderWithIntl } from "@/tests/intl-test-utils";
 
@@ -23,7 +23,7 @@ vi.mock("@/lib/plugins/context", () => ({
   usePlugin: () => ({ isEnabled: false, loading: false, config: {} }),
 }));
 
-vi.mock("@/plugins/compose/hooks/useChatInput", () => ({
+vi.mock("@/plugins/compose/src/hooks/useChatInput", () => ({
   useChatInput: () => ({
     showUploadMenu: false,
     setShowUploadMenu: vi.fn(),

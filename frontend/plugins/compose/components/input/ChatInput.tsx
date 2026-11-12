@@ -4,12 +4,12 @@ import { Dispatch, SetStateAction, Suspense, lazy, useEffect, useMemo, useRef } 
 import { useTranslations } from "next-intl";
 import { Paperclip, ArrowUp, Square, X } from "lucide-react";
 import { UploadMenu } from "@/plugins/compose/components/input/UploadMenu";
-import { TextAttachment } from "@/plugins/compose/types";
+import { TextAttachment } from "@/plugins/compose/src/types";
 import { PersistedFilesInfo } from "@/plugins/compose/components/attachment/PersistedFilesInfo";
 import { PickerErrorBoundary } from "@/plugins/compose/components/input/PickerErrorBoundary";
 import { Button } from "@/lib/components/ui/Button";
 import { useAuth } from "@/lib/auth/hooks";
-import { useChatInput } from "@/plugins/compose/hooks/useChatInput";
+import { useChatInput } from "@/plugins/compose/src/hooks/useChatInput";
 
 interface ChatInputProps {
   message: string;

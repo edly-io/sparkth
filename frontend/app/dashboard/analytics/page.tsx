@@ -19,7 +19,7 @@ import {
   countSeries,
   fetchComposeActivity,
   type ComposeActivityPoint,
-} from "@/plugins/compose/analytics";
+} from "@/plugins/compose/src/analytics";
 import { LineChart } from "@/core/analytics/components/ui/LineChart";
 import { StatCard } from "@/core/analytics/components/ui/StatCard";
 import { isInstalled } from "@/core/plugins/installed";

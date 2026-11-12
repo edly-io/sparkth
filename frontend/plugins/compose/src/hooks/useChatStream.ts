@@ -1,11 +1,11 @@
 import { useCallback, useRef, useState } from "react";
-import { requestChatCompletionStream, stopChatTurn } from "@/plugins/compose/client";
+import { requestChatCompletionStream, stopChatTurn } from "@/plugins/compose/src/client";
 import {
   ChatMessage,
   STREAM_STATUS_PHASES,
   StreamStatusPhase,
   TextAttachment,
-} from "@/plugins/compose/types";
+} from "@/plugins/compose/src/types";
 
 interface SendPayload {
   message: string;

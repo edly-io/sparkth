@@ -1,9 +1,9 @@
 "use client";
 
 import { Dispatch, SetStateAction, useState } from "react";
-import { TextAttachment } from "@/plugins/compose/types";
-import { attachDocument, detachDocument } from "@/plugins/compose/client";
-import { uploadFile, UploadResponse } from "@/plugins/compose/upload";
+import { TextAttachment } from "@/plugins/compose/src/types";
+import { attachDocument, detachDocument } from "@/plugins/compose/src/client";
+import { uploadFile, UploadResponse } from "@/plugins/compose/src/upload";
 import type { AttachedDocument, AttachmentSource } from "@/lib/attachments/slots";
 
 const MAX_FILE_SIZE = 30 * 1024 * 1024; // 30MB

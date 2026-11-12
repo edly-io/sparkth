@@ -2,8 +2,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { PersistedFilesInfo } from "@/plugins/compose/components/attachment/PersistedFilesInfo";
-import { TextAttachment } from "@/plugins/compose/types";
-import { RAG_DISPLAY_NAME_MAX_CHARS } from "@/plugins/compose/utils";
+import { TextAttachment } from "@/plugins/compose/src/types";
+import { RAG_DISPLAY_NAME_MAX_CHARS } from "@/plugins/compose/src/displayName";
 
 describe("PersistedFilesInfo", () => {
   const mockOnDetachFile = vi.fn();

@@ -5,7 +5,7 @@ import type {
   ChatCompletionRequestBody,
   ConversationSummary,
   PersistedAttachment,
-} from "@/plugins/compose/types";
+} from "@/plugins/compose/src/types";
 
 // NOTE: compose endpoints throw plain `Error` on failure, while `@/lib/api`
 // and `@/lib/llm` throw the structured `ApiRequestError`. The compose plugin's
