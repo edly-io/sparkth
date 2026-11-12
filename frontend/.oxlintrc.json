@@ -86,7 +86,7 @@
       }
     },
     {
-      "files": ["plugins/google-drive/**"],
+      "files": ["plugins/googledrive/**"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -99,8 +99,8 @@
               {
                 "group": [
                   "@/plugins/**",
-                  "!@/plugins/google-drive",
-                  "!@/plugins/google-drive/**",
+                  "!@/plugins/googledrive",
+                  "!@/plugins/googledrive/**",
                   "!@/plugins/*/lib",
                   "!@/plugins/*/lib/**"
                 ],
