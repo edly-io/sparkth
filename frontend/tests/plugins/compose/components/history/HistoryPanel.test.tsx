@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 
-import HistoryPanel from "@/plugins/compose/components/history/HistoryPanel";
+import HistoryPanel from "@/plugins/compose/src/components/ui/history/HistoryPanel";
 import { useConversations } from "@/plugins/compose/src/hooks/useConversations";
 import type { ConversationSummary } from "@/plugins/compose/src/types";
-import composeEn from "@/plugins/compose/messages/en.json";
+import composeEn from "@/plugins/compose/src/i18n/en.json";
 import { renderWithIntl } from "../../../../intl-test-utils";
 
 const nav = vi.hoisted(() => ({ query: "" }));

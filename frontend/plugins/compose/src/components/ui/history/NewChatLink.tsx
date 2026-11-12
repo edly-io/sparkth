@@ -5,7 +5,9 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/lib/components/ui/Button";
-import { ActionTooltip } from "@/plugins/compose/components/history/ActionTooltip";
+import { ActionTooltip } from "@/plugins/compose/src/components/ui/history/ActionTooltip";
+import { pluginPath } from "@/lib/plugins/routes";
+import { COMPOSE_PLUGIN_NAME } from "@/plugins/compose/src/constants";
 
 interface NewChatLinkProps {
   onNavigate?: () => void;
@@ -18,7 +20,11 @@ export function NewChatLink({ onNavigate }: NewChatLinkProps): ReactElement {
   return (
     <ActionTooltip label={t("historyNewChat")}>
       <Button asChild variant="ghost" size="icon" className="h-8 w-8">
-        <Link href="/dashboard/compose" onClick={onNavigate} aria-label={t("historyNewChat")}>
+        <Link
+          href={pluginPath(COMPOSE_PLUGIN_NAME)}
+          onClick={onNavigate}
+          aria-label={t("historyNewChat")}
+        >
           <Plus className="w-4 h-4" />
         </Link>
       </Button>

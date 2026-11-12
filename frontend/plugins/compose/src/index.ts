@@ -7,9 +7,9 @@ import "@/plugins/compose/src/slots/settings";
 
 // Dynamic imports so each locale becomes its own chunk and only the active one is fetched.
 const messageCatalogs: Record<Locale, () => Promise<{ default: Record<string, unknown> }>> = {
-  en: () => import("@/plugins/compose/messages/en.json"),
-  es: () => import("@/plugins/compose/messages/es.json"),
-  fr: () => import("@/plugins/compose/messages/fr.json"),
+  en: () => import("@/plugins/compose/src/i18n/en.json"),
+  es: () => import("@/plugins/compose/src/i18n/es.json"),
+  fr: () => import("@/plugins/compose/src/i18n/fr.json"),
 };
 
 // Display name, description, icon, and sidebar entry are declared by the

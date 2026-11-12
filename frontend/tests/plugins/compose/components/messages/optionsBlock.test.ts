@@ -4,7 +4,7 @@ import {
   appendLine,
   replaceLine,
   splitOptionsBlock,
-} from "@/plugins/compose/components/messages/optionsBlock";
+} from "@/plugins/compose/src/components/ui/messages/optionsBlock";
 
 describe("splitOptionsBlock", () => {
   it("splits a trailing options block off the body", () => {

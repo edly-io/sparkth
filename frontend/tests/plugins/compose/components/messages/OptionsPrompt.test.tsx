@@ -1,8 +1,8 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { OptionsPrompt } from "@/plugins/compose/components/messages/OptionsPrompt";
-import composeEn from "@/plugins/compose/messages/en.json";
+import { OptionsPrompt } from "@/plugins/compose/src/components/ui/messages/OptionsPrompt";
+import composeEn from "@/plugins/compose/src/i18n/en.json";
 import { renderWithIntl } from "@/tests/intl-test-utils";
 
 const OPTIONS = ["Beginners", "Professionals", "Students"];

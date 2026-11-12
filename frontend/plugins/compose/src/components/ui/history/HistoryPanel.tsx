@@ -6,7 +6,9 @@ import { History, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/lib/components/ui/Button";
 import { Sheet, SheetContent, SheetTitle } from "@/lib/components/ui/Sheet";
-import HistoryList from "@/plugins/compose/components/history/HistoryList";
+import HistoryList from "@/plugins/compose/src/components/ui/history/HistoryList";
+import { pluginPath } from "@/lib/plugins/routes";
+import { COMPOSE_PLUGIN_NAME } from "@/plugins/compose/src/constants";
 
 /**
  * The chat history on phones. The header's history button slides the list in over the
@@ -32,7 +34,7 @@ export default function HistoryPanel(): ReactElement {
         <History className="w-5 h-5" />
       </Button>
       <Button asChild variant="ghost" size="icon" className="h-9 w-9">
-        <Link href="/dashboard/compose" aria-label={t("historyNewChat")}>
+        <Link href={pluginPath(COMPOSE_PLUGIN_NAME)} aria-label={t("historyNewChat")}>
           <Plus className="w-5 h-5" />
         </Link>
       </Button>

@@ -4,9 +4,9 @@ import { useEffect, useRef, type ReactElement, type Ref } from "react";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/lib/components/ui/Button";
-import { ActionTooltip } from "@/plugins/compose/components/history/ActionTooltip";
-import HistoryList from "@/plugins/compose/components/history/HistoryList";
-import { NewChatLink } from "@/plugins/compose/components/history/NewChatLink";
+import { ActionTooltip } from "@/plugins/compose/src/components/ui/history/ActionTooltip";
+import HistoryList from "@/plugins/compose/src/components/ui/history/HistoryList";
+import { NewChatLink } from "@/plugins/compose/src/components/ui/history/NewChatLink";
 import { useHistoryCollapsed } from "@/plugins/compose/src/hooks/useHistoryCollapsed";
 
 interface ToggleProps {

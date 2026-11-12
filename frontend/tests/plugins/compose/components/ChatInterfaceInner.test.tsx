@@ -3,8 +3,8 @@ import { render } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-import ChatInterfaceInner from "@/plugins/compose/components/ChatInterfaceInner";
-import composeEn from "@/plugins/compose/messages/en.json";
+import ChatInterfaceInner from "@/plugins/compose/src/components/layout/ChatInterfaceInner";
+import composeEn from "@/plugins/compose/src/i18n/en.json";
 import en from "@/messages/en.json";
 import { fetchLLMConfigs } from "@/lib/llm/client";
 
@@ -52,7 +52,7 @@ vi.mock("@/lib/llm/client", () => ({
 
 // ChatMessages renders no widget for an empty message list (the mocked useConversation above
 // always returns []), so the option-check path is reached through this stub instead.
-vi.mock("@/plugins/compose/components/messages/ChatMessages", () => ({
+vi.mock("@/plugins/compose/src/components/ui/messages/ChatMessages", () => ({
   ChatMessages: ({ onOptionCheck }: { onOptionCheck: (option: string) => void }) => (
     <button onClick={() => onOptionCheck("Beginners")}>Option</button>
   ),

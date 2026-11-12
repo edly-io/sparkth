@@ -23,8 +23,8 @@ plugins/<pluginname>/
     client.ts       # its backend API calls
     analytics.ts    # its analytics fetch and chart helpers
     components/
-      layout/       # the frame around a page: headers, columns, side panels
-      ui/           # everything shown inside the frame
+      layout/       # the shell that arranges a page's regions
+      ui/           # the regions and everything in them, grouped by feature
     hooks/
     slots/          # what it contributes to core's slots: icons.ts, settings.ts, ...
     i18n/           # its message catalogs and their type
@@ -35,9 +35,9 @@ plugins/<pluginname>/
   tests/            # its unit tests, mirroring src/, and its Playwright specs in tests/e2e/
 ```
 
-A page decides what it shows. `components/layout/` holds only the parts that frame a page,
-such as a header or a side column, and the views and pieces placed inside the frame go in `components/ui/`, even
-when one fills the whole page.
+A page decides what it shows. `components/layout/` holds only the shell that arranges a page's regions. The regions
+themselves (a header, a side column or panel, a list) and everything in them go in `components/ui/`, grouped by
+feature, even when one fills the whole page.
 
 A plugin creates only the folders it needs: one with no page has just `src/index.ts`, `src/constants.ts` and
 `src/slots/`, and only a plugin that offers something to other plugins has a `lib/`.

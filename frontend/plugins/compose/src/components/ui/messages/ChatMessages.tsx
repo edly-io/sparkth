@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { ChatMessage, TextAttachment } from "@/plugins/compose/src/types";
-import { UserMessage } from "@/plugins/compose/components/messages/UserMessage";
-import { AssistantMessage } from "@/plugins/compose/components/messages/AssistantMessage";
+import { UserMessage } from "@/plugins/compose/src/components/ui/messages/UserMessage";
+import { AssistantMessage } from "@/plugins/compose/src/components/ui/messages/AssistantMessage";
 
 interface ChatMessagesProps {
   messages: ChatMessage[];

@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense } from "react";
-import ChatInterfaceWithParams from "@/plugins/compose/components/ChatInterfaceWithParams";
+import ChatInterfaceWithParams from "@/plugins/compose/src/components/layout/ChatInterfaceWithParams";
 
 export default function Compose() {
   return (

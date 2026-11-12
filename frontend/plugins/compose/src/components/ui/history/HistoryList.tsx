@@ -10,6 +10,8 @@ import { useAuth } from "@/lib/auth/hooks";
 import type { ConversationSummary } from "@/plugins/compose/src/types";
 import { useActiveConversationId } from "@/plugins/compose/src/hooks/useActiveConversationId";
 import { useConversations } from "@/plugins/compose/src/hooks/useConversations";
+import { pluginPath } from "@/lib/plugins/routes";
+import { COMPOSE_PLUGIN_NAME } from "@/plugins/compose/src/constants";
 
 const DAY_MS = 86_400_000;
 const RELATIVE_DAYS = 7;
@@ -59,7 +61,7 @@ function ConversationLink({
 
   return (
     <Link
-      href={`/dashboard/compose?id=${conversation.id}`}
+      href={`${pluginPath(COMPOSE_PLUGIN_NAME)}?id=${conversation.id}`}
       onClick={onNavigate}
       aria-current={isActive ? "page" : undefined}
       className={`
