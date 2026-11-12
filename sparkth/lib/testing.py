@@ -203,7 +203,7 @@ async def grant_permissions(
 ) -> None:
     """Give ``user`` a new role holding ``permissions`` at ``scope`` and ``scope_object_id``."""
     role = await make_role(session, f"role_{uuid.uuid4().hex[:8]}", permissions)
-    await assign(session, user, role, scope, scope_object_id)
+    await add_role_assignment(session, user, role, scope, scope_object_id)
 
 
 async def make_user_with_permissions(
