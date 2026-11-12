@@ -354,8 +354,7 @@ async def list_groups(
     session: AsyncSession = Depends(get_async_session),
 ) -> list[GroupResponse]:
     # None: every group. Otherwise only the groups whose id is in the set.
-    group_ids = object_id_str_to_int(accessible_ids)
-    return await load_groups(group_ids, session)  # your own query, filtered by the ids unless None
+    return await load_groups(object_id_str_to_int(accessible_ids), session)  # your own query
 ```
 
 **Make an object cascade** — a table model that is an object of a scope inherits `ScopeObjectMixin`,
