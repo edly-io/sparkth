@@ -7,19 +7,19 @@ vi.mock("@/core/auth/hooks", () => ({
   useAuth: () => ({ token: "test-token" }),
 }));
 const checkPermission = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/permissions/client", () => ({ checkPermission }));
+vi.mock("@/core/permissions/client", () => ({ checkPermission }));
 const audit = vi.hoisted(() => ({
   fetchAuditEvents: vi.fn(),
   fetchAuditEvent: vi.fn(),
   fetchAuditCategories: vi.fn(),
   exportAuditEvents: vi.fn(),
 }));
-vi.mock("@/lib/audit/client", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/audit/client")>()),
+vi.mock("@/core/audit/client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/core/audit/client")>()),
   ...audit,
 }));
 const downloadBlob = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/download", () => ({ downloadBlob }));
+vi.mock("@/core/download", () => ({ downloadBlob }));
 
 import AuditLogPage from "@/app/dashboard/audit/AuditLogPage";
 

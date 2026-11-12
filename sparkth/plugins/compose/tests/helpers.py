@@ -15,6 +15,7 @@ from pydantic import Field
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.lib.compose.constants import REFUSE_TOOL_NAME
 from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.llm import small_model_for
@@ -99,6 +100,11 @@ def hand_off(agent: Agent) -> AIMessage:
     return AIMessage("", tool_calls=[{"name": agent.name, "args": {"request": "Go ahead."}, "id": "hand_off"}])
 
 
+def refusal() -> AIMessage:
+    """A planner reply refusing the message."""
+    return AIMessage("", tool_calls=[{"name": REFUSE_TOOL_NAME, "args": {}, "id": "refuse"}])
+
+
 def planner_answering(reply: AIMessage, agent: Agent) -> dict[str, Any]:
     """The ``agents`` and ``planner_llm`` of a turn offering ``agent``, whose planner answers every message
     with ``reply``."""
@@ -110,11 +116,11 @@ def handing_off_to(agent: Agent) -> dict[str, Any]:
     return planner_answering(hand_off(agent), agent)
 
 
-def routing_to(provider: Any, agent: Agent) -> Callable[..., Any]:
-    """Stand in for the route's ``get_provider``: the planner's small model hands every message to
-    ``agent``, and every other model is ``provider``'s."""
+def planning(provider: Any, reply: AIMessage) -> Callable[..., Any]:
+    """Stand in for the route's ``get_provider``: the planner's small model answers every message
+    with ``reply``, and every other model is ``provider``'s."""
     planner = MagicMock()
-    planner.create_llm.return_value = planner_model(hand_off(agent))
+    planner.create_llm.return_value = planner_model(reply)
 
     def get_provider(provider_name: str, api_key: str, model: str, **kwargs: Any) -> Any:
         return planner if model == small_model_for(provider_name) else provider

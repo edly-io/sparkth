@@ -1,1 +1,1 @@
-export { SettingsListItem } from "@/core/components/settings/SettingsListItem";
+export { SettingsListItem } from "@/core/settings/components/ui/SettingsListItem";

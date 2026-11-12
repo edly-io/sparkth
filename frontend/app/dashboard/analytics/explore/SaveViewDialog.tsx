@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/core/components/ui/Dialog";
-import { Input } from "@/components/ui/Input";
+import { Input } from "@/core/components/ui/Input";
 
 /**
  * Asks for a view name and calls `onSave` with it, trimmed; stays open with a message when the

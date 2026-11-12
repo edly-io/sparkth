@@ -18,24 +18,24 @@ import {
   type ExploreConfig,
   type ExploreResult,
   type Measure,
-} from "@/lib/analytics";
+} from "@/core/analytics";
 import { ApiRequestError } from "@/lib/api";
 import { useAuth } from "@/core/auth/hooks";
-import { usePermissionCheck } from "@/lib/permissions/usePermissionCheck";
+import { usePermissionCheck } from "@/core/permissions/hooks";
 import { Alert } from "@/core/components/ui/Alert";
-import { BarChart } from "@/components/ui/BarChart";
+import { BarChart } from "@/core/analytics/components/ui/BarChart";
 import { Button } from "@/core/components/ui/Button";
-import { ChartTable } from "@/components/ui/ChartTable";
-import { Input } from "@/components/ui/Input";
-import { LineChart } from "@/components/ui/LineChart";
-import { RankedBar } from "@/components/ui/RankedBar";
-import { Select } from "@/components/ui/Select";
-import { Forbidden } from "@/components/Forbidden";
+import { ChartTable } from "@/core/analytics/components/ui/ChartTable";
+import { Input } from "@/core/components/ui/Input";
+import { LineChart } from "@/core/analytics/components/ui/LineChart";
+import { RankedBar } from "@/core/analytics/components/ui/RankedBar";
+import { Select } from "@/core/components/ui/Select";
+import { Forbidden } from "@/core/components/layout/Forbidden";
 import { Spinner } from "@/core/components/ui/Spinner";
 import { PeriodView, useComparison, type PeriodRange } from "../PeriodView";
 import { SavedViewActions } from "./SavedViewActions";
-import { configQuery, useSavedView } from "./useSavedView";
-import { usePeriod, useReplaceQuery } from "../usePeriod";
+import { configQuery, useSavedView } from "@/app/dashboard/analytics/explore/hooks";
+import { usePeriod, useReplaceQuery } from "@/app/dashboard/analytics/hooks";
 
 const MEASURES: Measure[] = ["count", "distinct_actors"];
 const CHARTS: ChartKind[] = ["line", "bar", "table"];

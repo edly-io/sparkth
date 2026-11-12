@@ -4,7 +4,7 @@ import { useReducer, useEffect, useCallback, type SubmitEvent } from "react";
 import { redirect } from "next/navigation";
 import { Plus, Trash2, Mail, Globe } from "lucide-react";
 import { useAuth } from "@/core/auth/hooks";
-import { usePermissionCheck } from "@/lib/permissions/usePermissionCheck";
+import { usePermissionCheck } from "@/core/permissions/hooks";
 import {
   getWhitelist,
   addWhitelistEntry,
@@ -13,7 +13,7 @@ import {
   ApiRequestError,
 } from "@/lib/api";
 import { Button } from "@/core/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { Input } from "@/core/components/ui/Input";
 import { Alert } from "@/core/components/ui/Alert";
 import { Spinner } from "@/core/components/ui/Spinner";
 import { ConfirmDialog } from "@/core/components/ui/ConfirmDialog";

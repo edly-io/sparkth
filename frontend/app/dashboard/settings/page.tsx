@@ -1,8 +1,8 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { PluginSettingsList } from "@/core/components/settings/PluginSettingsList";
-import { SettingsPage } from "@/core/components/settings/SettingsPage";
+import { PluginSettingsList } from "@/core/settings/components/ui/PluginSettingsList";
+import { SettingsPage } from "@/core/settings/components/layout/SettingsPage";
 import { usePluginContext } from "@/core/plugins/context";
 
 export default function PluginsSettings() {

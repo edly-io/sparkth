@@ -37,7 +37,8 @@ from sparkth.lib.llm import BaseChatProvider, to_langchain_messages
 from sparkth.lib.log import get_logger
 from sparkth.lib.plugins import PluginConfigInvalidError, PluginNotConfiguredError
 from sparkth.plugins.compose.constants import TOOL_CALL_LIMIT_NOTICE
-from sparkth.plugins.compose.planner import AgentGraph, build_planner
+from sparkth.plugins.compose.enums import TurnEventType
+from sparkth.plugins.compose.planner import AgentGraph, TurnRouting, build_planner
 from sparkth.plugins.compose.prompt import render_system_prompt
 
 logger = get_logger(__name__)
@@ -167,7 +168,7 @@ async def _chat_tool_call(request: ToolCallRequest, handler: _ToolCallHandler) -
     """
     name = request.tool_call["name"]
     go = asyncio.Event()
-    request.runtime.stream_writer({"type": "tool_start", "name": name, "go": go})
+    request.runtime.stream_writer({"type": TurnEventType.TOOL_START, "name": name, "go": go})
     await go.wait()
     model = _audit_model_info(cast(AuditModelInfo, request.runtime.context), request.state["messages"])
     with ai_audit_context(AuditSource.COMPOSE, model):
@@ -175,7 +176,7 @@ async def _chat_tool_call(request: ToolCallRequest, handler: _ToolCallHandler) -
     output = result.text if isinstance(result, ToolMessage) else ""
     arguments = request.tool_call["args"]
     request.runtime.stream_writer(
-        {"type": "tool_end", "name": name, "failure": failure, "tool_input": arguments, "output": output}
+        {"type": TurnEventType.TOOL_END, "name": name, "failure": failure, "tool_input": arguments, "output": output}
     )
     return result
 
@@ -211,13 +212,13 @@ def _update_events(node: str, update: dict[str, Any] | None, max_tool_executions
     messages = (update or {}).get("messages", [])
     if node == f"{ToolCallLimitMiddleware.__name__}.after_model" and messages:
         logger.warning("Tool call limit (%s) reached; blocked %d call(s)", max_tool_executions, len(messages))
-        return [{"type": "limit_reached"}]
+        return [{"type": TurnEventType.LIMIT_REACHED}]
     if node not in ("model", f"{_END_HOOK}.after_model"):
         return []
     replies = [message for message in messages if isinstance(message, AIMessage)]
     return [
-        *({"type": "usage", "usage": reply.usage_metadata} for reply in replies if reply.usage_metadata),
-        *({"type": "final", "message": reply} for reply in replies if not reply.tool_calls),
+        *({"type": TurnEventType.USAGE, "usage": reply.usage_metadata} for reply in replies if reply.usage_metadata),
+        *({"type": TurnEventType.FINAL, "message": reply} for reply in replies if not reply.tool_calls),
     ]
 
 
@@ -257,9 +258,9 @@ class _TurnText:
 
 
 def build_turn_agent(
-    llm: BaseChatModel, tools: Sequence[BaseTool], system_prompt: str, max_tool_executions: int
+    llm: BaseChatModel, tools: Sequence[BaseTool], system_prompt: str, max_tool_executions: int, *, name: str
 ) -> CompiledStateGraph[Any, AuditModelInfo, Any, Any]:
-    """Build the agent that runs a turn's tool calls, led by ``system_prompt``.
+    """Build the agent ``name`` that runs a turn's tool calls, led by ``system_prompt``.
 
     Calls run one at a time, in the order the model listed them, and each reports its start and
     end on the agent's stream (see :func:`_chat_tool_call`). Calls past ``max_tool_executions``
@@ -274,7 +275,9 @@ def build_turn_agent(
     )
     # The run context carries the audit identity; the library middlewares never read it.
     middleware: list[AgentMiddleware[Any, Any, Any]] = [_chat_tool_call, limiter, ender]
-    return create_agent(llm, tools, system_prompt=system_prompt, middleware=middleware, context_schema=AuditModelInfo)
+    return create_agent(
+        llm, tools, system_prompt=system_prompt, middleware=middleware, context_schema=AuditModelInfo, name=name
+    )
 
 
 def _planner_for_turn(
@@ -290,9 +293,13 @@ def _planner_for_turn(
     return build_planner(
         planner_llm,
         [
-            AgentGraph(agent, build_turn_agent(agent_llm, tools, render_system_prompt([agent]), max_tool_executions))
+            AgentGraph(
+                agent,
+                build_turn_agent(agent_llm, tools, render_system_prompt([agent]), max_tool_executions, name=agent.name),
+            )
             for agent in agents
         ],
+        operator=None,
     )
 
 
@@ -330,12 +337,13 @@ async def _turn_events(
     """Run one turn on the planner, yielding what happens as it happens.
 
     The planner hands the message to one of ``agents``, each running on the provider's model
-    with its own prompt and ``tools``, answers it itself, or refuses it. Yields ``token`` for the
-    text the author sees, ``tool_start`` and ``tool_end`` for each tool call, ``limit_reached``
-    when an agent's calls were blocked, ``usage`` with the tokens of each model reply, the
-    planner's and the agents', and ``final`` with each closing model reply. A call reported as
-    started runs only once this generator is asked for its next event. A refusal arrives as the
-    refusal sentence.
+    with its own prompt and ``tools``, answers it itself, or refuses it. Yields ``routed`` with a
+    :class:`TurnRouting` when a hand-off starts or the refusal returns (a call its tool refused
+    never does either), ``token`` for the text the author sees, ``tool_start`` and ``tool_end`` for each
+    tool call, ``limit_reached`` when an agent's calls were blocked, ``usage`` with the tokens of
+    each model reply, the planner's and the agents', and ``final`` with each closing model reply. A
+    call reported as started runs only once this generator is asked for its next event. A refusal
+    arrives as the refusal sentence.
     """
     planner = _planner_for_turn(agents, tools, provider, planner_llm, max_tool_executions)
     stream = _stream_planner(planner, messages, provider)
@@ -356,15 +364,16 @@ async def _turn_events(
                 message, _metadata = chunk
                 if namespace:
                     for token in turn_text.agent_text(message):
-                        yield {"type": "token", "content": token}
+                        yield {"type": TurnEventType.TOKEN, "content": token}
                 elif isinstance(message, ToolMessage):
                     # An agent's reply has already streamed; only a refusal is new text.
-                    if message.name == REFUSE_TOOL_NAME:
-                        yield {"type": "token", "content": message.text}
+                    if message.name == REFUSE_TOOL_NAME and message.status != "error":
+                        yield {"type": TurnEventType.ROUTED, "routing": TurnRouting(refused=True)}
+                        yield {"type": TurnEventType.TOKEN, "content": message.text}
                 else:
                     turn_text.hold_planner_text(message)
     for token in turn_text.unsent():
-        yield {"type": "token", "content": token}
+        yield {"type": TurnEventType.TOKEN, "content": token}
 
 
 async def complete_turn(
@@ -378,10 +387,12 @@ async def complete_turn(
 ) -> dict[str, Any]:
     """Run one non-streamed turn on the planner and return its answer.
 
-    The answer is the text a streamed turn would have shown, and ``metadata`` lists every tool
-    call the turn made and the tokens of all its model replies, the planner's and the agents'.
+    The answer is the text a streamed turn would have shown, ``routing`` says who answered it,
+    and ``metadata`` lists every tool call the turn made and the tokens of all its model replies,
+    the planner's and the agents'.
     """
     tokens: list[str] = []
+    routing = TurnRouting()
     tool_executions: list[dict[str, Any]] = []
     limit_reached = False
     usage: UsageMetadata | None = None
@@ -389,9 +400,11 @@ async def complete_turn(
     events = _turn_events(messages, tools, provider, max_tool_executions, agents, planner_llm)
     async with aclosing(events):
         async for event in events:
-            if event["type"] == "token":
+            if event["type"] == TurnEventType.ROUTED:
+                routing = event["routing"]
+            elif event["type"] == TurnEventType.TOKEN:
                 tokens.append(event["content"])
-            elif event["type"] == "tool_end":
+            elif event["type"] == TurnEventType.TOOL_END:
                 tool_executions.append(
                     {
                         "tool": event["name"],
@@ -400,11 +413,11 @@ async def complete_turn(
                         "failure": event["failure"],
                     }
                 )
-            elif event["type"] == "limit_reached":
+            elif event["type"] == TurnEventType.LIMIT_REACHED:
                 limit_reached = True
-            elif event["type"] == "usage":
+            elif event["type"] == TurnEventType.USAGE:
                 usage = add_usage(usage, event["usage"])
-            elif event["type"] == "final":
+            elif event["type"] == TurnEventType.FINAL:
                 final = event["message"]
 
     return {
@@ -412,6 +425,7 @@ async def complete_turn(
         "role": "assistant",
         "model": provider.model,
         "tool_calls": None,
+        "routing": routing,
         "metadata": {
             "tool_executions": tool_executions,
             "num_executions": len(tool_executions),
@@ -434,6 +448,9 @@ async def stream_turn(
     """Stream one turn on the planner as typed event dicts.
 
     Yields:
+      {"type": "routed",    "routing": TurnRouting}
+                                               — who answers the turn, when a hand-off starts or the
+                                                 refusal returns; never sent when the planner answers
       {"type": "token",     "content": str}   — text to display
       {"type": "tool_start","name": str}       — tool execution beginning
       {"type": "tool_end",  "name": str, "failure": ToolFailureKind | None}
@@ -446,7 +463,7 @@ async def stream_turn(
     async with aclosing(events):
         async for event in events:
             match event["type"]:
-                case "token" | "tool_start":
+                case TurnEventType.ROUTED | TurnEventType.TOKEN | TurnEventType.TOOL_START:
                     yield event
-                case "tool_end":
-                    yield {"type": "tool_end", "name": event["name"], "failure": event["failure"]}
+                case TurnEventType.TOOL_END:
+                    yield {"type": TurnEventType.TOOL_END, "name": event["name"], "failure": event["failure"]}

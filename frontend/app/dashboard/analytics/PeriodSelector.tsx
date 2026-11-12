@@ -12,11 +12,11 @@ import {
   type Bucket,
   type Preset,
   type RangeError,
-} from "@/lib/analytics";
+} from "@/core/analytics";
 import { Button } from "@/core/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
-import { usePeriod } from "./usePeriod";
+import { Input } from "@/core/components/ui/Input";
+import { Select } from "@/core/components/ui/Select";
+import { usePeriod } from "@/app/dashboard/analytics/hooks";
 
 const PRESET_KEYS = Object.keys(PRESETS) as Preset[];
 

@@ -19,9 +19,9 @@ from sparkth.main import app
 from sparkth.plugins.compose.config import ComposeSettings, get_compose_settings
 from sparkth.plugins.compose.constants import REFUSAL_MESSAGE
 from sparkth.plugins.compose.models import Conversation
-from sparkth.plugins.compose.planner import render_planner_prompt
+from sparkth.plugins.compose.planner import TurnRouting, render_planner_prompt
 from sparkth.plugins.compose.prompt import render_system_prompt
-from sparkth.plugins.compose.tests.helpers import CANVAS_CONFIG, OPENEDX_CONFIG, answering_model
+from sparkth.plugins.compose.tests.helpers import CANVAS_CONFIG, OPENEDX_CONFIG, answering_model, planning, refusal
 
 COMPLETIONS_URL = "/api/v1/compose/completions"
 
@@ -59,10 +59,6 @@ def _provider() -> MagicMock:
     return provider
 
 
-def _classifier_answering(in_scope: bool) -> MagicMock:
-    return MagicMock(in_scope=AsyncMock(return_value=in_scope))
-
-
 def _tool(name: str) -> MagicMock:
     tool = MagicMock()
     tool.name = name
@@ -95,7 +91,7 @@ def _lms_registry() -> MagicMock:
 
 def _turn_answer() -> AsyncMock:
     """Stands in for running a turn with tools, which a mocked provider cannot do."""
-    return AsyncMock(return_value={"content": "On it.", "metadata": {}})
+    return AsyncMock(return_value={"content": "On it.", "metadata": {}, "routing": TurnRouting()})
 
 
 def _bound_tool_names(complete_turn: AsyncMock) -> list[str]:
@@ -131,21 +127,20 @@ async def _turn(
 
 
 class TestOneAssistantPerTurn:
-    async def test_an_out_of_scope_message_is_refused(
+    async def test_a_message_no_agent_covers_is_refused(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
     ) -> None:
         config_id = await _seed_llm_config(session, current_user.id or 1)
         conversation_uuid = await _seed_conversation(session, current_user.id or 1)
 
         with patch(
-            "sparkth.plugins.compose.routes.completions.MessageScopeClassifier",
-            return_value=_classifier_answering(False),
+            "sparkth.plugins.compose.routes.completions.get_provider", side_effect=planning(_provider(), refusal())
         ):
             response = await _turn(client, config_id, conversation_uuid)
 
         assert response.json()["message"]["content"] == REFUSAL_MESSAGE
 
-    async def test_an_in_scope_message_is_offered_to_every_enabled_agent(
+    async def test_a_message_is_offered_to_every_enabled_agent(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent, other_agent: Agent
     ) -> None:
         config_id = await _seed_llm_config(session, current_user.id or 1)
@@ -153,10 +148,6 @@ class TestOneAssistantPerTurn:
         provider = _provider()
 
         with (
-            patch(
-                "sparkth.plugins.compose.routes.completions.MessageScopeClassifier",
-                return_value=_classifier_answering(True),
-            ),
             patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=provider) as get_provider,
         ):
             response = await _turn(client, config_id, conversation_uuid)
@@ -171,10 +162,6 @@ class TestOneAssistantPerTurn:
         config_id = await _seed_llm_config(session, current_user.id or 1)
 
         with (
-            patch(
-                "sparkth.plugins.compose.routes.completions.MessageScopeClassifier",
-                return_value=_classifier_answering(True),
-            ),
             patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()) as get_provider,
             patch("sparkth.plugins.compose.conversation_title.generate_conversation_title"),
         ):
@@ -194,10 +181,6 @@ class TestOneAssistantPerTurn:
         provider = _provider()
 
         with (
-            patch(
-                "sparkth.plugins.compose.routes.completions.MessageScopeClassifier",
-                return_value=_classifier_answering(True),
-            ),
             patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=provider) as get_provider,
         ):
             response = await _turn(client, config_id, conversation_uuid)
@@ -214,10 +197,6 @@ class TestOneAssistantPerTurn:
         provider = _provider()
 
         with (
-            patch(
-                "sparkth.plugins.compose.routes.completions.MessageScopeClassifier",
-                return_value=_classifier_answering(True),
-            ),
             patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=provider),
             patch("sparkth.plugins.compose.routes.completions.get_tool_registry", return_value=_registry()),
             patch("sparkth.plugins.compose.routes.completions.complete_turn", new=_turn_answer()) as complete_turn,
@@ -282,10 +261,6 @@ class TestPluginSwitches:
         await _switch_stub(session, user_id, system_on, user_on)
         provider = _provider()
         with (
-            patch(
-                "sparkth.plugins.compose.routes.completions.MessageScopeClassifier",
-                return_value=_classifier_answering(True),
-            ),
             patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=provider),
             patch("sparkth.plugins.compose.routes.completions.get_tool_registry", return_value=_registry()),
             patch("sparkth.plugins.compose.routes.completions.complete_turn", new=_turn_answer()) as complete_turn,
@@ -308,10 +283,6 @@ class TestPluginSwitches:
         await _switch_stub(session, current_user.id or 1, True, False)
 
         with (
-            patch(
-                "sparkth.plugins.compose.routes.completions.MessageScopeClassifier",
-                return_value=_classifier_answering(True),
-            ),
             patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()) as get_provider,
         ):
             await _turn(client, config_id, conversation_uuid)
@@ -342,10 +313,6 @@ class TestPluginSwitches:
         await _switch_stub(session, user_id, True, False)
 
         with (
-            patch(
-                "sparkth.plugins.compose.routes.completions.MessageScopeClassifier",
-                return_value=_classifier_answering(True),
-            ),
             patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()),
             patch("sparkth.plugins.compose.routes.completions.get_tool_registry", return_value=_registry()),
             patch("sparkth.plugins.compose.routes.completions.ComposeStreamProcessor") as processor_cls,
@@ -364,10 +331,6 @@ class TestPluginSwitches:
         app.dependency_overrides[get_compose_settings] = lambda: ComposeSettings(max_tool_executions=7)
 
         with (
-            patch(
-                "sparkth.plugins.compose.routes.completions.MessageScopeClassifier",
-                return_value=_classifier_answering(True),
-            ),
             patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()),
             patch("sparkth.plugins.compose.routes.completions.ComposeStreamProcessor") as processor_cls,
         ):
@@ -411,10 +374,6 @@ class TestPluginSwitches:
         await _seed_lms_plugins(session, user_id, openedx_on, canvas_on, openedx_system_on)
         provider = _provider()
         with (
-            patch(
-                "sparkth.plugins.compose.routes.completions.MessageScopeClassifier",
-                return_value=_classifier_answering(True),
-            ),
             patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=provider) as get_provider,
             patch("sparkth.plugins.compose.routes.completions.get_tool_registry", return_value=_lms_registry()),
             patch("sparkth.plugins.compose.routes.completions.complete_turn", new=_turn_answer()) as complete_turn,
@@ -428,26 +387,6 @@ class TestPluginSwitches:
         complete_turn, _ = await self._lms_turn(client, session, current_user.id or 1, True, True, False)
 
         assert "openedx_create_xblock" not in _bound_tool_names(complete_turn)
-
-    async def test_a_plugin_the_user_switched_off_offers_no_scope(
-        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent, other_agent: Agent
-    ) -> None:
-        config_id = await _seed_llm_config(session, current_user.id or 1)
-        conversation_uuid = await _seed_conversation(session, current_user.id or 1)
-        await _switch_stub(session, current_user.id or 1, True, False)
-
-        with (
-            patch(
-                "sparkth.plugins.compose.routes.completions.MessageScopeClassifier",
-                return_value=_classifier_answering(True),
-            ) as classifier_cls,
-            patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()),
-        ):
-            await _turn(client, config_id, conversation_uuid)
-
-        offered = classifier_cls.call_args.args[0]
-        assert stub_agent not in offered
-        assert other_agent in offered
 
     async def test_an_enabled_plugin_contributes_its_tools_and_agent(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
@@ -464,6 +403,7 @@ class TestPluginSwitches:
 
         call = complete_turn.await_args_list[-1]
         agents = call.kwargs["agents"]
-        sent = [str(call.args[0]), render_planner_prompt(agents), *(render_system_prompt([agent]) for agent in agents)]
+        prompts = [render_planner_prompt(agents, operations=True), *(render_system_prompt([agent]) for agent in agents)]
+        sent = [str(call.args[0]), *prompts]
         for value in (*OPENEDX_CONFIG.values(), *CANVAS_CONFIG.values()):
             assert not any(value in text for text in sent)

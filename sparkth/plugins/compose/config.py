@@ -16,6 +16,8 @@ class ComposeSettings(BaseSettings):
     )
 
     max_tool_executions: int = 50
+    # How long a streamed turn may stay silent before a keep-alive comment is sent, in seconds.
+    stream_heartbeat_seconds: float = 15
     title_max_length: int = 60
     title_prompt_max_chars: int = 500
     title_llm_max_tokens: int = 20

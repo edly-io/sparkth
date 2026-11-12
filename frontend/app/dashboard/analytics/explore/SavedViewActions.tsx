@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import type { ExploreConfig } from "@/lib/analytics";
+import type { ExploreConfig } from "@/core/analytics";
 import { Button } from "@/core/components/ui/Button";
 import { SaveViewDialog } from "./SaveViewDialog";
-import type { SavedView } from "./useSavedView";
+import type { SavedView } from "@/app/dashboard/analytics/explore/hooks";
 
 /**
  * The toolbar for saving `config`: Save view when no view is open; otherwise Save, Save as new,

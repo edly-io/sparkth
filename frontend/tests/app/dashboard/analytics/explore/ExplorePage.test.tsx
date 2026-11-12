@@ -11,8 +11,8 @@ vi.mock("@/core/auth/hooks", () => ({
 }));
 
 // Analytics data access: keep the real helpers, stub the fetches.
-vi.mock("@/lib/analytics", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/analytics")>();
+vi.mock("@/core/analytics", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/core/analytics")>();
   return {
     ...actual,
     fetchEventCatalog: vi.fn(),
@@ -25,7 +25,7 @@ vi.mock("@/lib/analytics", async (importOriginal) => {
 });
 
 const access = vi.hoisted(() => ({ userRead: "allowed" }));
-vi.mock("@/lib/permissions/usePermissionCheck", () => ({
+vi.mock("@/core/permissions/hooks", () => ({
   usePermissionCheck: () => access.userRead,
 }));
 
@@ -46,7 +46,7 @@ import {
   type AnalyticsView,
   type EventCatalogEntry,
   type ExploreResult,
-} from "@/lib/analytics";
+} from "@/core/analytics";
 import { ApiRequestError } from "@/lib/api";
 import ExplorePage from "@/app/dashboard/analytics/explore/ExplorePage";
 import { PeriodSelector } from "@/app/dashboard/analytics/PeriodSelector";
