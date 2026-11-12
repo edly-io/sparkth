@@ -5,6 +5,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.permissions.engine import get_accessible_scope_object_ids
+from sparkth.core.permissions.models import GroupRoleAssignment
 from sparkth.lib.permissions import GROUP_READ
 from sparkth.lib.permissions.scopes import GLOBAL, GROUP, ROLE
 from sparkth.lib.testing import assign, assign_through_group, make_role, make_user
