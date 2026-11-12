@@ -1,4 +1,4 @@
-"""Group sub-router (mounted at ``/groups``): CRUD for user groups (issue #519).
+"""Group sub-router (mounted at ``/groups``): CRUD for user groups.
 
 Structural definition only — membership and group-role grants are CLI-managed, mirroring
 how user-role assignment is CLI-only. The endpoints that address one group by ``{group_id}``
