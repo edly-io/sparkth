@@ -110,6 +110,11 @@ under `/api/v1/permissions` (gated by `role.*` / `permission.read`). See the RES
 (`/docs`) for the endpoints. Permissions and scope kinds themselves are **not** editable
 there — they are declared in code.
 
+Management of one role can be delegated through the `role` scope, the way a group's can (see
+[Groups](#groups)): a role assigned at `role` with that role's id covers that role only. Listing
+returns the roles the caller holds `role.read` at (every role for a `global` grant). A caller who
+holds `role.read` nowhere gets 403, not an empty list. Creating a role stays at `global`.
+
 Roles shipped with the app are **non-deletable** (`deletable = false`): deleting one returns `409`.
 Roles created through the API are deletable. A migration that seeds a new shipped role sets
 `deletable = false` on it. Deleting a role also removes every user and group assignment of it
@@ -164,8 +169,10 @@ From application code, use the façade (`sparkth.lib.permissions`): `add_group_m
 Management of one group can be delegated, like the per-role `role` scope. The endpoints that
 address one group by `{group_id}` (get, update, delete) authorize at the `group` scope, so a
 role assigned at `group` with that group's id covers that group only. A `global` grant still
-satisfies them through the cascade. Listing all groups and creating a group stay at `global`.
-The scope object id is the group's numeric id, listed by `GET /api/v1/permissions/groups`:
+satisfies them through the cascade. Listing returns the groups the caller holds `group.read` at
+(every group for a `global` grant). A caller who holds `group.read` nowhere gets 403, not an
+empty list. Creating a group stays at `global`. The scope object id is the group's numeric id,
+listed by `GET /api/v1/permissions/groups`:
 
 ```bash
 # let jane manage group 7 only, through a role that holds group.read / group.update

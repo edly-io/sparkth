@@ -31,6 +31,14 @@ async def _create_user_with_permissions(
     user = User(name="Admin", username=_uniq("admin"), email=f"{_uniq('admin')}@example.com", hashed_password="x")
     session.add(user)
     await session.flush()
+    await _grant_permissions(session, user, permissions, scope, scope_object_id)
+    return user
+
+
+async def _grant_permissions(
+    session: AsyncSession, user: User, permissions: list[str], scope: str, scope_object_id: str | None
+) -> None:
+    """Give ``user`` one more role holding ``permissions`` at ``scope``/``scope_object_id``."""
     assert user.id is not None
     role = Role(name=_uniq("role"))
     session.add(role)
@@ -40,7 +48,6 @@ async def _create_user_with_permissions(
         session.add(RolePermission(role_id=role.id, permission=permission))
     session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope=scope, scope_object_id=scope_object_id))
     await session.flush()
-    return user
 
 
 async def _create_target_group(session: AsyncSession) -> Group:
@@ -193,16 +200,46 @@ async def test_group_scoped_deleter_can_delete_only_that_group(client: AsyncClie
     assert (await client.delete(f"/api/v1/permissions/groups/{target.id}")).status_code == 204
 
 
-async def test_group_scoped_grant_does_not_authorize_global_endpoints(
+async def test_group_scoped_reader_lists_only_that_group(client: AsyncClient, session: AsyncSession) -> None:
+    target = await _create_target_group(session)
+    await _create_target_group(session)
+    _override_current_user(
+        client, await _create_user_with_permissions(session, ["group.read"], "group", str(target.id))
+    )
+    await session.commit()
+    response = await client.get("/api/v1/permissions/groups")
+    assert response.status_code == 200
+    assert [group["id"] for group in response.json()] == [target.id]
+
+
+async def test_reader_at_two_groups_lists_both(client: AsyncClient, session: AsyncSession) -> None:
+    first = await _create_target_group(session)
+    second = await _create_target_group(session)
+    await _create_target_group(session)
+    user = await _create_user_with_permissions(session, ["group.read"], "group", str(first.id))
+    await _grant_permissions(session, user, ["group.read"], "group", str(second.id))
+    _override_current_user(client, user)
+    await session.commit()
+    response = await client.get("/api/v1/permissions/groups")
+    assert response.status_code == 200
+    assert [group["id"] for group in response.json()] == [first.id, second.id]
+
+
+async def test_group_reader_at_no_group_is_refused_listing(client: AsyncClient, session: AsyncSession) -> None:
+    await _create_target_group(session)
+    _override_current_user(client, await _create_user_with_permissions(session, ["group.update"]))
+    await session.commit()
+    assert (await client.get("/api/v1/permissions/groups")).status_code == 403
+
+
+async def test_group_scoped_grant_does_not_authorize_creating_groups(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    # Listing and creating groups stay gated at the global scope; a per-group grant does not
-    # cascade UP to global.
+    # Creating a group stays gated at the global scope; a per-group grant does not cascade UP to global.
     target = await _create_target_group(session)
     _override_current_user(
         client,
-        await _create_user_with_permissions(session, ["group.read", "group.create"], "group", str(target.id)),
+        await _create_user_with_permissions(session, ["group.create"], "group", str(target.id)),
     )
     await session.commit()
-    assert (await client.get("/api/v1/permissions/groups")).status_code == 403
     assert (await client.post("/api/v1/permissions/groups", json={"name": _uniq("x")})).status_code == 403

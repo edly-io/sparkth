@@ -305,6 +305,21 @@ async def test_create_role_permission_fetches_role_once(client: AsyncClient, ses
 # grant can be delegated to a single role. A global grant still satisfies them via the cascade.
 
 
+async def _grant_permissions(
+    session: AsyncSession, user: User, permissions: list[str], scope: str, scope_object_id: str
+) -> None:
+    """Give ``user`` one more role holding ``permissions`` at ``scope``/``scope_object_id``."""
+    assert user.id is not None
+    role = Role(name=_uniq("role"))
+    session.add(role)
+    await session.flush()
+    assert role.id is not None
+    for permission in permissions:
+        session.add(RolePermission(role_id=role.id, permission=permission))
+    session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope=scope, scope_object_id=scope_object_id))
+    await session.flush()
+
+
 async def _create_target_role(session: AsyncSession) -> Role:
     """A plain role with an id, used as the object a per-role grant is scoped to."""
     role = Role(name=_uniq("target"))
@@ -364,20 +379,47 @@ async def test_role_scoped_deleter_can_delete_that_role(client: AsyncClient, ses
     assert (await client.delete(f"/api/v1/permissions/roles/{target.id}")).status_code == 204
 
 
-async def test_role_scoped_grant_does_not_authorize_global_endpoints(
+async def test_role_scoped_reader_lists_only_that_role(client: AsyncClient, session: AsyncSession) -> None:
+    target = await _create_target_role(session)
+    await _create_target_role(session)
+    _override_current_user(client, await _create_user_with_permissions(session, ["role.read"], "role", str(target.id)))
+    await session.commit()
+    response = await client.get("/api/v1/permissions/roles")
+    assert response.status_code == 200
+    assert [role["id"] for role in response.json()] == [target.id]
+
+
+async def test_reader_at_two_roles_lists_both(client: AsyncClient, session: AsyncSession) -> None:
+    first = await _create_target_role(session)
+    second = await _create_target_role(session)
+    await _create_target_role(session)
+    user = await _create_user_with_permissions(session, ["role.read"], "role", str(first.id))
+    await _grant_permissions(session, user, ["role.read"], "role", str(second.id))
+    _override_current_user(client, user)
+    await session.commit()
+    response = await client.get("/api/v1/permissions/roles")
+    assert response.status_code == 200
+    assert [role["id"] for role in response.json()] == [first.id, second.id]
+
+
+async def test_role_reader_at_no_role_is_refused_listing(client: AsyncClient, session: AsyncSession) -> None:
+    await _create_target_role(session)
+    _override_current_user(client, await _create_user_with_permissions(session, ["role.update"]))
+    await session.commit()
+    assert (await client.get("/api/v1/permissions/roles")).status_code == 403
+
+
+async def test_role_scoped_grant_does_not_authorize_create_or_vocabulary_endpoints(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    # A per-role grant must not leak into the list-all / create / vocabulary endpoints, which stay
-    # gated at the global scope (a role-scoped grant does not cascade UP to global).
+    # Creating a role and listing the permission vocabulary stay gated at the global scope (a
+    # role-scoped grant does not cascade UP to global).
     target = await _create_target_role(session)
     _override_current_user(
         client,
-        await _create_user_with_permissions(
-            session, ["role.read", "role.create", "permission.read"], "role", str(target.id)
-        ),
+        await _create_user_with_permissions(session, ["role.create", "permission.read"], "role", str(target.id)),
     )
     await session.commit()
-    assert (await client.get("/api/v1/permissions/roles")).status_code == 403
     assert (await client.post("/api/v1/permissions/roles", json={"name": _uniq("x")})).status_code == 403
     assert (await client.get("/api/v1/permissions")).status_code == 403
 
