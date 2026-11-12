@@ -3,7 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, it, expect, vi, beforeEach } from "vitest";
 
 import { ChatInput } from "@/plugins/compose/src/components/ui/input/ChatInput";
-import type { AttachmentPickerProps, AttachmentSource } from "@/lib/attachments/slots";
+import type {
+  AttachmentPickerProps,
+  AttachmentSource,
+} from "@/plugins/compose/src/slots/attachments";
 import type { TextAttachment } from "@/plugins/compose/src/types";
 import composeEn from "@/plugins/compose/src/i18n/en.json";
 import { renderWithIntl } from "@/tests/intl-test-utils";

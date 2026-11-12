@@ -1,4 +1,4 @@
-import { ATTACHMENT_SOURCES } from "@/lib/attachments/slots";
+import { ATTACHMENT_SOURCES } from "@/plugins/compose/lib";
 import GoogleDriveIcon from "@/plugins/googledrive/src/components/ui/GoogleDriveIcon";
 import { GOOGLEDRIVE_PLUGIN_NAME } from "@/plugins/googledrive/src/constants";
 

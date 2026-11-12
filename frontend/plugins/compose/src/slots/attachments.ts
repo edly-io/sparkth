@@ -1,4 +1,7 @@
 /**
+ * Declares a slot this plugin owns, unlike the other files in `slots/`, which contribute to slots
+ * owned elsewhere. Other plugins reach it only through this plugin's `lib/`.
+ *
  * The slot through which a plugin offers Compose a place to attach documents from.
  *
  * A plugin sets an `AttachmentSource` under its name. Compose's attach menu lists each source

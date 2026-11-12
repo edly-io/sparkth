@@ -1,6 +1,6 @@
 "use client";
 
-import type { AttachmentPickerProps } from "@/lib/attachments/slots";
+import type { AttachmentPickerProps } from "@/plugins/compose/lib";
 import DriveFilePicker from "@/plugins/googledrive/src/components/ui/DriveFilePicker";
 
 /** Compose's picker for Google Drive: the Drive file picker, speaking in attached documents. */

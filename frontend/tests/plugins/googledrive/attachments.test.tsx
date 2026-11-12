@@ -1,7 +1,7 @@
 import { render } from "@testing-library/react";
 import { beforeEach, describe, it, expect, vi } from "vitest";
 
-import { ATTACHMENT_SOURCES } from "@/lib/attachments/slots";
+import { ATTACHMENT_SOURCES } from "@/plugins/compose/lib";
 import type { SelectedDriveFile } from "@/plugins/googledrive/src/components/ui/DriveFilePicker";
 import GoogleDriveIcon from "@/plugins/googledrive/src/components/ui/GoogleDriveIcon";
 import "@/plugins/googledrive/src/slots/attachments";

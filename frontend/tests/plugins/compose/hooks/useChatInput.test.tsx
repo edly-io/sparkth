@@ -5,7 +5,7 @@ import { afterEach, describe, it, expect, vi, beforeEach } from "vitest";
 import { useChatInput } from "@/plugins/compose/src/hooks/useChatInput";
 import { attachDocument, detachDocument } from "@/plugins/compose/src/client";
 import type { TextAttachment } from "@/plugins/compose/src/types";
-import type { AttachmentSource } from "@/lib/attachments/slots";
+import type { AttachmentSource } from "@/plugins/compose/src/slots/attachments";
 
 vi.mock("@/plugins/compose/src/client", () => ({
   attachDocument: vi.fn(() => Promise.resolve()),
