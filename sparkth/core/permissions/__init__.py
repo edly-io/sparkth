@@ -87,7 +87,7 @@ class Permission:
         raises 403.
 
         Before raising the 403 the refusal is recorded as a ``permission.denied`` audit event
-        in its own transaction (``record_event_now``), so it survives the request's rollback.
+        in its own transaction, so it survives the request's rollback.
         The write is fail-closed: if it fails, the error propagates and the request fails
         instead of returning 403.
         """
