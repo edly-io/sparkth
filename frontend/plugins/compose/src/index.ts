@@ -1,4 +1,5 @@
 import { PluginDefinition } from "@/lib/plugins/types";
+import { PLUGINS } from "@/lib/plugins/slots";
 import type { Locale } from "@/lib/i18n/config";
 import { COMPOSE_PLUGIN_NAME } from "@/plugins/compose/src/constants";
 // This plugin's contributions to core's slots.
@@ -19,3 +20,5 @@ export const compose: PluginDefinition = {
   loadComponent: () => import("@/plugins/compose/src/pages/Compose"),
   loadMessages: (locale) => messageCatalogs[locale]().then((catalog) => catalog.default),
 };
+
+PLUGINS.set(compose.name, compose);
