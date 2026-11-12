@@ -339,13 +339,13 @@ async def edit_course(course_id: int): ...
   ancestor (`global`) covers every object. A caller who holds the permission at no object is refused
   with 403 and a `permission.denied` audit event. The route filters its query by the ids, so a role
   granted at one object lists that object only. A scope whose objects have integer keys passes the ids
-  through `convert_to_ints`, which skips any id that is not a plain integer and keeps `None` as `None`.
+  through `object_id_str_to_int`, which skips any id that is not a plain integer and keeps `None` as `None`.
   - Grants at an object-bearing ancestor are not considered; only grants at the scope itself and at
     objectless ancestors are.
   - An objectless scope names no objects to list, so `require_for_any_object` raises `ValueError` for one.
 
 ```python
-from sparkth.lib.permissions import GROUP_READ, convert_to_ints
+from sparkth.lib.permissions import GROUP_READ, object_id_str_to_int
 from sparkth.lib.permissions.scopes import GROUP
 
 
@@ -355,7 +355,7 @@ async def list_groups(
     session: AsyncSession = Depends(get_async_session),
 ) -> list[GroupResponse]:
     # None: every group. Otherwise only the groups whose id is in the set.
-    group_ids = convert_to_ints(accessible_ids)
+    group_ids = object_id_str_to_int(accessible_ids)
     return await load_groups(group_ids, session)  # your own query, filtered by the ids unless None
 ```
 
