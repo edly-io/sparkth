@@ -5,7 +5,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.user import User
-from sparkth.core.permissions import get_accessible_scope_object_ids
+from sparkth.core.permissions.engine import get_accessible_scope_object_ids
 from sparkth.core.permissions.models import (
     Group,
     GroupMembership,

@@ -30,11 +30,10 @@ from sparkth.core.permissions import (
     ROLE_UPDATE,
     USER_READ,
     Permission,
-    can,
     get_permission,
-    has_role,
 )
 from sparkth.core.permissions.dependencies import object_id_str_to_int
+from sparkth.core.permissions.engine import can, has_role
 from sparkth.core.permissions.grants import assign_role, revoke_role
 from sparkth.core.permissions.groups import (
     add_group_member,
