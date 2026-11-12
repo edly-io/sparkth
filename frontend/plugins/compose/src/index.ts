@@ -15,6 +15,6 @@ const messageCatalogs: Record<Locale, () => Promise<{ default: Record<string, un
 // backend ComposePlugin and arrive via the user-plugins API.
 export const compose: PluginDefinition = {
   name: "compose",
-  loadComponent: () => import("@/plugins/compose/src/routes/Compose"),
+  loadComponent: () => import("@/plugins/compose/src/pages/Compose"),
   loadMessages: (locale) => messageCatalogs[locale]().then((catalog) => catalog.default),
 };
