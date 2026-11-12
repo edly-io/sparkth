@@ -105,12 +105,12 @@ Tests live next to the code they own, so each plugin stays a self-contained, por
 **Frontend (Next.js) core tests are the exception to "next to the code."** Core and `app/` tests live in two
 directories named for what they hold; a plugin's tests live inside the plugin, like the backend's:
 
-- **Plugin** → `frontend/plugins/<plugin>/tests/`, mirroring the plugin's own paths, with Playwright specs in
-  `frontend/plugins/<plugin>/tests/e2e/`. Both runners collect them (`include` in `frontend/vitest.config.ts`,
-  `testMatch` in `frontend/playwright.config.ts`). A plugin test takes its helpers from `@/lib/testing/`
-  (`renderWithIntl`, `IntlTestProvider`, `mockFetch`, `sentRequest`), never from `frontend/tests/` or `@/core`.
-  Existing plugin tests still sit under `frontend/tests/plugins/` until each plugin's are moved in; new plugin
-  tests go in the plugin.
+- **Plugin** → `frontend/plugins/<plugin>/tests/`, mirroring the plugin's `src/`
+  (`plugins/compose/src/hooks/useChatStream.ts` → `plugins/compose/tests/hooks/useChatStream.test.tsx`), with
+  Playwright specs in `frontend/plugins/<plugin>/tests/e2e/`. Both runners collect them (`include` in
+  `frontend/vitest.config.ts`, `testMatch` in `frontend/playwright.config.ts`). A plugin test takes its helpers
+  from `@/lib/testing/` (`renderWithIntl`, `IntlTestProvider`, `mockFetch`, `sentRequest`), never from
+  `frontend/tests/` or `@/core`.
 - **Unit (vitest)** → [`frontend/tests/`](frontend/tests/), a single central mirror of the source
   file's path: `core/components/ui/Input.tsx` →
   `frontend/tests/core/components/ui/Input.test.tsx`, and the `lib` suite sits under
