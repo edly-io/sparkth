@@ -4521,6 +4521,7 @@ export interface operations {
         parameters: {
             query?: {
                 include_inactive?: boolean;
+                owner_id?: number | null;
             };
             header?: never;
             path?: never;
