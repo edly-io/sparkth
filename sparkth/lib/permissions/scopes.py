@@ -2,6 +2,7 @@ from sparkth.core.permissions.scopes import (
     GLOBAL,
     GROUP,
     ROLE,
+    USER,
     WHITELIST,
     ObjectlessPermissionScope,
     PermissionScope,
@@ -18,4 +19,5 @@ __all__ = [
     "WHITELIST",
     "ROLE",
     "GROUP",
+    "USER",
 ]

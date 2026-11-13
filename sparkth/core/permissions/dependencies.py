@@ -3,15 +3,18 @@
 ``build_scope_path_dependency`` returns the FastAPI dependency that yields the checked object's
 scope path for a route: built from a path parameter, a fixed id, an async dependency returning
 an id or a scope object record, or ``None`` for an objectless scope. ``object_id_str_to_int`` converts
-the string object ids of grants to the integer ids of the objects they name.
+the string object ids of grants to the integer ids of the objects they name. Two dependencies
+name the ``user`` scope object a create or list route is checked at: the caller, or the listed owner.
 """
 
 from collections.abc import Awaitable, Callable
 
-from fastapi import Depends, Request
+from fastapi import Depends, Query, Request
 
+from sparkth.core.models.user import User
 from sparkth.core.permissions.scopes import PermissionScope, build_scope_path
 from sparkth.core.permissions.scopes.mixins import ScopeObjectMixin
+from sparkth.lib.auth import get_current_user
 from sparkth.lib.log import get_logger
 
 logger = get_logger(__name__)
@@ -96,3 +99,16 @@ def object_id_str_to_int(ids: set[str] | None) -> set[int] | None:
         else:
             logger.warning("Skipped non-numeric scope object id %r", object_id)
     return object_ids
+
+
+async def get_own_user_scope_id(current_user: User = Depends(get_current_user)) -> str:
+    """Return the caller's id as the object id of the ``user`` scope, for routes that create the caller's records."""
+    return str(current_user.id)
+
+
+async def get_listed_owner_id(
+    owner_id: int | None = Query(None), current_user: User = Depends(get_current_user)
+) -> str:
+    """Return the object id of the ``user`` scope a list route is checked at: the ``owner_id`` query
+    parameter, or the caller's own id when it is absent."""
+    return str(current_user.id if owner_id is None else owner_id)
