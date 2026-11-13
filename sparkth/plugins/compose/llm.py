@@ -350,6 +350,7 @@ def _planner_for_turn(
             if operations
             else None
         ),
+        existing_plan=None,
     )
 
 

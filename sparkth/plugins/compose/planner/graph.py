@@ -11,8 +11,10 @@ from langgraph.graph.state import CompiledStateGraph
 from sparkth.lib.audit.events import AuditModelInfo
 from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME, PLANNER_AGENT_NAME
 from sparkth.lib.compose.hooks import Agent
+from sparkth.lib.log import get_logger
 from sparkth.plugins.compose.constants import (
     MAX_STEPS_PER_TURN,
+    PLANNER_EXISTING_PLAN,
     PLANNER_OPERATIONS,
     PLANNER_PROMPT,
     PLANNER_WITHOUT_OPERATIONS,
@@ -32,21 +34,50 @@ from sparkth.plugins.compose.planner.tools import (
     build_operator_tool,
     show_plan_tool,
 )
-from sparkth.plugins.compose.planner.types import AgentGraph
+from sparkth.plugins.compose.planner.types import AgentGraph, ExistingPlan
+
+logger = get_logger(__name__)
 
 
-def render_planner_prompt(agents: Sequence[Agent], *, operations: bool) -> str:
+def _get_plan_or_none(existing_plan: ExistingPlan | None, agents: Sequence[str]) -> ExistingPlan | None:
+    """``existing_plan``, or None when there is none or one of its steps from the one in progress
+    onwards is for an agent that isn't in ``agents``."""
+    if existing_plan is None:
+        return None
+    missing = {step.agent for step in existing_plan.steps[existing_plan.current - 1 :]} - set(agents)
+    if missing:
+        logger.info("The existing plan is dropped: no agent in this turn does the steps of %s", sorted(missing))
+        return None
+    return existing_plan
+
+
+def _get_step_state(number: int, plan: ExistingPlan) -> str:
+    """Where step ``number`` of ``plan`` stands, as the planner reads it."""
+    if number < plan.current:
+        return "done"
+    return "in progress" if number == plan.current else "not started"
+
+
+def render_planner_prompt(agents: Sequence[Agent], *, operations: bool, existing_plan: ExistingPlan | None) -> str:
     """The planner's system prompt, listing each of ``agents`` by its title and its description,
-    saying how to run operations when there are ``operations``, or what to do without them, and
-    giving the most steps a plan may have."""
+    saying how to run operations when there are ``operations``, or what to do without them, giving
+    the most steps a plan may have, and ending with ``existing_plan``, a plan from an earlier message that
+    isn't finished, when there is one."""
     listed = "\n\n".join(f"## {agent.title}\n{agent.description}" for agent in agents)
-    return PLANNER_PROMPT.format(
+    prompt = PLANNER_PROMPT.format(
         agents=listed,
         operations=PLANNER_OPERATIONS if operations else PLANNER_WITHOUT_OPERATIONS,
         max_steps=MAX_STEPS_PER_TURN,
         options_tag=OptionsFence.MULTIPLE,
         single_options_tag=OptionsFence.SINGLE,
     )
+    if existing_plan is not None:
+        steps = "\n".join(
+            f"{number}. {step.task} ({step.agent}): {_get_step_state(number, existing_plan)}"
+            for number, step in enumerate(existing_plan.steps, start=1)
+        )
+        prompt = f"{prompt}\n\n{PLANNER_EXISTING_PLAN.format(steps=steps)}"
+    return prompt
 
 
 def build_planner(
@@ -54,31 +85,37 @@ def build_planner(
     agents: Sequence[AgentGraph],
     *,
     operator: CompiledStateGraph[Any, AuditModelInfo, Any, Any] | None,
+    existing_plan: ExistingPlan | None,
 ) -> CompiledStateGraph[Any, AuditModelInfo, Any, Any]:
     """Build the planner on ``llm``. It gives steps to ``agents``, and to ``operator`` when there is one.
+
+    ``existing_plan`` is a plan from an earlier message that isn't finished, which the turn may carry on.
 
     Stream it with ``stream_mode`` including ``"custom"`` and ``subgraphs=True``. Each step and tool
     call waits until the reader sets the ``go`` of its ``routed`` or ``tool_start`` event.
     """
     operator_tools = [build_operator_tool(operator)] if operator is not None else []
-    names = [agent.spec.name for agent in agents] + ([OPERATOR_AGENT_NAME] if operator is not None else [])
+    agent_names = [agent.spec.name for agent in agents] + ([OPERATOR_AGENT_NAME] if operator is not None else [])
     # Nobody to give a step to means nothing to plan.
-    plan_tools = [show_plan_tool(names)] if names else []
+    plan_tools = [show_plan_tool(agent_names)] if agent_names else []
+    existing_plan = _get_plan_or_none(existing_plan, agent_names)
     tools = [*(build_handoff_tool(agent) for agent in agents), *operator_tools, *plan_tools, REFUSAL_TOOL]
     # After-model hooks run in reverse order: a reply is trimmed to one call, checked against each limit,
     # then checked for a repeat hand-off. The before-model hook runs each time before the planner is asked.
     middleware: list[AgentMiddleware[Any, Any, Any]] = [
         end_turn_after_agent_offers_choices,
-        end_at_repeat_hand_off,
+        end_at_repeat_hand_off(existing_plan),
         enforce_step_limit,
         enforce_rejected_call_limit,
         first_hand_off_only,
-        enforce_plan,
+        enforce_plan(existing_plan),
     ]
     return create_agent(
         llm,
         tools,
-        system_prompt=render_planner_prompt([agent.spec for agent in agents], operations=operator is not None),
+        system_prompt=render_planner_prompt(
+            [agent.spec for agent in agents], operations=operator is not None, existing_plan=existing_plan
+        ),
         middleware=middleware,
         context_schema=AuditModelInfo,
         name=PLANNER_AGENT_NAME,
