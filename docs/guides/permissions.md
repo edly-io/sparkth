@@ -28,7 +28,8 @@ is declared in application code, not kept in a catalogue table.
 
 - **Permissions** are declared with `Permission.create("assignment.grade")`, which registers
   the permission on the **`PERMISSIONS`** hook. Core permissions are declared this way in
-  `sparkth.core.permissions`; plugins declare their own at module level in their `plugin.py`.
+  `sparkth.core.permissions`; plugins declare their own at module level in their `plugin.py`, or in a module
+  their routes import when the routes need the constant.
 - **Scope kinds** are declared with `PermissionScope.create("course", parent=...)`, which
   registers the scope on the **`PERMISSION_SCOPES`** hook. The root `global` scope is declared
   this way in `sparkth.core.permissions.scopes`; plugins declare their own at module level in
@@ -102,8 +103,8 @@ assigned at.
 | Kind | Names | Notes |
 |---|---|---|
 | **Scopes** | `global`, `whitelist`, `role`, `group`, `user` | `global` is the objectless root (applies platform-wide). `whitelist` is an objectless singleton nested under `global` for the registration whitelist. `role` is object-bearing (nested under `global`) so role management can be delegated per-role by that role's id. `group` is object-bearing (nested under `global`) so group management can be delegated per-group by that group's id. `user` is object-bearing (nested under `global`) and names one user by id: a user's own records live at their `user` scope, so a grant there reaches that user's records only. A `global` grant cascades down to all four. |
-| **Permissions** | `email.whitelist.{read,create,delete}`; `role.{create,read,update,delete}`; `group.{create,read,update,delete}`; `permission.read`; `analytics.read`; `audit.read`; `user.read` | Gate the registration email-whitelist endpoints, the role-management API, the group-management API, listing the assignable permission vocabulary, the analytics dashboards and their read API, querying and exporting the audit trail, and reading usernames outside user management (Explore's `/analytics/query`, which names each actor, and its saved `/analytics/views`; both also need `analytics.read`) respectively. |
-| **Roles** | `admin`, `sparkth_user` (neither can be deleted) | `admin` grants the three `email.whitelist.*`, the four `role.*`, the four `group.*`, `permission.read`, `analytics.read`, `audit.read`, and `user.read`. A seed migration also assigned it at `global` to every account that was a superuser when the migration ran — a one-time backfill. `sparkth_user` is the default role: every account holds it at its own `user` scope (a migration assigned it to every existing account; registration, Google sign-up and `create-user` assign it to each new one), and its default permissions are granted by migration. |
+| **Permissions** | `email.whitelist.{read,create,delete}`; `role.{create,read,update,delete}`; `group.{create,read,update,delete}`; `permission.read`; `analytics.read`; `audit.read`; `user.read`; `llm.config.{create,read,update,delete}`; `compose.conversation.{read,write}`; `googledrive.{read,sync,delete}` | Gate the registration email-whitelist endpoints, the role-management API, the group-management API, listing the assignable permission vocabulary, the analytics dashboards and their read API, querying and exporting the audit trail, and reading usernames outside user management (Explore's `/analytics/query`, which names each actor, and its saved `/analytics/views`; both also need `analytics.read`) respectively. The `llm.config.*`, `compose.conversation.*` and `googledrive.*` names authorize actions on one user's records, at the `user` scope of the record's owner: `compose.conversation.read` to list and read Compose conversations and their attachments, `compose.conversation.write` to send turns and to attach and detach documents; `llm.config.create`, `llm.config.read`, `llm.config.update` and `llm.config.delete` to create, list, change (edit, rotate the key, set active) and delete AI keys; `googledrive.read` to list and read Google Drive folders and files and download files, `googledrive.sync` to sync and refresh folders, and `googledrive.delete` to delete files. |
+| **Roles** | `admin`, `sparkth_user` (neither can be deleted) | `admin` grants the three `email.whitelist.*`, the four `role.*`, the four `group.*`, `permission.read`, `analytics.read`, `audit.read`, and `user.read` (it does not hold the `llm.config.*`, `compose.conversation.*` or `googledrive.*` names). A seed migration also assigned it at `global` to every account that was a superuser when the migration ran — a one-time backfill. `sparkth_user` is the default role: every account holds it at its own `user` scope (a migration assigned it to every existing account; registration, Google sign-up and `create-user` assign it to each new one), and its default permissions, the `llm.config.*`, `compose.conversation.*` and `googledrive.*` names, are granted by a later migration, which also assigns the role to any account that never had it. |
 
 Roles and their permission grants are managed at runtime through the role-management REST API
 under `/api/v1/permissions` (gated by `role.*` / `permission.read`). See the REST API docs
@@ -235,8 +236,10 @@ it. Settle these before declaring one:
 
 ## Extending the permission system
 
-**Declare a permission or scope kind** — a plugin declares its own at module level in its
-`plugin.py`, bound to a constant, never in the plugin class's `__init__`: the loader and the
+**Declare a permission or scope kind** — a plugin declares its own at module level in
+`plugin.py`, or in a module of the plugin that its routes import when they need
+the constant (routes cannot import from `plugin.py`, which imports them),
+bound to a constant, never in the plugin class's `__init__`: the loader and the
 plugin's own tests each construct the class, and a second declaration of a name raises
 `ValueError`. Core declarations live in `sparkth.core.permissions` (permissions) and
 `sparkth.core.permissions.scopes` (scope kinds). Import everything from
