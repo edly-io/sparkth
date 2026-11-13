@@ -8,7 +8,7 @@ from sparkth.core.permissions import PERMISSIONS, Permission, roles
 from sparkth.core.permissions.exceptions import (
     PermissionNotFound,
     RoleAlreadyExists,
-    RoleNotDeletable,
+    RoleIsBuiltin,
     RoleNotFound,
 )
 from sparkth.core.permissions.models import Group, GroupRoleAssignment, Role, RoleAssignment, RolePermission
@@ -306,7 +306,7 @@ async def test_delete_role_refuses_builtin_role(session: AsyncSession, audit_eve
     session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope=GLOBAL.name, scope_object_id=None))
     await session.flush()
     events_before = len(await audit_events())
-    with pytest.raises(RoleNotDeletable):
+    with pytest.raises(RoleIsBuiltin):
         await roles.delete_role(role.id, session)
     assert len(await audit_events()) == events_before
     assert await session.get(Role, role.id) is not None
