@@ -2,7 +2,7 @@ import hashlib
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, cast
 from urllib.parse import quote
 
 import redis.asyncio as aioredis
@@ -105,11 +105,9 @@ async def register_user(
     )
     session.add(db_user)
     await session.flush()
-
-    if db_user.id is None:
-        raise RuntimeError("user.id unexpectedly None after flush")
-    await assign_default_role(db_user.id, session)
-    raw_token = await EmailVerificationService.create_token(session, user_id=db_user.id)
+    user_id = cast(int, db_user.id)
+    await assign_default_role(user_id, session)
+    raw_token = await EmailVerificationService.create_token(session, user_id=user_id)
     await record_event(session, _registered_event(db_user, method="password"))
     await session.commit()
     await session.refresh(db_user)
@@ -351,9 +349,7 @@ async def google_callback(
                 )
                 session.add(user)
                 await session.flush()
-                if user.id is None:
-                    raise RuntimeError("user.id unexpectedly None after flush")
-                await assign_default_role(user.id, session)
+                await assign_default_role(cast(int, user.id), session)
                 await record_event(session, _registered_event(user, method="google"))
                 await session.commit()
                 await session.refresh(user)
