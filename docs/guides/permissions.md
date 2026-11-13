@@ -354,13 +354,13 @@ async def edit_course(course_id: int): ...
   with 403 and a `permission.denied` audit event. The route filters its query by the ids, so a role
   granted at one object lists that object only. A scope whose objects have integer keys passes the ids
   through `object_id_str_to_int`, which skips any id that is not a plain integer and keeps `None` as `None`.
+  - Grants at an object-bearing ancestor are not considered; only grants at the scope itself and at
+    objectless ancestors are.
+  - An objectless scope names no objects to list, so `require_for_any_object` raises `ValueError` for one.
   - A list of one user's records takes an optional `owner_id` query parameter and gates with
     `require_for_object(USER, get_listed_owner_id)`. It returns `owner_id`, or the caller's id when
     absent, so listing another user's records needs the permission at that user's scope or at `global`.
     An `owner_id` that names no user is not looked up: a holder gets an empty list, a non-holder 403.
-  - Grants at an object-bearing ancestor are not considered; only grants at the scope itself and at
-    objectless ancestors are.
-  - An objectless scope names no objects to list, so `require_for_any_object` raises `ValueError` for one.
 
 ```python
 from sparkth.lib.permissions import GROUP_READ, object_id_str_to_int
