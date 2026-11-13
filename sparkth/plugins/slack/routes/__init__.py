@@ -14,6 +14,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.lib.auth import get_current_user_id
 from sparkth.lib.db import get_async_session, session_scope
 from sparkth.lib.documents import list_ready_documents
 from sparkth.lib.i18n import _
@@ -33,7 +34,6 @@ from sparkth.plugins.slack.events import extract_question, is_greeting, should_h
 from sparkth.plugins.slack.exceptions import SlackSignatureError
 from sparkth.plugins.slack.models import BotResponseLog, SlackConnectionLog
 from sparkth.plugins.slack.rag import answer_question
-from sparkth.plugins.slack.routes.dependencies import require_user_id
 from sparkth.plugins.slack.routes.oauth import oauth_router
 from sparkth.plugins.slack.service import WorkspaceService, decrypt_token, get_workspace_service
 from sparkth.plugins.slack.types import (
@@ -414,7 +414,7 @@ async def slack_events(
 
 @router.get("/logs", response_model=LogsResponse)
 async def get_response_logs(
-    user_id: int = Depends(require_user_id),
+    user_id: int = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_async_session),
     limit: int = Query(default=50, ge=1, le=200),
     cursor: str | None = Query(default=None),
@@ -559,7 +559,7 @@ def _to_connection_item(row: SlackConnectionLog) -> ConnectionLogItem:
 
 @router.get("/rag/sources", response_model=RagSourcesResponse)
 async def list_rag_sources(
-    user_id: int = Depends(require_user_id),
+    user_id: int = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_async_session),
 ) -> RagSourcesResponse:
     """Return ready document names available to configure Slack RAG."""

@@ -12,6 +12,7 @@ from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.lib.auth import get_current_user_id
 from sparkth.lib.db import get_async_session
 from sparkth.lib.log import get_logger
 from sparkth.lib.permissions.scopes import USER
@@ -24,7 +25,6 @@ from sparkth.plugins.googledrive.routes.dependencies import (
     get_drive_file_owner_id,
     get_drive_folder,
     get_drive_folder_owner_id,
-    require_user_id,
 )
 from sparkth.plugins.googledrive.routes.route_utils import batch_fetch_documents, get_drive_credentials
 from sparkth.plugins.googledrive.schemas import (
@@ -235,7 +235,7 @@ async def delete_file(
 async def browse_drive(
     folder_id: str | None = Query(None, description="Drive folder ID to browse (root if omitted)"),
     page_token: str | None = Query(None, description="Pagination token"),
-    user_id: int = Depends(require_user_id),
+    user_id: int = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_async_session),
 ) -> DriveBrowseResponse:
     """Browse Google Drive contents."""
