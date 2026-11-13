@@ -8,10 +8,11 @@ from sqlalchemy import func
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.lib.auth import get_current_user_id
 from sparkth.lib.db import get_async_session
 from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
-from sparkth.lib.permissions import get_listed_owner_id, get_own_user_scope_id
+from sparkth.lib.permissions import get_listed_owner_id
 from sparkth.lib.permissions.scopes import USER
 from sparkth.plugins.googledrive.client import GoogleDriveClient
 from sparkth.plugins.googledrive.models import DriveFile, DriveFolder
@@ -99,7 +100,7 @@ async def list_folders(
 @router.post(
     "/folders/sync",
     response_model=DriveFolderResponse,
-    dependencies=[Depends(DRIVE_SYNC.require_for_object(USER, get_own_user_scope_id))],
+    dependencies=[Depends(DRIVE_SYNC.require_for_object(USER, get_current_user_id))],
 )
 async def sync_folder(
     request: SyncFolderRequest,
