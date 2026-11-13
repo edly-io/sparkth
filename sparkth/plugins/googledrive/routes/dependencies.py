@@ -7,11 +7,9 @@ from fastapi import Depends, HTTPException, status
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
 from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
-from sparkth.lib.models import User
 from sparkth.plugins.googledrive.models import DriveFile, DriveFolder
 
 __all__ = [
@@ -19,17 +17,9 @@ __all__ = [
     "get_drive_file_owner_id",
     "get_drive_folder",
     "get_drive_folder_owner_id",
-    "require_user_id",
 ]
 
 logger = get_logger(__name__)
-
-
-def require_user_id(current_user: User = Depends(get_current_user)) -> int:
-    """FastAPI dependency — extract and validate the current user's ID."""
-    if current_user.id is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=_("User not authenticated"))
-    return current_user.id
 
 
 async def get_drive_folder(folder_id: int, session: AsyncSession = Depends(get_async_session)) -> DriveFolder:

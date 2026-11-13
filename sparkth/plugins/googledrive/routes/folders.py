@@ -21,7 +21,6 @@ from sparkth.plugins.googledrive.permissions import DRIVE_READ, DRIVE_SYNC
 from sparkth.plugins.googledrive.routes.dependencies import (
     get_drive_folder,
     get_drive_folder_owner_id,
-    require_user_id,
 )
 from sparkth.plugins.googledrive.routes.route_utils import get_drive_credentials
 from sparkth.plugins.googledrive.schemas import (
@@ -105,7 +104,7 @@ async def list_folders(
 async def sync_folder(
     request: SyncFolderRequest,
     background_tasks: BackgroundTasks,
-    user_id: int = Depends(require_user_id),
+    user_id: int = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_async_session),
 ) -> DriveFolderResponse:
     """Sync an existing Google Drive folder."""
