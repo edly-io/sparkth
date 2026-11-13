@@ -25,10 +25,6 @@ from sparkth.plugins.compose.models import (  # noqa: F401 — registers tables 
     Conversation,
     Message,
 )
-from sparkth.plugins.compose.permissions import (  # noqa: F401 — registers permissions
-    CONVERSATION_READ,
-    CONVERSATION_WRITE,
-)
 from sparkth.plugins.compose.routes import compose_router
 from sparkth.plugins.compose.service import detach_deleted_document
 
