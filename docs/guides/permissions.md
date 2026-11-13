@@ -29,7 +29,7 @@ is declared in application code, not kept in a catalogue table.
 - **Permissions** are declared with `Permission.create("assignment.grade")`, which registers
   the permission on the **`PERMISSIONS`** hook. Core permissions are declared this way in
   `sparkth.core.permissions`; plugins declare their own at module level in their `plugin.py`, or in a module
-  `plugin.py` imports when their routes need the constant.
+  their routes import when the routes need the constant.
 - **Scope kinds** are declared with `PermissionScope.create("course", parent=...)`, which
   registers the scope on the **`PERMISSION_SCOPES`** hook. The root `global` scope is declared
   this way in `sparkth.core.permissions.scopes`; plugins declare their own at module level in
@@ -237,7 +237,7 @@ it. Settle these before declaring one:
 ## Extending the permission system
 
 **Declare a permission or scope kind** — a plugin declares its own at module level in
-`plugin.py`, or in a module of the plugin that `plugin.py` imports when the plugin's routes need
+`plugin.py`, or in a module of the plugin that its routes import when they need
 the constant (routes cannot import from `plugin.py`, which imports them),
 bound to a constant, never in the plugin class's `__init__`: the loader and the
 plugin's own tests each construct the class, and a second declaration of a name raises
