@@ -1,11 +1,11 @@
-import { FRONTEND_PLUGIN_NAMES } from "@/lib/plugins/generated";
+import { getPlugin } from "@/core/plugins/registry";
 
 /**
- * Whether the plugin is installed in the backend build. Analytics follow this, not the viewer's
- * or the platform's plugin switches.
+ * Whether the plugin is installed: its frontend registered with core. Analytics follow this, not
+ * the viewer's or the platform's plugin switches.
  */
 export function isInstalled(plugin: string): boolean {
-  // ponytail: lists only plugins that declare a frontend page (FRONTEND_APPS); read a
-  // backend-reported list if an analytics plugin ever ships without one.
-  return (FRONTEND_PLUGIN_NAMES as readonly string[]).includes(plugin);
+  // ponytail: only a plugin with a page registers; read a backend-reported list if an analytics
+  // plugin ever ships without one.
+  return getPlugin(plugin) !== undefined;
 }
