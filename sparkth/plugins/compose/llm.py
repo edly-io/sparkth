@@ -5,7 +5,7 @@ import asyncio
 import json
 from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from contextlib import aclosing
-from dataclasses import replace
+from dataclasses import asdict, replace
 from functools import partial
 from typing import Any, cast
 
@@ -40,7 +40,14 @@ from sparkth.lib.mcp.exceptions import ToolFailure
 from sparkth.lib.plugins import PluginConfigInvalidError, PluginNotConfiguredError
 from sparkth.plugins.compose.constants import OPERATOR_PROMPT, STOPPED_EARLY_NOTICE, TOOL_FAILED_UNEXPECTEDLY
 from sparkth.plugins.compose.enums import TurnEventType
-from sparkth.plugins.compose.planner import AgentGraph, TurnRouting, build_planner
+from sparkth.plugins.compose.planner import (
+    PLAN_KEY,
+    AgentGraph,
+    OpenPlan,
+    PlanProgress,
+    TurnRouting,
+    build_planner,
+)
 from sparkth.plugins.compose.prompt import render_system_prompt
 from sparkth.plugins.compose.tools import convert_mcp_to_langchain_tool, get_tool_registry
 
@@ -319,12 +326,14 @@ def _planner_for_turn(
     provider: BaseChatProvider,
     planner_llm: BaseChatModel,
     max_tool_executions: int,
+    open_plan: OpenPlan | None,
 ) -> CompiledStateGraph[Any, AuditModelInfo, Any, Any]:
     """The turn's planner on ``planner_llm``, handing off to ``agents`` that each run on the
     provider's model with their own prompt and their own tools.
 
     Its operator runs on the provider's model with the turn's ``tools`` of plugins that give
-    Compose no agent, and exists only when there are some.
+    Compose no agent, and exists only when there are some. ``open_plan`` is a plan from an earlier
+    message that isn't finished.
     """
     # Made to stream, so a reply reaches the author as it is written: a model made with streaming off
     # writes the whole reply first.
@@ -350,7 +359,7 @@ def _planner_for_turn(
             if operations
             else None
         ),
-        open_plan=None,
+        open_plan=open_plan,
     )
 
 
@@ -384,6 +393,7 @@ async def _turn_events(
     max_tool_executions: int,
     agents: Sequence[Agent],
     planner_llm: BaseChatModel,
+    open_plan: OpenPlan | None,
 ) -> AsyncGenerator[dict[str, Any], None]:
     """Run one turn on the planner, yielding what happens as it happens.
 
@@ -398,9 +408,11 @@ async def _turn_events(
     calls were blocked, ``usage`` with the tokens of each model reply, the planner's, the agents'
     and the operator's, and ``final`` with each closing model reply. A step or a call reported as
     started runs only once this generator is asked for its next event. A refusal arrives as the
-    refusal sentence.
+    refusal sentence. Yields ``plan`` with the steps of a plan the turn makes, and ``plan_step``
+    with the number of each step of that plan or of ``open_plan``, a plan from an earlier message
+    that isn't finished, when the step starts and again once it has run.
     """
-    planner = _planner_for_turn(agents, tools, provider, planner_llm, max_tool_executions)
+    planner = _planner_for_turn(agents, tools, provider, planner_llm, max_tool_executions, open_plan)
     stream = _stream_planner(planner, messages, provider)
     turn_text = _TurnText()
     async with aclosing(stream):
@@ -428,6 +440,7 @@ async def _turn_events(
                 elif isinstance(message, ToolMessage):
                     # An agent's reply has already streamed; only a plan or a refusal is new text.
                     if message.name == SHOW_PLAN_TOOL_NAME and message.status != "error":
+                        yield {"type": TurnEventType.PLAN, "steps": message.artifact}
                         for token in turn_text.plan_text(message):
                             yield {"type": TurnEventType.TOKEN, "content": token}
                     elif message.name == REFUSAL_TOOL_NAME and message.status != "error":
@@ -452,12 +465,14 @@ async def complete_turn(
     *,
     agents: Sequence[Agent],
     planner_llm: BaseChatModel,
+    open_plan: OpenPlan | None,
 ) -> dict[str, Any]:
     """Run one non-streamed turn on the planner and return its answer.
 
     The answer is the text a streamed turn would have shown, ``routing`` says who answered it last,
     and ``metadata`` lists the steps the turn ran, every tool call it made and the tokens of all its
-    model replies, the planner's and the agents'.
+    model replies, the planner's and the agents', and holds the plan the turn leaves open, its
+    own or ``open_plan`` from an earlier message, when it leaves one.
     """
     tokens: list[str] = []
     routing = TurnRouting()
@@ -466,13 +481,18 @@ async def complete_turn(
     limit_reached = False
     usage: UsageMetadata | None = None
     final: AIMessage | None = None
-    events = _turn_events(messages, tools, provider, max_tool_executions, agents, planner_llm)
+    progress = PlanProgress(open_plan)
+    events = _turn_events(messages, tools, provider, max_tool_executions, agents, planner_llm, open_plan)
     async with aclosing(events):
         async for event in events:
             if event["type"] == TurnEventType.ROUTED:
                 routing = event["routing"]
                 if routing.agent is not None:
                     steps.append(routing.agent)
+            elif event["type"] == TurnEventType.PLAN:
+                progress.record_plan(event["steps"])
+            elif event["type"] == TurnEventType.PLAN_STEP:
+                progress.record_step(event["number"], ran=event["ran"])
             elif event["type"] == TurnEventType.TOKEN:
                 tokens.append(event["content"])
             elif event["type"] == TurnEventType.TOOL_END:
@@ -492,6 +512,7 @@ async def complete_turn(
                 # The planner's empty reply that ends a turn after a step is not the turn's answer.
                 final = event["message"]
 
+    left_open = progress.left_open()
     return {
         "content": "".join(tokens),
         "role": "assistant",
@@ -499,6 +520,7 @@ async def complete_turn(
         "tool_calls": None,
         "routing": routing,
         "metadata": {
+            **({PLAN_KEY: asdict(left_open)} if left_open is not None else {}),
             "steps": steps,
             "tool_executions": tool_executions,
             "num_executions": len(tool_executions),
@@ -517,6 +539,7 @@ async def stream_turn(
     *,
     agents: Sequence[Agent],
     planner_llm: BaseChatModel,
+    open_plan: OpenPlan | None,
 ) -> AsyncGenerator[dict[str, Any], None]:
     """Stream one turn on the planner as typed event dicts.
 
@@ -525,6 +548,12 @@ async def stream_turn(
                                                — who answers next, when a step (a hand-off or the
                                                  operator) starts or the refusal returns; never sent
                                                  when the planner answers
+      {"type": "plan",      "steps": list[PlannedStep]}
+                                               — the plan the turn made
+      {"type": "plan_step", "number": int, "ran": bool}
+                                               — a step of that plan, or of ``open_plan``, a plan
+                                                 from an earlier message that isn't finished,
+                                                 starting, or having run
       {"type": "token",     "content": str}   — text to display
       {"type": "tool_start","name": str}       — tool execution beginning
       {"type": "tool_end",  "name": str, "failure": ToolFailureKind | None}
@@ -533,11 +562,17 @@ async def stream_turn(
     A call reported by ``tool_start``, or a step reported by ``routed``, runs only once the reader
     asks for the next event, so a reader that stops there keeps it from running.
     """
-    events = _turn_events(messages, tools, provider, max_tool_executions, agents, planner_llm)
+    events = _turn_events(messages, tools, provider, max_tool_executions, agents, planner_llm, open_plan)
     async with aclosing(events):
         async for event in events:
             match event["type"]:
-                case TurnEventType.ROUTED | TurnEventType.TOKEN | TurnEventType.TOOL_START:
+                case (
+                    TurnEventType.ROUTED
+                    | TurnEventType.PLAN
+                    | TurnEventType.PLAN_STEP
+                    | TurnEventType.TOKEN
+                    | TurnEventType.TOOL_START
+                ):
                     yield event
                 case TurnEventType.TOOL_END:
                     yield {"type": TurnEventType.TOOL_END, "name": event["name"], "failure": event["failure"]}

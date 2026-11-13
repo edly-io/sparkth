@@ -1,9 +1,12 @@
 import json
+from collections.abc import Sequence
 from typing import Any
 
 from langchain_core.tools import BaseTool
 
 from sparkth.lib.log import get_logger
+from sparkth.plugins.compose.models import Message
+from sparkth.plugins.compose.planner import OpenPlan, read_open_plan
 from sparkth.plugins.compose.schemas import ChatCompletionRequest
 from sparkth.plugins.compose.tools import ToolRegistry
 
@@ -28,6 +31,20 @@ async def resolve_tools(
     else:
         return None
     return [tool for tool in tools if tool_registry.plugin_for(tool.name) not in disabled_plugins]
+
+
+def open_plan_of(messages: Sequence[Message]) -> OpenPlan | None:
+    """The plan the latest reply among ``messages`` left open, if it left one. An error is no reply:
+    a turn that fails stores what it wrote, with its plan, before the error."""
+    replies = [message for message in messages if message.role == "assistant" and not message.is_error]
+    if not replies or not replies[-1].model_metadata:
+        return None
+    try:
+        metadata = json.loads(replies[-1].model_metadata)
+    except json.JSONDecodeError as exc:
+        logger.error("Failed to parse the latest reply's metadata for its plan: %s", exc)
+        return None
+    return read_open_plan(metadata if isinstance(metadata, dict) else None)
 
 
 def parse_metadata_list(model_metadata: str | None, key: str) -> list[dict[str, Any]] | None:

@@ -44,7 +44,7 @@ from sparkth.plugins.compose.llm import complete_turn
 from sparkth.plugins.compose.messages import get_last_user_text
 from sparkth.plugins.compose.permissions import CONVERSATION_WRITE
 from sparkth.plugins.compose.routes.dependencies import get_turn_owner_id
-from sparkth.plugins.compose.routes.utils import resolve_tools
+from sparkth.plugins.compose.routes.utils import open_plan_of, resolve_tools
 from sparkth.plugins.compose.routes.utils.live_turns import request_stop
 from sparkth.plugins.compose.routes.utils.message_assembly import assemble_provider_messages
 from sparkth.plugins.compose.routes.utils.stream_processor import (
@@ -275,6 +275,8 @@ async def compose_completion(
         )
 
         tools = await resolve_tools(request, get_tool_registry(), disabled_plugins)
+        # A plan the conversation's latest reply left open, for this turn to carry on or drop.
+        open_plan = open_plan_of(db_messages)
 
         if request.stream:
             # Gated together so no LLM is built for a turn that will not retrieve.
@@ -300,6 +302,7 @@ async def compose_completion(
                 max_tool_executions=config.max_tool_executions,
                 agents=agents,
                 planner_llm=planner_llm,
+                open_plan=open_plan,
             )
             return StreamingResponse(
                 # The stream task outlives this response — it writes its analytics after the
@@ -309,7 +312,13 @@ async def compose_completion(
             )
         else:
             response = await complete_turn(
-                messages, tools or [], provider, config.max_tool_executions, agents=agents, planner_llm=planner_llm
+                messages,
+                tools or [],
+                provider,
+                config.max_tool_executions,
+                agents=agents,
+                planner_llm=planner_llm,
+                open_plan=open_plan,
             )
 
             tokens_used = response.get("metadata", {}).get("usage_metadata", {}).get("total_tokens")

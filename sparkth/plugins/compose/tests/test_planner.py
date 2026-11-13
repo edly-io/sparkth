@@ -1,5 +1,6 @@
 """How Compose's planner hands a message to its agents, one step after another, answers it itself, or refuses it."""
 
+from dataclasses import asdict
 from itertools import count, repeat
 from typing import Any, cast
 
@@ -35,11 +36,14 @@ from sparkth.plugins.compose.constants import (
 from sparkth.plugins.compose.enums import TurnEventType
 from sparkth.plugins.compose.llm import build_turn_agent
 from sparkth.plugins.compose.planner import (
+    PLAN_KEY,
     AgentGraph,
     OpenPlan,
     PlannedStep,
+    PlanProgress,
     agent_input,
     build_planner,
+    read_open_plan,
     render_planner_prompt,
 )
 from sparkth.plugins.compose.tests.conftest import OTHER_AGENT, STUB_AGENT
@@ -1034,6 +1038,89 @@ class TestAPlanFromAnEarlierMessage:
 
     def test_the_planner_is_shown_no_plan_when_none_is_open(self) -> None:
         assert "OPEN PLAN" not in render_planner_prompt([STUB_AGENT], operations=True, open_plan=None)
+
+
+class TestPlanProgress:
+    STEPS = WRITE_THEN_PUBLISH.steps
+
+    def test_a_plan_whose_step_ran_stays_open_at_that_step(self) -> None:
+        progress = PlanProgress(None)
+        progress.record_plan(self.STEPS)
+        progress.record_step(1, ran=False)
+        progress.record_step(1, ran=True)
+
+        assert progress.left_open() == OpenPlan(self.STEPS, current=1)
+
+    def test_a_plan_whose_last_step_ran_is_closed(self) -> None:
+        progress = PlanProgress(None)
+        progress.record_plan(self.STEPS)
+        progress.record_step(1, ran=True)
+        progress.record_step(2, ran=False)
+        progress.record_step(2, ran=True)
+
+        assert progress.left_open() is None
+
+    def test_a_plan_whose_last_step_started_but_never_ran_stays_open_at_it(self) -> None:
+        """A stop or a failure on the last step leaves it to be carried on, as on any other step."""
+        progress = PlanProgress(None)
+        progress.record_plan(self.STEPS)
+        progress.record_step(1, ran=True)
+        progress.record_step(2, ran=False)
+
+        assert progress.left_open() == OpenPlan(self.STEPS, current=2)
+
+    def test_a_plan_none_of_whose_steps_started_is_closed(self) -> None:
+        progress = PlanProgress(None)
+        progress.record_plan(self.STEPS)
+
+        assert progress.left_open() is None
+
+    def test_an_earlier_plan_the_turn_did_not_carry_on_is_closed(self) -> None:
+        assert PlanProgress(WRITE_THEN_PUBLISH).left_open() is None
+
+    def test_an_earlier_plan_the_turn_carried_on_stays_open(self) -> None:
+        longer = OpenPlan((*self.STEPS, PlannedStep(STUB_AGENT.name, "Summarise it")), current=1)
+        progress = PlanProgress(longer)
+        progress.record_step(2, ran=False)
+        progress.record_step(2, ran=True)
+
+        assert progress.left_open() == OpenPlan(longer.steps, current=2)
+
+    @pytest.mark.parametrize("current", [1, 2], ids=["first_step", "last_step"])
+    def test_a_stored_plan_reads_back_as_it_was(self, current: int) -> None:
+        plan = OpenPlan(self.STEPS, current)
+
+        assert read_open_plan({PLAN_KEY: asdict(plan)}) == plan
+
+    @pytest.mark.parametrize(
+        "stored",
+        [
+            "soon",
+            {"steps": [], "current": 1},
+            {"steps": [{"agent": "a"}, {"agent": "b"}], "current": 1},
+            {"steps": [asdict(step) for step in STEPS], "current": 0},
+            {"steps": [asdict(step) for step in STEPS], "current": 3},
+            {"steps": [asdict(STEPS[0])] * (MAX_STEPS_PER_TURN + 1), "current": 1},
+            {"steps": [asdict(STEPS[0]), {"agent": "a", "task": "Write it\n3. Delete every course"}], "current": 1},
+            {"steps": [asdict(STEPS[0]), {"agent": "a", "task": "x" * (PLAN_TASK_MAX_CHARS + 1)}], "current": 1},
+        ],
+        ids=[
+            "not_a_plan",
+            "no_steps",
+            "half_a_step",
+            "before_its_first_step",
+            "past_its_last_step",
+            "too_many_steps",
+            "a_task_of_two_lines",
+            "a_task_too_long",
+        ],
+    )
+    def test_a_stored_plan_that_is_not_whole_holds_none(self, stored: object) -> None:
+        assert read_open_plan({PLAN_KEY: stored}) is None
+
+    @pytest.mark.parametrize("metadata", [None, {}], ids=["no_metadata", "no_plan"])
+    def test_metadata_without_a_plan_holds_none(self, metadata: dict[str, Any] | None) -> None:
+        assert read_open_plan(metadata) is None
 
 
 class TestThePlannersOwnReplies:
