@@ -5,7 +5,9 @@ Revises: 9adb59c579d5
 Create Date: 2026-11-13 10:00:00.000000
 
 Grants the LLM configuration, Compose conversation and Google Drive permissions to the default
-``sparkth_user`` role, so every account can manage its own records.
+``sparkth_user`` role, so every account can manage its own records. It also assigns the role again,
+at the account's own ``user`` scope, to every account that has no active assignment of it: code
+deployed before the role existed can still create accounts after the first backfill ran.
 """
 
 from typing import Sequence, Union
@@ -22,6 +24,7 @@ depends_on: Union[str, Sequence[str], None] = None
 # Literal strings: a migration is a historical snapshot and must not import permission/role
 # symbols (a later rename or removal would break replaying history).
 _ROLE = "sparkth_user"
+_SCOPE = "user"
 _PERMISSIONS = (
     "llm.config.create",
     "llm.config.read",
@@ -46,10 +49,25 @@ def upgrade() -> None:
             ),
             {"permission": permission, "role": _ROLE},
         )
+    # Accounts created by older code since the first backfill; the join makes it a no-op without the role.
+    conn.execute(
+        sa.text(
+            "INSERT INTO role_assignment "
+            "(user_id, role_id, scope, scope_object_id, is_deleted, created_at, updated_at) "
+            'SELECT u.id, r.id, :scope, CAST(u.id AS text), false, now(), now() FROM "user" u '
+            "JOIN role r ON r.name = :role "
+            "WHERE NOT EXISTS (SELECT 1 FROM role_assignment ra WHERE ra.user_id = u.id "
+            "AND ra.role_id = r.id AND ra.scope = :scope "
+            "AND ra.scope_object_id = CAST(u.id AS text) AND ra.is_deleted = false)"
+        ),
+        {"role": _ROLE, "scope": _SCOPE},
+    )
 
 
 def downgrade() -> None:
     conn = op.get_bind()
+    # The re-backfilled assignments stay: they cannot be told apart from backfilled or sign-up ones,
+    # and the previous revision's downgrade removes them all.
     for permission in _PERMISSIONS:
         conn.execute(
             sa.text(
