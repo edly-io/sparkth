@@ -13,7 +13,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.permissions.exceptions import RoleNotFound
 from sparkth.core.permissions.models import GroupRoleAssignment, Role, RoleAssignment
-from sparkth.core.permissions.scopes import PermissionScope
+from sparkth.core.permissions.scopes import USER, PermissionScope
 from sparkth.lib.audit import record_event
 from sparkth.lib.audit.events import (
     AuditChange,
@@ -23,6 +23,8 @@ from sparkth.lib.audit.events import (
     RoleAssignedAuditEvent,
     RoleUnassignedAuditEvent,
 )
+
+DEFAULT_USER_ROLE = "sparkth_user"
 
 
 def create_grant_audit_snapshot(role_name: str, scope_name: str, scope_object_id: str | None) -> dict[str, str | None]:
@@ -108,6 +110,15 @@ async def assign_role(
         ),
     )
     return assignment
+
+
+async def assign_default_role(user_id: int, session: AsyncSession) -> RoleAssignment:
+    """Assign the default user role to user_id at that user's own ``user`` scope.
+
+    Called for every new account in the transaction that creates it. Raises RoleNotFound
+    if the default role has not been seeded.
+    """
+    return await assign_role(user_id, DEFAULT_USER_ROLE, USER, str(user_id), session)
 
 
 async def revoke_role(

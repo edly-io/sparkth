@@ -51,6 +51,7 @@ from sparkth.core.cache import get_cache_service
 from sparkth.core.db import dispose_engine, get_engine
 from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.core.models.user import User
+from sparkth.core.permissions.grants import DEFAULT_USER_ROLE
 from sparkth.core.permissions.models import (
     Group,
     GroupMembership,
@@ -59,7 +60,8 @@ from sparkth.core.permissions.models import (
     RoleAssignment,
     RolePermission,
 )
-from sparkth.core.permissions.scopes import GLOBAL, PermissionScope
+from sparkth.core.permissions.roles import available_permissions
+from sparkth.core.permissions.scopes import GLOBAL, USER, PermissionScope
 from sparkth.lib.auth import bind_request_user, get_current_user
 from sparkth.lib.i18n import LOCALE_DIRS
 from sparkth.lib.mcp.hooks import MCP_TOOLS
@@ -160,6 +162,18 @@ async def grant_permission_at_scope(
         RoleAssignment(user_id=user_id, role_id=role.id, scope=permission_scope.name, scope_object_id=scope_object_id)
     )
     await session.flush()
+
+
+@pytest.fixture
+async def default_user_role(session: AsyncSession) -> Role:
+    """Seed the default ``sparkth_user`` role with every registered permission and assign it to user 1.
+
+    Not autouse: a test that creates accounts, or relies on every user holding the role, opts in.
+    """
+    role = await make_role(session, DEFAULT_USER_ROLE, available_permissions())
+    session.add(RoleAssignment(user_id=1, role_id=cast(int, role.id), scope=USER.name, scope_object_id="1"))
+    await session.commit()
+    return role
 
 
 async def grant_global_permission(session: AsyncSession, user_id: int, permission: str) -> None:
