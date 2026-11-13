@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: sparkth 0.1.11\n"
 "Report-Msgid-Bugs-To: https://github.com/edly-io/sparkth/issues\n"
-"POT-Creation-Date: 2026-11-13 14:48+0500\n"
+"POT-Creation-Date: 2026-10-20 11:57+0800\n"
 "PO-Revision-Date: 2026-08-14 07:25+0500\n"
 "Last-Translator: Hamza Shafique <hamza.shafique1@arbisoft.com>\n"
 "Language: es\n"
@@ -18,11 +18,11 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: sparkth/api/v1/auth.py:81
+#: sparkth/api/v1/auth.py:80
 msgid "Registration is currently disabled"
 msgstr "El registro está deshabilitado actualmente"
 
-#: sparkth/api/v1/auth.py:87
+#: sparkth/api/v1/auth.py:86
 msgid ""
 "This email address is not authorized to register. Contact an "
 "administrator."
@@ -30,15 +30,15 @@ msgstr ""
 "Esta dirección de correo no está autorizada para registrarse. Contacta a "
 "un administrador."
 
-#: sparkth/api/v1/auth.py:92
+#: sparkth/api/v1/auth.py:91
 msgid "Username already registered"
 msgstr "El nombre de usuario ya está registrado"
 
-#: sparkth/api/v1/auth.py:97
+#: sparkth/api/v1/auth.py:96
 msgid "Email already registered"
 msgstr "El correo electrónico ya está registrado"
 
-#: sparkth/api/v1/auth.py:198 sparkth/api/v1/auth.py:213
+#: sparkth/api/v1/auth.py:196 sparkth/api/v1/auth.py:211
 msgid "Incorrect username or password"
 msgstr "Usuario o contraseña incorrectos"
 
@@ -59,13 +59,13 @@ msgstr "El archivo supera el límite de 30 MB"
 msgid "Unsupported file type"
 msgstr "Tipo de archivo no compatible"
 
-#: sparkth/api/v1/llm.py:64 sparkth/api/v1/llm.py:230
-msgid "LLM config not found"
-msgstr "Configuración de LLM no encontrada"
-
-#: sparkth/api/v1/llm.py:137
+#: sparkth/api/v1/llm.py:98
 msgid "Empty body. Nothing to update."
 msgstr "Cuerpo vacío. Nada que actualizar."
+
+#: sparkth/api/v1/llm.py:179
+msgid "LLM config not found"
+msgstr "Configuración de LLM no encontrada"
 
 #: sparkth/api/v1/user_plugins.py:50
 #, python-brace-format
@@ -82,7 +82,7 @@ msgstr "El plugin '{name}' no está habilitado"
 msgid "Plugin '{name}' is already configured"
 msgstr "El plugin '{name}' ya está configurado"
 
-#: sparkth/api/v1/user/routes.py:35 sparkth/lib/auth.py:180
+#: sparkth/api/v1/user/routes.py:50 sparkth/lib/auth.py:180
 msgid "User not found"
 msgstr "Usuario no encontrado"
 
@@ -102,7 +102,7 @@ msgstr "Usuarios activos"
 msgid "Signups"
 msgstr "Registros"
 
-#: sparkth/core/permissions/__init__.py:105
+#: sparkth/core/permissions/__init__.py:117
 msgid "Permission denied"
 msgstr "Permiso denegado"
 
@@ -148,7 +148,7 @@ msgstr ""
 "Combinación de ámbito e identificador de objeto no válida para el ámbito "
 "{scope!r}: {scope_object_id!r}"
 
-#: sparkth/core/plugins/middleware.py:108
+#: sparkth/core/plugins/middleware.py:106
 #, python-brace-format
 msgid ""
 "Access to plugin '{name}' is disabled for your account. Please enable the"
@@ -157,12 +157,12 @@ msgstr ""
 "El acceso al plugin '{name}' está deshabilitado para tu cuenta. Habilita "
 "el plugin en tu configuración."
 
-#: sparkth/core/plugins/service.py:258 sparkth/core/plugins/service.py:264
+#: sparkth/core/plugins/service.py:159 sparkth/core/plugins/service.py:165
 #, python-brace-format
 msgid "Plugin '{name}' cannot be configured at this time."
 msgstr "El plugin '{name}' no se puede configurar en este momento."
 
-#: sparkth/core/plugins/service.py:512
+#: sparkth/core/plugins/service.py:411
 msgid "Cannot update plugin configuration while the plugin is disabled"
 msgstr ""
 "No se puede actualizar la configuración del plugin mientras está "
@@ -180,7 +180,7 @@ msgstr ""
 "Este registro está desactivado. Reactívalo en AI Keys o selecciona otra "
 "configuración."
 
-#: sparkth/llm/adapter.py:76 sparkth/llm/service.py:161
+#: sparkth/llm/adapter.py:76 sparkth/llm/service.py:170
 #, python-brace-format
 msgid ""
 "Model '{model}' not available for provider '{provider}'. Allowed: "
@@ -254,9 +254,7 @@ msgstr "Este enlace para restablecer la contraseña no es válido o ya se ha usa
 
 #: sparkth/services/account/password_reset.py:137
 msgid "This password reset link has expired. Request a new one."
-msgstr ""
-"Este enlace para restablecer la contraseña ha caducado. Solicita uno "
-"nuevo."
+msgstr "Este enlace para restablecer la contraseña ha caducado. Solicita uno nuevo."
 
 #: sparkth/services/account/password_reset.py:170
 msgid ""
@@ -273,7 +271,8 @@ msgstr "Este enlace caduca en {minutes} minutos."
 
 #: sparkth/services/account/password_reset.py:172
 msgid "If you didn't ask to reset your password, you can ignore this email."
-msgstr "Si no solicitaste restablecer tu contraseña, puedes ignorar este correo."
+msgstr ""
+"Si no solicitaste restablecer tu contraseña, puedes ignorar este correo."
 
 #: sparkth/services/account/password_reset.py:173
 msgid "Reset my password"
@@ -285,7 +284,8 @@ msgstr "Restablece tu contraseña de Sparkth"
 
 #: sparkth/services/account/service.py:38
 msgid "SSO based sign-ins cannot update passwords."
-msgstr "Las cuentas que inician sesión con SSO no pueden cambiar la contraseña."
+msgstr ""
+"Las cuentas que inician sesión con SSO no pueden cambiar la contraseña."
 
 #: sparkth/services/account/service.py:47
 msgid "Your current password is incorrect."

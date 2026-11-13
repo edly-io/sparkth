@@ -375,3 +375,5 @@ async def test_a_builtin_role_can_still_be_assigned_and_revoked(session: AsyncSe
     await revoke_role(user.id, "admin", GLOBAL, None, session)
     await revoke_role_from_group(group.id, "admin", GLOBAL, None, session)
     assert await has_role(user, "admin", GLOBAL, None, session) is False
+    await session.refresh(group_assignment)
+    assert group_assignment.is_deleted is True

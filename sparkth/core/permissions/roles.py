@@ -86,12 +86,12 @@ async def get_role(role_id: int, session: AsyncSession, *, for_update: bool = Fa
     return role
 
 
-async def _get_changeable_role(role_id: int, session: AsyncSession) -> Role:
-    """Return the role locked until the transaction ends, refusing a role shipped with Sparkth.
+async def _get_changeable_role(role_id: int, session: AsyncSession, *, for_update: bool = False) -> Role:
+    """Return the role, raising RoleNotFound if it is missing or RoleIsBuiltin if it ships with Sparkth.
 
-    Raises RoleNotFound if the role is missing or RoleIsBuiltin if it ships with Sparkth.
+    ``for_update`` locks the row until the transaction ends (a no-op on SQLite).
     """
-    role = await get_role(role_id, session, for_update=True)
+    role = await get_role(role_id, session, for_update=for_update)
     if role.is_builtin:
         raise RoleIsBuiltin(role.name)
     return role
@@ -151,7 +151,7 @@ async def delete_role(role_id: int, session: AsyncSession) -> None:
     ``group.role_revoked`` before ``role.deleted``. The role row is locked for the delete so
     concurrent assignments wait for it.
     """
-    role = await _get_changeable_role(role_id, session)
+    role = await _get_changeable_role(role_id, session, for_update=True)
     await delete_grants_at_object(ROLE, str(role_id), session)
     await _delete_role_dependents(role_id, session)
     await session.delete(role)
