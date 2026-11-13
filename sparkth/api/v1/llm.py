@@ -82,14 +82,14 @@ def _to_response(config: LLMConfig) -> LLMConfigResponse:
 )
 async def create_llm_config(
     body: LLMConfigCreate,
-    current_user: User = Depends(get_current_user),
+    owner_id: str = Depends(get_own_user_scope_id),
     session: AsyncSession = Depends(get_async_session),
     service: LLMConfigService = Depends(get_llm_service),
 ) -> LLMConfigResponse:
     try:
         config = await service.create(
             session=session,
-            user_id=current_user.id,  # type: ignore[arg-type]
+            user_id=int(owner_id),
             name=body.name,
             provider=body.provider,
             model=body.model,
@@ -98,7 +98,7 @@ async def create_llm_config(
         await session.commit()
         return _to_response(config)
     except LLMConfigDuplicateNameError as exc:
-        logger.warning("LLMConfig name conflict for user %s: %s", current_user.id, exc)
+        logger.warning("LLMConfig name conflict for user %s: %s", owner_id, exc)
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
 
@@ -138,7 +138,7 @@ async def update_llm_config(
         )
 
     try:
-        config = await service.update(
+        updated = await service.update(
             session=session,
             user_id=config.user_id,
             config_id=config_id,
@@ -146,7 +146,7 @@ async def update_llm_config(
             model=body.model,
         )
         await session.commit()
-        return _to_response(config)
+        return _to_response(updated)
     except LLMConfigDuplicateNameError as exc:
         logger.warning("LLMConfig name conflict updating config %s for user %s: %s", config_id, config.user_id, exc)
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
@@ -171,14 +171,14 @@ async def rotate_llm_config_key(
     service: LLMConfigService = Depends(get_llm_service),
 ) -> LLMConfigResponse:
     try:
-        config = await service.rotate_key(
+        updated = await service.rotate_key(
             session=session,
             user_id=config.user_id,
             config_id=config_id,
             api_key=body.api_key,
         )
         await session.commit()
-        return _to_response(config)
+        return _to_response(updated)
     except LLMConfigNotFoundError as exc:
         logger.warning("LLMConfig %s not found for key rotation (user %s): %s", config_id, config.user_id, exc)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
@@ -197,14 +197,14 @@ async def set_llm_config_active(
     service: LLMConfigService = Depends(get_llm_service),
 ) -> LLMConfigResponse:
     try:
-        config = await service.set_active(
+        updated = await service.set_active(
             session=session,
             user_id=config.user_id,
             config_id=config_id,
             is_active=body.is_active,
         )
         await session.commit()
-        return _to_response(config)
+        return _to_response(updated)
     except LLMConfigNotFoundError as exc:
         logger.warning("LLMConfig %s not found for active state update (user %s): %s", config_id, config.user_id, exc)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
