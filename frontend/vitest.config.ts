@@ -25,6 +25,13 @@ export default defineConfig({
   },
   resolve: {
     alias: [
+      // app/pluginModules.ts loads the plugins with require.context, which Vitest lacks, so tests load
+      // them through a stand-in. An alias, not vi.mock: a mock's factory is not re-run after
+      // vi.resetModules(), so the plugins would never fill a fresh slot.
+      {
+        find: /^@\/app\/pluginModules$/,
+        replacement: path.resolve(__dirname, "tests/app/pluginModules.ts"),
+      },
       { find: "@", replacement: path.resolve(__dirname, ".") },
       ...(pxcJs ? [{ find: /^\.\/pxc\.js$/, replacement: pxcJs }] : []),
     ],
