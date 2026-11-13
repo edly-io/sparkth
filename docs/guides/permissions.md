@@ -116,9 +116,9 @@ Management of one role can be delegated through the `role` scope, the way a grou
 returns the roles the caller holds `role.read` at (every role for a `global` grant). A caller who
 holds `role.read` nowhere gets 403, not an empty list. Creating a role stays at `global`.
 
-Roles shipped with the app are **non-deletable** (`deletable = false`): deleting one returns `409`.
-Roles created through the API are deletable. A migration that seeds a new shipped role sets
-`deletable = false` on it. Deleting a role also removes every user and group assignment of it
+Roles shipped with the app are **built-in** (`is_builtin = true`): deleting one returns `409`.
+Roles created through the API are not built-in and can be deleted. A migration that seeds a new
+shipped role sets `is_builtin = true` on it. Deleting a role also removes every user and group assignment of it
 (active and revoked), recording `role.unassigned` per active user assignment and
 `group.role_revoked` per active group assignment; the history stays in the audit trail. It removes
 every grant scoped to the role (`role:<id>`) too, so a later role that reuses the id never inherits
@@ -258,8 +258,8 @@ COURSE = PermissionScope.create("course", parent=GLOBAL)
 **Add a role and its permissions** — seed them in a migration:
 
 ```sql
-INSERT INTO role (name, description, created_at, updated_at)
-VALUES ('grader', 'Grades submissions', now(), now());
+INSERT INTO role (name, description, is_builtin, created_at, updated_at)
+VALUES ('grader', 'Grades submissions', true, now(), now());
 INSERT INTO role_permission (role_id, permission, created_at, updated_at)
 VALUES ((SELECT id FROM role WHERE name = 'grader'), 'assignment.grade', now(), now());
 ```
