@@ -2,10 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { uploadFile } from "@/plugins/compose/src/upload";
 
-vi.mock("@/core/auth/tokens", () => ({
-  getStoredToken: vi.fn().mockReturnValue(null),
-}));
-
 function mockFetch(body: unknown, status = 200) {
   return vi
     .spyOn(globalThis, "fetch")

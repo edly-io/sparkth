@@ -18,10 +18,10 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./vitest.setup.ts"],
-    // Vitest owns the tests/ mirror and nothing else: an explicit include keeps the
-    // suite from picking up stray specs elsewhere in the tree — notably the Playwright
-    // e2e specs in e2e-tests/, which run via `make test.e2e`.
-    include: ["tests/**/*.test.{ts,tsx}"],
+    // Vitest owns the tests/ mirror of core and app, and each plugin's own tests in
+    // plugins/<name>/tests/; nothing else. The explicit include keeps the suite from picking
+    // up the Playwright e2e specs (*.spec.ts), which run via `make test.e2e`.
+    include: ["tests/**/*.test.{ts,tsx}", "plugins/*/tests/**/*.test.{ts,tsx}"],
   },
   resolve: {
     alias: [

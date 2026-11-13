@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { OptionsPrompt } from "@/plugins/compose/src/components/ui/messages/OptionsPrompt";
 import composeEn from "@/plugins/compose/src/i18n/en.json";
-import { renderWithIntl } from "@/tests/intl-test-utils";
+import { renderWithIntl } from "@/lib/testing/intl";
 
 const OPTIONS = ["Beginners", "Professionals", "Students"];
 const onOptionCheck = vi.fn();

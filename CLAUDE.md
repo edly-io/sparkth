@@ -102,20 +102,26 @@ Tests live next to the code they own, so each plugin stays a self-contained, por
   RAG is core, so RAG tests live at `tests/rag/` (not co-located under `sparkth/rag/`); the
   RAG MCP tooling under `sparkth/rag/mcp/` is mirrored by `tests/rag/mcp/`.
 
-**Frontend (Next.js) tests are the exception to "next to the code."** They live in two directories
-named for what they hold, so which one a new test belongs in is never a guess:
+**Frontend (Next.js) core tests are the exception to "next to the code."** Core and `app/` tests live in two
+directories named for what they hold; a plugin's tests live inside the plugin, like the backend's:
 
+- **Plugin** → `frontend/plugins/<plugin>/tests/`, mirroring the plugin's own paths, with Playwright specs in
+  `frontend/plugins/<plugin>/tests/e2e/`. Both runners collect them (`include` in `frontend/vitest.config.ts`,
+  `testMatch` in `frontend/playwright.config.ts`). A plugin test takes its helpers from `@/lib/testing/`
+  (`renderWithIntl`, `IntlTestProvider`, `mockFetch`, `sentRequest`), never from `frontend/tests/` or `@/core`.
+  Existing plugin tests still sit under `frontend/tests/plugins/` until each plugin's are moved in; new plugin
+  tests go in the plugin.
 - **Unit (vitest)** → [`frontend/tests/`](frontend/tests/), a single central mirror of the source
   file's path: `core/components/ui/Input.tsx` →
   `frontend/tests/core/components/ui/Input.test.tsx`, and the `lib` suite sits under
   `frontend/tests/lib/` (e.g. `lib/slots.ts` → `frontend/tests/lib/slots.test.ts`). The mirror is
-  enforced by `include: ["tests/**/*.test.{ts,tsx}"]` in `frontend/vitest.config.ts` — a unit test
-  placed anywhere else is silently never run.
+  enforced by the `include` in `frontend/vitest.config.ts` — a unit test placed outside it or a plugin's
+  `tests/` is silently never run.
   - A browser script that lives outside `frontend/` mirrors its repo path under
     `frontend/tests/`: `sparkth/plugins/pxc/static/sparkth-pxc.js` →
     `frontend/tests/sparkth/plugins/pxc/static/sparkth-pxc.test.ts`. Such a test imports the
     script as `@/../<repo path>`.
-- **E2E (Playwright)** → [`frontend/e2e-tests/`](frontend/e2e-tests/), pointed at by `testDir` in
+- **E2E (Playwright)** → [`frontend/e2e-tests/`](frontend/e2e-tests/), matched by `testMatch` in
   `frontend/playwright.config.ts`, outside the vitest `include` above, and run with
   `make test.e2e`.
 

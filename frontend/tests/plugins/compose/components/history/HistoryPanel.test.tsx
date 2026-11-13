@@ -5,7 +5,7 @@ import HistoryPanel from "@/plugins/compose/src/components/ui/history/HistoryPan
 import { useConversations } from "@/plugins/compose/src/hooks/useConversations";
 import type { ConversationSummary } from "@/plugins/compose/src/types";
 import composeEn from "@/plugins/compose/src/i18n/en.json";
-import { renderWithIntl } from "../../../../intl-test-utils";
+import { renderWithIntl } from "@/lib/testing/intl";
 
 const nav = vi.hoisted(() => ({ query: "" }));
 
