@@ -33,8 +33,8 @@ class RoleAlreadyExists(Exception):
         self.name = name
 
 
-class RoleNotDeletable(Exception):
-    """Raised when deleting a role that is marked non-deletable."""
+class RoleIsBuiltin(Exception):
+    """Raised when deleting a role shipped with Sparkth."""
 
     def __init__(self, role_name: str) -> None:
         super().__init__(_("The {name} role comes with Sparkth and can't be deleted.").format(name=role_name))
