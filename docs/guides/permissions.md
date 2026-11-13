@@ -104,7 +104,7 @@ assigned at.
 |---|---|---|
 | **Scopes** | `global`, `whitelist`, `role`, `group`, `user` | `global` is the objectless root (applies platform-wide). `whitelist` is an objectless singleton nested under `global` for the registration whitelist. `role` is object-bearing (nested under `global`) so role management can be delegated per-role by that role's id. `group` is object-bearing (nested under `global`) so group management can be delegated per-group by that group's id. `user` is object-bearing (nested under `global`) and names one user by id: a user's own records live at their `user` scope, so a grant there reaches that user's records only. A `global` grant cascades down to all four. |
 | **Permissions** | `email.whitelist.{read,create,delete}`; `role.{create,read,update,delete}`; `group.{create,read,update,delete}`; `permission.read`; `analytics.read`; `audit.read`; `user.read`; `llm.config.{create,read,update,delete}`; `compose.conversation.{read,write}`; `googledrive.{read,sync,delete}` | Gate the registration email-whitelist endpoints, the role-management API, the group-management API, listing the assignable permission vocabulary, the analytics dashboards and their read API, querying and exporting the audit trail, and reading usernames outside user management (Explore's `/analytics/query`, which names each actor, and its saved `/analytics/views`; both also need `analytics.read`) respectively. The `llm.config.*`, `compose.conversation.*` and `googledrive.*` names authorize actions on one user's records, at the `user` scope of the record's owner: `compose.conversation.read` to list and read Compose conversations and their attachments, `compose.conversation.write` to send turns and to attach and detach documents; `llm.config.create`, `llm.config.read`, `llm.config.update` and `llm.config.delete` to create, list, change (edit, rotate the key, set active) and delete AI keys; `googledrive.read` to list and read Google Drive folders and files and download files, `googledrive.sync` to sync and refresh folders, and `googledrive.delete` to delete files. |
-| **Roles** | `admin`, `sparkth_user` (neither can be deleted) | `admin` grants the three `email.whitelist.*`, the four `role.*`, the four `group.*`, `permission.read`, `analytics.read`, `audit.read`, and `user.read` (it does not hold the `llm.config.*`, `compose.conversation.*` or `googledrive.*` names). A seed migration also assigned it at `global` to every account that was a superuser when the migration ran — a one-time backfill. `sparkth_user` is the default role: every account holds it at its own `user` scope (a migration assigned it to every existing account; registration, Google sign-up and `create-user` assign it to each new one), and its default permissions, the `llm.config.*`, `compose.conversation.*` and `googledrive.*` names, are granted by a later migration, which also assigns the role to any account that never had it. |
+| **Roles** | `admin`, `sparkth_user` (neither can be changed or deleted) | `admin` grants the three `email.whitelist.*`, the four `role.*`, the four `group.*`, `permission.read`, `analytics.read`, `audit.read`, and `user.read` (it does not hold the `llm.config.*`, `compose.conversation.*` or `googledrive.*` names). A seed migration also assigned it at `global` to every account that was a superuser when the migration ran — a one-time backfill. `sparkth_user` is the default role: every account holds it at its own `user` scope (a migration assigned it to every existing account; registration, Google sign-up and `create-user` assign it to each new one), and its default permissions, the `llm.config.*`, `compose.conversation.*` and `googledrive.*` names, are granted by a later migration, which also assigns the role to any account that never had it. |
 
 Roles and their permission grants are managed at runtime through the role-management REST API
 under `/api/v1/permissions` (gated by `role.*` / `permission.read`). See the REST API docs
@@ -116,10 +116,13 @@ Management of one role can be delegated through the `role` scope, the way a grou
 returns the roles the caller holds `role.read` at (every role for a `global` grant). A caller who
 holds `role.read` nowhere gets 403, not an empty list. Creating a role stays at `global`.
 
-Roles shipped with the app are **built-in** (`is_builtin = true`): deleting one returns `409`.
-Roles created through the API are not built-in and can be deleted. A migration that seeds a new
-shipped role sets `is_builtin = true` on it. Deleting a role also removes every user and group assignment of it
-(active and revoked), recording `role.unassigned` per active user assignment and
+Roles shipped with the app (`admin`, `sparkth_user`) are **built-in** (`is_builtin = true`) and cannot be
+changed: renaming one, editing its description, granting or revoking its permissions, and deleting it all
+return `409`. Their permissions change only through a migration. An operator who needs a variant creates a
+role of their own and grants it the permissions they want. Assigning a built-in role to users or groups, and
+revoking it, work as for any other role. Roles created through the API are not built-in. A migration that
+seeds a new shipped role sets `is_builtin = true` on it. Deleting a role also removes every user and group
+assignment of it (active and revoked), recording `role.unassigned` per active user assignment and
 `group.role_revoked` per active group assignment; the history stays in the audit trail. It removes
 every grant scoped to the role (`role:<id>`) too, so a later role that reuses the id never inherits
 them.
@@ -229,7 +232,8 @@ it. Settle these before declaring one:
 - **Who holds it after deploy?** Nobody, unless a data migration grants it to a seeded role
   (see *Add a role and its permissions* below). Granting it to `admin` that way gives it to
   every current admin as soon as the release is migrated. Left ungranted, an operator grants
-  it at runtime through the role-management API.
+  it at runtime through the role-management API, to a role they created: a built-in role's
+  permissions change only by migration.
 - **Does the UI check it?** The frontend checks a permission with `checkPermission`, which
   accepts only names in the `PermissionName` union in `frontend/core/permissions/types.ts`. That
   union mirrors the whole vocabulary by hand, so every new permission is added to it.

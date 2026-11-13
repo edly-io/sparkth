@@ -1,6 +1,7 @@
 """Role sub-router (mounted at ``/roles``): role CRUD and managing a role's permission grants.
 
-Roles are created and edited here by end users with the ``role.*`` permissions. The endpoints that
+Roles are created and edited here by end users with the ``role.*`` permissions; a role shipped with
+Sparkth cannot be changed or deleted, so those endpoints refuse it with 409. The endpoints that
 address one role by ``{role_id}`` (get/update/delete and its permission grants) authorize at the
 ``role`` scope, so a grant can be delegated to a single role; a
 global grant still satisfies them via the scope cascade. Listing returns the roles the caller holds
@@ -91,7 +92,10 @@ async def get_role(role_id: int, session: AsyncSession = Depends(get_async_sessi
 async def update_role(
     role_id: int, payload: RoleUpdate, session: AsyncSession = Depends(get_async_session)
 ) -> RoleResponse:
-    """Update a role's name and/or description. Returns the updated RoleResponse."""
+    """Update a role's name and/or description. Refused with 409 for a role shipped with Sparkth.
+
+    Returns the updated RoleResponse.
+    """
     role = await role_engine.update_role(role_id, payload.name, payload.description, session)
     return await _role_to_response(role, session)
 
@@ -102,7 +106,7 @@ async def update_role(
     dependencies=[Depends(ROLE_DELETE.require(ROLE, "role_id"))],
 )
 async def delete_role(role_id: int, session: AsyncSession = Depends(get_async_session)) -> None:
-    """Delete a role and its assignments. Refused with 409 if it is non-deletable. Returns 204."""
+    """Delete a role and its assignments. Refused with 409 for a role shipped with Sparkth. Returns 204."""
     await role_engine.delete_role(role_id, session)
 
 
@@ -114,7 +118,10 @@ async def delete_role(role_id: int, session: AsyncSession = Depends(get_async_se
 async def create_role_permission(
     role_id: int, payload: RolePermissionAdd, session: AsyncSession = Depends(get_async_session)
 ) -> RoleResponse:
-    """Grant a registered permission to the role (idempotent). Returns the updated RoleResponse."""
+    """Grant a registered permission to the role (idempotent). Refused with 409 for a role shipped with Sparkth.
+
+    Returns the updated RoleResponse.
+    """
     role = await role_engine.add_role_permission(role_id, payload.permission, session)
     return await _role_to_response(role, session)
 
@@ -127,5 +134,8 @@ async def create_role_permission(
 async def delete_role_permission(
     role_id: int, permission: str, session: AsyncSession = Depends(get_async_session)
 ) -> None:
-    """Revoke a permission from the role (idempotent). Returns 204 No Content."""
+    """Revoke a permission from the role (idempotent). Refused with 409 for a role shipped with Sparkth.
+
+    Returns 204 No Content.
+    """
     await role_engine.remove_role_permission(role_id, permission, session)
