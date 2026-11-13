@@ -1,0 +1,4 @@
+EXISTING PLAN
+In an earlier message the author was shown this plan, and it isn't finished:
+{steps}
+When their message carries on with it, give every call the number of the step it carries out, starting with the step in progress or the next one; the steps before it are done. An operation of this plan is carried out from its task as written here. When their message is about something else, or asks to stop, answer it without step numbers; the plan is then dropped. To change the plan, call the plan tool again before any step.
