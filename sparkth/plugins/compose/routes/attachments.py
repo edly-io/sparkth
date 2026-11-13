@@ -7,9 +7,15 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
 from sparkth.lib.models import User
+from sparkth.lib.permissions.scopes import USER
 from sparkth.plugins.compose.analytics import ComposeAttachmentAnalytics, as_utc
 from sparkth.plugins.compose.models import Conversation
-from sparkth.plugins.compose.routes.dependencies import get_owned_conversation
+from sparkth.plugins.compose.permissions import CONVERSATION_READ
+from sparkth.plugins.compose.routes.dependencies import (
+    get_conversation,
+    get_conversation_owner_id,
+    get_owned_conversation,
+)
 from sparkth.plugins.compose.schemas import (
     AttachedDocumentResponse,
     ConversationAttachmentCreate,
@@ -23,9 +29,10 @@ router = APIRouter()
 @router.get(
     "/conversations/{conversation_id}/attachments",
     response_model=list[AttachedDocumentResponse],
+    dependencies=[Depends(CONVERSATION_READ.require_for_object(USER, get_conversation_owner_id))],
 )
 async def list_conversation_attachments(
-    conversation: Conversation = Depends(get_owned_conversation),
+    conversation: Conversation = Depends(get_conversation),
     session: AsyncSession = Depends(get_async_session),
     service: ComposeService = Depends(get_compose_service),
 ) -> list[AttachedDocumentResponse]:

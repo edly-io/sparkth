@@ -3827,6 +3827,7 @@ export interface operations {
             query?: {
                 limit?: number;
                 offset?: number;
+                owner_id?: number | null;
             };
             header?: never;
             path?: never;

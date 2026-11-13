@@ -1,15 +1,17 @@
 from typing import cast
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
 from sparkth.lib.log import get_logger
-from sparkth.lib.models import User
-from sparkth.plugins.compose.models import Message
+from sparkth.lib.permissions import get_listed_owner_id
+from sparkth.lib.permissions.scopes import USER
+from sparkth.plugins.compose.models import Conversation, Message
+from sparkth.plugins.compose.permissions import CONVERSATION_READ
+from sparkth.plugins.compose.routes.dependencies import get_conversation as get_conversation_record
+from sparkth.plugins.compose.routes.dependencies import get_conversation_owner_id
 from sparkth.plugins.compose.routes.utils import parse_metadata_flag, parse_metadata_list
 from sparkth.plugins.compose.schemas import (
     ConversationDetailResponse,
@@ -45,17 +47,21 @@ def _message_response(msg: Message) -> MessageResponse:
     )
 
 
-@router.get("/conversations", response_model=ConversationListResponse)
+@router.get(
+    "/conversations",
+    response_model=ConversationListResponse,
+    dependencies=[Depends(CONVERSATION_READ.require_for_object(USER, get_listed_owner_id))],
+)
 async def list_conversations(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
-    current_user: User = Depends(get_current_user),
+    owner_id: str = Depends(get_listed_owner_id),
     session: AsyncSession = Depends(get_async_session),
     service: ComposeService = Depends(get_compose_service),
 ) -> ConversationListResponse:
     conversations, total = await service.list_conversations(
         session=session,
-        user_id=cast(int, current_user.id),
+        user_id=int(owner_id),
         limit=limit,
         offset=offset,
     )
@@ -91,17 +97,18 @@ async def list_conversations(
     )
 
 
-@router.get("/conversations/{conversation_id}", response_model=ConversationDetailResponse)
+@router.get(
+    "/conversations/{conversation_id}",
+    response_model=ConversationDetailResponse,
+    dependencies=[Depends(CONVERSATION_READ.require_for_object(USER, get_conversation_owner_id))],
+)
 async def get_conversation(
-    conversation_id: UUID,
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    current_user: User = Depends(get_current_user),
+    conversation: Conversation = Depends(get_conversation_record),
     session: AsyncSession = Depends(get_async_session),
     service: ComposeService = Depends(get_compose_service),
 ) -> ConversationDetailResponse:
-    conversation = await service.require_owned_conversation(session, conversation_id, cast(int, current_user.id))
-
     messages = await service.get_conversation_messages(
         session=session,
         conversation_id=cast(int, conversation.id),
@@ -129,15 +136,13 @@ async def get_conversation(
 @router.get(
     "/conversations/{conversation_id}/last-message",
     response_model=MessageResponse | None,
+    dependencies=[Depends(CONVERSATION_READ.require_for_object(USER, get_conversation_owner_id))],
 )
 async def get_last_conversation_message(
-    conversation_id: UUID,
-    current_user: User = Depends(get_current_user),
+    conversation: Conversation = Depends(get_conversation_record),
     session: AsyncSession = Depends(get_async_session),
     service: ComposeService = Depends(get_compose_service),
 ) -> MessageResponse | None:
-    conversation = await service.require_owned_conversation(session, conversation_id, cast(int, current_user.id))
-
     msg = await service.get_last_conversation_message(
         session=session,
         conversation_id=cast(int, conversation.id),

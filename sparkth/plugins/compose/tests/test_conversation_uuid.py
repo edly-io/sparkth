@@ -14,10 +14,14 @@ from uuid import UUID, uuid4
 import httpx
 import pytest
 from pydantic import ValidationError
+from sqlalchemy import delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 from uuid6 import uuid7
 
+from sparkth.core.permissions.models import RoleAssignment
 from sparkth.lib.llm import get_llm_service
+from sparkth.lib.permissions.scopes import GLOBAL, USER
+from sparkth.lib.testing import AuditEventsFetcher, grant_permission_at_scope
 from sparkth.main import app
 from sparkth.plugins.compose.config import get_compose_settings
 from sparkth.plugins.compose.models import Conversation, Message  # noqa: F401 used in route fixture tests
@@ -231,7 +235,7 @@ class TestConversationUUIDRoutes:
         response = await client.get("/api/v1/compose/conversations/123")
         assert response.status_code == 422
 
-    async def test_get_conversation_wrong_user_returns_404(
+    async def test_get_conversation_wrong_user_returns_403(
         self, client: "httpx.AsyncClient", current_user: MagicMock, session: "AsyncSession"
     ) -> None:
         conv = Conversation(user_id=99999, provider="openai", model="gpt-4o")
@@ -240,7 +244,7 @@ class TestConversationUUIDRoutes:
         await session.refresh(conv)
 
         response = await client.get(f"/api/v1/compose/conversations/{conv.uuid}")
-        assert response.status_code == 404
+        assert response.status_code == 403
 
     async def test_completions_returns_uuid_conversation_id(
         self, client: "httpx.AsyncClient", current_user: MagicMock, session: "AsyncSession"
@@ -363,3 +367,149 @@ class TestConversationUUIDRoutes:
 def test_conversation_model_has_no_system_prompt_field() -> None:
     """The column was write-only and always NULL; it must not come back."""
     assert "system_prompt" not in Conversation.model_fields
+
+
+# ===========================================================================
+# Read gate — compose.conversation.read at the owner's user scope
+# ===========================================================================
+
+OWNER_ID = 2
+THIRD_ID = 3
+READ = "compose.conversation.read"
+BY_ID_SUFFIXES = ["", "/last-message", "/attachments"]
+
+
+@pytest.fixture
+def _compose_service(client: httpx.AsyncClient) -> None:  # noqa: PT004
+    app.dependency_overrides[get_compose_service] = lambda: ComposeService()
+
+
+async def _owned_by(session: AsyncSession, user_id: int) -> UUID:
+    conv = Conversation(user_id=user_id, provider="openai", model="gpt-4o", title=f"owned by {user_id}")
+    session.add(conv)
+    await session.commit()
+    await session.refresh(conv)
+    return conv.uuid
+
+
+async def _drop_caller_assignment(session: AsyncSession) -> None:
+    await session.exec(delete(RoleAssignment))
+    await session.commit()
+
+
+@pytest.mark.usefixtures("_compose_service")
+class TestConversationReadGate:
+    @pytest.mark.parametrize("suffix", BY_ID_SUFFIXES)
+    async def test_own_record_without_a_grant_is_403(
+        self, client: httpx.AsyncClient, current_user: MagicMock, session: AsyncSession, suffix: str
+    ) -> None:
+        conv_uuid = await _owned_by(session, 1)
+        await _drop_caller_assignment(session)
+
+        assert (await client.get(f"/api/v1/compose/conversations/{conv_uuid}{suffix}")).status_code == 403
+
+    @pytest.mark.parametrize("suffix", BY_ID_SUFFIXES)
+    async def test_another_users_record_is_403_and_audited(
+        self,
+        client: httpx.AsyncClient,
+        current_user: MagicMock,
+        session: AsyncSession,
+        audit_events: AuditEventsFetcher,
+        suffix: str,
+    ) -> None:
+        conv_uuid = await _owned_by(session, OWNER_ID)
+
+        assert (await client.get(f"/api/v1/compose/conversations/{conv_uuid}{suffix}")).status_code == 403
+
+        (event,) = await audit_events()
+        assert event.action == "denied"
+        assert event.target_id == READ
+        assert event.error_detail == f"scope=user:{OWNER_ID}"
+
+    @pytest.mark.parametrize("suffix", BY_ID_SUFFIXES)
+    @pytest.mark.parametrize("scope_id", [None, str(OWNER_ID)])
+    async def test_grant_at_global_or_owner_reaches_it(
+        self,
+        client: httpx.AsyncClient,
+        current_user: MagicMock,
+        session: AsyncSession,
+        suffix: str,
+        scope_id: str | None,
+    ) -> None:
+        conv_uuid = await _owned_by(session, OWNER_ID)
+        await grant_permission_at_scope(session, 1, READ, GLOBAL if scope_id is None else USER, scope_id)
+        await session.commit()
+
+        response = await client.get(f"/api/v1/compose/conversations/{conv_uuid}{suffix}")
+
+        assert response.status_code == 200
+        if suffix == "":
+            assert response.json()["title"] == f"owned by {OWNER_ID}"
+
+    @pytest.mark.parametrize("suffix", BY_ID_SUFFIXES)
+    async def test_grant_at_a_third_user_is_403(
+        self, client: httpx.AsyncClient, current_user: MagicMock, session: AsyncSession, suffix: str
+    ) -> None:
+        conv_uuid = await _owned_by(session, OWNER_ID)
+        await grant_permission_at_scope(session, 1, READ, USER, str(THIRD_ID))
+        await session.commit()
+
+        assert (await client.get(f"/api/v1/compose/conversations/{conv_uuid}{suffix}")).status_code == 403
+
+    @pytest.mark.parametrize("suffix", BY_ID_SUFFIXES)
+    async def test_unknown_uuid_is_404_without_a_denial_row(
+        self,
+        client: httpx.AsyncClient,
+        current_user: MagicMock,
+        session: AsyncSession,
+        audit_events: AuditEventsFetcher,
+        suffix: str,
+    ) -> None:
+        await _drop_caller_assignment(session)
+
+        assert (await client.get(f"/api/v1/compose/conversations/{uuid4()}{suffix}")).status_code == 404
+        assert await audit_events() == []
+
+    async def test_list_shows_only_the_callers_even_with_a_global_grant(
+        self, client: httpx.AsyncClient, current_user: MagicMock, session: AsyncSession
+    ) -> None:
+        await _owned_by(session, 1)
+        await _owned_by(session, OWNER_ID)
+        await grant_permission_at_scope(session, 1, READ, GLOBAL)
+        await session.commit()
+
+        body = (await client.get("/api/v1/compose/conversations")).json()
+
+        assert [c["title"] for c in body["conversations"]] == ["owned by 1"]
+
+    async def test_list_of_another_owner_needs_a_grant(
+        self, client: httpx.AsyncClient, current_user: MagicMock, session: AsyncSession
+    ) -> None:
+        await _owned_by(session, OWNER_ID)
+
+        response = await client.get(f"/api/v1/compose/conversations?owner_id={OWNER_ID}")
+
+        assert response.status_code == 403
+
+    @pytest.mark.parametrize("scope_id", [None, str(OWNER_ID)])
+    async def test_list_of_another_owner_with_a_grant(
+        self, client: httpx.AsyncClient, current_user: MagicMock, session: AsyncSession, scope_id: str | None
+    ) -> None:
+        await _owned_by(session, 1)
+        await _owned_by(session, OWNER_ID)
+        await grant_permission_at_scope(session, 1, READ, GLOBAL if scope_id is None else USER, scope_id)
+        await session.commit()
+
+        body = (await client.get(f"/api/v1/compose/conversations?owner_id={OWNER_ID}")).json()
+
+        assert [c["title"] for c in body["conversations"]] == [f"owned by {OWNER_ID}"]
+
+    async def test_list_of_a_user_with_no_conversations_is_empty(
+        self, client: httpx.AsyncClient, current_user: MagicMock, session: AsyncSession
+    ) -> None:
+        await grant_permission_at_scope(session, 1, READ, GLOBAL)
+        await session.commit()
+
+        body = (await client.get("/api/v1/compose/conversations?owner_id=999999")).json()
+
+        assert body == {"conversations": [], "total": 0}
