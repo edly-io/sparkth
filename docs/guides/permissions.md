@@ -346,8 +346,8 @@ async def edit_course(course_id: int): ...
 
 - **Create** checks at the scope the new object will live in. A root object (a group, a role) lives
   under `global`, so `require_in_global_scope()` is right. A record the caller will own is created at
-  the caller's own `user` scope: gate the route with `require_for_object(USER, get_own_user_scope_id)`,
-  where `get_own_user_scope_id` returns the caller's id as a string.
+  the caller's own `user` scope: gate the route with `require_for_object(USER, get_current_user_id)`,
+  where `get_current_user_id` returns the caller's id.
 - **List** uses `.require_for_any_object(scope)`. The dependency returns the ids of the objects of that
   scope at which the caller holds the permission, as strings, or `None` when a grant at an objectless
   ancestor (`global`) covers every object. A caller who holds the permission at no object is refused
