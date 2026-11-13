@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
-import en from "@/messages/en.json";
+import en from "@/core/i18n/catalogs/en";
 import { renderWithIntl } from "@/tests/intl-test-utils";
 
 const nav = vi.hoisted(() => ({ search: "", replace: vi.fn() }));

@@ -1,6 +1,6 @@
 export const LOCALE_COOKIE = "NEXT_LOCALE";
 
-// The catalogs bundled with the frontend (messages/<locale>.json); the user-facing
+// The locales the frontend ships a catalog for (one <locale>.json per catalog); the user-facing
 // picker reads the authoritative allowlist from GET /api/v1/languages instead.
 export const locales = ["en", "es", "fr"] as const;
 

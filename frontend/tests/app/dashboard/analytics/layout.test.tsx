@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import en from "@/messages/en.json";
+import en from "@/core/i18n/catalogs/en";
 import { renderWithIntl } from "@/tests/intl-test-utils";
 
 vi.mock("@/core/auth/hooks", () => ({ useAuth: () => ({ token: "test-token" }) }));

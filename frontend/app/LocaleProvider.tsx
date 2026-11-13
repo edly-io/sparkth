@@ -3,7 +3,7 @@
 import { NextIntlClientProvider } from "next-intl";
 import { useEffect, useState } from "react";
 
-import en from "@/messages/en.json";
+import en from "@/core/i18n/catalogs/en";
 // Registers the plugins whose catalogs loadMessages merges in.
 import "@/app/plugins";
 import { setActiveLocale, setActiveMessages } from "@/core/i18n/activeLocale";

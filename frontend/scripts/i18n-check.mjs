@@ -3,7 +3,9 @@
 // Mirrors the backend containment rule: core extraction ignores plugins, and
 // a plugin owns (and is checked against) only its own catalogs.
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const SHARED_ARGS = [
   "--source",
@@ -24,7 +26,33 @@ function check(localesDir, sourcePaths) {
   return result.status ?? 1;
 }
 
-let failed = check("messages", ["app", "components", "core", "lib", "hooks"]) !== 0;
+// Core's catalog is split across its features (core/<feature>/i18n/<locale>.json), and a key is
+// often used outside its feature (most analytics keys are used in app/), so the features are
+// merged per locale and checked together against every core source.
+function mergeCoreCatalogs() {
+  const merged = {};
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) walk(path);
+      else if (dir.endsWith("/i18n") && entry.name.endsWith(".json")) {
+        const locale = entry.name.slice(0, -".json".length);
+        Object.assign((merged[locale] ??= {}), JSON.parse(readFileSync(path, "utf8")));
+      }
+    }
+  };
+  walk("core");
+  const dir = mkdtempSync(join(tmpdir(), "sparkth-i18n-"));
+  for (const [locale, catalog] of Object.entries(merged)) {
+    writeFileSync(join(dir, `${locale}.json`), JSON.stringify(catalog, null, 2));
+  }
+  return dir;
+}
+
+const coreCatalogDir = mergeCoreCatalogs();
+console.log("i18n-check: core/*/i18n/<locale>.json, merged into the folder below");
+let failed = check(coreCatalogDir, ["app", "core", "lib"]) !== 0;
+rmSync(coreCatalogDir, { recursive: true, force: true });
 
 // A plugin keeps its catalogs in src/i18n and is checked against its src.
 for (const entry of readdirSync("plugins", { withFileTypes: true })) {

@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import ChatInterfaceInner from "@/plugins/compose/src/components/layout/ChatInterfaceInner";
 import composeEn from "@/plugins/compose/src/i18n/en.json";
-import en from "@/messages/en.json";
+import en from "@/core/i18n/catalogs/en";
 import { fetchLLMConfigs } from "@/lib/llm/client";
 
 // usePlugin is mocked to read this directly, so a test sets it before rendering.

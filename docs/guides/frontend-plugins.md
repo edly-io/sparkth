@@ -234,8 +234,8 @@ make frontend.build.plugins
 
 ## Translations (Optional)
 
-A plugin owns its message catalogs, mirroring the backend rule: the core
-`messages/*.json` files carry no plugin namespace, and a plugin with
+A plugin owns its message catalogs, mirroring the backend rule: core's
+catalogs (`core/*/i18n/`) carry no plugin namespace, and a plugin with
 user-facing strings ships its own catalogs under its directory, scoped to a
 single top-level namespace equal to the plugin name.
 

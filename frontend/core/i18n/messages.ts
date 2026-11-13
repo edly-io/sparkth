@@ -3,13 +3,13 @@ import type { PluginDefinition } from "@/core/plugins/types";
 import { defaultLocale, type Locale } from "@/lib/i18n/config";
 import type { CoreMessages, LoadedMessages } from "@/lib/i18n/messages";
 
-import en from "@/messages/en.json";
+import en from "@/core/i18n/catalogs/en";
 
 // Dynamic imports so each locale becomes its own chunk and only the active one is fetched.
 const catalogs: Record<Locale, () => Promise<{ default: CoreMessages }>> = {
-  en: () => import("@/messages/en.json"),
-  es: () => import("@/messages/es.json"),
-  fr: () => import("@/messages/fr.json"),
+  en: () => import("@/core/i18n/catalogs/en"),
+  es: () => import("@/core/i18n/catalogs/es"),
+  fr: () => import("@/core/i18n/catalogs/fr"),
 };
 
 async function loadPluginMessages(locale: Locale): Promise<Record<string, unknown>[]> {

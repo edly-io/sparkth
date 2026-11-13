@@ -1,4 +1,4 @@
-import en from "@/messages/en.json";
+import type en from "@/core/i18n/catalogs/en";
 
 /** The core catalog's shape: every core namespace, without any plugin's. */
 export type CoreMessages = typeof en;

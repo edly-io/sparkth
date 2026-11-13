@@ -3,8 +3,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { rethrowOrWrapConnectionError } from "@/core/api/errors";
 import { setActiveLocale, setActiveMessages } from "@/core/i18n/activeLocale";
 import { defaultLocale } from "@/lib/i18n/config";
-import en from "@/messages/en.json";
-import fr from "@/messages/fr.json";
+import en from "@/core/i18n/catalogs/en";
+import fr from "@/core/i18n/catalogs/fr";
 
 describe("rethrowOrWrapConnectionError", () => {
   afterEach(() => {
