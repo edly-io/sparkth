@@ -4,13 +4,15 @@ import uuid
 from collections.abc import AsyncGenerator, Sequence
 from dataclasses import replace
 from functools import partial
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 from langchain_core.messages import AIMessage
 from pydantic import Field
 
+from sparkth.lib.compose.constants import OPERATOR_TOOL_NAME
 from sparkth.lib.llm import get_provider
 from sparkth.lib.mcp.hooks import Tool
 from sparkth.lib.rag import (
@@ -22,10 +24,11 @@ from sparkth.lib.rag import (
 from sparkth.lib.testing import ScriptedChatModel
 from sparkth.plugins.compose.analytics import StopPoint
 from sparkth.plugins.compose.constants import SSE_HEARTBEAT
+from sparkth.plugins.compose.planner import TurnRouting
 from sparkth.plugins.compose.routes.utils.live_turns import request_stop
 from sparkth.plugins.compose.routes.utils.stream_processor import ComposeStreamProcessor
 from sparkth.plugins.compose.schemas import ChatMessage
-from sparkth.plugins.compose.tests.conftest import STUB_AGENT
+from sparkth.plugins.compose.tests.conftest import OTHER_AGENT, STUB_AGENT
 from sparkth.plugins.compose.tests.helpers import STREAM_TURN, handing_off_to, replay_turn
 
 
@@ -211,6 +214,56 @@ async def _setting_stop_mid_answer(
     stop.set()
     yield {"type": "token", "content": " done"}
     yield {"type": "token", "content": " never"}
+
+
+# What the author is told when the connection to the model provider drops.
+CONNECTION_LOST = "The connection was interrupted. Please try again."
+
+
+def _stored_replies(processor: ComposeStreamProcessor) -> list[dict[str, Any]]:
+    """What the turn stored as assistant messages, in order, as the keyword arguments of each write."""
+    return [dict(call.kwargs) for call in cast(AsyncMock, processor.service.add_message).call_args_list]
+
+
+def _routed(agent: str) -> dict[str, Any]:
+    return {"type": "routed", "routing": TurnRouting(agent=agent)}
+
+
+async def _stopping_between_steps(
+    executed: list[str],
+    messages: list[dict[str, Any]],
+    tools: Sequence[Any],
+    provider: Any,
+    max_tool_executions: int,
+    **planner: Any,
+) -> AsyncGenerator[dict[str, Any], None]:
+    """Two steps, with Stop pressed after the first one's reply and before the second starts."""
+    yield _routed(STUB_AGENT.name)
+    executed.append(STUB_AGENT.name)
+    yield {"type": "token", "content": "Here is the lesson."}
+    request_stop("turn-8", 1)
+    yield _routed(OTHER_AGENT.name)
+    executed.append(OTHER_AGENT.name)
+    yield {"type": "token", "content": "Here is the activity."}
+
+
+async def _failing_after_a_step(
+    messages: list[dict[str, Any]], tools: Sequence[Any], provider: Any, max_tool_executions: int, **planner: Any
+) -> AsyncGenerator[dict[str, Any], None]:
+    """A first step that answers, then a second step whose model provider fails."""
+    yield _routed(STUB_AGENT.name)
+    yield {"type": "token", "content": "Here is the lesson."}
+    yield _routed(OTHER_AGENT.name)
+    raise httpx.RemoteProtocolError("connection reset by peer")
+
+
+async def _failing_mid_reply(
+    messages: list[dict[str, Any]], tools: Sequence[Any], provider: Any, max_tool_executions: int, **planner: Any
+) -> AsyncGenerator[dict[str, Any], None]:
+    """A single step whose model provider fails partway through its reply."""
+    yield _routed(STUB_AGENT.name)
+    yield {"type": "token", "content": "Here is the le"}
+    raise httpx.RemoteProtocolError("connection reset by peer")
 
 
 def _make_chunk(
@@ -536,6 +589,101 @@ class TestCollectStreamResponse:
         processor = _make_processor()
         result = await processor._collect_stream_response(MagicMock())
         assert result is None
+
+
+class TestASteppedTurn:
+    @pytest.mark.asyncio
+    async def test_the_reply_records_every_step_in_order(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        events = [
+            _routed(STUB_AGENT.name),
+            {"type": "token", "content": "Here is the lesson."},
+            _routed(OPERATOR_TOOL_NAME),
+            _routed(OTHER_AGENT.name),
+            {"type": "token", "content": "Here is the activity."},
+        ]
+        monkeypatch.setattr(STREAM_TURN, partial(replay_turn, events))
+        processor = _make_processor()
+
+        async for _ in processor.stream():
+            pass
+
+        assert _stored_replies(processor)[-1]["metadata"]["steps"] == [
+            STUB_AGENT.name,
+            OPERATOR_TOOL_NAME,
+            OTHER_AGENT.name,
+        ]
+
+    @pytest.mark.asyncio
+    async def test_a_refusal_is_no_step(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        events: list[dict[str, Any]] = [
+            {"type": "routed", "routing": TurnRouting(refused=True)},
+            {"type": "token", "content": "No."},
+        ]
+        monkeypatch.setattr(STREAM_TURN, partial(replay_turn, events))
+        processor = _make_processor()
+
+        async for _ in processor.stream():
+            pass
+
+        assert _stored_replies(processor)[-1].get("metadata") is None
+
+    @pytest.mark.asyncio
+    async def test_a_stop_before_the_next_step_keeps_it_from_starting(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        executed: list[str] = []
+        monkeypatch.setattr(STREAM_TURN, partial(_stopping_between_steps, executed))
+        processor = _make_processor(turn_id="turn-8", user_id=1)
+
+        payloads = [json.loads(chunk.removeprefix("data: ")) async for chunk in processor.stream()]
+
+        assert executed == [STUB_AGENT.name]
+        done = payloads[-1]
+        assert done["stopped"] is True
+        assert done["message"]["content"] == "Here is the lesson."
+        assert _stored_replies(processor)[-1]["metadata"] == {"steps": [STUB_AGENT.name], "stopped": True}
+
+    @pytest.mark.asyncio
+    async def test_a_failed_step_keeps_what_the_earlier_steps_wrote(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(STREAM_TURN, _failing_after_a_step)
+        processor = _make_processor()
+
+        async for _ in processor.stream():
+            pass
+
+        written, error = _stored_replies(processor)
+        assert (written["content"], written["metadata"]) == (
+            "Here is the lesson.",
+            {"steps": [STUB_AGENT.name, OTHER_AGENT.name], "interrupted": True},
+        )
+        assert (error["content"], error["is_error"]) == (CONNECTION_LOST, True)
+
+    @pytest.mark.asyncio
+    async def test_a_reply_cut_off_by_a_failure_is_kept_and_marked_interrupted(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(STREAM_TURN, _failing_mid_reply)
+        processor = _make_processor()
+
+        async for _ in processor.stream():
+            pass
+
+        written, error = _stored_replies(processor)
+        assert (written["content"], written["metadata"]) == (
+            "Here is the le",
+            {"steps": [STUB_AGENT.name], "interrupted": True},
+        )
+        assert error["is_error"] is True
+
+    @pytest.mark.asyncio
+    async def test_a_turn_that_fails_before_any_text_stores_only_the_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(STREAM_TURN, partial(_failing_turn, httpx.RemoteProtocolError("connection reset")))
+        processor = _make_processor()
+
+        async for _ in processor.stream():
+            pass
+
+        assert [row.get("is_error", False) for row in _stored_replies(processor)] == [True]
 
 
 class TestPersistAndEmitDone:

@@ -1,21 +1,16 @@
-"""The planner's middleware: one tool call per reply, refused calls back to the planner, and a call limit."""
+"""The planner's middleware: one tool call per reply, and limits on steps and refused calls."""
 
-from collections.abc import Awaitable, Callable
 from typing import Any
 
-from langchain.agents.middleware import AgentState, ToolCallRequest, after_model, wrap_tool_call
+from langchain.agents.middleware import AgentState, after_model
 from langchain_core.messages import AIMessage, ToolCall, ToolMessage
 from langgraph.runtime import Runtime
-from langgraph.types import Command
 
 from sparkth.lib.audit.events import AuditModelInfo
+from sparkth.lib.compose.constants import OPERATOR_TOOL_NAME
 from sparkth.lib.i18n import gettext
 from sparkth.lib.log import get_logger
-from sparkth.plugins.compose.constants import (
-    PLANNER_REFUSED_CALL_LIMIT,
-    PLANNER_TOOL_CALL_LIMIT,
-    TOOL_CALL_LIMIT_NOTICE,
-)
+from sparkth.plugins.compose.constants import MAX_STEPS_PER_TURN, PLANNER_REFUSED_CALL_LIMIT, TOOL_CALL_LIMIT_NOTICE
 
 logger = get_logger(__name__)
 
@@ -39,7 +34,7 @@ def _with_calls(reply: AIMessage, kept: list[ToolCall]) -> AIMessage:
 
 @after_model(name="first_hand_off_only")
 def first_hand_off_only(state: AgentState[Any], runtime: Runtime[AuditModelInfo]) -> dict[str, Any] | None:
-    """Keep only the first tool call of a planner reply, so one hand-off or operation runs at a time."""
+    """Keep only the first tool call of a planner reply, so one step runs at a time."""
     reply = state["messages"][-1]
     if not (isinstance(reply, AIMessage) and len(reply.tool_calls) > 1):
         return None
@@ -47,42 +42,34 @@ def first_hand_off_only(state: AgentState[Any], runtime: Runtime[AuditModelInfo]
     return {"messages": [_with_calls(reply, reply.tool_calls[:1])]}
 
 
-@wrap_tool_call
-async def bounce_refused_calls(
-    request: ToolCallRequest, handler: Callable[[ToolCallRequest], Awaitable[ToolMessage | Command[Any]]]
-) -> ToolMessage | Command[Any]:
-    """Send a call its tool refused (such as a hand-off without its request) back to the planner.
+@after_model(can_jump_to=["end"], name="limit_steps")
+def limit_steps(state: AgentState[Any], runtime: Runtime[AuditModelInfo]) -> dict[str, Any] | None:
+    """Keep a turn from running on: end it at its limit of steps or of refused calls, and never run
+    the agent that has just answered again.
 
-    A hand-off ends the run with its result, so without this the refusal itself would be the reply.
-    """
-    result = await handler(request)
-    if isinstance(result, ToolMessage) and result.status == "error":
-        logger.warning("Planner's call to '%s' was refused; asking it again", request.tool_call["name"])
-        return Command(goto="model", update={"messages": [result]})
-    return result
-
-
-@after_model(can_jump_to=["end"], name="stop_after_too_many_calls")
-def stop_after_too_many_calls(state: AgentState[Any], runtime: Runtime[AuditModelInfo]) -> dict[str, Any] | None:
-    """End the run with the tool-call limit notice once the planner asks for more than
-    ``PLANNER_TOOL_CALL_LIMIT`` calls in it, or more than ``PLANNER_REFUSED_CALL_LIMIT`` of its calls
-    were refused.
-
-    A refused call does not count against the call limit, so a planner that fixes its call still
-    gets to finish the turn.
+    A step is a call that ran, an agent's or the operator's work; a call its tool refused is not
+    one. Once ``MAX_STEPS_PER_TURN`` steps have run, or more than ``PLANNER_REFUSED_CALL_LIMIT`` calls
+    were refused, a planner that asks for another call ends the turn with the limit notice. A
+    hand-off to the agent whose reply the author has just read ends the turn as it stands.
     """
     reply = state["messages"][-1]
     if not (isinstance(reply, AIMessage) and reply.tool_calls):
         return None
-    refused = sum(1 for message in state["messages"] if isinstance(message, ToolMessage) and message.status == "error")
-    calls = sum(len(message.tool_calls) for message in state["messages"] if isinstance(message, AIMessage)) - refused
-    if calls <= PLANNER_TOOL_CALL_LIMIT and refused <= PLANNER_REFUSED_CALL_LIMIT:
-        return None
-    logger.warning(
-        "Planner asked for %d tool calls (limit %d) and had %d refused (limit %d); the turn ends with a notice",
-        calls,
-        PLANNER_TOOL_CALL_LIMIT,
-        refused,
-        PLANNER_REFUSED_CALL_LIMIT,
-    )
-    return {"jump_to": "end", "messages": [AIMessage(content=gettext(TOOL_CALL_LIMIT_NOTICE))]}
+    results = [message for message in state["messages"] if isinstance(message, ToolMessage)]
+    steps = [result for result in results if result.status != "error"]
+    refused = len(results) - len(steps)
+    if len(steps) >= MAX_STEPS_PER_TURN or refused > PLANNER_REFUSED_CALL_LIMIT:
+        logger.warning(
+            "Planner asked for another call after %d steps (limit %d) and %d refused calls (limit %d); "
+            "the turn ends with a notice",
+            len(steps),
+            MAX_STEPS_PER_TURN,
+            refused,
+            PLANNER_REFUSED_CALL_LIMIT,
+        )
+        return {"jump_to": "end", "messages": [AIMessage(content=gettext(TOOL_CALL_LIMIT_NOTICE))]}
+    asked_for = reply.tool_calls[0]["name"]
+    if steps and steps[-1].name == asked_for != OPERATOR_TOOL_NAME:
+        logger.warning("Planner handed off to '%s' again right after its reply; the turn ends there", asked_for)
+        return {"messages": [_with_calls(reply, [])]}
+    return None

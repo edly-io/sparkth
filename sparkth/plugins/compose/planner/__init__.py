@@ -2,10 +2,12 @@
 talk itself, or refuses.
 
 Each enabled agent becomes one of the planner's tools. Calling it runs that agent's own graph on
-the conversation and ends the planner's run with the agent's reply, so nothing the planner writes
-after a hand-off reaches the author. The operator tool runs operations, such as publishing a
-course, and returns what they did to the planner. Hand-offs, operations and refusals are skipped
-by the audit callback; the tools an agent or the operator calls are still audited.
+the conversation, and the author reads the agent's reply as it is written. What a step returns goes
+back to the planner, which runs the next part the author asked for, another agent's or an
+operation, with every step reading what the earlier ones wrote, or ends the turn. The operator
+tool runs operations, such as publishing a course; the author reads what they did from the planner.
+Hand-offs, operations and refusals are skipped by the audit callback; the tools an agent or the
+operator calls are still audited.
 """
 
 from sparkth.plugins.compose.planner.graph import build_planner, render_planner_prompt
