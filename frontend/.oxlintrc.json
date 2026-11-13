@@ -2,6 +2,22 @@
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "overrides": [
     {
+      "files": ["core/**", "lib/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@/plugins/**"],
+                "message": "Core and lib never import a plugin; a plugin contributes to them through a slot."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": ["plugins/**"],
       "rules": {
         "no-restricted-imports": [
@@ -9,8 +25,190 @@
           {
             "patterns": [
               {
-                "group": ["@/core/**"],
-                "message": "Plugins import core code through @/lib, never from @/core."
+                "group": ["@/core/**", "@/app/**"],
+                "message": "Plugins import core code through @/lib, never from @/core or @/app."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["plugins/canvas/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@/core/**", "@/app/**"],
+                "message": "Plugins import core code through @/lib, never from @/core or @/app."
+              },
+              {
+                "group": [
+                  "@/plugins/**",
+                  "!@/plugins/canvas",
+                  "!@/plugins/canvas/**",
+                  "!@/plugins/*/lib",
+                  "!@/plugins/*/lib/**"
+                ],
+                "message": "A plugin imports another plugin only through that plugin's lib/."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["plugins/compose/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@/core/**", "@/app/**"],
+                "message": "Plugins import core code through @/lib, never from @/core or @/app."
+              },
+              {
+                "group": [
+                  "@/plugins/**",
+                  "!@/plugins/compose",
+                  "!@/plugins/compose/**",
+                  "!@/plugins/*/lib",
+                  "!@/plugins/*/lib/**"
+                ],
+                "message": "A plugin imports another plugin only through that plugin's lib/."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["plugins/googledrive/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@/core/**", "@/app/**"],
+                "message": "Plugins import core code through @/lib, never from @/core or @/app."
+              },
+              {
+                "group": [
+                  "@/plugins/**",
+                  "!@/plugins/googledrive",
+                  "!@/plugins/googledrive/**",
+                  "!@/plugins/*/lib",
+                  "!@/plugins/*/lib/**"
+                ],
+                "message": "A plugin imports another plugin only through that plugin's lib/."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["plugins/moodle/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@/core/**", "@/app/**"],
+                "message": "Plugins import core code through @/lib, never from @/core or @/app."
+              },
+              {
+                "group": [
+                  "@/plugins/**",
+                  "!@/plugins/moodle",
+                  "!@/plugins/moodle/**",
+                  "!@/plugins/*/lib",
+                  "!@/plugins/*/lib/**"
+                ],
+                "message": "A plugin imports another plugin only through that plugin's lib/."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["plugins/openedx/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@/core/**", "@/app/**"],
+                "message": "Plugins import core code through @/lib, never from @/core or @/app."
+              },
+              {
+                "group": [
+                  "@/plugins/**",
+                  "!@/plugins/openedx",
+                  "!@/plugins/openedx/**",
+                  "!@/plugins/*/lib",
+                  "!@/plugins/*/lib/**"
+                ],
+                "message": "A plugin imports another plugin only through that plugin's lib/."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["plugins/pxc/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@/core/**", "@/app/**"],
+                "message": "Plugins import core code through @/lib, never from @/core or @/app."
+              },
+              {
+                "group": [
+                  "@/plugins/**",
+                  "!@/plugins/pxc",
+                  "!@/plugins/pxc/**",
+                  "!@/plugins/*/lib",
+                  "!@/plugins/*/lib/**"
+                ],
+                "message": "A plugin imports another plugin only through that plugin's lib/."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["plugins/slack/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@/core/**", "@/app/**"],
+                "message": "Plugins import core code through @/lib, never from @/core or @/app."
+              },
+              {
+                "group": [
+                  "@/plugins/**",
+                  "!@/plugins/slack",
+                  "!@/plugins/slack/**",
+                  "!@/plugins/*/lib",
+                  "!@/plugins/*/lib/**"
+                ],
+                "message": "A plugin imports another plugin only through that plugin's lib/."
               }
             ]
           }
