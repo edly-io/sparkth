@@ -5,9 +5,10 @@ Revises: 9adb59c579d5
 Create Date: 2026-11-13 10:00:00.000000
 
 Grants the LLM configuration, Compose conversation and Google Drive permissions to the default
-``sparkth_user`` role, so every account can manage its own records. It also assigns the role again,
-at the account's own ``user`` scope, to every account that has no active assignment of it: code
-deployed before the role existed can still create accounts after the first backfill ran.
+``sparkth_user`` role, so every account can manage its own records. It also assigns the role,
+at the account's own ``user`` scope, to every account that never had it: code deployed before the
+role existed can still create accounts after the first backfill ran. An account whose own assignment
+was revoked (soft-deleted) stays without the role.
 """
 
 from typing import Sequence, Union
@@ -49,7 +50,7 @@ def upgrade() -> None:
             ),
             {"permission": permission, "role": _ROLE},
         )
-    # Accounts created by older code since the first backfill; the join makes it a no-op without the role.
+    # Accounts that never had the role (any row, even soft-deleted, counts); a no-op without the role.
     conn.execute(
         sa.text(
             "INSERT INTO role_assignment "
@@ -58,7 +59,7 @@ def upgrade() -> None:
             "JOIN role r ON r.name = :role "
             "WHERE NOT EXISTS (SELECT 1 FROM role_assignment ra WHERE ra.user_id = u.id "
             "AND ra.role_id = r.id AND ra.scope = :scope "
-            "AND ra.scope_object_id = CAST(u.id AS text) AND ra.is_deleted = false)"
+            "AND ra.scope_object_id = CAST(u.id AS text))"
         ),
         {"role": _ROLE, "scope": _SCOPE},
     )
