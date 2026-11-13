@@ -80,7 +80,8 @@ async def _create_user_in_session(
         session.add(user)
         # Flush to assign user.id, which the audit target needs.
         await session.flush()
-        assert user.id is not None
+        if user.id is None:
+            raise RuntimeError("user.id unexpectedly None after flush")
         await assign_default_role(user.id, session)
 
         target, change = _cli_change(user)
