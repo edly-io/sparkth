@@ -1,59 +1,61 @@
-import { api, bearer, call, type Schema } from "./client";
-import { ApiRequestError, rethrowOrWrapConnectionError } from "./errors";
+import {
+  api,
+  ApiRequestError,
+  bearer,
+  call,
+  rethrowOrWrapConnectionError,
+  type Schema,
+} from "@/lib/api";
 
+/** A username and its password. */
 export type LoginRequest = Schema<"UserLogin">;
+/** The access token a successful login returns, with its expiry. */
 export type LoginResponse = Schema<"Token">;
+/** The details a new account is registered with. */
 export type RegisterRequest = Schema<"UserCreate">;
+/** The account a registration creates. */
 export type RegisterResponse = Schema<"User">;
+/** Where to send the browser to sign in with Google. */
 export type GoogleAuthUrlResponse = Schema<"GoogleAuthUrl">;
-export type WhitelistEntry = Schema<"WhitelistedEmailResponse">;
+/** The signed-in user. */
 export type CurrentUser = Schema<"User">;
+/** The profile fields a user can change; any left out keep their value. */
 export type UserUpdate = Schema<"UserUpdate">;
+/** A user's current password and the new one replacing it. */
 export type PasswordChange = Schema<"PasswordChange">;
+/** A reset link's token and the new password it sets. */
 export type PasswordResetConfirm = Schema<"PasswordResetConfirm">;
 
+/** Signs in with a username and password, returning the access token. */
 export async function login(data: LoginRequest): Promise<LoginResponse> {
   return call<LoginResponse>(() => api.POST("/api/v1/auth/login", { body: data }));
 }
 
+/** Creates an account; the user verifies the email before signing in. */
 export async function register(data: RegisterRequest): Promise<RegisterResponse> {
   return call<RegisterResponse>(() => api.POST("/api/v1/auth/register", { body: data }));
 }
 
+/** The Google sign-in address to send the browser to. */
 export async function getGoogleLoginUrl(): Promise<GoogleAuthUrlResponse> {
   return call<GoogleAuthUrlResponse>(() => api.GET("/api/v1/auth/google/authorize"));
 }
 
-export async function getWhitelist(token: string): Promise<WhitelistEntry[]> {
-  return call<WhitelistEntry[]>(() => api.GET("/api/v1/whitelist/", { headers: bearer(token) }));
-}
-
-export async function addWhitelistEntry(token: string, value: string): Promise<WhitelistEntry> {
-  return call<WhitelistEntry>(() =>
-    api.POST("/api/v1/whitelist/", { body: { value }, headers: bearer(token) }),
-  );
-}
-
-export async function removeWhitelistEntry(token: string, id: number): Promise<void> {
-  return call<void>(() =>
-    api.DELETE("/api/v1/whitelist/{entry_id}", {
-      params: { path: { entry_id: id } },
-      headers: bearer(token),
-    }),
-  );
-}
-
+/** Confirms an email address with the token from the verification link. */
 export async function verifyEmail(token: string): Promise<void> {
   return call<void>(() => api.POST("/api/v1/auth/verify-email", { body: { token } }));
 }
 
+/**
+ * Emails a new verification link. A request inside the cooldown rejects with a 429 whose message
+ * is `rate_limited`; any other failure with a fixed message, never the response body.
+ */
 export async function resendVerificationEmail(email: string): Promise<void> {
   try {
     await api.POST("/api/v1/auth/verify-email/resend", { body: { email } });
   } catch (error) {
     if (error instanceof ApiRequestError) {
-      // Preserve the pre-conversion contract: a bare sentinel for the cooldown
-      // case, a fixed message otherwise, never the response body.
+      // The form shows its own text for the cooldown, keyed on this sentinel.
       if (error.status === 429) {
         throw new ApiRequestError({ message: "rate_limited", fieldErrors: {} }, 429);
       }
@@ -66,6 +68,7 @@ export async function resendVerificationEmail(email: string): Promise<void> {
   }
 }
 
+/** The user the token belongs to. */
 export async function getCurrentUser(token: string): Promise<CurrentUser> {
   return call<CurrentUser>(() => api.GET("/api/v1/user/me", { headers: bearer(token) }));
 }

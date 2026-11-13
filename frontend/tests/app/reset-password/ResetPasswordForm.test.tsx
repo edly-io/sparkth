@@ -10,12 +10,12 @@ const search = vi.hoisted(() => ({ params: new URLSearchParams("token=abc") }));
 vi.mock("next/navigation", () => ({
   useSearchParams: () => search.params,
 }));
-vi.mock("@/lib/api", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/api")>();
+vi.mock("@/core/auth/client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/core/auth/client")>();
   return { ...actual, confirmPasswordReset: vi.fn() };
 });
 
-import { confirmPasswordReset } from "@/lib/api";
+import { confirmPasswordReset } from "@/core/auth/client";
 import ResetPasswordForm from "@/app/reset-password/ResetPasswordForm";
 
 const NEW = "N3w-Password!";
