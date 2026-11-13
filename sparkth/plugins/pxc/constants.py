@@ -2,6 +2,8 @@ from pathlib import Path
 
 from pxc.lib.permission import Permission
 
+from sparkth.lib.assets import read_asset
+
 # Bundled activity sources, one directory per activity type.
 PXC_ACTIVITY_ROOT = Path(__file__).parent / "activities"
 
@@ -80,9 +82,6 @@ PXC_SANDBOX_ABORT_NOTICE = "Redirecting call to abort()"
 # throw's message is. Not a setting: the build's child process never sees the deployment's settings.
 PXC_SANDBOX_OUTPUT_LIMIT = 2000
 
-# The pxc plugin's prompt and contract texts.
-PXC_ASSET_DIR = Path(__file__).parent / "assets"
-
 # The MCP category every pxc tool registers under.
 PXC_TOOL_CATEGORY = "pxc"
 
@@ -90,9 +89,7 @@ PXC_TOOL_CATEGORY = "pxc"
 PXC_ACTIVITY_BUILDER_TITLE = "Interactive PXC activities"
 
 # What Compose's scope classifier judges an activity-building message against.
-PXC_ACTIVITY_BUILDER_DESCRIPTION = (
-    (PXC_ASSET_DIR / "pxc_activity_building_description.txt").read_text(encoding="utf-8").strip()
-)
+PXC_ACTIVITY_BUILDER_DESCRIPTION = read_asset(__file__, "pxc_activity_building_description.txt")
 
 # The activity builder's section of chat's system prompt, inserted as written.
-PXC_ACTIVITY_BUILDER_PROMPT = (PXC_ASSET_DIR / "pxc_activity_builder_prompt.txt").read_text(encoding="utf-8").strip()
+PXC_ACTIVITY_BUILDER_PROMPT = read_asset(__file__, "pxc_activity_builder_prompt.txt")

@@ -1,6 +1,6 @@
 import re
-from pathlib import Path
 
+from sparkth.lib.assets import read_asset
 from sparkth.lib.i18n import lazy_gettext
 
 # Slack OAuth endpoints
@@ -32,4 +32,4 @@ GREETING_PATTERN = re.compile(
 )
 
 # LLM synthesis system prompt
-SYNTHESIS_SYSTEM_PROMPT = (Path(__file__).parent / "assets" / "synthesis_system_prompt.txt").read_text(encoding="utf-8")
+SYNTHESIS_SYSTEM_PROMPT = read_asset(__file__, "synthesis_system_prompt.txt")

@@ -9,9 +9,9 @@ Canvas MCP tools, including:
 - Quiz and question management
 """
 
-from pathlib import Path
 from typing import Any
 
+from sparkth.lib.assets import read_asset
 from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
 from sparkth.lib.plugins import load_user_plugin_config
@@ -250,4 +250,4 @@ async def canvas_about() -> dict[str, Any]:
     Read this before creating, changing or publishing Canvas content, or when a Canvas
     term is ambiguous.
     """
-    return {"about": (Path(__file__).parent / "assets" / "about.txt").read_text(encoding="utf-8")}
+    return {"about": read_asset(__file__, "about.txt")}
