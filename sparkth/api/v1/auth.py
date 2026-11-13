@@ -36,6 +36,7 @@ from sparkth.lib.audit.events import (
 from sparkth.lib.db import get_async_session
 from sparkth.lib.exceptions.handlers import register_exception_handler
 from sparkth.lib.i18n import _
+from sparkth.lib.permissions import assign_default_role
 from sparkth.schemas import (
     GoogleAuthUrl,
     PasswordResetConfirm,
@@ -107,6 +108,7 @@ async def register_user(
 
     if db_user.id is None:
         raise RuntimeError("user.id unexpectedly None after flush")
+    await assign_default_role(db_user.id, session)
     raw_token = await EmailVerificationService.create_token(session, user_id=db_user.id)
     await record_event(session, _registered_event(db_user, method="password"))
     await session.commit()
@@ -349,6 +351,8 @@ async def google_callback(
                 )
                 session.add(user)
                 await session.flush()
+                assert user.id is not None
+                await assign_default_role(user.id, session)
                 await record_event(session, _registered_event(user, method="google"))
                 await session.commit()
                 await session.refresh(user)

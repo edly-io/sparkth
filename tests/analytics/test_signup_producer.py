@@ -16,6 +16,8 @@ from sparkth.core.models.user import User
 from sparkth.core.models.whitelist import WhitelistedEmail
 from sparkth.services.email_verification import EmailVerificationService
 
+pytestmark = pytest.mark.usefixtures("default_user_role")
+
 REGISTER_URL = "/api/v1/auth/register"
 VERIFY_URL = "/api/v1/auth/verify-email"
 GOOGLE_CALLBACK_URL = "/api/v1/auth/google/callback?code=x"
