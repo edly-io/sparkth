@@ -6,7 +6,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.llm import LLMConfig
 from sparkth.core.models.user import User
-from sparkth.lib.auth import get_current_user
+from sparkth.lib.auth import get_current_user, get_current_user_id
 from sparkth.lib.db import get_async_session
 from sparkth.lib.i18n import _
 from sparkth.lib.llm import (
@@ -34,7 +34,6 @@ from sparkth.lib.permissions import (
     LLM_CONFIG_READ,
     LLM_CONFIG_UPDATE,
     get_listed_owner_id,
-    get_own_user_scope_id,
 )
 from sparkth.lib.permissions.scopes import USER
 
@@ -78,18 +77,18 @@ def _to_response(config: LLMConfig) -> LLMConfigResponse:
     "/configs",
     response_model=LLMConfigResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(LLM_CONFIG_CREATE.require_for_object(USER, get_own_user_scope_id))],
+    dependencies=[Depends(LLM_CONFIG_CREATE.require_for_object(USER, get_current_user_id))],
 )
 async def create_llm_config(
     body: LLMConfigCreate,
-    owner_id: str = Depends(get_own_user_scope_id),
+    user_id: int = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_async_session),
     service: LLMConfigService = Depends(get_llm_service),
 ) -> LLMConfigResponse:
     try:
         config = await service.create(
             session=session,
-            user_id=int(owner_id),
+            user_id=user_id,
             name=body.name,
             provider=body.provider,
             model=body.model,
@@ -98,7 +97,7 @@ async def create_llm_config(
         await session.commit()
         return _to_response(config)
     except LLMConfigDuplicateNameError as exc:
-        logger.warning("LLMConfig name conflict for user %s: %s", owner_id, exc)
+        logger.warning("LLMConfig name conflict for user %s: %s", user_id, exc)
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
 

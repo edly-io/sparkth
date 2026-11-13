@@ -55,7 +55,7 @@ class Permission:
         self,
         permission_scope: PermissionScope,
         scope_param: str | None,
-        scope_object_id: str | Callable[..., Awaitable[str | ScopeObjectMixin | None]] | None,
+        scope_object_id: str | Callable[..., Awaitable[str | int | ScopeObjectMixin | None]] | None,
     ) -> Callable[..., Awaitable[User]]:
         """Build the FastAPI dependency enforcing this permission at ``permission_scope``.
 
@@ -165,7 +165,7 @@ class Permission:
     def require_for_object(
         self,
         permission_scope: PermissionScope,
-        scope_object_id: str | Callable[..., Awaitable[str | ScopeObjectMixin | None]],
+        scope_object_id: str | Callable[..., Awaitable[str | int | ScopeObjectMixin | None]],
     ) -> Callable[..., Awaitable[User]]:
         """Return a FastAPI dependency enforcing this permission at one object of a scope.
 
@@ -173,7 +173,7 @@ class Permission:
             permission_scope: The object-bearing scope to check at. An objectless scope raises
                 ``ValueError`` at definition time.
             scope_object_id: A fixed id string, or an async FastAPI dependency returning the id as a
-                ``str``, a ``ScopeObjectMixin`` record, or ``None`` when the object does not exist.
+                ``str`` or ``int``, a ``ScopeObjectMixin`` record, or ``None`` when the object does not exist.
                 For a record, its ``scope_path`` is passed to the check, so a role granted at an
                 ancestor object authorizes it too. ``None`` is checked at the scope itself, so a
                 caller holding the permission only at objects is refused with 403 and cannot tell a

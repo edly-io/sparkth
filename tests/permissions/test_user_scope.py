@@ -11,7 +11,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.user import User
 from sparkth.core.permissions.models import RoleAssignment
-from sparkth.lib.permissions import ROLE_READ, can, get_listed_owner_id, get_own_user_scope_id
+from sparkth.lib.auth import get_current_user_id
+from sparkth.lib.permissions import ROLE_READ, can, get_listed_owner_id
 from sparkth.lib.permissions.scopes import USER, build_scope_path
 from sparkth.lib.testing import grant_global_permission, grant_permission_at_scope, grant_permissions, make_user
 
@@ -53,7 +54,7 @@ async def test_own_scope_gate(session: AsyncSession, gated_client: Callable[...,
     a, _ = await _users(session)
     await grant_permission_at_scope(session, cast(int, a.id), P.name, USER, str(a.id))
     await session.commit()
-    dep = P.require_for_object(USER, get_own_user_scope_id)
+    dep = P.require_for_object(USER, get_current_user_id)
     async with gated_client(dep, a) as client:
         assert (await client.get("/probe")).status_code == 200
     await session.exec(delete(RoleAssignment))
