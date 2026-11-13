@@ -3,7 +3,7 @@
 Application code and plugins import the permissions surface from here, never from
 ``sparkth.core.permissions`` or the hook modules directly. A plugin declares its
 permissions and scope kinds at module level in its ``plugin.py``, or in a module of the plugin
-that ``plugin.py`` imports when the plugin's routes need the constant, with ``Permission.create()``
+that its routes import when they need the constant, with ``Permission.create()``
 and ``PermissionScope.create()`` (or ``ObjectlessPermissionScope.create()`` for a singleton
 scope), never in the plugin class's ``__init__``, which runs more than once::
 
