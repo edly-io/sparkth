@@ -51,7 +51,7 @@ from sparkth.core.cache import get_cache_service
 from sparkth.core.db import dispose_engine, get_engine
 from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.core.models.user import User
-from sparkth.core.permissions.grants import DEFAULT_USER_ROLE
+from sparkth.core.permissions.constants import DEFAULT_USER_ROLE
 from sparkth.core.permissions.models import (
     Group,
     GroupMembership,
