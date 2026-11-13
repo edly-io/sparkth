@@ -184,3 +184,8 @@ async def get_current_user(
     bind_request_user(user)
 
     return user
+
+
+async def get_current_user_id(current_user: User = Depends(get_current_user)) -> int:
+    """Return the authenticated caller's id, for a route or a permission gate that needs only the id."""
+    return cast(int, current_user.id)
