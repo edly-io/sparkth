@@ -4,7 +4,8 @@ Module-level async functions, consistent with the engine in this package. The
 role-management API (``sparkth/api/v1/permissions``) imports them from here directly.
 Every change is recorded as a ``role.*`` audit event in the same transaction as the
 change itself (``delete_role`` also records ``group.role_revoked`` for the group assignments it
-removes); an idempotent call that changes nothing records nothing.
+removes); an idempotent call that changes nothing records nothing. A role shipped with Sparkth
+cannot be changed or deleted; assigning and revoking it is unaffected.
 """
 
 from sqlalchemy import delete
@@ -85,14 +86,25 @@ async def get_role(role_id: int, session: AsyncSession, *, for_update: bool = Fa
     return role
 
 
+async def _get_changeable_role(role_id: int, session: AsyncSession) -> Role:
+    """Return the role locked until the transaction ends, refusing a role shipped with Sparkth.
+
+    Raises RoleNotFound if the role is missing or RoleIsBuiltin if it ships with Sparkth.
+    """
+    role = await get_role(role_id, session, for_update=True)
+    if role.is_builtin:
+        raise RoleIsBuiltin(role.name)
+    return role
+
+
 async def update_role(role_id: int, name: str | None, description: str | None, session: AsyncSession) -> Role:
     """Update a role's name and/or description, record ``role.updated``, and return it.
 
     A None argument leaves that field unchanged; an update that changes nothing records
-    nothing. Raises RoleNotFound if the role is missing, or RoleAlreadyExists if name
-    collides with another role.
+    nothing. Raises RoleNotFound if the role is missing, RoleIsBuiltin if it ships with
+    Sparkth, or RoleAlreadyExists if name collides with another role.
     """
-    role = await get_role(role_id, session)
+    role = await _get_changeable_role(role_id, session)
     before = _create_audit_snapshot(role)
     if name is not None and name != role.name:
         if (await session.exec(select(Role).where(Role.name == name))).first() is not None:
@@ -139,9 +151,7 @@ async def delete_role(role_id: int, session: AsyncSession) -> None:
     ``group.role_revoked`` before ``role.deleted``. The role row is locked for the delete so
     concurrent assignments wait for it.
     """
-    role = await get_role(role_id, session, for_update=True)
-    if role.is_builtin:
-        raise RoleIsBuiltin(role.name)
+    role = await _get_changeable_role(role_id, session)
     await delete_grants_at_object(ROLE, str(role_id), session)
     await _delete_role_dependents(role_id, session)
     await session.delete(role)
@@ -159,9 +169,10 @@ async def add_role_permission(role_id: int, permission: str, session: AsyncSessi
 
     A new grant records ``role.permission_granted``; a no-op records nothing. Returning the
     role lets callers build a response without re-fetching it. Raises RoleNotFound
-    (no such role) or PermissionNotFound (permission is not registered).
+    (no such role), RoleIsBuiltin (the role ships with Sparkth) or PermissionNotFound
+    (permission is not registered).
     """
-    role = await get_role(role_id, session)
+    role = await _get_changeable_role(role_id, session)
     get_permission(permission)
     existing = (
         await session.exec(
@@ -189,9 +200,9 @@ async def remove_role_permission(role_id: int, permission: str, session: AsyncSe
     """Revoke permission from the role (idempotent: a no-op if it isn't granted).
 
     Revoking a held grant records ``role.permission_revoked``; a no-op records nothing.
-    Raises RoleNotFound if the role is missing.
+    Raises RoleNotFound if the role is missing or RoleIsBuiltin if it ships with Sparkth.
     """
-    await get_role(role_id, session)
+    await _get_changeable_role(role_id, session)
     grant = (
         await session.exec(
             select(RolePermission).where(
