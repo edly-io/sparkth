@@ -1,7 +1,7 @@
 import createClient from "openapi-fetch";
 import type { components, paths } from "./generated";
-import { rethrowOrWrapConnectionError } from "./errors";
-import { authMiddleware, errorMiddleware, localeMiddleware } from "./middleware";
+import { rethrowOrWrapConnectionError } from "@/core/api/errors";
+import { authMiddleware, errorMiddleware, localeMiddleware } from "@/core/api/middleware";
 
 // Use the current origin in browsers (same-origin); fall back to localhost for
 // SSR and test environments where relative URLs are not resolvable. See #403.
@@ -24,8 +24,8 @@ export function bearer(token: string): { Authorization: string } {
 
 // Runs an openapi-fetch call and returns its unwrapped data, funnelling every
 // transport failure through rethrowOrWrapConnectionError. This is the wrapper every
-// lib/* client should build its endpoint functions on, so error normalisation lives
-// in one place.
+// client, core's and plugins', should build its endpoint functions on, so error
+// normalisation lives in one place.
 export async function call<T>(request: () => Promise<{ data?: T }>): Promise<T> {
   try {
     const { data } = await request();
