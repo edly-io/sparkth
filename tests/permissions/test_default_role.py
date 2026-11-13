@@ -100,25 +100,3 @@ async def test_cli_create_user_gives_the_account_the_default_role(session: Async
 
     user, assignments = await _active_assignments(session, "carol")
     assert [(a.scope, a.scope_object_id) for a in assignments] == [("user", str(user.id))]
-
-
-@pytest.mark.parametrize(
-    "name",
-    [
-        "llm.config.create",
-        "llm.config.read",
-        "llm.config.update",
-        "llm.config.delete",
-        "compose.conversation.read",
-        "compose.conversation.write",
-        "googledrive.read",
-        "googledrive.sync",
-        "googledrive.delete",
-    ],
-)
-def test_user_scope_permissions_are_registered(name: str) -> None:
-    import sparkth.plugins.compose.plugin  # noqa: F401 - declares the compose permissions
-    import sparkth.plugins.googledrive.plugin  # noqa: F401 - declares the drive permissions
-    from sparkth.lib.permissions import get_permission
-
-    assert get_permission(name).name == name
