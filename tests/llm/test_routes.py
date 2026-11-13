@@ -42,6 +42,14 @@ _BY_ID_ROUTES = [
 ]
 _BY_ID = pytest.mark.parametrize("method,suffix,body,permission,success", _BY_ID_ROUTES)
 
+# The stored field each by-id route changes, and its new value, keyed by (method, suffix).
+_STORED_CHANGE: dict[tuple[str, str], tuple[str, Any]] = {
+    ("PATCH", ""): ("name", "renamed"),
+    ("PUT", "/key"): ("masked_key", "sk-****-key"),
+    ("PATCH", "/active"): ("is_active", False),
+    ("DELETE", ""): ("is_deleted", True),
+}
+
 Call = Callable[..., Awaitable[Any]]
 
 
@@ -269,7 +277,10 @@ async def test_grant_at_global_or_owner_reaches_it(
     response = await call(method, config_id, suffix, body)
 
     assert response.status_code == success
-    assert (await _stored(session, config_id)).user_id == OWNER_ID
+    stored = await _stored(session, config_id)
+    assert stored.user_id == OWNER_ID
+    field, expected = _STORED_CHANGE[(method, suffix)]
+    assert getattr(stored, field) == expected
 
 
 @_BY_ID

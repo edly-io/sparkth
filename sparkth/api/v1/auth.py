@@ -351,7 +351,8 @@ async def google_callback(
                 )
                 session.add(user)
                 await session.flush()
-                assert user.id is not None
+                if user.id is None:
+                    raise RuntimeError("user.id unexpectedly None after flush")
                 await assign_default_role(user.id, session)
                 await record_event(session, _registered_event(user, method="google"))
                 await session.commit()
