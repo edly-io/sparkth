@@ -5,16 +5,24 @@ from typing import cast
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import func
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.lib.auth import get_current_user_id
 from sparkth.lib.db import get_async_session
 from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
+from sparkth.lib.permissions import get_listed_owner_id
+from sparkth.lib.permissions.scopes import USER
 from sparkth.plugins.googledrive.client import GoogleDriveClient
 from sparkth.plugins.googledrive.models import DriveFile, DriveFolder
 from sparkth.plugins.googledrive.oauth import get_valid_access_token
-from sparkth.plugins.googledrive.routes.dependencies import require_user_id
+from sparkth.plugins.googledrive.permissions import DRIVE_READ, DRIVE_SYNC
+from sparkth.plugins.googledrive.routes.dependencies import (
+    get_drive_folder,
+    get_drive_folder_owner_id,
+    require_user_id,
+)
 from sparkth.plugins.googledrive.routes.route_utils import get_drive_credentials
 from sparkth.plugins.googledrive.schemas import (
     DriveFolderResponse,
@@ -30,26 +38,29 @@ logger = get_logger(__name__)
 _FOLDER_MIME_TYPE: str = GoogleDriveClient.FOLDER_MIME_TYPE
 
 
-@router.get("/folders", response_model=PaginatedResponse[DriveFolderResponse])
+@router.get(
+    "/folders",
+    response_model=PaginatedResponse[DriveFolderResponse],
+    dependencies=[Depends(DRIVE_READ.require_for_object(USER, get_listed_owner_id))],
+)
 async def list_folders(
     skip: int = Query(0, ge=0, description="Number of items to skip"),
     limit: int = Query(20, ge=1, le=100, description="Number of items to return"),
-    user_id: int = Depends(require_user_id),
+    owner_id: str = Depends(get_listed_owner_id),
     session: AsyncSession = Depends(get_async_session),
 ) -> PaginatedResponse[DriveFolderResponse]:
-    """List synced Google Drive folders for the current user with pagination."""
+    """List the synced Google Drive folders of the user named by ``owner_id``, or of the caller, with pagination."""
+    user_id = int(owner_id)
     file_count_subq = (
-        # mypy doesn't understand passing model columns directly to select() and group_by()
-        select(DriveFile.folder_id, func.count(DriveFile.id).label("file_count"))  # type: ignore[arg-type]
+        select(col(DriveFile.folder_id), func.count(col(DriveFile.id)).label("file_count"))
         .where(DriveFile.is_deleted == False)  # noqa: E712
-        .group_by(DriveFile.folder_id)  # type: ignore[arg-type]
+        .group_by(col(DriveFile.folder_id))
         .subquery()
     )
 
     base_stmt = (
         select(DriveFolder, file_count_subq.c.file_count)
-        # mypy can't verify the join condition between a model column and a subquery column
-        .outerjoin(file_count_subq, DriveFolder.id == file_count_subq.c.folder_id)  # type: ignore[arg-type]
+        .outerjoin(file_count_subq, col(DriveFolder.id) == file_count_subq.c.folder_id)
         .where(
             DriveFolder.user_id == user_id,
             DriveFolder.is_deleted == False,  # noqa: E712
@@ -86,7 +97,11 @@ async def list_folders(
     )
 
 
-@router.post("/folders/sync", response_model=DriveFolderResponse)
+@router.post(
+    "/folders/sync",
+    response_model=DriveFolderResponse,
+    dependencies=[Depends(DRIVE_SYNC.require_for_object(USER, get_current_user_id))],
+)
 async def sync_folder(
     request: SyncFolderRequest,
     background_tasks: BackgroundTasks,
@@ -137,25 +152,18 @@ async def sync_folder(
     )
 
 
-@router.post("/folders/{folder_id}/refresh", response_model=SyncStatusResponse)
+@router.post(
+    "/folders/{folder_id}/refresh",
+    response_model=SyncStatusResponse,
+    dependencies=[Depends(DRIVE_SYNC.require_for_object(USER, get_drive_folder_owner_id))],
+)
 async def refresh_folder(
-    folder_id: int,
     background_tasks: BackgroundTasks,
-    user_id: int = Depends(require_user_id),
+    folder: DriveFolder = Depends(get_drive_folder),
     session: AsyncSession = Depends(get_async_session),
 ) -> SyncStatusResponse:
-    """Refresh folder contents from Google Drive."""
-    result = await session.exec(
-        select(DriveFolder).where(
-            DriveFolder.id == folder_id,
-            DriveFolder.user_id == user_id,
-            DriveFolder.is_deleted == False,  # noqa: E712
-        )
-    )
-    folder = result.first()
-    if not folder:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_("Folder not found"))
-
+    """Refresh folder contents from Google Drive, using the folder owner's Google connection."""
+    user_id = folder.user_id
     client_id, client_secret, _redirect_uri = get_drive_credentials()
     access_token = await get_valid_access_token(session, user_id, client_id, client_secret)
 

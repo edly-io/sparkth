@@ -1,6 +1,6 @@
 """Integration tests for Google Drive API routes."""
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Iterator
 from datetime import datetime, timezone
 from typing import Any, cast
 from unittest.mock import AsyncMock, patch
@@ -8,11 +8,15 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import status
 from httpx import AsyncClient
+from sqlalchemy import delete
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.core.permissions.models import RoleAssignment
 from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.lib.models import User
+from sparkth.lib.permissions.scopes import GLOBAL, USER
+from sparkth.lib.testing import AuditEventsFetcher, grant_permission_at_scope, make_user
 from sparkth.plugins.googledrive.models import DriveFile, DriveFolder, DriveOAuthToken
 
 # ---------------------------------------------------------------------------
@@ -982,3 +986,322 @@ class TestBrowseDrive:
 
         assert response.status_code == status.HTTP_200_OK
         mock_client.browse.assert_called_once_with(folder_id="subfolder_123", page_token=None)
+
+
+# ---------------------------------------------------------------------------
+# Permission gates: records are checked at the owner's user scope
+# ---------------------------------------------------------------------------
+
+READ = "googledrive.read"
+SYNC = "googledrive.sync"
+DELETE = "googledrive.delete"
+BASE = "/api/v1/google-drive"
+UNKNOWN_ID = 999999
+
+# method, path template ({folder} / {file}), permission, text the success body contains
+BY_ID_ROUTES = [
+    ("GET", "/folders/{folder}/files", READ, "owned.pdf"),
+    ("GET", "/folders/{folder}/rag-status", READ, "owned.pdf"),
+    ("GET", "/files/{file}", READ, "owned.pdf"),
+    ("GET", "/files/{file}/rag-status", READ, "owned.pdf"),
+    ("GET", "/files/{file}/download", READ, "file content"),
+    ("POST", "/folders/{folder}/refresh", SYNC, "synced"),
+    ("DELETE", "/files/{file}", DELETE, "removed"),
+]
+ROUTE_IDS = [f"{m} {p}" for m, p, _perm, _text in BY_ID_ROUTES]
+
+
+class OwnedRecords:
+    """A user's folder and file, as seeded for the gate tests."""
+
+    def __init__(self, user_id: int, folder: DriveFolder, drive_file: DriveFile) -> None:
+        self.user_id = user_id
+        self.folder = folder
+        self.file = drive_file
+
+    def url(self, template: str) -> str:
+        return BASE + template.format(folder=self.folder.id, file=self.file.id)
+
+
+async def _seed_owned(session: AsyncSession, username: str) -> OwnedRecords:
+    user = await make_user(session, username)
+    user_id = cast(int, user.id)
+    folder = DriveFolder(
+        user_id=user_id,
+        drive_folder_id=f"folder_{username}",
+        drive_folder_name=f"folder of {username}",
+        last_synced_at=datetime.now(timezone.utc),
+        sync_status="synced",
+    )
+    session.add(folder)
+    await session.flush()
+    drive_file = DriveFile(
+        folder_id=cast(int, folder.id),
+        user_id=user_id,
+        drive_file_id=f"file_{username}",
+        name="owned.pdf",
+        mime_type="application/pdf",
+    )
+    session.add(drive_file)
+    await session.commit()
+    return OwnedRecords(user_id, folder, drive_file)
+
+
+async def _drop_caller_assignment(session: AsyncSession) -> None:
+    await session.exec(delete(RoleAssignment))
+    await session.commit()
+
+
+@pytest.fixture
+def drive_api() -> Iterator[AsyncMock]:
+    """Stand in for Google: an empty folder listing, a one-chunk download, and no RAG background work."""
+
+    async def _stream(*args: Any, **kwargs: Any) -> AsyncGenerator[bytes, None]:
+        yield b"file content"
+
+    client = AsyncMock()
+    client.list_files.return_value = {"files": []}
+    client.stream_download = _stream
+    client.__aenter__.return_value = client
+    client.__aexit__.return_value = None
+    with (
+        patch("sparkth.plugins.googledrive.routes.folders.GoogleDriveClient", return_value=client),
+        patch("sparkth.plugins.googledrive.routes.files.GoogleDriveClient", return_value=client),
+        patch("sparkth.plugins.googledrive.routes.folders.process_folder_rag", new_callable=AsyncMock),
+    ):
+        yield client
+
+
+@pytest.fixture
+async def owner(session: AsyncSession, test_user: User) -> OwnedRecords:
+    """Records of a second user; ``test_user`` is the caller."""
+    return await _seed_owned(session, "driveowner")
+
+
+@pytest.mark.usefixtures("drive_api", "mock_valid_access_token")
+class TestByIdGate:
+    @pytest.mark.parametrize(("method", "template", "permission", "text"), BY_ID_ROUTES, ids=ROUTE_IDS)
+    async def test_own_record_with_the_default_role(
+        self,
+        drive_client: AsyncClient,
+        test_folder: DriveFolder,
+        test_file: DriveFile,
+        method: str,
+        template: str,
+        permission: str,
+        text: str,
+    ) -> None:
+        response = await drive_client.request(method, OwnedRecords(1, test_folder, test_file).url(template))
+
+        assert response.status_code == status.HTTP_200_OK
+
+    @pytest.mark.parametrize(("method", "template", "permission", "text"), BY_ID_ROUTES, ids=ROUTE_IDS)
+    async def test_own_record_without_the_own_assignment_is_403(
+        self,
+        drive_client: AsyncClient,
+        session: AsyncSession,
+        test_folder: DriveFolder,
+        test_file: DriveFile,
+        method: str,
+        template: str,
+        permission: str,
+        text: str,
+    ) -> None:
+        await _drop_caller_assignment(session)
+
+        response = await drive_client.request(method, OwnedRecords(1, test_folder, test_file).url(template))
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    @pytest.mark.parametrize(("method", "template", "permission", "text"), BY_ID_ROUTES, ids=ROUTE_IDS)
+    async def test_another_users_record_is_403_and_audited(
+        self,
+        drive_client: AsyncClient,
+        owner: OwnedRecords,
+        audit_events: AuditEventsFetcher,
+        method: str,
+        template: str,
+        permission: str,
+        text: str,
+    ) -> None:
+        response = await drive_client.request(method, owner.url(template))
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        (event,) = await audit_events()
+        assert event.action == "denied"
+        assert event.target_id == permission
+        assert event.error_detail == f"scope=user:{owner.user_id}"
+
+    @pytest.mark.parametrize(("method", "template", "permission", "text"), BY_ID_ROUTES, ids=ROUTE_IDS)
+    @pytest.mark.parametrize("at_owner", [False, True], ids=["global", "owner"])
+    async def test_grant_at_global_or_owner_reaches_it(
+        self,
+        drive_client: AsyncClient,
+        session: AsyncSession,
+        owner: OwnedRecords,
+        method: str,
+        template: str,
+        permission: str,
+        text: str,
+        at_owner: bool,
+    ) -> None:
+        scope, object_id = (USER, str(owner.user_id)) if at_owner else (GLOBAL, None)
+        await grant_permission_at_scope(session, 1, permission, scope, object_id)
+        await session.commit()
+
+        response = await drive_client.request(method, owner.url(template))
+
+        assert response.status_code == status.HTTP_200_OK
+        assert text in response.text
+
+    @pytest.mark.parametrize(("method", "template", "permission", "text"), BY_ID_ROUTES, ids=ROUTE_IDS)
+    async def test_grant_at_a_third_user_is_403(
+        self,
+        drive_client: AsyncClient,
+        session: AsyncSession,
+        owner: OwnedRecords,
+        method: str,
+        template: str,
+        permission: str,
+        text: str,
+    ) -> None:
+        third = await make_user(session, "drivethird")
+        await grant_permission_at_scope(session, 1, permission, USER, str(third.id))
+        await session.commit()
+
+        response = await drive_client.request(method, owner.url(template))
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    @pytest.mark.parametrize(("method", "template", "permission", "text"), BY_ID_ROUTES, ids=ROUTE_IDS)
+    async def test_unknown_id_is_404_without_a_denial_row(
+        self,
+        drive_client: AsyncClient,
+        session: AsyncSession,
+        audit_events: AuditEventsFetcher,
+        method: str,
+        template: str,
+        permission: str,
+        text: str,
+    ) -> None:
+        await _drop_caller_assignment(session)
+
+        response = await drive_client.request(method, BASE + template.format(folder=UNKNOWN_ID, file=UNKNOWN_ID))
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert await audit_events() == []
+
+    async def test_read_alone_cannot_sync_or_delete(
+        self, drive_client: AsyncClient, session: AsyncSession, owner: OwnedRecords
+    ) -> None:
+        await grant_permission_at_scope(session, 1, READ, GLOBAL)
+        await session.commit()
+
+        refresh = await drive_client.post(owner.url("/folders/{folder}/refresh"))
+        delete_response = await drive_client.delete(owner.url("/files/{file}"))
+
+        assert (refresh.status_code, delete_response.status_code) == (403, 403)
+        await session.refresh(owner.file)
+        assert owner.file.is_deleted is False
+
+    async def test_holder_delete_removes_the_owners_file(
+        self, drive_client: AsyncClient, session: AsyncSession, owner: OwnedRecords
+    ) -> None:
+        await grant_permission_at_scope(session, 1, DELETE, GLOBAL)
+        await session.commit()
+
+        response = await drive_client.delete(owner.url("/files/{file}"))
+
+        assert response.status_code == status.HTTP_200_OK
+        await session.refresh(owner.file)
+        assert owner.file.is_deleted is True
+
+    async def test_holder_download_uses_the_owners_token(
+        self, drive_client: AsyncClient, session: AsyncSession, owner: OwnedRecords
+    ) -> None:
+        await grant_permission_at_scope(session, 1, READ, GLOBAL)
+        await session.commit()
+
+        with patch(
+            "sparkth.plugins.googledrive.routes.files.get_valid_access_token", return_value="owner_token"
+        ) as get_token:
+            response = await drive_client.get(owner.url("/files/{file}/download"))
+
+        assert response.status_code == status.HTTP_200_OK
+        assert get_token.call_args.args[1] == owner.user_id
+
+    async def test_holder_refresh_uses_the_owners_token(
+        self, drive_client: AsyncClient, session: AsyncSession, owner: OwnedRecords
+    ) -> None:
+        await grant_permission_at_scope(session, 1, SYNC, GLOBAL)
+        await session.commit()
+
+        with (
+            patch(
+                "sparkth.plugins.googledrive.routes.folders.get_valid_access_token", return_value="owner_token"
+            ) as get_token,
+            patch("sparkth.plugins.googledrive.routes.folders.process_folder_rag", new_callable=AsyncMock) as rag,
+        ):
+            response = await drive_client.post(owner.url("/folders/{folder}/refresh"))
+
+        assert response.status_code == status.HTTP_200_OK
+        assert get_token.call_args.args[1] == owner.user_id
+        assert rag.call_args.args[1:] == (owner.user_id, "owner_token")
+
+
+class TestListGate:
+    async def test_list_shows_only_the_callers_even_with_a_global_grant(
+        self, drive_client: AsyncClient, session: AsyncSession, test_folder: DriveFolder, owner: OwnedRecords
+    ) -> None:
+        await grant_permission_at_scope(session, 1, READ, GLOBAL)
+        await session.commit()
+
+        body = (await drive_client.get(f"{BASE}/folders")).json()
+
+        assert [f["name"] for f in body["items"]] == ["Test Folder"]
+
+    async def test_list_of_another_owner_needs_a_grant(self, drive_client: AsyncClient, owner: OwnedRecords) -> None:
+        response = await drive_client.get(f"{BASE}/folders", params={"owner_id": owner.user_id})
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    @pytest.mark.parametrize("at_owner", [False, True], ids=["global", "owner"])
+    async def test_list_of_another_owner_with_a_grant(
+        self,
+        drive_client: AsyncClient,
+        session: AsyncSession,
+        test_folder: DriveFolder,
+        owner: OwnedRecords,
+        at_owner: bool,
+    ) -> None:
+        scope, object_id = (USER, str(owner.user_id)) if at_owner else (GLOBAL, None)
+        await grant_permission_at_scope(session, 1, READ, scope, object_id)
+        await session.commit()
+
+        body = (await drive_client.get(f"{BASE}/folders", params={"owner_id": owner.user_id})).json()
+
+        assert [f["name"] for f in body["items"]] == ["folder of driveowner"]
+
+    async def test_list_of_a_user_with_no_folders_is_empty(
+        self, drive_client: AsyncClient, session: AsyncSession, test_user: User
+    ) -> None:
+        await grant_permission_at_scope(session, 1, READ, GLOBAL)
+        await session.commit()
+
+        body = (await drive_client.get(f"{BASE}/folders", params={"owner_id": UNKNOWN_ID})).json()
+
+        assert body["items"] == []
+        assert body["total"] == 0
+
+
+class TestSyncGate:
+    @pytest.mark.usefixtures("drive_api", "mock_valid_access_token")
+    async def test_sync_without_the_own_assignment_is_403(
+        self, drive_client: AsyncClient, session: AsyncSession
+    ) -> None:
+        await _drop_caller_assignment(session)
+
+        response = await drive_client.post(f"{BASE}/folders/sync", json={"drive_folder_id": "any"})
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert (await session.exec(select(DriveFolder))).all() == []
