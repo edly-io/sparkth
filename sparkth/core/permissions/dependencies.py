@@ -3,15 +3,18 @@
 ``build_scope_path_dependency`` returns the FastAPI dependency that yields the checked object's
 scope path for a route: built from a path parameter, a fixed id, an async dependency returning
 an id or a scope object record, or ``None`` for an objectless scope. ``object_id_str_to_int`` converts
-the string object ids of grants to the integer ids of the objects they name.
+the string object ids of grants to the integer ids of the objects they name. One dependency
+names the ``user`` scope object a list route is checked at: the listed owner.
 """
 
 from collections.abc import Awaitable, Callable
 
-from fastapi import Depends, Request
+from fastapi import Depends, Query, Request
 
+from sparkth.core.models.user import User
 from sparkth.core.permissions.scopes import PermissionScope, build_scope_path
 from sparkth.core.permissions.scopes.mixins import ScopeObjectMixin
+from sparkth.lib.auth import get_current_user
 from sparkth.lib.log import get_logger
 
 logger = get_logger(__name__)
@@ -51,16 +54,16 @@ def _build_fixed_id_dependency(permission_scope: PermissionScope, object_id: str
 
 
 def _build_object_dependency(
-    permission_scope: PermissionScope, object_id: Callable[..., Awaitable[str | ScopeObjectMixin | None]]
+    permission_scope: PermissionScope, object_id: Callable[..., Awaitable[str | int | ScopeObjectMixin | None]]
 ) -> _ScopePathDependency:
     """A dependency building the scope path from what the ``object_id`` dependency returns: an id, a record,
     or ``None`` for a missing object, which has no path and so is checked at the scope itself."""
 
-    async def resolve_scope_path(resolved: str | ScopeObjectMixin | None = Depends(object_id)) -> str | None:
+    async def resolve_scope_path(resolved: str | int | ScopeObjectMixin | None = Depends(object_id)) -> str | None:
         if resolved is None:
             return None
-        if isinstance(resolved, str):
-            return build_scope_path(permission_scope, resolved)
+        if isinstance(resolved, (str, int)):
+            return build_scope_path(permission_scope, str(resolved))
         return resolved.scope_path
 
     return resolve_scope_path
@@ -69,7 +72,7 @@ def _build_object_dependency(
 def build_scope_path_dependency(
     permission_scope: PermissionScope,
     scope_param: str | None,
-    scope_object_id: str | Callable[..., Awaitable[str | ScopeObjectMixin | None]] | None,
+    scope_object_id: str | Callable[..., Awaitable[str | int | ScopeObjectMixin | None]] | None,
 ) -> _ScopePathDependency:
     """Return the dependency that yields a route's scope path, built from the path parameter, the fixed id,
     or the ``object_id`` dependency; an objectless scope has no object and so yields ``None``."""
@@ -96,3 +99,11 @@ def object_id_str_to_int(ids: set[str] | None) -> set[int] | None:
         else:
             logger.warning("Skipped non-numeric scope object id %r", object_id)
     return object_ids
+
+
+async def get_listed_owner_id(
+    owner_id: int | None = Query(None), current_user: User = Depends(get_current_user)
+) -> str:
+    """Return the object id of the ``user`` scope a list route is checked at: the ``owner_id`` query
+    parameter, or the caller's own id when it is absent."""
+    return str(current_user.id if owner_id is None else owner_id)

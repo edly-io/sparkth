@@ -101,7 +101,7 @@ assigned at.
 
 | Kind | Names | Notes |
 |---|---|---|
-| **Scopes** | `global`, `whitelist`, `role`, `group` | `global` is the objectless root (applies platform-wide). `whitelist` is an objectless singleton nested under `global` for the registration whitelist. `role` is object-bearing (nested under `global`) so role management can be delegated per-role by that role's id. `group` is object-bearing (nested under `global`) so group management can be delegated per-group by that group's id. A `global` grant cascades down to all three. |
+| **Scopes** | `global`, `whitelist`, `role`, `group`, `user` | `global` is the objectless root (applies platform-wide). `whitelist` is an objectless singleton nested under `global` for the registration whitelist. `role` is object-bearing (nested under `global`) so role management can be delegated per-role by that role's id. `group` is object-bearing (nested under `global`) so group management can be delegated per-group by that group's id. `user` is object-bearing (nested under `global`) and names one user by id: a user's own records live at their `user` scope, so a grant there reaches that user's records only. A `global` grant cascades down to all four. |
 | **Permissions** | `email.whitelist.{read,create,delete}`; `role.{create,read,update,delete}`; `group.{create,read,update,delete}`; `permission.read`; `analytics.read`; `audit.read`; `user.read` | Gate the registration email-whitelist endpoints, the role-management API, the group-management API, listing the assignable permission vocabulary, the analytics dashboards and their read API, querying and exporting the audit trail, and reading usernames outside user management (Explore's `/analytics/query`, which names each actor, and its saved `/analytics/views`; both also need `analytics.read`) respectively. |
 | **Roles** | `admin` (cannot be deleted) | Grants the three `email.whitelist.*`, the four `role.*`, the four `group.*`, `permission.read`, `analytics.read`, `audit.read`, and `user.read`. A seed migration also assigned it at `global` to every account that was a superuser when the migration ran — a one-time backfill. |
 
@@ -309,6 +309,10 @@ time (a wiring error, never a silent 403).
   reaches the route, which raises its own not-found. The dependency runs after authentication, so
   an anonymous caller gets 401 first.
 
+  To gate a record owned by a user, the dependency loads the record, raises the record's not-found
+  error when it is missing (a 404 for everyone, with no denial audit row), and returns the owner's id
+  as the object id of the `user` scope. A caller who lacks the permission on an existing record gets 403.
+
 ```python
 from fastapi import Depends
 from sparkth.lib.permissions import COURSE_EDIT, EMAIL_WHITELIST_READ, THING_READ
@@ -339,7 +343,8 @@ async def edit_course(course_id: int): ...
 
 - **Create** checks at the scope the new object will live in. A root object (a group, a role) lives
   under `global`, so `require_in_global_scope()` is right. A record the caller will own is created at
-  the caller's own scope, which the caller always holds, so such a route needs no gate for it.
+  the caller's own `user` scope: gate the route with `require_for_object(USER, get_current_user_id)`,
+  where `get_current_user_id` returns the caller's id.
 - **List** uses `.require_for_any_object(scope)`. The dependency returns the ids of the objects of that
   scope at which the caller holds the permission, as strings, or `None` when a grant at an objectless
   ancestor (`global`) covers every object. A caller who holds the permission at no object is refused
@@ -349,6 +354,10 @@ async def edit_course(course_id: int): ...
   - Grants at an object-bearing ancestor are not considered; only grants at the scope itself and at
     objectless ancestors are.
   - An objectless scope names no objects to list, so `require_for_any_object` raises `ValueError` for one.
+  - A list of one user's records takes an optional `owner_id` query parameter and gates with
+    `require_for_object(USER, get_listed_owner_id)`. It returns `owner_id`, or the caller's id when
+    absent, so listing another user's records needs the permission at that user's scope or at `global`.
+    An `owner_id` that names no user is not looked up: a holder gets an empty list, a non-holder 403.
 
 ```python
 from sparkth.lib.permissions import GROUP_READ, object_id_str_to_int
