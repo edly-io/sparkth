@@ -65,6 +65,6 @@ async def get_drive_folder_owner_id(folder: DriveFolder = Depends(get_drive_fold
     return str(folder.user_id)
 
 
-async def get_drive_file_owner_id(file: DriveFile = Depends(get_drive_file)) -> str:
+async def get_drive_file_owner_id(drive_file: DriveFile = Depends(get_drive_file)) -> str:
     """Return the id of the user who owns the file, as the object id of its ``user`` scope."""
-    return str(file.user_id)
+    return str(drive_file.user_id)

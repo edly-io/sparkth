@@ -1236,13 +1236,17 @@ class TestByIdGate:
         await grant_permission_at_scope(session, 1, SYNC, GLOBAL)
         await session.commit()
 
-        with patch(
-            "sparkth.plugins.googledrive.routes.folders.get_valid_access_token", return_value="owner_token"
-        ) as get_token:
+        with (
+            patch(
+                "sparkth.plugins.googledrive.routes.folders.get_valid_access_token", return_value="owner_token"
+            ) as get_token,
+            patch("sparkth.plugins.googledrive.routes.folders.process_folder_rag", new_callable=AsyncMock) as rag,
+        ):
             response = await drive_client.post(owner.url("/folders/{folder}/refresh"))
 
         assert response.status_code == status.HTTP_200_OK
         assert get_token.call_args.args[1] == owner.user_id
+        assert rag.call_args.args[1:] == (owner.user_id, "owner_token")
 
 
 class TestListGate:

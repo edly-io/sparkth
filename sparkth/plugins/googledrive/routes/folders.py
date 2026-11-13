@@ -5,7 +5,7 @@ from typing import cast
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import func
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.db import get_async_session
@@ -51,17 +51,15 @@ async def list_folders(
     """List the synced Google Drive folders of the user named by ``owner_id``, or of the caller, with pagination."""
     user_id = int(owner_id)
     file_count_subq = (
-        # mypy doesn't understand passing model columns directly to select() and group_by()
-        select(DriveFile.folder_id, func.count(DriveFile.id).label("file_count"))  # type: ignore[arg-type]
+        select(col(DriveFile.folder_id), func.count(col(DriveFile.id)).label("file_count"))
         .where(DriveFile.is_deleted == False)  # noqa: E712
-        .group_by(DriveFile.folder_id)  # type: ignore[arg-type]
+        .group_by(col(DriveFile.folder_id))
         .subquery()
     )
 
     base_stmt = (
         select(DriveFolder, file_count_subq.c.file_count)
-        # mypy can't verify the join condition between a model column and a subquery column
-        .outerjoin(file_count_subq, DriveFolder.id == file_count_subq.c.folder_id)  # type: ignore[arg-type]
+        .outerjoin(file_count_subq, col(DriveFolder.id) == file_count_subq.c.folder_id)
         .where(
             DriveFolder.user_id == user_id,
             DriveFolder.is_deleted == False,  # noqa: E712
