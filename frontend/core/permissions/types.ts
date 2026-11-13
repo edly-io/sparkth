@@ -22,4 +22,13 @@ export type PermissionName =
   | "group.update"
   | "group.delete"
   | "permission.read"
-  | "user.read";
+  | "user.read"
+  | "llm.config.create"
+  | "llm.config.read"
+  | "llm.config.update"
+  | "llm.config.delete"
+  | "compose.conversation.read"
+  | "compose.conversation.write"
+  | "googledrive.read"
+  | "googledrive.sync"
+  | "googledrive.delete";

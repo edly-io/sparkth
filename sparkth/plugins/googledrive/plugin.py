@@ -16,6 +16,11 @@ from sparkth.lib.plugins import SparkthPlugin
 from sparkth.lib.routes import register_router
 from sparkth.plugins.googledrive.analytics import events
 from sparkth.plugins.googledrive.config import GoogleDriveConfig
+from sparkth.plugins.googledrive.permissions import (  # noqa: F401 - registers permissions
+    DRIVE_DELETE,
+    DRIVE_READ,
+    DRIVE_SYNC,
+)
 from sparkth.plugins.googledrive.routes import router
 
 
