@@ -8,7 +8,7 @@ Tests for the conversation UUID feature:
 """
 
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
@@ -29,6 +29,7 @@ from sparkth.core.permissions.models import RoleAssignment
 from sparkth.lib.audit import audited_tool
 from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG
 from sparkth.lib.compose.hooks import Agent
+from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.lib.llm import get_llm_service, get_provider
 from sparkth.lib.permissions.scopes import GLOBAL, USER
 from sparkth.lib.testing import AuditEventsFetcher, ScriptedChatModel, grant_permission_at_scope
@@ -676,6 +677,41 @@ class TestTurnWriteGate:
         audited = await audit_events()
         assert audited
         assert {event.actor_id for event in audited} == {"1"}
+
+    async def test_a_holder_turn_attaches_only_the_owners_documents(
+        self,
+        client: httpx.AsyncClient,
+        current_user: MagicMock,
+        session: AsyncSession,
+        analytics_session: SQLAlchemyAsyncSession,
+    ) -> None:
+        conv_uuid = await _owned_by(session, OWNER_ID)
+        config_id = await seed_llm_config(session, 1)
+        owner_doc = Document(user_id=OWNER_ID, name="owner.pdf", status=DocumentStatus.READY)
+        caller_doc = Document(user_id=1, name="caller.pdf", status=DocumentStatus.READY)
+        session.add_all([owner_doc, caller_doc])
+        await session.flush()
+        owner_doc_id, caller_doc_id = owner_doc.id, caller_doc.id
+        await grant_permission_at_scope(session, 1, WRITE, GLOBAL)
+        await session.commit()
+        search = MagicMock(requires_search=AsyncMock(return_value=False))
+
+        with (
+            patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_answering_provider()),
+            patch("sparkth.plugins.compose.routes.completions.RAGSearchClassifier", return_value=search),
+        ):
+            response = await client.post(
+                COMPLETIONS_URL, json={**_turn(config_id, conv_uuid), "document_ids": [owner_doc_id, caller_doc_id]}
+            )
+
+        assert response.status_code == 200
+        conversation = (await session.exec(select(Conversation).where(Conversation.uuid == conv_uuid))).one()
+        attached = await ComposeService().list_conversation_attachments(session, cast(int, conversation.id))
+        assert [document.id for document in attached.ready] == [owner_doc_id]
+        rows = (await analytics_session.execute(sa_select(raw_events))).mappings().all()
+        assert [row["payload"] for row in rows if row["event_type"] == "compose.documents_skipped"] == [
+            {"conversation_id": str(conv_uuid), "requested_count": 2, "skipped_count": 1}
+        ]
 
     async def test_a_holders_failed_turn_records_the_error_in_the_owners_conversation(
         self, client: httpx.AsyncClient, current_user: MagicMock, session: AsyncSession
