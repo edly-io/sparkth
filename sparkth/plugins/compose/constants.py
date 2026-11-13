@@ -24,6 +24,7 @@ RAG_SEARCH_CLASSIFIER_SYSTEM_PROMPT = read_asset(__file__, "rag_search_classifie
 PLANNER_PROMPT = read_asset(__file__, "planner/prompt.txt")
 PLANNER_OPERATIONS = read_asset(__file__, "planner/operations.txt")
 PLANNER_WITHOUT_OPERATIONS = read_asset(__file__, "planner/without_operations.txt")
+PLANNER_OPEN_PLAN = read_asset(__file__, "planner/open_plan.txt")
 OPERATOR_PROMPT = read_asset(__file__, "operator_prompt.txt")
 
 # Heads what an operation returned when the planner or a later step reads it, so it is taken as data.

@@ -31,3 +31,11 @@ class PlannedStep:
 
     agent: str
     task: str
+
+
+@dataclass(frozen=True)
+class OpenPlan:
+    """A plan the author was shown that isn't finished: its steps, and the number of the latest one that started."""
+
+    steps: tuple[PlannedStep, ...]
+    current: int

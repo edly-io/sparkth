@@ -1,10 +1,18 @@
 """The planner's middleware: one call per reply, calls checked against the plan, a limit on steps, a limit
 on rejected calls, no repeat hand-off and no step after an agent's choices."""
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
+from dataclasses import dataclass
 from typing import Any
 
-from langchain.agents.middleware import AgentState, ToolCallRequest, after_model, before_model, wrap_tool_call
+from langchain.agents.middleware import (
+    AgentMiddleware,
+    AgentState,
+    ToolCallRequest,
+    after_model,
+    before_model,
+    wrap_tool_call,
+)
 from langchain_core.messages import AIMessage, AnyMessage, ToolCall, ToolMessage
 from langgraph.runtime import Runtime
 from langgraph.types import Command
@@ -25,7 +33,8 @@ from sparkth.plugins.compose.constants import (
     REJECT_UNPLANNED_OPERATION,
     STOPPED_EARLY_NOTICE,
 )
-from sparkth.plugins.compose.planner.types import PlannedStep
+from sparkth.plugins.compose.enums import TurnEventType
+from sparkth.plugins.compose.planner.types import OpenPlan, PlannedStep
 
 logger = get_logger(__name__)
 
@@ -73,68 +82,146 @@ def _rejected_call(request: ToolCallRequest, reason: str) -> ToolMessage:
     return ToolMessage(reason, tool_call_id=call["id"], name=call["name"], status="error")
 
 
-@wrap_tool_call(name="enforce_plan")
-async def enforce_plan(
-    request: ToolCallRequest, handler: Callable[[ToolCallRequest], Awaitable[ToolMessage | Command[Any]]]
-) -> ToolMessage | Command[Any]:
-    """Hold the planner to the plan shown to the author. Each of its calls is checked before it runs:
-    one that fits the plan runs, and one that doesn't is rejected.
+@dataclass(frozen=True)
+class _ActivePlan:
+    """The plan a turn follows: its steps, the numbers of the steps that may run next, and whether
+    it was carried on from an earlier message."""
+
+    steps: Sequence[PlannedStep]
+    allowed_numbers: tuple[int, ...]
+    from_earlier_message: bool
+
+
+def _first_call_number(messages: list[AnyMessage], pending_number: int | None) -> int | None:
+    """The step number of the call that decides whether the turn carries on an earlier plan: the
+    turn's first step that ran, or the call it is ``pending_number`` for now when none has run."""
+    step_results = _step_results(messages)
+    if not step_results:
+        return pending_number
+    calls = (call for message in messages if isinstance(message, AIMessage) for call in message.tool_calls)
+    first = next(call for call in calls if call["id"] == step_results[0].tool_call_id)
+    return _step_number(first)
+
+
+def _active_plan(
+    messages: list[AnyMessage], open_plan: OpenPlan | None, pending_number: int | None
+) -> _ActivePlan | None:
+    """The plan the turn follows, if any: the one it showed, or ``open_plan``, a plan from an earlier
+    message, when its first step carries that on. ``pending_number`` is the step number of the call being
+    checked."""
+    step_results = _step_results(messages)
+
+    # No step runs before the turn's own plan is shown, so its next step is the count of steps run plus one.
+    shown = _shown_plan(messages)
+    if shown is not None:
+        return _ActivePlan(shown, (len(step_results) + 1,), from_earlier_message=False)
+
+    # An earlier plan is carried on only when the turn's first step names a step. A first step that
+    # names none has dropped the plan for the whole turn.
+    first = _first_call_number(messages, pending_number)
+    if open_plan is None or first is None:
+        return None
+
+    # Once carried on, its steps run in order from the first one the turn ran.
+    if step_results:
+        return _ActivePlan(open_plan.steps, (first + len(step_results),), from_earlier_message=True)
+
+    # The step it was at has started. Its agent may have finished or be waiting for the author, and
+    # only the planner can tell, so that step or the one after it may run first.
+    return _ActivePlan(open_plan.steps, (open_plan.current, open_plan.current + 1), from_earlier_message=True)
+
+
+def _why_rejected(tool_name: str, number: int, plan: _ActivePlan) -> str | None:
+    """Why a call to ``tool_name`` for step ``number`` doesn't fit ``plan``, or None when it does:
+    the step must be one that may run next, and the plan must have given it to this agent or the
+    operator."""
+    allowed_numbers = [allowed for allowed in plan.allowed_numbers if allowed <= len(plan.steps)]
+    if not allowed_numbers:
+        return REJECT_STEP_AFTER_PLAN
+    if number not in allowed_numbers:
+        following = " or ".join(str(allowed) for allowed in allowed_numbers)
+        return REJECT_STEP_NOT_NEXT.format(step=number, next=following)
+    if plan.steps[number - 1].agent != tool_name:
+        return REJECT_OTHER_AGENTS_STEP.format(step=number)
+    return None
+
+
+def enforce_plan(open_plan: OpenPlan | None) -> AgentMiddleware[Any, Any, Any]:
+    """Middleware that holds the planner to the plan shown to the author. Each of its calls is checked
+    before it runs: one that fits the plan runs, and one that doesn't is rejected. ``open_plan`` is a
+    plan from an earlier message that isn't finished.
 
     - A turn shows at most one plan, before its first step.
-    - Once it has, every hand-off and operation names the step it carries out. The steps run in
+    - A turn continues the open plan when its first step names one of that plan's steps. A first
+      step that names none drops the open plan for the whole turn.
+    - With a plan, every hand-off and operation names the step it carries out. The steps run in
       order, each by the agent the plan gave it to.
     - Without a plan, an operation runs only as the turn's first step.
-    - An operation that follows another step is asked for its step's task as the author read it,
-      not for what the planner wrote since.
+    - An operation is asked for its step's task as the author read it, not for what the planner
+      wrote, when it follows another step or belongs to the open plan.
+    - Each step of a plan is reported on the stream when it starts, and again once it has run.
 
-    The last two rules exist because what a step returned, an agent's reply or what an operation
-    retrieved, can carry text from an uploaded document or the LMS. That text must not be able to
-    start an operation, or change what a planned one does. A hand-off is not restricted: an agent
-    only writes for the author to read.
+    The rules about operations exist because what a step returned, an agent's reply or what an
+    operation retrieved, can carry text from an uploaded document or the LMS, and the planner has
+    read the open plan's earlier steps too. That text must not be able to start an operation, or
+    change what a planned one does. A hand-off is not restricted: an agent only writes for the
+    author to read.
     """
-    messages = request.state["messages"]
-    call = request.tool_call
-    tool_name = call["name"]
-    step_results = _step_results(messages)
-    plan = _shown_plan(messages)
 
-    # Refusing the message has nothing to do with a plan.
-    if tool_name == REFUSAL_TOOL_NAME:
-        return await handler(request)
+    @wrap_tool_call(name="enforce_plan")
+    async def check(
+        request: ToolCallRequest, handler: Callable[[ToolCallRequest], Awaitable[ToolMessage | Command[Any]]]
+    ) -> ToolMessage | Command[Any]:
+        messages = request.state["messages"]
+        call = request.tool_call
+        tool_name = call["name"]
+        step_results = _step_results(messages)
 
-    # The plan is shown once, and before any step runs: after one, what that step returned could shape it.
-    if tool_name == SHOW_PLAN_TOOL_NAME:
-        if plan is not None:
-            return _rejected_call(request, REJECT_SECOND_PLAN)
-        if step_results:
-            return _rejected_call(request, REJECT_PLAN_AFTER_A_STEP)
-        return await handler(request)
+        # Refusing the message has nothing to do with a plan.
+        if tool_name == REFUSAL_TOOL_NAME:
+            return await handler(request)
 
-    # Without a plan every call runs, except an operation that follows another step.
-    if plan is None:
-        if tool_name == OPERATOR_AGENT_NAME and step_results:
-            return _rejected_call(request, REJECT_UNPLANNED_OPERATION)
-        return await handler(request)
+        # The plan is shown once, and before any step runs: after one, what that step returned could shape it.
+        if tool_name == SHOW_PLAN_TOOL_NAME:
+            if _shown_plan(messages) is not None:
+                return _rejected_call(request, REJECT_SECOND_PLAN)
+            if step_results:
+                return _rejected_call(request, REJECT_PLAN_AFTER_A_STEP)
+            return await handler(request)
 
-    # With a plan, the call must be for the next step, and the plan must have given that step to this
-    # agent or the operator.
-    next_step = len(step_results) + 1
-    if next_step > len(plan):
-        return _rejected_call(request, REJECT_STEP_AFTER_PLAN)
-    step_number = _step_number(call)
-    if step_number is None:
-        return _rejected_call(request, REJECT_MISSING_STEP_NUMBER)
-    if step_number != next_step:
-        return _rejected_call(request, REJECT_STEP_NOT_NEXT.format(step=step_number, next=next_step))
-    step = plan[step_number - 1]
-    if step.agent != tool_name:
-        return _rejected_call(request, REJECT_OTHER_AGENTS_STEP.format(step=step_number))
+        # Without a plan every call runs, except an operation that follows another step.
+        step_number = _step_number(call)
+        plan = _active_plan(messages, open_plan, step_number)
+        if plan is None:
+            if tool_name == OPERATOR_AGENT_NAME and step_results:
+                return _rejected_call(request, REJECT_UNPLANNED_OPERATION)
+            return await handler(request)
 
-    # An operation that follows another step does what the plan said originally, not what the planner wrote since.
-    if tool_name == OPERATOR_AGENT_NAME and step_results:
-        logger.info("The operation for step %d is asked for the plan's task, not the planner's request", step_number)
-        request = request.override(tool_call={**call, "args": {**call["args"], "request": step.task}})
-    return await handler(request)
+        # With a plan, the call must name a step that may run next, and the plan must have given that
+        # step to this agent or the operator.
+        if step_number is None:
+            return _rejected_call(request, REJECT_MISSING_STEP_NUMBER)
+        reason = _why_rejected(tool_name, step_number, plan)
+        if reason is not None:
+            return _rejected_call(request, reason)
+
+        # An operation does what the plan said originally, not what the planner wrote after reading other steps.
+        if tool_name == OPERATOR_AGENT_NAME and (plan.from_earlier_message or step_results):
+            logger.info(
+                "The operation for step %d is asked for the plan's task, not the planner's request", step_number
+            )
+            task = plan.steps[step_number - 1].task
+            request = request.override(tool_call={**call, "args": {**call["args"], "request": task}})
+
+        # Report the step as started, and as run once it has returned without an error.
+        report = request.runtime.stream_writer
+        report({"type": TurnEventType.PLAN_STEP, "number": step_number, "ran": False})
+        result = await handler(request)
+        if isinstance(result, ToolMessage) and result.status != "error":
+            report({"type": TurnEventType.PLAN_STEP, "number": step_number, "ran": True})
+        return result
+
+    return check
 
 
 def _with_calls(reply: AIMessage, kept: list[ToolCall]) -> AIMessage:
@@ -209,25 +296,32 @@ def enforce_rejected_call_limit(state: AgentState[Any], runtime: Runtime[AuditMo
     return None
 
 
-@after_model(name="no_repeat_hand_off")
-def no_repeat_hand_off(state: AgentState[Any], runtime: Runtime[AuditModelInfo]) -> dict[str, Any] | None:
-    """End the turn as it stands when the planner hands off again to the agent that has just answered.
+def no_repeat_hand_off(open_plan: OpenPlan | None) -> AgentMiddleware[Any, Any, Any]:
+    """Middleware that ends the turn as it stands when the planner hands off again to the agent that
+    has just answered. ``open_plan`` is a plan from an earlier message that isn't finished.
 
     The author has just read that agent's reply, often a question for them. The operator may run
-    twice in a row: the author never reads its text. A turn with a plan is left alone: there the
-    same agent may do two steps in a row.
+    twice in a row: the author never reads its text. A turn that follows a plan is left alone: there
+    the same agent may do two steps in a row.
     """
-    reply = state["messages"][-1]
-    if not (isinstance(reply, AIMessage) and reply.tool_calls):
+
+    @after_model(name="no_repeat_hand_off")
+    def end_on_a_repeat(state: AgentState[Any], runtime: Runtime[AuditModelInfo]) -> dict[str, Any] | None:
+        messages = state["messages"]
+        reply = messages[-1]
+        if not (isinstance(reply, AIMessage) and reply.tool_calls):
+            return None
+        call = reply.tool_calls[0]
+        if _active_plan(messages, open_plan, _step_number(call)) is not None:
+            return None
+        step_results = _step_results(messages)
+        next_agent = call["name"]
+        if next_agent != OPERATOR_AGENT_NAME and step_results and step_results[-1].name == next_agent:
+            logger.warning("Planner handed off to '%s' again right after its reply; the turn ends there", next_agent)
+            return {"messages": [_with_calls(reply, [])]}
         return None
-    if _shown_plan(state["messages"]) is not None:
-        return None
-    step_results = _step_results(state["messages"])
-    next_agent = reply.tool_calls[0]["name"]
-    if next_agent != OPERATOR_AGENT_NAME and step_results and step_results[-1].name == next_agent:
-        logger.warning("Planner handed off to '%s' again right after its reply; the turn ends there", next_agent)
-        return {"messages": [_with_calls(reply, [])]}
-    return None
+
+    return end_on_a_repeat
 
 
 def _ends_with_choices(reply: str) -> bool:
