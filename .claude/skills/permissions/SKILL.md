@@ -78,7 +78,8 @@ Taken from the guide's *Before adding one*; answer all of them in the proposal i
 All are explained in the guide; none is a judgement call.
 
 - **Declare only through `.create()`, bound to a constant, imported from `sparkth.lib.permissions`.**
-  A plugin declares at module level in its `plugin.py`, never in the plugin class's `__init__`:
+  A plugin declares at module level in its `plugin.py`, or in a module `plugin.py` imports when its
+  routes need the constant (routes cannot import from `plugin.py`), never in the plugin class's `__init__`:
   the class is constructed more than once, and a second declaration raises
   `ValueError: Duplicate hook item`.
 - **Gate a route with the permission's dependency, never a hand-rolled check.** Use
