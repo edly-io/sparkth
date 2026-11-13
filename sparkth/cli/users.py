@@ -1,4 +1,5 @@
 import asyncio
+from typing import cast
 
 import typer
 from sqlmodel import select
@@ -80,9 +81,7 @@ async def _create_user_in_session(
         session.add(user)
         # Flush to assign user.id, which the audit target needs.
         await session.flush()
-        if user.id is None:
-            raise RuntimeError("user.id unexpectedly None after flush")
-        await assign_default_role(user.id, session)
+        await assign_default_role(cast(int, user.id), session)
 
         target, change = _cli_change(user)
         await record_event(session, RegisteredAuditEvent(outcome=AuditOutcome.SUCCESS, target=target, change=change))
