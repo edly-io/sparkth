@@ -5,6 +5,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.core.models.user import User
+from sparkth.core.permissions.models import Role
+
+
+@pytest.fixture(autouse=True)
+def _seed_default_role(default_user_role: Role) -> None:
+    """Seed the default role so every account these tests create can be given it."""
 
 
 @pytest.fixture
