@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.core.permissions.constants import DEFAULT_USER_ROLE
 from sparkth.core.permissions.exceptions import RoleNotFound
 from sparkth.core.permissions.models import GroupRoleAssignment, Role, RoleAssignment
 from sparkth.core.permissions.scopes import USER, PermissionScope
@@ -23,8 +24,6 @@ from sparkth.lib.audit.events import (
     RoleAssignedAuditEvent,
     RoleUnassignedAuditEvent,
 )
-
-DEFAULT_USER_ROLE = "sparkth_user"
 
 
 def create_grant_audit_snapshot(role_name: str, scope_name: str, scope_object_id: str | None) -> dict[str, str | None]:
