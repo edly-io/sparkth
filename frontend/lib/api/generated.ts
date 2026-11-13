@@ -620,7 +620,7 @@ export interface paths {
         };
         /**
          * Download File
-         * @description Download a file from Google Drive.
+         * @description Download a file from Google Drive, using the file owner's Google connection.
          */
         get: operations["download_file_api_v1_google_drive_files__file_id__download_get"];
         put?: never;
@@ -660,7 +660,7 @@ export interface paths {
         };
         /**
          * List Folders
-         * @description List synced Google Drive folders for the current user with pagination.
+         * @description List the synced Google Drive folders of the user named by ``owner_id``, or of the caller, with pagination.
          */
         get: operations["list_folders_api_v1_google_drive_folders_get"];
         put?: never;
@@ -742,7 +742,7 @@ export interface paths {
         put?: never;
         /**
          * Refresh Folder
-         * @description Refresh folder contents from Google Drive.
+         * @description Refresh folder contents from Google Drive, using the folder owner's Google connection.
          */
         post: operations["refresh_folder_api_v1_google_drive_folders__folder_id__refresh_post"];
         delete?: never;
@@ -4245,6 +4245,7 @@ export interface operations {
                 skip?: number;
                 /** @description Number of items to return */
                 limit?: number;
+                owner_id?: number | null;
             };
             header?: never;
             path?: never;
