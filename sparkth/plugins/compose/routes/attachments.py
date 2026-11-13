@@ -10,12 +10,8 @@ from sparkth.lib.models import User
 from sparkth.lib.permissions.scopes import USER
 from sparkth.plugins.compose.analytics import ComposeAttachmentAnalytics, as_utc
 from sparkth.plugins.compose.models import Conversation
-from sparkth.plugins.compose.permissions import CONVERSATION_READ
-from sparkth.plugins.compose.routes.dependencies import (
-    get_conversation,
-    get_conversation_owner_id,
-    get_owned_conversation,
-)
+from sparkth.plugins.compose.permissions import CONVERSATION_READ, CONVERSATION_WRITE
+from sparkth.plugins.compose.routes.dependencies import get_conversation, get_conversation_owner_id
 from sparkth.plugins.compose.schemas import (
     AttachedDocumentResponse,
     ConversationAttachmentCreate,
@@ -55,16 +51,17 @@ async def list_conversation_attachments(
     "/conversations/{conversation_id}/attachments",
     status_code=status.HTTP_201_CREATED,
     response_model=ConversationAttachmentResponse,
+    dependencies=[Depends(CONVERSATION_WRITE.require_for_object(USER, get_conversation_owner_id))],
 )
 async def attach_document_to_conversation(
     body: ConversationAttachmentCreate,
     background_tasks: BackgroundTasks,
-    conversation: Conversation = Depends(get_owned_conversation),
+    conversation: Conversation = Depends(get_conversation),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
     service: ComposeService = Depends(get_compose_service),
 ) -> ConversationAttachmentResponse:
-    document = await service.require_owned_document(session, body.document_id, cast(int, current_user.id))
+    document = await service.require_owned_document(session, body.document_id, conversation.user_id)
     attachment, was_created = await service.attach_document(
         session,
         conversation_id=cast(int, conversation.id),
@@ -89,16 +86,17 @@ async def attach_document_to_conversation(
 @router.delete(
     "/conversations/{conversation_id}/attachments/{document_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(CONVERSATION_WRITE.require_for_object(USER, get_conversation_owner_id))],
 )
 async def detach_document_from_conversation(
     document_id: int,
     background_tasks: BackgroundTasks,
-    conversation: Conversation = Depends(get_owned_conversation),
+    conversation: Conversation = Depends(get_conversation),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
     service: ComposeService = Depends(get_compose_service),
 ) -> None:
-    await service.require_owned_document(session, document_id, cast(int, current_user.id))
+    await service.require_owned_document(session, document_id, conversation.user_id)
     attached_at = await service.detach_document(
         session,
         conversation_id=cast(int, conversation.id),
