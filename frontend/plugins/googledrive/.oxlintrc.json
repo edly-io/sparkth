@@ -18,6 +18,10 @@
               "!@/plugins/*/lib/**"
             ],
             "message": "A plugin imports another plugin only through that plugin's lib/."
+          },
+          {
+            "group": ["../*", "../**"],
+            "message": "A plugin imports outside its folder by @/ path, never by ../ relative path."
           }
         ]
       }

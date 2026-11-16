@@ -324,6 +324,8 @@ In component tests, pass the plugin catalog to the intl helper:
 
 - **A plugin** imports core code only through `@/lib/...`, never from `@/core/...` or `@/app/...`.
 - **A plugin** imports another plugin only through that plugin's `lib/`, its public surface, never its other files.
+- **A plugin** never imports by a `../` relative path, which can leave its folder unnoticed. It imports anything
+  outside its current folder by `@/` path, such as `@/plugins/<pluginname>/src/client`.
 - **Core and `lib`** never import a plugin. A plugin reaches them through a [slot](#slots-optional); only `app/`,
   which wires core and plugins together, imports plugins.
 

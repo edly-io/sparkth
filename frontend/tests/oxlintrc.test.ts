@@ -21,6 +21,8 @@ const CORE_IMPORTS_PLUGIN =
   "Core and lib never import a plugin; a plugin contributes to them through a slot.";
 const PLUGIN_IMPORTS_CORE = "Plugins import core code through @/lib, never from @/core or @/app.";
 const PLUGIN_IMPORTS_PLUGIN = "A plugin imports another plugin only through that plugin's lib/.";
+const PLUGIN_IMPORTS_RELATIVELY =
+  "A plugin imports outside its folder by @/ path, never by ../ relative path.";
 let root: string;
 
 /** Lints a file holding `importPath` at `filePath`, under the real configs; returns the messages of its errors. */
@@ -85,11 +87,18 @@ describe("frontend import boundaries", () => {
     expect(lintImport(`plugins/${plugin}/src/x.ts`, importPath)).toEqual([PLUGIN_IMPORTS_PLUGIN]);
   });
 
+  it.each(plugins)("stops %s importing by ../ relative path", (plugin) => {
+    expect(lintImport(`plugins/${plugin}/src/feature/x.ts`, "../client")).toEqual([
+      PLUGIN_IMPORTS_RELATIVELY,
+    ]);
+  });
+
   it.each(plugins)("lets %s import its own files, another plugin's lib/ and @/lib", (plugin) => {
     for (const importPath of [
       `@/plugins/${plugin}/src/client`,
       `@/plugins/${otherThan(plugin)}/lib`,
       "@/lib/api",
+      "./sibling",
     ]) {
       expect(lintImport(`plugins/${plugin}/src/x.ts`, importPath)).toEqual([]);
     }
