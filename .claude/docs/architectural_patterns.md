@@ -92,9 +92,8 @@ Request → Middleware → APIRouter → Endpoint function → Service layer →
 ### Endpoint modules: single file or package
 
 A module under `sparkth/api/v1/` takes one of two shapes. `sparkth/api/v1/__init__.py` mounts
-each one with `include_router(<router>, prefix=...)`, importing the router either as
-`<module>.router` or from `<name>.routes`, so the shape is an internal organisation
-choice and changing it never moves a URL.
+both the same way, `include_router(<module>.router, prefix=...)`, so the shape is an internal
+organisation choice and changing it never moves a URL.
 
 **Single file** (`auth.py`, `llm.py`, `audit.py`, `file_parser.py`)
 — a module that declares `router` at the top level. The default for a small surface with
@@ -105,20 +104,16 @@ this once a module owns its own pydantic models, or once its routes outgrow one 
 
 ```
 sparkth/api/v1/<name>/
-    __init__.py       # exports `router` and registers this domain's exception → HTTP mappings,
-                      # or holds only a docstring (see below)
+    __init__.py       # exports `router` and registers this domain's exception → HTTP mappings
     routes.py         # the endpoint functions (a routes/ package when they need splitting)
     schemas.py        # request/response models owned by this module
     dependencies.py   # FastAPI dependencies owned by this module (optional)
 ```
 
-- A package's `__init__.py` takes one of two shapes. Most packages re-export `router` and
-  carry `__all__ = ["router"]`, a deliberate exception to the "avoid re-exports" rule: it
-  keeps the mounting in `sparkth/api/v1/__init__.py` as `<module>.router`. `plugins/` holds
-  only a docstring, and `sparkth/api/v1/__init__.py` imports its router from
-  `plugins/routes.py`. An `__init__.py` that imports `routes.py` executes it whenever any
-  submodule is imported, so the docstring-only shape lets `schemas.py` and `dependencies.py`
-  be imported without executing the routes.
+- A package's `__init__.py` re-exports `router` and carries `__all__ = ["router"]`, a
+  deliberate exception to the "avoid re-exports" rule: it keeps the mounting in
+  `sparkth/api/v1/__init__.py` uniform across both shapes. `plugins/` serves `/user-plugins`,
+  so it is imported there as `plugins as user_plugins`.
 - It is also where `register_exception_handler(ExcClass, status_code)` calls live, so a
   domain's exception → status mapping sits beside the routes that raise it (see section
   8, and `permissions/__init__.py` / `whitelist/__init__.py`). A package with no domain
