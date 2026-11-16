@@ -2,16 +2,16 @@
 
 import logging
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 from typing import Any
 
 import pytest
 from langchain_core.messages import AIMessage
-from langchain_core.tools import StructuredTool
 from pydantic import TypeAdapter
 
 from sparkth.lib.audit import ToolFailureKind
-from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG
 from sparkth.lib.llm import get_provider
+from sparkth.lib.mcp.hooks import Tool
 from sparkth.lib.plugins import PluginNotConfiguredError
 from sparkth.lib.testing import ScriptedChatModel
 from sparkth.plugins.compose.llm import complete_turn
@@ -34,21 +34,25 @@ async def convert_course_id(course_id: str) -> dict[str, Any]:
     return {"course_id": TypeAdapter(int).validate_python(course_id)}
 
 
-def _tool(handler: Callable[..., Awaitable[dict[str, Any]]], description: str) -> StructuredTool:
-    return StructuredTool.from_function(coroutine=handler, description=description, tags=[AUDIT_AT_HANDLER_TAG])
-
-
 async def _first_execution(
-    tool: StructuredTool, tool_name: str, args: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    handler: Callable[..., Awaitable[dict[str, Any]]],
+    tool_name: str,
+    args: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> dict[str, Any]:
-    """The recorded execution of the one call a non-streamed turn makes to ``tool_name``."""
+    """The recorded execution of the one call to ``tool_name`` that a non-streamed turn makes, on an agent whose
+    own tool is ``handler``."""
     provider = get_provider("anthropic", "test-key", "claude-sonnet-5")
     call = AIMessage(content="", tool_calls=[{"name": tool_name, "args": args, "id": "call_1"}])
     model = ScriptedChatModel(messages=iter([call, AIMessage("done")]), disable_streaming=True)
     monkeypatch.setattr(provider, "_create_llm", lambda streaming=False, callbacks=None: model)
 
     response = await complete_turn(
-        [{"role": "user", "content": "go"}], [tool], provider, 50, **handing_off_to(STUB_AGENT)
+        [{"role": "user", "content": "go"}],
+        [],
+        provider,
+        50,
+        **handing_off_to(replace(STUB_AGENT, tools=(Tool(handler),))),
     )
 
     execution: dict[str, Any] = response["metadata"]["tool_executions"][0]
@@ -56,9 +60,8 @@ async def _first_execution(
 
 
 async def test_invalid_arguments_are_a_validation_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    tool = _tool(lookup_course, "Look up a course.")
 
-    execution = await _first_execution(tool, "lookup_course", {"course_id": "abc"}, monkeypatch)
+    execution = await _first_execution(lookup_course, "lookup_course", {"course_id": "abc"}, monkeypatch)
 
     assert execution["failure"] is ToolFailureKind.VALIDATION
 
@@ -66,10 +69,9 @@ async def test_invalid_arguments_are_a_validation_failure(monkeypatch: pytest.Mo
 async def test_a_refused_call_warns_with_the_tool_name_and_never_the_arguments(
     caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    tool = _tool(lookup_course, "Look up a course.")
 
     with caplog.at_level(logging.DEBUG):
-        await _first_execution(tool, "lookup_course", {"course_id": "private-course-text"}, monkeypatch)
+        await _first_execution(lookup_course, "lookup_course", {"course_id": "private-course-text"}, monkeypatch)
 
     warnings = [record for record in caplog.records if record.levelno >= logging.WARNING]
     assert [record.getMessage() for record in warnings] == ["Tool 'lookup_course' call was refused"]
@@ -78,9 +80,8 @@ async def test_a_refused_call_warns_with_the_tool_name_and_never_the_arguments(
 
 
 async def test_a_tool_name_that_is_not_bound_is_a_validation_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    tool = _tool(lookup_course, "Look up a course.")
 
-    execution = await _first_execution(tool, "no_such_tool", {}, monkeypatch)
+    execution = await _first_execution(lookup_course, "no_such_tool", {}, monkeypatch)
 
     assert execution["failure"] is ToolFailureKind.VALIDATION
 
@@ -88,10 +89,9 @@ async def test_a_tool_name_that_is_not_bound_is_a_validation_failure(monkeypatch
 async def test_missing_plugin_settings_log_a_warning_without_a_traceback(
     caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    tool = _tool(unconfigured_lms, "An LMS.")
 
     with caplog.at_level(logging.DEBUG):
-        execution = await _first_execution(tool, "unconfigured_lms", {}, monkeypatch)
+        execution = await _first_execution(unconfigured_lms, "unconfigured_lms", {}, monkeypatch)
 
     assert execution["output"] == f"Error executing tool 'unconfigured_lms': {PluginNotConfiguredError('Canvas')}"
     assert execution["failure"] is ToolFailureKind.UNKNOWN
@@ -109,10 +109,9 @@ async def test_a_validation_error_raised_inside_a_handler_is_an_unknown_failure(
     caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The model's arguments were valid, so the failure is the handler's own, not the model's to fix."""
-    tool = _tool(convert_course_id, "Look up a course by its id.")
 
     with caplog.at_level(logging.DEBUG):
-        execution = await _first_execution(tool, "convert_course_id", {"course_id": "abc"}, monkeypatch)
+        execution = await _first_execution(convert_course_id, "convert_course_id", {"course_id": "abc"}, monkeypatch)
 
     assert execution["failure"] is ToolFailureKind.UNKNOWN
     assert execution["output"] == "Error executing tool 'convert_course_id'."
