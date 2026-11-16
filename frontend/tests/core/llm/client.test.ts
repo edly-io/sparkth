@@ -11,7 +11,7 @@ import {
   updateLLMConfig,
 } from "@/core/llm/client";
 
-import { mockFetch, sentRequest } from "@/tests/lib/test-utils";
+import { mockFetch, sentRequest } from "@/tests/lib/utils";
 
 vi.mock("@/core/auth/tokens", () => ({
   getStoredToken: vi.fn().mockReturnValue(null),
