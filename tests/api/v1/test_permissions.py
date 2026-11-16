@@ -421,9 +421,9 @@ class TestPermissionExceptionRegistration:
         assert PermissionNotFound in registered
 
 
-async def test_delete_non_deletable_role_returns_409(client: AsyncClient, session: AsyncSession) -> None:
+async def test_delete_builtin_role_returns_409(client: AsyncClient, session: AsyncSession) -> None:
     _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
-    role = Role(name="admin", deletable=False)
+    role = Role(name="admin", is_builtin=True)
     session.add(role)
     await session.flush()
     response = await client.delete(f"/api/v1/permissions/roles/{role.id}")

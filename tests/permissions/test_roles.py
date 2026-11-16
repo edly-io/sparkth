@@ -293,16 +293,16 @@ async def test_add_role_permission_returns_the_role(session: AsyncSession) -> No
     assert returned.name == "grader"
 
 
-async def test_create_role_is_deletable(session: AsyncSession) -> None:
+async def test_create_role_is_not_builtin(session: AsyncSession) -> None:
     role = await roles.create_role("grader", None, session)
-    assert role.deletable is True
+    assert role.is_builtin is False
 
 
-async def test_delete_role_refuses_non_deletable_role(session: AsyncSession, audit_events: AuditEventsFetcher) -> None:
+async def test_delete_role_refuses_builtin_role(session: AsyncSession, audit_events: AuditEventsFetcher) -> None:
     role = await roles.create_role("admin", None, session)
     user = await make_user(session, "alice")
     assert role.id is not None and user.id is not None
-    role.deletable = False
+    role.is_builtin = True
     session.add(RoleAssignment(user_id=user.id, role_id=role.id, scope=GLOBAL.name, scope_object_id=None))
     await session.flush()
     events_before = len(await audit_events())

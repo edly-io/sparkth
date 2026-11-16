@@ -132,7 +132,7 @@ async def _delete_role_dependents(role_id: int, session: AsyncSession) -> None:
 async def delete_role(role_id: int, session: AsyncSession) -> None:
     """Delete a role together with everything that references it, recording ``role.deleted``.
 
-    Raises RoleNotFound if the role is missing or RoleNotDeletable if it is marked non-deletable.
+    Raises RoleNotFound if the role is missing or RoleNotDeletable if it ships with Sparkth.
     Removes the role's permission grants, every user and group assignment of it (active and
     revoked), and every grant scoped to the role itself (``role:<id>``), in one transaction.
     Each active user assignment records ``role.unassigned`` and each active group assignment
@@ -140,7 +140,7 @@ async def delete_role(role_id: int, session: AsyncSession) -> None:
     concurrent assignments wait for it.
     """
     role = await get_role(role_id, session, for_update=True)
-    if not role.deletable:
+    if role.is_builtin:
         raise RoleNotDeletable(role.name)
     await delete_grants_at_object(ROLE, str(role_id), session)
     await _delete_role_dependents(role_id, session)

@@ -166,11 +166,12 @@ async def grant_permission_at_scope(
 
 @pytest.fixture
 async def default_user_role(session: AsyncSession) -> Role:
-    """Seed the default ``sparkth_user`` role with every registered permission and assign it to user 1.
+    """Seed the built-in ``sparkth_user`` role with every registered permission and assign it to user 1.
 
     Not autouse: a test that creates accounts, or relies on every user holding the role, opts in.
     """
     role = await make_role(session, DEFAULT_USER_ROLE, available_permissions())
+    role.is_builtin = True
     session.add(RoleAssignment(user_id=1, role_id=cast(int, role.id), scope=USER.name, scope_object_id="1"))
     await session.commit()
     return role

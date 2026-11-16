@@ -13,8 +13,8 @@ class Role(TimestampedModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(max_length=50, unique=True, index=True)
     description: str | None = Field(default=None, max_length=255)
-    # Roles shipped with the app are non-deletable.
-    deletable: bool = Field(default=True, sa_column_kwargs={"server_default": sa.true()})
+    # True for a role shipped with Sparkth; false for one an operator creates.
+    is_builtin: bool = Field(default=False, sa_column_kwargs={"server_default": sa.false()})
 
 
 class RolePermission(TimestampedModel, table=True):
