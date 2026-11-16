@@ -8,3 +8,6 @@ SCOPE_SEGMENT_SEPARATOR = ":"
 
 DEFAULT_USER_ROLE = "sparkth_user"
 """The role every account holds at its own ``user`` scope."""
+
+PLUGIN_USER_ROLE = "plugin_user"
+"""The role every account holds at ``global``, letting it use every plugin."""

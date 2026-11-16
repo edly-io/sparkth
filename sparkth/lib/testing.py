@@ -51,7 +51,8 @@ from sparkth.core.cache import get_cache_service
 from sparkth.core.db import dispose_engine, get_engine
 from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.core.models.user import User
-from sparkth.core.permissions.constants import DEFAULT_USER_ROLE
+from sparkth.core.permissions import PLUGIN_USE
+from sparkth.core.permissions.constants import DEFAULT_USER_ROLE, PLUGIN_USER_ROLE
 from sparkth.core.permissions.models import (
     Group,
     GroupMembership,
@@ -166,13 +167,19 @@ async def grant_permission_at_scope(
 
 @pytest.fixture
 async def default_user_role(session: AsyncSession) -> Role:
-    """Seed the built-in ``sparkth_user`` role with every registered permission and assign it to user 1.
+    """Seed the built-in ``sparkth_user`` and ``plugin_user`` roles and assign both to user 1.
+
+    ``sparkth_user`` holds every registered permission and is assigned at the user's own scope;
+    ``plugin_user`` holds ``plugin.use`` and is assigned at ``global``. Returns the ``sparkth_user`` role.
 
     Not autouse: a test that creates accounts, or relies on every user holding the role, opts in.
     """
     role = await make_role(session, DEFAULT_USER_ROLE, available_permissions())
     role.is_builtin = True
     session.add(RoleAssignment(user_id=1, role_id=cast(int, role.id), scope=USER.name, scope_object_id="1"))
+    plugin_role = await make_role(session, PLUGIN_USER_ROLE, [PLUGIN_USE.name])
+    plugin_role.is_builtin = True
+    session.add(RoleAssignment(user_id=1, role_id=cast(int, plugin_role.id), scope=GLOBAL.name, scope_object_id=None))
     await session.commit()
     return role
 
