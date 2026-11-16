@@ -639,7 +639,49 @@ class TestTurnWriteGate:
         (event,) = await audit_events()
         assert event.action == "denied"
         assert event.target_id == WRITE
-        assert event.error_detail == f"scope=user:{OWNER_ID}"
+        assert event.error_detail == f"scope=conversation:{conv_uuid}"
+
+    async def test_write_grant_at_the_conversation_sends_a_turn_into_it(
+        self, client: httpx.AsyncClient, current_user: MagicMock, session: AsyncSession
+    ) -> None:
+        conv_uuid = await _owned_by(session, OWNER_ID)
+        config_id = await seed_llm_config(session, 1)
+        await grant_permission_at_scope(session, 1, WRITE, CONVERSATION, str(conv_uuid))
+        await session.commit()
+
+        with patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_answering_provider()):
+            response = await client.post(COMPLETIONS_URL, json=_turn(config_id, conv_uuid))
+
+        assert response.status_code == 200
+        assert await stored_messages(session, str(conv_uuid))
+        assert (await session.exec(select(Conversation))).one().user_id == OWNER_ID
+
+    async def test_read_grant_at_the_conversation_cannot_send_a_turn(
+        self, client: httpx.AsyncClient, current_user: MagicMock, session: AsyncSession
+    ) -> None:
+        conv_uuid = await _owned_by(session, OWNER_ID)
+        config_id = await seed_llm_config(session, 1)
+        await grant_permission_at_scope(session, 1, READ, CONVERSATION, str(conv_uuid))
+        await session.commit()
+
+        response = await client.post(COMPLETIONS_URL, json=_turn(config_id, conv_uuid))
+
+        assert response.status_code == 403
+        assert await stored_messages(session, str(conv_uuid)) == []
+
+    async def test_conversation_grant_does_not_start_a_new_conversation(
+        self, client: httpx.AsyncClient, current_user: MagicMock, session: AsyncSession
+    ) -> None:
+        conv_uuid = await _owned_by(session, OWNER_ID)
+        config_id = await seed_llm_config(session, 1)
+        await _drop_caller_assignment(session)
+        await grant_permission_at_scope(session, 1, WRITE, CONVERSATION, str(conv_uuid))
+        await session.commit()
+
+        response = await client.post(COMPLETIONS_URL, json=_turn(config_id))
+
+        assert response.status_code == 403
+        assert len((await session.exec(select(Conversation))).all()) == 1
 
     @pytest.mark.parametrize(
         ("permission", "scope_id"), [(READ, None), (WRITE, str(THIRD_ID))], ids=["read-at-global", "write-at-third"]
