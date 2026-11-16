@@ -1,6 +1,7 @@
 """A conversation is an object of the ``conversation`` scope, nested under its owner's ``user`` scope."""
 
 import pytest
+from sqlmodel import col, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.permissions import can
@@ -91,3 +92,36 @@ async def test_which_grants_reach_the_conversation(session: AsyncSession, grant_
     allowed = await can(caller, CONVERSATION_READ, CONVERSATION, conversation.scope_path, session)
 
     assert allowed is expected
+
+
+async def test_an_unsaved_conversation_sits_under_its_owner() -> None:
+    conversation = Conversation(user_id=7, provider="openai", model="gpt-4o")
+
+    assert conversation.scope_path == f"user:7/conversation:{conversation.uuid}"
+
+
+async def test_a_conversation_stored_without_a_parent_path_stays_reachable_by_its_owner_grant(
+    session: AsyncSession,
+) -> None:
+    owner = await make_user(session, "owner")
+    caller = await make_user(session, "caller")
+    assert owner.id is not None
+    assert caller.id is not None
+    owner_id = owner.id
+    conversation = await ComposeService().create_conversation(
+        session, user_id=owner_id, llm_config_id=None, provider="openai", model="gpt-4o"
+    )
+    conversation_id = conversation.id
+    await session.exec(
+        update(Conversation).where(col(Conversation.id) == conversation_id).values(parent_scope_path=None)
+    )
+    await grant_permission_at_scope(session, caller.id, CONVERSATION_READ.name, USER, str(owner_id))
+    await session.commit()
+    session.expire(conversation)
+
+    reloaded = await session.get(Conversation, conversation_id)
+
+    assert reloaded is not None
+    assert reloaded.parent_scope_path is None
+    assert reloaded.scope_path == f"user:{owner_id}/conversation:{reloaded.uuid}"
+    assert await can(caller, CONVERSATION_READ, CONVERSATION, reloaded.scope_path, session)
