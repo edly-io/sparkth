@@ -283,7 +283,8 @@ rows from `raw_events`, so `dims` must match the aggregate's definition. To also
 value per group, pass `sums` (output column → payload key); on PostgreSQL the aggregate needs a
 column of that output name summing the key. Take the range as
 `Annotated[RangeQuery, Query()]`, gate the route with
-`Depends(ANALYTICS_READ.require_in_global_scope())` (`sparkth.lib.permissions`) and read on
+`Depends(ANALYTICS_READ.require_for_object(PLUGIN, "<plugin-name>"))` (`ANALYTICS_READ` from
+`sparkth.lib.permissions`, `PLUGIN` from `sparkth.lib.permissions.scopes`; a `global` grant still passes) and read on
 `get_analytics_session` (`sparkth.lib.db`). The aggregate's DDL still goes in the analytics
 migration lineage (`sparkth/migrations/analytics/`). The compose plugin's `analytics/reads.py` is a
 worked example. To put a headline figure on the analytics Overview, build a `SummaryFigure` at
