@@ -18,6 +18,7 @@ from sparkth.plugins.compose.constants import (
     MAX_PLAN_STEPS,
     MAX_STEPS_PER_TURN,
     OPERATION_RESULT_HEADING,
+    OPERATOR_STATUS,
     PLAN_CONTINUE_CHOICE,
     PLAN_DONE_HEADING,
     PLAN_LEFT_HEADING,
@@ -463,6 +464,25 @@ class TestSeveralSteps:
 
         assert len(operator_model.seen) == 2
         assert messages[-1].text == "Both are published."
+
+
+class TestAStepsStatus:
+    async def test_each_step_is_announced_with_what_its_doer_says_it_is_doing(self) -> None:
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[_operation("Retrieve the course")]),
+            AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "Redesign it")]),
+        )
+        reported: list[dict[str, Any]] = []
+
+        await _run(
+            planner_model,
+            _agent_graph(STUB_AGENT, ScriptedChatModel(messages=iter([AIMessage("Here is the redesign.")]))),
+            operator=_operator(ScriptedChatModel(messages=iter([AIMessage("Biology 101.")]))),
+            reported=reported,
+        )
+
+        announced = [event["label"] for event in reported if event["type"] == TurnEventType.ROUTED]
+        assert announced == [OPERATOR_STATUS, STUB_AGENT.status]
 
 
 class TestThePlan:

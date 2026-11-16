@@ -19,7 +19,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.db import session_scope
-from sparkth.lib.i18n import _
+from sparkth.lib.i18n import _, gettext
 from sparkth.lib.llm import BaseChatProvider
 from sparkth.lib.log import get_logger
 from sparkth.lib.rag import (
@@ -544,6 +544,9 @@ class ComposeStreamProcessor:
                         routing = event["routing"]
                         if routing.agent is not None:
                             steps.append(routing.agent)
+                        label = event.get("label")
+                        if label:
+                            await self._emit({"status": "step", "label": gettext(label), "done": False})
                     elif event["type"] == TurnEventType.PLAN:
                         progress.record_plan(event["steps"])
                     elif event["type"] == TurnEventType.PLAN_STEP:
