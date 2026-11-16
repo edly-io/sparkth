@@ -506,7 +506,7 @@ button.
 
 A backend plugin with no page still needs a frontend part for its row: its `src/slots/settings.ts` and a
 `src/index.ts` that only imports it, with no `PluginDefinition` and no entry in the `PLUGINS` slot.
-The app loads that `src/index.ts` like any other plugin's, as it does for Canvas.
+The app loads that `src/index.ts` like any other plugin's.
 
 **Field controls.** A backend field picks its control with a `widget` hint (`sparkth/core/plugins/widgets.py`), and a
 field with no hint gets a control from its type. Core ships controls for text, URLs, passwords, numbers, text areas,
