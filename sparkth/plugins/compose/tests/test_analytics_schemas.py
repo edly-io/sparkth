@@ -147,6 +147,7 @@ def test_a_version_1_completion_is_a_valid_version_2_completion() -> None:
 
     assert event.agent is None
     assert event.refused is False
+    assert event.agents == []
 
 
 async def test_completions_from_before_routing_are_explored_beside_new_ones(
@@ -427,6 +428,7 @@ class TestSchedulingATurnEvent:
                 ],
                 occurred_at=MOMENT,
                 routing=TurnRouting(agent="course_design"),
+                agents=["operator", "course_design"],
             )
 
         emit.assert_awaited_once()
@@ -449,6 +451,7 @@ class TestSchedulingATurnEvent:
             "stopped_at": None,
             "agent": "course_design",
             "refused": False,
+            "agents": ["operator", "course_design"],
         }
         assert [event.payload["tool_name"] for event in landed[1:]] == [
             "openedx_create_xblock",
@@ -475,6 +478,7 @@ class TestSchedulingATurnEvent:
                 executed_tools=[],
                 occurred_at=MOMENT,
                 routing=TurnRouting(refused=True),
+                agents=[],
             )
 
         emit.assert_awaited_once()

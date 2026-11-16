@@ -67,16 +67,18 @@ class ComposeCompletionServed(AnalyticsEventSchema):
 
 
 class ComposeCompletionServedV2(ComposeCompletionServed):
-    """``compose.completion_served`` with the agent that answered the turn.
+    """``compose.completion_served`` with the agent that answered the turn and every step it ran.
 
-    ``agent`` is the registered name of the agent that answered, ``operator`` when Compose only
-    ran operations, and ``None`` when no agent did. ``refused`` is true for a refusal.
+    ``agent`` is the registered name of the agent that answered last, ``operator`` when Compose only
+    ran operations, and ``None`` when no agent did. ``refused`` is true for a refusal. ``agents`` are
+    the registered names of the agents that ran, and ``operator`` for an operation, in order.
     """
 
     version = 2
 
     agent: str | None = None
     refused: bool = False
+    agents: list[str] = []
 
 
 class ToolOutcome(StrEnum):
