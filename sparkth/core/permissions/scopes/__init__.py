@@ -206,3 +206,7 @@ ROLE = PermissionScope.create("role", parent=GLOBAL)
 # object-bearing PermissionScope hanging off GLOBAL, so a GLOBAL grant cascades down to it and
 # existing global admins keep full group-management authority.
 GROUP = PermissionScope.create("group", parent=GLOBAL)
+
+# A user's own records (conversations, keys, files) live at the user scope, named by the user's id,
+# so a grant at one user reaches that user's records and a GLOBAL grant reaches every user's.
+USER = PermissionScope.create("user", parent=GLOBAL)
