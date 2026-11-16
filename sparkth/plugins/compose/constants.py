@@ -41,6 +41,9 @@ STEP_RESULT_TAIL_CHARS = 600
 # How many steps, each an agent's or the operator's work, Compose's planner may run in one turn.
 MAX_STEPS_PER_TURN = 5
 
+# How many steps a plan may have. A plan longer than a turn runs carries on when the author asks for it.
+MAX_PLAN_STEPS = 10
+
 # How long a step's task may be in the plan the author reads, in characters.
 PLAN_TASK_MAX_CHARS = 200
 
@@ -97,6 +100,15 @@ REFUSAL_MESSAGE: str = gettext_noop(
 STOPPED_EARLY_NOTICE: str = gettext_noop(
     "I've done as much as I can in one go. Send another message and I'll carry on from here."
 )
+
+# The note that ends a turn stopped at its limit of steps with steps of its plan left: what is done, what is
+# left, and the choice to carry on.
+PLAN_PAUSED_NOTE: str = gettext_noop("I've paused here so you can check the work so far.")
+PLAN_DONE_HEADING: str = gettext_noop("Done:")
+PLAN_LEFT_HEADING: str = gettext_noop("Still to do:")
+PLAN_CONTINUE_QUESTION: str = gettext_noop("Shall I continue with the rest?")
+PLAN_CONTINUE_CHOICE: str = gettext_noop("Continue")
+PLAN_STOP_CHOICE: str = gettext_noop("Stop here")
 
 LLM_PROVIDER_API_ERRORS = (
     anthropic.AuthenticationError,
