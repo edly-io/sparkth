@@ -111,15 +111,17 @@ under `/api/v1/permissions` (gated by `role.*` / `permission.read`). See the RES
 (`/docs`) for the endpoints. Permissions and scope kinds themselves are **not** editable
 there — they are declared in code.
 
-Compose checks a conversation's permissions at the conversation itself where one is named. Reading one
-conversation, its last message and its attachments, sending a turn into it, and detaching documents are checked at
-that conversation's `conversation` scope; listing conversations and starting one are checked at a `user` scope.
-Attaching a document is checked at the conversation owner's `user` scope, so a role granted at one conversation
-cannot add the owner's documents to it, and documents such a holder names on a turn are not attached. A
-conversation granted this way does not appear in the holder's conversation list, the holder opens it by id. A role
-assigned at a conversation takes effect there only for the conversation permissions it holds, so a role holding
-only `compose.conversation.read` shares it view-only. A holder of `compose.conversation.write` can also learn the
-conversation's history, because a turn replays it to the model.
+Compose checks a conversation's permissions at the conversation itself where one is named, except that attaching
+documents is checked at the owner's `user` scope. Reading one conversation, its last message and its attachments,
+sending a turn into it, and detaching documents are checked at that conversation's `conversation` scope; listing
+conversations and starting one are checked at a `user` scope. Attaching a document is checked at the conversation
+owner's `user` scope, so a role granted at one conversation cannot add the owner's documents to it, and documents
+such a holder names on a turn are not attached. A conversation granted this way does not appear in the holder's
+conversation list, the holder opens it by id. A role assigned at a conversation takes effect there only for the
+conversation permissions it holds, so a role holding only `compose.conversation.read` shares it view-only. A holder
+of `compose.conversation.write` can also learn the conversation's history, because a turn replays it to the model;
+a turn also retrieves from the documents already attached to the conversation, so a write grant exposes their
+content too.
 
 ```bash
 # let jane open one conversation, through a role that holds compose.conversation.read

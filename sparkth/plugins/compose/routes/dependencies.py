@@ -14,6 +14,8 @@ from sparkth.plugins.compose.permissions import CONVERSATION_WRITE
 from sparkth.plugins.compose.schemas import ChatCompletionRequest
 from sparkth.plugins.compose.service import ComposeService, get_compose_service
 
+logger = get_logger(__name__)
+
 
 async def get_conversation(
     conversation_id: UUID,
@@ -34,7 +36,7 @@ logger = get_logger(__name__)
 async def get_conversation_owner_id(conversation: Conversation = Depends(get_conversation)) -> int:
     """Return the id of the user who owns the conversation named in the path.
 
-    Raises ConversationNotFound for an unknown UUID, before any permission is checked.
+    Raises the not-found error for an unknown UUID, before any permission is checked.
     """
     return conversation.user_id
 
@@ -78,8 +80,11 @@ async def get_attachable_document_ids(
     if await can(current_user, CONVERSATION_WRITE, USER, owner_scope_path, session):
         return request.document_ids
     logger.warning(
-        "Dropped %d document(s) from a turn: no write access at the scope of conversation owner %s",
+        "Dropped %d document(s) from a turn by user %s: no write access at the scope of conversation owner %s "
+        "(conversation %s)",
         len(request.document_ids),
+        current_user.id,
         turn_conversation.user_id,
+        turn_conversation.uuid,
     )
     return []

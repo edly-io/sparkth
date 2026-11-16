@@ -322,7 +322,7 @@ READ = "compose.conversation.read"
 
 
 class TestAttachmentWriteGate:
-    """Attach and detach need compose.conversation.write at the conversation."""
+    """Attach needs compose.conversation.write at the owner's user scope, detach at the conversation."""
 
     @pytest.mark.asyncio
     async def test_attach_to_another_users_conversation_is_403_and_audited(

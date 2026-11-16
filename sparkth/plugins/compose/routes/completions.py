@@ -199,8 +199,8 @@ async def compose_completion(
     if request.document_ids and not attachable_document_ids:
         # The caller may not add documents here, so all of them are dropped and the turn runs without them.
         attachment_analytics.schedule_documents_skipped(
-            requested_count=len(request.document_ids),
-            skipped_count=len(request.document_ids),
+            requested_count=len(set(request.document_ids)),
+            skipped_count=len(set(request.document_ids)),
             occurred_at=datetime.now(timezone.utc),
         )
     if attachable_document_ids:

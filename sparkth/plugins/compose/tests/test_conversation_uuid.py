@@ -783,6 +783,7 @@ class TestTurnWriteGate:
         client: httpx.AsyncClient,
         current_user: MagicMock,
         session: AsyncSession,
+        analytics_session: SQLAlchemyAsyncSession,
         grant_scope: PermissionScope,
         attached: bool,
     ) -> None:
@@ -796,13 +797,15 @@ class TestTurnWriteGate:
         await grant_permission_at_scope(session, 1, WRITE, grant_scope, scope_object_id)
         await session.commit()
         search = MagicMock(requires_search=AsyncMock(return_value=False))
+        # A dropped id named twice still counts once.
+        named_ids = [document_id] if attached else [document_id, document_id]
 
         with (
             patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_answering_provider()),
             patch("sparkth.plugins.compose.routes.completions.RAGSearchClassifier", return_value=search),
         ):
             response = await client.post(
-                COMPLETIONS_URL, json={**_turn(config_id, conv_uuid), "document_ids": [document_id]}
+                COMPLETIONS_URL, json={**_turn(config_id, conv_uuid), "document_ids": named_ids}
             )
 
         conversation = (await session.exec(select(Conversation))).one()
@@ -816,6 +819,40 @@ class TestTurnWriteGate:
         assert response.status_code == 200
         assert await stored_messages(session, str(conv_uuid))
         assert rows == ([document_id] if attached else [])
+        events = (await analytics_session.execute(sa_select(raw_events))).mappings().all()
+        skipped = [row["payload"] for row in events if row["event_type"] == "compose.documents_skipped"]
+        assert skipped == (
+            [] if attached else [{"conversation_id": str(conv_uuid), "requested_count": 1, "skipped_count": 1}]
+        )
+
+    async def test_owner_first_message_attaches_named_documents(
+        self, client: httpx.AsyncClient, current_user: MagicMock, session: AsyncSession
+    ) -> None:
+        config_id = await seed_llm_config(session, 1)
+        document = Document(user_id=1, name="mine.pdf", status=DocumentStatus.READY)
+        session.add(document)
+        await session.flush()
+        document_id = document.id
+        await session.commit()
+        search = MagicMock(requires_search=AsyncMock(return_value=False))
+
+        with (
+            patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_answering_provider()),
+            patch("sparkth.plugins.compose.conversation_title.get_provider", return_value=_answering_provider()),
+            patch("sparkth.plugins.compose.routes.completions.RAGSearchClassifier", return_value=search),
+        ):
+            response = await client.post(COMPLETIONS_URL, json={**_turn(config_id), "document_ids": [document_id]})
+
+        conversation = (await session.exec(select(Conversation))).one()
+        rows = (
+            await session.exec(
+                select(ConversationAttachment.document_id).where(
+                    ConversationAttachment.conversation_id == conversation.id
+                )
+            )
+        ).all()
+        assert response.status_code == 200
+        assert rows == [document_id]
 
     async def test_a_holder_turn_attaches_only_the_owners_documents(
         self,
