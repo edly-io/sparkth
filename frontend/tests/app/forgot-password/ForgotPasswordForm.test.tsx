@@ -2,16 +2,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { renderWithIntl } from "@/tests/intl-test-utils";
+import { renderWithIntl } from "@/tests/intl";
 
 import { ApiRequestError } from "@/lib/api";
 
-vi.mock("@/lib/api", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/api")>();
+vi.mock("@/core/auth/client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/core/auth/client")>();
   return { ...actual, requestPasswordReset: vi.fn() };
 });
 
-import { requestPasswordReset } from "@/lib/api";
+import { requestPasswordReset } from "@/core/auth/client";
 import ForgotPasswordForm from "@/app/forgot-password/ForgotPasswordForm";
 
 beforeEach(() => {

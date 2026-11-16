@@ -5,13 +5,13 @@ import { redirect } from "next/navigation";
 import { Plus, Trash2, Mail, Globe } from "lucide-react";
 import { useAuth } from "@/core/auth/hooks";
 import { usePermissionCheck } from "@/core/permissions/hooks";
+import { ApiRequestError } from "@/lib/api";
 import {
   getWhitelist,
   addWhitelistEntry,
   removeWhitelistEntry,
   WhitelistEntry,
-  ApiRequestError,
-} from "@/lib/api";
+} from "@/core/whitelist/client";
 import { Button } from "@/core/components/ui/Button";
 import { Input } from "@/core/components/ui/Input";
 import { Alert } from "@/core/components/ui/Alert";

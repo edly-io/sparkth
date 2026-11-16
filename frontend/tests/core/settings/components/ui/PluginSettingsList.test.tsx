@@ -9,7 +9,7 @@ import {
   type ConfigModalProps,
   type SettingsListItemProps,
 } from "@/lib/settings/slots";
-import { renderWithIntl } from "@/tests/intl-test-utils";
+import { renderWithIntl } from "@/tests/intl";
 
 const context = vi.hoisted(() => ({
   userPlugins: [] as UserPluginState[],
