@@ -5,3 +5,6 @@ SCOPE_PATH_SEPARATOR = "/"
 
 SCOPE_SEGMENT_SEPARATOR = ":"
 """Joins a scope name and an object id inside one scope path segment (``course:123``)."""
+
+DEFAULT_USER_ROLE = "sparkth_user"
+"""The role every account holds at its own ``user`` scope."""
