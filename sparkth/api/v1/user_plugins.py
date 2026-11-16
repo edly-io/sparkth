@@ -1,7 +1,7 @@
 """
 User Plugin Management API Endpoints
 
-Allows users to manage their plugin preferences (enable/disable plugins).
+Allows users to manage their preferences (enable/disable, configure) for the plugins they may use.
 """
 
 from typing import Any
@@ -24,11 +24,15 @@ from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
 from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
+from sparkth.lib.permissions import PLUGIN_USE, get_accessible_scope_object_ids
+from sparkth.lib.permissions.scopes import PLUGIN
 
 logger = get_logger(__name__)
 
 
 router: APIRouter = APIRouter()
+
+PLUGIN_USE_GATE = Depends(PLUGIN_USE.require(PLUGIN, "plugin_name"))
 
 
 class UpdateUserPluginRequest(BaseModel):
@@ -64,16 +68,25 @@ def validate_plugin(plugin: Plugin) -> None:
         )
 
 
+async def get_usable_plugin_names(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+) -> set[str] | None:
+    """Return the names of the plugins the caller may use, or ``None`` when they may use every plugin."""
+    return await get_accessible_scope_object_ids(current_user, PLUGIN_USE, PLUGIN, session)
+
+
 @router.get("/", response_model=list[UserPluginResponse])
 async def list_user_plugins(
+    usable_plugin_names: set[str] | None = Depends(get_usable_plugin_names),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
     plugin_service: PluginService = Depends(get_plugin_service),
 ) -> list[UserPluginResponse]:
     """
-    List all plugins with their enabled status for the current user.
+    List the plugins the current user may use, with their enabled status.
 
-    Returns all available plugins and whether they are enabled or disabled,
+    Returns each usable plugin and whether it is enabled or disabled,
     and pre-populates the config with keys from the plugin's schema.
     """
     if current_user.id is None:
@@ -87,6 +100,8 @@ async def list_user_plugins(
     result: list[UserPluginResponse] = []
 
     for plugin in all_plugins:
+        if usable_plugin_names is not None and plugin.name not in usable_plugin_names:
+            continue
         user_plugin = user_plugin_map.get(plugin.name)
         base_config = PluginService.config_with_schema_keys(
             plugin.config_schema, user_plugin.config if user_plugin else None
@@ -114,6 +129,7 @@ async def list_user_plugins(
 @router.post(
     "/{plugin_name}/configure",
     response_model=UserPluginResponse,
+    dependencies=[PLUGIN_USE_GATE],
     status_code=status.HTTP_201_CREATED,
 )
 async def create_user_plugin(
@@ -161,7 +177,7 @@ async def create_user_plugin(
     )
 
 
-@router.get("/{plugin_name}", response_model=UserPluginResponse)
+@router.get("/{plugin_name}", response_model=UserPluginResponse, dependencies=[PLUGIN_USE_GATE])
 async def get_user_plugin(
     plugin_name: str,
     current_user: User = Depends(get_current_user),
@@ -200,7 +216,7 @@ async def get_user_plugin(
         )
 
 
-@router.patch("/{plugin_name}", response_model=UserPluginResponse)
+@router.patch("/{plugin_name}", response_model=UserPluginResponse, dependencies=[PLUGIN_USE_GATE])
 async def update_user_plugin(
     plugin_name: str,
     request: UpdateUserPluginRequest,
@@ -232,7 +248,7 @@ async def update_user_plugin(
     )
 
 
-@router.put("/{plugin_name}/config", response_model=UserPluginResponse)
+@router.put("/{plugin_name}/config", response_model=UserPluginResponse, dependencies=[PLUGIN_USE_GATE])
 async def update_user_plugin_config(
     plugin_name: str,
     request: UserPluginConfigRequest,
@@ -275,7 +291,7 @@ async def update_user_plugin_config(
     )
 
 
-@router.patch("/{plugin_name}/enable", response_model=UserPluginResponse)
+@router.patch("/{plugin_name}/enable", response_model=UserPluginResponse, dependencies=[PLUGIN_USE_GATE])
 async def enable_user_plugin(
     plugin_name: str,
     current_user: User = Depends(get_current_user),
@@ -296,7 +312,7 @@ async def enable_user_plugin(
     )
 
 
-@router.patch("/{plugin_name}/disable", response_model=UserPluginResponse)
+@router.patch("/{plugin_name}/disable", response_model=UserPluginResponse, dependencies=[PLUGIN_USE_GATE])
 async def disable_user_plugin(
     plugin_name: str,
     current_user: User = Depends(get_current_user),
