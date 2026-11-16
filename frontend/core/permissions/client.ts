@@ -1,5 +1,6 @@
 import { api, bearer, call } from "@/lib/api";
-import type { PermissionCheckResponse, PermissionName } from "@/core/permissions/types";
+import type { PermissionCheckResponse } from "@/core/permissions/types";
+import type { PermissionName } from "@/lib/permissions/names";
 
 // Ask the backend whether the current user holds `permission` (default global scope).
 // Returns the boolean answer; the endpoint is a UI-gating convenience, not a security boundary.

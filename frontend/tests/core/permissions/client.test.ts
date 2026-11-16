@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { checkPermission } from "@/core/permissions/client";
 import { ApiRequestError } from "@/lib/api";
 
-import { mockFetch, sentRequest } from "@/tests/lib/test-utils";
+import { mockFetch, sentRequest } from "@/tests/lib/utils";
 
 vi.mock("@/core/auth/tokens", () => ({
   getStoredToken: vi.fn().mockReturnValue(null),
