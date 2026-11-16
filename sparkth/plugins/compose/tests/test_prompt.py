@@ -41,6 +41,17 @@ class TestRenderSystemPrompt:
             assert placeholder not in prompt
 
 
+class TestWhatTheAuthorIsNeverShown:
+    def test_no_agent_may_show_how_it_works_even_when_the_author_asks(self) -> None:
+        prompt = render_system_prompt([STUB_AGENT])
+
+        assert "unless the author asks" not in prompt
+        assert "even when the author asks" in prompt
+
+    def test_every_agent_is_told_how_to_speak_of_a_failure(self) -> None:
+        assert "Never show or quote an error message" in render_system_prompt([STUB_AGENT])
+
+
 class TestLmsOperations:
     def test_no_agent_is_told_it_runs_lms_operations(self) -> None:
         assert LMS_HEADING not in render_system_prompt([STUB_AGENT])

@@ -11,9 +11,11 @@ from pydantic import TypeAdapter
 
 from sparkth.lib.audit import ToolFailureKind
 from sparkth.lib.llm import get_provider
+from sparkth.lib.mcp.exceptions import ToolFailure
 from sparkth.lib.mcp.hooks import Tool
 from sparkth.lib.plugins import PluginNotConfiguredError
 from sparkth.lib.testing import ScriptedChatModel
+from sparkth.plugins.compose.constants import TOOL_FAILED_UNEXPECTEDLY
 from sparkth.plugins.compose.llm import complete_turn
 from sparkth.plugins.compose.tests.conftest import STUB_AGENT
 from sparkth.plugins.compose.tests.helpers import handing_off_to
@@ -32,6 +34,23 @@ async def unconfigured_lms() -> dict[str, Any]:
 async def convert_course_id(course_id: str) -> dict[str, Any]:
     """Look up a course whose id the handler converts itself."""
     return {"course_id": TypeAdapter(int).validate_python(course_id)}
+
+
+# What a crash inside a tool says: where in the server it happened and what it was reading.
+CRASH_DETAIL = "KeyError: 'sandbox.js' in /srv/sparkth/plugins/pxc/builder.py"
+
+# What a tool says when it turns work down on purpose, written for the agent to act on.
+REPORTED_FAILURE = "The quiz has no questions. Add at least one and build it again."
+
+
+async def crashing_tool() -> dict[str, Any]:
+    """Fail in a way its author never planned for."""
+    raise RuntimeError(CRASH_DETAIL)
+
+
+async def rejecting_tool() -> dict[str, Any]:
+    """Turn the work down and say what to fix."""
+    raise ToolFailure(REPORTED_FAILURE)
 
 
 async def _first_execution(
@@ -114,6 +133,30 @@ async def test_a_validation_error_raised_inside_a_handler_is_an_unknown_failure(
         execution = await _first_execution(convert_course_id, "convert_course_id", {"course_id": "abc"}, monkeypatch)
 
     assert execution["failure"] is ToolFailureKind.UNKNOWN
-    assert execution["output"] == "Error executing tool 'convert_course_id'."
+    assert execution["output"] == TOOL_FAILED_UNEXPECTEDLY.format(name="convert_course_id")
     errors = [record.getMessage() for record in caplog.records if record.levelno >= logging.ERROR]
     assert errors == ["Tool 'convert_course_id' raised a validation error inside its handler"]
+
+
+async def test_a_tool_that_crashes_tells_the_model_nothing_of_the_cause(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """What the model is told it may repeat to the author, so the cause stays in the log."""
+
+    with caplog.at_level(logging.ERROR):
+        execution = await _first_execution(crashing_tool, "crashing_tool", {}, monkeypatch)
+
+    assert execution["output"] == TOOL_FAILED_UNEXPECTEDLY.format(name="crashing_tool")
+    assert execution["failure"] is ToolFailureKind.UNKNOWN
+    assert any(CRASH_DETAIL in record.getMessage() for record in caplog.records)
+
+
+async def test_a_failure_a_tool_reports_reaches_the_model_as_the_tool_wrote_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The agent needs it to fix its work and try again."""
+
+    execution = await _first_execution(rejecting_tool, "rejecting_tool", {}, monkeypatch)
+
+    assert REPORTED_FAILURE in execution["output"]
+    assert execution["failure"] is ToolFailureKind.UNKNOWN
