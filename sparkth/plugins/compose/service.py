@@ -111,6 +111,19 @@ class ComposeService:
             raise ConversationNotFound(_("Conversation not found"))
         return conversation
 
+    async def get_conversation(self, session: AsyncSession, conversation_uuid: UUID) -> Conversation:
+        """Return the conversation with this uuid, whoever owns it.
+
+        Raises:
+            ConversationNotFound: no conversation has this uuid.
+        """
+        result = await session.exec(select(Conversation).where(Conversation.uuid == conversation_uuid))
+        conversation = result.first()
+        if conversation is None:
+            logger.warning("Conversation %s not found", conversation_uuid)
+            raise ConversationNotFound(_("Conversation not found"))
+        return conversation
+
     async def list_conversations(
         self, session: AsyncSession, user_id: int, limit: int = 50, offset: int = 0
     ) -> tuple[list[Conversation], int]:

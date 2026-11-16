@@ -95,7 +95,7 @@ class TestGetLastMessage:
         response = await client.get(f"/api/v1/compose/conversations/{uuid4()}/last-message")
         assert response.status_code == 404
 
-    async def test_returns_404_for_wrong_user(
+    async def test_returns_403_for_wrong_user(
         self, client: httpx.AsyncClient, current_user: MagicMock, session: AsyncSession
     ) -> None:
         conv = Conversation(user_id=99999, provider="openai", model="gpt-4o")
@@ -104,7 +104,7 @@ class TestGetLastMessage:
         await session.refresh(conv)
 
         response = await client.get(f"/api/v1/compose/conversations/{conv.uuid}/last-message")
-        assert response.status_code == 404
+        assert response.status_code == 403
 
     async def test_returns_422_for_non_uuid(self, client: httpx.AsyncClient, current_user: MagicMock) -> None:
         response = await client.get("/api/v1/compose/conversations/not-a-uuid/last-message")

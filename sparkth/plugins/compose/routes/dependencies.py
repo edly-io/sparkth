@@ -23,3 +23,21 @@ async def get_owned_conversation(
     as a 404.
     """
     return await service.require_owned_conversation(session, conversation_id, cast(int, current_user.id))
+
+
+async def get_conversation(
+    conversation_id: UUID,
+    session: AsyncSession = Depends(get_async_session),
+    service: ComposeService = Depends(get_compose_service),
+) -> Conversation:
+    """Resolve a conversation UUID to its model, whoever owns it.
+
+    Raises ConversationNotFound when no conversation has that UUID, which the registry renders as
+    a 404.
+    """
+    return await service.get_conversation(session, conversation_id)
+
+
+async def get_conversation_owner_id(conversation: Conversation = Depends(get_conversation)) -> str:
+    """Return the id of the user who owns the conversation, as the object id of its ``user`` scope."""
+    return str(conversation.user_id)
