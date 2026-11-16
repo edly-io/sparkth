@@ -8,6 +8,7 @@ names the ``user`` scope object a list route is checked at: the listed owner.
 """
 
 from collections.abc import Awaitable, Callable
+from typing import cast
 
 from fastapi import Depends, Query, Request
 
@@ -103,7 +104,7 @@ def object_id_str_to_int(ids: set[str] | None) -> set[int] | None:
 
 async def get_listed_owner_id(
     owner_id: int | None = Query(None), current_user: User = Depends(get_current_user)
-) -> str:
+) -> int:
     """Return the object id of the ``user`` scope a list route is checked at: the ``owner_id`` query
     parameter, or the caller's own id when it is absent."""
-    return str(current_user.id if owner_id is None else owner_id)
+    return cast(int, current_user.id) if owner_id is None else owner_id
