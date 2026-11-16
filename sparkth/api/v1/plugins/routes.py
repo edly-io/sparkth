@@ -20,10 +20,6 @@ from sparkth.core.plugins.service import (
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
 from sparkth.lib.i18n import _
-from sparkth.lib.log import get_logger
-
-logger = get_logger(__name__)
-
 
 router: APIRouter = APIRouter()
 
