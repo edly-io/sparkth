@@ -1,14 +1,20 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type APIRequestContext } from "@playwright/test";
+
+import type { UserPluginState } from "@/core/plugins/types";
 import { apiBaseUrl, firstSuperuser, firstSuperuserPassword } from "./config";
 import { logInViaApi } from "./utils/user";
 
-/** The fields of a user-plugins API entry this spec reads. */
-interface DeclaredPlugin {
-  plugin_name: string;
-  enabled: boolean;
-  has_frontend: boolean;
-  display?: { icon?: string | null } | null;
-  sidebar?: { icon?: string | null } | null;
+/** The enabled plugins with a frontend, as the user-plugins API declares them. */
+async function frontendPlugins(request: APIRequestContext): Promise<UserPluginState[]> {
+  const { access_token } = await logInViaApi(request, firstSuperuser, firstSuperuserPassword);
+  const response = await request.get(`${apiBaseUrl}/api/v1/user-plugins/`, {
+    headers: { Authorization: `Bearer ${access_token}` },
+  });
+  const plugins = ((await response.json()) as UserPluginState[]).filter(
+    (plugin) => plugin.enabled && plugin.has_frontend,
+  );
+  expect(plugins.length).toBeGreaterThan(0);
+  return plugins;
 }
 
 /**
@@ -29,16 +35,9 @@ test.describe("dashboard", () => {
   });
 
   // The backend declares each plugin's icons by name; the frontend must ship a component for every one,
-  // or the card and sidebar link fall back to a letter. Every plugin with a frontend must have a page.
-  test("shows each icon a plugin declares and opens its page", async ({ page, request }) => {
-    const { access_token } = await logInViaApi(request, firstSuperuser, firstSuperuserPassword);
-    const response = await request.get(`${apiBaseUrl}/api/v1/user-plugins/`, {
-      headers: { Authorization: `Bearer ${access_token}` },
-    });
-    const plugins = ((await response.json()) as DeclaredPlugin[]).filter(
-      (plugin) => plugin.enabled && plugin.has_frontend,
-    );
-    expect(plugins.length).toBeGreaterThan(0);
+  // or the card and sidebar link fall back to a letter.
+  test("shows each icon a plugin declares", async ({ page, request }) => {
+    const plugins = await frontendPlugins(request);
 
     await page.goto("/dashboard");
     const cards = page.getByRole("link").filter({ has: page.getByRole("heading", { level: 3 }) });
@@ -53,8 +52,10 @@ test.describe("dashboard", () => {
         await expect(link.locator("svg"), `${plugin.plugin_name}'s sidebar icon`).toHaveCount(1);
       }
     }
+  });
 
-    for (const plugin of plugins) {
+  test("opens the page of every plugin with a frontend", async ({ page, request }) => {
+    for (const plugin of await frontendPlugins(request)) {
       await page.goto(`/dashboard/${plugin.plugin_name}`);
       await page.waitForLoadState("networkidle");
       // Core's "Plugin Not Found" / "Plugin <name> not found", or the export's 404 for a page it never built.
