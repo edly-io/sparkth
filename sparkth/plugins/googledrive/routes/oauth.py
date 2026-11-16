@@ -34,7 +34,7 @@ logger = get_logger(__name__)
 
 
 @router.get(
-    "/oauth/authorize", dependencies=[Depends(require_drive_use)], response_model=GoogleDriveAuthorizationUrlResponse
+    "/oauth/authorize", response_model=GoogleDriveAuthorizationUrlResponse, dependencies=[Depends(require_drive_use)]
 )
 def get_authorization_url(
     current_user: User = Depends(get_current_user),
@@ -126,7 +126,7 @@ async def disconnect_drive(
 
 
 @router.get(
-    "/oauth/status", dependencies=[Depends(require_drive_use)], response_model=GoogleDriveConnectionStatusResponse
+    "/oauth/status", response_model=GoogleDriveConnectionStatusResponse, dependencies=[Depends(require_drive_use)]
 )
 async def get_connection_status(
     user_id: int = Depends(get_current_user_id),

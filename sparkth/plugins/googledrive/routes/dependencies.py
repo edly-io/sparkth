@@ -16,11 +16,11 @@ from sparkth.plugins.googledrive.constants import GOOGLE_DRIVE_PLUGIN_NAME
 from sparkth.plugins.googledrive.models import DriveFile, DriveFolder
 
 __all__ = [
-    "require_drive_use",
     "get_drive_file",
     "get_drive_file_owner_id",
     "get_drive_folder",
     "get_drive_folder_owner_id",
+    "require_drive_use",
 ]
 
 logger = get_logger(__name__)

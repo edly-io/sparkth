@@ -1,4 +1,4 @@
-"""Google Drive's routes need ``plugin.use`` at ``plugin:google-drive``, except the OAuth callback."""
+"""Drive routes need ``plugin.use`` at ``plugin:google-drive``, except the OAuth callback and the analytics read."""
 
 from collections.abc import Iterator
 from unittest.mock import AsyncMock, patch
@@ -13,12 +13,14 @@ from sparkth.lib.testing import AuditEventsFetcher, assert_plugin_use_denied, re
 from sparkth.plugins.googledrive.constants import GOOGLE_DRIVE_PLUGIN_NAME
 
 BASE = "/api/v1/google-drive"
-NOT_CONNECTED = 400
+TOKEN_STUB_STATUS = 400
+
+pytestmark = pytest.mark.usefixtures("mock_drive_credentials")
 
 # method, url, body, the status a caller who may use the plugin gets (every id is unknown).
 ROUTES = [
     pytest.param("GET", f"{BASE}/folders", None, 200, id="list-folders"),
-    pytest.param("POST", f"{BASE}/folders/sync", {"drive_folder_id": "abc"}, NOT_CONNECTED, id="sync-folder"),
+    pytest.param("POST", f"{BASE}/folders/sync", {"drive_folder_id": "abc"}, TOKEN_STUB_STATUS, id="sync-folder"),
     pytest.param("POST", f"{BASE}/folders/1/refresh", None, 404, id="refresh-folder"),
     pytest.param("GET", f"{BASE}/folders/1/files", None, 404, id="list-files"),
     pytest.param("GET", f"{BASE}/folders/1/rag-status", None, 404, id="folder-rag-status"),
@@ -26,7 +28,7 @@ ROUTES = [
     pytest.param("GET", f"{BASE}/files/1/rag-status", None, 404, id="file-rag-status"),
     pytest.param("GET", f"{BASE}/files/1/download", None, 404, id="download-file"),
     pytest.param("DELETE", f"{BASE}/files/1", None, 404, id="delete-file"),
-    pytest.param("GET", f"{BASE}/browse", None, NOT_CONNECTED, id="browse"),
+    pytest.param("GET", f"{BASE}/browse", None, TOKEN_STUB_STATUS, id="browse"),
     pytest.param("GET", f"{BASE}/oauth/authorize", None, 200, id="oauth-authorize"),
     pytest.param("DELETE", f"{BASE}/oauth/disconnect", None, 404, id="oauth-disconnect"),
     pytest.param("GET", f"{BASE}/oauth/status", None, 200, id="oauth-status"),
@@ -34,9 +36,9 @@ ROUTES = [
 
 
 @pytest.fixture(autouse=True)
-def _drive_not_connected() -> Iterator[None]:
-    """Stand in for an account with no Drive connection, so token-needing routes end in a 400."""
-    refusal = AsyncMock(side_effect=HTTPException(NOT_CONNECTED, "Google Drive not connected"))
+def _stub_token_lookup() -> Iterator[None]:
+    """Make the token lookup fail with a 400, so token-needing routes stop right after their gates."""
+    refusal = AsyncMock(side_effect=HTTPException(TOKEN_STUB_STATUS, "Google Drive not connected"))
     with (
         patch("sparkth.plugins.googledrive.routes.folders.get_valid_access_token", refusal),
         patch("sparkth.plugins.googledrive.routes.files.get_valid_access_token", refusal),
@@ -116,7 +118,7 @@ async def test_anonymous_caller_is_unauthorized(
 
 
 async def test_callback_needs_no_plugin_use(
-    client: AsyncClient, session: AsyncSession, audit_events: AuditEventsFetcher, current_user: User
+    client: AsyncClient, session: AsyncSession, audit_events: AuditEventsFetcher
 ) -> None:
     await restrict_plugin_use(session, None)
     token_data = {"access_token": "access", "refresh_token": "refresh", "expires_in": 3600, "scope": ""}
@@ -132,5 +134,6 @@ async def test_callback_needs_no_plugin_use(
             f"{BASE}/oauth/callback", params={"code": "code", "state": "state"}, follow_redirects=False
         )
 
+    assert response.status_code == 307
     assert response.headers["location"] == "/dashboard/google-drive?connected=true"
     assert [event for event in await audit_events() if event.action == "denied"] == []
