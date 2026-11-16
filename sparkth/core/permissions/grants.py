@@ -128,12 +128,15 @@ async def revoke_role(
     permission_scope: PermissionScope,
     scope_object_id: str | None,
     session: AsyncSession,
-) -> None:
+) -> int:
     """Soft-delete all active assignments of role_name for user_id at the given permission scope.
 
-    Revoking an active assignment records ``role.unassigned`` in the caller's transaction; a
-    call that finds nothing active records nothing.
+    Returns the number of assignments revoked. Revoking an active assignment records
+    ``role.unassigned`` in the caller's transaction; a call that finds nothing active (including
+    an unknown role name) returns 0 and records nothing. Raises InvalidScopeObjectId if the
+    (permission_scope, scope_object_id) pairing is invalid (see PermissionScope.validate_object_id).
     """
+    permission_scope.validate_object_id(scope_object_id)
     statement = (
         select(RoleAssignment)
         .join(Role, col(Role.id) == col(RoleAssignment.role_id))
@@ -160,6 +163,7 @@ async def revoke_role(
                 change=AuditChange(old=create_grant_audit_snapshot(role_name, permission_scope.name, scope_object_id)),
             ),
         )
+    return len(assignments)
 
 
 async def record_active_user_grants_removed(match: ColumnElement[bool], session: AsyncSession) -> None:

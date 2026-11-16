@@ -128,10 +128,17 @@ every grant scoped to the role (`role:<id>`) too, so a later role that reuses th
 them.
 
 A user who holds `plugin_user` at `plugin:<name>` instead of at `global` can use only those plugins.
-Assign it at a plugin with `roles assign-role` and `--scope plugin --scope-object-id <name>`. Every account
-holds `plugin_user` at `global`, so the assignment at a plugin changes nothing until the `global` assignment
-is revoked. No CLI command or API route revokes a user's role assignment; only the `revoke_role` library
-function does.
+Every account holds `plugin_user` at `global`, so an assignment at a plugin changes nothing until the `global`
+assignment is revoked. To limit a user to some plugins, assign `plugin_user` at each allowed plugin and revoke
+the `global` assignment:
+
+```bash
+make cli -- roles assign-role jane plugin_user --scope plugin --scope-object-id compose
+make cli -- roles revoke-role jane plugin_user --scope global
+```
+
+A group the user belongs to that holds `plugin_user` (or any role with `plugin.use`) at `global` still gives them
+every plugin; revoke that grant with `groups revoke-role-from-group`.
 
 Every route of the built-in plugins is gated on `plugin.use` at `plugin:<name>`, except those the table above
 names; a test fails on any plugin route that is neither gated nor listed with a reason.
@@ -296,6 +303,18 @@ make cli -- roles assign-role john grader --scope course --scope-object-id 42
 as a no-op. Whether `--scope-object-id` is required depends on the kind: an
 `ObjectlessPermissionScope` must be assigned *without* one, a `PermissionScope` *with* one.
 The CLI defers this to `assign_role`, which raises `InvalidScopeObjectId` on a mismatch.
+
+**Revoke a role from a user** with `roles revoke-role`, which takes the same arguments and `--scope` /
+`--scope-object-id` options and removes only the assignment at that exact scope:
+
+```bash
+make cli -- roles revoke-role john admin
+make cli -- roles revoke-role john grader --scope course --scope-object-id 42
+```
+
+An unknown scope kind or user, or a `--scope-object-id` that contradicts the scope kind, exits non-zero. A user
+who holds no assignment of that role at that exact scope (a mistyped role name included) gets a "nothing revoked"
+notice and exit zero, so a re-run is harmless. Built-in roles can be revoked from a user.
 
 From application code, call `assign_role`:
 
