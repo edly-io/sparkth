@@ -3,7 +3,7 @@ import { fireEvent, screen } from "@testing-library/react";
 
 import { SettingsListItem } from "@/core/settings/components/ui/SettingsListItem";
 import type { UserPluginState } from "@/core/plugins/types";
-import { renderWithIntl } from "@/tests/intl-test-utils";
+import { renderWithIntl } from "@/tests/intl";
 
 const noop = async () => {};
 
