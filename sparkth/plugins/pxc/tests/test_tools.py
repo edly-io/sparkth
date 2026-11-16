@@ -13,12 +13,14 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from uuid6 import uuid7
 
 from sparkth.core.models.user import User
+from sparkth.lib.assets import read_asset
 from sparkth.lib.auth import bind_current_user_id
 from sparkth.lib.exceptions.auth import NoAuthenticatedUser
 from sparkth.lib.models import utc_now
+from sparkth.plugins.pxc import tools as pxc_tools
 from sparkth.plugins.pxc.activities import generated_activity_dir, preview_url
 from sparkth.plugins.pxc.config import get_pxc_settings
-from sparkth.plugins.pxc.constants import PXC_ASSET_DIR, PXC_PREVIEW_ACTIVITY_INSTANCE, PXC_PREVIEW_COURSE_ID
+from sparkth.plugins.pxc.constants import PXC_PREVIEW_ACTIVITY_INSTANCE, PXC_PREVIEW_COURSE_ID
 from sparkth.plugins.pxc.enums import PreviewPermission, PxcFailureKind
 from sparkth.plugins.pxc.exceptions import (
     PxcActivityNotFound,
@@ -58,7 +60,7 @@ pytestmark = pytest.mark.usefixtures("reused_compiles")
 async def test_about_carries_the_contract_rules() -> None:
     about = (await pxc_about())["about"]
 
-    rules = (PXC_ASSET_DIR / "about.txt").read_text(encoding="utf-8")
+    rules = read_asset(pxc_tools.__file__, "about.txt")
     assert rules.format(max_source_chars=get_pxc_settings().max_source_chars) in about
 
 

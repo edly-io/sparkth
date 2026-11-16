@@ -7,7 +7,8 @@ import { AuthCard, AuthHeading, AuthLink } from "@/core/auth/components/layout/A
 import { Alert } from "@/core/components/ui/Alert";
 import { Button } from "@/core/components/ui/Button";
 import { Input } from "@/core/components/ui/Input";
-import { ApiRequestError, requestPasswordReset } from "@/lib/api";
+import { ApiRequestError } from "@/lib/api";
+import { requestPasswordReset } from "@/core/auth/client";
 
 /**
  * Asks for the account's email and requests a reset link for it. The confirmation reads the

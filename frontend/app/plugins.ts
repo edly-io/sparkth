@@ -1,15 +1,7 @@
-// The frontend's plugin list: importing each plugin's index.ts runs its contributions to core's
-// slots, and a plugin with a page is registered with core.
+// The frontend's plugins: loading every plugin's entry point runs its contributions to the slots,
+// and every plugin that set itself in the PLUGINS slot is registered with core.
 import { registerPlugin } from "@/core/plugins/registry";
-import "@/plugins/canvas";
-import { composePlugin } from "@/plugins/compose";
-import { googleDrivePlugin } from "@/plugins/google-drive";
-import "@/plugins/moodle";
-import "@/plugins/openedx";
-import { pxcPlugin } from "@/plugins/pxc";
-import { slackPlugin } from "@/plugins/slack";
+import { PLUGINS } from "@/lib/plugins/slots";
+import "@/app/pluginModules";
 
-registerPlugin(composePlugin);
-registerPlugin(googleDrivePlugin);
-registerPlugin(pxcPlugin);
-registerPlugin(slackPlugin);
+for (const plugin of PLUGINS.values()) registerPlugin(plugin);
