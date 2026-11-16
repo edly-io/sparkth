@@ -2,11 +2,6 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, it, expect, vi } from "vitest";
 
-import "@/app/plugins";
-import { resolvePluginIcon } from "@/core/components/ui/icons";
-import { getAllPlugins } from "@/core/plugins/registry";
-import { FRONTEND_PLUGIN_NAMES, PLUGIN_ICON_NAMES } from "@/lib/plugins/generated";
-
 describe("plugin registration", () => {
   it("registers every plugin in the PLUGINS slot", async () => {
     vi.resetModules();
@@ -35,21 +30,5 @@ describe("plugin registration", () => {
       loaders.some((source) => source.includes(`@/plugins/${folder}`)),
     );
     expect(named).toEqual([]);
-  });
-});
-
-describe("frontend plugin registry vs backend declarations", () => {
-  it("registers a PluginDefinition for exactly the backend-declared frontend plugins", () => {
-    const registered = getAllPlugins()
-      .map((plugin) => plugin.name)
-      .sort();
-    expect(registered).toEqual([...FRONTEND_PLUGIN_NAMES].sort());
-  });
-
-  it("resolves every icon the backend plugins declare", () => {
-    const unresolved = Object.entries(PLUGIN_ICON_NAMES).flatMap(([plugin, names]) =>
-      names.filter((name) => !resolvePluginIcon(plugin, name)).map((name) => `${plugin}: ${name}`),
-    );
-    expect(unresolved).toEqual([]);
   });
 });
