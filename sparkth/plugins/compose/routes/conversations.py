@@ -9,9 +9,8 @@ from sparkth.lib.log import get_logger
 from sparkth.lib.permissions import get_listed_owner_id
 from sparkth.lib.permissions.scopes import USER
 from sparkth.plugins.compose.models import Conversation, Message
-from sparkth.plugins.compose.permissions import CONVERSATION_READ
+from sparkth.plugins.compose.permissions import CONVERSATION, CONVERSATION_READ
 from sparkth.plugins.compose.routes.dependencies import get_conversation as get_conversation_record
-from sparkth.plugins.compose.routes.dependencies import get_conversation_owner_id
 from sparkth.plugins.compose.routes.utils import parse_metadata_flag, parse_metadata_list
 from sparkth.plugins.compose.schemas import (
     ConversationDetailResponse,
@@ -100,7 +99,7 @@ async def list_conversations(
 @router.get(
     "/conversations/{conversation_id}",
     response_model=ConversationDetailResponse,
-    dependencies=[Depends(CONVERSATION_READ.require_for_object(USER, get_conversation_owner_id))],
+    dependencies=[Depends(CONVERSATION_READ.require_for_object(CONVERSATION, get_conversation_record))],
 )
 async def get_conversation(
     limit: int = Query(50, ge=1, le=100),
@@ -136,7 +135,7 @@ async def get_conversation(
 @router.get(
     "/conversations/{conversation_id}/last-message",
     response_model=MessageResponse | None,
-    dependencies=[Depends(CONVERSATION_READ.require_for_object(USER, get_conversation_owner_id))],
+    dependencies=[Depends(CONVERSATION_READ.require_for_object(CONVERSATION, get_conversation_record))],
 )
 async def get_last_conversation_message(
     conversation: Conversation = Depends(get_conversation_record),
