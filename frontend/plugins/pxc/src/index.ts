@@ -1,4 +1,5 @@
 import { PluginDefinition } from "@/lib/plugins/types";
+import { PLUGINS } from "@/lib/plugins/slots";
 import type { Locale } from "@/lib/i18n/config";
 import { PXC_PLUGIN_NAME } from "@/plugins/pxc/src/constants";
 // This plugin's contributions to core's slots.
@@ -19,3 +20,5 @@ export const pxc: PluginDefinition = {
   loadComponent: () => import("@/plugins/pxc/src/pages/PxcActivities"),
   loadMessages: (locale) => messageCatalogs[locale]().then((catalog) => catalog.default),
 };
+
+PLUGINS.set(pxc.name, pxc);
