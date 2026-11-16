@@ -194,7 +194,7 @@ async def _reply_and_log(
             posted_ts=posted_ts,
             question=question,
             answer=reply,
-            rag_matched=False,
+            rag_matched=response_type == ResponseType.RAG_MATCH,
             response_type=response_type,
             slack_user_name=slack_user_name,
             slack_channel_name=slack_channel_name,
@@ -209,39 +209,39 @@ async def _check_user_may_use_slack(session: AsyncSession, user_id: int) -> bool
     return await can(user, PLUGIN_USE, PLUGIN, build_scope_path(PLUGIN, SLACK_PLUGIN_NAME), session)
 
 
-class _Refusal(NamedTuple):
-    """The reply to send in place of an answer, and how to log it."""
+class _Reply(NamedTuple):
+    """The text to post to Slack, and the response type it is logged under."""
 
-    reply: str
+    text: str
     response_type: ResponseType
 
 
-async def _get_refusal(session: AsyncSession, user_id: int) -> _Refusal | SlackConfig:
-    """Return the refusal to send when the bot may not answer, else the user's validated bot config.
+async def _get_slack_config_or_refusal(session: AsyncSession, user_id: int) -> SlackConfig | _Reply:
+    """Return the user's validated bot config, or the refusal to post when the bot may not answer.
 
     The bot refuses when the connecting user may not use the Slack plugin, when the plugin is not set
     up or is disabled for them, and when its stored configuration is empty or invalid.
     """
     if not await _check_user_may_use_slack(session, user_id):
         logger.info("User %d may not use the Slack plugin", user_id)
-        return _Refusal(PLUGIN_DISABLED_MESSAGE, ResponseType.PLUGIN_DISABLED)
+        return _Reply(PLUGIN_DISABLED_MESSAGE, ResponseType.PLUGIN_DISABLED)
 
     plugin_map = await PluginService().get_user_plugin_map(session, user_id)
     user_plugin = plugin_map.get(SLACK_PLUGIN_NAME)
     if not user_plugin:
         logger.info("Slack plugin not configured for user %d", user_id)
-        return _Refusal(
+        return _Reply(
             "The TA Bot hasn't been set up by your instructor yet. Please check back later.",
             ResponseType.PLUGIN_DISABLED,
         )
 
     if not user_plugin.enabled:
         logger.info("Slack plugin disabled for user %d", user_id)
-        return _Refusal(PLUGIN_DISABLED_MESSAGE, ResponseType.PLUGIN_DISABLED)
+        return _Reply(PLUGIN_DISABLED_MESSAGE, ResponseType.PLUGIN_DISABLED)
 
     if not user_plugin.config:
         logger.warning("Slack plugin config empty for user %d", user_id)
-        return _Refusal(
+        return _Reply(
             "The TA Bot configuration is incomplete. Please contact your instructor.",
             ResponseType.CONFIG_INCOMPLETE,
         )
@@ -250,55 +250,55 @@ async def _get_refusal(session: AsyncSession, user_id: int) -> _Refusal | SlackC
         return SlackConfig(**user_plugin.config)
     except ValidationError as exc:
         logger.warning("Invalid SlackConfig for user %d: %s", user_id, exc)
-        return _Refusal(
+        return _Reply(
             "The TA Bot configuration is invalid. Please contact your instructor.",
             ResponseType.CONFIG_INCOMPLETE,
         )
 
 
 async def _build_answer(
-    question: str,
-    config: SlackConfig,
     session: AsyncSession,
     user_id: int,
+    question: str,
+    config: SlackConfig,
     workspace_id: int,
-) -> tuple[str, ResponseType]:
-    """Return the reply to a question and its response type.
+) -> _Reply:
+    """Return the reply to a question.
 
     A greeting gets the configured greeting. Any other question is answered from the user's documents
     with the configured AI key; when that key is missing or unusable, or retrieval fails, the reply
-    says so instead.
+    says so instead. A retrieval failure rolls the session back before the reply is returned.
     """
     if is_greeting(question):
-        return config.greeting_message, ResponseType.GREETING
+        return _Reply(config.greeting_message, ResponseType.GREETING)
 
     if config.llm_config_id is None:
         logger.warning("Slack agentic RAG disabled for workspace %s: no AI key configured", workspace_id)
-        return str(NO_AI_KEY_MESSAGE), ResponseType.CONFIG_INCOMPLETE
+        return _Reply(str(NO_AI_KEY_MESSAGE), ResponseType.CONFIG_INCOMPLETE)
 
     llm_provider = await _build_llm_provider(
         session,
         user_id,
         config.llm_config_id,
         config.llm_temperature,
-        model_override=config.llm_model_override,
+        config.llm_model_override,
     )
     if llm_provider is None:
         logger.warning("Slack agentic RAG disabled for workspace %s: AI key could not be resolved", workspace_id)
-        return str(AI_KEY_UNAVAILABLE_MESSAGE), ResponseType.CONFIG_INCOMPLETE
+        return _Reply(str(AI_KEY_UNAVAILABLE_MESSAGE), ResponseType.CONFIG_INCOMPLETE)
 
     try:
         agent_llm = llm_provider.create_llm()
     except (ValidationError, ValueError) as exc:
         logger.warning("Slack LLM provider config invalid for workspace %s: %s", workspace_id, exc)
-        return str(AI_KEY_UNAVAILABLE_MESSAGE), ResponseType.CONFIG_INCOMPLETE
+        return _Reply(str(AI_KEY_UNAVAILABLE_MESSAGE), ResponseType.CONFIG_INCOMPLETE)
 
     try:
-        return await answer_question(session, user_id, question, config, agent_llm, llm_provider=llm_provider)
+        return _Reply(*await answer_question(session, user_id, question, config, agent_llm, llm_provider))
     except (SQLAlchemyError, LangChainException, OSError) as exc:
         logger.error("RAG dispatch failed for workspace %s: %s", workspace_id, exc)
         await session.rollback()
-        return str(RETRIEVAL_ERROR_MESSAGE), ResponseType.RETRIEVAL_ERROR
+        return _Reply(str(RETRIEVAL_ERROR_MESSAGE), ResponseType.RETRIEVAL_ERROR)
 
 
 async def _dispatch_event(
@@ -328,35 +328,12 @@ async def _dispatch_event(
     )
 
     async with session_scope() as session:
-        refusal_or_config = await _get_refusal(session, user_id)
-        if isinstance(refusal_or_config, _Refusal):
-            await _reply_and_log(
-                session,
-                reply=refusal_or_config.reply,
-                response_type=refusal_or_config.response_type,
-                **common,
-            )
-            return
-
-        answer, response_type = await _build_answer(question, refusal_or_config, session, user_id, workspace_id)
-
-        posted_ts = await _post_slack_message(bot_token_encrypted, channel, answer, thread_ts, workspace_id)
-        if posted_ts is None:
-            return
-
-        await _log_response(
-            session,
-            workspace_id=workspace_id,
-            channel=channel,
-            slack_user=slack_user,
-            posted_ts=posted_ts,
-            question=question,
-            answer=answer,
-            rag_matched=response_type == ResponseType.RAG_MATCH,
-            response_type=response_type,
-            slack_user_name=slack_user_name,
-            slack_channel_name=slack_channel_name,
-        )
+        config = await _get_slack_config_or_refusal(session, user_id)
+        if isinstance(config, _Reply):
+            reply = config
+        else:
+            reply = await _build_answer(session, user_id, question, config, workspace_id)
+        await _reply_and_log(session, reply=reply.text, response_type=reply.response_type, **common)
 
 
 @router.post("/events")
