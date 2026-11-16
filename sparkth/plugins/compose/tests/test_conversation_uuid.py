@@ -20,7 +20,7 @@ from pydantic import ValidationError
 from sqlalchemy import delete
 from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession as SQLAlchemyAsyncSession
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from uuid6 import uuid7
 
@@ -401,7 +401,7 @@ async def _owned_by(session: AsyncSession, user_id: int) -> UUID:
 
 
 async def _drop_caller_assignment(session: AsyncSession) -> None:
-    await session.exec(delete(RoleAssignment))
+    await session.exec(delete(RoleAssignment).where(col(RoleAssignment.scope) == USER.name))
     await session.commit()
 
 

@@ -11,7 +11,7 @@ from sparkth.lib.permissions.scopes import USER
 from sparkth.plugins.compose.models import Conversation, Message
 from sparkth.plugins.compose.permissions import CONVERSATION_READ
 from sparkth.plugins.compose.routes.dependencies import get_conversation as get_conversation_record
-from sparkth.plugins.compose.routes.dependencies import get_conversation_owner_id
+from sparkth.plugins.compose.routes.dependencies import get_conversation_owner_id, require_compose_use
 from sparkth.plugins.compose.routes.utils import parse_metadata_flag, parse_metadata_list
 from sparkth.plugins.compose.schemas import (
     ConversationDetailResponse,
@@ -23,7 +23,7 @@ from sparkth.plugins.compose.service import ComposeService, get_compose_service
 
 logger = get_logger(__name__)
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_compose_use)])
 
 
 def _message_response(msg: Message) -> MessageResponse:
