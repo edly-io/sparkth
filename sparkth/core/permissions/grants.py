@@ -11,7 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.permissions.constants import DEFAULT_USER_ROLE, PLUGIN_USER_ROLE
+from sparkth.core.permissions.constants import PLUGIN_USER_ROLE, SPARKTH_USER_ROLE
 from sparkth.core.permissions.exceptions import RoleNotFound
 from sparkth.core.permissions.models import GroupRoleAssignment, Role, RoleAssignment
 from sparkth.core.permissions.scopes import GLOBAL, USER, PermissionScope
@@ -117,7 +117,7 @@ async def assign_default_roles(user_id: int, session: AsyncSession) -> list[Role
     Called for every new account in the transaction that creates it. Returns both assignments,
     the user role first. Raises RoleNotFound if either role has not been seeded.
     """
-    user_role = await assign_role(user_id, DEFAULT_USER_ROLE, USER, str(user_id), session)
+    user_role = await assign_role(user_id, SPARKTH_USER_ROLE, USER, str(user_id), session)
     plugin_role = await assign_role(user_id, PLUGIN_USER_ROLE, GLOBAL, None, session)
     return [user_role, plugin_role]
 
