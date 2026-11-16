@@ -1,0 +1,43 @@
+{
+  "audit": {
+    "title": "Audit log",
+    "subtitle": "Who did what, when, and with what result, newest first.",
+    "loadError": "We couldn't load the audit log. Please try again.",
+    "exportError": "We couldn't export the audit log. Please try again.",
+    "from": "From",
+    "to": "To",
+    "actorId": "Actor user ID",
+    "actorIdPlaceholder": "e.g. 42",
+    "category": "Category",
+    "outcome": "Outcome",
+    "source": "Source",
+    "any": "Any",
+    "apply": "Apply",
+    "reset": "Reset",
+    "exportCsv": "Export CSV",
+    "exportJsonl": "Export JSON Lines",
+    "exporting": "Exporting",
+    "showDetails": "Show details",
+    "hideDetails": "Hide details",
+    "detailsError": "We couldn't load this event's details.",
+    "loadMore": "Load more",
+    "empty": "No audit events match these filters.",
+    "errors": {
+      "actorIdInvalid": "Actor user ID must be a number.",
+      "rangeReversed": "The start time must be on or before the end time."
+    },
+    "outcomes": {
+      "success": "Success",
+      "failure": "Failure",
+      "denied": "Denied"
+    },
+    "columns": {
+      "time": "Time",
+      "event": "Event",
+      "actor": "Actor",
+      "outcome": "Outcome",
+      "target": "Target",
+      "source": "Source"
+    }
+  }
+}
