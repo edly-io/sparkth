@@ -24,6 +24,7 @@ from sparkth.lib.llm import (
 )
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
+from sparkth.lib.permissions.scopes import USER
 from sparkth.lib.plugins import get_disabled_plugins
 from sparkth.plugins.compose.analytics import (
     ComposeAttachmentAnalytics,
@@ -40,6 +41,8 @@ from sparkth.plugins.compose.conversation_title import extract_title_from_messag
 from sparkth.plugins.compose.exceptions import RAGSearchError
 from sparkth.plugins.compose.llm import complete_turn
 from sparkth.plugins.compose.messages import get_last_user_text
+from sparkth.plugins.compose.permissions import CONVERSATION_WRITE
+from sparkth.plugins.compose.routes.dependencies import get_turn_owner_id
 from sparkth.plugins.compose.routes.utils import resolve_tools
 from sparkth.plugins.compose.routes.utils.live_turns import request_stop
 from sparkth.plugins.compose.routes.utils.message_assembly import assemble_provider_messages
@@ -88,17 +91,20 @@ def _unusable_status(document: Document) -> Literal["queued", "processing", "fai
             "content": {"text/event-stream": {"schema": {"type": "string"}}},
         }
     },
+    dependencies=[Depends(CONVERSATION_WRITE.require_for_object(USER, get_turn_owner_id))],
 )
 async def compose_completion(
     request: ChatCompletionRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
+    owner_id: str = Depends(get_turn_owner_id),
     session: AsyncSession = Depends(get_async_session),
     service: ComposeService = Depends(get_compose_service),
     llm_service: LLMConfigService = Depends(get_llm_service),
     config: ComposeSettings = Depends(get_compose_settings),
     disabled_plugins: set[str] = Depends(get_disabled_plugins),
 ) -> Any:
+    # The caller runs the turn; the conversation and what it stores belong to owner_id.
     user_id: int = cast(int, current_user.id)
     try:
         llm_config, api_key = await llm_service.resolve(
@@ -124,7 +130,7 @@ async def compose_completion(
         logger.warning(
             "LLMConfig %s unusable for user %s: %s: %s", request.llm_config_id, user_id, type(exc).__name__, exc
         )
-        await service.record_error_message(session, request.conversation_id, user_id, detail)
+        await service.record_error_message(session, request.conversation_id, detail)
         record_turn_failed(
             conversation_id=str(request.conversation_id) if request.conversation_id else None,
             provider=None,
@@ -150,7 +156,7 @@ async def compose_completion(
     conversation, conversation_was_created = await service.get_or_create_conversation(
         session,
         conversation_uuid=conversation_uuid,
-        user_id=user_id,
+        user_id=int(owner_id),
         llm_config_id=request.llm_config_id,
         provider=provider_name,
         model=model,
@@ -174,7 +180,7 @@ async def compose_completion(
             background_tasks,
             service,
             conversation_id=conversation_id,
-            user_id=user_id,
+            user_id=int(owner_id),
             messages=request.messages,
             provider_name=provider_name,
             api_key=api_key,
@@ -190,7 +196,7 @@ async def compose_completion(
         turn_analytics.schedule_conversation_started(occurred_at=conversation.created_at)
 
     if request.document_ids:
-        attached = await service.attach_owned_documents(session, conversation_id, request.document_ids, user_id)
+        attached = await service.attach_owned_documents(session, conversation_id, request.document_ids, int(owner_id))
         for attachment in attached.created:
             attachment_analytics.schedule_document_attached(
                 document_id=attachment.document_id,

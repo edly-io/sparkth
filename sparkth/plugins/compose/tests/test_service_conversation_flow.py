@@ -110,23 +110,24 @@ class TestResolvingTheConversation:
             )
 
     @pytest.mark.asyncio
-    async def test_another_users_conversation_is_not_found(self, session: AsyncSession, current_user: User) -> None:
-        """Ownership is part of resolving it: the uuid exists, but not for this caller."""
+    async def test_another_users_conversation_resolves(self, session: AsyncSession, current_user: User) -> None:
+        """Resolving does not decide access: a permission check has already allowed the request."""
         someone_else = await _seed_conversation(session, (current_user.id or 1) + 99)
 
-        with pytest.raises(ConversationNotFound):
-            await ComposeService().get_or_create_conversation(
-                session,
-                conversation_uuid=someone_else.uuid,
-                user_id=current_user.id or 1,
-                llm_config_id=None,
-                provider="openai",
-                model="gpt-4o",
-            )
+        resolved, created = await ComposeService().get_or_create_conversation(
+            session,
+            conversation_uuid=someone_else.uuid,
+            user_id=current_user.id or 1,
+            llm_config_id=None,
+            provider="openai",
+            model="gpt-4o",
+        )
+
+        assert (resolved.id, created) == (someone_else.id, False)
 
 
 class TestAttachingRequestedDocuments:
-    """A request may name documents; only the caller's own may be attached."""
+    """A request may name documents; only those the conversation owner owns may be attached."""
 
     @pytest.mark.asyncio
     async def test_owned_documents_are_attached(self, session: AsyncSession, current_user: User) -> None:
@@ -234,9 +235,7 @@ class TestRecordingAPreStreamError:
     ) -> None:
         conversation = await _seed_conversation(session, current_user.id or 1)
 
-        await ComposeService().record_error_message(
-            session, conversation.uuid, current_user.id or 1, "The selected AI key is deactivated."
-        )
+        await ComposeService().record_error_message(session, conversation.uuid, "The selected AI key is deactivated.")
 
         stored = await _stored_messages(session, conversation.id or 0)
         assert [(m.role, m.content, m.is_error) for m in stored] == [
@@ -247,11 +246,11 @@ class TestRecordingAPreStreamError:
     async def test_no_conversation_means_nothing_to_record(self, session: AsyncSession, current_user: User) -> None:
         """The failure can predate the conversation, and creating one to hold an error would
         leave the user a thread containing only that error."""
-        await ComposeService().record_error_message(session, None, current_user.id or 1, "boom")
+        await ComposeService().record_error_message(session, None, "boom")
 
     @pytest.mark.asyncio
     async def test_an_unknown_conversation_is_left_alone(self, session: AsyncSession, current_user: User) -> None:
-        await ComposeService().record_error_message(session, uuid4(), current_user.id or 1, "boom")
+        await ComposeService().record_error_message(session, uuid4(), "boom")
 
     @pytest.mark.asyncio
     async def test_a_database_failure_does_not_replace_the_error_being_reported(
@@ -262,4 +261,4 @@ class TestRecordingAPreStreamError:
         conversation = await _seed_conversation(session, current_user.id or 1)
 
         with patch.object(ComposeService, "add_message", new_callable=AsyncMock, side_effect=SQLAlchemyError("gone")):
-            await ComposeService().record_error_message(session, conversation.uuid, current_user.id or 1, "boom")
+            await ComposeService().record_error_message(session, conversation.uuid, "boom")

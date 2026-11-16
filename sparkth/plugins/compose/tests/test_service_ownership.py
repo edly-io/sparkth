@@ -1,8 +1,8 @@
-"""Tests for requiring a conversation or document the caller owns.
+"""Tests for loading the conversation or document a request names.
 
-Every route that works on one of these looked it up, found ``None``, and raised its own 404. The
-lookup and the policy now live together: absent and belongs-to-someone-else are the same answer,
-and the caller gets an exception rather than a value it has to remember to check.
+A missing one raises rather than returning a value the caller has to remember to check. A
+document must also belong to the given user; a conversation is loaded whoever owns it, since
+access to it is decided by a permission check before the lookup's result is used.
 """
 
 from uuid import uuid4
@@ -35,7 +35,7 @@ async def _seed_document(session: AsyncSession, user_id: int, deleted: bool = Fa
 
 
 class TestRequiringADocument:
-    """A document the caller does not own is reported as absent, not as forbidden.
+    """A document the given user does not own is reported as absent, not as forbidden.
 
     Saying "not yours" would confirm the document exists to someone who cannot see it, so both
     cases answer the same way.
@@ -73,27 +73,18 @@ class TestRequiringADocument:
             await ComposeService().require_owned_document(session, deleted, user_id)
 
 
-class TestRequiringAConversation:
-    """The same rule for the thread a request names."""
+class TestGettingAConversation:
+    """The thread a request names is loaded whoever owns it; only a missing one raises."""
 
     @pytest.mark.asyncio
-    async def test_an_owned_conversation_is_returned(self, session: AsyncSession, current_user: User) -> None:
-        user_id = current_user.id or 1
-        existing = await _seed_conversation(session, user_id)
-
-        conversation = await ComposeService().require_owned_conversation(session, existing.uuid, user_id)
-
-        assert conversation.id == existing.id
-
-    @pytest.mark.asyncio
-    async def test_an_unknown_uuid_raises(self, session: AsyncSession, current_user: User) -> None:
+    async def test_an_unknown_uuid_raises(self, session: AsyncSession) -> None:
         with pytest.raises(ConversationNotFound):
-            await ComposeService().require_owned_conversation(session, uuid4(), current_user.id or 1)
+            await ComposeService().get_conversation(session, uuid4())
 
     @pytest.mark.asyncio
-    async def test_another_users_conversation_raises(self, session: AsyncSession, current_user: User) -> None:
-        user_id = current_user.id or 1
-        theirs = await _seed_conversation(session, user_id + 99)
+    async def test_another_users_conversation_is_returned(self, session: AsyncSession, current_user: User) -> None:
+        theirs = await _seed_conversation(session, (current_user.id or 1) + 99)
 
-        with pytest.raises(ConversationNotFound):
-            await ComposeService().require_owned_conversation(session, theirs.uuid, user_id)
+        conversation = await ComposeService().get_conversation(session, theirs.uuid)
+
+        assert conversation.id == theirs.id

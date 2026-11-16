@@ -57,10 +57,10 @@ class ComposeService:
         model: str,
         title: str | None = None,
     ) -> tuple[Conversation, bool]:
-        """Resolve the conversation a request names, or start one when it names none.
+        """Resolve the conversation a request names, or start one owned by ``user_id`` when it names none.
 
-        ``title`` is used only when starting one. Ownership is part of
-        resolving: a uuid that belongs to another user is as absent as one that does not exist.
+        ``user_id`` and ``title`` are used only when starting one. A named conversation is resolved
+        whoever owns it: whether the caller may write to it is decided before this is called.
 
         Returns:
             The conversation, and whether this call started it. Callers that do first-turn work —
@@ -68,9 +68,8 @@ class ComposeService:
             the uuid, which would put the same decision in two places.
 
         Raises:
-            ConversationNotFound: the uuid does not resolve to a conversation this user owns.
-                Never resolved by starting a fresh one, which would strand the conversation the
-                client meant to continue.
+            ConversationNotFound: no conversation has the uuid. Never resolved by starting a fresh
+                one, which would strand the conversation the client meant to continue.
         """
         if conversation_uuid is None:
             conversation = await self.create_conversation(
@@ -83,33 +82,13 @@ class ComposeService:
             )
             return conversation, True
 
-        existing = await self.require_owned_conversation(session, conversation_uuid, user_id)
+        existing = await self.get_conversation(session, conversation_uuid)
         return existing, False
 
-    async def get_conversation_by_uuid(self, session: AsyncSession, uuid: UUID, user_id: int) -> Conversation | None:
-        statement = select(Conversation).where(
-            Conversation.uuid == uuid,
-            Conversation.user_id == user_id,
-        )
-        result = await session.exec(statement)
+    async def get_conversation_by_uuid(self, session: AsyncSession, uuid: UUID) -> Conversation | None:
+        """Return the conversation with this uuid whoever owns it, or ``None`` when there is none."""
+        result = await session.exec(select(Conversation).where(Conversation.uuid == uuid))
         return result.first()
-
-    async def require_owned_conversation(
-        self,
-        session: AsyncSession,
-        conversation_uuid: UUID,
-        user_id: int,
-    ) -> Conversation:
-        """Return the caller's conversation.
-
-        Raises:
-            ConversationNotFound: no such conversation, or it belongs to someone else.
-        """
-        conversation = await self.get_conversation_by_uuid(session, conversation_uuid, user_id)
-        if conversation is None:
-            logger.warning("Conversation %s not found for user %s", conversation_uuid, user_id)
-            raise ConversationNotFound(_("Conversation not found"))
-        return conversation
 
     async def get_conversation(self, session: AsyncSession, conversation_uuid: UUID) -> Conversation:
         """Return the conversation with this uuid, whoever owns it.
@@ -117,8 +96,7 @@ class ComposeService:
         Raises:
             ConversationNotFound: no conversation has this uuid.
         """
-        result = await session.exec(select(Conversation).where(Conversation.uuid == conversation_uuid))
-        conversation = result.first()
+        conversation = await self.get_conversation_by_uuid(session, conversation_uuid)
         if conversation is None:
             logger.warning("Conversation %s not found", conversation_uuid)
             raise ConversationNotFound(_("Conversation not found"))
@@ -353,7 +331,7 @@ class ComposeService:
         document_id: int,
         user_id: int,
     ) -> Document:
-        """Return the caller's document.
+        """Return the document if ``user_id`` owns it and it is not deleted.
 
         Raises:
             DocumentNotFound: no such document, it is deleted, or it belongs to someone else.
@@ -444,20 +422,20 @@ class ComposeService:
         self,
         session: AsyncSession,
         conversation_uuid: UUID | None,
-        user_id: int,
         message: str,
     ) -> None:
         """Store an assistant error against an existing conversation, so a reload still shows it.
 
-        Does nothing without a conversation: the failure can predate one, and creating a
-        conversation to hold an error would leave the user a thread containing only that error.
+        The conversation is found by uuid alone, whoever owns it. Does nothing without a
+        conversation: the failure can predate one, and creating a conversation to hold an error
+        would leave the user a thread containing only that error.
         A database failure here is swallowed — an error is already on its way to the user, and
         raising would replace it with a less useful one.
         """
         if conversation_uuid is None:
             return
         try:
-            conversation = await self.get_conversation_by_uuid(session, conversation_uuid, user_id)
+            conversation = await self.get_conversation_by_uuid(session, conversation_uuid)
             if conversation and conversation.id is not None:
                 await self.add_message(
                     session=session,

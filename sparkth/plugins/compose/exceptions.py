@@ -2,7 +2,7 @@
 
 
 class ConversationNotFound(Exception):
-    """Raised when a conversation UUID does not resolve to one the caller owns."""
+    """Raised when no conversation has the given UUID."""
 
 
 class DocumentNotFound(Exception):
