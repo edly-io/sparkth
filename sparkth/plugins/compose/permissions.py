@@ -7,6 +7,6 @@ from sparkth.lib.permissions.scopes import USER, PermissionScope
 CONVERSATION = PermissionScope.create("conversation", parent=USER)
 
 # Conversation access, checked at the conversation. Listing is checked at the listed owner's user scope,
-# and starting a conversation at the caller's.
+# and starting a conversation at the caller's. Attaching a document is checked at the owner's user scope.
 CONVERSATION_READ = Permission.create("compose.conversation.read")
 CONVERSATION_WRITE = Permission.create("compose.conversation.write")

@@ -341,7 +341,7 @@ class TestAttachmentWriteGate:
         assert (event.action, event.target_id, event.error_detail) == (
             "denied",
             WRITE,
-            f"scope=conversation:{conversation_uuid}",
+            f"scope=user:{OWNER_ID}",
         )
 
     @pytest.mark.asyncio
@@ -453,10 +453,14 @@ class TestAttachmentWriteGate:
         assert (await ComposeService().list_conversation_attachments(session, conversation_id)).ready == []
 
     @pytest.mark.asyncio
-    async def test_write_grant_at_the_conversation_attaches_the_owners_document(
-        self, client: AsyncClient, current_user: User, session: AsyncSession
+    async def test_write_grant_at_the_conversation_cannot_attach_a_document(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+        audit_events: AuditEventsFetcher,
     ) -> None:
-        _, conversation_uuid = await _seed_conversation(session, OWNER_ID)
+        conversation_id, conversation_uuid = await _seed_conversation(session, OWNER_ID)
         _, document_id = await _seed_document(session, user_id=OWNER_ID)
         await grant_permission_at_scope(session, cast(int, current_user.id), WRITE, CONVERSATION, conversation_uuid)
         await session.commit()
@@ -465,7 +469,10 @@ class TestAttachmentWriteGate:
             f"/api/v1/compose/conversations/{conversation_uuid}/attachments", json={"document_id": document_id}
         )
 
-        assert response.status_code == 201
+        assert response.status_code == 403
+        (event,) = await audit_events()
+        assert event.error_detail == f"scope=user:{OWNER_ID}"
+        assert (await ComposeService().list_conversation_attachments(session, conversation_id)).ready == []
 
     @pytest.mark.asyncio
     async def test_write_grant_at_the_conversation_detaches_a_document(
@@ -480,21 +487,7 @@ class TestAttachmentWriteGate:
         response = await client.delete(f"/api/v1/compose/conversations/{conversation_uuid}/attachments/{document_id}")
 
         assert response.status_code == 204
-
-    @pytest.mark.asyncio
-    async def test_write_grant_holder_cannot_attach_their_own_document(
-        self, client: AsyncClient, current_user: User, session: AsyncSession
-    ) -> None:
-        _, conversation_uuid = await _seed_conversation(session, OWNER_ID)
-        _, document_id = await _seed_document(session, user_id=cast(int, current_user.id))
-        await grant_permission_at_scope(session, cast(int, current_user.id), WRITE, CONVERSATION, conversation_uuid)
-        await session.commit()
-
-        response = await client.post(
-            f"/api/v1/compose/conversations/{conversation_uuid}/attachments", json={"document_id": document_id}
-        )
-
-        assert response.status_code == 404
+        assert (await ComposeService().list_conversation_attachments(session, conversation_id)).ready == []
 
     @pytest.mark.asyncio
     async def test_read_grant_at_the_conversation_cannot_attach_or_detach(

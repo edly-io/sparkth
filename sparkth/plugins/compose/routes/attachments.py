@@ -7,10 +7,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
 from sparkth.lib.models import User
+from sparkth.lib.permissions.scopes import USER
 from sparkth.plugins.compose.analytics import ComposeAttachmentAnalytics, as_utc
 from sparkth.plugins.compose.models import Conversation
 from sparkth.plugins.compose.permissions import CONVERSATION, CONVERSATION_READ, CONVERSATION_WRITE
-from sparkth.plugins.compose.routes.dependencies import get_conversation
+from sparkth.plugins.compose.routes.dependencies import get_conversation, get_conversation_owner_id
 from sparkth.plugins.compose.schemas import (
     AttachedDocumentResponse,
     ConversationAttachmentCreate,
@@ -50,7 +51,7 @@ async def list_conversation_attachments(
     "/conversations/{conversation_id}/attachments",
     status_code=status.HTTP_201_CREATED,
     response_model=ConversationAttachmentResponse,
-    dependencies=[Depends(CONVERSATION_WRITE.require_for_object(CONVERSATION, get_conversation))],
+    dependencies=[Depends(CONVERSATION_WRITE.require_for_object(USER, get_conversation_owner_id))],
 )
 async def attach_document_to_conversation(
     body: ConversationAttachmentCreate,

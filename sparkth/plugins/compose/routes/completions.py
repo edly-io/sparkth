@@ -42,7 +42,7 @@ from sparkth.plugins.compose.llm import complete_turn
 from sparkth.plugins.compose.messages import get_last_user_text
 from sparkth.plugins.compose.models import Conversation
 from sparkth.plugins.compose.permissions import CONVERSATION, CONVERSATION_WRITE
-from sparkth.plugins.compose.routes.dependencies import get_turn_conversation
+from sparkth.plugins.compose.routes.dependencies import get_attachable_document_ids, get_turn_conversation
 from sparkth.plugins.compose.routes.utils import resolve_tools
 from sparkth.plugins.compose.routes.utils.live_turns import request_stop
 from sparkth.plugins.compose.routes.utils.message_assembly import assemble_provider_messages
@@ -98,6 +98,7 @@ async def compose_completion(
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     turn_conversation: Conversation = Depends(get_turn_conversation),
+    attachable_document_ids: list[int] = Depends(get_attachable_document_ids),
     session: AsyncSession = Depends(get_async_session),
     service: ComposeService = Depends(get_compose_service),
     llm_service: LLMConfigService = Depends(get_llm_service),
@@ -195,9 +196,16 @@ async def compose_completion(
         # completed, which for a streamed turn is after the whole stream.
         turn_analytics.schedule_conversation_started(occurred_at=conversation.created_at)
 
-    if request.document_ids:
+    if request.document_ids and not attachable_document_ids:
+        # The caller may not add documents here, so all of them are dropped and the turn runs without them.
+        attachment_analytics.schedule_documents_skipped(
+            requested_count=len(request.document_ids),
+            skipped_count=len(request.document_ids),
+            occurred_at=datetime.now(timezone.utc),
+        )
+    if attachable_document_ids:
         attached = await service.attach_owned_documents(
-            session, conversation_id, request.document_ids, turn_conversation.user_id
+            session, conversation_id, attachable_document_ids, turn_conversation.user_id
         )
         for attachment in attached.created:
             attachment_analytics.schedule_document_attached(

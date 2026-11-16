@@ -31,12 +31,16 @@ from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG
 from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.lib.llm import get_llm_service, get_provider
-from sparkth.lib.permissions.scopes import GLOBAL, USER
+from sparkth.lib.permissions.scopes import GLOBAL, USER, PermissionScope
 from sparkth.lib.testing import AuditEventsFetcher, ScriptedChatModel, grant_permission_at_scope
 from sparkth.main import app
 from sparkth.plugins.compose.config import get_compose_settings
 from sparkth.plugins.compose.detached import join_live_tasks
-from sparkth.plugins.compose.models import Conversation, Message  # noqa: F401 used in route fixture tests
+from sparkth.plugins.compose.models import (  # noqa: F401 used in route fixture tests
+    Conversation,
+    ConversationAttachment,
+    Message,
+)
 from sparkth.plugins.compose.permissions import CONVERSATION
 from sparkth.plugins.compose.schemas import (
     ChatCompletionRequest,
@@ -770,6 +774,48 @@ class TestTurnWriteGate:
         audited = await audit_events()
         assert audited
         assert {event.actor_id for event in audited} == {"1"}
+
+    @pytest.mark.parametrize(
+        ("grant_scope", "attached"), [(CONVERSATION, False), (USER, True)], ids=["conversation", "owner"]
+    )
+    async def test_a_turn_attaches_documents_only_with_write_at_the_owner(
+        self,
+        client: httpx.AsyncClient,
+        current_user: MagicMock,
+        session: AsyncSession,
+        grant_scope: PermissionScope,
+        attached: bool,
+    ) -> None:
+        conv_uuid = await _owned_by(session, OWNER_ID)
+        config_id = await seed_llm_config(session, 1)
+        document = Document(user_id=OWNER_ID, name="owner.pdf", status=DocumentStatus.READY)
+        session.add(document)
+        await session.flush()
+        document_id = document.id
+        scope_object_id = str(conv_uuid) if grant_scope is CONVERSATION else str(OWNER_ID)
+        await grant_permission_at_scope(session, 1, WRITE, grant_scope, scope_object_id)
+        await session.commit()
+        search = MagicMock(requires_search=AsyncMock(return_value=False))
+
+        with (
+            patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_answering_provider()),
+            patch("sparkth.plugins.compose.routes.completions.RAGSearchClassifier", return_value=search),
+        ):
+            response = await client.post(
+                COMPLETIONS_URL, json={**_turn(config_id, conv_uuid), "document_ids": [document_id]}
+            )
+
+        conversation = (await session.exec(select(Conversation))).one()
+        rows = (
+            await session.exec(
+                select(ConversationAttachment.document_id).where(
+                    ConversationAttachment.conversation_id == conversation.id
+                )
+            )
+        ).all()
+        assert response.status_code == 200
+        assert await stored_messages(session, str(conv_uuid))
+        assert rows == ([document_id] if attached else [])
 
     async def test_a_holder_turn_attaches_only_the_owners_documents(
         self,
