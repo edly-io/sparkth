@@ -802,14 +802,14 @@ async def test_a_turn_that_stops_partway_through_its_plan_leaves_it_open(monkeyp
 
     response = await complete_turn(TURN, [], provider, 50, **turn)
 
-    assert response["metadata"]["plan"] == asdict(OpenPlan(WRITE_THEN_BUILD, current=1))
+    assert response["metadata"]["plan"] == asdict(OpenPlan(WRITE_THEN_BUILD, current=1, current_ran=True))
 
 
 async def test_a_turn_that_finishes_an_earlier_plan_leaves_none_open(monkeypatch: pytest.MonkeyPatch) -> None:
     provider = _provider(ScriptedChatModel(messages=iter([AIMessage("Here is the activity.")])), monkeypatch)
     turn = _planned_turn(
         _calling(OTHER_AGENT.name, {"request": "Build it", "step": 2}, "c1"),
-        open_plan=OpenPlan(WRITE_THEN_BUILD, current=1),
+        open_plan=OpenPlan(WRITE_THEN_BUILD, current=1, current_ran=True),
     )
 
     response = await complete_turn(TURN, [], provider, 50, **turn)
@@ -829,7 +829,7 @@ async def test_a_turn_stopped_at_its_limit_leaves_the_plan_waiting_at_the_next_s
         for number, agent in enumerate(agents[: MAX_STEPS_PER_TURN + 1], start=1)
     ]
 
-    response = await complete_turn(TURN, [], provider, 50, **_planned_turn(*calls, open_plan=OpenPlan(steps, 1)))
+    response = await complete_turn(TURN, [], provider, 50, **_planned_turn(*calls, open_plan=OpenPlan(steps, 1, True)))
 
-    assert response["metadata"]["plan"] == asdict(OpenPlan(steps, current=MAX_STEPS_PER_TURN + 1))
+    assert response["metadata"]["plan"] == asdict(OpenPlan(steps, current=MAX_STEPS_PER_TURN + 1, current_ran=False))
     assert response["content"].endswith(f"{PLAN_CONTINUE_CHOICE}\n{PLAN_STOP_CHOICE}\n```")

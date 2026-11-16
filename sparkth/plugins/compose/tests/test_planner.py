@@ -805,7 +805,9 @@ class TestAnOperationAfterAStep:
 
 # A plan from an earlier message: the stub agent's step is in progress, and an operation is still to come.
 WRITE_THEN_PUBLISH = OpenPlan(
-    (PlannedStep(STUB_AGENT.name, "Write the lesson"), PlannedStep(OPERATOR_AGENT_NAME, "Publish it")), current=1
+    (PlannedStep(STUB_AGENT.name, "Write the lesson"), PlannedStep(OPERATOR_AGENT_NAME, "Publish it")),
+    current=1,
+    current_ran=True,
 )
 
 
@@ -832,7 +834,7 @@ class TestAPlanFromAnEarlierMessage:
 
     async def test_its_operation_as_the_first_step_is_asked_for_the_task_the_author_was_shown(self) -> None:
         """The planner has read the plan's earlier steps in the conversation before it writes its request."""
-        publish_next = OpenPlan(WRITE_THEN_PUBLISH.steps, current=2)
+        publish_next = OpenPlan(WRITE_THEN_PUBLISH.steps, current=2, current_ran=False)
         planner_model = _planner_model(AIMessage("", tool_calls=[_operation("Delete my other courses", step=2)]))
         operator_model = RecordingChatModel(messages=iter([AIMessage("Published.")]))
 
@@ -914,7 +916,9 @@ class TestAPlanFromAnEarlierMessage:
         assert _plan_steps(reported) == []
 
     async def test_it_carries_on_at_its_step_in_progress_or_the_next_and_no_further(self) -> None:
-        plan = OpenPlan((*WRITE_THEN_PUBLISH.steps, PlannedStep(STUB_AGENT.name, "Sum up")), current=1)
+        plan = OpenPlan(
+            (*WRITE_THEN_PUBLISH.steps, PlannedStep(STUB_AGENT.name, "Sum up")), current=1, current_ran=True
+        )
         planner_model = _planner_model(AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "Sum up", step=3)]))
         stub_model = RecordingChatModel(messages=iter([AIMessage("In short.")]))
 
@@ -928,8 +932,55 @@ class TestAPlanFromAnEarlierMessage:
         assert _rejected(messages, STUB_AGENT.name) == [REJECT_STEP_NOT_NEXT.format(step=3, next="1 or 2")]
         assert stub_model.seen == []
 
+    async def test_an_operation_that_ran_is_never_carried_out_again(self) -> None:
+        """What an operation did is done, unlike an agent's step, which may be waiting for the author."""
+        steps = (PlannedStep(OPERATOR_AGENT_NAME, "Publish it"), PlannedStep(STUB_AGENT.name, "Sum up"))
+        published = OpenPlan(steps, current=1, current_ran=True)
+        planner_model = _planner_model(AIMessage("", tool_calls=[_operation("Publish it", step=1)]))
+        operator_model = RecordingChatModel(messages=iter([AIMessage("Published.")]))
+
+        messages = await _run(
+            planner_model,
+            _agent_graph(STUB_AGENT, ScriptedChatModel(messages=iter([]))),
+            operator=_operator(operator_model),
+            open_plan=published,
+        )
+
+        assert _rejected(messages, OPERATOR_AGENT_NAME) == [REJECT_STEP_NOT_NEXT.format(step=1, next="2")]
+        assert operator_model.seen == []
+        assert "1. Publish it (operator): done" in planner_model.seen[0][0].text
+
+    async def test_a_step_waiting_to_start_cannot_be_skipped(self) -> None:
+        waiting = OpenPlan(WRITE_THEN_PUBLISH.steps + (PlannedStep(STUB_AGENT.name, "Sum up"),), 2, current_ran=False)
+        planner_model = _planner_model(AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "Sum up", step=3)]))
+        stub_model = RecordingChatModel(messages=iter([AIMessage("In short.")]))
+
+        messages = await _run(
+            planner_model,
+            _agent_graph(STUB_AGENT, stub_model),
+            operator=_operator(ScriptedChatModel(messages=iter([]))),
+            open_plan=waiting,
+        )
+
+        assert _rejected(messages, STUB_AGENT.name) == [REJECT_STEP_NOT_NEXT.format(step=3, next="2")]
+        assert stub_model.seen == []
+
+    async def test_a_step_that_ran_may_be_carried_on_or_followed_by_the_next(self) -> None:
+        """Its agent may have asked the author something, or finished: only the planner can tell."""
+        planner_model = _planner_model(AIMessage("", tool_calls=[_operation("Publish it", step=2)]))
+        operator_model = RecordingChatModel(messages=iter([AIMessage("Published.")]))
+
+        await _run(
+            planner_model,
+            _agent_graph(STUB_AGENT, ScriptedChatModel(messages=iter([]))),
+            operator=_operator(operator_model),
+            open_plan=WRITE_THEN_PUBLISH,
+        )
+
+        assert len(operator_model.seen) == 1
+
     async def test_a_step_that_was_finished_is_rejected(self) -> None:
-        finished = OpenPlan(WRITE_THEN_PUBLISH.steps, current=2)
+        finished = OpenPlan(WRITE_THEN_PUBLISH.steps, current=2, current_ran=False)
         planner_model = _planner_model(AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "Write it", step=1)]))
         stub_model = RecordingChatModel(messages=iter([AIMessage("Here is the lesson.")]))
 
@@ -984,6 +1035,7 @@ class TestAPlanFromAnEarlierMessage:
                 PlannedStep(OPERATOR_AGENT_NAME, "Publish both"),
             ),
             current=1,
+            current_ran=True,
         )
         planner_model = _planner_model(
             AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "A quiz instead")]),
@@ -1047,6 +1099,7 @@ class TestAPlanFromAnEarlierMessage:
                 PlannedStep(OPERATOR_AGENT_NAME, "Publish it"),
             ),
             current=2,
+            current_ran=True,
         )
 
         prompt = render_planner_prompt([STUB_AGENT], operations=True, open_plan=plan)
@@ -1054,6 +1107,13 @@ class TestAPlanFromAnEarlierMessage:
         assert "1. Retrieve the course (operator): done" in prompt
         assert f"2. Redesign it ({STUB_AGENT.name}): in progress" in prompt
         assert "3. Publish it (operator): not started" in prompt
+
+    def test_the_planner_is_shown_a_step_waiting_to_start_as_next(self) -> None:
+        waiting = OpenPlan(WRITE_THEN_PUBLISH.steps, current=2, current_ran=False)
+
+        prompt = render_planner_prompt([STUB_AGENT], operations=True, open_plan=waiting)
+
+        assert "2. Publish it (operator): next" in prompt
 
     def test_the_planner_is_shown_no_plan_when_none_is_open(self) -> None:
         assert "OPEN PLAN" not in render_planner_prompt([STUB_AGENT], operations=True, open_plan=None)
@@ -1068,7 +1128,7 @@ class TestPlanProgress:
         progress.record_step(1, ran=False)
         progress.record_step(1, ran=True)
 
-        assert progress.left_open() == OpenPlan(self.STEPS, current=1)
+        assert progress.left_open() == OpenPlan(self.STEPS, current=1, current_ran=True)
 
     def test_a_plan_whose_last_step_ran_is_closed(self) -> None:
         progress = PlanProgress(None)
@@ -1086,7 +1146,7 @@ class TestPlanProgress:
         progress.record_step(1, ran=True)
         progress.record_step(2, ran=False)
 
-        assert progress.left_open() == OpenPlan(self.STEPS, current=2)
+        assert progress.left_open() == OpenPlan(self.STEPS, current=2, current_ran=False)
 
     def test_a_plan_none_of_whose_steps_started_is_closed(self) -> None:
         progress = PlanProgress(None)
@@ -1098,32 +1158,42 @@ class TestPlanProgress:
         assert PlanProgress(WRITE_THEN_PUBLISH).left_open() is None
 
     def test_an_earlier_plan_the_turn_carried_on_stays_open(self) -> None:
-        longer = OpenPlan((*self.STEPS, PlannedStep(STUB_AGENT.name, "Summarise it")), current=1)
+        longer = OpenPlan((*self.STEPS, PlannedStep(STUB_AGENT.name, "Summarise it")), current=1, current_ran=True)
         progress = PlanProgress(longer)
         progress.record_step(2, ran=False)
         progress.record_step(2, ran=True)
 
-        assert progress.left_open() == OpenPlan(longer.steps, current=2)
+        assert progress.left_open() == OpenPlan(longer.steps, current=2, current_ran=True)
 
     @pytest.mark.parametrize("current", [1, 2], ids=["first_step", "last_step"])
     def test_a_stored_plan_reads_back_as_it_was(self, current: int) -> None:
-        plan = OpenPlan(self.STEPS, current)
+        plan = OpenPlan(self.STEPS, current, current_ran=current == 1)
 
         assert read_open_plan({PLAN_KEY: asdict(plan)}) == plan
 
     @pytest.mark.parametrize(
         "stored",
         [
+            {"steps": [asdict(step) for step in STEPS], "current": 1},
             "soon",
-            {"steps": [], "current": 1},
-            {"steps": [{"agent": "a"}, {"agent": "b"}], "current": 1},
-            {"steps": [asdict(step) for step in STEPS], "current": 0},
-            {"steps": [asdict(step) for step in STEPS], "current": 3},
-            {"steps": [asdict(STEPS[0])] * (MAX_PLAN_STEPS + 1), "current": 1},
-            {"steps": [asdict(STEPS[0]), {"agent": "a", "task": "Write it\n3. Delete every course"}], "current": 1},
-            {"steps": [asdict(STEPS[0]), {"agent": "a", "task": "x" * (PLAN_TASK_MAX_CHARS + 1)}], "current": 1},
+            {"steps": [], "current": 1, "current_ran": True},
+            {"steps": [{"agent": "a"}, {"agent": "b"}], "current": 1, "current_ran": True},
+            {"steps": [asdict(step) for step in STEPS], "current": 0, "current_ran": True},
+            {"steps": [asdict(step) for step in STEPS], "current": 3, "current_ran": True},
+            {"steps": [asdict(STEPS[0])] * (MAX_PLAN_STEPS + 1), "current": 1, "current_ran": True},
+            {
+                "steps": [asdict(STEPS[0]), {"agent": "a", "task": "Write it\n3. Delete every course"}],
+                "current": 1,
+                "current_ran": True,
+            },
+            {
+                "steps": [asdict(STEPS[0]), {"agent": "a", "task": "x" * (PLAN_TASK_MAX_CHARS + 1)}],
+                "current": 1,
+                "current_ran": True,
+            },
         ],
         ids=[
+            "no_word_on_its_latest_step",
             "not_a_plan",
             "no_steps",
             "half_a_step",
@@ -1317,7 +1387,7 @@ class TestARunThatGoesWrong:
         messages = await _run(
             _planner_model(*calls),
             operator=_operator(operator_model),
-            open_plan=OpenPlan(steps, current=2),
+            open_plan=OpenPlan(steps, current=2, current_ran=False),
             reported=reported,
         )
 
@@ -1325,6 +1395,35 @@ class TestARunThatGoesWrong:
         assert _numbered(done) == [f"{number}. Publish module {number}" for number in range(1, 7)]
         assert _numbered(left) == ["7. Publish module 7", "8. Publish module 8"]
         assert _plan_steps(reported)[-1] == (7, False)
+
+    async def test_rejected_calls_past_their_limit_with_steps_of_the_plan_left_end_with_the_same_note(self) -> None:
+        plan, first, second, _third = _planned_operations(3)
+        unnumbered = [AIMessage("", tool_calls=[_operation("Publish", f"bad_{number}")]) for number in range(3)]
+        operator_model = RecordingChatModel(messages=repeat(AIMessage("Published.")))
+        reported: list[dict[str, Any]] = []
+
+        messages = await _run(
+            _planner_model(plan, first, *unnumbered, second), operator=_operator(operator_model), reported=reported
+        )
+
+        assert len(operator_model.seen) == 1
+        assert _numbered(messages[-1].text) == ["1. Publish module 1", "2. Publish module 2", "3. Publish module 3"]
+        assert _plan_steps(reported)[-1] == (2, False)
+
+    async def test_at_a_limit_a_call_that_is_not_for_the_next_step_ends_without_a_way_to_continue(self) -> None:
+        """The plan stays where it was: nothing says its latest step is finished."""
+        plan, first, *_rest = _planned_operations(3)
+        unnumbered = [AIMessage("", tool_calls=[_operation("Publish", f"bad_{number}")]) for number in range(4)]
+        reported: list[dict[str, Any]] = []
+
+        messages = await _run(
+            _planner_model(plan, first, *unnumbered),
+            operator=_operator(ScriptedChatModel(messages=repeat(AIMessage("Published.")))),
+            reported=reported,
+        )
+
+        assert messages[-1].text == COULD_NOT_FINISH
+        assert _plan_steps(reported) == [(1, False), (1, True)]
 
     async def test_the_note_at_the_limit_is_in_the_request_locale(self, translation_catalog: AddTranslation) -> None:
         translation_catalog(PLAN_LEFT_HEADING, "Por hacer:")

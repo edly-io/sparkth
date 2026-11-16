@@ -132,8 +132,16 @@ def _active_plan(
     if step_results:
         return _ActivePlan(open_plan.steps, (first + len(step_results),), from_earlier_message=True)
 
-    # The step it was at has started. Its agent may have finished or be waiting for the author, and
-    # only the planner can tell, so that step or the one after it may run first.
+    # A step that hasn't run is next: it waited at the turn's limit, or failed or was stopped.
+    if not open_plan.current_ran:
+        return _ActivePlan(open_plan.steps, (open_plan.current,), from_earlier_message=True)
+
+    # An operation that has run is done, so only the step after it may run.
+    if open_plan.finished_count == open_plan.current:
+        return _ActivePlan(open_plan.steps, (open_plan.current + 1,), from_earlier_message=True)
+
+    # An agent's step that has run may be finished or waiting for the author, and only the planner
+    # can tell, so that step or the one after it may run first.
     return _ActivePlan(open_plan.steps, (open_plan.current, open_plan.current + 1), from_earlier_message=True)
 
 

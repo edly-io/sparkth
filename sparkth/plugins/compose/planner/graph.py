@@ -53,9 +53,11 @@ def _drop_if_unrunnable(open_plan: OpenPlan | None, names: Sequence[str]) -> Ope
 
 def _step_state(number: int, plan: OpenPlan) -> str:
     """Where step ``number`` of ``plan`` stands, as the planner reads it."""
-    if number < plan.current:
+    if number <= plan.finished_count:
         return "done"
-    return "in progress" if number == plan.current else "not started"
+    if number > plan.current:
+        return "not started"
+    return "in progress" if plan.current_ran else "next"
 
 
 def render_planner_prompt(agents: Sequence[Agent], *, operations: bool, open_plan: OpenPlan | None) -> str:

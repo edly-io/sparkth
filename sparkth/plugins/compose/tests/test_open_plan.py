@@ -7,7 +7,9 @@ from sparkth.plugins.compose.models import Message
 from sparkth.plugins.compose.planner import OpenPlan, PlannedStep
 from sparkth.plugins.compose.routes.utils import open_plan_of
 
-PLAN = OpenPlan((PlannedStep("stub", "Write the lesson"), PlannedStep("operator", "Publish it")), current=1)
+PLAN = OpenPlan(
+    (PlannedStep("stub", "Write the lesson"), PlannedStep("operator", "Publish it")), current=1, current_ran=True
+)
 
 
 def _reply(metadata: str | None) -> Message:

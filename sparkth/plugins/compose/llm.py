@@ -410,7 +410,7 @@ async def _turn_events(
     started runs only once this generator is asked for its next event. A refusal arrives as the
     refusal sentence. Yields ``plan`` with the steps of a plan the turn makes, and ``plan_step``
     with the number of each step of that plan or of ``open_plan``, a plan from an earlier message
-    that isn't finished, when the step starts and again once it has run.
+    that isn't finished, when the step starts, once it has run, or when the plan waits at it.
     """
     planner = _planner_for_turn(agents, tools, provider, planner_llm, max_tool_executions, open_plan)
     stream = _stream_planner(planner, messages, provider)

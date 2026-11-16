@@ -25,14 +25,14 @@ class PlanProgress:
         self._steps = earlier.steps if earlier is not None else ()
         self._current = earlier.current if earlier is not None else 0
         self._carried_on = False
-        self._current_ran = False
+        self._current_ran = earlier.current_ran if earlier is not None else False
 
     def record_plan(self, steps: Sequence[PlannedStep]) -> None:
         """Note that the turn made a plan of ``steps``, which replaces any earlier one."""
         self._steps, self._current, self._carried_on, self._current_ran = tuple(steps), 0, False, False
 
     def record_step(self, number: int, *, ran: bool) -> None:
-        """Note that the plan's step ``number`` started, or that it has ``ran``."""
+        """Note that the plan is at its step ``number``, which has ``ran``, or else has started or waits to start."""
         self._current, self._carried_on, self._current_ran = number, True, ran
 
     def left_open(self) -> OpenPlan | None:
@@ -41,7 +41,7 @@ class PlanProgress:
         finished = self._current_ran and self._current >= len(self._steps)
         if not self._carried_on or finished:
             return None
-        return OpenPlan(self._steps, self._current)
+        return OpenPlan(self._steps, self._current, self._current_ran)
 
 
 def _within_plan_limits(plan: OpenPlan) -> bool:

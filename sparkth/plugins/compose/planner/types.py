@@ -6,6 +6,7 @@ from typing import Any
 from langgraph.graph.state import CompiledStateGraph
 
 from sparkth.lib.audit.events import AuditModelInfo
+from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME
 from sparkth.lib.compose.hooks import Agent
 
 
@@ -35,8 +36,16 @@ class PlannedStep:
 
 @dataclass(frozen=True)
 class OpenPlan:
-    """A plan the author was shown that isn't finished: its steps, and the number of the one it is at, the
-    latest that started or the next when the turn stopped at its limit of steps."""
+    """A plan the author was shown that isn't finished: its steps, the number of the step it is at, and whether
+    that step has run. A step that has run may be finished or waiting for the author; one that hasn't is next."""
 
     steps: tuple[PlannedStep, ...]
     current: int
+    current_ran: bool
+
+    @property
+    def finished_count(self) -> int:
+        """How many of its steps are known to be finished: those before the one it is at, and that one
+        too when it is an operation that has run."""
+        operated = self.current_ran and self.steps[self.current - 1].agent == OPERATOR_AGENT_NAME
+        return self.current if operated else self.current - 1
