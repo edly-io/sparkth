@@ -1492,9 +1492,9 @@ export interface paths {
         };
         /**
          * List User Plugins
-         * @description List all plugins with their enabled status for the current user.
+         * @description List the plugins the current user may use, with their enabled status.
          *
-         *     Returns all available plugins and whether they are enabled or disabled,
+         *     Returns each usable plugin and whether it is enabled or disabled,
          *     and pre-populates the config with keys from the plugin's schema.
          */
         get: operations["list_user_plugins_api_v1_user_plugins__get"];

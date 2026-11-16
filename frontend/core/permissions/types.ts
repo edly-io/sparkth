@@ -31,4 +31,6 @@ export type PermissionName =
   | "compose.conversation.write"
   | "googledrive.read"
   | "googledrive.sync"
-  | "googledrive.delete";
+  | "googledrive.delete"
+  | "plugin.use"
+  | "file.upload";
