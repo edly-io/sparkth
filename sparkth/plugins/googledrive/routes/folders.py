@@ -21,6 +21,7 @@ from sparkth.plugins.googledrive.permissions import DRIVE_READ, DRIVE_SYNC
 from sparkth.plugins.googledrive.routes.dependencies import (
     get_drive_folder,
     get_drive_folder_owner_id,
+    require_drive_use,
 )
 from sparkth.plugins.googledrive.routes.route_utils import get_drive_credentials
 from sparkth.plugins.googledrive.schemas import (
@@ -31,7 +32,7 @@ from sparkth.plugins.googledrive.schemas import (
 )
 from sparkth.plugins.googledrive.utils import process_folder_rag, soft_delete_drive_file
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_drive_use)])
 logger = get_logger(__name__)
 
 _FOLDER_MIME_TYPE: str = GoogleDriveClient.FOLDER_MIME_TYPE
