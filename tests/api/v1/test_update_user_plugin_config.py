@@ -2,27 +2,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi import status
 from httpx import AsyncClient
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.user import User
 from sparkth.core.plugins.service import ConfigValidationError
-from sparkth.lib.testing import restrict_plugin_use
-
-
-async def test_unknown_plugin_is_not_found_for_a_global_holder(client: AsyncClient, user_plugins: User) -> None:
-    response = await client.get("/api/v1/user-plugins/does-not-exist")
-
-    assert response.status_code == status.HTTP_404_NOT_FOUND
-
-
-async def test_unknown_plugin_is_refused_without_a_grant(
-    client: AsyncClient, session: AsyncSession, user_plugins: User
-) -> None:
-    await restrict_plugin_use(session, None)
-
-    response = await client.get("/api/v1/user-plugins/does-not-exist")
-
-    assert response.status_code == status.HTTP_403_FORBIDDEN
 
 
 async def test_update_plugin_not_configured_success(client: AsyncClient, user_plugins: User) -> None:

@@ -32,7 +32,7 @@ logger = get_logger(__name__)
 
 router: APIRouter = APIRouter()
 
-PLUGIN_USE_GATE = Depends(PLUGIN_USE.require(PLUGIN, "plugin_name"))
+require_plugin_use = PLUGIN_USE.require(PLUGIN, "plugin_name")
 
 
 class UpdateUserPluginRequest(BaseModel):
@@ -129,7 +129,7 @@ async def list_user_plugins(
 @router.post(
     "/{plugin_name}/configure",
     response_model=UserPluginResponse,
-    dependencies=[PLUGIN_USE_GATE],
+    dependencies=[Depends(require_plugin_use)],
     status_code=status.HTTP_201_CREATED,
 )
 async def create_user_plugin(
@@ -177,7 +177,7 @@ async def create_user_plugin(
     )
 
 
-@router.get("/{plugin_name}", response_model=UserPluginResponse, dependencies=[PLUGIN_USE_GATE])
+@router.get("/{plugin_name}", response_model=UserPluginResponse, dependencies=[Depends(require_plugin_use)])
 async def get_user_plugin(
     plugin_name: str,
     current_user: User = Depends(get_current_user),
@@ -216,7 +216,7 @@ async def get_user_plugin(
         )
 
 
-@router.patch("/{plugin_name}", response_model=UserPluginResponse, dependencies=[PLUGIN_USE_GATE])
+@router.patch("/{plugin_name}", response_model=UserPluginResponse, dependencies=[Depends(require_plugin_use)])
 async def update_user_plugin(
     plugin_name: str,
     request: UpdateUserPluginRequest,
@@ -248,7 +248,7 @@ async def update_user_plugin(
     )
 
 
-@router.put("/{plugin_name}/config", response_model=UserPluginResponse, dependencies=[PLUGIN_USE_GATE])
+@router.put("/{plugin_name}/config", response_model=UserPluginResponse, dependencies=[Depends(require_plugin_use)])
 async def update_user_plugin_config(
     plugin_name: str,
     request: UserPluginConfigRequest,
@@ -291,7 +291,7 @@ async def update_user_plugin_config(
     )
 
 
-@router.patch("/{plugin_name}/enable", response_model=UserPluginResponse, dependencies=[PLUGIN_USE_GATE])
+@router.patch("/{plugin_name}/enable", response_model=UserPluginResponse, dependencies=[Depends(require_plugin_use)])
 async def enable_user_plugin(
     plugin_name: str,
     current_user: User = Depends(get_current_user),
@@ -312,7 +312,7 @@ async def enable_user_plugin(
     )
 
 
-@router.patch("/{plugin_name}/disable", response_model=UserPluginResponse, dependencies=[PLUGIN_USE_GATE])
+@router.patch("/{plugin_name}/disable", response_model=UserPluginResponse, dependencies=[Depends(require_plugin_use)])
 async def disable_user_plugin(
     plugin_name: str,
     current_user: User = Depends(get_current_user),

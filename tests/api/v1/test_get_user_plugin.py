@@ -11,7 +11,17 @@ from sparkth.lib.frontend.hooks import DISPLAY_INFO, DisplayInfo
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.lib.testing import AuditEventsFetcher, assert_plugin_use_denied, restrict_plugin_use
 
-from .conftest import BY_NAME_ROUTES, SCHEMA_PLUGIN_CONFIG_SCHEMA, add_user_plugin
+from .conftest import SCHEMA_PLUGIN_CONFIG_SCHEMA, add_user_plugin
+
+# Every by-name route as (method, path suffix, JSON body) for the plugin named in the URL.
+BY_NAME_ROUTES: list[tuple[str, str, dict[str, Any] | None]] = [
+    ("GET", "", None),
+    ("POST", "/configure", {}),
+    ("PATCH", "", {"enabled": True}),
+    ("PUT", "/config", {"config": {}}),
+    ("PATCH", "/enable", None),
+    ("PATCH", "/disable", None),
+]
 
 
 @pytest.mark.parametrize(("method", "suffix", "body"), BY_NAME_ROUTES)
@@ -31,6 +41,52 @@ async def test_by_name_routes_refuse_without_a_grant(
 
     assert response.status_code == status.HTTP_403_FORBIDDEN
     await assert_plugin_use_denied(audit_events, "schema_plugin")
+
+
+@pytest.mark.parametrize(("method", "suffix", "body"), BY_NAME_ROUTES)
+async def test_by_name_routes_allow_a_grant_at_that_plugin(
+    method: str,
+    suffix: str,
+    body: dict[str, Any] | None,
+    current_user: User,
+    client: AsyncClient,
+    session: AsyncSession,
+    schema_plugin: Plugin,
+    audit_events: AuditEventsFetcher,
+) -> None:
+    await restrict_plugin_use(session, "schema_plugin")
+
+    response = await client.request(method, f"/api/v1/user-plugins/schema_plugin{suffix}", json=body)
+
+    assert response.status_code != status.HTTP_403_FORBIDDEN
+    assert [event for event in await audit_events() if event.category == "permission"] == []
+
+
+@pytest.mark.parametrize(("method", "suffix", "body"), BY_NAME_ROUTES)
+async def test_by_name_routes_refuse_a_grant_at_another_plugin(
+    method: str,
+    suffix: str,
+    body: dict[str, Any] | None,
+    current_user: User,
+    client: AsyncClient,
+    session: AsyncSession,
+    schema_plugin: Plugin,
+) -> None:
+    await restrict_plugin_use(session, "other_plugin")
+
+    response = await client.request(method, f"/api/v1/user-plugins/schema_plugin{suffix}", json=body)
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+async def test_unknown_plugin_is_refused_without_a_grant(
+    client: AsyncClient, session: AsyncSession, user_plugins: User
+) -> None:
+    await restrict_plugin_use(session, None)
+
+    response = await client.get("/api/v1/user-plugins/does-not-exist")
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
 
 
 async def test_get_user_plugin_success(client: AsyncClient, user_plugins: User) -> None:
