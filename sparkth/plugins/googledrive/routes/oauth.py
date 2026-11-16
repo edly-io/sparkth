@@ -5,7 +5,7 @@ from fastapi.responses import RedirectResponse
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.audit.context import UserActor, bind_audit_actor
-from sparkth.lib.auth import get_current_user
+from sparkth.lib.auth import get_current_user, get_current_user_id
 from sparkth.lib.db import get_async_session
 from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
@@ -22,7 +22,6 @@ from sparkth.plugins.googledrive.oauth import (
     get_valid_access_token,
     revoke_token,
 )
-from sparkth.plugins.googledrive.routes.dependencies import require_user_id
 from sparkth.plugins.googledrive.routes.route_utils import get_drive_credentials
 from sparkth.plugins.googledrive.schemas import (
     GoogleDriveAuthorizationUrlResponse,
@@ -36,7 +35,7 @@ logger = get_logger(__name__)
 @router.get("/oauth/authorize", response_model=GoogleDriveAuthorizationUrlResponse)
 def get_authorization_url(
     current_user: User = Depends(get_current_user),
-    user_id: int = Depends(require_user_id),
+    user_id: int = Depends(get_current_user_id),
 ) -> GoogleDriveAuthorizationUrlResponse:
     """Generate Google OAuth authorization URL."""
     client_id, _client_secret, redirect_uri = get_drive_credentials()
@@ -105,7 +104,7 @@ async def oauth_callback(
 
 @router.delete("/oauth/disconnect")
 async def disconnect_drive(
-    user_id: int = Depends(require_user_id),
+    user_id: int = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_async_session),
 ) -> dict[str, str]:
     """Disconnect Google Drive by revoking and deleting tokens."""
@@ -125,7 +124,7 @@ async def disconnect_drive(
 
 @router.get("/oauth/status", response_model=GoogleDriveConnectionStatusResponse)
 async def get_connection_status(
-    user_id: int = Depends(require_user_id),
+    user_id: int = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_async_session),
 ) -> GoogleDriveConnectionStatusResponse:
     """Get Google Drive connection status."""

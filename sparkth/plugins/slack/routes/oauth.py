@@ -8,6 +8,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.audit.context import UserActor, bind_audit_actor
+from sparkth.lib.auth import get_current_user_id
 from sparkth.lib.db import get_async_session
 from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
@@ -16,7 +17,6 @@ from sparkth.plugins.slack.enums import ConnectionEventType
 from sparkth.plugins.slack.exceptions import UserAlreadyConnectedError, WorkspaceAlreadyConnectedError
 from sparkth.plugins.slack.models import SlackConnectionLog
 from sparkth.plugins.slack.oauth import decode_state, exchange_code_for_tokens, generate_authorization_url
-from sparkth.plugins.slack.routes.dependencies import require_user_id
 from sparkth.plugins.slack.service import WorkspaceService, get_workspace_service
 from sparkth.plugins.slack.types import SlackAuthorizationUrlResponse, SlackConnectionStatusResponse
 
@@ -43,7 +43,7 @@ def get_slack_credentials() -> SlackSettings:
 
 
 @oauth_router.get("/oauth/authorize", response_model=SlackAuthorizationUrlResponse)
-def get_authorization_url(user_id: int = Depends(require_user_id)) -> SlackAuthorizationUrlResponse:
+def get_authorization_url(user_id: int = Depends(get_current_user_id)) -> SlackAuthorizationUrlResponse:
     """Return the Slack OAuth install URL."""
     creds = get_slack_credentials()
     url = generate_authorization_url(user_id, creds.client_id, creds.redirect_uri)
@@ -136,7 +136,7 @@ async def oauth_callback(
 
 @oauth_router.delete("/oauth/disconnect")
 async def disconnect_workspace(
-    user_id: int = Depends(require_user_id),
+    user_id: int = Depends(get_current_user_id),
     service: WorkspaceService = Depends(get_workspace_service),
     session: AsyncSession = Depends(get_async_session),
 ) -> dict[str, str]:
@@ -169,7 +169,7 @@ async def disconnect_workspace(
 
 @oauth_router.get("/oauth/status", response_model=SlackConnectionStatusResponse)
 async def get_connection_status(
-    user_id: int = Depends(require_user_id),
+    user_id: int = Depends(get_current_user_id),
     service: WorkspaceService = Depends(get_workspace_service),
     session: AsyncSession = Depends(get_async_session),
 ) -> SlackConnectionStatusResponse:
