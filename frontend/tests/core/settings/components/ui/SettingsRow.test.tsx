@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 
 import { SettingsRow } from "@/core/settings/components/ui/SettingsRow";
-import { renderWithIntl } from "@/tests/intl-test-utils";
+import { renderWithIntl } from "@/tests/intl";
 
 function renderRow(props: Partial<Parameters<typeof SettingsRow>[0]> = {}) {
   const onToggle = vi.fn(async () => {});

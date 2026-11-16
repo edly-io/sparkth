@@ -13,7 +13,8 @@ import {
 } from "@/core/auth/components/ui/NewPasswordFields";
 import { Alert } from "@/core/components/ui/Alert";
 import { Button } from "@/core/components/ui/Button";
-import { ApiRequestError, confirmPasswordReset } from "@/lib/api";
+import { ApiRequestError } from "@/lib/api";
+import { confirmPasswordReset } from "@/core/auth/client";
 
 /**
  * Sets a new password with the token from an emailed reset link (`?token=`). A link the API

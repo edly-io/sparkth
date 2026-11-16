@@ -12,9 +12,8 @@ def render_system_prompt(agents: list[Agent]) -> str:
     """Render the Compose system prompt: Compose's skeleton with each agent's prompt under its title.
 
     The skeleton holds every rule the agents share: the date, the assistant's identity, the
-    output language, the response boundaries and the offering-choices format. It also carries
-    Compose's own LMS operations. Each prompt is inserted as a value, never formatted, so a brace
-    in it reaches the model as written.
+    output language, the response boundaries and the offering-choices format. Each prompt is
+    inserted as a value, never formatted, so a brace in it reaches the model as written.
 
     No language is injected. The skeleton tells the model to write in the language of the
     user's most recent message and to switch when the user does. The date is the only
