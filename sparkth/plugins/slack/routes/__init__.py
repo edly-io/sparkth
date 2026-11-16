@@ -20,6 +20,9 @@ from sparkth.lib.documents import list_ready_documents
 from sparkth.lib.i18n import _
 from sparkth.lib.llm import BaseChatProvider, get_llm_service, get_provider
 from sparkth.lib.log import get_logger
+from sparkth.lib.models import User
+from sparkth.lib.permissions import PLUGIN_USE, can
+from sparkth.lib.permissions.scopes import PLUGIN, build_scope_path
 from sparkth.lib.plugins import PluginService
 from sparkth.plugins.slack.client import SlackClient
 from sparkth.plugins.slack.config import SlackConfig, get_slack_settings
@@ -27,6 +30,7 @@ from sparkth.plugins.slack.constants import (
     AI_KEY_UNAVAILABLE_MESSAGE,
     NO_AI_KEY_MESSAGE,
     RETRIEVAL_ERROR_MESSAGE,
+    SLACK_PLUGIN_NAME,
     SYNTHESIS_SYSTEM_PROMPT,
 )
 from sparkth.plugins.slack.enums import ResponseType
@@ -34,6 +38,7 @@ from sparkth.plugins.slack.events import extract_question, is_greeting, should_h
 from sparkth.plugins.slack.exceptions import SlackSignatureError
 from sparkth.plugins.slack.models import BotResponseLog, SlackConnectionLog
 from sparkth.plugins.slack.rag import answer_question
+from sparkth.plugins.slack.routes.dependencies import require_slack_use
 from sparkth.plugins.slack.routes.oauth import oauth_router
 from sparkth.plugins.slack.service import WorkspaceService, decrypt_token, get_workspace_service
 from sparkth.plugins.slack.types import (
@@ -195,6 +200,14 @@ async def _reply_and_log(
         )
 
 
+async def _check_user_may_use_slack(session: AsyncSession, user_id: int) -> bool:
+    """Return whether the user exists and holds ``plugin.use`` at the Slack plugin's scope."""
+    user = await session.get(User, user_id)
+    if user is None:
+        return False
+    return await can(user, PLUGIN_USE, PLUGIN, build_scope_path(PLUGIN, SLACK_PLUGIN_NAME), session)
+
+
 async def _dispatch_event(
     workspace_id: int,
     user_id: int,
@@ -222,6 +235,16 @@ async def _dispatch_event(
     )
 
     async with session_scope() as session:
+        if not await _check_user_may_use_slack(session, user_id):
+            logger.info("User %d may not use the Slack plugin", user_id)
+            await _reply_and_log(
+                session,
+                reply="The TA Bot is currently disabled by your instructor.",
+                response_type=ResponseType.PLUGIN_DISABLED,
+                **common,
+            )
+            return
+
         plugin_map = await PluginService().get_user_plugin_map(session, user_id)
 
         user_plugin = plugin_map.get("slack")
@@ -412,7 +435,7 @@ async def slack_events(
     return {"ok": "true"}
 
 
-@router.get("/logs", response_model=LogsResponse)
+@router.get("/logs", response_model=LogsResponse, dependencies=[Depends(require_slack_use)])
 async def get_response_logs(
     user_id: int = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_async_session),
@@ -557,7 +580,7 @@ def _to_connection_item(row: SlackConnectionLog) -> ConnectionLogItem:
     )
 
 
-@router.get("/rag/sources", response_model=RagSourcesResponse)
+@router.get("/rag/sources", response_model=RagSourcesResponse, dependencies=[Depends(require_slack_use)])
 async def list_rag_sources(
     user_id: int = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_async_session),
