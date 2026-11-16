@@ -43,6 +43,16 @@ async def user_plugins(current_user: User, session: AsyncSession) -> User:
     return current_user
 
 
+# Every by-name user-plugins route as (method, path suffix, JSON body) for the plugin named in the URL.
+BY_NAME_ROUTES: list[tuple[str, str, dict[str, Any] | None]] = [
+    ("GET", "", None),
+    ("POST", "/configure", {}),
+    ("PATCH", "", {"enabled": True}),
+    ("PUT", "/config", {"config": {}}),
+    ("PATCH", "/enable", None),
+    ("PATCH", "/disable", None),
+]
+
 # A plugin config schema in the shape Pydantic's ``model_json_schema()`` emits, so the
 # responses exercise the same key extraction as a real plugin.
 SCHEMA_PLUGIN_CONFIG_SCHEMA: dict[str, Any] = {

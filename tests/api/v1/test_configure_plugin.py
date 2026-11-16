@@ -1,13 +1,36 @@
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 from unittest.mock import AsyncMock, patch
 
+import pytest
 from fastapi import FastAPI, status
 from httpx import ASGITransport, AsyncClient
+from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.core.models.plugin import Plugin
 from sparkth.core.models.user import User
 from sparkth.core.plugins.service import ConfigValidationError, InternalServerError, PluginService
 from sparkth.lib.auth import get_current_user
+from sparkth.lib.testing import restrict_plugin_use
+
+from .conftest import BY_NAME_ROUTES
+
+
+@pytest.mark.parametrize(("method", "suffix", "body"), BY_NAME_ROUTES)
+async def test_by_name_routes_allow_a_grant_at_that_plugin(
+    method: str,
+    suffix: str,
+    body: dict[str, Any] | None,
+    current_user: User,
+    client: AsyncClient,
+    session: AsyncSession,
+    schema_plugin: Plugin,
+) -> None:
+    await restrict_plugin_use(session, "schema_plugin")
+
+    response = await client.request(method, f"/api/v1/user-plugins/schema_plugin{suffix}", json=body)
+
+    assert response.status_code != status.HTTP_403_FORBIDDEN
 
 
 async def test_configure_user_plugin_success(client: AsyncClient, user_plugins: User) -> None:
@@ -74,7 +97,7 @@ async def test_configure_user_plugin_unauthorized(client: AsyncClient) -> None:
     app.dependency_overrides[get_current_user] = get_user_override
 
     response = await client.post("/api/v1/user-plugins/plugin_a/configure", json={})
-    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert response.status_code == status.HTTP_403_FORBIDDEN
 
 
 async def test_configure_user_plugin_not_found(client: AsyncClient, user_plugins: User) -> None:
