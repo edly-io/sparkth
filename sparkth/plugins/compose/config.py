@@ -5,6 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from sparkth.lib.plugins import ConfigWidget, PluginConfig, widget
 from sparkth.lib.settings import ENV_FILES
+from sparkth.plugins.compose.enums import PlannerModel
 
 
 class ComposeSettings(BaseSettings):
@@ -16,6 +17,8 @@ class ComposeSettings(BaseSettings):
     )
 
     max_tool_executions: int = 50
+    # The model the planner runs on: the provider's small model, or the same model as the reply.
+    planner_model: PlannerModel = PlannerModel.SMALL
     # How long a streamed turn may stay silent before a keep-alive comment is sent, in seconds.
     stream_heartbeat_seconds: float = 15
     title_max_length: int = 60
