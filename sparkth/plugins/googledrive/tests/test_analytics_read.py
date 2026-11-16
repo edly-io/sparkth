@@ -8,7 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.analytics import ingest_event
 from sparkth.lib.models import User
-from sparkth.lib.permissions import DEFAULT_USER_ROLE, PLUGIN_USER_ROLE, revoke_role
+from sparkth.lib.permissions import PLUGIN_USER_ROLE, SPARKTH_USER_ROLE, revoke_role
 from sparkth.lib.permissions.scopes import GLOBAL, PLUGIN, USER
 from sparkth.lib.testing import AuditEventsFetcher, grant_global_permission, grant_permission_at_scope
 from sparkth.plugins.googledrive.constants import GOOGLE_DRIVE_PLUGIN_NAME
@@ -65,7 +65,7 @@ async def test_allows_a_grant_at_the_drive_plugin_only(
     session.add(current_user)
     await session.flush()
     await revoke_role(1, PLUGIN_USER_ROLE, GLOBAL, None, session)
-    await revoke_role(1, DEFAULT_USER_ROLE, USER, "1", session)
+    await revoke_role(1, SPARKTH_USER_ROLE, USER, "1", session)
     await grant_permission_at_scope(session, 1, "analytics.read", PLUGIN, GOOGLE_DRIVE_PLUGIN_NAME)
     await session.commit()
 
