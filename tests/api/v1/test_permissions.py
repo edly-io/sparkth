@@ -410,14 +410,14 @@ class TestPermissionExceptionRegistration:
         from sparkth.lib.permissions.exceptions import (
             PermissionNotFound,
             RoleAlreadyExists,
-            RoleNotDeletable,
+            RoleIsBuiltin,
             RoleNotFound,
         )
 
         registered = dict(EXCEPTION_HANDLERS.iter_values())
         assert RoleNotFound in registered
         assert RoleAlreadyExists in registered
-        assert RoleNotDeletable in registered
+        assert RoleIsBuiltin in registered
         assert PermissionNotFound in registered
 
 

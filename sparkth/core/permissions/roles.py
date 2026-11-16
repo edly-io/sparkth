@@ -14,7 +14,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.core.permissions import PERMISSIONS, get_permission
 from sparkth.core.permissions.exceptions import (
     RoleAlreadyExists,
-    RoleNotDeletable,
+    RoleIsBuiltin,
     RoleNotFound,
 )
 from sparkth.core.permissions.grants import (
@@ -132,7 +132,7 @@ async def _delete_role_dependents(role_id: int, session: AsyncSession) -> None:
 async def delete_role(role_id: int, session: AsyncSession) -> None:
     """Delete a role together with everything that references it, recording ``role.deleted``.
 
-    Raises RoleNotFound if the role is missing or RoleNotDeletable if it ships with Sparkth.
+    Raises RoleNotFound if the role is missing or RoleIsBuiltin if it ships with Sparkth.
     Removes the role's permission grants, every user and group assignment of it (active and
     revoked), and every grant scoped to the role itself (``role:<id>``), in one transaction.
     Each active user assignment records ``role.unassigned`` and each active group assignment
@@ -141,7 +141,7 @@ async def delete_role(role_id: int, session: AsyncSession) -> None:
     """
     role = await get_role(role_id, session, for_update=True)
     if role.is_builtin:
-        raise RoleNotDeletable(role.name)
+        raise RoleIsBuiltin(role.name)
     await delete_grants_at_object(ROLE, str(role_id), session)
     await _delete_role_dependents(role_id, session)
     await session.delete(role)
