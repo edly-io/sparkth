@@ -5,7 +5,7 @@ const ctx = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
 vi.mock("@/core/plugins/context", () => ({ usePluginContext: () => ctx.value }));
 
 import PluginsSettings from "@/app/dashboard/settings/page";
-import { renderWithIntl } from "@/tests/intl-test-utils";
+import { renderWithIntl } from "@/tests/intl";
 
 const base = {
   userPlugins: [],

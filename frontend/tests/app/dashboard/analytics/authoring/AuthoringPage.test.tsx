@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { renderWithIntl } from "@/tests/intl-test-utils";
+import { renderWithIntl } from "@/tests/intl";
 
 import { ApiRequestError } from "@/lib/api";
 
@@ -11,22 +11,21 @@ vi.mock("@/core/auth/hooks", () => ({
 }));
 
 // Analytics data access: keep the real types and helpers, stub the fetches.
-vi.mock("@/plugins/google-drive/analytics", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/plugins/google-drive/analytics")>();
+vi.mock("@/plugins/googledrive/src/analytics", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/plugins/googledrive/src/analytics")>();
   return { ...actual, fetchDriveDocuments: vi.fn() };
 });
-vi.mock("@/plugins/compose/analytics", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/plugins/compose/analytics")>();
+vi.mock("@/plugins/compose/src/analytics", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/plugins/compose/src/analytics")>();
   return { ...actual, fetchComposeActivity: vi.fn() };
 });
 
-// The plugins installed in the backend build. No PluginProvider is mounted: analytics must not
-// depend on the viewer's own plugin switches.
+// The plugins registered with core, which is what counts as installed. No PluginProvider is
+// mounted: analytics must not depend on the viewer's own plugin switches.
 const plugins = vi.hoisted(() => ({ installed: ["compose"] }));
-vi.mock("@/lib/plugins/generated", () => ({
-  get FRONTEND_PLUGIN_NAMES() {
-    return plugins.installed;
-  },
+vi.mock("@/core/plugins/registry", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/core/plugins/registry")>()),
+  getPlugin: (name: string) => (plugins.installed.includes(name) ? { name } : undefined),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -40,8 +39,8 @@ import {
   EMPTY_SEARCH,
   fetchComposeActivity,
   type ComposeActivityPoint,
-} from "@/plugins/compose/analytics";
-import { fetchDriveDocuments, type DriveDocumentsPoint } from "@/plugins/google-drive/analytics";
+} from "@/plugins/compose/src/analytics";
+import { fetchDriveDocuments, type DriveDocumentsPoint } from "@/plugins/googledrive/src/analytics";
 import AuthoringPage from "@/app/dashboard/analytics/authoring/AuthoringPage";
 
 // Answers by period: the current period ends on the pinned "today".
