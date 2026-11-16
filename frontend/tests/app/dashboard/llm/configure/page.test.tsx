@@ -14,7 +14,7 @@ vi.mock("@/core/llm/client", () => ({
 
 import { fetchLLMConfigs, fetchProviderCatalog, setLLMConfigActive } from "@/core/llm/client";
 import LLMConfigurePage from "@/app/dashboard/llm/configure/page";
-import { renderWithIntl } from "@/tests/intl-test-utils";
+import { renderWithIntl } from "@/tests/intl";
 
 const config = {
   id: 1,

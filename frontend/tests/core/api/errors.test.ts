@@ -1,0 +1,23 @@
+import { afterEach, describe, expect, it } from "vitest";
+
+import { rethrowOrWrapConnectionError } from "@/core/api/errors";
+import { setActiveLocale, setActiveMessages } from "@/core/i18n/activeLocale";
+import { defaultLocale } from "@/lib/i18n/config";
+import en from "@/core/i18n/catalogs/en";
+import fr from "@/core/i18n/catalogs/fr";
+
+describe("rethrowOrWrapConnectionError", () => {
+  afterEach(() => {
+    setActiveLocale(defaultLocale);
+    setActiveMessages(en);
+  });
+
+  it("describes a transport failure in the language on screen", () => {
+    setActiveLocale("fr");
+    setActiveMessages(fr);
+
+    expect(() => rethrowOrWrapConnectionError(new TypeError("Failed to fetch"))).toThrow(
+      "Impossible de se connecter au serveur : Failed to fetch",
+    );
+  });
+});

@@ -1,0 +1,28 @@
+{
+  "plugins": {
+    "config": {
+      "title": "Configurar {name}",
+      "empty": "No hay opciones de configuración disponibles",
+      "cancel": "Cancelar",
+      "save": "Guardar cambios",
+      "saving": "Guardando",
+      "saveError": "No se pudo guardar la configuración.",
+      "stored": "Guardado",
+      "replace": "Reemplazar",
+      "keepStored": "Mantener guardada",
+      "keepStoredField": "Mantener guardada {field}",
+      "replaceField": "Reemplazar {field}"
+    },
+    "toggle": "Activar o desactivar {name}",
+    "configure": "Configurar {name}",
+    "enableError": "No se pudo activar el plugin.",
+    "disableError": "No se pudo desactivar el plugin.",
+    "enabled": "Habilitado",
+    "disabled": "Deshabilitado",
+    "title": "Configuración",
+    "subtitle": "Activa o desactiva tus plugins y configúralos.",
+    "loading": "Cargando plugins...",
+    "loadError": "No se pudieron cargar los plugins: {error}",
+    "empty": "No se encontraron plugins"
+  }
+}
