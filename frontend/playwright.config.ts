@@ -34,7 +34,7 @@ export default defineConfig({
   },
 
   projects: [
-    { name: "setup", testMatch: "e2e-tests/**/*.setup.ts" },
+    { name: "setup", testMatch: ["e2e-tests/**/*.setup.ts", "plugins/*/tests/e2e/**/*.setup.ts"] },
 
     {
       name: "chromium",

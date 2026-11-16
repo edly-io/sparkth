@@ -14,7 +14,7 @@ import {
 } from "@/core/analytics";
 import { ApiRequestError } from "@/lib/api";
 
-import { mockFetch, sentRequest } from "@/tests/lib/test-utils";
+import { mockFetch, sentRequest } from "@/tests/lib/utils";
 
 // authMiddleware reads the stored token; stub it to null so the explicit bearer
 // header from the client is what we assert on (mirrors lib/tests/llm.test.ts).

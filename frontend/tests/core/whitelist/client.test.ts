@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { addWhitelistEntry, getWhitelist, removeWhitelistEntry } from "@/core/whitelist/client";
 
-import { mockFetch, sentRequest } from "@/tests/lib/test-utils";
+import { mockFetch, sentRequest } from "@/tests/lib/utils";
 
 vi.mock("@/core/auth/tokens", () => ({
   getStoredToken: vi.fn().mockReturnValue(null),

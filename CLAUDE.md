@@ -109,8 +109,6 @@ directories named for what they hold; a plugin's tests live inside the plugin, l
   `frontend/plugins/<plugin>/tests/e2e/`. Both runners collect them (`include` in `frontend/vitest.config.ts`,
   `testMatch` in `frontend/playwright.config.ts`). A plugin test takes its helpers from `@/lib/testing/`
   (`renderWithIntl`, `IntlTestProvider`, `mockFetch`, `sentRequest`), never from `frontend/tests/` or `@/core`.
-  Existing plugin tests still sit under `frontend/tests/plugins/` until each plugin's are moved in; new plugin
-  tests go in the plugin.
 - **Unit (vitest)** → [`frontend/tests/`](frontend/tests/), a single central mirror of the source
   file's path: `core/components/ui/Input.tsx` →
   `frontend/tests/core/components/ui/Input.test.tsx`, and the `lib` suite sits under
