@@ -91,6 +91,21 @@ async def test_list_roles_returns_them(client: AsyncClient, session: AsyncSessio
     assert any(r["name"] == "grader" for r in response.json())
 
 
+async def test_role_response_says_whether_the_role_is_builtin(client: AsyncClient, session: AsyncSession) -> None:
+    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    custom = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()
+    builtin = Role(name="admin", description="Ships with Sparkth", is_builtin=True)
+    session.add(builtin)
+    await session.commit()
+
+    assert custom["is_builtin"] is False
+    got = (await client.get(f"/api/v1/permissions/roles/{builtin.id}")).json()
+    assert got["is_builtin"] is True
+    listed = {role["name"]: role["is_builtin"] for role in (await client.get("/api/v1/permissions/roles")).json()}
+    assert listed["grader"] is False
+    assert listed["admin"] is True
+
+
 async def test_get_role_returns_it(client: AsyncClient, session: AsyncSession) -> None:
     _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     created = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()

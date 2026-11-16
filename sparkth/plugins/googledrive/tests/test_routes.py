@@ -1294,6 +1294,18 @@ class TestListGate:
         assert body["total"] == 0
 
 
+class TestBrowseGate:
+    @pytest.mark.usefixtures("drive_api", "mock_valid_access_token")
+    async def test_browse_without_the_own_assignment_is_403(
+        self, drive_client: AsyncClient, session: AsyncSession
+    ) -> None:
+        await _drop_caller_assignment(session)
+
+        response = await drive_client.get(f"{BASE}/browse")
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
 class TestSyncGate:
     @pytest.mark.usefixtures("drive_api", "mock_valid_access_token")
     async def test_sync_without_the_own_assignment_is_403(

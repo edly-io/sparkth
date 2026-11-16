@@ -1,0 +1,28 @@
+{
+  "plugins": {
+    "config": {
+      "title": "Configure {name}",
+      "empty": "No configuration options available",
+      "cancel": "Cancel",
+      "save": "Save Changes",
+      "saving": "Saving",
+      "saveError": "Failed to save configuration.",
+      "stored": "Stored",
+      "replace": "Replace",
+      "keepStored": "Keep stored",
+      "keepStoredField": "Keep stored {field}",
+      "replaceField": "Replace {field}"
+    },
+    "toggle": "Turn {name} on or off",
+    "configure": "Configure {name}",
+    "enableError": "Failed to enable the plugin.",
+    "disableError": "Failed to disable the plugin.",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "title": "Settings",
+    "subtitle": "Turn your plugins on or off and set them up.",
+    "loading": "Loading plugins...",
+    "loadError": "Failed to load plugins: {error}",
+    "empty": "No plugins found"
+  }
+}
