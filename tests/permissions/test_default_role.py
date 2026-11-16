@@ -9,14 +9,14 @@ from sparkth.cli import users
 from sparkth.core.models.user import User
 from sparkth.core.permissions.exceptions import RoleNotFound
 from sparkth.core.permissions.models import Role, RoleAssignment
-from sparkth.lib.permissions import DEFAULT_USER_ROLE, PLUGIN_USE, PLUGIN_USER_ROLE, assign_default_roles, can
+from sparkth.lib.permissions import PLUGIN_USE, PLUGIN_USER_ROLE, SPARKTH_USER_ROLE, assign_default_roles, can
 from sparkth.lib.permissions.scopes import PLUGIN, build_scope_path
 from sparkth.lib.testing import make_role, make_user
 from sparkth.services.whitelist import WhitelistService
 
 
 async def test_assign_default_roles_grants_both_roles(session: AsyncSession) -> None:
-    await make_role(session, DEFAULT_USER_ROLE, [])
+    await make_role(session, SPARKTH_USER_ROLE, [])
     await make_role(session, PLUGIN_USER_ROLE, [PLUGIN_USE.name])
     user = await make_user(session, "alice")
     assert user.id is not None
@@ -27,13 +27,13 @@ async def test_assign_default_roles_grants_both_roles(session: AsyncSession) -> 
     assert [
         (names[assignment.role_id], assignment.scope, assignment.scope_object_id) for assignment in assignments
     ] == [
-        (DEFAULT_USER_ROLE, "user", str(user.id)),
+        (SPARKTH_USER_ROLE, "user", str(user.id)),
         (PLUGIN_USER_ROLE, "global", None),
     ]
 
 
 async def test_assign_default_roles_fails_when_plugin_user_is_missing(session: AsyncSession) -> None:
-    await make_role(session, DEFAULT_USER_ROLE, [])
+    await make_role(session, SPARKTH_USER_ROLE, [])
     user = await make_user(session, "alice")
     assert user.id is not None
 
@@ -51,7 +51,7 @@ async def test_assign_default_roles_fails_when_no_role_is_seeded(session: AsyncS
 
 
 async def test_default_roles_let_a_user_use_any_plugin(session: AsyncSession) -> None:
-    await make_role(session, DEFAULT_USER_ROLE, [])
+    await make_role(session, SPARKTH_USER_ROLE, [])
     await make_role(session, PLUGIN_USER_ROLE, [PLUGIN_USE.name])
     user = await make_user(session, "alice")
     assert user.id is not None
@@ -62,7 +62,7 @@ async def test_default_roles_let_a_user_use_any_plugin(session: AsyncSession) ->
 
 async def _seed_role_and_bystander(session: AsyncSession) -> None:
     """Seed the role and an earlier account, so the account under test is not the first user."""
-    await make_role(session, DEFAULT_USER_ROLE, [])
+    await make_role(session, SPARKTH_USER_ROLE, [])
     await make_role(session, PLUGIN_USER_ROLE, [PLUGIN_USE.name])
     await make_user(session, "bystander")
     await session.commit()
@@ -82,7 +82,7 @@ async def _active_assignments(session: AsyncSession, username: str) -> tuple[Use
 
 
 def _default_roles(user: User) -> list[tuple[str, str, str | None]]:
-    return [(DEFAULT_USER_ROLE, "user", str(user.id)), (PLUGIN_USER_ROLE, "global", None)]
+    return [(SPARKTH_USER_ROLE, "user", str(user.id)), (PLUGIN_USER_ROLE, "global", None)]
 
 
 async def test_registration_gives_the_account_the_default_roles(client: AsyncClient, session: AsyncSession) -> None:
