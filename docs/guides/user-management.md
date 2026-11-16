@@ -43,6 +43,12 @@ make create-user -- --username jane --email jane@example.com --name Jane
 make cli -- roles assign-role jane admin
 ```
 
+Take a role away with `roles revoke-role`, which takes the same arguments and options as `assign-role`:
+
+```bash
+make cli -- roles revoke-role jane admin
+```
+
 Provide the password directly:
 
 ```bash
