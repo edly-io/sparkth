@@ -230,3 +230,9 @@ AUDIT_READ = Permission.create("audit.read")
 
 # Reading user identities (usernames) outside user management, e.g. actor names in analytics.
 USER_READ = Permission.create("user.read")
+
+# LLM provider configurations, each checked at the user scope of the config's owner.
+LLM_CONFIG_CREATE = Permission.create("llm.config.create")
+LLM_CONFIG_READ = Permission.create("llm.config.read")
+LLM_CONFIG_UPDATE = Permission.create("llm.config.update")
+LLM_CONFIG_DELETE = Permission.create("llm.config.delete")
