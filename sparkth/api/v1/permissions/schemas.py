@@ -32,6 +32,7 @@ class RoleResponse(BaseModel):
     name: str
     description: str | None
     permissions: list[str]
+    is_builtin: bool
 
 
 class RolePermissionAdd(BaseModel):

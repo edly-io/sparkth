@@ -1,6 +1,6 @@
 import { beforeEach, describe, it, expect, vi } from "vitest";
 import { act, screen } from "@testing-library/react";
-import { renderWithIntl } from "@/tests/intl-test-utils";
+import { renderWithIntl } from "@/tests/intl";
 
 const nav = vi.hoisted(() => ({ pathname: "/dashboard/analytics/logins", search: "" }));
 vi.mock("next/navigation", () => ({
@@ -8,13 +8,12 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(nav.search),
 }));
 
-// The plugins installed in the backend build. No PluginProvider is mounted: analytics must not
-// depend on the viewer's own plugin switches.
+// The plugins registered with core, which is what counts as installed. No PluginProvider is
+// mounted: analytics must not depend on the viewer's own plugin switches.
 const plugins = vi.hoisted(() => ({ installed: ["example"] }));
-vi.mock("@/lib/plugins/generated", () => ({
-  get FRONTEND_PLUGIN_NAMES() {
-    return plugins.installed;
-  },
+vi.mock("@/core/plugins/registry", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/core/plugins/registry")>()),
+  getPlugin: (name: string) => (plugins.installed.includes(name) ? { name } : undefined),
 }));
 
 vi.mock("@/core/auth/hooks", () => ({ useAuth: () => ({ token: "test-token" }) }));
