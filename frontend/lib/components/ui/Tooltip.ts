@@ -1,1 +1,6 @@
-export { Tooltip, TooltipContent, TooltipTrigger } from "@/core/components/ui/Tooltip";
+export {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/core/components/ui/Tooltip";

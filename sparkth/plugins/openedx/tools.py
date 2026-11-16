@@ -1,11 +1,11 @@
 import urllib
 from dataclasses import asdict
-from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
 import aiohttp
 
+from sparkth.lib.assets import read_asset
 from sparkth.lib.auth import current_user_id
 from sparkth.lib.content.exceptions import (
     ContentBuildError,
@@ -908,4 +908,4 @@ async def openedx_about() -> dict[str, Any]:
     Read this before creating, changing or publishing Open edX content, or when an Open edX
     term is ambiguous.
     """
-    return {"about": (Path(__file__).parent / "assets" / "about.txt").read_text(encoding="utf-8")}
+    return {"about": read_asset(__file__, "about.txt")}

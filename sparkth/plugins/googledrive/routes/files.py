@@ -231,7 +231,11 @@ async def delete_file(
     return {"detail": "File removed from Sparkth successfully"}
 
 
-@router.get("/browse", response_model=DriveBrowseResponse)
+@router.get(
+    "/browse",
+    response_model=DriveBrowseResponse,
+    dependencies=[Depends(DRIVE_READ.require_for_object(USER, get_current_user_id))],
+)
 async def browse_drive(
     folder_id: str | None = Query(None, description="Drive folder ID to browse (root if omitted)"),
     page_token: str | None = Query(None, description="Pagination token"),
