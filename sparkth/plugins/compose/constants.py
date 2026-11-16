@@ -22,7 +22,7 @@ def get_asset(file_name: str) -> str:
     return (Path(__file__).parent / "assets" / file_name).read_text(encoding="utf-8").strip()
 
 
-# The name Compose registers under; the plugin scope object id its routes are gated at.
+# The name the plugin registers under.
 COMPOSE_PLUGIN_NAME = "compose"
 
 # An SSE comment line: clients ignore it, and it keeps an idle stream from looking dead to a proxy.

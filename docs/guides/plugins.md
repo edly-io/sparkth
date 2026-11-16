@@ -284,14 +284,14 @@ value per group, pass `sums` (output column → payload key); on PostgreSQL the 
 column of that output name summing the key. Take the range as
 `Annotated[RangeQuery, Query()]`, gate the route with
 `Depends(ANALYTICS_READ.require_for_object(PLUGIN, "<plugin-name>"))` (`ANALYTICS_READ` from
-`sparkth.lib.permissions`, `PLUGIN` from `sparkth.lib.permissions.scopes`; a `global` grant still passes) and read on
+`sparkth.lib.permissions`, `PLUGIN` from `sparkth.lib.permissions.scopes`; a `global` grant also passes) and read on
 `get_analytics_session` (`sparkth.lib.db`). The aggregate's DDL still goes in the analytics
 migration lineage (`sparkth/migrations/analytics/`). The compose plugin's `analytics/reads.py` is a
 worked example. To put a headline figure on the analytics Overview, build a `SummaryFigure` at
 module level (a plugin-prefixed `key`, a `gettext_noop` label, an async `count(session, from_, to)`
 and the `view` it links to) and register it from `__init__` with
-`register_summary_figure(self, figure)`. The Overview shows it to every viewer with
-`analytics.read` while the plugin is installed, whatever the plugin switches say. Mark the plugin's
+`register_summary_figure(self, figure)`. The Overview shows it to every viewer holding
+`analytics.read` at `global` while the plugin is installed, whatever the plugin switches say. Mark the plugin's
 analytics read routes `@platform_wide` (see [Who can reach plugin routes?](#who-can-reach-plugin-routes))
 so they answer the same way.
 
