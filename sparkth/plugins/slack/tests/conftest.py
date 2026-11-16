@@ -56,7 +56,7 @@ def _clear_settings_cache() -> Generator[None, None, None]:
 
 @pytest.fixture(autouse=True)
 def _every_user_holds_default_role(default_user_role: object) -> None:
-    """Give user 1 the default roles, so the Slack routes' ``plugin.use`` gate passes."""
+    """Give user 1 the default roles, so the routes' gate and the bot's ``plugin.use`` check pass."""
 
 
 @pytest.fixture

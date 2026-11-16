@@ -1,6 +1,6 @@
 """FastAPI dependencies for Slack route handlers.
 
-Functions here are injected via ``Depends()`` by route handlers.
+Dependencies here are injected via ``Depends()`` by route handlers.
 """
 
 from sparkth.lib.permissions import PLUGIN_USE

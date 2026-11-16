@@ -21,6 +21,7 @@ NO_FILES_RESOLVED_MESSAGE = lazy_gettext(
     "I don't have any documents available to answer that. "
     "Please ask your instructor to add documents to my reference list."
 )
+PLUGIN_DISABLED_MESSAGE = "The TA Bot is currently disabled by your instructor."
 RAG_NOT_READY_MESSAGE = lazy_gettext("I'm still indexing the course documents. Please try again in a few minutes.")
 DRIVE_FILE_NOT_FOUND_MESSAGE = lazy_gettext(
     "I couldn't access one of my reference documents. Please ask your instructor to check the bot's configured sources."

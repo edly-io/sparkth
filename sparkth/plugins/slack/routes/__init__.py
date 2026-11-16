@@ -29,6 +29,7 @@ from sparkth.plugins.slack.config import SlackConfig, get_slack_settings
 from sparkth.plugins.slack.constants import (
     AI_KEY_UNAVAILABLE_MESSAGE,
     NO_AI_KEY_MESSAGE,
+    PLUGIN_DISABLED_MESSAGE,
     RETRIEVAL_ERROR_MESSAGE,
     SLACK_PLUGIN_NAME,
     SYNTHESIS_SYSTEM_PROMPT,
@@ -239,7 +240,7 @@ async def _dispatch_event(
             logger.info("User %d may not use the Slack plugin", user_id)
             await _reply_and_log(
                 session,
-                reply="The TA Bot is currently disabled by your instructor.",
+                reply=PLUGIN_DISABLED_MESSAGE,
                 response_type=ResponseType.PLUGIN_DISABLED,
                 **common,
             )
@@ -247,7 +248,7 @@ async def _dispatch_event(
 
         plugin_map = await PluginService().get_user_plugin_map(session, user_id)
 
-        user_plugin = plugin_map.get("slack")
+        user_plugin = plugin_map.get(SLACK_PLUGIN_NAME)
         if not user_plugin:
             logger.info("Slack plugin not configured for user %d", user_id)
             await _reply_and_log(
@@ -262,7 +263,7 @@ async def _dispatch_event(
             logger.info("Slack plugin disabled for user %d", user_id)
             await _reply_and_log(
                 session,
-                reply="The TA Bot is currently disabled by your instructor.",
+                reply=PLUGIN_DISABLED_MESSAGE,
                 response_type=ResponseType.PLUGIN_DISABLED,
                 **common,
             )
