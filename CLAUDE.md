@@ -127,7 +127,7 @@ Always import the code under test via the `@/` alias, never a relative path — 
 relative paths point at the wrong place. The only correct relative imports inside
 `frontend/tests/` are to helpers that live in the mirror beside their callers (e.g.
 `./test-utils`). Any other helper under `frontend/tests/` is imported through the alias, never with `../`:
-`@/tests/intl-test-utils`, not `../../intl-test-utils`.
+`@/tests/intl`, not `../../intl`.
 
 How the suite is wired:
 
