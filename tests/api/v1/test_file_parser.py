@@ -2,7 +2,7 @@ import httpx
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.user import User
-from sparkth.lib.permissions import DEFAULT_USER_ROLE, revoke_role
+from sparkth.lib.permissions import SPARKTH_USER_ROLE, revoke_role
 from sparkth.lib.permissions.scopes import USER
 from sparkth.lib.testing import AuditEventsFetcher, grant_global_permission
 from sparkth.main import assemble_app
@@ -12,7 +12,7 @@ TEXT_FILE = {"file": ("notes.txt", b"hello", "text/plain")}
 
 
 async def revoke_own_role(session: AsyncSession) -> None:
-    await revoke_role(1, DEFAULT_USER_ROLE, USER, "1", session)
+    await revoke_role(1, SPARKTH_USER_ROLE, USER, "1", session)
     await session.commit()
 
 
