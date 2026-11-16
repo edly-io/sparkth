@@ -27,7 +27,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.core.analytics.models import raw_events
 from sparkth.lib.analytics import ingest_event as real_ingest_event
 from sparkth.lib.compose.constants import REFUSE_TOOL_NAME
-from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.llm import get_provider
 from sparkth.lib.mcp.hooks import Tool
@@ -39,7 +38,14 @@ from sparkth.plugins.compose.models import Conversation, Message
 from sparkth.plugins.compose.planner import TurnRouting
 from sparkth.plugins.compose.routes.utils.live_turns import request_stop
 from sparkth.plugins.compose.tests.conftest import STUB_AGENT
-from sparkth.plugins.compose.tests.helpers import STREAM_TURN, answering_model, hand_off, planning, replay_turn
+from sparkth.plugins.compose.tests.helpers import (
+    STREAM_TURN,
+    answering_model,
+    hand_off,
+    operating,
+    planning,
+    replay_turn,
+)
 from sparkth.plugins.compose.tools import convert_mcp_to_langchain_tool
 
 COMPLETIONS_URL = "/api/v1/compose/completions"
@@ -910,15 +916,16 @@ def _tool_calling_model() -> ScriptedChatModel:
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
+@pytest.mark.usefixtures("lms_tools")
 async def test_tool_invoked_records_whether_each_call_succeeded(
     stream: bool,
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
     analytics_session: SQLAlchemyAsyncSession,
-    stub_agent: Agent,
 ) -> None:
-    """Real tools through the real provider: a success, a returned error, and a raise."""
+    """Real tools of an LMS plugin through the real provider, run as operations: a success, a
+    returned error, and a raise."""
     config_id = await _seed_llm_config(session, current_user.id or 1)
     provider = get_provider("openai", api_key="sk-test", model="gpt-4o")
     llm = _tool_calling_model()
@@ -926,10 +933,7 @@ async def test_tool_invoked_records_whether_each_call_succeeded(
 
     with (
         patch.object(provider, "_create_llm", lambda streaming=False, callbacks=None: llm),
-        patch(
-            "sparkth.plugins.compose.routes.completions.get_provider",
-            side_effect=planning(provider, hand_off(stub_agent)),
-        ),
+        patch("sparkth.plugins.compose.routes.completions.get_provider", side_effect=operating(provider)),
         patch("sparkth.plugins.compose.routes.completions.resolve_tools", AsyncMock(return_value=tools)),
         patch("sparkth.plugins.compose.conversation_title.get_provider", return_value=_non_streaming_provider()),
     ):

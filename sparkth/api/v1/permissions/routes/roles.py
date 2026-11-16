@@ -36,7 +36,13 @@ def _role_id(role: Role) -> int:
 
 def _build_role_response(role: Role, permissions: list[str]) -> RoleResponse:
     """Assemble a RoleResponse from a role and its already-fetched permission grants."""
-    return RoleResponse(id=_role_id(role), name=role.name, description=role.description, permissions=permissions)
+    return RoleResponse(
+        id=_role_id(role),
+        name=role.name,
+        description=role.description,
+        permissions=permissions,
+        is_builtin=role.is_builtin,
+    )
 
 
 async def _role_to_response(role: Role, session: AsyncSession) -> RoleResponse:
@@ -50,7 +56,9 @@ async def list_roles(
     accessible_ids: set[str] | None = Depends(ROLE_READ.require_for_any_object(ROLE)),
     session: AsyncSession = Depends(get_async_session),
 ) -> list[RoleResponse]:
-    """List the roles the caller may read. Returns a list of RoleResponse (id, name, description, permissions).
+    """List the roles the caller may read.
+
+    Returns a list of RoleResponse (id, name, description, permissions, is_builtin).
 
     Grants are fetched for every listed role in a single batched query.
     """
@@ -68,7 +76,7 @@ async def list_roles(
     dependencies=[Depends(ROLE_CREATE.require_in_global_scope())],
 )
 async def create_role(payload: RoleCreate, session: AsyncSession = Depends(get_async_session)) -> RoleResponse:
-    """Create a role. Returns the created RoleResponse (id, name, description, permissions)."""
+    """Create a role. Returns the created RoleResponse (id, name, description, permissions, is_builtin)."""
     role = await role_engine.create_role(payload.name, payload.description, session)
     return await _role_to_response(role, session)
 
@@ -79,7 +87,7 @@ async def create_role(payload: RoleCreate, session: AsyncSession = Depends(get_a
     dependencies=[Depends(ROLE_READ.require(ROLE, "role_id"))],
 )
 async def get_role(role_id: int, session: AsyncSession = Depends(get_async_session)) -> RoleResponse:
-    """Fetch a role by id. Returns its RoleResponse (id, name, description, permissions)."""
+    """Fetch a role by id. Returns its RoleResponse (id, name, description, permissions, is_builtin)."""
     role = await role_engine.get_role(role_id, session)
     return await _role_to_response(role, session)
 

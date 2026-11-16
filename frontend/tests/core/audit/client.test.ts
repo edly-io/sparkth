@@ -9,7 +9,7 @@ import {
 import { AUDIT_OUTCOMES, AUDIT_SOURCES } from "@/core/audit/types";
 import { ApiRequestError } from "@/lib/api";
 
-import { mockFetch, sentRequest } from "@/tests/lib/test-utils";
+import { mockFetch, sentRequest } from "@/tests/lib/utils";
 
 vi.mock("@/core/auth/tokens", () => ({
   getStoredToken: vi.fn().mockReturnValue(null),
