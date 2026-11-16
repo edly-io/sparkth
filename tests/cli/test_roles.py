@@ -10,7 +10,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.cli import roles
 from sparkth.core.models.user import User
 from sparkth.core.permissions.models import Role, RoleAssignment
-from sparkth.lib.testing import AuditEventsFetcher
+from sparkth.lib.permissions import PLUGIN_USE, PLUGIN_USER_ROLE, can
+from sparkth.lib.permissions.scopes import GLOBAL, PLUGIN, build_scope_path
+from sparkth.lib.testing import AuditEventsFetcher, add_role_assignment, make_role
 
 
 @pytest.fixture
@@ -130,3 +132,80 @@ async def test_assign_role_attributes_its_audit_event_to_the_cli(
     (event,) = await audit_events()
     assert (event.category, event.action) == ("role", "assigned")
     assert (event.source, event.actor_type, event.actor_label) == ("cli", "system", "cli")
+
+
+async def _get_active_assignments(session: AsyncSession) -> list[tuple[str, str | None]]:
+    rows = (await session.exec(select(RoleAssignment).where(RoleAssignment.is_deleted == False))).all()
+    return sorted((row.scope, row.scope_object_id) for row in rows)
+
+
+async def test_revoke_role_removes_the_assignment_and_records_the_event(
+    cli_session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    await _seed_user_and_role(cli_session)
+    await roles._assign_role("alice", "admin", "global", None)
+
+    await roles._revoke_role("alice", "admin", "global", None)
+
+    assert await _get_active_assignments(cli_session) == []
+    events = [(e.category, e.action) for e in await audit_events()]
+    assert events == [("role", "assigned"), ("role", "unassigned")]
+
+
+async def test_revoke_role_at_an_object_leaves_the_other_assignments(cli_session: AsyncSession) -> None:
+    await _seed_user_and_role(cli_session)
+    await roles._assign_role("alice", "admin", "global", None)
+    await roles._assign_role("alice", "admin", "plugin", "slack")
+    await roles._assign_role("alice", "admin", "plugin", "compose")
+
+    await roles._revoke_role("alice", "admin", "plugin", "slack")
+
+    assert await _get_active_assignments(cli_session) == [("global", None), ("plugin", "compose")]
+
+
+async def test_revoke_role_not_held_is_a_no_op(cli_session: AsyncSession, audit_events: AuditEventsFetcher) -> None:
+    await _seed_user_and_role(cli_session)
+
+    await roles._revoke_role("alice", "admin", "global", None)
+
+    assert await audit_events() == []
+
+
+async def test_revoke_role_unknown_user_exits(cli_session: AsyncSession) -> None:
+    cli_session.add(Role(name="admin"))
+    await cli_session.flush()
+    with pytest.raises(typer.Exit):
+        await roles._revoke_role("ghost", "admin", "global", None)
+
+
+async def test_revoke_role_unknown_scope_exits(cli_session: AsyncSession) -> None:
+    await _seed_user_and_role(cli_session)
+    with pytest.raises(typer.Exit):
+        await roles._revoke_role("alice", "admin", "corse", "42")
+
+
+async def test_revoke_role_unknown_role_or_mismatched_object_id_revokes_nothing(cli_session: AsyncSession) -> None:
+    await _seed_user_and_role(cli_session)
+    await roles._assign_role("alice", "admin", "global", None)
+
+    await roles._revoke_role("alice", "nope", "global", None)
+    await roles._revoke_role("alice", "admin", "global", "42")
+
+    assert await _get_active_assignments(cli_session) == [("global", None)]
+
+
+async def test_revoke_global_plugin_user_leaves_only_the_plugin_level_grant(cli_session: AsyncSession) -> None:
+    user = User(name="A", username="alice", email="alice@e.com", hashed_password="x")
+    cli_session.add(user)
+    await cli_session.flush()
+    plugin_role = await make_role(cli_session, PLUGIN_USER_ROLE, [PLUGIN_USE.name])
+    plugin_role.is_builtin = True
+    await add_role_assignment(cli_session, user, plugin_role, GLOBAL.name, None)
+    await add_role_assignment(cli_session, user, plugin_role, PLUGIN.name, "compose")
+
+    await roles._revoke_role("alice", PLUGIN_USER_ROLE, "global", None)
+
+    compose = build_scope_path(PLUGIN, "compose")
+    slack = build_scope_path(PLUGIN, "slack")
+    assert await can(user, PLUGIN_USE, PLUGIN, compose, cli_session) is True
+    assert await can(user, PLUGIN_USE, PLUGIN, slack, cli_session) is False
