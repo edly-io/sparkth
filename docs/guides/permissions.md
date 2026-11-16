@@ -103,13 +103,26 @@ assigned at.
 | Kind | Names | Notes |
 |---|---|---|
 | **Scopes** | `global`, `whitelist`, `role`, `group`, `user`, `conversation` | `global` is the objectless root (applies platform-wide). `whitelist` is an objectless singleton nested under `global` for the registration whitelist. `role` is object-bearing (nested under `global`) so role management can be delegated per-role by that role's id. `group` is object-bearing (nested under `global`) so group management can be delegated per-group by that group's id. `user` is object-bearing (nested under `global`) and names one user by id: a user's own records live at their `user` scope, so a grant there reaches that user's records only. `conversation` is object-bearing, declared by Compose and nested under `user`, and names one conversation by its UUID: a grant at the owner's `user` scope or at `global` cascades to it. A `global` grant cascades down to all five. |
-| **Permissions** | `email.whitelist.{read,create,delete}`; `role.{create,read,update,delete}`; `group.{create,read,update,delete}`; `permission.read`; `analytics.read`; `audit.read`; `user.read`; `llm.config.{create,read,update,delete}`; `compose.conversation.{read,write}`; `googledrive.{read,sync,delete}` | Gate the registration email-whitelist endpoints, the role-management API, the group-management API, listing the assignable permission vocabulary, the analytics dashboards and their read API, querying and exporting the audit trail, and reading usernames outside user management (Explore's `/analytics/query`, which names each actor, and its saved `/analytics/views`; both also need `analytics.read`) respectively. The `llm.config.*`, `compose.conversation.*` and `googledrive.*` names authorize actions on one user's records, at the `user` scope of the record's owner: `compose.conversation.read` to list and read Compose conversations and their attachments, `compose.conversation.write` to send turns and to attach and detach documents. Reading one conversation, its last message and its attachments, sending a turn into it, and attaching and detaching documents are checked at that conversation's `conversation` scope; listing conversations and starting one are checked at a `user` scope. A conversation granted this way does not appear in the holder's conversation list: the holder opens it by id. To grant one conversation, run `make cli -- roles assign-role jane sparkth_user --scope conversation --scope-object-id <uuid>`, with the role holding the permission; `llm.config.create`, `llm.config.read`, `llm.config.update` and `llm.config.delete` to create, list, change (edit, rotate the key, set active) and delete AI keys; `googledrive.read` to list and read Google Drive folders and files and download files, `googledrive.sync` to sync and refresh folders, and `googledrive.delete` to delete files. |
+| **Permissions** | `email.whitelist.{read,create,delete}`; `role.{create,read,update,delete}`; `group.{create,read,update,delete}`; `permission.read`; `analytics.read`; `audit.read`; `user.read`; `llm.config.{create,read,update,delete}`; `compose.conversation.{read,write}`; `googledrive.{read,sync,delete}` | Gate the registration email-whitelist endpoints, the role-management API, the group-management API, listing the assignable permission vocabulary, the analytics dashboards and their read API, querying and exporting the audit trail, and reading usernames outside user management (Explore's `/analytics/query`, which names each actor, and its saved `/analytics/views`; both also need `analytics.read`) respectively. The `llm.config.*`, `compose.conversation.*` and `googledrive.*` names authorize actions on one user's records. `llm.config.*` and `googledrive.*` are checked at the `user` scope of the record's owner; `compose.conversation.*` is checked as described below the table. `compose.conversation.read` lists and reads Compose conversations and their attachments, `compose.conversation.write` sends turns and attaches and detaches documents; `llm.config.create`, `llm.config.read`, `llm.config.update` and `llm.config.delete` to create, list, change (edit, rotate the key, set active) and delete AI keys; `googledrive.read` to list and read Google Drive folders and files and download files, `googledrive.sync` to sync and refresh folders, and `googledrive.delete` to delete files. |
 | **Roles** | `admin`, `sparkth_user` (neither can be changed or deleted) | `admin` grants the three `email.whitelist.*`, the four `role.*`, the four `group.*`, `permission.read`, `analytics.read`, `audit.read`, and `user.read` (it does not hold the `llm.config.*`, `compose.conversation.*` or `googledrive.*` names). A seed migration also assigned it at `global` to every account that was a superuser when the migration ran — a one-time backfill. `sparkth_user` is the default role: every account holds it at its own `user` scope (a migration assigned it to every existing account; registration, Google sign-up and `create-user` assign it to each new one), and its default permissions, the `llm.config.*`, `compose.conversation.*` and `googledrive.*` names, are granted by a later migration, which also assigns the role to any account that never had it. |
 
 Roles and their permission grants are managed at runtime through the role-management REST API
 under `/api/v1/permissions` (gated by `role.*` / `permission.read`). See the REST API docs
 (`/docs`) for the endpoints. Permissions and scope kinds themselves are **not** editable
 there — they are declared in code.
+
+Compose checks a conversation's permissions at the conversation itself where one is named. Reading one
+conversation, its last message and its attachments, sending a turn into it, and attaching and detaching documents
+are checked at that conversation's `conversation` scope; listing conversations and starting one are checked at a
+`user` scope. A conversation granted this way does not appear in the holder's conversation list, the holder opens
+it by id. A role assigned at a conversation takes effect there only for the conversation permissions it holds, so
+a role holding only `compose.conversation.read` shares it view-only. A holder of `compose.conversation.write` can
+also learn the conversation's history, because a turn replays it to the model.
+
+```bash
+# let jane open one conversation, through a role that holds compose.conversation.read
+make cli -- roles assign-role jane conversation-reader --scope conversation --scope-object-id <uuid>
+```
 
 Management of one role can be delegated through the `role` scope, the way a group's can (see
 [Groups](#groups)): a role assigned at `role` with that role's id covers that role only. Listing
@@ -207,6 +220,8 @@ and `group.role_revoked` for each of its active assignments (users and groups) a
 active grant scoped to it (revoked grants record nothing). Deleting a group records
 `group.member_removed` and `group.role_revoked` for its active memberships and assignments, and
 `role.unassigned` and `group.role_revoked` for the active grants at `group:<id>`.
+
+A refused attempt to start a conversation is recorded against a conversation id that was never stored.
 
 ## Before adding one
 

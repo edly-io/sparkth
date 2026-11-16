@@ -359,6 +359,9 @@ class TestAttachmentWriteGate:
         detach = await client.delete(f"{url}/{document_id}")
 
         assert (attach.status_code, detach.status_code) == (403, 403)
+        assert [
+            a.id for a in (await ComposeService().list_conversation_attachments(session, conversation_id)).ready
+        ] == [document_id]
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("method", ["POST", "DELETE"])
@@ -513,13 +516,16 @@ class TestAttachmentWriteGate:
     async def test_read_grant_at_the_conversation_lists_attachments(
         self, client: AsyncClient, current_user: User, session: AsyncSession
     ) -> None:
-        _, conversation_uuid = await _seed_conversation(session, OWNER_ID)
+        conversation_id, conversation_uuid = await _seed_conversation(session, OWNER_ID)
+        _, document_id = await _seed_document(session, user_id=OWNER_ID)
+        await ComposeService().attach_document(session, conversation_id, document_id)
         await grant_permission_at_scope(session, cast(int, current_user.id), READ, CONVERSATION, conversation_uuid)
         await session.commit()
 
         response = await client.get(f"/api/v1/compose/conversations/{conversation_uuid}/attachments")
 
         assert response.status_code == 200
+        assert [item["id"] for item in response.json()] == [document_id]
 
 
 class TestSoftDeleteDetaches:

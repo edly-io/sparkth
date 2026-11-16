@@ -4,7 +4,7 @@ Tests for the conversation UUID feature:
   - ComposeService.get_conversation_by_uuid lookups
   - Schemas expose UUID instead of int IDs
   - API routes accept/return UUIDs for conversations
-  - Reads are checked at the conversation, turns at the owner's user scope
+  - Reads and turns are checked at the conversation, a first message at the caller's user scope
 """
 
 from datetime import datetime, timezone
@@ -477,7 +477,12 @@ class TestConversationReadGate:
 
     @pytest.mark.parametrize("suffix", BY_ID_SUFFIXES)
     async def test_grant_at_another_conversation_of_the_owner_is_403(
-        self, client: httpx.AsyncClient, current_user: MagicMock, session: AsyncSession, suffix: str
+        self,
+        client: httpx.AsyncClient,
+        current_user: MagicMock,
+        session: AsyncSession,
+        audit_events: AuditEventsFetcher,
+        suffix: str,
     ) -> None:
         granted = await _owned_by(session, OWNER_ID)
         other = await _owned_by(session, OWNER_ID)
@@ -485,6 +490,8 @@ class TestConversationReadGate:
         await session.commit()
 
         assert (await client.get(f"/api/v1/compose/conversations/{other}{suffix}")).status_code == 403
+        (event,) = await audit_events()
+        assert event.error_detail == f"scope=conversation:{other}"
 
     async def test_shared_conversation_is_not_in_the_holders_list(
         self, client: httpx.AsyncClient, current_user: MagicMock, session: AsyncSession
@@ -493,9 +500,11 @@ class TestConversationReadGate:
         await grant_permission_at_scope(session, 1, READ, CONVERSATION, str(conv_uuid))
         await session.commit()
 
+        opened = await client.get(f"/api/v1/compose/conversations/{conv_uuid}")
         body = (await client.get("/api/v1/compose/conversations")).json()
 
-        assert body["total"] == 0
+        assert opened.status_code == 200
+        assert (body["total"], body["conversations"]) == (0, [])
 
     @pytest.mark.parametrize("suffix", BY_ID_SUFFIXES)
     async def test_unknown_uuid_is_404_without_a_denial_row(
@@ -557,7 +566,7 @@ class TestConversationReadGate:
 
 
 # ===========================================================================
-# Write gate — compose.conversation.write on a turn, at the owner's user scope
+# Write gate — compose.conversation.write on a turn, at the conversation (a first message at the caller's user scope)
 # ===========================================================================
 
 WRITE = "compose.conversation.write"
@@ -612,7 +621,11 @@ class TestTurnWriteGate:
         assert (str(conversation.uuid), conversation.user_id) == (response.json()["conversation_id"], 1)
 
     async def test_first_message_without_a_grant_is_403(
-        self, client: httpx.AsyncClient, current_user: MagicMock, session: AsyncSession
+        self,
+        client: httpx.AsyncClient,
+        current_user: MagicMock,
+        session: AsyncSession,
+        audit_events: AuditEventsFetcher,
     ) -> None:
         config_id = await seed_llm_config(session, 1)
         await _drop_caller_assignment(session)
@@ -621,6 +634,11 @@ class TestTurnWriteGate:
 
         assert response.status_code == 403
         assert (await session.exec(select(Conversation))).all() == []
+        (event,) = await audit_events()
+        prefix = "scope=conversation:"
+        assert (event.error_detail or "").startswith(prefix)
+        named = UUID((event.error_detail or "").removeprefix(prefix))
+        assert (await session.exec(select(Conversation).where(Conversation.uuid == named))).first() is None
 
     async def test_turn_into_another_users_conversation_is_403_and_audited(
         self,
