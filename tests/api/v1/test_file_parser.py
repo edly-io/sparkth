@@ -52,6 +52,7 @@ async def test_upload_allowed_by_a_global_grant(
 ) -> None:
     await revoke_own_role(session)
     await grant_global_permission(session, 1, "file.upload")
+    await session.commit()
 
     response = await client.post(UPLOAD, files=TEXT_FILE)
 
