@@ -54,13 +54,13 @@ def _message_response(msg: Message) -> MessageResponse:
 async def list_conversations(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
-    owner_id: str = Depends(get_listed_owner_id),
+    owner_id: int = Depends(get_listed_owner_id),
     session: AsyncSession = Depends(get_async_session),
     service: ComposeService = Depends(get_compose_service),
 ) -> ConversationListResponse:
     conversations, total = await service.list_conversations(
         session=session,
-        user_id=int(owner_id),
+        user_id=owner_id,
         limit=limit,
         offset=offset,
     )

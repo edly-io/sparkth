@@ -2,9 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { renderWithIntl } from "@/tests/intl-test-utils";
+import { renderWithIntl } from "@/tests/intl";
 
-import { ApiRequestError, type CurrentUser } from "@/lib/api";
+import { ApiRequestError } from "@/lib/api";
+import { type CurrentUser } from "@/core/auth/client";
 
 const auth = vi.hoisted(() => ({
   user: null as CurrentUser | null,
@@ -13,12 +14,12 @@ const auth = vi.hoisted(() => ({
 vi.mock("@/core/auth/hooks", () => ({
   useAuth: () => ({ token: "test-token", user: auth.user, refreshUser: auth.refreshUser }),
 }));
-vi.mock("@/lib/api", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/api")>();
+vi.mock("@/core/auth/client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/core/auth/client")>();
   return { ...actual, updateCurrentUser: vi.fn(), changePassword: vi.fn() };
 });
 
-import { changePassword, updateCurrentUser } from "@/lib/api";
+import { changePassword, updateCurrentUser } from "@/core/auth/client";
 import ProfilePage from "@/app/dashboard/profile/ProfilePage";
 
 const passwordUser: CurrentUser = {

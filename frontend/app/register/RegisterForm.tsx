@@ -3,7 +3,8 @@
 import { useState, type SubmitEvent } from "react";
 import Link from "next/link";
 import { useForm } from "@tanstack/react-form";
-import { register as registerApi, ApiRequestError } from "@/lib/api";
+import { ApiRequestError } from "@/lib/api";
+import { register as registerApi } from "@/core/auth/client";
 import { SparkthLogo } from "@/core/components/ui/SparkthLogo";
 import { Button } from "@/core/components/ui/Button";
 import { Input } from "@/core/components/ui/Input";
