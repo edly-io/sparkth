@@ -4,10 +4,10 @@ import { useLocale, useTimeZone, useTranslations } from "next-intl";
 import { renderToString } from "react-dom/server";
 
 import { LocaleProvider } from "@/app/LocaleProvider";
-import { rethrowOrWrapConnectionError } from "@/lib/api";
+import { rethrowOrWrapConnectionError } from "@/core/api/errors";
 import { getActiveLocale, setActiveLocale, setActiveMessages } from "@/core/i18n/activeLocale";
 import { defaultLocale, LOCALE_COOKIE, type Locale } from "@/lib/i18n/config";
-import en from "@/messages/en.json";
+import en from "@/core/i18n/catalogs/en";
 
 // Lets the failure test make the catalog import reject while every other test
 // exercises the real loader.

@@ -2,12 +2,14 @@
 
 import gc
 from collections.abc import AsyncIterator, Iterator
+from contextlib import contextmanager
 
 import pytest
 
 from sparkth.lib.compose.hooks import Agent, register_agent
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.plugins.compose.detached import join_live_tasks
+from sparkth.plugins.compose.tools import get_tool_registry
 
 STUB_AGENT = Agent("stub", "Stub agent", "Stub scope text.", "STUB SECTION")
 OTHER_AGENT = Agent("other", "Other agent", "Other scope text.", "OTHER SECTION")
@@ -24,6 +26,7 @@ async def drain_detached_emits() -> AsyncIterator[None]:
     await join_live_tasks()
 
 
+@contextmanager
 def registered_agent(plugin_name: str, agent: Agent) -> Iterator[Agent]:
     """Register ``agent`` on a throwaway plugin; the entry goes when the plugin is collected."""
     plugin = SparkthPlugin(plugin_name)
@@ -36,10 +39,18 @@ def registered_agent(plugin_name: str, agent: Agent) -> Iterator[Agent]:
 @pytest.fixture
 def stub_agent() -> Iterator[Agent]:
     """An enabled agent, gone when its plugin is collected."""
-    yield from registered_agent("stub", STUB_AGENT)
+    with registered_agent("stub", STUB_AGENT) as agent:
+        yield agent
 
 
 @pytest.fixture
 def other_agent() -> Iterator[Agent]:
     """An enabled agent of a second plugin, gone when its plugin is collected."""
-    yield from registered_agent("other", OTHER_AGENT)
+    with registered_agent("other", OTHER_AGENT) as agent:
+        yield agent
+
+
+@pytest.fixture
+def lms_tools(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every tool comes from an LMS plugin, which gives Compose no agent, so every tool is an operation."""
+    monkeypatch.setattr(get_tool_registry(), "plugin_for", lambda _name: "lms")
