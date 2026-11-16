@@ -5,9 +5,8 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.models import User
-from sparkth.lib.permissions import PLUGIN_USE, PLUGIN_USER_ROLE, revoke_role
-from sparkth.lib.permissions.scopes import GLOBAL, PLUGIN
-from sparkth.lib.testing import AuditEventsFetcher, grant_permission_at_scope
+from sparkth.lib.testing import AuditEventsFetcher, assert_plugin_use_denied, restrict_plugin_use
+from sparkth.plugins.compose.constants import COMPOSE_PLUGIN_NAME
 
 BASE = "/api/v1/compose"
 UNKNOWN = "11111111-1111-4111-8111-111111111111"
@@ -25,12 +24,6 @@ ROUTES = [
     pytest.param("POST", f"{CONVERSATION}/attachments", {"document_id": 1}, 404, id="attach"),
     pytest.param("DELETE", f"{CONVERSATION}/attachments/1", None, 404, id="detach"),
 ]
-
-
-async def _grant_use_at(session: AsyncSession, plugin_name: str) -> None:
-    await revoke_role(1, PLUGIN_USER_ROLE, GLOBAL, None, session)
-    await grant_permission_at_scope(session, 1, PLUGIN_USE.name, PLUGIN, plugin_name)
-    await session.commit()
 
 
 @pytest.mark.parametrize(("method", "url", "body", "expected"), ROUTES)
@@ -53,16 +46,12 @@ async def test_caller_without_a_grant_is_denied_and_audited(
     session: AsyncSession,
     audit_events: AuditEventsFetcher,
 ) -> None:
-    await revoke_role(1, PLUGIN_USER_ROLE, GLOBAL, None, session)
-    await session.commit()
+    await restrict_plugin_use(session, None)
 
     response = await client.request(method, url, json=body)
 
     assert response.status_code == 403
-    event = (await audit_events())[-1]
-    assert event.action == "denied"
-    assert event.target_id == "plugin.use"
-    assert event.error_detail == "scope=plugin:compose"
+    await assert_plugin_use_denied(audit_events, COMPOSE_PLUGIN_NAME)
 
 
 @pytest.mark.parametrize(("method", "url", "body", "expected"), ROUTES)
@@ -75,7 +64,7 @@ async def test_grant_at_another_plugin_is_denied(
     current_user: User,
     session: AsyncSession,
 ) -> None:
-    await _grant_use_at(session, "pxc")
+    await restrict_plugin_use(session, "pxc")
 
     response = await client.request(method, url, json=body)
 
@@ -92,7 +81,7 @@ async def test_grant_at_compose_only_passes_the_gate(
     current_user: User,
     session: AsyncSession,
 ) -> None:
-    await _grant_use_at(session, "compose")
+    await restrict_plugin_use(session, COMPOSE_PLUGIN_NAME)
 
     response = await client.request(method, url, json=body)
 
