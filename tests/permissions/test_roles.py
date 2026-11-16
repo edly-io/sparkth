@@ -1,5 +1,7 @@
 """Tests for the role-CRUD engine functions (sparkth.core.permissions.roles)."""
 
+from collections.abc import Awaitable, Callable
+
 import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -12,6 +14,13 @@ from sparkth.core.permissions.exceptions import (
     RoleNotFound,
 )
 from sparkth.core.permissions.models import Group, GroupRoleAssignment, Role, RoleAssignment, RolePermission
+from sparkth.lib.permissions import (
+    assign_role,
+    assign_role_to_group,
+    has_role,
+    revoke_role,
+    revoke_role_from_group,
+)
 from sparkth.lib.permissions.scopes import GLOBAL, ROLE
 from sparkth.lib.testing import AuditEventsFetcher, make_user
 
@@ -312,3 +321,59 @@ async def test_delete_role_refuses_builtin_role(session: AsyncSession, audit_eve
     assert await session.get(Role, role.id) is not None
     assignments = (await session.exec(select(RoleAssignment).where(RoleAssignment.role_id == role.id))).all()
     assert len(assignments) == 1
+
+
+async def _make_builtin_role(session: AsyncSession) -> Role:
+    """Create a built-in ``admin`` role that holds ``assignment.grade``."""
+    role = await roles.create_role("admin", "Ships with Sparkth", session)
+    assert role.id is not None
+    await roles.add_role_permission(role.id, "assignment.grade", session)
+    role.is_builtin = True
+    session.add(role)
+    await session.commit()
+    return role
+
+
+_BUILTIN_ROLE_CHANGES: dict[str, Callable[[int, AsyncSession], Awaitable[object]]] = {
+    "rename": lambda role_id, session: roles.update_role(role_id, "renamed", None, session),
+    "same_name": lambda role_id, session: roles.update_role(role_id, "admin", None, session),
+    "describe": lambda role_id, session: roles.update_role(role_id, None, "Changed", session),
+    "grant": lambda role_id, session: roles.add_role_permission(role_id, "role.read", session),
+    "grant_held": lambda role_id, session: roles.add_role_permission(role_id, "assignment.grade", session),
+    "revoke": lambda role_id, session: roles.remove_role_permission(role_id, "assignment.grade", session),
+    "revoke_unheld": lambda role_id, session: roles.remove_role_permission(role_id, "role.read", session),
+    "delete": lambda role_id, session: roles.delete_role(role_id, session),
+}
+
+
+@pytest.mark.parametrize("change", _BUILTIN_ROLE_CHANGES.values(), ids=_BUILTIN_ROLE_CHANGES.keys())
+async def test_changing_a_builtin_role_is_refused(
+    change: Callable[[int, AsyncSession], Awaitable[object]],
+    session: AsyncSession,
+    audit_events: AuditEventsFetcher,
+) -> None:
+    role = await _make_builtin_role(session)
+    assert role.id is not None
+    events_before = len(await audit_events())
+    with pytest.raises(RoleIsBuiltin):
+        await change(role.id, session)
+    assert len(await audit_events()) == events_before
+    await session.refresh(role)
+    assert (role.name, role.description) == ("admin", "Ships with Sparkth")
+    assert await roles.get_role_permissions(role.id, session) == ["assignment.grade"]
+
+
+async def test_a_builtin_role_can_still_be_assigned_and_revoked(session: AsyncSession) -> None:
+    role = await _make_builtin_role(session)
+    user = await make_user(session, "alice")
+    group = await make_group(session, "staff")
+    assert user.id is not None and group.id is not None
+    await assign_role(user.id, "admin", GLOBAL, None, session)
+    group_assignment = await assign_role_to_group(group.id, "admin", GLOBAL, None, session)
+    assert await has_role(user, "admin", GLOBAL, None, session) is True
+    assert group_assignment.role_id == role.id
+    await revoke_role(user.id, "admin", GLOBAL, None, session)
+    await revoke_role_from_group(group.id, "admin", GLOBAL, None, session)
+    assert await has_role(user, "admin", GLOBAL, None, session) is False
+    await session.refresh(group_assignment)
+    assert group_assignment.is_deleted is True

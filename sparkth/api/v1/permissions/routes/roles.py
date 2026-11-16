@@ -1,6 +1,7 @@
 """Role sub-router (mounted at ``/roles``): role CRUD and managing a role's permission grants.
 
-Roles are created and edited here by end users with the ``role.*`` permissions. The endpoints that
+Roles are created and edited here by end users with the ``role.*`` permissions; a role shipped with
+Sparkth cannot be changed or deleted, so those endpoints refuse it with 409. The endpoints that
 address one role by ``{role_id}`` (get/update/delete and its permission grants) authorize at the
 ``role`` scope, so a grant can be delegated to a single role; a
 global grant still satisfies them via the scope cascade. Listing returns the roles the caller holds
@@ -35,7 +36,13 @@ def _role_id(role: Role) -> int:
 
 def _build_role_response(role: Role, permissions: list[str]) -> RoleResponse:
     """Assemble a RoleResponse from a role and its already-fetched permission grants."""
-    return RoleResponse(id=_role_id(role), name=role.name, description=role.description, permissions=permissions)
+    return RoleResponse(
+        id=_role_id(role),
+        name=role.name,
+        description=role.description,
+        permissions=permissions,
+        is_builtin=role.is_builtin,
+    )
 
 
 async def _role_to_response(role: Role, session: AsyncSession) -> RoleResponse:
@@ -49,7 +56,9 @@ async def list_roles(
     accessible_ids: set[str] | None = Depends(ROLE_READ.require_for_any_object(ROLE)),
     session: AsyncSession = Depends(get_async_session),
 ) -> list[RoleResponse]:
-    """List the roles the caller may read. Returns a list of RoleResponse (id, name, description, permissions).
+    """List the roles the caller may read.
+
+    Returns a list of RoleResponse (id, name, description, permissions, is_builtin).
 
     Grants are fetched for every listed role in a single batched query.
     """
@@ -67,7 +76,7 @@ async def list_roles(
     dependencies=[Depends(ROLE_CREATE.require_in_global_scope())],
 )
 async def create_role(payload: RoleCreate, session: AsyncSession = Depends(get_async_session)) -> RoleResponse:
-    """Create a role. Returns the created RoleResponse (id, name, description, permissions)."""
+    """Create a role. Returns the created RoleResponse (id, name, description, permissions, is_builtin)."""
     role = await role_engine.create_role(payload.name, payload.description, session)
     return await _role_to_response(role, session)
 
@@ -78,7 +87,7 @@ async def create_role(payload: RoleCreate, session: AsyncSession = Depends(get_a
     dependencies=[Depends(ROLE_READ.require(ROLE, "role_id"))],
 )
 async def get_role(role_id: int, session: AsyncSession = Depends(get_async_session)) -> RoleResponse:
-    """Fetch a role by id. Returns its RoleResponse (id, name, description, permissions)."""
+    """Fetch a role by id. Returns its RoleResponse (id, name, description, permissions, is_builtin)."""
     role = await role_engine.get_role(role_id, session)
     return await _role_to_response(role, session)
 
@@ -91,7 +100,10 @@ async def get_role(role_id: int, session: AsyncSession = Depends(get_async_sessi
 async def update_role(
     role_id: int, payload: RoleUpdate, session: AsyncSession = Depends(get_async_session)
 ) -> RoleResponse:
-    """Update a role's name and/or description. Returns the updated RoleResponse."""
+    """Update a role's name and/or description. Refused with 409 for a role shipped with Sparkth.
+
+    Returns the updated RoleResponse.
+    """
     role = await role_engine.update_role(role_id, payload.name, payload.description, session)
     return await _role_to_response(role, session)
 
@@ -102,7 +114,7 @@ async def update_role(
     dependencies=[Depends(ROLE_DELETE.require(ROLE, "role_id"))],
 )
 async def delete_role(role_id: int, session: AsyncSession = Depends(get_async_session)) -> None:
-    """Delete a role and its assignments. Refused with 409 if it is non-deletable. Returns 204."""
+    """Delete a role and its assignments. Refused with 409 for a role shipped with Sparkth. Returns 204."""
     await role_engine.delete_role(role_id, session)
 
 
@@ -114,7 +126,10 @@ async def delete_role(role_id: int, session: AsyncSession = Depends(get_async_se
 async def create_role_permission(
     role_id: int, payload: RolePermissionAdd, session: AsyncSession = Depends(get_async_session)
 ) -> RoleResponse:
-    """Grant a registered permission to the role (idempotent). Returns the updated RoleResponse."""
+    """Grant a registered permission to the role (idempotent). Refused with 409 for a role shipped with Sparkth.
+
+    Returns the updated RoleResponse.
+    """
     role = await role_engine.add_role_permission(role_id, payload.permission, session)
     return await _role_to_response(role, session)
 
@@ -127,5 +142,8 @@ async def create_role_permission(
 async def delete_role_permission(
     role_id: int, permission: str, session: AsyncSession = Depends(get_async_session)
 ) -> None:
-    """Revoke a permission from the role (idempotent). Returns 204 No Content."""
+    """Revoke a permission from the role (idempotent). Refused with 409 for a role shipped with Sparkth.
+
+    Returns 204 No Content.
+    """
     await role_engine.remove_role_permission(role_id, permission, session)

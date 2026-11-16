@@ -126,22 +126,22 @@ msgstr "Portée de permission introuvable : {name}"
 msgid "Role already exists: {name}"
 msgstr "Le rôle existe déjà : {name}"
 
-#: sparkth/core/permissions/exceptions.py:40
+#: sparkth/core/permissions/exceptions.py:41
 #, python-brace-format
-msgid "The {name} role comes with Sparkth and can't be deleted."
-msgstr "Le rôle {name} est fourni avec Sparkth et ne peut pas être supprimé."
+msgid "The {name} role comes with Sparkth and can't be changed or deleted."
+msgstr "Le rôle {name} est fourni avec Sparkth et ne peut être ni modifié ni supprimé."
 
-#: sparkth/core/permissions/exceptions.py:48
+#: sparkth/core/permissions/exceptions.py:50
 #, python-brace-format
 msgid "Group not found: {name}"
 msgstr "Groupe introuvable : {name}"
 
-#: sparkth/core/permissions/exceptions.py:56
+#: sparkth/core/permissions/exceptions.py:58
 #, python-brace-format
 msgid "Group already exists: {name}"
 msgstr "Le groupe existe déjà : {name}"
 
-#: sparkth/core/permissions/exceptions.py:71
+#: sparkth/core/permissions/exceptions.py:73
 #, python-brace-format
 msgid "Invalid scope/object-id pairing for scope {scope!r}: {scope_object_id!r}"
 msgstr ""

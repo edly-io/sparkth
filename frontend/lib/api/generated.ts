@@ -1067,7 +1067,9 @@ export interface paths {
         };
         /**
          * List Roles
-         * @description List the roles the caller may read. Returns a list of RoleResponse (id, name, description, permissions).
+         * @description List the roles the caller may read.
+         *
+         *     Returns a list of RoleResponse (id, name, description, permissions, is_builtin).
          *
          *     Grants are fetched for every listed role in a single batched query.
          */
@@ -1075,7 +1077,7 @@ export interface paths {
         put?: never;
         /**
          * Create Role
-         * @description Create a role. Returns the created RoleResponse (id, name, description, permissions).
+         * @description Create a role. Returns the created RoleResponse (id, name, description, permissions, is_builtin).
          */
         post: operations["create_role_api_v1_permissions_roles_post"];
         delete?: never;
@@ -1093,21 +1095,23 @@ export interface paths {
         };
         /**
          * Get Role
-         * @description Fetch a role by id. Returns its RoleResponse (id, name, description, permissions).
+         * @description Fetch a role by id. Returns its RoleResponse (id, name, description, permissions, is_builtin).
          */
         get: operations["get_role_api_v1_permissions_roles__role_id__get"];
         put?: never;
         post?: never;
         /**
          * Delete Role
-         * @description Delete a role and its assignments. Refused with 409 if it is non-deletable. Returns 204.
+         * @description Delete a role and its assignments. Refused with 409 for a role shipped with Sparkth. Returns 204.
          */
         delete: operations["delete_role_api_v1_permissions_roles__role_id__delete"];
         options?: never;
         head?: never;
         /**
          * Update Role
-         * @description Update a role's name and/or description. Returns the updated RoleResponse.
+         * @description Update a role's name and/or description. Refused with 409 for a role shipped with Sparkth.
+         *
+         *     Returns the updated RoleResponse.
          */
         patch: operations["update_role_api_v1_permissions_roles__role_id__patch"];
         trace?: never;
@@ -1123,7 +1127,9 @@ export interface paths {
         put?: never;
         /**
          * Create Role Permission
-         * @description Grant a registered permission to the role (idempotent). Returns the updated RoleResponse.
+         * @description Grant a registered permission to the role (idempotent). Refused with 409 for a role shipped with Sparkth.
+         *
+         *     Returns the updated RoleResponse.
          */
         post: operations["create_role_permission_api_v1_permissions_roles__role_id__permissions_post"];
         delete?: never;
@@ -1144,7 +1150,9 @@ export interface paths {
         post?: never;
         /**
          * Delete Role Permission
-         * @description Revoke a permission from the role (idempotent). Returns 204 No Content.
+         * @description Revoke a permission from the role (idempotent). Refused with 409 for a role shipped with Sparkth.
+         *
+         *     Returns 204 No Content.
          */
         delete: operations["delete_role_permission_api_v1_permissions_roles__role_id__permissions__permission__delete"];
         options?: never;
@@ -2745,6 +2753,8 @@ export interface components {
             description: string | null;
             /** Id */
             id: number;
+            /** Is Builtin */
+            is_builtin: boolean;
             /** Name */
             name: string;
             /** Permissions */
