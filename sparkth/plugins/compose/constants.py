@@ -38,6 +38,13 @@ PLANNER_REFUSED_CALL_LIMIT = 2
 # How many prior turns reach the scope classifier.
 MESSAGE_SCOPE_CLASSIFIER_CONVERSATION_HISTORY = 6
 
+# What an agent is told when a tool failed in a way its author never planned for. The cause is logged, never
+# handed over: whatever the agent reads, it may repeat to the author.
+TOOL_FAILED_UNEXPECTEDLY = (
+    "The tool '{name}' failed and its cause is not available. Do not guess at it. Tell the author in plain words "
+    "that this could not be done right now."
+)
+
 # gettext_noop keeps this a plain str so it can be substituted into the prompt template,
 # json.dumps'd onto the SSE stream, and assigned to a pydantic field — none of which a
 # LazyString allows. It is rendered with gettext() at each of those boundaries.

@@ -522,6 +522,27 @@ records them imports the module, so no side-effect import is needed.
 The audit events guide (`docs/guides/audit-events.md`) covers what a snapshot may carry, which
 transaction to record in, and how to test it.
 
+### Telling the agent a tool failed
+
+A tool that turns work down on purpose raises `ToolFailure` from `sparkth.lib.mcp.exceptions`, or a
+subclass of it, with a message written for the agent: what was wrong with what it submitted and
+what to change. An agent that runs the tool reads that message and can try again.
+
+```python
+from sparkth.lib.mcp.exceptions import ToolFailure
+
+
+class MyAppBuildRejected(ToolFailure):
+    """The item the agent submitted can't be built as it is."""
+
+
+raise MyAppBuildRejected("The quiz has no questions. Add at least one and build it again.")
+```
+
+Any other exception is treated as unplanned: the agent is told only that the tool failed, and the
+cause goes to the log. An agent may repeat what it reads to the author, so keep paths, stack traces
+and stored values out of a `ToolFailure` message.
+
 ### Tool executions are audited
 
 `Tool` wraps the handler with `sparkth.lib.audit.audited_tool` at

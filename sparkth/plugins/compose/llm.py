@@ -36,8 +36,9 @@ from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.i18n import gettext
 from sparkth.lib.llm import BaseChatProvider, to_langchain_messages
 from sparkth.lib.log import get_logger
+from sparkth.lib.mcp.exceptions import ToolFailure
 from sparkth.lib.plugins import PluginConfigInvalidError, PluginNotConfiguredError
-from sparkth.plugins.compose.constants import OPERATOR_PROMPT, TOOL_CALL_LIMIT_NOTICE
+from sparkth.plugins.compose.constants import OPERATOR_PROMPT, TOOL_CALL_LIMIT_NOTICE, TOOL_FAILED_UNEXPECTEDLY
 from sparkth.plugins.compose.enums import TurnEventType
 from sparkth.plugins.compose.planner import AgentGraph, TurnRouting, build_planner
 from sparkth.plugins.compose.prompt import render_system_prompt
@@ -83,9 +84,10 @@ def _audit_model_info(turn_model: AuditModelInfo, messages: Sequence[BaseMessage
 
 
 def _failed_call(request: ToolCallRequest, detail: str = "") -> ToolMessage:
-    """The model-visible result of a call whose tool raised, with ``detail`` when there is any."""
+    """The model-visible result of a call whose tool raised: ``detail`` when the failure is one the
+    model may read, and otherwise only that the tool failed."""
     name = request.tool_call["name"]
-    text = f"Error executing tool '{name}': {detail}" if detail else f"Error executing tool '{name}'."
+    text = f"Error executing tool '{name}': {detail}" if detail else TOOL_FAILED_UNEXPECTEDLY.format(name=name)
     return ToolMessage(text, tool_call_id=request.tool_call["id"], name=name, status="error")
 
 
@@ -115,7 +117,9 @@ async def _classified_tool_call(
 
     Invalid arguments and a tool name that is not bound come back from the handler as an
     error result, so they are a validation failure (see :func:`_refused_call`); a tool that
-    raised is an unknown one.
+    raised is an unknown one. The model reads what a tool reported on purpose and what missing
+    settings say; of any other exception it reads only that the tool failed, and the cause is
+    logged.
     """
     name = request.tool_call["name"]
     try:
@@ -129,12 +133,17 @@ async def _classified_tool_call(
     except (PluginNotConfiguredError, PluginConfigInvalidError) as e:
         logger.warning("Tool '%s' cannot run for this user: %s", name, e)
         return _failed_call(request, str(e)), ToolFailureKind.UNKNOWN
+    # What the tool reports for the agent to act on, such as what to fix in the work it submitted.
+    except ToolFailure as e:
+        logger.warning("Tool '%s' reported a failure to its agent", name)
+        logger.debug("Tool '%s' reported: %s", name, e)
+        return _failed_call(request, str(e)), ToolFailureKind.UNKNOWN
     # NOTE: Kept broad here intentionally — tool handlers are user-supplied plugins that can
     # raise anything. Narrowing would silently swallow legitimate errors from arbitrary
     # third-party tool implementations.
     except Exception as e:
         logger.error("Error executing tool '%s': %s", name, e, exc_info=True)
-        return _failed_call(request, str(e)), ToolFailureKind.UNKNOWN
+        return _failed_call(request), ToolFailureKind.UNKNOWN
     if not isinstance(result, ToolMessage):
         return result, None
     if result.status == "error":
