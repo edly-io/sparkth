@@ -33,14 +33,15 @@ plugins/<pluginname>/
   lib/
     index.ts        # its public surface: the only part another plugin may import
   tests/            # its unit tests, mirroring src/, and its Playwright specs in tests/e2e/
+  .oxlintrc.json    # its import rules
 ```
 
 A page decides what it shows. `components/layout/` holds only the shell that arranges a page's regions. The regions
 themselves (a header, a side column or panel, a list) and everything in them go in `components/ui/`, grouped by
 feature, even when one fills the whole page.
 
-A plugin creates only the folders it needs: one with no page has just `src/index.ts`, `src/constants.ts` and
-`src/slots/`, and only a plugin that offers something to other plugins has a `lib/`.
+A plugin creates only the folders it needs: one with no page has just `src/index.ts`, `src/constants.ts`,
+`src/slots/` and `.oxlintrc.json`, and only a plugin that offers something to other plugins has a `lib/`.
 
 ## 1. Defining a new plugin
 
@@ -196,9 +197,8 @@ registered on every page before their catalogs load.
 
 > ⚠️ If a plugin is not imported and registered here, it will not load, not render, and not appear in the sidebar.
 
-Also give the plugin its own override in `frontend/.oxlintrc.json`, copied from another plugin's with the folder
-name changed, so the lint check applies the [import rules](#import-rules) to it.
-`frontend/tests/oxlintrc.test.ts` fails until it has one.
+Also give the plugin its own `.oxlintrc.json`, copied from another plugin's with the folder name changed, so the
+lint check applies the [import rules](#import-rules) to it. `frontend/tests/oxlintrc.test.ts` fails until it has one.
 
 ## 5. Regenerate the Plugin Route List
 
@@ -319,16 +319,20 @@ In component tests, pass the plugin catalog to the intl helper:
 
 ## Import Rules
 
-`make lint.frontend` (part of `make test.frontend`, so it runs in CI) enforces where code may import from, with the
-`no-restricted-imports` overrides in `frontend/.oxlintrc.json`:
+`make lint.frontend` (part of `make test.frontend`, so it runs in CI) enforces where code may import from, with
+`no-restricted-imports` rules: core's in `frontend/.oxlintrc.json`, and each plugin's in its own `.oxlintrc.json`:
 
 - **A plugin** imports core code only through `@/lib/...`, never from `@/core/...` or `@/app/...`.
 - **A plugin** imports another plugin only through that plugin's `lib/`, its public surface, never its other files.
 - **Core and `lib`** never import a plugin. A plugin reaches them through a [slot](#slots-optional); only `app/`,
   which wires core and plugins together, imports plugins.
 
-A failing import names the rule it breaks. `frontend/tests/oxlintrc.test.ts` checks that each rule fires and that
-every plugin has its override.
+A plugin's config names its own folder, the one plugin whose files it may import. oxlint uses the config nearest
+to a file, so a plugin's config replaces core's for the plugin's files. It does not extend core's config, because
+an extended config's file patterns would then match the plugin's own folders, such as its `lib/`.
+
+A failing import names the rule it breaks. `frontend/tests/oxlintrc.test.ts` checks that each rule fires with its
+message and that every plugin has its own config.
 
 ## Slots (Optional)
 

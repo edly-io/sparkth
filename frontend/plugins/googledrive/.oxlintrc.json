@@ -1,0 +1,26 @@
+{
+  "$schema": "../../node_modules/oxlint/configuration_schema.json",
+  "rules": {
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": ["@/core/**", "@/app/**"],
+            "message": "Plugins import core code through @/lib, never from @/core or @/app."
+          },
+          {
+            "group": [
+              "@/plugins/**",
+              "!@/plugins/googledrive",
+              "!@/plugins/googledrive/**",
+              "!@/plugins/*/lib",
+              "!@/plugins/*/lib/**"
+            ],
+            "message": "A plugin imports another plugin only through that plugin's lib/."
+          }
+        ]
+      }
+    ]
+  }
+}
