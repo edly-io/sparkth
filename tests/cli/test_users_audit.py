@@ -13,6 +13,8 @@ from sparkth.core.audit.models import AuditEvent
 from sparkth.core.models.user import User
 from sparkth.lib.testing import AuditEventsFetcher
 
+pytestmark = pytest.mark.usefixtures("default_user_role")
+
 PASSWORD = "s3cret-Passw0rd"
 NEW_PASSWORD = "n3w-Passw0rd"
 

@@ -15,6 +15,8 @@ from sparkth.core.models.user import User
 from sparkth.core.models.whitelist import WhitelistedEmail
 from sparkth.core.security import get_password_hash
 
+pytestmark = pytest.mark.usefixtures("default_user_role")
+
 LOGIN_URL = "/api/v1/auth/login"
 GOOGLE_CALLBACK_URL = "/api/v1/auth/google/callback?code=x"
 
