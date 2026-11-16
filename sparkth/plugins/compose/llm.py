@@ -295,7 +295,9 @@ def _planner_for_turn(
     Its operator runs on the provider's model with the turn's ``tools`` of plugins that give
     Compose no agent, and exists only when there are some.
     """
-    agent_llm = provider.create_llm()
+    # Made to stream, so a reply reaches the author as it is written: a model made with streaming off
+    # writes the whole reply first.
+    agent_llm = provider.create_llm(streaming=True)
     operations = get_tool_registry().operation_tools(tools)
     return build_planner(
         planner_llm,
