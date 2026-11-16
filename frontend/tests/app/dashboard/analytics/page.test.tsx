@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
-import { renderWithIntl } from "@/tests/intl-test-utils";
+import { renderWithIntl } from "@/tests/intl";
 
 vi.mock("@/core/auth/hooks", () => ({
   useAuth: () => ({ token: "test-token" }),
@@ -13,13 +13,12 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/dashboard/analytics",
 }));
 
-// The plugins installed in the backend build. No PluginProvider is mounted: analytics must not
-// depend on the viewer's own plugin switches.
+// The plugins registered with core, which is what counts as installed. No PluginProvider is
+// mounted: analytics must not depend on the viewer's own plugin switches.
 const plugins = vi.hoisted(() => ({ installed: ["compose"] }));
-vi.mock("@/lib/plugins/generated", () => ({
-  get FRONTEND_PLUGIN_NAMES() {
-    return plugins.installed;
-  },
+vi.mock("@/core/plugins/registry", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/core/plugins/registry")>()),
+  getPlugin: (name: string) => (plugins.installed.includes(name) ? { name } : undefined),
 }));
 
 vi.mock("@/core/analytics", async (orig) => ({
@@ -27,13 +26,13 @@ vi.mock("@/core/analytics", async (orig) => ({
   fetchSummary: vi.fn(),
   fetchLogins: vi.fn(),
 }));
-vi.mock("@/plugins/compose/analytics", async (orig) => ({
-  ...(await orig<typeof import("@/plugins/compose/analytics")>()),
+vi.mock("@/plugins/compose/src/analytics", async (orig) => ({
+  ...(await orig<typeof import("@/plugins/compose/src/analytics")>()),
   fetchComposeActivity: vi.fn(),
 }));
 
 import { fetchLogins, fetchSummary, type SummaryCount } from "@/core/analytics";
-import { fetchComposeActivity } from "@/plugins/compose/analytics";
+import { fetchComposeActivity } from "@/plugins/compose/src/analytics";
 import OverviewPage from "@/app/dashboard/analytics/page";
 
 const summary = vi.mocked(fetchSummary);
