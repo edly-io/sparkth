@@ -57,6 +57,12 @@ class Conversation(ScopeObjectMixin, TimestampedModel, SQLModel, table=True):
         """The conversation's UUID as a string."""
         return str(self.uuid)
 
+    @property
+    def scope_path(self) -> str:
+        """The conversation's path: its stored parent, or its owner's user scope when none is stored."""
+        parent = self.parent_scope_path or build_scope_path(USER, str(self.user_id))
+        return build_scope_path(self.scope, self.scope_id, parent)
+
 
 @event.listens_for(Conversation, "before_insert")
 def set_conversation_parent_scope_path(
