@@ -1,8 +1,7 @@
 """The author-facing surface, mounted beside the learner routes at ``/api/v1/pxc``.
 
-Every route here depends on ``get_current_user``, which is what turns away a request with no
-signed-in author. The learner routes carry a launch token instead and declare no such
-dependency, so they are unaffected.
+Every route here needs a signed-in author who holds ``plugin.use`` at ``plugin:pxc``. The learner
+routes carry a launch token instead and declare no such dependency, so they are unaffected.
 """
 
 from typing import cast
@@ -14,14 +13,20 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
 from sparkth.lib.models import User
+from sparkth.lib.permissions import PLUGIN_USE
+from sparkth.lib.permissions.scopes import PLUGIN
 from sparkth.plugins.pxc.activities import activity_dir, preview_url
+from sparkth.plugins.pxc.constants import PXC_PLUGIN_NAME
 from sparkth.plugins.pxc.enums import PreviewPermission
 from sparkth.plugins.pxc.revisions import remove_activity_files
 from sparkth.plugins.pxc.schemas import ActivityLaunch, ActivitySummary
 from sparkth.plugins.pxc.store import delete_activity, get_owned_activity, list_owned_activities
 from sparkth.plugins.pxc.tokens import mint_preview_token
 
-router = APIRouter()
+# Gates every authoring route on the caller being allowed to use PXC.
+require_pxc_use = PLUGIN_USE.require_for_object(PLUGIN, PXC_PLUGIN_NAME)
+
+router = APIRouter(dependencies=[Depends(require_pxc_use)])
 
 
 @router.get("/activities")

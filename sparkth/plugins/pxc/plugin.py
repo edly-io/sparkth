@@ -25,7 +25,7 @@ from sparkth.lib.mcp.hooks import MCP_TOOLS
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.lib.routes import register_router
 from sparkth.plugins.pxc.agent import PXC_ACTIVITY_BUILDER
-from sparkth.plugins.pxc.constants import PXC_CORS_HEADERS
+from sparkth.plugins.pxc.constants import PXC_CORS_HEADERS, PXC_PLUGIN_NAME
 from sparkth.plugins.pxc.contributor import build_pxc_block, list_pxc_options, record_pxc_placement
 from sparkth.plugins.pxc.exceptions import (
     PxcActionRejected,
@@ -66,7 +66,7 @@ class PxcPlugin(SparkthPlugin):
     LMS's course."""
 
     def __init__(self) -> None:
-        super().__init__("pxc")
+        super().__init__(PXC_PLUGIN_NAME)
         register_router(self, pxc_router)
         DISPLAY_INFO.add_item(
             self,
