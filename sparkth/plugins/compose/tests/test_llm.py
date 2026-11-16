@@ -546,3 +546,20 @@ async def test_a_turn_with_an_operation_says_who_answered_it_last(
     planner = _planner_replying(_operation(), then)
 
     assert await _answered_by(planner, provider, stream, [_record_tool([])]) == expected
+
+
+async def test_the_agents_model_is_made_to_stream(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A model made with streaming off writes its whole reply before any of it reaches the author."""
+    made_with_streaming: list[bool] = []
+    model = ScriptedChatModel(messages=iter([AIMessage("Here is the lesson.")]))
+    provider = get_provider("anthropic", "test-key", "claude-sonnet-5")
+
+    def make_model(streaming: bool = False) -> ScriptedChatModel:
+        made_with_streaming.append(streaming)
+        return model
+
+    monkeypatch.setattr(provider, "_create_llm", make_model)
+
+    await complete_turn(TURN, [], provider, 50, **handing_off_to(STUB_AGENT))
+
+    assert made_with_streaming == [True]
