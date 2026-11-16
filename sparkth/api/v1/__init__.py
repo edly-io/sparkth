@@ -1,10 +1,11 @@
 """Version 1 of the REST API.
 
 Assembles ``api_router`` from every endpoint module in this package. Each module
-exposes a ``router`` — whether it is a single file (``auth.py``) or a package with
-its own ``routes.py`` and ``schemas.py`` (``user/``) — and is mounted here under
-its URL prefix and OpenAPI tag. ``sparkth.main.assemble_app`` mounts the result at
-``/api/v1``, so every path in this file is relative to that.
+provides a ``router`` — declared in a single file (``auth.py``), exported by a package's
+``__init__.py`` (``user/``), or defined in a package's ``routes.py`` and imported from
+there (``plugins/``) — and is mounted here under its URL prefix and OpenAPI tag.
+``sparkth.main.assemble_app`` mounts the result at ``/api/v1``, so every path in this
+file is relative to that.
 
 Prefixes are the public URL contract: changing one here moves an endpoint for every
 client, independently of how the module behind it is laid out on disk.
