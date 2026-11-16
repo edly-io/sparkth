@@ -43,12 +43,6 @@ make create-user -- --username jane --email jane@example.com --name Jane
 make cli -- roles assign-role jane admin
 ```
 
-Take a role away with `roles revoke-role`, which takes the same arguments and options as `assign-role`:
-
-```bash
-make cli -- roles revoke-role jane admin
-```
-
 Provide the password directly:
 
 ```bash
@@ -62,6 +56,18 @@ Options:
 - `--name, -n`: Full name (optional, defaults to the username)
 - `--password, -p`: Password (optional, will prompt if not provided)
 - `--email-verified`: mark the user's email as already verified (optional, default: false)
+
+## Assign and revoke roles
+
+Assign a role with `roles assign-role` and take it away with `roles revoke-role`. Both look the user up by
+username or email and take the same arguments and `--scope` / `--scope-object-id` options:
+
+```bash
+make cli -- roles assign-role jane admin
+make cli -- roles revoke-role jane admin
+```
+
+See the [permissions guide](permissions.md) for scopes and for limiting a user to some plugins.
 
 ## Reset a password
 
