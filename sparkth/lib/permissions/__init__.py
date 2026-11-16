@@ -20,6 +20,7 @@ from sparkth.core.permissions import (
     EMAIL_WHITELIST_CREATE,
     EMAIL_WHITELIST_DELETE,
     EMAIL_WHITELIST_READ,
+    FILE_UPLOAD,
     GROUP_CREATE,
     GROUP_DELETE,
     GROUP_READ,
@@ -29,6 +30,7 @@ from sparkth.core.permissions import (
     LLM_CONFIG_READ,
     LLM_CONFIG_UPDATE,
     PERMISSION_READ,
+    PLUGIN_USE,
     ROLE_CREATE,
     ROLE_DELETE,
     ROLE_READ,
@@ -86,4 +88,6 @@ __all__ = [
     "LLM_CONFIG_READ",
     "LLM_CONFIG_UPDATE",
     "LLM_CONFIG_DELETE",
+    "PLUGIN_USE",
+    "FILE_UPLOAD",
 ]
