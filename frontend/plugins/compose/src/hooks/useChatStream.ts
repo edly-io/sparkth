@@ -110,6 +110,11 @@ function applyStatusEvent(
     setMessages((prev) =>
       prev.map((msg) => (msg.id === assistantId ? { ...msg, statusPhase: phase } : msg)),
     );
+  } else if (parsed.status === "step" && typeof parsed.label === "string") {
+    const stepLabel = parsed.label;
+    setMessages((prev) =>
+      prev.map((msg) => (msg.id === assistantId ? { ...msg, stepLabel } : msg)),
+    );
   } else if (parsed.status === "tool_call" && parsed.tool_name) {
     const toolName = parsed.tool_name as string;
     const toolStatus = parsed.tool_status as "running" | "done";
@@ -322,21 +327,33 @@ export function useChatStream({
   const [isStopping, setIsStopping] = useState(false);
   const turnIdRef = useRef<string | null>(null);
 
+  // A failure after text was written keeps that text as a reply of its own and shows the error
+  // after it. A failure the server reports is stored the same way.
   const failAssistantMessage = useCallback(
     (id: string, errorText: string) => {
       setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === id
-            ? {
-                ...msg,
-                content: errorText,
-                streamedContent: undefined,
-                isTyping: false,
-                isError: true,
-                isPending: false,
-              }
-            : msg,
-        ),
+        prev.flatMap((msg) => {
+          if (msg.id !== id) return [msg];
+          const ended = {
+            ...msg,
+            streamedContent: undefined,
+            isTyping: false,
+            isPending: false,
+            statusPhase: undefined,
+            stepLabel: undefined,
+            toolCalls: msg.toolCalls?.map((tool) => ({ ...tool, status: "done" as const })),
+          };
+          if (!msg.streamedContent) return [{ ...ended, content: errorText, isError: true }];
+          return [
+            { ...ended, content: msg.streamedContent },
+            {
+              id: `${id}-error`,
+              role: "assistant" as const,
+              content: errorText,
+              isError: true,
+            },
+          ];
+        }),
       );
     },
     [setMessages],
@@ -418,6 +435,7 @@ export function useChatStream({
                     streamedContent: undefined,
                     isTyping: false,
                     statusPhase: undefined,
+                    stepLabel: undefined,
                     ...(doneRagSections && {
                       ragSections: doneRagSections.map((s) => ({
                         ...s,

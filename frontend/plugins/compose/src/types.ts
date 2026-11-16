@@ -46,6 +46,8 @@ export interface ChatMessage {
   isError?: boolean;
   isPending?: boolean;
   statusPhase?: StreamStatusPhase;
+  /** What the step now running says it is doing, in the author's language. */
+  stepLabel?: string;
   ragSections?: {
     type: string;
     name: string;
