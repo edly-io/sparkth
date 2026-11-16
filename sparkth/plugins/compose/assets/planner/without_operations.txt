@@ -1,1 +1,1 @@
-Every agent can also publish, retrieve and manage courses on the author's LMS. Hand such a request to the agent whose work the course came from.
+No LMS is available in this conversation, so courses can't be published, retrieved or managed on one. When a message asks for that, tell the author briefly that no LMS is available; never refuse it as out of scope.
