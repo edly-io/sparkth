@@ -30,9 +30,6 @@ async def get_conversation(
     return await service.get_conversation(session, conversation_id)
 
 
-logger = get_logger(__name__)
-
-
 async def get_conversation_owner_id(conversation: Conversation = Depends(get_conversation)) -> int:
     """Return the id of the user who owns the conversation named in the path.
 
