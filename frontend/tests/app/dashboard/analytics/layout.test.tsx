@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import en from "@/messages/en.json";
-import { renderWithIntl } from "@/tests/intl-test-utils";
+import en from "@/core/i18n/catalogs/en";
+import { renderWithIntl } from "@/tests/intl";
 
 vi.mock("@/core/auth/hooks", () => ({ useAuth: () => ({ token: "test-token" }) }));
 const nav = vi.hoisted(() => ({ search: "" }));
@@ -13,12 +13,11 @@ vi.mock("next/navigation", () => ({
 }));
 const checkPermission = vi.hoisted(() => vi.fn());
 vi.mock("@/core/permissions/client", () => ({ checkPermission }));
-// The plugins installed in the backend build.
+// The plugins registered with core, which is what counts as installed.
 const plugins = vi.hoisted(() => ({ installed: ["compose"] }));
-vi.mock("@/lib/plugins/generated", () => ({
-  get FRONTEND_PLUGIN_NAMES() {
-    return plugins.installed;
-  },
+vi.mock("@/core/plugins/registry", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/core/plugins/registry")>()),
+  getPlugin: (name: string) => (plugins.installed.includes(name) ? { name } : undefined),
 }));
 
 import AnalyticsLayout from "@/app/dashboard/analytics/layout";

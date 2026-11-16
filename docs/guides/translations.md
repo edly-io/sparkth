@@ -229,8 +229,9 @@ no locale URL prefix. The locale is resolved on the client.
    unsupported value falls back to `en`.
 2. Rendering starts immediately on the bundled core English catalog, so the
    prerendered static-export HTML keeps its content. The provider then loads
-   the full catalog for the cookie locale: `frontend/messages/<locale>.json`
-   merged with the catalog of every registered plugin that ships one (see
+   the full catalog for the cookie locale: core's catalog (see
+   [core catalogs](#core-catalogs) below) merged with the catalog of every
+   registered plugin that ships one (see
    [plugin catalogs](#plugin-catalogs) below). Once the chunks arrive it
    sets `document.documentElement.lang` and re-renders with the merged
    catalog (for a non-default locale, the brief English flash before that is
@@ -241,12 +242,12 @@ no locale URL prefix. The locale is resolved on the client.
    the active locale tracks what is on screen, and the two diverge when the
    catalog load fails outright and the UI stays on English.
 4. The API client echoes the active locale as an `Accept-Language` header on
-   every request (`localeMiddleware` in `frontend/lib/api/middleware.ts`), so
+   every request (`localeMiddleware` in `frontend/core/api/middleware.ts`), so
    backend responses arrive in the language the frontend renders, cookie or
    not. A caller-supplied `Accept-Language` header wins over the default.
 
 The catalog allowlist lives in `locales` in `frontend/lib/i18n/config.ts` and
-names the bundled `messages/*.json` files. The user-facing language picker
+names the bundled core catalogs, one per locale. The user-facing language picker
 reads the authoritative platform list from `GET /api/v1/languages`.
 
 ### Marking strings
@@ -268,9 +269,10 @@ The catalog drift guard below only finds keys used through `useTranslations` or
 comment next to the call.
 
 Messages use ICU syntax for interpolation and plurals
-(`"lastDays": "last {days} days"`). Keys are written by hand into
-`frontend/messages/en.json` first; `es.json` and `fr.json` must carry the same
-keys. Unknown keys are a TypeScript error: the catalogs are bound to
+(`"lastDays": "last {days} days"`). Keys are written by hand into the
+`en.json` of the core feature that uses them first (see
+[core catalogs](#core-catalogs)); `es.json` and `fr.json` beside it must carry
+the same keys. Unknown keys are a TypeScript error: the catalogs are bound to
 next-intl's types via the `Messages` type in `frontend/lib/i18n/messages.ts`
 (referenced from `frontend/lib/i18n/next-intl.d.ts`). Each plugin with
 catalogs adds its namespace to that type from its own `i18n/messages.d.ts`.
@@ -282,11 +284,23 @@ so format them with an explicit `timeZone: "UTC"`, or a user west of UTC sees th
 format.dateTime(new Date(`${day}T00:00:00Z`), { dateStyle: "medium", timeZone: "UTC" });
 ```
 
+### Core catalogs
+
+Core's strings are split by the feature that owns them, one namespace or more
+per feature: each feature keeps `i18n/en.json`, `es.json` and `fr.json` in its
+own folder (`frontend/core/analytics/i18n/`, `frontend/core/auth/i18n/`, ...),
+and app-wide strings (`home`, `forbidden`, `api`) sit in `frontend/core/i18n/`.
+`frontend/core/i18n/catalogs/<locale>.ts` merges a locale's feature files into
+the one catalog the loader fetches, so each locale is still a single chunk. A
+new feature catalog is imported in each of those files;
+`frontend/tests/core/i18n/catalogs.test.ts` fails if one is left out, or if two
+features declare the same namespace.
+
 ### Plugin catalogs
 
 A frontend plugin owns its catalogs, mirroring the backend containment rule:
-the core `frontend/messages/` files carry no plugin namespace, and a plugin
-that has user-facing strings ships `messages/<locale>.json` files in its own
+core's catalogs (`frontend/core/*/i18n/`) carry no plugin namespace, and a plugin
+that has user-facing strings ships `src/i18n/<locale>.json` files in its own
 directory, scoped to a single top-level namespace equal to the plugin name.
 The plugin declares a `loadMessages` loader on its `PluginDefinition`, and
 `loadMessages` in `frontend/core/i18n/messages.ts` merges every registered
@@ -300,12 +314,13 @@ step-by-step wiring; the containment is guarded by
 
 `make test.frontend.i18n` (part of `make test.frontend`, so it runs in CI)
 runs [i18n-check](https://github.com/lingualdev/i18n-check) once per catalog
-(`frontend/scripts/i18n-check.mjs`): the core `frontend/messages/` catalog is
-checked against the core sources, and each `frontend/plugins/*/messages/`
-catalog against that plugin's own sources. Each run fails on keys missing
+(`frontend/scripts/i18n-check.mjs`): core's feature catalogs are merged and
+checked together against the core sources (`app/`, `core/`, `lib/`), since a
+key is often used outside its feature, and each `frontend/plugins/*/src/i18n/`
+catalog against that plugin's own `src/`. Each run fails on keys missing
 from any locale file, keys whose ICU placeholders diverge from the source,
 catalog entries no component uses, and keys used in code but defined in no
-catalog. A plugin opts in simply by having a `messages/` directory; the
+catalog. A plugin opts in simply by having a `src/i18n/` directory; the
 script picks it up automatically. The
 [`i18n-translator`](https://github.com/edly-io/sparkth/blob/main/.claude/agents/i18n-translator.md)
 Claude Code agent fills in the missing or invalid keys the check reports.
@@ -313,11 +328,11 @@ Claude Code agent fills in the missing or invalid keys the check reports.
 ### Testing translated components
 
 Wrap the component in the English catalog with `renderWithIntl` from
-`frontend/tests/intl-test-utils.tsx`; assertions against English text keep
+`frontend/lib/testing/intl.tsx`; assertions against English text keep
 working unchanged:
 
 ```tsx
-import { renderWithIntl } from "../intl-test-utils";
+import { renderWithIntl } from "@/lib/testing/intl";
 
 renderWithIntl(<HomeClient />);
 expect(screen.getByRole("link", { name: "Get Started" })).toBeInTheDocument();
@@ -327,15 +342,17 @@ A plugin component test passes the plugin's English catalog as the second
 argument, since the helper's default carries only the core catalog:
 
 ```tsx
-import composeEn from "@/plugins/compose/messages/en.json";
+import pxcEn from "@/plugins/pxc/src/i18n/en.json";
 
-renderWithIntl(<ChatInput ... />, composeEn);
+renderWithIntl(<ActivityList />, pxcEn);
 ```
 
 ### Adding a language
 
 1. Add the tag to `SUPPORTED_LANGUAGES` in `sparkth/core/config.py` (see the
    backend steps above).
-2. Add the tag to `locales` in `frontend/lib/i18n/config.ts` and create
-   `frontend/messages/<lang>.json` with every key from `en.json`
+2. Add the tag to `locales` in `frontend/lib/i18n/config.ts`. Create
+   `<lang>.json` beside each core feature's `en.json` with every key from it,
+   a `frontend/core/i18n/catalogs/<lang>.ts` that merges them, and its entry in
+   the loader's `catalogs` in `frontend/core/i18n/messages.ts`
    (`make test.frontend.i18n` verifies completeness).

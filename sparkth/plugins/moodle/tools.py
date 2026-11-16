@@ -1,9 +1,9 @@
 """Moodle MCP tools, including the settings check, LMS vocabulary, course, section, page and quiz management."""
 
 import logging
-from pathlib import Path
 from typing import Any
 
+from sparkth.lib.assets import read_asset
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
 from sparkth.lib.plugins import load_user_plugin_config
 from sparkth.plugins.moodle.client import MoodleClient
@@ -198,4 +198,4 @@ async def moodle_about() -> dict[str, Any]:
 
     Read this before creating or changing Moodle content, or when a Moodle term is ambiguous.
     """
-    return {"about": (Path(__file__).parent / "assets" / "about.txt").read_text(encoding="utf-8")}
+    return {"about": read_asset(__file__, "about.txt")}
