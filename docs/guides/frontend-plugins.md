@@ -180,23 +180,12 @@ For more details, see the `PluginDefinition` type in
 
 ## 4. Register the Plugin
 
-Import the plugin's `src/index.ts` in `app/plugins.ts`, once. Importing it runs the plugin's
-`PLUGINS.set(...)` and any slot files it imports, such as `src/slots/settings.ts`, and `app/plugins.ts` then
-registers every definition in the `PLUGINS` slot with the plugin registry.
+There is nothing to register by hand: setting the definition in the `PLUGINS` slot is all a plugin does. The app
+loads every plugin's `src/index.ts` and registers what it sets there. A new plugin folder shows up on the next build
+or dev-server start.
 
-**File**
-
-    app/plugins.ts
-
-```ts
-import "@/plugins/compose/src"; // already existing
-import "@/plugins/exampleplugin/src";
-```
-
-`app/LocaleProvider.tsx` and the dashboard layout import this module, so the plugins are
-registered on every page before their catalogs load.
-
-> ⚠️ If a plugin is not imported here, it will not load, not render, and not appear in the sidebar.
+> ⚠️ A plugin whose entry point is not `src/index.ts` is not loaded: it will not render, and not appear in the
+> sidebar.
 
 Also give the plugin its own `.oxlintrc.json`, copied from another plugin's with the folder name changed, so the
 lint check applies the [import rules](#import-rules) to it. `frontend/tests/oxlintrc.test.ts` fails until it has one.
@@ -399,7 +388,7 @@ EXAMPLE_SECTIONS.set(EXAMPLEPLUGIN_PLUGIN_NAME, [
 ```
 
 A file runs only when something imports it, so the plugin's `src/index.ts` imports it, and the file runs when
-`app/plugins.ts` imports the plugin:
+the app loads the plugin:
 
 ```ts
 // plugins/exampleplugin/src/index.ts
@@ -516,8 +505,8 @@ While the modal loads, the page passes the row `configuring`, and `SettingsListI
 button.
 
 A backend plugin with no page still needs a frontend part for its row: its `src/slots/settings.ts` and a
-`src/index.ts` that only imports it, with no `PluginDefinition` and no entry in the `PLUGINS` slot. `app/plugins.ts`
-imports that `src/index.ts` like any other plugin's, as `import "@/plugins/canvas/src";` does for Canvas.
+`src/index.ts` that only imports it, with no `PluginDefinition` and no entry in the `PLUGINS` slot.
+The app loads that `src/index.ts` like any other plugin's.
 
 **Field controls.** A backend field picks its control with a `widget` hint (`sparkth/core/plugins/widgets.py`), and a
 field with no hint gets a control from its type. Core ships controls for text, URLs, passwords, numbers, text areas,
@@ -545,9 +534,9 @@ field with the plugin's control for its hint, then with a built-in control, and 
 ```
 plugins/<plugin>
    ↓
-PluginDefinition, set in the PLUGINS slot
+src/index.ts, loaded by the app
    ↓
-registerPlugin() in app/plugins.ts
+PluginDefinition, set in the PLUGINS slot
    ↓
 Plugin registry
    ↓
@@ -562,7 +551,8 @@ Rendered plugin UI
 
 **Plugin not showing?**
 
-- Ensure `app/plugins.ts` imports its `src/index.ts`, and the `src/index.ts` sets its definition in the `PLUGINS` slot
+- Ensure its entry point is `plugins/<pluginname>/src/index.ts`, and that it sets its definition in the `PLUGINS` slot
+- Restart the dev server after adding the folder, so the bundler sees it
 
 **Plugin page blank?**
 
