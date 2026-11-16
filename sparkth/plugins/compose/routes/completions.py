@@ -344,6 +344,7 @@ async def compose_completion(
                 executed_tools=executed_tools_from(executions),
                 occurred_at=assistant_message.created_at,
                 routing=response["routing"],
+                steps=response_metadata.get("steps") or [],
             )
 
             return ChatCompletionResponse(
