@@ -16,6 +16,7 @@ from sparkth.lib.permissions import DEFAULT_USER_ROLE, PLUGIN_USER_ROLE, revoke_
 from sparkth.lib.permissions.scopes import GLOBAL, PLUGIN, USER
 from sparkth.lib.testing import AuditEventsFetcher, grant_global_permission, grant_permission_at_scope
 from sparkth.plugins.compose.analytics.reads import ComposeActivityPoint, get_compose_activity
+from sparkth.plugins.compose.constants import COMPOSE_PLUGIN_NAME
 
 URL = "/api/v1/compose/analytics/activity"
 
@@ -283,7 +284,7 @@ async def test_endpoint_allows_a_grant_at_the_compose_plugin_only(
     await session.flush()
     await revoke_role(1, PLUGIN_USER_ROLE, GLOBAL, None, session)
     await revoke_role(1, DEFAULT_USER_ROLE, USER, "1", session)
-    await grant_permission_at_scope(session, 1, "analytics.read", PLUGIN, "compose")
+    await grant_permission_at_scope(session, 1, "analytics.read", PLUGIN, COMPOSE_PLUGIN_NAME)
     await session.commit()
 
     response = await client.get(URL, params={"from": "2026-03-01", "to": "2026-03-31"})
@@ -305,7 +306,7 @@ async def test_endpoint_denies_a_grant_at_another_plugin(
     (event,) = await audit_events()
     assert event.action == "denied"
     assert event.target_id == "analytics.read"
-    assert event.error_detail == "scope=plugin:compose"
+    assert event.error_detail == f"scope=plugin:{COMPOSE_PLUGIN_NAME}"
 
 
 async def test_compose_figures_count_their_event_type_for_both_periods(

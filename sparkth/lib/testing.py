@@ -193,6 +193,17 @@ async def restrict_plugin_use(session: AsyncSession, plugin_name: str | None) ->
     await session.commit()
 
 
+async def assert_plugin_use_denied(audit_events: AuditEventsFetcher, plugin_name: str) -> None:
+    """Assert the last audit row is a permission denial for ``plugin.use`` at the named plugin's scope."""
+    event = (await audit_events())[-1]
+    assert (event.category, event.action, event.target_id, event.error_detail) == (
+        "permission",
+        "denied",
+        "plugin.use",
+        f"scope=plugin:{plugin_name}",
+    )
+
+
 async def grant_global_permission(session: AsyncSession, user_id: int, permission: str) -> None:
     """Grant ``permission`` to the user globally, through a role named after it."""
     await grant_permission_at_scope(session, user_id, permission, GLOBAL)
@@ -531,14 +542,3 @@ def fake_redis(monkeypatch: pytest.MonkeyPatch) -> FakeRedis:
     fake = FakeRedis()
     monkeypatch.setattr(get_cache_service(settings.REDIS_URL, settings.REDIS_KEY_TTL), "_redis", fake)
     return fake
-
-
-async def assert_plugin_use_denied(audit_events: AuditEventsFetcher, plugin_name: str) -> None:
-    """Assert the last audit row is a permission denial for ``plugin.use`` at the named plugin's scope."""
-    event = (await audit_events())[-1]
-    assert (event.category, event.action, event.target_id, event.error_detail) == (
-        "permission",
-        "denied",
-        "plugin.use",
-        f"scope=plugin:{plugin_name}",
-    )
