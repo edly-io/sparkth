@@ -15,16 +15,18 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.i18n.context import _locale, get_locale, locale_context
+from sparkth.core.models import LLMConfig
 from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.core.security import create_access_token
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.i18n import bind_locale
 from sparkth.lib.models import User
+from sparkth.lib.permissions.scopes import USER
 from sparkth.lib.settings import get_settings
-from sparkth.lib.testing import AddTranslation
+from sparkth.lib.testing import AddTranslation, grant_permission_at_scope
 
-# The marked detail PATCH /api/v1/llm/configs/{config_id} raises for an empty body — the check
-# runs before any database access, so it exercises get_current_user without seeding an LLMConfig.
+# The marked detail PATCH /api/v1/llm/configs/{config_id} raises for an empty body, which the
+# route reaches once the caller owns the config and may update it.
 EMPTY_BODY_MESSAGE = "Empty body. Nothing to update."
 SPANISH_EMPTY_BODY = "Cuerpo vacío. Nada que actualizar."
 FRENCH_EMPTY_BODY = "Corps vide. Rien à mettre à jour."
@@ -74,6 +76,23 @@ def _auth_headers(username: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {create_access_token({'sub': username})}"}
 
 
+async def _seed_updatable_config(session: AsyncSession, user: User) -> int:
+    """Give the user a config of their own and the grant to update it; return its id."""
+    config = LLMConfig(
+        user_id=cast(int, user.id),
+        name="Key",
+        provider="anthropic",
+        model="claude-sonnet-4-20250514",
+        encrypted_key="enc",
+        masked_key="sk-...abcd",
+    )
+    session.add(config)
+    await grant_permission_at_scope(session, cast(int, user.id), "llm.config.update", USER, str(user.id))
+    await session.commit()
+    await session.refresh(config)
+    return cast(int, config.id)
+
+
 async def _seed_user(session: AsyncSession, username: str, language: str | None) -> User:
     user = User(
         name="Locale Test",
@@ -106,10 +125,11 @@ class TestStoredPreferenceWinsOverTheHeader:
     ) -> None:
         translation_catalog(EMPTY_BODY_MESSAGE, SPANISH_EMPTY_BODY, locale="es")
         translation_catalog(EMPTY_BODY_MESSAGE, FRENCH_EMPTY_BODY, locale="fr")
-        await _seed_user(session, "stored-lang-user", "es")
+        user = await _seed_user(session, "stored-lang-user", "es")
+        config_id = await _seed_updatable_config(session, user)
 
         response = await client.patch(
-            "/api/v1/llm/configs/1",
+            f"/api/v1/llm/configs/{config_id}",
             json={},
             headers={**_auth_headers("stored-lang-user"), "Accept-Language": "fr"},
         )
@@ -130,10 +150,11 @@ class TestStoredPreferenceWinsOverTheHeader:
         """An unset preference, or one whose language has since left the allowlist, must
         not override a header the user's browser did offer."""
         translation_catalog(EMPTY_BODY_MESSAGE, FRENCH_EMPTY_BODY, locale="fr")
-        await _seed_user(session, "unusable-lang-user", stored)
+        user = await _seed_user(session, "unusable-lang-user", stored)
+        config_id = await _seed_updatable_config(session, user)
 
         response = await client.patch(
-            "/api/v1/llm/configs/1",
+            f"/api/v1/llm/configs/{config_id}",
             json={},
             headers={**_auth_headers("unusable-lang-user"), "Accept-Language": "fr"},
         )
