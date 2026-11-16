@@ -6,7 +6,7 @@ import { ApiRequestError } from "@/lib/api";
 import { deleteActivity } from "@/plugins/pxc/src/client";
 import { DeleteActivityDialog } from "@/plugins/pxc/src/components/ui/DeleteActivityDialog";
 import pxcEn from "@/plugins/pxc/src/i18n/en.json";
-import { renderWithIntl } from "@/tests/intl-test-utils";
+import { renderWithIntl } from "@/lib/testing/intl";
 
 const auth = vi.hoisted(() => ({ token: "test-token" as string | null }));
 vi.mock("@/lib/auth/hooks", () => ({

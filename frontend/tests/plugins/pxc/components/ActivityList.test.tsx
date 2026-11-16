@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ActivityList } from "@/plugins/pxc/src/components/ui/ActivityList";
 import { deleteActivity, listActivities } from "@/plugins/pxc/src/client";
 import pxcEn from "@/plugins/pxc/src/i18n/en.json";
-import { renderWithIntl } from "@/tests/intl-test-utils";
+import { renderWithIntl } from "@/lib/testing/intl";
 
 vi.mock("@/lib/auth/hooks", () => ({
   useAuth: () => ({ token: "test-token" }),

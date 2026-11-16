@@ -1,6 +1,6 @@
 import { beforeEach, describe, it, expect, vi } from "vitest";
 import { act, screen } from "@testing-library/react";
-import { renderWithIntl } from "@/tests/intl-test-utils";
+import { renderWithIntl } from "@/tests/intl";
 
 const nav = vi.hoisted(() => ({ pathname: "/dashboard/analytics/logins", search: "" }));
 vi.mock("next/navigation", () => ({

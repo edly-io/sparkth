@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 
-import { TooltipProvider } from "@/core/components/ui/Tooltip";
+import { TooltipProvider } from "@/lib/components/ui/Tooltip";
 import HistoryColumn from "@/plugins/compose/src/components/ui/history/HistoryColumn";
 import { useConversations } from "@/plugins/compose/src/hooks/useConversations";
 import { HISTORY_COLLAPSED_KEY } from "@/plugins/compose/src/hooks/useHistoryCollapsed";
 import type { ConversationSummary } from "@/plugins/compose/src/types";
 import composeEn from "@/plugins/compose/src/i18n/en.json";
-import { renderWithIntl } from "../../../../intl-test-utils";
+import { renderWithIntl } from "@/lib/testing/intl";
 
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams() }));
 vi.mock("@/lib/auth/hooks", () => ({ useAuth: () => ({ token: "t" }) }));
