@@ -3,7 +3,8 @@
 import { useState, type ReactNode, type SubmitEvent } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/core/auth/hooks";
-import { ApiRequestError, changePassword, updateCurrentUser, type CurrentUser } from "@/lib/api";
+import { ApiRequestError } from "@/lib/api";
+import { changePassword, updateCurrentUser, type CurrentUser } from "@/core/auth/client";
 import { Alert } from "@/core/components/ui/Alert";
 import { Button } from "@/core/components/ui/Button";
 import { Card } from "@/core/components/ui/Card";

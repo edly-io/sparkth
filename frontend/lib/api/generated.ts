@@ -1067,7 +1067,9 @@ export interface paths {
         };
         /**
          * List Roles
-         * @description List the roles the caller may read. Returns a list of RoleResponse (id, name, description, permissions).
+         * @description List the roles the caller may read.
+         *
+         *     Returns a list of RoleResponse (id, name, description, permissions, is_builtin).
          *
          *     Grants are fetched for every listed role in a single batched query.
          */
@@ -1075,7 +1077,7 @@ export interface paths {
         put?: never;
         /**
          * Create Role
-         * @description Create a role. Returns the created RoleResponse (id, name, description, permissions).
+         * @description Create a role. Returns the created RoleResponse (id, name, description, permissions, is_builtin).
          */
         post: operations["create_role_api_v1_permissions_roles_post"];
         delete?: never;
@@ -1093,7 +1095,7 @@ export interface paths {
         };
         /**
          * Get Role
-         * @description Fetch a role by id. Returns its RoleResponse (id, name, description, permissions).
+         * @description Fetch a role by id. Returns its RoleResponse (id, name, description, permissions, is_builtin).
          */
         get: operations["get_role_api_v1_permissions_roles__role_id__get"];
         put?: never;
@@ -1979,12 +1981,6 @@ export interface components {
              */
             document_ids?: number[] | null;
             /**
-             * Include System Tools Message
-             * @description Automatically prepend a system message listing available tools
-             * @default true
-             */
-            include_system_tools_message: boolean;
-            /**
              * Llm Config Id
              * @description ID of the LLMConfig to use for this completion
              */
@@ -2757,6 +2753,8 @@ export interface components {
             description: string | null;
             /** Id */
             id: number;
+            /** Is Builtin */
+            is_builtin: boolean;
             /** Name */
             name: string;
             /** Permissions */
