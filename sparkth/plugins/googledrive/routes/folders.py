@@ -46,11 +46,10 @@ _FOLDER_MIME_TYPE: str = GoogleDriveClient.FOLDER_MIME_TYPE
 async def list_folders(
     skip: int = Query(0, ge=0, description="Number of items to skip"),
     limit: int = Query(20, ge=1, le=100, description="Number of items to return"),
-    owner_id: str = Depends(get_listed_owner_id),
+    owner_id: int = Depends(get_listed_owner_id),
     session: AsyncSession = Depends(get_async_session),
 ) -> PaginatedResponse[DriveFolderResponse]:
     """List the synced Google Drive folders of the user named by ``owner_id``, or of the caller, with pagination."""
-    user_id = int(owner_id)
     file_count_subq = (
         select(col(DriveFile.folder_id), func.count(col(DriveFile.id)).label("file_count"))
         .where(DriveFile.is_deleted == False)  # noqa: E712
@@ -62,7 +61,7 @@ async def list_folders(
         select(DriveFolder, file_count_subq.c.file_count)
         .outerjoin(file_count_subq, col(DriveFolder.id) == file_count_subq.c.folder_id)
         .where(
-            DriveFolder.user_id == user_id,
+            DriveFolder.user_id == owner_id,
             DriveFolder.is_deleted == False,  # noqa: E712
         )
     )
@@ -70,7 +69,7 @@ async def list_folders(
     count_stmt = select(func.count()).select_from(
         select(DriveFolder.id)
         .where(
-            DriveFolder.user_id == user_id,
+            DriveFolder.user_id == owner_id,
             DriveFolder.is_deleted == False,  # noqa: E712
         )
         .subquery()
