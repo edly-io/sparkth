@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { screen, fireEvent, waitFor } from "@testing-library/react";
 
-import { renderWithIntl } from "@/tests/intl-test-utils";
+import { renderWithIntl } from "@/tests/intl";
 import { PluginConfigModal } from "@/core/settings/components/ui/ConfigModal";
 import type { UserPluginState } from "@/core/plugins/types";
 import type { ConfigWidgetProps } from "@/lib/settings/slots";
