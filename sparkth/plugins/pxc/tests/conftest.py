@@ -23,7 +23,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from uuid6 import uuid7
 
 from sparkth.core.models.user import User
-from sparkth.core.permissions.models import Role
 from sparkth.lib.auth import bind_current_user_id
 from sparkth.main import assemble_app
 from sparkth.plugins.pxc import builder
@@ -92,8 +91,8 @@ def reused_compiles(monkeypatch: pytest.MonkeyPatch, compile_store: tuple[Path, 
 
 
 @pytest.fixture(autouse=True)
-def _every_user_holds_default_role(default_user_role: Role) -> None:  # noqa: PT004
-    """Give the signed-in test user the default role, so the gated routes pass for their own records."""
+def _every_user_holds_default_role(default_user_role: object) -> None:
+    """Give the signed-in test user the default roles, so the authoring routes' ``plugin.use`` gate passes."""
 
 
 @pytest.fixture(autouse=True)

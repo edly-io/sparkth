@@ -149,8 +149,8 @@ so a token from Sparkth or the LMS (`PXC_LAUNCH_TOKEN_TTL_SECONDS` here, and the
 `SPARKTH_PXC_LAUNCH_TOKEN_TTL_SECONDS`) never outlives the revision it names. A page whose token
 expires is told its session ended and asked to reload.
 
-Three session routes let an author list their activities, open a preview and delete one; another
-user's id is a 404. Previews use a fixed course and activity instance, shared by the Student and
+Three session routes let an author list their activities, open a preview and delete one. They need
+`plugin.use` at `plugin:pxc` (403 without it); another user's id is a 404. Previews use a fixed course and activity instance, shared by the Student and
 Author views.
 
 A delete removes the activity's row and its failure rows, then its live link and revisions, its
