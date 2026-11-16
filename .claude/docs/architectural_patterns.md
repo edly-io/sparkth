@@ -95,11 +95,11 @@ A module under `sparkth/api/v1/` takes one of two shapes. `sparkth/api/v1/__init
 each one the same way — `include_router(<module>.router, prefix=...)` — so the shape is
 an internal organisation choice and changing it never moves a URL.
 
-**Single file** (`auth.py`, `llm.py`, `analytics.py`, `file_parser.py`, `user_plugins.py`)
+**Single file** (`auth.py`, `llm.py`, `analytics.py`, `file_parser.py`)
 — a module that declares `router` at the top level. The default for a small surface with
 no request/response models of its own.
 
-**Package** (`user/`, `language/`, `permissions/`, `whitelist/`) — reach for this once a
+**Package** (`user/`, `language/`, `permissions/`, `whitelist/`, `plugins/`) — reach for this once a
 module owns its own pydantic models, or once its routes outgrow one readable file:
 
 ```
@@ -112,6 +112,8 @@ sparkth/api/v1/<name>/
 - The endpoint package's own `__init__.py` re-exports `router` and carries
   `__all__ = ["router"]`. This is a deliberate exception to the "avoid re-exports" rule:
   it keeps the mounting in `sparkth/api/v1/__init__.py` uniform across both shapes.
+  `plugins/` opts out: its `__init__.py` is a docstring only, `sparkth/api/v1/__init__.py` imports
+  its router from `plugins/routes.py`, and its FastAPI dependencies live in `plugins/dependencies.py`.
 - It is also where `register_exception_handler(ExcClass, status_code)` calls live, so a
   domain's exception → status mapping sits beside the routes that raise it (see section
   8, and `permissions/__init__.py` / `whitelist/__init__.py`). A package with no domain
