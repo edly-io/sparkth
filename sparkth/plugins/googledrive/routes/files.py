@@ -12,6 +12,7 @@ from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.lib.auth import get_current_user_id
 from sparkth.lib.db import get_async_session
 from sparkth.lib.log import get_logger
 from sparkth.lib.permissions.scopes import USER
@@ -231,7 +232,11 @@ async def delete_file(
     return {"detail": "File removed from Sparkth successfully"}
 
 
-@router.get("/browse", response_model=DriveBrowseResponse)
+@router.get(
+    "/browse",
+    response_model=DriveBrowseResponse,
+    dependencies=[Depends(DRIVE_READ.require_for_object(USER, get_current_user_id))],
+)
 async def browse_drive(
     folder_id: str | None = Query(None, description="Drive folder ID to browse (root if omitted)"),
     page_token: str | None = Query(None, description="Pagination token"),

@@ -1,8 +1,8 @@
 """The chat turns streaming in this process, and the stop requests aimed at them.
 
 A turn registers when its stream starts and releases when it ends. The stop route sets the
-event its processor polls between steps, which is what makes a stop land between tool calls
-rather than inside one.
+event its processor watches. The processor ends the turn at once while it waits on the model
+and after the running tool finishes while a tool runs.
 """
 
 import asyncio

@@ -57,7 +57,12 @@ credentials or accept them in the chat. The chat system prompt holds no LMS rule
 them only while that LMS's tools are bound. When there are no settings, the `PluginNotConfiguredError`
 message tells the model to send the user to the Settings page.
 
-An LMS plugin should also ship a zero-argument `<prefix>about` tool (e.g. `mylms_about`) returning `{"about": <text>}` that explains the LMS's course structure, its vocabulary, and what "publish" means there, with the text kept in the plugin's `assets/about.txt`. LMSs use the same words for different things (Canvas "publish" makes content visible; Moodle has no publish step), so the chat LLM reads this before acting. See `canvas_about`, `openedx_about` and `moodle_about`.
+An LMS plugin should also ship a zero-argument `<prefix>about` tool (e.g. `mylms_about`) returning
+`{"about": <text>}` that explains the LMS's course structure, its vocabulary, and what "publish" means there,
+with the text kept in the plugin's `assets/about.txt` and read with `read_asset(__file__, "about.txt")` from
+`sparkth.lib.assets`, which reads any file in a plugin's `assets/` as UTF-8 text stripped of surrounding
+whitespace. LMSs use the same words for different things (Canvas "publish" makes content visible; Moodle has
+no publish step), so the chat LLM reads this before acting. See `canvas_about`, `openedx_about` and `moodle_about`.
 
 ### Secret fields
 
@@ -222,7 +227,7 @@ The loader (`sparkth/core/plugins/loader.py`) constructs every plugin as `plugin
 ## Basic Plugin Structure
 
 A plugin contributes its capabilities from its `__init__`:
-routes via `register_router`, MCP tools to `MCP_TOOLS`, a config schema to `CONFIG_SCHEMAS`, frontend metadata to `DISPLAY_INFO` / `SIDEBAR_ENTRIES` / `FRONTEND_APPS` and analytics event schemas via `register_event_schema` / `register_event_schemas`. It declares permissions (`Permission.create`), scope kinds (`PermissionScope.create` / `ObjectlessPermissionScope.create`) and exception→HTTP mappings (`register_exception_handler`) at module level in `plugin.py` instead (a permission may live in a module the plugin's routes import when they need the constant, since routes cannot import from `plugin.py`): a second registration of the same name or exception type raises `ValueError`, and the plugin class is constructed more than once (by the loader and by the plugin's own tests). Bind each permission and scope kind to a constant.
+routes via `register_router`, MCP tools to `MCP_TOOLS`, a config schema to `CONFIG_SCHEMAS`, frontend metadata to `DISPLAY_INFO` / `SIDEBAR_ENTRIES` / `FRONTEND_APPS` and analytics event schemas via `register_event_schema` / `register_event_schemas`. It declares permissions (`Permission.create`), scope kinds (`PermissionScope.create` / `ObjectlessPermissionScope.create`) and exception→HTTP mappings (`register_exception_handler`) at module level in `plugin.py` instead (a permission or scope kind may live in a module the plugin's routes import when they need the constant, since routes cannot import from `plugin.py`): a second registration of the same name or exception type raises `ValueError`, and the plugin class is constructed more than once (by the loader and by the plugin's own tests). Bind each permission and scope kind to a constant.
 
 ```python
 # sparkth/plugins/myappplugin/plugin.py
@@ -372,9 +377,8 @@ class MyAppPlugin(SparkthPlugin):
 
 What each hook carries, which of them are optional, and how the declarations reach the frontend live in the [frontend metadata hooks reference](../reference/plugins.md#frontend-metadata-hooks), generated from the module docstrings.
 
-After adding or removing a `FRONTEND_APPS` declaration, regenerate the frontend's static route list with
-`make frontend.build.plugins` (it rewrites `frontend/lib/plugins/generated.ts` from the declarations); tests on
-both tiers fail while the committed list is stale.
+A `FRONTEND_APPS` declaration needs the plugin's frontend folder, `frontend/plugins/<pluginname>/`, whose page the
+frontend builds on its own (see the [frontend plugin guide](frontend-plugins.md)).
 
 ### Rendering plugin exceptions as HTTP responses
 
@@ -651,31 +655,19 @@ An `Agent` has five fields:
   list.
 - `description` is the text the planner reads to decide whether a message is this agent's.
 - `prompt` is plain text inserted into the system prompt as written, so a brace in it needs no
-  escaping.
-- `tools` names the agent's tools. Each one must be one of the plugin's own `MCP_TOOLS`, so
-  register those first.
+  escaping. Keep it in the plugin's `assets/` and load it with `read_asset(__file__, "<name>.txt")`
+  from `sparkth.lib.assets`.
+- `tools` are the `Tool`s the agent runs, built like the ones for `MCP_TOOLS`. A tool given only
+  to the agent is private to it: no MCP client sees it. To offer a tool on the MCP server as well,
+  add the same `Tool` to `MCP_TOOLS`. Agents compare without their tools, so a plugin may build
+  them in its `__init__`.
 
 Define the agent in the plugin's `agent.py` and register it from `plugin.py`. For example:
 
 ```python
 # sparkth/plugins/myappplugin/agent.py
 from sparkth.lib.compose.hooks import Agent
-
-MY_AGENT = Agent(
-    "my_app",
-    "My App builder",
-    "Requests to build or change things in My App.",
-    "Ask which My App item the author wants, then build it with the My App tools.",
-    tools=("my_app_build",),
-)
-```
-
-```python
-# sparkth/plugins/myappplugin/plugin.py
-from sparkth.lib.compose.hooks import register_agent
-from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
-from sparkth.lib.plugins import SparkthPlugin
-from sparkth.plugins.myappplugin.agent import MY_AGENT
+from sparkth.lib.mcp.hooks import Tool
 
 
 async def my_app_build(title: str) -> str:
@@ -683,10 +675,30 @@ async def my_app_build(title: str) -> str:
     ...
 
 
+MY_APP_BUILD = Tool(my_app_build)
+
+MY_AGENT = Agent(
+    "my_app",
+    "My App builder",
+    "Requests to build or change things in My App.",
+    "Ask which My App item the author wants, then build it with the My App tools.",
+    tools=(MY_APP_BUILD,),
+)
+```
+
+```python
+# sparkth/plugins/myappplugin/plugin.py
+from sparkth.lib.compose.hooks import register_agent
+from sparkth.lib.mcp.hooks import MCP_TOOLS
+from sparkth.lib.plugins import SparkthPlugin
+from sparkth.plugins.myappplugin.agent import MY_AGENT, MY_APP_BUILD
+
+
 class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
         super().__init__("my-app")
-        MCP_TOOLS.add_item(self, Tool(my_app_build))
+        # Only when MCP clients should see the tool too.
+        MCP_TOOLS.add_item(self, MY_APP_BUILD)
         register_agent(self, MY_AGENT)
 ```
 
@@ -697,7 +709,7 @@ one. `register_agent` raises, from `sparkth.lib.compose.exceptions`:
 - `InvalidAgentName` for a name that breaks the pattern above;
 - `ReservedAgentName` for `compose`, `operator` or `refuse`;
 - `DuplicateAgentName` when another agent, another plugin or a registered MCP tool already holds the name;
-- `UnknownAgentTool` for a tool the plugin doesn't contribute.
+- `DuplicateAgentTool` when two of the agent's tools share a name.
 
 The loader logs the failed construction and skips that plugin.
 
@@ -713,11 +725,16 @@ system-wide or by the user contributes no agent and no tools.
   with a fixed sentence in the request's language. A refusal is stored like any other reply, and a
   refused first message still starts a conversation.
 - **Agent.** The agent runs on the user's model, with Compose's skeleton wrapped around its
-  `prompt`. The skeleton owns the date, the assistant's identity, the output language, the
-  refusal, injection and offering-choices rules, and Compose's LMS operations, so a prompt must not
-  repeat them. A prompt holds the agent's workflow, plus any language or guardrail rules specific to
-  it.
-- **Tools.** The agent gets the tools the request asks for, minus those of a switched-off plugin.
+  `prompt`. The skeleton owns the date, the assistant's identity, the output language, and the
+  refusal, injection and offering-choices rules, so a prompt must not repeat them. A prompt holds
+  the agent's workflow, plus any language or guardrail rules specific to it.
+- **Tools.** The agent runs with its own `tools` and no others. A tool call is recorded in
+  analytics under the tool's category, or under the agent's name when the tool has none.
+- **Operations.** The tools of plugins that register no agent, such as the LMS plugins', are
+  Compose's operations. The planner runs them through its operator, on the user's model, and the
+  author sees each tool call but not the operator's text. What an operation returns goes back to
+  the planner, which tells the author or hands the rest of the request to an agent, which reads
+  it too. With no such plugin enabled there are no operations.
 
 Plugin-specific knowledge belongs in a `<prefix>about` tool, not in an agent's `prompt`;
 see the LMS `about` tool [above](#lms-plugins-tools-without-credentials) for the convention.
