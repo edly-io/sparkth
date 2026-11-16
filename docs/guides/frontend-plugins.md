@@ -105,7 +105,7 @@ export default function ExamplePlugin() {
 
 Each plugin with a page must export a `PluginDefinition` from its own `src/index.ts`, named after the plugin
 (`compose`, `pxc`, `exampleplugin`), and set it in the `PLUGINS` slot under its name. The slot is how the plugin tells
-core it exists: core registers every definition set there, so it never names a plugin.
+core it exists: core registers every definition set there.
 
 **Example Plugin Structure**
 
