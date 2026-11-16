@@ -108,11 +108,11 @@ async def create_llm_config(
 )
 async def list_llm_configs(
     include_inactive: bool = Query(default=False),
-    owner_id: str = Depends(get_listed_owner_id),
+    owner_id: int = Depends(get_listed_owner_id),
     session: AsyncSession = Depends(get_async_session),
     service: LLMConfigService = Depends(get_llm_service),
 ) -> LLMConfigListResponse:
-    configs = await service.list(session=session, user_id=int(owner_id), include_inactive=include_inactive)
+    configs = await service.list(session=session, user_id=owner_id, include_inactive=include_inactive)
     return LLMConfigListResponse(
         configs=[_to_response(c) for c in configs],
         total=len(configs),
