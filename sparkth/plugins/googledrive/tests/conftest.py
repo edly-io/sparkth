@@ -24,6 +24,11 @@ from sparkth.plugins.googledrive.models import DriveFile, DriveFolder, DriveOAut
 
 
 @pytest.fixture(autouse=True)
+def _default_role(default_user_role: object) -> None:
+    """Give the test caller the default role, so Drive routes are reachable at their own user scope."""
+
+
+@pytest.fixture(autouse=True)
 def _default_ingestion_settings() -> Generator[None, None, None]:
     """Patch get_googledrive_settings in utils so the local .env does not affect tests."""
     mock_settings = MagicMock(spec=GoogleDriveSettings)
