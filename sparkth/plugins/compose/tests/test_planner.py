@@ -297,6 +297,36 @@ class TestARunThatGoesWrong:
 
         assert messages[-1].text == TOOL_CALL_LIMIT_NOTICE
 
+    async def test_a_reply_cut_to_one_call_goes_back_to_the_planner_without_the_calls_it_lost(self) -> None:
+        """Some providers keep each call in the reply's content too, and reject a call that has no result."""
+        both_calls = AIMessage(
+            content=[
+                {"type": "text", "text": "Passing this on."},
+                {"type": "tool_use", "id": "c1", "name": STUB_AGENT.name, "input": {}},
+                {"type": "tool_use", "id": "c2", "name": OTHER_AGENT.name, "input": {"request": "A quiz"}},
+            ],
+            tool_calls=[
+                {"name": STUB_AGENT.name, "args": {}, "id": "c1"},
+                _hand_off(OTHER_AGENT.name, "A quiz", "c2"),
+            ],
+        )
+        planner_model = _planner_model(both_calls, AIMessage("Which course should I outline?"))
+        agents = [_agent_graph(agent, ScriptedChatModel(messages=iter([]))) for agent in (STUB_AGENT, OTHER_AGENT)]
+
+        await _run(planner_model, *agents)
+
+        asked_again = planner_model.seen[1]
+        called = [
+            block["id"]
+            for message in asked_again
+            if isinstance(message, AIMessage) and isinstance(message.content, list)
+            for block in message.content
+            if isinstance(block, dict) and block["type"] == "tool_use"
+        ]
+        answered = [message.tool_call_id for message in asked_again if isinstance(message, ToolMessage)]
+        assert called == answered == ["c1"]
+        assert [message.text for message in asked_again if isinstance(message, AIMessage)] == ["Passing this on."]
+
     async def test_a_planner_that_keeps_calling_an_unknown_tool_stops(self) -> None:
         calls = (
             AIMessage("", id=f"r{n}", tool_calls=[{"name": "no_such_agent", "args": {}, "id": f"c{n}"}])

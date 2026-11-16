@@ -9,6 +9,7 @@ those steps are plain module-level functions.
 import asyncio
 import inspect
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, get_type_hints
 
@@ -16,6 +17,7 @@ from langchain_core.tools import BaseTool, StructuredTool
 from pydantic import BaseModel, Field, ValidationError, create_model
 
 from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG
+from sparkth.lib.compose.hooks import COMPOSE_AGENTS
 from sparkth.lib.log import get_logger
 from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
 from sparkth.plugins.compose.constants import UNKNOWN_TOOL_CATEGORY
@@ -81,6 +83,28 @@ class ToolRegistry:
         """Return the name of the plugin that contributed a tool, or ``None`` for an unknown name."""
         registered = self._discovered().get(tool_name)
         return registered.plugin if registered else None
+
+    def operation_tools(self, enabled: Sequence[BaseTool]) -> list[BaseTool]:
+        """Return the ``enabled`` tools of plugins that give Compose no agent, such as the LMS plugins'.
+
+        These are Compose's operations, which its operator runs. A tool of no known plugin is not one.
+        """
+        agent_plugins = {plugin.name for plugin, _agent in COMPOSE_AGENTS.iter_items()}
+        return [
+            tool
+            for tool in enabled
+            if (plugin := self.plugin_for(tool.name)) is not None and plugin not in agent_plugins
+        ]
+
+
+def tool_category(tool_name: str) -> str:
+    """The category of ``tool_name``: the one it was contributed under, or its agent's name for an
+    agent's tool that has none."""
+    for _plugin, agent in COMPOSE_AGENTS.iter_items():
+        for tool in agent.tools:
+            if tool.name == tool_name:
+                return tool.category or agent.name
+    return get_tool_registry().category_for(tool_name)
 
 
 def discover_plugin_tools() -> dict[str, RegisteredTool]:
