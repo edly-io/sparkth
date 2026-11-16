@@ -66,11 +66,10 @@ export interface PluginDefinition {
   /**
    * Optional: Lazy load the plugin's message catalog for a locale.
    *
-   * A plugin owns its catalogs: the files live under the plugin's own
-   * `messages/` directory and the returned object must be scoped to a single
-   * top-level namespace equal to the plugin name. `loadMessages` in
-   * `lib/i18n/messages.ts` merges every registered plugin's catalog into the
-   * core one at load time.
+   * A plugin owns its catalogs: the files live in the plugin's own folder and
+   * the returned object must be scoped to a single top-level namespace equal to
+   * the plugin name. Every registered plugin's catalog is merged into the core
+   * one at load time.
    */
   loadMessages?: (locale: Locale) => Promise<Record<string, unknown>>;
 

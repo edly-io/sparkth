@@ -6,6 +6,7 @@ from langchain_core.tools import StructuredTool
 from pydantic import BaseModel
 
 from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG
+from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.mcp.hooks import Tool
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.plugins.compose.constants import UNKNOWN_TOOL_CATEGORY
@@ -361,6 +362,45 @@ class TestRegistryAccessors:
             tools = ToolRegistry().get_tools_by_names(["openedx_create_xblock", "never_registered"])
 
         assert [tool.name for tool in tools] == ["openedx_create_xblock"]
+
+
+async def stub_build(name: str) -> dict[str, Any]:
+    return {"built": name}
+
+
+def _stub_and_lms_hook(mcp_tools: Any) -> None:
+    """A hook with one tool of the stub agent's plugin and one of an LMS plugin."""
+    _stub_hook(
+        mcp_tools,
+        (SparkthPlugin("stub"), Tool(stub_build)),
+        (SparkthPlugin("openedx"), Tool(openedx_create_xblock)),
+    )
+
+
+class TestOperationTools:
+    def test_the_tools_of_plugins_without_an_agent_are_operations(self, stub_agent: Agent) -> None:
+        with patch("sparkth.plugins.compose.tools.MCP_TOOLS") as mcp_tools:
+            _stub_and_lms_hook(mcp_tools)
+            registry = ToolRegistry()
+            operations = registry.operation_tools(registry.get_all_tools())
+
+        assert [tool.name for tool in operations] == ["openedx_create_xblock"]
+
+    def test_with_no_lms_enabled_there_are_no_operations(self, stub_agent: Agent) -> None:
+        with patch("sparkth.plugins.compose.tools.MCP_TOOLS") as mcp_tools:
+            _stub_and_lms_hook(mcp_tools)
+            registry = ToolRegistry()
+            operations = registry.operation_tools(registry.get_tools_by_names(["stub_build"]))
+
+        assert operations == []
+
+    def test_a_tool_of_no_known_plugin_is_not_an_operation(self, stub_agent: Agent) -> None:
+        unknown = StructuredTool.from_function(func=lambda: "done", name="unknown", description="Do it.")
+        with patch("sparkth.plugins.compose.tools.MCP_TOOLS") as mcp_tools:
+            _stub_hook(mcp_tools)
+            operations = ToolRegistry().operation_tools([unknown])
+
+        assert operations == []
 
 
 class TestCategoryLookup:

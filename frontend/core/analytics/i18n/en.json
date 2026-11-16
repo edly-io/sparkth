@@ -1,0 +1,166 @@
+{
+  "analytics": {
+    "title": "Analytics",
+    "loading": "Loading analytics…",
+    "loadError": "We couldn't load analytics. Please try again.",
+    "retry": "Try again",
+    "logins": {
+      "title": "Logins",
+      "subtitle": "Login activity, {range} (UTC).",
+      "empty": "No logins in this period.",
+      "totalLogins": "Total logins",
+      "busiestBucket": "Busiest {bucket, select, day {day} week {week} other {month}}",
+      "chartCaption": "Logins, {range}",
+      "noPrevious": "No logins in the previous period",
+      "byMethod": "Sign-in method",
+      "methodChartCaption": "Logins by sign-in method, {range}",
+      "methodValue": "{count} ({share})",
+      "methods": {
+        "password": "Email and password",
+        "google": "Google"
+      }
+    },
+    "authoring": {
+      "title": "Course authoring",
+      "subtitle": "Instructor course-authoring activity, {range} (UTC).",
+      "empty": "No course-authoring activity in this period.",
+      "conversations": "Conversations started",
+      "messages": "Messages sent",
+      "failedTurns": "Messages failed",
+      "failedHint": "{rate} of messages · {change}",
+      "documentsAttached": "Documents attached",
+      "searches": "Document searches",
+      "searchesHint": "{rate} found nothing · {change}",
+      "detachedHint": "{count} detached · {change}",
+      "messagesCaption": "Messages sent, {range}",
+      "conversationsCaption": "Conversations started, {range}",
+      "failedTurnsCaption": "Messages failed, {range}",
+      "failureRateCaption": "Failure rate, {range}",
+      "tools": "Tools used",
+      "toolsCaption": "Tool calls by tool, {range}",
+      "toolValue": "{total} ({failed} failed)",
+      "lowerBound": "Counts are lower bounds: activity is occasionally not recorded.",
+      "noPrevious": "No activity in the previous period",
+      "documentsProcessed": "Documents processed",
+      "documentsHint": "{ready} ready · {time} avg to ready · {change}",
+      "documentsHintNoneReady": "None ready · {change}",
+      "notUsable": "Why documents weren't usable",
+      "notUsableCaption": "Documents that weren't usable, by reason, {range}",
+      "outcomes": {
+        "too_large": "Too large",
+        "unsupported_type": "Unsupported file type",
+        "scanned_pdf": "Scanned PDF",
+        "drive_error": "Google Drive error",
+        "failed": "Processing failed"
+      }
+    },
+    "compare": {
+      "weekOf": "Week of {date}",
+      "vsPrevious": "{change} vs previous period",
+      "comparisonLegend": "Dashed line: previous period"
+    },
+    "table": {
+      "date": "Date",
+      "activity": "Activity",
+      "logins": "Logins",
+      "method": "Method",
+      "previousPeriod": "Previous period",
+      "tool": "Tool",
+      "calls": "Calls",
+      "messages": "Messages",
+      "conversations": "Conversations",
+      "failedTurns": "Messages failed",
+      "failureRate": "Failure rate",
+      "reason": "Reason",
+      "documents": "Documents"
+    },
+    "nav": {
+      "label": "Analytics views",
+      "overview": "Overview",
+      "logins": "Logins",
+      "authoring": "Course authoring",
+      "explore": "Explore",
+      "savedViews": "Saved views"
+    },
+    "period": {
+      "range": "Period",
+      "presets": {
+        "7d": "Last 7 days",
+        "30d": "Last 30 days",
+        "90d": "Last 90 days",
+        "12m": "Last 12 months",
+        "custom": "Custom range"
+      },
+      "from": "Start date",
+      "to": "End date",
+      "apply": "Apply",
+      "bucket": "Group by",
+      "buckets": {
+        "day": "Day",
+        "week": "Week",
+        "month": "Month"
+      },
+      "errors": {
+        "invalidDate": "Enter valid start and end dates.",
+        "startAfterEnd": "The start date must be on or before the end date.",
+        "inFuture": "The end date can't be in the future.",
+        "tooLong": "The period can't be longer than {days} days."
+      }
+    },
+    "overview": {
+      "title": "Overview",
+      "subtitle": "Platform activity, {range} (UTC).",
+      "empty": "No activity in this period.",
+      "new": "New this period",
+      "trend": "Activity",
+      "trendCaption": "Logins and messages sent, {range}"
+    },
+    "explore": {
+      "title": "Explore",
+      "description": "Build a chart from any recorded event. Events, fields and values show as recorded.",
+      "subtitle": "{range} (UTC).",
+      "event": "Event",
+      "pickEvent": "Choose an event",
+      "actorId": "Actor ID",
+      "actor": "Actor",
+      "measure": "Measure",
+      "measures": {
+        "count": "Events",
+        "distinct_actors": "Distinct actors"
+      },
+      "groupBy": "Break down by",
+      "noGroup": "No breakdown",
+      "chart": "Chart",
+      "charts": {
+        "line": "Line",
+        "bar": "Bar",
+        "table": "Table"
+      },
+      "filters": "Filters",
+      "field": "Field",
+      "pickField": "Choose a field",
+      "value": "Value",
+      "addFilter": "Add filter",
+      "removeFilter": "Remove filter {filter}",
+      "start": "Choose an event to build a chart.",
+      "empty": "No matching events in this period.",
+      "stale": "This view named events, fields or values that no longer exist, so they were left out.",
+      "truncated": "Showing the top 20 groups; there are more.",
+      "none": "(none)",
+      "chartCaption": "{event}, {range}",
+      "groupCaption": "{event} by {group}, {range}",
+      "saveView": "Save view",
+      "save": "Save",
+      "saveAsNew": "Save as new",
+      "rename": "Rename",
+      "delete": "Delete",
+      "renameView": "Rename view",
+      "viewName": "Name",
+      "nameTaken": "You already have a view with this name.",
+      "saveError": "We couldn't save your changes to the view. Please try again.",
+      "saved": "View saved.",
+      "confirmDelete": "Delete the view “{name}”?",
+      "viewMissing": "This saved view doesn't exist or isn't yours."
+    }
+  }
+}
