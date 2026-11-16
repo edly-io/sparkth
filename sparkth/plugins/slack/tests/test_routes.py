@@ -997,8 +997,7 @@ async def test_dispatch_event_passes_llm_provider_when_configured() -> None:
 
         # Verify answer_question received an llm_provider
         mock_aq.assert_awaited_once()
-        call_kwargs = mock_aq.call_args.kwargs
-        assert call_kwargs.get("llm_provider") is mock_provider_instance
+        assert mock_aq.call_args.args[5] is mock_provider_instance
 
         # Verify get_provider was called with the resolved config values
         mock_get_provider.assert_called_once()
@@ -1214,6 +1213,7 @@ class TestDispatchEventLogging:
         logs = await self._logs(session)
         assert len(logs) == 1
         assert logs[0].response_type == ResponseType.GREETING
+        assert [log.rag_matched for log in logs] == [False]
         assert logs[0].slack_user_name == "alice"
         assert logs[0].slack_channel_name == "general"
 
@@ -1300,6 +1300,7 @@ class TestDispatchEventLogging:
         answer.assert_awaited_once()
         logs = await self._logs(session)
         assert [log.response_type for log in logs] == [ResponseType.RAG_MATCH]
+        assert [log.rag_matched for log in logs] == [True]
 
 
 @pytest.mark.asyncio
