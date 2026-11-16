@@ -390,6 +390,26 @@ there; core's analytics code in `core/analytics/` holds no plugin's code. `plugi
 A plugin's analytics page is listed on the analytics rail by an entry in `app/dashboard/analytics/views.ts` that
 names the plugin (`plugin: "<name>"`); the entry shows only while that plugin is installed.
 
+## Permissions (Optional)
+
+A plugin whose backend registers permissions adds their names to the vocabulary that `checkPermission` and
+`usePermissionCheck` are typed against, so a typo'd name fails the typecheck and core names no plugin. Add a
+`permissions.d.ts` to the plugin that extends the `PluginPermissions` interface in `lib/permissions/names.ts`
+with one entry holding the union of its names:
+
+```ts
+// plugins/example-plugin/permissions.d.ts
+export {};
+
+declare module "@/lib/permissions/names" {
+  interface PluginPermissions {
+    examplePlugin: "example.thing.read" | "example.thing.write";
+  }
+}
+```
+
+Removing the plugin's directory removes its names with it.
+
 ## Settings
 
 The **Settings** page lists the one row each plugin sets in the `SETTINGS_ITEMS` slot
