@@ -313,14 +313,15 @@ A plugin gates its own routes: build the dependency once with
 `PLUGIN_USE.require_for_object(PLUGIN, "<plugin-name>")` (`PLUGIN_USE` from `sparkth.lib.permissions`,
 `PLUGIN` from `sparkth.lib.permissions.scopes`) and pass it as `dependencies=[Depends(...)]` on the
 router, or on each route that needs it. A caller without `plugin.use` for the plugin (a `global` grant
-also passes) is answered `403` before the body is validated.
+also passes) is answered `403` before the handler runs.
 
 A route called without a Sparkth user login declares no gate: an OAuth callback, a signed webhook, a
 launch-token route or a WebSocket. Authenticate such a route the way it needs (signed state, request
-signature, launch token). Add it to `UNGATED_PLUGIN_ROUTES` in `tests/core/test_plugin_route_gates.py`
+signature, launch token). An analytics read, which `analytics.read` gates instead (see above), is listed
+the same way. Add it to `UNGATED_PLUGIN_ROUTES` in `tests/core/test_plugin_route_gates.py`
 with the reason, keyed by method and path template (`"WEBSOCKET"` as the method for a WebSocket). That
-test calls every other plugin route with no grant and fails on any that does not answer `403`, and on
-any listed route that no longer exists.
+test calls every other plugin route with no grant and fails on any that is not denied on `plugin.use` at
+`plugin:<name>`, and on any listed route that no longer exists.
 
 ### Who can reach plugin routes?
 
