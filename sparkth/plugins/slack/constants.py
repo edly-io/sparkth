@@ -3,6 +3,7 @@ from pathlib import Path
 
 from sparkth.lib.i18n import lazy_gettext
 
+# The name the plugin registers under.
 SLACK_PLUGIN_NAME = "slack"
 
 # Slack OAuth endpoints
