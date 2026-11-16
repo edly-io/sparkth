@@ -411,6 +411,7 @@ async def test_a_completion_records_who_answered(
 
     (served,) = await _events(analytics_session, "compose.completion_served")
     assert (served["agent"], served["refused"]) == (agent, refused)
+    assert served["agents"] == ([agent] if agent else [])
 
 
 async def test_non_streaming_completion_emits_completion_served(

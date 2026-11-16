@@ -8,7 +8,7 @@ those counts are lower bounds. ``compose.message_sent`` and ``compose.turn_faile
 detached tasks instead, so a failed turn still counts both its message and its failure.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Literal, NamedTuple
@@ -182,9 +182,11 @@ async def emit_completion(
     executed_tools: list[ExecutedTool],
     occurred_at: datetime,
     routing: TurnRouting,
+    agents: Sequence[str],
     stopped_at: StopPoint | None = None,
 ) -> None:
-    """Emit one completion and one ``compose.tool_invoked`` per tool it executed.
+    """Emit one completion, with who answered it and the ``agents`` its steps went to, and one
+    ``compose.tool_invoked`` per tool it executed.
 
     One :func:`emit_events` call, so the group shares a session and a failed completion
     write cannot drop the tool events behind it.
@@ -200,6 +202,7 @@ async def emit_completion(
             stopped_at=stopped_at,
             agent=routing.agent,
             refused=routing.refused,
+            agents=list(agents),
         ),
         *(
             ComposeToolInvoked(
@@ -287,6 +290,7 @@ class ComposeTurnAnalytics:
         executed_tools: list[ExecutedTool],
         occurred_at: datetime,
         routing: TurnRouting,
+        agents: Sequence[str],
     ) -> None:
         """Queue the completion and its tool events as one task, through one session."""
         self.background_tasks.add_task(
@@ -299,6 +303,7 @@ class ComposeTurnAnalytics:
             executed_tools=executed_tools,
             occurred_at=occurred_at,
             routing=routing,
+            agents=agents,
         )
 
     def schedule_rag_search_completed(self, *, chunks_found: int, document_count: int, occurred_at: datetime) -> None:
