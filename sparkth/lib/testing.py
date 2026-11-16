@@ -52,7 +52,7 @@ from sparkth.core.db import dispose_engine, get_engine
 from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.core.models.user import User
 from sparkth.core.permissions import PLUGIN_USE
-from sparkth.core.permissions.constants import DEFAULT_USER_ROLE, PLUGIN_USER_ROLE
+from sparkth.core.permissions.constants import PLUGIN_USER_ROLE, SPARKTH_USER_ROLE
 from sparkth.core.permissions.grants import revoke_role
 from sparkth.core.permissions.models import (
     Group,
@@ -175,7 +175,7 @@ async def default_user_role(session: AsyncSession) -> Role:
 
     Not autouse: a test that creates accounts, or relies on every user holding the role, opts in.
     """
-    role = await make_role(session, DEFAULT_USER_ROLE, available_permissions())
+    role = await make_role(session, SPARKTH_USER_ROLE, available_permissions())
     role.is_builtin = True
     session.add(RoleAssignment(user_id=1, role_id=cast(int, role.id), scope=USER.name, scope_object_id="1"))
     plugin_role = await make_role(session, PLUGIN_USER_ROLE, [PLUGIN_USE.name])
