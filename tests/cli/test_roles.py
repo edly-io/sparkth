@@ -140,12 +140,15 @@ async def _get_active_assignments(session: AsyncSession) -> list[tuple[str, str 
 
 
 async def test_revoke_role_removes_the_assignment_and_records_the_event(
-    cli_session: AsyncSession, audit_events: AuditEventsFetcher
+    cli_session: AsyncSession, audit_events: AuditEventsFetcher, capsys: pytest.CaptureFixture[str]
 ) -> None:
     await _seed_user_and_role(cli_session)
     await roles._assign_role("alice", "admin", "global", None)
+    capsys.readouterr()
 
     await roles._revoke_role("alice", "admin", "global", None)
+
+    assert "Revoked role 'admin' from alice (scope: global)." in capsys.readouterr().out
 
     assert await _get_active_assignments(cli_session) == []
     events = [(e.category, e.action) for e in await audit_events()]
@@ -163,12 +166,30 @@ async def test_revoke_role_at_an_object_leaves_the_other_assignments(cli_session
     assert await _get_active_assignments(cli_session) == [("global", None), ("plugin", "compose")]
 
 
-async def test_revoke_role_not_held_is_a_no_op(cli_session: AsyncSession, audit_events: AuditEventsFetcher) -> None:
+async def test_revoke_role_not_held_reports_nothing_revoked(
+    cli_session: AsyncSession, audit_events: AuditEventsFetcher, capsys: pytest.CaptureFixture[str]
+) -> None:
     await _seed_user_and_role(cli_session)
 
     await roles._revoke_role("alice", "admin", "global", None)
 
+    assert "alice holds no 'admin' assignment at global; nothing revoked." in capsys.readouterr().out
     assert await audit_events() == []
+
+
+async def test_revoke_role_names_the_scope_object_in_its_messages(
+    cli_session: AsyncSession, capsys: pytest.CaptureFixture[str]
+) -> None:
+    await _seed_user_and_role(cli_session)
+    await roles._assign_role("alice", "admin", "plugin", "slack")
+    capsys.readouterr()
+
+    await roles._revoke_role("alice", "admin", "plugin", "slack")
+    await roles._revoke_role("alice", "admin", "plugin", "slack")
+
+    out = capsys.readouterr().out
+    assert "Revoked role 'admin' from alice (scope: plugin:slack)." in out
+    assert "alice holds no 'admin' assignment at plugin:slack; nothing revoked." in out
 
 
 async def test_revoke_role_unknown_user_exits(cli_session: AsyncSession) -> None:
@@ -184,14 +205,42 @@ async def test_revoke_role_unknown_scope_exits(cli_session: AsyncSession) -> Non
         await roles._revoke_role("alice", "admin", "corse", "42")
 
 
-async def test_revoke_role_unknown_role_or_mismatched_object_id_revokes_nothing(cli_session: AsyncSession) -> None:
+async def test_revoke_role_unknown_role_reports_nothing_revoked(
+    cli_session: AsyncSession, audit_events: AuditEventsFetcher, capsys: pytest.CaptureFixture[str]
+) -> None:
+    await _seed_user_and_role(cli_session)
+    await roles._assign_role("alice", "admin", "global", None)
+    capsys.readouterr()
+
+    await roles._revoke_role("alice", "nope", "global", None)
+
+    assert "alice holds no 'nope' assignment at global; nothing revoked." in capsys.readouterr().out
+    assert await _get_active_assignments(cli_session) == [("global", None)]
+    assert len(await audit_events()) == 1
+
+
+async def test_revoke_role_mismatched_object_id_exits_and_revokes_nothing(cli_session: AsyncSession) -> None:
     await _seed_user_and_role(cli_session)
     await roles._assign_role("alice", "admin", "global", None)
 
-    await roles._revoke_role("alice", "nope", "global", None)
-    await roles._revoke_role("alice", "admin", "global", "42")
+    with pytest.raises(typer.Exit) as excinfo:
+        await roles._revoke_role("alice", "admin", "global", "42")
 
+    assert excinfo.value.exit_code == 1
     assert await _get_active_assignments(cli_session) == [("global", None)]
+
+
+async def test_revoke_role_attributes_its_audit_event_to_the_cli(
+    cli_session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    await _seed_user_and_role(cli_session)
+    await roles._assign_role("alice", "admin", "global", None)
+
+    await roles._revoke_role("alice", "admin", "global", None)
+
+    event = (await audit_events())[-1]
+    assert (event.category, event.action) == ("role", "unassigned")
+    assert (event.source, event.actor_type, event.actor_label) == ("cli", "system", "cli")
 
 
 async def test_revoke_global_plugin_user_leaves_only_the_plugin_level_grant(cli_session: AsyncSession) -> None:

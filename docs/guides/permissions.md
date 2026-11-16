@@ -137,6 +137,9 @@ make cli -- roles assign-role jane plugin_user --scope plugin --scope-object-id 
 make cli -- roles revoke-role jane plugin_user --scope global
 ```
 
+A group the user belongs to that holds `plugin_user` (or any role with `plugin.use`) at `global` still gives them
+every plugin; revoke that grant with `groups revoke-role-from-group`.
+
 Every route of the built-in plugins is gated on `plugin.use` at `plugin:<name>`, except those the table above
 names; a test fails on any plugin route that is neither gated nor listed with a reason.
 
@@ -309,8 +312,9 @@ make cli -- roles revoke-role john admin
 make cli -- roles revoke-role john grader --scope course --scope-object-id 42
 ```
 
-An unknown scope kind or user exits non-zero. Revoking a role the user does not hold at that scope (a mistyped
-role name or object id included) changes nothing and exits zero. Built-in roles can be revoked from a user.
+An unknown scope kind or user, or a `--scope-object-id` that contradicts the scope kind, exits non-zero. A user
+who holds no assignment of that role at that exact scope (a mistyped role name included) gets a "nothing revoked"
+notice and exit zero, so a re-run is harmless. Built-in roles can be revoked from a user.
 
 From application code, call `assign_role`:
 
