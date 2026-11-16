@@ -130,6 +130,10 @@ them.
 A user who holds `plugin_user` at `plugin:<name>` instead of at `global` can use only those plugins.
 Assign it with `roles assign-role` and `--scope plugin --scope-object-id <name>`.
 
+Every route of the built-in plugins is gated on `plugin.use` at `plugin:<name>`, except the routes that run
+without a user login (OAuth callbacks, the Slack events webhook, the PXC learner routes) and the plugin
+analytics reads, which `analytics.read` gates instead.
+
 When the account that connected a Slack workspace lacks `plugin.use` at `plugin:slack`, the bot replies in that
 workspace that it is disabled instead of answering.
 
