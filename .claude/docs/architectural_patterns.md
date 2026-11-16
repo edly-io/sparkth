@@ -112,8 +112,7 @@ sparkth/api/v1/<name>/
 
 - A package's `__init__.py` re-exports `router` and carries `__all__ = ["router"]`, a
   deliberate exception to the "avoid re-exports" rule: it keeps the mounting in
-  `sparkth/api/v1/__init__.py` uniform across both shapes. `plugins/` serves `/user-plugins`,
-  so it is imported there as `plugins as user_plugins`.
+  `sparkth/api/v1/__init__.py` uniform across both shapes.
 - It is also where `register_exception_handler(ExcClass, status_code)` calls live, so a
   domain's exception → status mapping sits beside the routes that raise it (see section
   8, and `permissions/__init__.py` / `whitelist/__init__.py`). A package with no domain
