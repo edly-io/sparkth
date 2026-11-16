@@ -66,13 +66,15 @@ class StreamedCompletion:
     ``occurred_at`` is the assistant message's own ``created_at`` rather than the time the
     emit runs: the emits deliberately happen after the stream has closed, so timing them
     there would place the completion later than it was. ``stopped_at`` is where the author's
-    stop landed, ``None`` for a turn that ran to the end. ``routing`` is who answered it.
+    stop landed, ``None`` for a turn that ran to the end. ``routing`` is who answered it, and
+    ``agents`` the agents and operator that ran, in order.
     """
 
     executed_tools: list[ExecutedTool]
     occurred_at: datetime
     stopped_at: StopPoint | None
     routing: TurnRouting
+    agents: Sequence[str]
 
 
 def _agent_reply_metadata(
@@ -688,6 +690,7 @@ class ComposeStreamProcessor:
             occurred_at=assistant_message.created_at,
             stopped_at=stopped_at,
             routing=routing,
+            agents=agents,
         )
 
     async def _run_llm_phase(
@@ -786,6 +789,7 @@ class ComposeStreamProcessor:
                 executed_tools=completion.executed_tools,
                 occurred_at=completion.occurred_at,
                 routing=completion.routing,
+                agents=completion.agents,
                 stopped_at=completion.stopped_at,
             )
         if self.completed_search is not None:
