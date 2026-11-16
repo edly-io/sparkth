@@ -32,7 +32,7 @@ from sparkth.core.permissions.models import Role, RolePermission
 from sparkth.core.permissions.roles import available_permissions
 from sparkth.core.security import get_password_hash
 from sparkth.lib.db import session_scope
-from sparkth.lib.permissions import DEFAULT_USER_ROLE, PLUGIN_USE, PLUGIN_USER_ROLE, assign_default_roles
+from sparkth.lib.permissions import PLUGIN_USE, PLUGIN_USER_ROLE, SPARKTH_USER_ROLE, assign_default_roles
 from sparkth.lib.plugins import get_plugin_loader
 
 
@@ -58,7 +58,7 @@ async def seed() -> None:
     # Load the plugins so the permission registry carries their declared permissions.
     get_plugin_loader()
     async with session_scope() as session:
-        await ensure_role(DEFAULT_USER_ROLE, available_permissions(), session)
+        await ensure_role(SPARKTH_USER_ROLE, available_permissions(), session)
         await ensure_role(PLUGIN_USER_ROLE, [PLUGIN_USE.name], session)
         user = (await session.exec(select(User).where((User.username == username) | (User.email == email)))).first()
         if user:

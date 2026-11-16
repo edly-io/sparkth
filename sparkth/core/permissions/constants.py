@@ -7,7 +7,7 @@ SCOPE_PATH_SEPARATOR = "/"
 SCOPE_SEGMENT_SEPARATOR = ":"
 
 # The role every account holds at its own user scope.
-DEFAULT_USER_ROLE = "sparkth_user"
+SPARKTH_USER_ROLE = "sparkth_user"
 
 # The role every account holds at global, letting it use every plugin.
 PLUGIN_USER_ROLE = "plugin_user"
