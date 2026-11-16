@@ -201,7 +201,8 @@ async def _reply_and_log(
         )
 
 
-async def _check_user_may_use_slack(session: AsyncSession, user_id: int) -> bool:
+# The bot answers Slack events with no request from the connecting user, so no route gate checks them.
+async def _can_use_slack(session: AsyncSession, user_id: int) -> bool:
     """Return whether the user exists and holds ``plugin.use`` at the Slack plugin's scope."""
     user = await session.get(User, user_id)
     if user is None:
@@ -222,7 +223,7 @@ async def _get_slack_config_or_refusal(session: AsyncSession, user_id: int) -> S
     The bot refuses when the connecting user may not use the Slack plugin, when the plugin is not set
     up or is disabled for them, and when its stored configuration is empty or invalid.
     """
-    if not await _check_user_may_use_slack(session, user_id):
+    if not await _can_use_slack(session, user_id):
         logger.info("User %d may not use the Slack plugin", user_id)
         return _Reply(PLUGIN_DISABLED_MESSAGE, ResponseType.PLUGIN_DISABLED)
 
