@@ -9,7 +9,7 @@ from sparkth.core.permissions.models import Role
 
 
 @pytest.fixture(autouse=True)
-def _seed_default_role(default_user_role: Role) -> None:
+def _seed_default_role(default_user_roles: Role) -> None:
     """Seed the default role so every account these tests create can be given it."""
 
 
