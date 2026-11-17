@@ -16,6 +16,7 @@ from sparkth.lib.plugins import SparkthPlugin
 from sparkth.lib.routes import register_router
 from sparkth.plugins.googledrive.analytics import events
 from sparkth.plugins.googledrive.config import GoogleDriveConfig
+from sparkth.plugins.googledrive.constants import GOOGLE_DRIVE_PLUGIN_NAME
 from sparkth.plugins.googledrive.routes import router
 
 
@@ -27,7 +28,7 @@ class GoogleDrivePlugin(SparkthPlugin):
     """
 
     def __init__(self) -> None:
-        super().__init__("google-drive")
+        super().__init__(GOOGLE_DRIVE_PLUGIN_NAME)
         register_router(self, router)
         CONFIG_SCHEMAS.add_item(self, GoogleDriveConfig)
         DISPLAY_INFO.add_item(

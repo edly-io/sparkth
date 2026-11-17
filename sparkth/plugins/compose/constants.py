@@ -11,6 +11,9 @@ from sparkth.lib.assets import read_asset
 from sparkth.lib.i18n import gettext_noop
 from sparkth.plugins.compose.exceptions import ClassifierError
 
+# The name the plugin registers under.
+COMPOSE_PLUGIN_NAME = "compose"
+
 # An SSE comment line: clients ignore it, and it keeps an idle stream from looking dead to a proxy.
 SSE_HEARTBEAT = ": keepalive\n\n"
 
