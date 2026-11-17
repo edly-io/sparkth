@@ -128,7 +128,13 @@ every grant scoped to the role (`role:<id>`) too, so a later role that reuses th
 them.
 
 A user who holds `plugin_user` at `plugin:<name>` instead of at `global` can use only those plugins.
-Assign it with `roles assign-role` and `--scope plugin --scope-object-id <name>`.
+Assign it at a plugin with `roles assign-role` and `--scope plugin --scope-object-id <name>`. Every account
+holds `plugin_user` at `global`, so the assignment at a plugin changes nothing until the `global` assignment
+is revoked. No CLI command or API route revokes a user's role assignment; only the `revoke_role` library
+function does.
+
+Every route of the built-in plugins is gated on `plugin.use` at `plugin:<name>`, except those the table above
+names; a test fails on any plugin route that is neither gated nor listed with a reason.
 
 When the account that connected a Slack workspace lacks `plugin.use` at `plugin:slack`, the bot replies in that
 workspace that it is disabled instead of answering.

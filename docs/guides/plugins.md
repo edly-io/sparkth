@@ -231,18 +231,19 @@ routes via `register_router`, MCP tools to `MCP_TOOLS`, a config schema to `CONF
 
 ```python
 # sparkth/plugins/myappplugin/plugin.py
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from sparkth.plugins.myappplugin.config import MyAppPluginConfig
 from sparkth.lib.analytics import AnalyticsEventSchema, register_event_schema
 from sparkth.lib.config.hooks import CONFIG_SCHEMAS
 from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
-from sparkth.lib.permissions import Permission
+from sparkth.lib.permissions import PLUGIN_USE, Permission
+from sparkth.lib.permissions.scopes import PLUGIN
 from sparkth.lib.routes import register_router
 from sparkth.lib.plugins import SparkthPlugin
 
-# Create router outside the class
-router = APIRouter()
+# Create router outside the class; every route on it requires `plugin.use` for this plugin
+router = APIRouter(dependencies=[Depends(PLUGIN_USE.require_for_object(PLUGIN, "my-app"))])
 
 MYAPP_PROCESS = Permission.create("myapp.process")
 
@@ -305,6 +306,22 @@ so they answer the same way.
 `register_router` mounts the router at `/api/v1/<plugin-name>` automatically, using
 the plugin instance's declared name. The router above is reachable at
 `http://localhost:7727/api/v1/myapp/`.
+
+### Gating plugin routes on `plugin.use`
+
+A plugin gates its own routes: build the dependency once with
+`PLUGIN_USE.require_for_object(PLUGIN, "<plugin-name>")` (`PLUGIN_USE` from `sparkth.lib.permissions`,
+`PLUGIN` from `sparkth.lib.permissions.scopes`) and pass it as `dependencies=[Depends(...)]` on the
+router, or on each route that needs it. A caller without `plugin.use` for the plugin (a `global` grant
+also passes) is answered `403` before the handler runs.
+
+A route called without a Sparkth user login declares no gate: an OAuth callback, a signed webhook, a
+launch-token route or a WebSocket. Authenticate such a route the way it needs (signed state, request
+signature, launch token). An analytics read, which `analytics.read` gates instead (see above), is listed
+the same way. Add it to `UNGATED_PLUGIN_ROUTES` in `tests/core/test_plugin_route_gates.py`
+with the reason, keyed by method and path template (`"WEBSOCKET"` as the method for a WebSocket). That
+test calls every other plugin route with no grant and fails on any that is not denied on `plugin.use` at
+`plugin:<name>`, and on any listed route that no longer exists.
 
 ### Who can reach plugin routes?
 
@@ -777,14 +794,16 @@ an analytics event, say) has it without a second query. The compose plugin regis
 ## Complete Example
 
 ```python
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
+from sparkth.lib.permissions import PLUGIN_USE
+from sparkth.lib.permissions.scopes import PLUGIN
 from sparkth.lib.routes import register_router
 from sparkth.lib.plugins import SparkthPlugin
 
-# Router
-router = APIRouter()
+# Router: every route requires `plugin.use` for this plugin
+router = APIRouter(dependencies=[Depends(PLUGIN_USE.require_for_object(PLUGIN, "weather"))])
 
 
 @router.get("/{city}")
