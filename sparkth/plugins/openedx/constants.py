@@ -2,7 +2,7 @@
 
 # The plugin's registered name, and so the key a content contributor registers its Open edX
 # builder under.
-OPENEDX_PLUGIN_NAME = "open-edx"
+OPENEDX_PLUGIN_NAME = "openedx"
 
 # Cache key prefix of a user's Open edX access token; the key is "<prefix>:<sparkth user id>".
 OPENEDX_ACCESS_TOKEN_CACHE_PREFIX = "openedx:access-token"
