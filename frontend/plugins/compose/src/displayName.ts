@@ -1,8 +1,5 @@
-/** The longest attachment or source name Compose shows before truncating it. */
-export const RAG_DISPLAY_NAME_MAX_CHARS = parseInt(
-  process.env.NEXT_PUBLIC_RAG_DISPLAY_NAME_MAX_CHARS ?? "30",
-  10,
-);
+/** The longest document name (an attachment or a source) Compose shows before truncating it. */
+export const DOCUMENT_DISPLAY_NAME_MAX_CHARS = 30;
 
 /** Cuts `text` to at most `maxChars` characters, ending in an ellipsis when it was cut. */
 export function truncate(text: string, maxChars: number): string {
