@@ -225,7 +225,7 @@ async def _get_slack_config_or_refusal(session: AsyncSession, user_id: int) -> S
     """
     if not await _can_use_slack(session, user_id):
         logger.info("User %d may not use the Slack plugin", user_id)
-        return _Reply(PLUGIN_DISABLED_MESSAGE, ResponseType.PLUGIN_DISABLED)
+        return _Reply(str(PLUGIN_DISABLED_MESSAGE), ResponseType.PLUGIN_DISABLED)
 
     plugin_map = await PluginService().get_user_plugin_map(session, user_id)
     user_plugin = plugin_map.get(SLACK_PLUGIN_NAME)
@@ -238,7 +238,7 @@ async def _get_slack_config_or_refusal(session: AsyncSession, user_id: int) -> S
 
     if not user_plugin.enabled:
         logger.info("Slack plugin disabled for user %d", user_id)
-        return _Reply(PLUGIN_DISABLED_MESSAGE, ResponseType.PLUGIN_DISABLED)
+        return _Reply(str(PLUGIN_DISABLED_MESSAGE), ResponseType.PLUGIN_DISABLED)
 
     if not user_plugin.config:
         logger.warning("Slack plugin config empty for user %d", user_id)
