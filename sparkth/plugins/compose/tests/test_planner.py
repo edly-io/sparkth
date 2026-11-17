@@ -241,6 +241,12 @@ class TestOperations:
 
 
 class TestPlannerPrompt:
+    def test_it_is_told_never_to_claim_work_no_step_of_the_message_did(self) -> None:
+        """Earlier replies read as if the assistant did the work itself, which a planner may copy."""
+        prompt = render_planner_prompt([STUB_AGENT], operations=True)
+
+        assert "Never tell the author that work was done" in prompt
+
     def test_it_lists_each_agent_by_title_and_description(self) -> None:
         prompt = render_planner_prompt([STUB_AGENT, OTHER_AGENT], operations=False)
 
