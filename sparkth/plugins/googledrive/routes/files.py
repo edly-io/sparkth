@@ -25,7 +25,6 @@ from sparkth.plugins.googledrive.routes.dependencies import (
     get_drive_file_owner_id,
     get_drive_folder,
     get_drive_folder_owner_id,
-    require_drive_use,
 )
 from sparkth.plugins.googledrive.routes.route_utils import batch_fetch_documents, get_drive_credentials
 from sparkth.plugins.googledrive.schemas import (
@@ -38,7 +37,7 @@ from sparkth.plugins.googledrive.schemas import (
 )
 from sparkth.plugins.googledrive.utils import soft_delete_drive_file
 
-router = APIRouter(dependencies=[Depends(require_drive_use)])
+router = APIRouter()
 logger = get_logger(__name__)
 
 
