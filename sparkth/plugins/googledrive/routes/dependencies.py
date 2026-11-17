@@ -20,7 +20,6 @@ __all__ = [
     "get_drive_file_owner_id",
     "get_drive_folder",
     "get_drive_folder_owner_id",
-    "require_drive_use",
 ]
 
 logger = get_logger(__name__)
