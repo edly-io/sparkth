@@ -7,7 +7,7 @@ than a repeat of the same one. The Compose agent and the MCP tools are per plugi
 so they register in ``__init__``.
 """
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, status
 
 from sparkth.lib.compose.hooks import register_agent
 from sparkth.lib.content.hooks import ContentContributor, register_content_contributor
@@ -22,6 +22,8 @@ from sparkth.lib.frontend.hooks import (
 )
 from sparkth.lib.i18n import gettext_noop
 from sparkth.lib.mcp.hooks import MCP_TOOLS
+from sparkth.lib.permissions import PLUGIN_USE
+from sparkth.lib.permissions.scopes import PLUGIN
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.lib.routes import register_router
 from sparkth.plugins.pxc.agent import PXC_ACTIVITY_BUILDER
@@ -57,8 +59,11 @@ register_exception_handler(PxcDuplicateActivityName, status.HTTP_500_INTERNAL_SE
 
 # PLUGIN_ROUTERS keeps one router per plugin, so both surfaces go in under one parent.
 pxc_router = APIRouter()
+# The learner routes carry a launch token instead, so they need no plugin.use.
 pxc_router.include_router(learner_router)
-pxc_router.include_router(activity_router)
+pxc_router.include_router(
+    activity_router, dependencies=[Depends(PLUGIN_USE.require_for_object(PLUGIN, PXC_PLUGIN_NAME))]
+)
 
 
 class PxcPlugin(SparkthPlugin):
