@@ -16,7 +16,7 @@ OTHER_AGENT = Agent("other", "Other agent", "Other scope text.", "OTHER SECTION"
 
 
 @pytest.fixture(autouse=True)
-def _every_user_holds_default_role(default_user_role: object) -> None:
+def _every_user_holds_default_role(default_user_roles: object) -> None:
     """Give the signed-in test user the default roles, so the ``plugin.use`` gate and the per-record gates pass."""
 
 

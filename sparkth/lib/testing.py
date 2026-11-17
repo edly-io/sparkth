@@ -167,7 +167,7 @@ async def grant_permission_at_scope(
 
 
 @pytest.fixture
-async def default_user_role(session: AsyncSession) -> Role:
+async def default_user_roles(session: AsyncSession) -> Role:
     """Seed the built-in ``sparkth_user`` and ``plugin_user`` roles and assign both to user 1.
 
     ``sparkth_user`` holds every registered permission and is assigned at the user's own scope;
