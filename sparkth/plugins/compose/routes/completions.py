@@ -42,7 +42,7 @@ from sparkth.plugins.compose.exceptions import RAGSearchError
 from sparkth.plugins.compose.llm import complete_turn
 from sparkth.plugins.compose.messages import get_last_user_text
 from sparkth.plugins.compose.permissions import CONVERSATION_WRITE
-from sparkth.plugins.compose.routes.dependencies import get_turn_owner_id, require_compose_use
+from sparkth.plugins.compose.routes.dependencies import get_turn_owner_id
 from sparkth.plugins.compose.routes.utils import resolve_tools
 from sparkth.plugins.compose.routes.utils.live_turns import request_stop
 from sparkth.plugins.compose.routes.utils.message_assembly import assemble_provider_messages
@@ -60,7 +60,7 @@ from sparkth.plugins.compose.tools import get_tool_registry
 
 logger = get_logger(__name__)
 
-router = APIRouter(dependencies=[Depends(require_compose_use)])
+router = APIRouter()
 
 
 def _unusable_status(document: Document) -> Literal["queued", "processing", "failed"]:
