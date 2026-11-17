@@ -57,9 +57,7 @@ def _register(
 @pytest.fixture
 def fake_contributor(owners: list[SparkthPlugin]) -> ContentContributor:
     # Wraps (rather than replaces) build_fake so tests can assert what it was awaited with.
-    return _register(
-        owners, ContentContributor("fake", "A fake contributor", {"open-edx": AsyncMock(wraps=build_fake)})
-    )
+    return _register(owners, ContentContributor("fake", "A fake contributor", {"openedx": AsyncMock(wraps=build_fake)}))
 
 
 def add_args(contributor: str = "fake", option_id: str | None = None) -> AddPluginContentArgs:
@@ -90,7 +88,7 @@ async def test_creates_the_block_the_contributor_declares(fake_contributor: Cont
     ):
         result = await openedx_add_plugin_content(add_args())
 
-    cast(AsyncMock, fake_contributor.builders["open-edx"]).assert_awaited_once_with("course-v1:X+Y+Z", None)
+    cast(AsyncMock, fake_contributor.builders["openedx"]).assert_awaited_once_with("course-v1:X+Y+Z", None)
     assert create.await_args is not None
     client = create.await_args.args[0]
     assert (client.config, client.user_id) == (OPENEDX_CONFIG, 1)
@@ -114,7 +112,7 @@ async def test_an_unconfigured_user_places_no_plugin_content(fake_contributor: C
         with pytest.raises(PluginNotConfiguredError):
             await openedx_add_plugin_content(add_args())
 
-    cast(AsyncMock, fake_contributor.builders["open-edx"]).assert_not_awaited()
+    cast(AsyncMock, fake_contributor.builders["openedx"]).assert_not_awaited()
 
 
 async def test_unknown_contributor_is_an_error_and_creates_nothing() -> None:
@@ -141,7 +139,7 @@ async def build_broken(course_id: str, option_id: str | None) -> ContentBlock:
 
 
 async def test_a_build_failure_is_reported_as_an_error_dict_and_creates_nothing(owners: list[SparkthPlugin]) -> None:
-    _register(owners, ContentContributor("broken", "A contributor that cannot build", {"open-edx": build_broken}))
+    _register(owners, ContentContributor("broken", "A contributor that cannot build", {"openedx": build_broken}))
 
     with patch("sparkth.plugins.openedx.tools.create_basic_component", new=AsyncMock()) as create:
         result = await openedx_add_plugin_content(add_args("broken"))
@@ -158,7 +156,7 @@ async def build_fake_without_attributes(course_id: str, option_id: str | None) -
 async def test_a_block_with_no_attributes_skips_the_update_call(owners: list[SparkthPlugin]) -> None:
     _register(
         owners,
-        ContentContributor("bare", "A contributor with no attributes", {"open-edx": build_fake_without_attributes}),
+        ContentContributor("bare", "A contributor with no attributes", {"openedx": build_fake_without_attributes}),
     )
 
     with (
@@ -260,7 +258,7 @@ def optioned_contributor(owners: list[SparkthPlugin]) -> ContentContributor:
     return _register(
         owners,
         ContentContributor(
-            "optioned", "A contributor with options", {"open-edx": AsyncMock(wraps=build_fake)}, list_fake_options
+            "optioned", "A contributor with options", {"openedx": AsyncMock(wraps=build_fake)}, list_fake_options
         ),
     )
 
@@ -285,7 +283,7 @@ async def test_the_chosen_option_reaches_the_builder(optioned_contributor: Conte
     ):
         result = await openedx_add_plugin_content(add_args("optioned", "second"))
 
-    cast(AsyncMock, optioned_contributor.builders["open-edx"]).assert_awaited_once_with("course-v1:X+Y+Z", "second")
+    cast(AsyncMock, optioned_contributor.builders["openedx"]).assert_awaited_once_with("course-v1:X+Y+Z", "second")
     assert result["response"]["category"] == "fake"
 
 
@@ -296,7 +294,7 @@ async def test_an_option_for_a_contributor_without_options_is_refused_and_create
         result = await openedx_add_plugin_content(add_args("fake", "first"))
 
     create.assert_not_awaited()
-    cast(AsyncMock, fake_contributor.builders["open-edx"]).assert_not_awaited()
+    cast(AsyncMock, fake_contributor.builders["openedx"]).assert_not_awaited()
     assert "fake" in result["error"]["message"]
 
 
@@ -308,7 +306,7 @@ async def test_a_contributor_with_options_and_none_chosen_is_refused_and_creates
         result = await openedx_add_plugin_content(add_args("optioned"))
 
     create.assert_not_awaited()
-    cast(AsyncMock, optioned_contributor.builders["open-edx"]).assert_not_awaited()
+    cast(AsyncMock, optioned_contributor.builders["openedx"]).assert_not_awaited()
     assert "option_id" in result["error"]["message"]
 
 
@@ -322,7 +320,7 @@ def placing_contributor(owners: list[SparkthPlugin]) -> ContentContributor:
         ContentContributor(
             "placing",
             "A contributor that records its placements",
-            {"open-edx": AsyncMock(wraps=build_fake)},
+            {"openedx": AsyncMock(wraps=build_fake)},
             list_fake_options,
             AsyncMock(),
         ),
@@ -383,7 +381,7 @@ async def switched_off_contributor(session: AsyncSession, owners: list[SparkthPl
     contributor = ContentContributor(
         "off",
         "A contributor whose plugin is switched off",
-        {"open-edx": AsyncMock(wraps=build_fake)},
+        {"openedx": AsyncMock(wraps=build_fake)},
         AsyncMock(wraps=list_fake_options),
         AsyncMock(wraps=record_off_placement),
     )
@@ -410,7 +408,7 @@ async def test_a_contributor_whose_plugin_is_off_is_refused_and_creates_nothing(
 
     assert result == {"error": {"message": "Content contributor 'off' is unavailable: its plugin is switched off"}}
     create.assert_not_awaited()
-    cast(AsyncMock, switched_off_contributor.builders["open-edx"]).assert_not_awaited()
+    cast(AsyncMock, switched_off_contributor.builders["openedx"]).assert_not_awaited()
     cast(AsyncMock, switched_off_contributor.callback).assert_not_awaited()
 
 
@@ -419,7 +417,7 @@ async def user_switched_off_contributor(session: AsyncSession, owners: list[Spar
     contributor = ContentContributor(
         "user-off",
         "A contributor whose plugin the user switched off",
-        {"open-edx": AsyncMock(wraps=build_fake)},
+        {"openedx": AsyncMock(wraps=build_fake)},
         AsyncMock(wraps=list_fake_options),
         AsyncMock(wraps=record_off_placement),
     )
@@ -450,5 +448,5 @@ async def test_a_contributor_whose_plugin_the_user_switched_off_is_refused_and_c
 
     assert result == {"error": {"message": "Content contributor 'user-off' is unavailable: its plugin is switched off"}}
     create.assert_not_awaited()
-    cast(AsyncMock, user_switched_off_contributor.builders["open-edx"]).assert_not_awaited()
+    cast(AsyncMock, user_switched_off_contributor.builders["openedx"]).assert_not_awaited()
     cast(AsyncMock, user_switched_off_contributor.callback).assert_not_awaited()

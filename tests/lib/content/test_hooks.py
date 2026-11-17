@@ -37,7 +37,7 @@ def _stub_contributor() -> ContentContributor:
     return ContentContributor(
         "stub",
         "A stub contributor",
-        {"open-edx": build_openedx_stub, "canvas": build_canvas_stub},
+        {"openedx": build_openedx_stub, "canvas": build_canvas_stub},
     )
 
 
@@ -81,7 +81,7 @@ async def test_a_contributor_goes_once_its_plugin_is_collected() -> None:
 
 async def test_each_target_builds_the_block_that_target_expects(registered: ContentContributor) -> None:
     """The point of a builder per target: one contributor, a differently shaped block per LMS."""
-    for_openedx = await registered.builders["open-edx"]("course-v1:X+Y+Z", None)
+    for_openedx = await registered.builders["openedx"]("course-v1:X+Y+Z", None)
     for_canvas = await registered.builders["canvas"]("course-v1:X+Y+Z", None)
 
     assert (for_openedx.title, for_openedx.kind) == ("A Stub", "stub")
@@ -94,7 +94,7 @@ async def test_a_second_contributor_claiming_the_name_is_rejected(
     registered: ContentContributor, owner: SparkthPlugin
 ) -> None:
     with pytest.raises(DuplicateContentContributorError, match="stub"):
-        register_content_contributor(owner, ContentContributor("stub", "Another", {"open-edx": build_openedx_stub}))
+        register_content_contributor(owner, ContentContributor("stub", "Another", {"openedx": build_openedx_stub}))
 
 
 async def test_another_plugin_claiming_the_name_is_rejected_even_with_an_equal_contributor(
@@ -113,7 +113,7 @@ async def test_a_contributor_targeting_fewer_lmses_under_the_same_name_is_reject
     """``builders`` is now the discriminator: same name and description, fewer targets, unequal."""
     with pytest.raises(DuplicateContentContributorError, match="stub"):
         register_content_contributor(
-            owner, ContentContributor("stub", "A stub contributor", {"open-edx": build_openedx_stub})
+            owner, ContentContributor("stub", "A stub contributor", {"openedx": build_openedx_stub})
         )
 
 
@@ -142,7 +142,7 @@ async def test_a_contributor_adding_options_under_the_same_name_is_rejected(
             ContentContributor(
                 "stub",
                 "A stub contributor",
-                {"open-edx": build_openedx_stub, "canvas": build_canvas_stub},
+                {"openedx": build_openedx_stub, "canvas": build_canvas_stub},
                 list_stub_options,
             ),
         )

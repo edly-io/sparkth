@@ -3,6 +3,13 @@
 from enum import StrEnum
 
 
+class PlannerModel(StrEnum):
+    """Which model the planner runs on."""
+
+    SMALL = "small"
+    SAME = "same"
+
+
 class TurnEventType(StrEnum):
     """What one event of a running turn reports."""
 
