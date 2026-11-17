@@ -14,12 +14,16 @@ from itsdangerous import SignatureExpired
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.core.i18n import locale_context
 from sparkth.lib.models import User
+from sparkth.lib.testing import AddTranslation, AuditEventsFetcher, restrict_plugin_use
 from sparkth.main import app
 from sparkth.plugins.slack.config import SlackConfig
 from sparkth.plugins.slack.constants import (
     AI_KEY_UNAVAILABLE_MESSAGE,
     NO_AI_KEY_MESSAGE,
+    PLUGIN_DISABLED_MESSAGE,
+    SLACK_PLUGIN_NAME,
     SYNTHESIS_SYSTEM_PROMPT,
 )
 from sparkth.plugins.slack.enums import ConnectionEventType, ResponseType
@@ -669,7 +673,7 @@ class TestGetLogs:
 def _make_plugin_svc(user_plugin: MagicMock | None) -> AsyncMock:
     """Return a PluginService mock whose get_user_plugin_map returns the given plugin (or {})."""
     instance = AsyncMock()
-    instance.get_user_plugin_map.return_value = {"slack": user_plugin} if user_plugin else {}
+    instance.get_user_plugin_map.return_value = {SLACK_PLUGIN_NAME: user_plugin} if user_plugin else {}
     return instance
 
 
@@ -685,6 +689,7 @@ def _make_slack_client_mock() -> AsyncMock:
     return client
 
 
+@pytest.mark.usefixtures("test_user")
 class TestDispatchEvent:
     """Unit tests for _dispatch_event — the DB runs for real; external calls are mocked.
 
@@ -933,6 +938,7 @@ class TestRagSources:
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("test_user")
 async def test_dispatch_event_passes_llm_provider_when_configured() -> None:
     """When llm_config_id is set and resolves successfully, llm_provider is passed."""
     config = SlackConfig(llm_config_id=7)
@@ -971,7 +977,7 @@ async def test_dispatch_event_passes_llm_provider_when_configured() -> None:
         mock_user_plugin = MagicMock()
         mock_user_plugin.enabled = True
         mock_user_plugin.config = config.model_dump()
-        mock_plugin_instance.get_user_plugin_map.return_value = {"slack": mock_user_plugin}
+        mock_plugin_instance.get_user_plugin_map.return_value = {SLACK_PLUGIN_NAME: mock_user_plugin}
         mock_plugin_svc.return_value = mock_plugin_instance
 
         # Simulate get_llm_service returning a service that resolves config + decrypted key
@@ -1005,6 +1011,7 @@ async def test_dispatch_event_passes_llm_provider_when_configured() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("test_user")
 async def test_dispatch_event_uses_model_override_when_configured() -> None:
     """When llm_model_override is set, get_provider is called with the override model."""
     config = SlackConfig(llm_config_id=7, llm_model_override="claude-haiku-4-5")
@@ -1042,7 +1049,7 @@ async def test_dispatch_event_uses_model_override_when_configured() -> None:
         mock_user_plugin = MagicMock()
         mock_user_plugin.enabled = True
         mock_user_plugin.config = config.model_dump()
-        mock_plugin_instance.get_user_plugin_map.return_value = {"slack": mock_user_plugin}
+        mock_plugin_instance.get_user_plugin_map.return_value = {SLACK_PLUGIN_NAME: mock_user_plugin}
         mock_plugin_svc.return_value = mock_plugin_instance
 
         mock_llm_svc = AsyncMock()
@@ -1064,6 +1071,7 @@ async def test_dispatch_event_uses_model_override_when_configured() -> None:
         assert gp_kwargs["model"] == "claude-haiku-4-5", "Expected llm_model_override to override the LLMConfig's model"
 
 
+@pytest.mark.usefixtures("test_user")
 class TestDispatchEventLogging:
     """Test that _dispatch_event persists a BotResponseLog for every bot reply path."""
 
@@ -1111,7 +1119,7 @@ class TestDispatchEventLogging:
         with (
             patch(
                 "sparkth.plugins.slack.routes.PluginService",
-                return_value=MagicMock(get_user_plugin_map=AsyncMock(return_value={"slack": plugin})),
+                return_value=MagicMock(get_user_plugin_map=AsyncMock(return_value={SLACK_PLUGIN_NAME: plugin})),
             ),
             patch(
                 "sparkth.plugins.slack.routes._post_slack_message",
@@ -1145,7 +1153,7 @@ class TestDispatchEventLogging:
         with (
             patch(
                 "sparkth.plugins.slack.routes.PluginService",
-                return_value=MagicMock(get_user_plugin_map=AsyncMock(return_value={"slack": plugin})),
+                return_value=MagicMock(get_user_plugin_map=AsyncMock(return_value={SLACK_PLUGIN_NAME: plugin})),
             ),
             patch(
                 "sparkth.plugins.slack.routes._post_slack_message",
@@ -1182,7 +1190,7 @@ class TestDispatchEventLogging:
         with (
             patch(
                 "sparkth.plugins.slack.routes.PluginService",
-                return_value=MagicMock(get_user_plugin_map=AsyncMock(return_value={"slack": plugin})),
+                return_value=MagicMock(get_user_plugin_map=AsyncMock(return_value={SLACK_PLUGIN_NAME: plugin})),
             ),
             patch(
                 "sparkth.plugins.slack.routes._post_slack_message",
@@ -1238,6 +1246,86 @@ class TestDispatchEventLogging:
 
         assert await self._logs(session) == []
 
+    @pytest.mark.asyncio
+    async def test_dispatch_refuses_when_the_connecting_user_lacks_plugin_use(
+        self, session: AsyncSession, audit_events: AuditEventsFetcher
+    ) -> None:
+        await restrict_plugin_use(session, None)
+        plugin = MagicMock(enabled=True, config={"llm_config_id": 1})
+
+        with (
+            patch(
+                "sparkth.plugins.slack.routes.PluginService",
+                return_value=MagicMock(get_user_plugin_map=AsyncMock(return_value={SLACK_PLUGIN_NAME: plugin})),
+            ),
+            patch(
+                "sparkth.plugins.slack.routes._post_slack_message", new_callable=AsyncMock, return_value="1.1"
+            ) as post,
+            patch("sparkth.plugins.slack.routes._resolve_names", new_callable=AsyncMock, return_value=(None, None)),
+            patch("sparkth.plugins.slack.routes.answer_question", new_callable=AsyncMock) as answer,
+        ):
+            await _dispatch_event(
+                1, 1, "enc", "U_BOT", {"text": "<@U_BOT> what is a loop?", "user": "U1", "channel": "C1", "ts": "1.0"}
+            )
+
+        answer.assert_not_awaited()
+        assert post.call_args.args[2] == str(PLUGIN_DISABLED_MESSAGE)
+        logs = await self._logs(session)
+        assert [log.response_type for log in logs] == [ResponseType.PLUGIN_DISABLED]
+        assert [event for event in await audit_events() if event.action == "denied"] == []
+
+    @pytest.mark.asyncio
+    async def test_dispatch_answers_when_the_grant_is_at_the_slack_plugin(self, session: AsyncSession) -> None:
+        await restrict_plugin_use(session, SLACK_PLUGIN_NAME)
+        plugin = MagicMock(enabled=True, config={"llm_config_id": 1})
+
+        with (
+            patch(
+                "sparkth.plugins.slack.routes.PluginService",
+                return_value=MagicMock(get_user_plugin_map=AsyncMock(return_value={SLACK_PLUGIN_NAME: plugin})),
+            ),
+            patch("sparkth.plugins.slack.routes._post_slack_message", new_callable=AsyncMock, return_value="1.1"),
+            patch("sparkth.plugins.slack.routes._resolve_names", new_callable=AsyncMock, return_value=(None, None)),
+            patch("sparkth.plugins.slack.routes._build_llm_provider", new_callable=AsyncMock) as provider,
+            patch(
+                "sparkth.plugins.slack.routes.answer_question",
+                new_callable=AsyncMock,
+                return_value=("A loop repeats code.", ResponseType.RAG_MATCH),
+            ) as answer,
+        ):
+            provider.return_value = MagicMock()
+            await _dispatch_event(
+                1, 1, "enc", "U_BOT", {"text": "<@U_BOT> what is a loop?", "user": "U1", "channel": "C1", "ts": "1.0"}
+            )
+
+        answer.assert_awaited_once()
+        logs = await self._logs(session)
+        assert [log.response_type for log in logs] == [ResponseType.RAG_MATCH]
+
+
+@pytest.mark.asyncio
+async def test_dispatch_refuses_when_the_connecting_user_does_not_exist(session: AsyncSession) -> None:
+    plugin = MagicMock(enabled=True, config={"llm_config_id": 1})
+
+    with (
+        patch(
+            "sparkth.plugins.slack.routes.PluginService",
+            return_value=MagicMock(get_user_plugin_map=AsyncMock(return_value={SLACK_PLUGIN_NAME: plugin})),
+        ),
+        patch("sparkth.plugins.slack.routes._post_slack_message", new_callable=AsyncMock, return_value="1.1") as post,
+        patch("sparkth.plugins.slack.routes._resolve_names", new_callable=AsyncMock, return_value=(None, None)),
+        patch("sparkth.plugins.slack.routes.answer_question", new_callable=AsyncMock) as answer,
+    ):
+        await _dispatch_event(
+            1, 1, "enc", "U_BOT", {"text": "<@U_BOT> what is a loop?", "user": "U1", "channel": "C1", "ts": "1.0"}
+        )
+
+    answer.assert_not_awaited()
+    assert post.call_args.args[2] == str(PLUGIN_DISABLED_MESSAGE)
+    session.expire_all()
+    logs = (await session.exec(select(BotResponseLog))).all()
+    assert [log.response_type for log in logs] == [ResponseType.PLUGIN_DISABLED]
+
 
 class TestConnectionEventLogging:
     @pytest.mark.asyncio
@@ -1287,3 +1375,13 @@ class TestConnectionEventLogging:
         assert len(logs) == 1
         assert logs[0].event_type == ConnectionEventType.DISCONNECTED
         assert logs[0].workspace_id == workspace_id
+
+
+def test_plugin_disabled_message_renders_in_the_active_locale(translation_catalog: AddTranslation) -> None:
+    translation_catalog(
+        "The TA Bot is currently disabled by your instructor.",
+        "El bot de TA está desactivado actualmente por tu instructor.",
+    )
+    with locale_context("es"):
+        assert str(PLUGIN_DISABLED_MESSAGE) == "El bot de TA está desactivado actualmente por tu instructor."
+    assert str(PLUGIN_DISABLED_MESSAGE) == "The TA Bot is currently disabled by your instructor."
