@@ -92,7 +92,7 @@ from sparkth.lib.plugins import SparkthPlugin
 
 class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
-        super().__init__("my-app")
+        super().__init__("myapp")
         CONFIG_SCHEMAS.add_item(self, MyAppPluginConfig)
 ```
 
@@ -126,7 +126,7 @@ from sparkth.plugins.myappplugin.config import MyAppPluginConfig
 
 class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
-        super().__init__("my-app")
+        super().__init__("myapp")
         CONFIG_SCHEMAS.add_item(self, MyAppPluginConfig)
         CONFIG_ADAPTERS.add_item(self, LLMConfigAdapter())
 ```
@@ -216,7 +216,7 @@ Every plugin **declares its own name explicitly** by passing it positionally to 
 ```python
 class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
-        super().__init__("my-app")
+        super().__init__("myapp")
 ```
 
 The name must be a kebab-case slug (lowercase letters, digits, single hyphens: `PLUGIN_NAME_PATTERN` in `sparkth/core/plugins/constants.py`); `super().__init__()` raises `ValueError` otherwise. It appears in URLs (`/api/v1/<name>`, `/dashboard/<name>`), keys the plugin's database row, and is what every hook lookup (`CONFIG_SCHEMAS`, `CONFIG_ADAPTERS`, the frontend metadata hooks) resolves by, so treat it as permanent once released.
@@ -264,7 +264,7 @@ class MyAppDataProcessed(AnalyticsEventSchema):
 # Plugin class
 class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
-        super().__init__("my-app")  # the plugin declares its own name
+        super().__init__("myapp")  # the plugin declares its own name
         CONFIG_SCHEMAS.add_item(self, MyAppPluginConfig)
         register_router(self, router)
         MCP_TOOLS.add_item(self, Tool(process_data, category="utilities"))
@@ -303,7 +303,7 @@ so they answer the same way.
 
 `register_router` mounts the router at `/api/v1/<plugin-name>` automatically, using
 the plugin instance's declared name. The router above is reachable at
-`http://localhost:7727/api/v1/my-app/`.
+`http://localhost:7727/api/v1/myapp/`.
 
 ### Who can reach plugin routes?
 
@@ -369,7 +369,7 @@ from sparkth.lib.frontend.hooks import (
 
 class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
-        super().__init__("my-app")
+        super().__init__("myapp")
         DISPLAY_INFO.add_item(self, DisplayInfo("My App", "What the plugin does, in one line", icon="sparkles"))
         SIDEBAR_ENTRIES.add_item(self, SidebarEntry("My App", icon="sparkles", order=5))
         FRONTEND_APPS.add_item(self, FrontendApp())
@@ -448,7 +448,7 @@ from sparkth.plugins.my_app.models import MyModel  # noqa: F401
 
 class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
-        super().__init__("my-app")
+        super().__init__("myapp")
         CONFIG_SCHEMAS.add_item(self, MyAppPluginConfig)
         register_router(self, router)
 ```
@@ -469,7 +469,7 @@ Register each tool in `__init__`; pass an optional `category` to group it.
 ```python
 class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
-        super().__init__("my-app")
+        super().__init__("myapp")
         MCP_TOOLS.add_item(self, Tool(my_tool, category="my-category"))
 
 
@@ -571,7 +571,7 @@ registered and `ContentContributorUnavailableError` when the plugin is switched 
 `sparkth.lib.content.exceptions`. With no authenticated caller, only the system-wide switch applies.
 
 `builders` is keyed by the publishing plugin's registered name, so its keys are the LMSes a
-contributor targets. `open-edx` is the one shipped publisher. Register one builder per LMS you
+contributor targets. `openedx` is the one shipped publisher. Register one builder per LMS you
 can produce a block for; a publishing plugin skips any contributor that has no builder for it,
 so a misspelled key reads as "does not target that LMS".
 
@@ -609,12 +609,10 @@ async def build_my_openedx_block(course_id: str, option_id: str | None) -> Conte
 
 class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
-        super().__init__("my-app")
+        super().__init__("myapp")
         register_content_contributor(
             self,
-            ContentContributor(
-                "my-app", "What this contributes", {"open-edx": build_my_openedx_block}, list_my_options
-            ),
+            ContentContributor("myapp", "What this contributes", {"openedx": build_my_openedx_block}, list_my_options),
         )
 ```
 
@@ -696,7 +694,7 @@ from sparkth.plugins.myappplugin.agent import MY_AGENT, MY_APP_BUILD
 
 class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
-        super().__init__("my-app")
+        super().__init__("myapp")
         # Only when MCP clients should see the tool too.
         MCP_TOOLS.add_item(self, MY_APP_BUILD)
         register_agent(self, MY_AGENT)
@@ -767,7 +765,7 @@ async def drop_my_rows(session: AsyncSession, document: Document) -> None:
 
 class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
-        super().__init__("my-app")
+        super().__init__("myapp")
         DOCUMENT_DELETED.add_item(self, drop_my_rows)
 ```
 
@@ -812,7 +810,7 @@ class WeatherPlugin(SparkthPlugin):
 make backend.up.dev
 
 # Test API (routes mount at /api/v1/<plugin-name>)
-curl http://localhost:7727/api/v1/my-app/
+curl http://localhost:7727/api/v1/myapp/
 ```
 
 For real-world examples, see the `sparkth/plugins/canvas/` directory.
