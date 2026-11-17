@@ -3,7 +3,7 @@ import asyncio
 import typer
 
 from sparkth.cli.audit_context import cli_audit_context
-from sparkth.cli.scope_lookup import resolve_scope
+from sparkth.cli.scope_lookup import resolve_scope, validate_scope_object
 from sparkth.cli.user_lookup import resolve_user
 from sparkth.lib.db import session_scope
 
@@ -31,11 +31,13 @@ async def _assign_role(identifier: str, role: str, scope: str, scope_object_id: 
 
     Separate from the Typer command because Typer entrypoints are synchronous while the
     database layer is async; this is the awaited implementation. Exits non-zero if the user or
-    role is missing, the scope kind is unknown, or the scope and object id contradict each other
-    (an objectless scope given an object id, or an object-bearing scope given none — enforced by
-    the engine's assign_role).
+    role is missing, the scope kind is unknown, the plugin scope names a plugin that is not loaded,
+    or the scope and object id contradict each other (an objectless scope given an object id, or an
+    object-bearing scope given none — enforced by the engine's assign_role).
     """
     permission_scope = resolve_scope(scope)
+    validate_scope_object(permission_scope, scope_object_id)
+    where = f"{scope}:{scope_object_id}" if scope_object_id else scope
     with cli_audit_context():
         async with session_scope() as session:
             user_id, user = await resolve_user(identifier, session)
@@ -53,7 +55,7 @@ async def _assign_role(identifier: str, role: str, scope: str, scope_object_id: 
                 raise typer.Exit(code=1) from None
             await session.commit()
             typer.secho(
-                f"Assigned role '{role}' to {user.username} (scope: {scope}).",
+                f"Assigned role '{role}' to {user.username} (scope: {where}).",
                 fg=typer.colors.GREEN,
             )
 
