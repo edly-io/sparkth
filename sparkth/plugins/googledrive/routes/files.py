@@ -12,10 +12,13 @@ from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.lib.audit import record_event
+from sparkth.lib.audit.events import AuditChange, AuditOutcome, AuditTarget
 from sparkth.lib.auth import get_current_user_id
 from sparkth.lib.db import get_async_session
 from sparkth.lib.log import get_logger
 from sparkth.lib.permissions.scopes import USER
+from sparkth.plugins.googledrive.audit import GOOGLE_DRIVE_FILE_TARGET, GoogleDriveFileRemovedAuditEvent
 from sparkth.plugins.googledrive.client import GoogleDriveClient
 from sparkth.plugins.googledrive.models import DriveFile, DriveFolder
 from sparkth.plugins.googledrive.oauth import get_valid_access_token
@@ -39,6 +42,14 @@ from sparkth.plugins.googledrive.utils import soft_delete_drive_file
 
 router = APIRouter()
 logger = get_logger(__name__)
+
+
+def _create_audit_snapshot(drive_file: DriveFile) -> dict[str, str]:
+    return {
+        "name": drive_file.name,
+        "drive_file_id": drive_file.drive_file_id,
+        "owner_id": str(drive_file.user_id),
+    }
 
 
 @router.get(
@@ -224,8 +235,20 @@ async def delete_file(
     drive_file: DriveFile = Depends(get_drive_file),
     session: AsyncSession = Depends(get_async_session),
 ) -> dict[str, str]:
-    """Soft-delete a file from Sparkth (does not delete from Drive)."""
+    """Soft-delete a file from Sparkth (does not delete from Drive).
+
+    Records a ``googledrive.file_removed`` audit event that commits atomically
+    with the removal (fail-closed).
+    """
     await soft_delete_drive_file(session, drive_file)
+    await record_event(
+        session,
+        GoogleDriveFileRemovedAuditEvent(
+            outcome=AuditOutcome.SUCCESS,
+            target=AuditTarget(type=GOOGLE_DRIVE_FILE_TARGET, id=str(drive_file.id)),
+            change=AuditChange(old=_create_audit_snapshot(drive_file)),
+        ),
+    )
     await session.commit()
 
     return {"detail": "File removed from Sparkth successfully"}
