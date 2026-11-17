@@ -14,8 +14,9 @@ from itsdangerous import SignatureExpired
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.core.i18n import locale_context
 from sparkth.lib.models import User
-from sparkth.lib.testing import AuditEventsFetcher, restrict_plugin_use
+from sparkth.lib.testing import AddTranslation, AuditEventsFetcher, restrict_plugin_use
 from sparkth.main import app
 from sparkth.plugins.slack.config import SlackConfig
 from sparkth.plugins.slack.constants import (
@@ -1268,7 +1269,7 @@ class TestDispatchEventLogging:
             )
 
         answer.assert_not_awaited()
-        assert post.call_args.args[2] == PLUGIN_DISABLED_MESSAGE
+        assert post.call_args.args[2] == str(PLUGIN_DISABLED_MESSAGE)
         logs = await self._logs(session)
         assert [log.response_type for log in logs] == [ResponseType.PLUGIN_DISABLED]
         assert [event for event in await audit_events() if event.action == "denied"] == []
@@ -1321,7 +1322,7 @@ async def test_dispatch_refuses_when_the_connecting_user_does_not_exist(session:
         )
 
     answer.assert_not_awaited()
-    assert post.call_args.args[2] == PLUGIN_DISABLED_MESSAGE
+    assert post.call_args.args[2] == str(PLUGIN_DISABLED_MESSAGE)
     session.expire_all()
     logs = (await session.exec(select(BotResponseLog))).all()
     assert [log.response_type for log in logs] == [ResponseType.PLUGIN_DISABLED]
@@ -1375,3 +1376,13 @@ class TestConnectionEventLogging:
         assert len(logs) == 1
         assert logs[0].event_type == ConnectionEventType.DISCONNECTED
         assert logs[0].workspace_id == workspace_id
+
+
+def test_plugin_disabled_message_renders_in_the_active_locale(translation_catalog: AddTranslation) -> None:
+    translation_catalog(
+        "The TA Bot is currently disabled by your instructor.",
+        "El bot de TA está desactivado actualmente por tu instructor.",
+    )
+    with locale_context("es"):
+        assert str(PLUGIN_DISABLED_MESSAGE) == "El bot de TA está desactivado actualmente por tu instructor."
+    assert str(PLUGIN_DISABLED_MESSAGE) == "The TA Bot is currently disabled by your instructor."
