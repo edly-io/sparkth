@@ -11,7 +11,7 @@ from sparkth.lib.permissions.scopes import USER
 from sparkth.plugins.compose.analytics import ComposeAttachmentAnalytics, as_utc
 from sparkth.plugins.compose.models import Conversation
 from sparkth.plugins.compose.permissions import CONVERSATION_READ, CONVERSATION_WRITE
-from sparkth.plugins.compose.routes.dependencies import get_conversation, get_conversation_owner_id, require_compose_use
+from sparkth.plugins.compose.routes.dependencies import get_conversation, get_conversation_owner_id
 from sparkth.plugins.compose.schemas import (
     AttachedDocumentResponse,
     ConversationAttachmentCreate,
@@ -19,7 +19,7 @@ from sparkth.plugins.compose.schemas import (
 )
 from sparkth.plugins.compose.service import ComposeService, get_compose_service
 
-router = APIRouter(dependencies=[Depends(require_compose_use)])
+router = APIRouter()
 
 
 @router.get(
