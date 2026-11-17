@@ -6,7 +6,6 @@ from sparkth.lib.permissions.scopes import USER, PermissionScope
 # One conversation, named by its UUID, under its owner's user scope.
 CONVERSATION = PermissionScope.create("conversation", parent=USER)
 
-# Conversation access, checked at the conversation. Listing is checked at the listed owner's user scope,
-# and starting a conversation at the caller's. Attaching a document is checked at the owner's user scope.
+# Conversation access
 CONVERSATION_READ = Permission.create("compose.conversation.read")
 CONVERSATION_WRITE = Permission.create("compose.conversation.write")
