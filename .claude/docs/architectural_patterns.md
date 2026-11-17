@@ -14,7 +14,7 @@ a `PluginHook` holds one; `sparkth/lib/hooks.py` also defines a `SingleNamedItem
 a flat, name-keyed set not grouped by plugin — used for the permission/scope vocabulary):
 
 ```
-SparkthPlugin.__init__          # super().__init__("my-app") declares the plugin name
+SparkthPlugin.__init__          # super().__init__("myapp") declares the plugin name
   ├── register_router(self, router)                                   # sparkth/lib/routes.py
   ├── MCP_TOOLS.add_item(self, Tool(self.my_tool, category="..."))   # sparkth/lib/mcp/hooks.py
   ├── CONFIG_SCHEMAS.add_item(self, MyPluginConfig)                  # sparkth/lib/config/hooks.py

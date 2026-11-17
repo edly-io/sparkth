@@ -38,6 +38,7 @@ from sparkth.plugins.compose.classifiers import RAGSearchClassifier
 from sparkth.plugins.compose.config import ComposeSettings, get_compose_settings
 from sparkth.plugins.compose.constants import LLM_PROVIDER_API_ERRORS
 from sparkth.plugins.compose.conversation_title import extract_title_from_messages, schedule_title_generation
+from sparkth.plugins.compose.enums import PlannerModel
 from sparkth.plugins.compose.exceptions import RAGSearchError
 from sparkth.plugins.compose.llm import complete_turn
 from sparkth.plugins.compose.messages import get_last_user_text
@@ -248,8 +249,10 @@ async def compose_completion(
             model=model,
             temperature=request.temperature,
         )
-        # The planner picks who answers, so it runs on the provider's smallest model.
-        planner_llm = get_provider(provider_name, api_key, small_model_for(provider_name), temperature=0).create_llm()
+        # The planner picks who answers. The small model is quicker and cheaper; the reply's model follows the
+        # planner's rules more closely.
+        planner_model = small_model_for(provider_name) if config.planner_model == PlannerModel.SMALL else model
+        planner_llm = get_provider(provider_name, api_key, planner_model, temperature=0).create_llm()
 
         # Only asked when there is something to search and something to search for.
         rag_search_required = False

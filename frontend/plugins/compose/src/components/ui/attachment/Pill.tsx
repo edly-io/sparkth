@@ -2,7 +2,7 @@ import { FileText, X } from "lucide-react";
 import { TextAttachment } from "@/plugins/compose/src/types";
 import { Button } from "@/lib/components/ui/Button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui/Tooltip";
-import { truncate, RAG_DISPLAY_NAME_MAX_CHARS } from "@/plugins/compose/src/displayName";
+import { truncate, DOCUMENT_DISPLAY_NAME_MAX_CHARS } from "@/plugins/compose/src/displayName";
 
 interface PillProps {
   attachments: TextAttachment[];
@@ -30,7 +30,7 @@ export function Pill({ attachments, onPreview, onRemove }: PillProps) {
           >
             <FileText className="w-4 h-4" />
             <span className="truncate">
-              {truncate(firstAttachment.name, RAG_DISPLAY_NAME_MAX_CHARS)}
+              {truncate(firstAttachment.name, DOCUMENT_DISPLAY_NAME_MAX_CHARS)}
             </span>
           </Button>
           {onRemove && (
@@ -57,7 +57,7 @@ export function Pill({ attachments, onPreview, onRemove }: PillProps) {
             >
               <FileText className="w-4 h-4" />
               <span className="truncate">
-                {truncate(firstAttachment.name, RAG_DISPLAY_NAME_MAX_CHARS)}
+                {truncate(firstAttachment.name, DOCUMENT_DISPLAY_NAME_MAX_CHARS)}
               </span>
             </Button>
 
@@ -74,7 +74,7 @@ export function Pill({ attachments, onPreview, onRemove }: PillProps) {
                       key={attachment.documentId ?? `${attachment.name}-${index}`}
                       className="flex items-center justify-between gap-2"
                     >
-                      <span>{truncate(attachment.name, RAG_DISPLAY_NAME_MAX_CHARS)}</span>
+                      <span>{truncate(attachment.name, DOCUMENT_DISPLAY_NAME_MAX_CHARS)}</span>
                       {onRemove && (
                         <button
                           onClick={() => onRemove(attachment.documentId)}
