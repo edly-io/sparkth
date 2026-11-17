@@ -1,4 +1,4 @@
-"""Drive routes need ``plugin.use`` at ``plugin:google-drive``, except the OAuth callback and the analytics read."""
+"""Drive routes need ``plugin.use`` at the Drive plugin's scope, except the OAuth callback and the analytics read."""
 
 from collections.abc import Iterator
 from unittest.mock import AsyncMock, patch
@@ -12,7 +12,7 @@ from sparkth.lib.models import User
 from sparkth.lib.testing import AuditEventsFetcher, assert_plugin_use_denied, restrict_plugin_use
 from sparkth.plugins.googledrive.constants import GOOGLE_DRIVE_PLUGIN_NAME
 
-BASE = "/api/v1/google-drive"
+BASE = f"/api/v1/{GOOGLE_DRIVE_PLUGIN_NAME}"
 TOKEN_STUB_STATUS = 400
 
 pytestmark = pytest.mark.usefixtures("mock_drive_credentials")
@@ -135,5 +135,5 @@ async def test_callback_needs_no_plugin_use(
         )
 
     assert response.status_code == 307
-    assert response.headers["location"] == "/dashboard/google-drive?connected=true"
+    assert response.headers["location"] == f"/dashboard/{GOOGLE_DRIVE_PLUGIN_NAME}?connected=true"
     assert [event for event in await audit_events() if event.action == "denied"] == []
