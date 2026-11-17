@@ -113,6 +113,15 @@ async def test_assign_role_object_bearing_group_scope_with_id_succeeds(cli_sessi
     assert assignment.scope_object_id == "5"
 
 
+async def test_assign_role_unknown_plugin_exits_and_persists_nothing(cli_session: AsyncSession) -> None:
+    await _seed_user_and_role(cli_session)
+    # A mistyped plugin name would store a grant that reaches no plugin.
+    with pytest.raises(typer.Exit) as excinfo:
+        await roles._assign_role("alice", "admin", "plugin", "slak")
+    assert excinfo.value.exit_code == 1
+    assert (await cli_session.exec(select(RoleAssignment))).all() == []
+
+
 async def test_assign_role_objectless_whitelist_scope_with_id_exits(cli_session: AsyncSession) -> None:
     await _seed_user_and_role(cli_session)
     # whitelist is objectless — passing --scope-object-id is a contradiction and must be rejected
@@ -190,6 +199,17 @@ async def test_revoke_role_names_the_scope_object_in_its_messages(
     out = capsys.readouterr().out
     assert "Revoked role 'admin' from alice (scope: plugin:slack)." in out
     assert "alice holds no 'admin' assignment at plugin:slack; nothing revoked." in out
+
+
+async def test_revoke_role_removes_a_grant_left_on_a_plugin_that_is_not_loaded(cli_session: AsyncSession) -> None:
+    await _seed_user_and_role(cli_session)
+    user = (await cli_session.exec(select(User))).one()
+    role = (await cli_session.exec(select(Role))).one()
+    await add_role_assignment(cli_session, user, role, PLUGIN.name, "removed-plugin")
+
+    await roles._revoke_role("alice", "admin", "plugin", "removed-plugin")
+
+    assert await _get_active_assignments(cli_session) == []
 
 
 async def test_revoke_role_unknown_user_exits(cli_session: AsyncSession) -> None:
