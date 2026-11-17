@@ -719,8 +719,9 @@ On every request Compose reads the agents of the plugins enabled for the request
 plugin-name order. Course design comes from the course design plugin. A plugin switched off
 system-wide or by the user contributes no agent and no tools.
 
-- **Planner.** A planner on the smallest model of the user's provider reads each message and hands
-  it to the one agent whose description fits. It answers greetings, questions about what Compose
+- **Planner.** A planner reads each message and hands it to the one agent whose description fits.
+  It runs on the small model of the user's provider, or on the reply's own model when
+  `COMPOSE_PLANNER_MODEL` is `same`. It answers greetings, questions about what Compose
   can do, and unclear messages (with a question back) itself, and refuses a message no agent covers
   with a fixed sentence in the request's language. A refusal is stored like any other reply, and a
   refused first message still starts a conversation.
