@@ -6,7 +6,6 @@ from contextlib import contextmanager
 
 import pytest
 
-from sparkth.core.permissions.models import Role
 from sparkth.lib.compose.hooks import Agent, register_agent
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.plugins.compose.detached import join_live_tasks
@@ -17,8 +16,8 @@ OTHER_AGENT = Agent("other", "Other agent", "Other scope text.", "OTHER SECTION"
 
 
 @pytest.fixture(autouse=True)
-def _every_user_holds_default_role(default_user_roles: Role) -> None:  # noqa: PT004
-    """Give the signed-in test user the default role, so the gated routes pass for their own records."""
+def _every_user_holds_default_role(default_user_roles: object) -> None:
+    """Give the signed-in test user the default roles, so the ``plugin.use`` gate and the per-record gates pass."""
 
 
 @pytest.fixture(autouse=True)

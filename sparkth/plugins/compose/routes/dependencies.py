@@ -6,9 +6,15 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
 from sparkth.lib.models import User
+from sparkth.lib.permissions import PLUGIN_USE
+from sparkth.lib.permissions.scopes import PLUGIN
+from sparkth.plugins.compose.constants import COMPOSE_PLUGIN_NAME
 from sparkth.plugins.compose.models import Conversation
 from sparkth.plugins.compose.schemas import ChatCompletionRequest
 from sparkth.plugins.compose.service import ComposeService, get_compose_service
+
+# Gates every authoring route on the caller being allowed to use Compose.
+require_compose_use = PLUGIN_USE.require_for_object(PLUGIN, COMPOSE_PLUGIN_NAME)
 
 
 async def get_conversation(
