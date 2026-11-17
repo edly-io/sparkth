@@ -37,6 +37,7 @@ async def _assign_role(identifier: str, role: str, scope: str, scope_object_id: 
     """
     permission_scope = resolve_scope(scope)
     validate_scope_object(permission_scope, scope_object_id)
+    where = f"{scope}:{scope_object_id}" if scope_object_id else scope
     with cli_audit_context():
         async with session_scope() as session:
             user_id, user = await resolve_user(identifier, session)
@@ -54,7 +55,7 @@ async def _assign_role(identifier: str, role: str, scope: str, scope_object_id: 
                 raise typer.Exit(code=1) from None
             await session.commit()
             typer.secho(
-                f"Assigned role '{role}' to {user.username} (scope: {scope}).",
+                f"Assigned role '{role}' to {user.username} (scope: {where}).",
                 fg=typer.colors.GREEN,
             )
 

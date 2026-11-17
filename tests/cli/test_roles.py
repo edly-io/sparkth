@@ -42,6 +42,19 @@ async def test_assign_role_creates_assignment(cli_session: AsyncSession) -> None
     assert assignment.scope == "global"
 
 
+async def test_assign_role_names_the_scope_object_in_its_message(
+    cli_session: AsyncSession, capsys: pytest.CaptureFixture[str]
+) -> None:
+    await _seed_user_and_role(cli_session)
+
+    await roles._assign_role("alice", "admin", "plugin", "slack")
+    await roles._assign_role("alice", "admin", "global", None)
+
+    out = capsys.readouterr().out
+    assert "Assigned role 'admin' to alice (scope: plugin:slack)." in out
+    assert "Assigned role 'admin' to alice (scope: global)." in out
+
+
 async def test_assign_role_unknown_user_exits(cli_session: AsyncSession) -> None:
     cli_session.add(Role(name="admin"))
     await cli_session.flush()
