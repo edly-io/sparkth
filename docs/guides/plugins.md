@@ -571,7 +571,7 @@ registered and `ContentContributorUnavailableError` when the plugin is switched 
 `sparkth.lib.content.exceptions`. With no authenticated caller, only the system-wide switch applies.
 
 `builders` is keyed by the publishing plugin's registered name, so its keys are the LMSes a
-contributor targets. `open-edx` is the one shipped publisher. Register one builder per LMS you
+contributor targets. `openedx` is the one shipped publisher. Register one builder per LMS you
 can produce a block for; a publishing plugin skips any contributor that has no builder for it,
 so a misspelled key reads as "does not target that LMS".
 
@@ -612,9 +612,7 @@ class MyAppPlugin(SparkthPlugin):
         super().__init__("my-app")
         register_content_contributor(
             self,
-            ContentContributor(
-                "my-app", "What this contributes", {"open-edx": build_my_openedx_block}, list_my_options
-            ),
+            ContentContributor("my-app", "What this contributes", {"openedx": build_my_openedx_block}, list_my_options),
         )
 ```
 
