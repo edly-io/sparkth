@@ -14,7 +14,7 @@ leaves out those of a disabled plugin. A plugin registers one contributor from i
 ``SparkthPlugin.__init__``::
 
     register_content_contributor(
-        self, ContentContributor("pxc", "...", {"open-edx": build_pxc_block}, list_pxc_options)
+        self, ContentContributor("pxc", "...", {"openedx": build_pxc_block}, list_pxc_options)
     )
 """
 

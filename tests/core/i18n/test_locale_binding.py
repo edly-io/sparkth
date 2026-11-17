@@ -185,7 +185,7 @@ def _cached_request(user: User) -> Request:
 class TestCachedUserBranchBindsToo:
     """``get_current_user`` has two exits that hand back a ``User``: the cached one, taken
     when ``PluginAccessMiddleware`` already resolved the caller (every authenticated plugin
-    route — chat, canvas, googledrive, open-edx, slack), and the full-lookup one exercised
+    route — compose, canvas, googledrive, openedx, slack), and the full-lookup one exercised
     by ``TestStoredPreferenceWinsOverTheHeader`` above. Binding only on the lookup path
     would leave the stored preference unapplied on every plugin route, so this covers the
     cached path directly — no token or database row needed, since that branch reads
