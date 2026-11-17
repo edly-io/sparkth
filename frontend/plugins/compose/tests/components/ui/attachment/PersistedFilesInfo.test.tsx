@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { PersistedFilesInfo } from "@/plugins/compose/src/components/ui/attachment/PersistedFilesInfo";
 import { TextAttachment } from "@/plugins/compose/src/types";
-import { RAG_DISPLAY_NAME_MAX_CHARS } from "@/plugins/compose/src/displayName";
+import { DOCUMENT_DISPLAY_NAME_MAX_CHARS } from "@/plugins/compose/src/displayName";
 
 describe("PersistedFilesInfo", () => {
   const mockOnDetachFile = vi.fn();
@@ -73,7 +73,7 @@ describe("PersistedFilesInfo", () => {
     expect(screen.getByText("second.pdf")).toBeInTheDocument();
   });
 
-  it("truncates long filenames using RAG_DISPLAY_NAME_MAX_CHARS", async () => {
+  it("shortens a long file name and ends it with an ellipsis", async () => {
     const user = userEvent.setup();
     const longName = "a".repeat(35);
     const attachments: TextAttachment[] = [makeDriveFile(1, longName)];
@@ -82,7 +82,7 @@ describe("PersistedFilesInfo", () => {
 
     await user.click(screen.getByText("1 file"));
 
-    const expectedText = "a".repeat(RAG_DISPLAY_NAME_MAX_CHARS - 1) + "…";
+    const expectedText = "a".repeat(DOCUMENT_DISPLAY_NAME_MAX_CHARS - 1) + "…";
     expect(screen.getByText(expectedText)).toBeInTheDocument();
   });
 

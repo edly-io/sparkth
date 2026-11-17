@@ -27,7 +27,7 @@ function renderModal(
   renderWithIntl(
     <PluginConfigModal
       plugin={{
-        plugin_name: "open-edx",
+        plugin_name: "openedx",
         enabled: true,
         config: {},
         config_schema: OPENEDX_SCHEMA,

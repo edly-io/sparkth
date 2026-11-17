@@ -16,11 +16,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.encryption import get_encryption_service
+from sparkth.lib.llm import small_model_for
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
 from sparkth.main import app
 from sparkth.plugins.compose.config import ComposeSettings, get_compose_settings
 from sparkth.plugins.compose.constants import REFUSAL_MESSAGE
+from sparkth.plugins.compose.enums import PlannerModel
 from sparkth.plugins.compose.models import Conversation
 from sparkth.plugins.compose.planner import TurnRouting, render_planner_prompt
 from sparkth.plugins.compose.prompt import render_system_prompt
@@ -71,7 +73,7 @@ def _tool(name: str) -> MagicMock:
 def _registry() -> MagicMock:
     """Two tools from two plugins; every turn may bind both."""
     registry = MagicMock()
-    registry.plugin_for.side_effect = {"openedx_create_xblock": "open-edx", "stub_build": "stub"}.get
+    registry.plugin_for.side_effect = {"openedx_create_xblock": "openedx", "stub_build": "stub"}.get
     registry.get_all_tools.return_value = [_tool("openedx_create_xblock"), _tool("stub_build")]
     return registry
 
@@ -80,7 +82,7 @@ def _lms_registry() -> MagicMock:
     """Open edX, Canvas and stub tools, each owned by its plugin."""
     registry = MagicMock()
     registry.plugin_for.side_effect = {
-        "openedx_create_xblock": "open-edx",
+        "openedx_create_xblock": "openedx",
         "canvas_create_course": "canvas",
         "stub_build": "stub",
     }.get
@@ -127,6 +129,33 @@ async def _turn(
     if conversation_uuid:
         body["conversation_id"] = conversation_uuid
     return await client.post(COMPLETIONS_URL, json=body)
+
+
+class TestThePlannersModel:
+    """The models a turn asks its provider for: the reply's, then the planner's."""
+
+    async def _models_asked_for(self, client: AsyncClient, session: AsyncSession, user_id: int) -> list[str]:
+        config_id = await _seed_llm_config(session, user_id)
+        conversation_uuid = await _seed_conversation(session, user_id)
+        with patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()) as get_provider:
+            await _turn(client, config_id, conversation_uuid)
+        return [call.kwargs.get("model") or call.args[2] for call in get_provider.call_args_list]
+
+    async def test_the_planner_runs_on_the_providers_small_model_unless_set_otherwise(
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
+    ) -> None:
+        models = await self._models_asked_for(client, session, current_user.id or 1)
+
+        assert models == ["gpt-4o", small_model_for("openai")]
+
+    async def test_the_planner_can_be_set_to_run_on_the_same_model_as_the_reply(
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
+    ) -> None:
+        app.dependency_overrides[get_compose_settings] = lambda: ComposeSettings(planner_model=PlannerModel.SAME)
+
+        models = await self._models_asked_for(client, session, current_user.id or 1)
+
+        assert models == ["gpt-4o", "gpt-4o"]
 
 
 class TestOneAssistantPerTurn:
@@ -241,7 +270,7 @@ async def _seed_lms_plugins(
 ) -> None:
     """Seed the three plugins, this user's Open edX and Canvas rows with credentials."""
     stub = Plugin(name="stub", enabled=True)
-    openedx = Plugin(name="open-edx", enabled=openedx_system_on)
+    openedx = Plugin(name="openedx", enabled=openedx_system_on)
     canvas = Plugin(name="canvas", enabled=True)
     session.add_all([stub, openedx, canvas])
     await session.flush()

@@ -7,8 +7,6 @@ import { renderWithIntl } from "@/lib/testing/intl";
 import type { ChatMessage } from "@/plugins/compose/src/types";
 
 const defaultProps = {
-  setPreviewOpen: vi.fn(),
-  setPreviewAttachment: vi.fn(),
   onOptionCheck: vi.fn(),
   isLatest: true,
 };

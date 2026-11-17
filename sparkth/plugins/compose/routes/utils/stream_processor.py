@@ -1,6 +1,7 @@
 import asyncio
 import json
 from collections.abc import AsyncGenerator, AsyncIterator, Sequence
+from contextlib import aclosing
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, cast
@@ -462,7 +463,8 @@ class ComposeStreamProcessor:
         which is what keeps the next tool from ever starting. A ``tool_end`` or ``token``, by
         contrast, already happened: the tool ran (and its writes already landed, for a
         ``tool_end``) before the event was yielded, so that event is still recorded before
-        breaking. Either way, the loop never calls the generator again after this iteration.
+        breaking. Either way, the loop never calls the generator again after this iteration, and
+        the turn is closed on the way out so its model call does not keep running.
         """
         full_response = ""
         completed_tool_calls: list[dict[str, Any]] = []
@@ -482,33 +484,35 @@ class ComposeStreamProcessor:
                 agents=self.agents,
                 planner_llm=self.planner_llm,
             )
-            while (event := await self._next_event_unless_stopped(turn, tool_running=tool_running)) is not None:
-                stopping = self._stop_is_requested()
-                if stopping and event["type"] == TurnEventType.TOOL_START:
-                    stopped = True
-                    break
-                if event["type"] == TurnEventType.ROUTED:
-                    routing = event["routing"]
-                elif event["type"] == TurnEventType.TOKEN:
-                    token = event["content"]
-                    full_response += token
-                    await self._emit({"token": token, "done": False})
-                elif event["type"] == TurnEventType.TOOL_START:
-                    tool_running = True
-                    await self._emit(
-                        {"status": "tool_call", "tool_name": event["name"], "tool_status": "running", "done": False}
-                    )
-                elif event["type"] == TurnEventType.TOOL_END:
-                    tool_running = False
-                    completed_tool_calls.append({"name": event["name"], "failure": event.get("failure")})
-                    await self._emit(
-                        {"status": "tool_call", "tool_name": event["name"], "tool_status": "done", "done": False}
-                    )
-                if self._stop_is_requested():
-                    stopped = True
-                    break
-            else:
-                stopped = self._stop_is_requested()
+            # Closing the turn ends whatever part of it is still running.
+            async with aclosing(turn):
+                while (event := await self._next_event_unless_stopped(turn, tool_running=tool_running)) is not None:
+                    stopping = self._stop_is_requested()
+                    if stopping and event["type"] == TurnEventType.TOOL_START:
+                        stopped = True
+                        break
+                    if event["type"] == TurnEventType.ROUTED:
+                        routing = event["routing"]
+                    elif event["type"] == TurnEventType.TOKEN:
+                        token = event["content"]
+                        full_response += token
+                        await self._emit({"token": token, "done": False})
+                    elif event["type"] == TurnEventType.TOOL_START:
+                        tool_running = True
+                        await self._emit(
+                            {"status": "tool_call", "tool_name": event["name"], "tool_status": "running", "done": False}
+                        )
+                    elif event["type"] == TurnEventType.TOOL_END:
+                        tool_running = False
+                        completed_tool_calls.append({"name": event["name"], "failure": event.get("failure")})
+                        await self._emit(
+                            {"status": "tool_call", "tool_name": event["name"], "tool_status": "done", "done": False}
+                        )
+                    if self._stop_is_requested():
+                        stopped = True
+                        break
+                else:
+                    stopped = self._stop_is_requested()
             return CollectedReply(text=full_response, tool_calls=completed_tool_calls, stopped=stopped, routing=routing)
         except LLM_PROVIDER_API_ERRORS as e:
             logger.error("Streaming failed: %s", e)
