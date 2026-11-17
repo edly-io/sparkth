@@ -235,11 +235,7 @@ async def delete_file(
     drive_file: DriveFile = Depends(get_drive_file),
     session: AsyncSession = Depends(get_async_session),
 ) -> dict[str, str]:
-    """Soft-delete a file from Sparkth (does not delete from Drive).
-
-    Records a ``googledrive.file_removed`` audit event that commits atomically
-    with the removal (fail-closed).
-    """
+    """Soft-delete a file from Sparkth (does not delete from Drive)."""
     await soft_delete_drive_file(session, drive_file)
     await record_event(
         session,
