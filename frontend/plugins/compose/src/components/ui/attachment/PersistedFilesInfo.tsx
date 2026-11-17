@@ -4,7 +4,7 @@ import { X } from "lucide-react";
 import { TextAttachment } from "@/plugins/compose/src/types";
 import { Button } from "@/lib/components/ui/Button";
 import { Popover, PopoverTrigger, PopoverContent } from "@/lib/components/ui/Popover";
-import { truncate, RAG_DISPLAY_NAME_MAX_CHARS } from "@/plugins/compose/src/displayName";
+import { truncate, DOCUMENT_DISPLAY_NAME_MAX_CHARS } from "@/plugins/compose/src/displayName";
 
 interface PersistedFilesInfoProps {
   attachments: TextAttachment[];
@@ -29,7 +29,9 @@ export function PersistedFilesInfo({ attachments, onDetachFile }: PersistedFiles
           <ul className="space-y-1">
             {driveAttachments.map((file) => (
               <li key={file.documentId} className="flex items-center justify-between gap-2 text-sm">
-                <span className="truncate">{truncate(file.name, RAG_DISPLAY_NAME_MAX_CHARS)}</span>
+                <span className="truncate">
+                  {truncate(file.name, DOCUMENT_DISPLAY_NAME_MAX_CHARS)}
+                </span>
                 <Button
                   variant="ghost"
                   size="sm"
