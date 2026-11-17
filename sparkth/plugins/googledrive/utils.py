@@ -204,7 +204,7 @@ async def _process_single_file(
     Owns Drive concerns only (Document status lifecycle + error translation). The actual
     download/ingest pipeline lives in _ingest_drive_file; chunking/storage is
     delegated to sparkth.lib.rag.ingest_document. Records how it ended as
-    ``google-drive.document_processed``. ``started_at`` is the sync run's start, for
+    ``GoogleDriveDocumentProcessed``. ``started_at`` is the sync run's start, for
     ``seconds_to_final``; defaults to now.
     """
     started_at = started_at or datetime.now(timezone.utc)
