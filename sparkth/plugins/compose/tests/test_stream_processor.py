@@ -134,6 +134,24 @@ async def _stopping_between_tools(
     yield {"type": "token", "content": "done"}
 
 
+async def _stopping_as_a_token_arrives(
+    closed: list[bool],
+    messages: list[dict[str, Any]],
+    tools: Sequence[Any],
+    provider: Any,
+    max_tool_executions: int,
+    **planner: Any,
+) -> AsyncGenerator[dict[str, Any], None]:
+    """A token that arrives together with the stop. ``closed`` fills once the turn has closed."""
+    try:
+        request_stop("turn-11", 1)
+        yield {"type": "token", "content": "partial"}
+        yield {"type": "token", "content": " more"}
+    finally:
+        await asyncio.sleep(0.05)
+        closed.append(True)
+
+
 async def _stopping_during_a_tool(
     executed: list[str],
     messages: list[dict[str, Any]],
@@ -619,6 +637,20 @@ class TestStopHonoured:
 
         assert payloads[-1]["stopped"] is True
         assert model.cancelled == [True]
+
+    @pytest.mark.asyncio
+    async def test_a_stop_that_arrives_with_an_event_closes_the_turn(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The stop and an event land together: the event is kept and the turn is closed
+        before the stream ends, so nothing of it keeps running."""
+        closed: list[bool] = []
+        monkeypatch.setattr(STREAM_TURN, partial(_stopping_as_a_token_arrives, closed))
+        processor = _make_processor(turn_id="turn-11", user_id=1)
+
+        payloads = [json.loads(chunk.removeprefix("data: ")) async for chunk in processor.stream()]
+
+        assert payloads[-1]["stopped"] is True
+        assert payloads[-1]["message"]["content"] == "partial"
+        assert closed == [True]
 
     @pytest.mark.asyncio
     async def test_a_stopped_turn_runs_no_further_tools(self, monkeypatch: pytest.MonkeyPatch) -> None:

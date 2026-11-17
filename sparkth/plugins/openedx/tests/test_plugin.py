@@ -1,4 +1,4 @@
-"""Tests for the open-edx plugin's declared identity and frontend metadata."""
+"""Tests for the openedx plugin's declared identity and frontend metadata."""
 
 from sparkth.lib.frontend import (
     get_plugin_display_info,
@@ -11,20 +11,20 @@ from sparkth.plugins.openedx.tools import openedx_about
 
 
 def test_declares_explicit_name() -> None:
-    assert OpenEdxPlugin().name == "open-edx"
+    assert OpenEdxPlugin().name == "openedx"
 
 
 def test_declares_display_info_but_no_frontend() -> None:
     plugin = OpenEdxPlugin()  # noqa: F841 - keeps the weakly-keyed hook entries alive
 
-    display = get_plugin_display_info("open-edx")
+    display = get_plugin_display_info("openedx")
     assert display is not None
     assert display.display_name == "Open edX"
     assert display.description
 
     # Backend-only plugin: no frontend page, no sidebar entry.
-    assert plugin_has_frontend("open-edx") is False
-    assert get_plugin_sidebar_entry("open-edx") is None
+    assert plugin_has_frontend("openedx") is False
+    assert get_plugin_sidebar_entry("openedx") is None
 
 
 async def test_registers_about_tool() -> None:
