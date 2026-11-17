@@ -10,6 +10,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.lib.db import get_async_session
 from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
+from sparkth.lib.permissions import PLUGIN_USE
+from sparkth.lib.permissions.scopes import PLUGIN
+from sparkth.plugins.googledrive.constants import GOOGLE_DRIVE_PLUGIN_NAME
 from sparkth.plugins.googledrive.models import DriveFile, DriveFolder
 
 __all__ = [
@@ -20,6 +23,9 @@ __all__ = [
 ]
 
 logger = get_logger(__name__)
+
+# Gates every Drive route, bar the OAuth callback and the analytics read, on the caller being allowed to use Drive.
+require_drive_use = PLUGIN_USE.require_for_object(PLUGIN, GOOGLE_DRIVE_PLUGIN_NAME)
 
 
 async def get_drive_folder(folder_id: int, session: AsyncSession = Depends(get_async_session)) -> DriveFolder:

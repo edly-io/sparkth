@@ -9,7 +9,7 @@ import pytest
 from fastapi import status
 from httpx import AsyncClient
 from sqlalchemy import delete
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.permissions.models import RoleAssignment
@@ -1048,7 +1048,7 @@ async def _seed_owned(session: AsyncSession, username: str) -> OwnedRecords:
 
 
 async def _drop_caller_assignment(session: AsyncSession) -> None:
-    await session.exec(delete(RoleAssignment))
+    await session.exec(delete(RoleAssignment).where(col(RoleAssignment.scope) == USER.name))
     await session.commit()
 
 
