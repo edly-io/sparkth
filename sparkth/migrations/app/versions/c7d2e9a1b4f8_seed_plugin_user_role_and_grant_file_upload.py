@@ -1,7 +1,7 @@
 """seed plugin_user role and grant file.upload to sparkth_user
 
 Revision ID: c7d2e9a1b4f8
-Revises: 864da1880f41
+Revises: b46afd20018b
 Create Date: 2026-11-16 10:00:00.000000
 
 Seeds the built-in ``plugin_user`` role holding ``plugin.use`` and assigns it at ``global`` to every
@@ -16,7 +16,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "c7d2e9a1b4f8"
-down_revision: Union[str, Sequence[str], None] = "864da1880f41"
+down_revision: Union[str, Sequence[str], None] = "b46afd20018b"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
