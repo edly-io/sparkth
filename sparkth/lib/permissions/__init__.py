@@ -39,10 +39,10 @@ from sparkth.core.permissions import (
     Permission,
     get_permission,
 )
-from sparkth.core.permissions.constants import DEFAULT_USER_ROLE
+from sparkth.core.permissions.constants import PLUGIN_USER_ROLE, SPARKTH_USER_ROLE
 from sparkth.core.permissions.dependencies import get_listed_owner_id, object_id_str_to_int
 from sparkth.core.permissions.engine import can, has_role
-from sparkth.core.permissions.grants import assign_default_role, assign_role, revoke_role
+from sparkth.core.permissions.grants import assign_default_roles, assign_role, revoke_role
 from sparkth.core.permissions.groups import (
     add_group_member,
     assign_role_to_group,
@@ -53,8 +53,9 @@ from sparkth.core.permissions.groups import (
 from sparkth.core.permissions.scopes import get_permission_scope
 
 __all__ = [
-    "DEFAULT_USER_ROLE",
-    "assign_default_role",
+    "SPARKTH_USER_ROLE",
+    "PLUGIN_USER_ROLE",
+    "assign_default_roles",
     "add_group_member",
     "assign_role",
     "assign_role_to_group",
