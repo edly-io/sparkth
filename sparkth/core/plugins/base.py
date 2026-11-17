@@ -31,7 +31,7 @@ class SparkthPlugin:
 
     class MyAppPlugin(SparkthPlugin):
         def __init__(self) -> None:
-            super().__init__("my-app")
+            super().__init__("myapp")
             MCP_TOOLS.add_item(self, Tool(self.my_tool, category="utilities"))
 
     async def my_tool(self, payload: MyPayload) -> dict:

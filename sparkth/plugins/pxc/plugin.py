@@ -92,7 +92,7 @@ class PxcPlugin(SparkthPlugin):
                 "or one of the author's own activities",
                 # Each key is an LMS publishing plugin's registered name, written as a literal so
                 # this plugin imports no LMS plugin. These keys are the only place it names an LMS.
-                {"open-edx": build_pxc_block},
+                {"openedx": build_pxc_block},
                 list_pxc_options,
                 record_pxc_placement,
             ),

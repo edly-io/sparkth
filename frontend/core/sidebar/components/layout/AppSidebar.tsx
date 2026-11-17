@@ -18,8 +18,8 @@ import {
 import { usePluginContext } from "@/core/plugins/context";
 import { sidebarItemsFrom, type SidebarItem } from "@/core/sidebar/sidebarItems";
 import { resolvePluginIcon } from "@/core/components/ui/icons";
-import { GATED_NAV } from "@/core/sidebar/gatedNav";
-import { NavItem } from "@/core/sidebar/components/ui/NavItem/NavItem";
+import { GATED_SIDEBAR_LINKS } from "@/core/sidebar/gatedSidebarLinks";
+import { SidebarLink } from "@/core/sidebar/components/ui/SidebarLink/SidebarLink";
 import Image from "next/image";
 import { Spinner } from "@/core/components/ui/Spinner";
 import { SparkthLogo } from "@/core/components/ui/SparkthLogo";
@@ -34,7 +34,7 @@ interface AppSidebarProps {
     avatar?: string;
     plan?: string;
   };
-  navPermissions?: Record<string, boolean>;
+  sidebarPermissions?: Record<string, boolean>;
   basePath?: string;
   onLogout?: () => void;
   variant?: "desktop" | "mobile";
@@ -45,7 +45,7 @@ interface AppSidebarProps {
 
 export default function AppSidebar({
   user,
-  navPermissions,
+  sidebarPermissions,
   basePath = "/dashboard",
   onLogout,
   variant = "desktop",
@@ -64,7 +64,7 @@ export default function AppSidebar({
     return pathname === pluginPath || pathname?.startsWith(`${pluginPath}/`);
   };
 
-  const handleNavClick = () => {
+  const handleLinkClick = () => {
     if (onNavigate) onNavigate();
   };
 
@@ -153,12 +153,12 @@ export default function AppSidebar({
         ) : (
           <>
             {sidebarItems.map((item) => (
-              <PluginNavItem
+              <PluginSidebarLink
                 key={item.name}
                 item={item}
                 basePath={basePath}
                 isActive={isActiveRoute(item.name)}
-                onClick={handleNavClick}
+                onClick={handleLinkClick}
                 isCollapsed={isCollapsed && variant === "desktop"}
               />
             ))}
@@ -166,7 +166,7 @@ export default function AppSidebar({
             <div>
               <Link
                 href={`${basePath}/settings`}
-                onClick={handleNavClick}
+                onClick={handleLinkClick}
                 className={`
                   flex items-center gap-3 px-3 py-2 min-h-[40px] rounded-lg transition-colors
                   ${isCollapsed && variant === "desktop" ? "justify-center" : ""}
@@ -188,7 +188,7 @@ export default function AppSidebar({
             <div>
               <Link
                 href={`${basePath}/llm/configure`}
-                onClick={handleNavClick}
+                onClick={handleLinkClick}
                 aria-label="AI Keys"
                 className={`
                   flex items-center gap-3 px-3 py-2 min-h-[40px] rounded-lg transition-colors
@@ -208,25 +208,25 @@ export default function AppSidebar({
               </Link>
             </div>
 
-            {GATED_NAV.filter((item) => navPermissions?.[item.key]).map((item) => (
-              <NavItem
-                key={item.key}
-                href={`${basePath}/${item.route}`}
-                label={item.label}
-                icon={item.icon}
-                isActive={isActiveRoute(item.activeKey ?? item.route)}
+            {GATED_SIDEBAR_LINKS.filter((link) => sidebarPermissions?.[link.key]).map((link) => (
+              <SidebarLink
+                key={link.key}
+                href={`${basePath}/${link.route}`}
+                label={link.label}
+                icon={link.icon}
+                isActive={isActiveRoute(link.activeKey ?? link.route)}
                 isCollapsed={isCollapsed && variant === "desktop"}
-                onClick={handleNavClick}
+                onClick={handleLinkClick}
               />
             ))}
 
-            <NavItem
+            <SidebarLink
               href="https://edly-io.github.io/sparkth/"
               label="Documentation"
               icon={BookOpen}
               isActive={false}
               isCollapsed={isCollapsed && variant === "desktop"}
-              onClick={handleNavClick}
+              onClick={handleLinkClick}
               external
             />
           </>
@@ -278,7 +278,7 @@ export default function AppSidebar({
             <Link
               href="/dashboard/profile"
               className="flex items-center gap-3 px-3 py-2 min-h-[40px] text-sm text-foreground hover:bg-surface-variant rounded-lg"
-              onClick={handleNavClick}
+              onClick={handleLinkClick}
             >
               <UserIcon className="w-4 h-4 flex-shrink-0" />
               <span className="truncate">Profile</span>
@@ -286,7 +286,7 @@ export default function AppSidebar({
             <Link
               href="/dashboard/settings"
               className="flex items-center gap-3 px-3 py-2 min-h-[40px] text-sm text-foreground hover:bg-surface-variant rounded-lg"
-              onClick={handleNavClick}
+              onClick={handleLinkClick}
             >
               <Settings className="w-4 h-4 flex-shrink-0" />
               <span className="truncate">Settings</span>
@@ -294,7 +294,7 @@ export default function AppSidebar({
             <Link
               href="/privacy"
               className="flex items-center gap-3 px-3 py-2 min-h-[40px] text-sm text-foreground hover:bg-surface-variant rounded-lg"
-              onClick={handleNavClick}
+              onClick={handleLinkClick}
             >
               <ShieldCheck className="w-4 h-4 flex-shrink-0" />
               <span className="truncate">Privacy Policy</span>
@@ -319,7 +319,7 @@ export default function AppSidebar({
   );
 }
 
-function PluginNavItem({
+function PluginSidebarLink({
   item,
   basePath,
   isActive,
