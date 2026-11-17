@@ -241,6 +241,18 @@ class TestOperations:
 
 
 class TestPlannerPrompt:
+    def test_it_is_told_never_to_claim_work_no_step_of_the_message_did(self) -> None:
+        """Earlier replies read as if the assistant did the work itself, which a planner may copy."""
+        prompt = render_planner_prompt([STUB_AGENT], operations=True)
+
+        assert "Never tell the author that work was done" in prompt
+
+    def test_it_is_told_the_refuse_tool_is_the_only_way_to_turn_a_message_down(self) -> None:
+        """A decline in the planner's own words skips the fixed sentence and is not recorded as a refusal."""
+        prompt = render_planner_prompt([STUB_AGENT], operations=False)
+
+        assert "Never turn a message down in your own words" in prompt
+
     def test_it_lists_each_agent_by_title_and_description(self) -> None:
         prompt = render_planner_prompt([STUB_AGENT, OTHER_AGENT], operations=False)
 

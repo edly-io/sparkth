@@ -54,8 +54,6 @@ export function ChatMessages({
           <AssistantMessage
             key={msg.id}
             message={msg}
-            setPreviewOpen={setPreviewOpen}
-            setPreviewAttachment={setPreviewAttachment}
             onOptionCheck={onOptionCheck}
             isLatest={index === messages.length - 1}
             reply={messages[index + 1]?.role === "user" ? messages[index + 1].content : undefined}
