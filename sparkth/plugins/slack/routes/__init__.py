@@ -241,7 +241,7 @@ async def _dispatch_event(
             logger.info("User %d may not use the Slack plugin", user_id)
             await _reply_and_log(
                 session,
-                reply=PLUGIN_DISABLED_MESSAGE,
+                reply=str(PLUGIN_DISABLED_MESSAGE),
                 response_type=ResponseType.PLUGIN_DISABLED,
                 **common,
             )
@@ -264,7 +264,7 @@ async def _dispatch_event(
             logger.info("Slack plugin disabled for user %d", user_id)
             await _reply_and_log(
                 session,
-                reply=PLUGIN_DISABLED_MESSAGE,
+                reply=str(PLUGIN_DISABLED_MESSAGE),
                 response_type=ResponseType.PLUGIN_DISABLED,
                 **common,
             )
