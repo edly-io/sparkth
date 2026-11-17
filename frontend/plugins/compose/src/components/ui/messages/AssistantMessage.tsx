@@ -1,8 +1,7 @@
 import { AlertCircle, Bot } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Card } from "@/lib/components/ui/Card";
-import { ChatMessage, StreamStatusPhase, TextAttachment } from "@/plugins/compose/src/types";
-import { Pill } from "@/plugins/compose/src/components/ui/attachment/Pill";
+import { ChatMessage, StreamStatusPhase } from "@/plugins/compose/src/types";
 import { OptionsPrompt } from "@/plugins/compose/src/components/ui/messages/OptionsPrompt";
 import {
   answeredOptions,
@@ -10,7 +9,7 @@ import {
 } from "@/plugins/compose/src/components/ui/messages/optionsBlock";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { truncate, RAG_DISPLAY_NAME_MAX_CHARS } from "@/plugins/compose/src/displayName";
+import { truncate, DOCUMENT_DISPLAY_NAME_MAX_CHARS } from "@/plugins/compose/src/displayName";
 
 function ThinkingDots() {
   return (
@@ -24,8 +23,6 @@ function ThinkingDots() {
 
 interface AssistantMessageProps {
   message: ChatMessage;
-  setPreviewOpen: (open: boolean) => void;
-  setPreviewAttachment: (attachment: TextAttachment | null) => void;
   onOptionCheck: (option: string, previous?: string) => void;
   isLatest: boolean;
   reply?: string;
@@ -37,8 +34,6 @@ function formatToolName(name: string): string {
 
 export function AssistantMessage({
   message,
-  setPreviewOpen,
-  setPreviewAttachment,
   onOptionCheck,
   isLatest,
   reply,
@@ -67,11 +62,6 @@ export function AssistantMessage({
         ? statusTexts[message.statusPhase]
         : t("working");
 
-  const openPreview = (attachment: TextAttachment) => {
-    setPreviewAttachment(attachment);
-    setPreviewOpen(true);
-  };
-
   return (
     <div className="flex gap-4">
       <div className="w-8 h-8 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center flex-shrink-0">
@@ -97,13 +87,13 @@ export function AssistantMessage({
                   <span className="capitalize">{section.type}</span>
                   <span className="text-neutral-300 dark:text-neutral-600">—</span>
                   <span className={section.state === "scanning" ? "opacity-50" : ""}>
-                    {truncate(section.name, RAG_DISPLAY_NAME_MAX_CHARS)}
+                    {truncate(section.name, DOCUMENT_DISPLAY_NAME_MAX_CHARS)}
                     {section.source && (
                       <>
                         {" "}
                         from{" "}
                         <span className="opacity-70">
-                          {truncate(section.source, RAG_DISPLAY_NAME_MAX_CHARS)}
+                          {truncate(section.source, DOCUMENT_DISPLAY_NAME_MAX_CHARS)}
                         </span>
                       </>
                     )}
@@ -127,13 +117,13 @@ export function AssistantMessage({
                           <span className="capitalize">{section.type}</span>
                           <span className="text-neutral-300 dark:text-neutral-600">—</span>
                           <span>
-                            {truncate(section.name, RAG_DISPLAY_NAME_MAX_CHARS)}
+                            {truncate(section.name, DOCUMENT_DISPLAY_NAME_MAX_CHARS)}
                             {section.source && (
                               <>
                                 {" "}
                                 from{" "}
                                 <span className="opacity-70">
-                                  {truncate(section.source, RAG_DISPLAY_NAME_MAX_CHARS)}
+                                  {truncate(section.source, DOCUMENT_DISPLAY_NAME_MAX_CHARS)}
                                 </span>
                               </>
                             )}
@@ -224,13 +214,6 @@ export function AssistantMessage({
 
             {message.stopped && (
               <p className="mt-2 text-xs text-neutral-400 dark:text-neutral-500">{t("stopped")}</p>
-            )}
-
-            {!message.isTyping && (
-              <Pill
-                attachments={message.pillAttachment ? [message.pillAttachment] : []}
-                onPreview={openPreview}
-              />
             )}
 
             {options && (

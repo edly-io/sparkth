@@ -13,28 +13,28 @@ vi.mock("@/core/plugins/context", () => ({
   usePluginContext: () => ({ userPlugins: [], loading: false }),
 }));
 
-describe("AppSidebar permission-gated nav", () => {
-  it("shows Analytics when navPermissions.analytics is true", () => {
-    render(<AppSidebar user={{ name: "A" }} navPermissions={{ analytics: true }} />);
+describe("AppSidebar permission-gated links", () => {
+  it("shows Analytics when sidebarPermissions.analytics is true", () => {
+    render(<AppSidebar user={{ name: "A" }} sidebarPermissions={{ analytics: true }} />);
     expect(screen.getByText("Analytics")).toBeInTheDocument();
   });
 
   it("hides Analytics when its permission is false", () => {
-    render(<AppSidebar user={{ name: "A" }} navPermissions={{ analytics: false }} />);
+    render(<AppSidebar user={{ name: "A" }} sidebarPermissions={{ analytics: false }} />);
     expect(screen.queryByText("Analytics")).not.toBeInTheDocument();
   });
 
-  it("shows Admin when navPermissions.admin is true", () => {
-    render(<AppSidebar user={{ name: "A" }} navPermissions={{ admin: true }} />);
+  it("shows Admin when sidebarPermissions.admin is true", () => {
+    render(<AppSidebar user={{ name: "A" }} sidebarPermissions={{ admin: true }} />);
     expect(screen.getByText("Admin")).toBeInTheDocument();
   });
 
   it("hides Admin when its permission is false", () => {
-    render(<AppSidebar user={{ name: "A" }} navPermissions={{ admin: false }} />);
+    render(<AppSidebar user={{ name: "A" }} sidebarPermissions={{ admin: false }} />);
     expect(screen.queryByText("Admin")).not.toBeInTheDocument();
   });
 
-  it("shows neither gated entry when navPermissions is absent", () => {
+  it("shows neither gated entry when sidebarPermissions is absent", () => {
     render(<AppSidebar user={{ name: "A" }} />);
     expect(screen.queryByText("Analytics")).not.toBeInTheDocument();
     expect(screen.queryByText("Admin")).not.toBeInTheDocument();
