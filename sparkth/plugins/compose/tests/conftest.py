@@ -17,7 +17,7 @@ OTHER_AGENT = Agent("other", "Other agent", "Other scope text.", "OTHER SECTION"
 
 
 @pytest.fixture(autouse=True)
-def _every_user_holds_default_role(default_user_role: Role) -> None:  # noqa: PT004
+def _every_user_holds_default_role(default_user_roles: Role) -> None:  # noqa: PT004
     """Give the signed-in test user the default role, so the gated routes pass for their own records."""
 
 
