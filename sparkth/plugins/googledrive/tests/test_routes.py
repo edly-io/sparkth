@@ -998,6 +998,36 @@ DELETE = "googledrive.delete"
 BASE = "/api/v1/google-drive"
 UNKNOWN_ID = 999999
 
+
+class TestDriveNotConnected:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("method", "path", "body"),
+        [
+            ("GET", "/browse", None),
+            ("POST", "/folders/sync", {"drive_folder_id": "drive_folder_abc123"}),
+            ("POST", "/folders/{folder}/refresh", None),
+            ("GET", "/files/{file}/download", None),
+        ],
+    )
+    async def test_route_without_a_drive_connection_is_409(
+        self,
+        drive_client: AsyncClient,
+        test_folder: DriveFolder,
+        test_file: DriveFile,
+        method: str,
+        path: str,
+        body: dict[str, str] | None,
+    ) -> None:
+        """A route that needs a Drive token answers 409 when the owner has no Drive connection."""
+        url = BASE + path.format(folder=test_folder.id, file=test_file.id)
+
+        response = await drive_client.request(method, url, json=body)
+
+        assert response.status_code == status.HTTP_409_CONFLICT
+        assert response.json() == {"detail": "Google Drive not connected"}
+
+
 # method, path template ({folder} / {file}), permission, text the success body contains
 BY_ID_ROUTES = [
     ("GET", "/folders/{folder}/files", READ, "owned.pdf"),

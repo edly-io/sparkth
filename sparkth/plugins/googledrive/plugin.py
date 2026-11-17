@@ -1,8 +1,11 @@
 """Google Drive plugin for Sparkth."""
 
+from fastapi import status
+
 import sparkth.plugins.googledrive.models  # noqa: F401 - registers tables in SQLModel metadata
 from sparkth.lib.analytics import register_event_schemas
 from sparkth.lib.config.hooks import CONFIG_SCHEMAS
+from sparkth.lib.exceptions.handlers import register_exception_handler
 from sparkth.lib.frontend.hooks import (
     DISPLAY_INFO,
     FRONTEND_APPS,
@@ -16,7 +19,10 @@ from sparkth.lib.plugins import SparkthPlugin
 from sparkth.lib.routes import register_router
 from sparkth.plugins.googledrive.analytics import events
 from sparkth.plugins.googledrive.config import GoogleDriveConfig
+from sparkth.plugins.googledrive.exceptions import DriveNotConnected
 from sparkth.plugins.googledrive.routes import router
+
+register_exception_handler(DriveNotConnected, status.HTTP_409_CONFLICT)
 
 
 class GoogleDrivePlugin(SparkthPlugin):

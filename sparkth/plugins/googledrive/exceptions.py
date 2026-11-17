@@ -1,6 +1,13 @@
 """Exceptions for the Google Drive plugin."""
 
 
+class DriveNotConnected(Exception):
+    """Raised when a user has no Google Drive connection."""
+
+    def __init__(self) -> None:
+        super().__init__("Google Drive not connected")
+
+
 class GoogleDriveAPIError(RuntimeError):
     """Raised when a Google Drive API request fails."""
 
