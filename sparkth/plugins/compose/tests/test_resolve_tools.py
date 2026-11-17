@@ -18,7 +18,7 @@ _TOOLS = [_tool("openedx_create_xblock"), _tool("stub_build")]
 def _registry() -> MagicMock:
     registry = MagicMock()
     registry.get_all_tools.return_value = _TOOLS
-    registry.plugin_for.side_effect = {"openedx_create_xblock": "open-edx", "stub_build": "stub"}.get
+    registry.plugin_for.side_effect = {"openedx_create_xblock": "openedx", "stub_build": "stub"}.get
     registry.get_tools_by_names.side_effect = lambda names: [tool for tool in _TOOLS if tool.name in names]
     return registry
 

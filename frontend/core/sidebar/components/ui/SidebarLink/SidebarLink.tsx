@@ -2,7 +2,7 @@ import { ExternalLink } from "lucide-react";
 import Link from "next/link";
 import type { ComponentType } from "react";
 
-interface NavItemProps {
+interface SidebarLinkProps {
   href: string;
   label: string;
   icon: ComponentType<{ className?: string }>;
@@ -12,7 +12,8 @@ interface NavItemProps {
   external?: boolean; // open in a new tab
 }
 
-export function NavItem({
+/** One link in the sidebar: an icon and a label, or only the icon while the sidebar is collapsed. */
+export function SidebarLink({
   href,
   label,
   icon: Icon,
@@ -20,7 +21,7 @@ export function NavItem({
   isCollapsed = false,
   onClick,
   external = false,
-}: NavItemProps) {
+}: SidebarLinkProps) {
   return (
     <div>
       <Link
