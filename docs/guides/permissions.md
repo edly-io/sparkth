@@ -304,7 +304,9 @@ make cli -- roles assign-role john grader --scope course --scope-object-id 42
 `--scope` must name a declared scope kind; an unknown kind is rejected rather than persisted
 as a no-op. Whether `--scope-object-id` is required depends on the kind: an
 `ObjectlessPermissionScope` must be assigned *without* one, a `PermissionScope` *with* one.
-The CLI defers this to `assign_role`, which raises `InvalidScopeObjectId` on a mismatch.
+The CLI defers this to `assign_role`, which raises `InvalidScopeObjectId` on a mismatch. For the `plugin` scope
+the CLI also checks that `--scope-object-id` names a loaded plugin, so a mistyped plugin name is rejected rather
+than stored as a grant that reaches no plugin.
 
 **Revoke a role from a user** with `roles revoke-role`, which takes the same arguments and `--scope` /
 `--scope-object-id` options and removes only the assignment at that exact scope:
@@ -316,7 +318,8 @@ make cli -- roles revoke-role john grader --scope course --scope-object-id 42
 
 An unknown scope kind or user, or a `--scope-object-id` that contradicts the scope kind, exits non-zero. A user
 who holds no assignment of that role at that exact scope (a mistyped role name included) gets a "nothing revoked"
-notice and exit zero, so a re-run is harmless. Built-in roles can be revoked from a user.
+notice and exit zero, so a re-run is harmless. Built-in roles can be revoked from a user. `revoke-role` does not
+check that a plugin is loaded, so a grant left on a plugin that was removed can still be revoked.
 
 From application code, call `assign_role`:
 
