@@ -10,6 +10,7 @@ from sparkth.lib.db import get_async_session
 from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
+from sparkth.plugins.googledrive.constants import GOOGLEDRIVE_PLUGIN_NAME
 from sparkth.plugins.googledrive.oauth import (
     connect_drive,
     decode_state,
@@ -99,7 +100,7 @@ async def oauth_callback(
             detail=_("Failed to save tokens."),
         )
 
-    return RedirectResponse(url="/dashboard/google-drive?connected=true")
+    return RedirectResponse(url=f"/dashboard/{GOOGLEDRIVE_PLUGIN_NAME}?connected=true")
 
 
 @router.delete("/oauth/disconnect")

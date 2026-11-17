@@ -15,11 +15,12 @@ from sparkth.lib.audit.hooks import AUDIT_EVENTS
 from sparkth.lib.models import User, utc_now
 from sparkth.lib.testing import AuditEventsFetcher
 from sparkth.plugins.googledrive.audit import GoogleDriveConnectedAuditEvent, GoogleDriveDisconnectedAuditEvent
+from sparkth.plugins.googledrive.constants import GOOGLEDRIVE_PLUGIN_NAME
 from sparkth.plugins.googledrive.models import DriveOAuthToken
 from sparkth.plugins.googledrive.oauth import get_token_record, get_valid_access_token
 
-CALLBACK_URL = "/api/v1/google-drive/oauth/callback"
-DISCONNECT_URL = "/api/v1/google-drive/oauth/disconnect"
+CALLBACK_URL = f"/api/v1/{GOOGLEDRIVE_PLUGIN_NAME}/oauth/callback"
+DISCONNECT_URL = f"/api/v1/{GOOGLEDRIVE_PLUGIN_NAME}/oauth/disconnect"
 SCOPES = "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly"
 ACCESS = "ya29.access-secret-value"
 REFRESH = "1//refresh-secret-value"
