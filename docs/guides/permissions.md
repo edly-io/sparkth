@@ -480,5 +480,9 @@ below, records nothing.
 **Check the current user's permission** — a client (e.g. the web UI) can ask whether the
 authenticated user holds a permission via `GET /api/v1/permissions/can?permission=<name>`
 (optionally `&scope=<kind>&scope_object_id=<id>`), which returns `{"allowed": true|false}`.
-It is backed by `can()` and is a convenience for gating UI — not a security boundary, since
-every endpoint still enforces its own permission and returns 403.
+With `scope_object_id`, the answer covers that one object. Without it, an object-bearing scope
+answers whether the user holds the permission at any of its objects, the same check
+`require_for_any_object()` makes for a list route: `?permission=group.read&scope=group` is `true`
+for a grant at `global` or at any `group:<id>`. An objectless scope answers for the scope itself.
+The probe is a convenience for gating UI, not a security boundary, since every endpoint still
+enforces its own permission and returns 403.
