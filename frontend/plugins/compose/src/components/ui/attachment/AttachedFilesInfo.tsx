@@ -14,7 +14,7 @@ interface AttachedFilesInfoProps {
 
 /**
  * The line above the message box counting the attached files. Opening it lists every file's name,
- * each with a button that removes it.
+ * each with a button that removes it, except a file already sent, whose text the conversation keeps.
  */
 export function AttachedFilesInfo({ attachments, onRemoveFile }: AttachedFilesInfoProps) {
   const t = useTranslations("compose");
@@ -39,15 +39,17 @@ export function AttachedFilesInfo({ attachments, onRemoveFile }: AttachedFilesIn
                 <span className="truncate">
                   {truncate(file.name, DOCUMENT_DISPLAY_NAME_MAX_CHARS)}
                 </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="p-0 h-auto text-muted-foreground hover:text-foreground flex-shrink-0"
-                  title={t("removeAttachedFile")}
-                  onClick={() => onRemoveFile(file)}
-                >
-                  <X className="w-4 h-4" />
-                </Button>
+                {!file.isSent && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="p-0 h-auto text-muted-foreground hover:text-foreground flex-shrink-0"
+                    title={t("removeAttachedFile")}
+                    onClick={() => onRemoveFile(file)}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                )}
               </li>
             ))}
           </ul>

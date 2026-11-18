@@ -161,7 +161,10 @@ export function ChatInput({
                   variant="primary"
                   size="icon"
                   onClick={handleSend}
-                  disabled={!message.trim() && attachments.every((a) => a.documentId !== undefined)}
+                  disabled={
+                    !message.trim() &&
+                    attachments.every((a) => a.documentId !== undefined || a.isSent)
+                  }
                   className="rounded-full bg-foreground text-background"
                 >
                   <ArrowUp className="w-5 h-5" />

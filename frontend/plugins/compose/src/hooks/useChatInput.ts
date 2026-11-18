@@ -126,16 +126,17 @@ export function useChatInput({
   };
 
   const handleSend = async () => {
-    const sendableAttachments = attachments.filter((a) => a.documentId === undefined);
-    if (!message.trim() && sendableAttachments.length === 0) return;
+    const unsentUploads = attachments.filter((a) => a.documentId === undefined && !a.isSent);
+    if (!message.trim() && unsentUploads.length === 0) return;
 
-    const documentAttachments = attachments.filter((a) => a.documentId !== undefined);
-    const documentIds = documentAttachments.map((a) => a.documentId!);
+    const documentIds = attachments.flatMap((a) =>
+      a.documentId === undefined ? [] : [a.documentId],
+    );
 
     // Cleared only once accepted, so a refused send keeps what the author typed.
     const accepted = await onSend({
       message: message.trim(),
-      attachments: sendableAttachments,
+      attachments: unsentUploads,
       // Always send document IDs so the backend can attach them before processing
       // (critical for new conversations where they haven't been persisted yet)
       ...(documentIds.length > 0 && { documentIds }),
@@ -143,8 +144,14 @@ export function useChatInput({
     if (!accepted) return;
 
     setMessage("");
-    // Keep document attachments in state — they remain attached to the conversation
-    setAttachments(documentAttachments);
+    // Every file stays listed: documents remain attached, and a sent upload's text is now part of
+    // the conversation.
+    const sentUploadIds = new Set(unsentUploads.map((a) => a.uploadId));
+    setAttachments((prev) =>
+      prev.map((a) =>
+        a.uploadId !== undefined && sentUploadIds.has(a.uploadId) ? { ...a, isSent: true } : a,
+      ),
+    );
   };
 
   return {

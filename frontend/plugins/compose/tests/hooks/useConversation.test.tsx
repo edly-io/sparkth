@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 
 import type { ApiMessage } from "@/plugins/compose/src/types";
-import { getConversation } from "@/plugins/compose/src/client";
+import { getConversation, getConversationAttachments } from "@/plugins/compose/src/client";
 import { useConversation } from "@/plugins/compose/src/hooks/useConversation";
 
 const turn = (id: number, role: ApiMessage["role"], content: string): ApiMessage => ({
@@ -93,5 +93,34 @@ describe("useConversation — switching chats", () => {
     rerender({ id: null });
 
     await waitFor(() => expect(result.current.error).toBeNull());
+  });
+});
+
+describe("useConversation — attached files line", () => {
+  it("lists documents and the computer uploads sent in the conversation", async () => {
+    vi.mocked(getConversation).mockResolvedValueOnce({
+      messages: [
+        {
+          ...turn(5, "user", "Week 1"),
+          message_type: "attachment",
+          attachment_name: "notes.txt",
+          attachment_size: 6,
+        },
+        turn(6, "user", "Summarise this"),
+        turn(7, "assistant", "Done"),
+      ],
+    } as Awaited<ReturnType<typeof getConversation>>);
+    vi.mocked(getConversationAttachments).mockResolvedValueOnce([
+      { id: 7, name: "drive.pdf", size: 1024 },
+    ] as Awaited<ReturnType<typeof getConversationAttachments>>);
+
+    const { result } = renderHook(() => useConversation("conv-1", "test-token"));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.inputAttachments).toEqual([
+      { name: "drive.pdf", size: 1024, text: "[File: drive.pdf]", documentId: 7 },
+      { name: "notes.txt", size: 6, text: "", uploadId: "message-5", isSent: true },
+    ]);
   });
 });
