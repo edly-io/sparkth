@@ -7,7 +7,7 @@ class PlannerModel(StrEnum):
     """Which model the planner runs on."""
 
     SMALL = "small"
-    SAME = "same"
+    SAME_AS_COMPOSE = "same_as_compose"
 
 
 class TurnEventType(StrEnum):

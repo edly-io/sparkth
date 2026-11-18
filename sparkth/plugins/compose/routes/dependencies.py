@@ -7,14 +7,18 @@ from sparkth.lib.auth import get_current_user, get_current_user_id
 from sparkth.lib.db import get_async_session
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
-from sparkth.lib.permissions import can
-from sparkth.lib.permissions.scopes import USER, build_scope_path
+from sparkth.lib.permissions import PLUGIN_USE, can
+from sparkth.lib.permissions.scopes import PLUGIN, USER, build_scope_path
+from sparkth.plugins.compose.constants import COMPOSE_PLUGIN_NAME
 from sparkth.plugins.compose.models import Conversation
 from sparkth.plugins.compose.permissions import CONVERSATION_WRITE
 from sparkth.plugins.compose.schemas import ChatCompletionRequest
 from sparkth.plugins.compose.service import ComposeService, get_compose_service
 
 logger = get_logger(__name__)
+
+# Gates every authoring route on the caller being allowed to use Compose.
+require_compose_use = PLUGIN_USE.require_for_object(PLUGIN, COMPOSE_PLUGIN_NAME)
 
 
 async def get_conversation(

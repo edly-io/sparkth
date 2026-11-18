@@ -1,6 +1,7 @@
 from sparkth.core.permissions.scopes import (
     GLOBAL,
     GROUP,
+    PLUGIN,
     ROLE,
     USER,
     WHITELIST,
@@ -20,4 +21,5 @@ __all__ = [
     "ROLE",
     "GROUP",
     "USER",
+    "PLUGIN",
 ]

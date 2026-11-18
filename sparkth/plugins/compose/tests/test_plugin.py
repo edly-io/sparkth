@@ -1,15 +1,27 @@
-"""Tests for the compose plugin's declared identity and frontend metadata."""
+"""Tests for the compose plugin's declared identity, settings and frontend metadata."""
+
+import pytest
+from pydantic import ValidationError
 
 from sparkth.lib.frontend import (
     get_plugin_display_info,
     get_plugin_sidebar_entry,
     plugin_has_frontend,
 )
+from sparkth.plugins.compose.config import get_compose_settings
 from sparkth.plugins.compose.plugin import ComposePlugin
 
 
 def test_plugin_is_named_compose() -> None:
     assert ComposePlugin().name == "compose"
+
+
+def test_a_setting_compose_cannot_read_stops_the_plugin_loading(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("COMPOSE_PLANNER_MODEL", "largest")
+    get_compose_settings.cache_clear()
+
+    with pytest.raises(ValidationError, match="planner_model"):
+        ComposePlugin()
 
 
 def test_declares_frontend_metadata() -> None:

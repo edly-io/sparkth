@@ -73,7 +73,7 @@ def _tool(name: str) -> MagicMock:
 def _registry() -> MagicMock:
     """Two tools from two plugins; every turn may bind both."""
     registry = MagicMock()
-    registry.plugin_for.side_effect = {"openedx_create_xblock": "open-edx", "stub_build": "stub"}.get
+    registry.plugin_for.side_effect = {"openedx_create_xblock": "openedx", "stub_build": "stub"}.get
     registry.get_all_tools.return_value = [_tool("openedx_create_xblock"), _tool("stub_build")]
     return registry
 
@@ -82,7 +82,7 @@ def _lms_registry() -> MagicMock:
     """Open edX, Canvas and stub tools, each owned by its plugin."""
     registry = MagicMock()
     registry.plugin_for.side_effect = {
-        "openedx_create_xblock": "open-edx",
+        "openedx_create_xblock": "openedx",
         "canvas_create_course": "canvas",
         "stub_build": "stub",
     }.get
@@ -151,7 +151,9 @@ class TestThePlannersModel:
     async def test_the_planner_can_be_set_to_run_on_the_same_model_as_the_reply(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
     ) -> None:
-        app.dependency_overrides[get_compose_settings] = lambda: ComposeSettings(planner_model=PlannerModel.SAME)
+        app.dependency_overrides[get_compose_settings] = lambda: ComposeSettings(
+            planner_model=PlannerModel.SAME_AS_COMPOSE
+        )
 
         models = await self._models_asked_for(client, session, current_user.id or 1)
 
@@ -270,7 +272,7 @@ async def _seed_lms_plugins(
 ) -> None:
     """Seed the three plugins, this user's Open edX and Canvas rows with credentials."""
     stub = Plugin(name="stub", enabled=True)
-    openedx = Plugin(name="open-edx", enabled=openedx_system_on)
+    openedx = Plugin(name="openedx", enabled=openedx_system_on)
     canvas = Plugin(name="canvas", enabled=True)
     session.add_all([stub, openedx, canvas])
     await session.flush()

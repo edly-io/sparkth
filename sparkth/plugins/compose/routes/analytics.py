@@ -1,4 +1,4 @@
-"""Compose authoring analytics read, gated by ``analytics.read``."""
+"""Compose authoring analytics read, gated by ``analytics.read`` at the Compose plugin scope."""
 
 from typing import Annotated
 
@@ -8,8 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sparkth.lib.analytics import RangeQuery
 from sparkth.lib.db import get_analytics_session
 from sparkth.lib.permissions import ANALYTICS_READ
+from sparkth.lib.permissions.scopes import PLUGIN
 from sparkth.lib.routes import platform_wide
 from sparkth.plugins.compose.analytics.reads import ComposeActivityPoint, get_compose_activity
+from sparkth.plugins.compose.constants import COMPOSE_PLUGIN_NAME
 
 router = APIRouter()
 
@@ -17,7 +19,7 @@ router = APIRouter()
 @router.get(
     "/analytics/activity",
     response_model=list[ComposeActivityPoint],
-    dependencies=[Depends(ANALYTICS_READ.require_in_global_scope())],
+    dependencies=[Depends(ANALYTICS_READ.require_for_object(PLUGIN, COMPOSE_PLUGIN_NAME))],
 )
 @platform_wide
 async def compose_activity(

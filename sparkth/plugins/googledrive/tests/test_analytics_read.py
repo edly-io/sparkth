@@ -1,4 +1,4 @@
-"""Tests for ``GET /api/v1/google-drive/analytics/documents``."""
+"""Tests for the Drive plugin's analytics documents read."""
 
 from datetime import datetime, timezone
 
@@ -8,15 +8,19 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.analytics import ingest_event
 from sparkth.lib.models import User
-from sparkth.lib.testing import grant_global_permission
+from sparkth.lib.permissions import PLUGIN_USER_ROLE, SPARKTH_USER_ROLE, revoke_role
+from sparkth.lib.permissions.scopes import GLOBAL, PLUGIN, USER
+from sparkth.lib.testing import AuditEventsFetcher, grant_global_permission, grant_permission_at_scope
+from sparkth.plugins.googledrive.analytics.events import GoogleDriveDocumentProcessed
+from sparkth.plugins.googledrive.constants import GOOGLE_DRIVE_PLUGIN_NAME
 
-URL = "/api/v1/google-drive/analytics/documents"
+URL = f"/api/v1/{GOOGLE_DRIVE_PLUGIN_NAME}/analytics/documents"
 
 
 async def _seed(session: SQLAlchemyAsyncSession, outcome: str, seconds: int) -> None:
     await ingest_event(
         session,
-        "google-drive.document_processed",
+        GoogleDriveDocumentProcessed.event_type,
         1,
         {
             "document_id": 1,
@@ -54,3 +58,35 @@ async def test_requires_analytics_read(client: AsyncClient, current_user: User) 
     response = await client.get(URL, params={"from": "2026-03-01", "to": "2026-03-31"})
 
     assert response.status_code == 403
+
+
+async def test_allows_a_grant_at_the_drive_plugin_only(
+    client: AsyncClient, current_user: User, session: AsyncSession
+) -> None:
+    session.add(current_user)
+    await session.flush()
+    await revoke_role(1, PLUGIN_USER_ROLE, GLOBAL, None, session)
+    await revoke_role(1, SPARKTH_USER_ROLE, USER, "1", session)
+    await grant_permission_at_scope(session, 1, "analytics.read", PLUGIN, GOOGLE_DRIVE_PLUGIN_NAME)
+    await session.commit()
+
+    response = await client.get(URL, params={"from": "2026-03-01", "to": "2026-03-31"})
+
+    assert response.status_code == 200
+
+
+async def test_denies_a_grant_at_another_plugin(
+    client: AsyncClient, current_user: User, session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    session.add(current_user)
+    await session.flush()
+    await grant_permission_at_scope(session, 1, "analytics.read", PLUGIN, "compose")
+    await session.commit()
+
+    response = await client.get(URL, params={"from": "2026-03-01", "to": "2026-03-31"})
+
+    assert response.status_code == 403
+    (event,) = await audit_events()
+    assert event.action == "denied"
+    assert event.target_id == "analytics.read"
+    assert event.error_detail == f"scope=plugin:{GOOGLE_DRIVE_PLUGIN_NAME}"

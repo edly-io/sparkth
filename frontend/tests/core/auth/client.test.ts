@@ -13,7 +13,6 @@ import {
   updateCurrentUser,
   verifyEmail,
 } from "@/core/auth/client";
-import { addWhitelistEntry, getWhitelist, removeWhitelistEntry } from "@/core/whitelist/client";
 
 import { mockFetch, sentRequest } from "@/tests/lib/utils";
 
