@@ -612,7 +612,7 @@ class TestCollectStreamResponse:
 
 # A plan of two steps, as a turn makes it and as an earlier message left it with its first step in progress.
 TWO_STEPS = (PlannedStep(STUB_AGENT.name, "Write the lesson"), PlannedStep(OTHER_AGENT.name, "Build the activity"))
-FIRST_IN_PROGRESS = OpenPlan(TWO_STEPS, current=1)
+FIRST_IN_PROGRESS = OpenPlan(TWO_STEPS, current=1, current_ran=True)
 
 
 class TestAPlannedTurn:
@@ -682,7 +682,9 @@ class TestAPlannedTurn:
         async for _ in processor.stream():
             pass
 
-        assert _stored_replies(processor)[0]["metadata"]["plan"] == asdict(OpenPlan(TWO_STEPS, current=2))
+        assert _stored_replies(processor)[0]["metadata"]["plan"] == asdict(
+            OpenPlan(TWO_STEPS, current=2, current_ran=False)
+        )
 
     @pytest.mark.asyncio
     async def test_a_turn_stopped_before_the_model_keeps_the_plan_it_was_given(self) -> None:

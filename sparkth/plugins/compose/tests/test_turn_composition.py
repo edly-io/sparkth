@@ -167,7 +167,9 @@ class TestAnUnfinishedPlan:
     ) -> None:
         config_id = await _seed_llm_config(session, current_user.id or 1)
         conversation_uuid = await _seed_conversation(session, current_user.id or 1)
-        plan = OpenPlan((PlannedStep(stub_agent.name, "Write the lesson"), PlannedStep("operator", "Publish it")), 1)
+        plan = OpenPlan(
+            (PlannedStep(stub_agent.name, "Write the lesson"), PlannedStep("operator", "Publish it")), 1, True
+        )
         reply = {"content": "Who are your learners?", "metadata": {PLAN_KEY: asdict(plan)}, "routing": TurnRouting()}
 
         with (
