@@ -114,4 +114,32 @@ describe("AttachedFilesInfo", () => {
 
     expect(screen.getAllByTitle(composeEn.compose.removeAttachedFile)).toHaveLength(1);
   });
+
+  it("starts the row of a file that is uploading with a spinner", async () => {
+    const user = userEvent.setup();
+    renderInfo([{ ...makeComputerFile("upload-1", "notes.txt"), text: "", isUploading: true }]);
+
+    await user.click(screen.getByText("1 file attached"));
+
+    const spinner = screen.getByRole("status", { name: composeEn.compose.uploadingFile });
+    const name = screen.getByText("notes.txt");
+    expect(spinner.compareDocumentPosition(name) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("says which of the files waiting to be sent is uploading", () => {
+    renderInfo([
+      { ...makeComputerFile("upload-1", "sent.txt"), isSent: true },
+      makeComputerFile("upload-2", "notes.txt"),
+      { ...makeComputerFile("upload-3", "outline.txt"), text: "", isUploading: true },
+      { ...makeComputerFile("upload-4", "week3.txt"), text: "", isUploading: true },
+    ]);
+
+    expect(screen.getByText("Uploading file (2 of 3)")).toBeInTheDocument();
+  });
+
+  it("shows no upload indicator once every file has uploaded", () => {
+    renderInfo([makeComputerFile("upload-1", "notes.txt")]);
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
 });

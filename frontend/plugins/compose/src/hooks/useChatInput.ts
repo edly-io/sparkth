@@ -1,7 +1,7 @@
 "use client";
 
 import { Dispatch, SetStateAction, useState } from "react";
-import { TextAttachment } from "@/plugins/compose/src/types";
+import { isUnsentUpload, TextAttachment } from "@/plugins/compose/src/types";
 import { attachDocument, detachDocument } from "@/plugins/compose/src/client";
 import { uploadFile, UploadResponse } from "@/plugins/compose/src/upload";
 import type { AttachedDocument, AttachmentSource } from "@/plugins/compose/src/slots/attachments";
@@ -43,24 +43,28 @@ export function useChatInput({
       return;
     }
 
+    // Listed straight away, so the user sees the file while it uploads.
+    const uploadId = crypto.randomUUID();
+    setAttachments((prev) => [
+      ...prev,
+      { name: file.name, size: file.size, text: "", uploadId, isUploading: true },
+    ]);
+
     try {
       const formData = new FormData();
       formData.append("file", file);
 
       const data: UploadResponse = await uploadFile(formData, token ?? undefined);
 
-      setAttachments((prev) => [
-        ...prev,
-        {
-          name: file.name,
-          size: file.size,
-          text: data.text,
-          uploadId: crypto.randomUUID(),
-        },
-      ]);
+      setAttachments((prev) =>
+        prev.map((a) =>
+          a.uploadId === uploadId ? { ...a, text: data.text, isUploading: false } : a,
+        ),
+      );
 
       setShowUploadMenu(false);
     } catch (error) {
+      setAttachments((prev) => prev.filter((a) => a.uploadId !== uploadId));
       const message = error instanceof Error ? error.message : "Failed to upload file";
       setUploadError(message);
     }
@@ -125,9 +129,13 @@ export function useChatInput({
     }
   };
 
+  // A message must be typed, with or without files, and every upload must have finished.
+  const canSend = message.trim() !== "" && !attachments.some((a) => a.isUploading);
+
   const handleSend = async () => {
-    const unsentUploads = attachments.filter((a) => a.documentId === undefined && !a.isSent);
-    if (!message.trim() && unsentUploads.length === 0) return;
+    if (!canSend) return;
+
+    const unsentUploads = attachments.filter(isUnsentUpload);
 
     const documentIds = attachments.flatMap((a) =>
       a.documentId === undefined ? [] : [a.documentId],
@@ -164,6 +172,7 @@ export function useChatInput({
     handleUploadAsText,
     handleDocumentsSelected,
     handleRemoveAttachment,
+    canSend,
     handleSend,
   };
 }
