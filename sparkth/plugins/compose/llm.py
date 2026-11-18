@@ -544,10 +544,11 @@ async def stream_turn(
     """Stream one turn on the planner as typed event dicts.
 
     Yields:
-      {"type": "routed",    "routing": TurnRouting}
+      {"type": "routed",    "routing": TurnRouting, "label": str}
                                                — who answers next, when a step (a hand-off or the
-                                                 operator) starts or the refusal returns; never sent
-                                                 when the planner answers
+                                                 operator) starts, with what the author reads while
+                                                 it works, or the refusal returns, without a
+                                                 label; never sent when the planner answers
       {"type": "plan",      "steps": list[PlannedStep]}
                                                — the plan the turn made
       {"type": "plan_step", "number": int, "ran": bool}

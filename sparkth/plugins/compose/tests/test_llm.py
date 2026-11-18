@@ -392,7 +392,7 @@ async def test_a_streamed_turn_names_its_agent_before_the_agent_writes(monkeypat
     first = await anext(turn)
     await turn.aclose()
 
-    assert first == {"type": "routed", "routing": TurnRouting(agent=STUB_AGENT.name)}
+    assert first == {"type": "routed", "routing": TurnRouting(agent=STUB_AGENT.name), "label": STUB_AGENT.status}
 
 
 async def _reply(

@@ -41,6 +41,9 @@ STEP_RESULT_TAIL_CHARS = 600
 # How many steps, each an agent's or the operator's work, Compose's planner may run in one turn.
 MAX_STEPS_PER_TURN = 5
 
+# What the author reads while the operator works.
+OPERATOR_STATUS: str = gettext_noop("Working with your LMS…")
+
 # How many steps a plan may have. A plan longer than a turn runs carries on when the author asks for it.
 MAX_PLAN_STEPS = 10
 

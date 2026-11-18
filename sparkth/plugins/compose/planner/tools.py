@@ -18,6 +18,7 @@ from sparkth.lib.i18n import gettext
 from sparkth.plugins.compose.constants import (
     MAX_PLAN_STEPS,
     OPERATION_RESULT_HEADING,
+    OPERATOR_STATUS,
     PLAN_TASK_MAX_CHARS,
     PLAN_TASK_PATTERN,
     REFUSAL_MESSAGE,
@@ -93,23 +94,27 @@ def agent_input(messages: Sequence[AnyMessage], request: str) -> list[AnyMessage
 
 
 def _graph_runner(
-    graph: CompiledStateGraph[Any, AuditModelInfo, Any, Any], name: str, *, tail_chars: int | None
+    graph: CompiledStateGraph[Any, AuditModelInfo, Any, Any], name: str, status: str, *, tail_chars: int | None
 ) -> Callable[[str, ToolRuntime[AuditModelInfo, AgentState[Any]], int | None], Awaitable[tuple[str, str]]]:
     """A tool coroutine that runs ``graph`` as the step ``name`` on the planner's conversation.
 
     It returns what the planner reads, the reply marked as data and cut to its last ``tail_chars``
     characters when there is a limit, and the whole reply, which later steps read. It reports
     ``name`` as answering the turn before the graph runs, so a turn stopped mid-reply still records
-    who was answering it. The graph runs only once the reader of the stream asks for the next
-    event, so a reader that stops there keeps the step from ever starting. The number of the plan's
-    step a call carries out plays no part in running it.
+    who was answering it. The report carries ``status``, what the author reads while the step
+    works, as its label. The graph runs
+    only once the reader of the stream asks for the next event, so a reader that stops there keeps
+    the step from ever starting. The number of the plan's step a call carries out plays no part in
+    running it.
     """
 
     async def run(
         request: str, runtime: ToolRuntime[AuditModelInfo, AgentState[Any]], step: int | None = None
     ) -> tuple[str, str]:
         go = asyncio.Event()
-        runtime.stream_writer({"type": TurnEventType.ROUTED, "routing": TurnRouting(agent=name), "go": go})
+        runtime.stream_writer(
+            {"type": TurnEventType.ROUTED, "routing": TurnRouting(agent=name), "label": status, "go": go}
+        )
         await go.wait()
         result = await graph.ainvoke(
             {"messages": agent_input(runtime.state["messages"], request)}, context=runtime.context
@@ -128,7 +133,7 @@ def build_handoff_tool(agent: AgentGraph) -> BaseTool:
     """The planner's tool for ``agent``: it runs the agent, whose reply the author reads as it is written, and
     returns the end of that reply to the planner."""
     return StructuredTool.from_function(
-        coroutine=_graph_runner(agent.graph, agent.spec.name, tail_chars=STEP_RESULT_TAIL_CHARS),
+        coroutine=_graph_runner(agent.graph, agent.spec.name, agent.spec.status, tail_chars=STEP_RESULT_TAIL_CHARS),
         name=agent.spec.name,
         description=agent.spec.description,
         args_schema=HandOff,
@@ -142,7 +147,7 @@ def build_operator_tool(operator: CompiledStateGraph[Any, AuditModelInfo, Any, A
     operation and returns all of what it did to the planner, which tells the author or hands the rest
     to an agent. The author never reads the operator's own text."""
     return StructuredTool.from_function(
-        coroutine=_graph_runner(operator, OPERATOR_AGENT_NAME, tail_chars=None),
+        coroutine=_graph_runner(operator, OPERATOR_AGENT_NAME, OPERATOR_STATUS, tail_chars=None),
         name=OPERATOR_AGENT_NAME,
         description="Publish, retrieve or manage courses on the author's LMS.",
         args_schema=Operation,
