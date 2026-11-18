@@ -596,6 +596,18 @@ async def test_each_steps_reply_shows_apart_and_the_planner_adds_nothing_after_a
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
+async def test_a_turn_ends_at_the_choices_an_agent_offered(stream: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The author answers the agent before the next step runs."""
+    choices = "Which level?\n\n```options single\nBeginner\nAdvanced\n```"
+    replies = iter([AIMessage(choices), AIMessage("Here is the activity.")])
+    provider = _provider(ScriptedChatModel(messages=replies), monkeypatch)
+
+    reply = await _reply(_two_step_turn(AIMessage("Both are ready!")), provider, stream)
+
+    assert reply == choices
+
+
+@pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
 @pytest.mark.usefixtures("lms_tools")
 async def test_the_planner_tells_the_author_what_an_operation_after_an_agent_did(
     stream: bool, monkeypatch: pytest.MonkeyPatch
