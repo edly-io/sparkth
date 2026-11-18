@@ -62,7 +62,7 @@ describe("documentTotals", () => {
 });
 
 describe("fetchDriveDocuments", () => {
-  it("GETs /api/v1/google-drive/analytics/documents for a day range with the bearer token", async () => {
+  it("GETs /api/v1/googledrive/analytics/documents for a day range with the bearer token", async () => {
     const points = [row("ingested", 2, 30)];
     const spy = mockFetch(points);
 
@@ -72,7 +72,7 @@ describe("fetchDriveDocuments", () => {
     });
 
     const url = new URL(sentRequest(spy).url);
-    expect(url.pathname).toBe("/api/v1/google-drive/analytics/documents");
+    expect(url.pathname).toBe("/api/v1/googledrive/analytics/documents");
     expect(url.searchParams.get("from")).toBe("2026-07-01");
     expect(url.searchParams.get("to")).toBe("2026-07-20");
     expect(url.searchParams.get("bucket")).toBe("day");

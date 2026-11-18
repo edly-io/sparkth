@@ -15,11 +15,11 @@ from sparkth.main import app
 WEBSOCKET = "WEBSOCKET"
 
 UNGATED_PLUGIN_ROUTES: dict[tuple[str, str], str] = {
-    ("GET", "/api/v1/google-drive/oauth/callback"): "signed OAuth state, no user login",
+    ("GET", "/api/v1/googledrive/oauth/callback"): "signed OAuth state, no user login",
     ("GET", "/api/v1/slack/oauth/callback"): "signed OAuth state, no user login",
     ("POST", "/api/v1/slack/events"): "Slack request signature",
     ("GET", "/api/v1/compose/analytics/activity"): "gated by analytics.read at the plugin scope",
-    ("GET", "/api/v1/google-drive/analytics/documents"): "gated by analytics.read at the plugin scope",
+    ("GET", "/api/v1/googledrive/analytics/documents"): "gated by analytics.read at the plugin scope",
     ("GET", "/api/v1/pxc/embed"): "PXC learner router: launch token",
     ("GET", "/api/v1/pxc/client/{file_name}"): "PXC learner router: launch token",
     ("GET", "/api/v1/pxc/assets/{file_path:path}"): "PXC learner router: launch token",
