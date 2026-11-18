@@ -17,6 +17,7 @@ from sparkth.plugins.slack.enums import ConnectionEventType
 from sparkth.plugins.slack.exceptions import UserAlreadyConnectedError, WorkspaceAlreadyConnectedError
 from sparkth.plugins.slack.models import SlackConnectionLog
 from sparkth.plugins.slack.oauth import decode_state, exchange_code_for_tokens, generate_authorization_url
+from sparkth.plugins.slack.routes.dependencies import require_slack_use
 from sparkth.plugins.slack.service import WorkspaceService, get_workspace_service
 from sparkth.plugins.slack.types import SlackAuthorizationUrlResponse, SlackConnectionStatusResponse
 
@@ -42,7 +43,9 @@ def get_slack_credentials() -> SlackSettings:
     return s
 
 
-@oauth_router.get("/oauth/authorize", response_model=SlackAuthorizationUrlResponse)
+@oauth_router.get(
+    "/oauth/authorize", response_model=SlackAuthorizationUrlResponse, dependencies=[Depends(require_slack_use)]
+)
 def get_authorization_url(user_id: int = Depends(get_current_user_id)) -> SlackAuthorizationUrlResponse:
     """Return the Slack OAuth install URL."""
     creds = get_slack_credentials()
@@ -134,7 +137,7 @@ async def oauth_callback(
     return RedirectResponse(url=f"{get_slack_settings().frontend_path}?connected=true")
 
 
-@oauth_router.delete("/oauth/disconnect")
+@oauth_router.delete("/oauth/disconnect", dependencies=[Depends(require_slack_use)])
 async def disconnect_workspace(
     user_id: int = Depends(get_current_user_id),
     service: WorkspaceService = Depends(get_workspace_service),
@@ -167,7 +170,9 @@ async def disconnect_workspace(
     return {"detail": "Slack workspace disconnected successfully"}
 
 
-@oauth_router.get("/oauth/status", response_model=SlackConnectionStatusResponse)
+@oauth_router.get(
+    "/oauth/status", response_model=SlackConnectionStatusResponse, dependencies=[Depends(require_slack_use)]
+)
 async def get_connection_status(
     user_id: int = Depends(get_current_user_id),
     service: WorkspaceService = Depends(get_workspace_service),

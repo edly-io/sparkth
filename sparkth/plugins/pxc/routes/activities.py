@@ -1,8 +1,7 @@
 """The author-facing surface, mounted beside the learner routes at ``/api/v1/pxc``.
 
-Every route here depends on ``get_current_user``, which is what turns away a request with no
-signed-in author. The learner routes carry a launch token instead and declare no such
-dependency, so they are unaffected.
+Every route here needs a signed-in author who holds ``plugin.use`` at ``plugin:pxc``. The learner
+routes carry a launch token instead and declare no such dependency, so they are unaffected.
 """
 
 from typing import cast

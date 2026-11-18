@@ -9,7 +9,7 @@ from sqlalchemy import delete
 from sqlalchemy import select as sa_select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession as SQLAlchemyAsyncSession
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.analytics.models import raw_events
@@ -364,7 +364,7 @@ class TestAttachmentWriteGate:
         audit_events: AuditEventsFetcher,
         method: str,
     ) -> None:
-        await session.exec(delete(RoleAssignment))
+        await session.exec(delete(RoleAssignment).where(col(RoleAssignment.scope) == USER.name))
         await session.commit()
         url = f"/api/v1/compose/conversations/{uuid4()}/attachments"
 
@@ -396,7 +396,7 @@ class TestAttachmentWriteGate:
     ) -> None:
         conversation_id, conversation_uuid = await _seed_conversation(session, cast(int, current_user.id))
         _, document_id = await _seed_document(session, user_id=cast(int, current_user.id))
-        await session.exec(delete(RoleAssignment))
+        await session.exec(delete(RoleAssignment).where(col(RoleAssignment.scope) == USER.name))
         await session.commit()
 
         attach = await client.post(

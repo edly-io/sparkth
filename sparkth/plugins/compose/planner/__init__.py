@@ -1,11 +1,8 @@
 """Compose's planner: hands each message to the agent suited for it, runs operations, answers small
 talk itself, or refuses.
 
-Each enabled agent becomes one of the planner's tools. Calling it runs that agent's own graph on
-the conversation and ends the planner's run with the agent's reply, so nothing the planner writes
-after a hand-off reaches the author. The operator tool runs operations, such as publishing a
-course, and returns what they did to the planner. Hand-offs, operations and refusals are skipped
-by the audit callback; the tools an agent or the operator calls are still audited.
+A step is work the planner gives to one enabled agent, or to the operator for an operation. What
+the step returns goes back to the planner, which runs the next step or ends the turn.
 """
 
 from sparkth.plugins.compose.planner.graph import build_planner, render_planner_prompt

@@ -62,3 +62,9 @@ def test_the_plugin_adds_an_activities_entry_to_the_sidebar() -> None:
 
     entries = [item for owner, item in SIDEBAR_ENTRIES.iter_items() if owner is plugin]
     assert entries == [SidebarEntry("Activities", icon="blocks", order=2)]
+
+
+def test_the_agent_is_never_allowed_to_show_code_or_errors_on_request() -> None:
+    """The author sees the activity, never how it is built or why a build failed."""
+    assert "unless the author asks" not in PXC_ACTIVITY_BUILDER.prompt
+    assert "even when the author asks" in PXC_ACTIVITY_BUILDER.prompt
