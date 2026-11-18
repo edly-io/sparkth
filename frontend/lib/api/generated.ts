@@ -1803,6 +1803,8 @@ export interface components {
             name: string;
             /** Size */
             size: number | null;
+            /** Source */
+            source: string | null;
         };
         /** AttachmentMeta */
         AttachmentMeta: {

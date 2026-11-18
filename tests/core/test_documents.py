@@ -14,6 +14,8 @@ from sparkth.core.documents.service import (
 from sparkth.lib.documents import list_ready_documents
 from sparkth.lib.testing import AuditEventsFetcher
 
+DOCUMENT_SOURCE = "example-source"
+
 
 class TestDocumentModel:
     async def test_default_status_is_queued(self, session: AsyncSession) -> None:
@@ -55,7 +57,7 @@ class TestDocumentModel:
 
 class TestRegisterDocument:
     async def test_creates_with_queued_status(self, session: AsyncSession) -> None:
-        doc = await create_document(session, user_id=1, name="report.pdf", mime_type="application/pdf")
+        doc = await create_document(session, 1, "report.pdf", "application/pdf", DOCUMENT_SOURCE)
         assert doc.id is not None
         await session.commit()
         await session.refresh(doc)
@@ -64,16 +66,23 @@ class TestRegisterDocument:
         assert doc.name == "report.pdf"
 
     async def test_mime_type_none_accepted(self, session: AsyncSession) -> None:
-        doc = await create_document(session, user_id=1, name="notes.txt", mime_type=None)
+        doc = await create_document(session, 1, "notes.txt", None, DOCUMENT_SOURCE)
         await session.commit()
         await session.refresh(doc)
 
         assert doc.mime_type is None
 
+    async def test_records_the_source_it_came_from(self, session: AsyncSession) -> None:
+        doc = await create_document(session, 1, "notes.txt", None, DOCUMENT_SOURCE)
+        await session.commit()
+        await session.refresh(doc)
+
+        assert doc.source == DOCUMENT_SOURCE
+
 
 class TestUpdateDocumentStatus:
     async def test_sets_status(self, session: AsyncSession) -> None:
-        doc = await create_document(session, user_id=1, name="f.pdf", mime_type=None)
+        doc = await create_document(session, 1, "f.pdf", None, DOCUMENT_SOURCE)
         assert doc.id is not None
         document_id = doc.id
         await session.commit()
@@ -86,7 +95,7 @@ class TestUpdateDocumentStatus:
         assert doc.error is None
 
     async def test_stores_error_on_failed(self, session: AsyncSession) -> None:
-        doc = await create_document(session, user_id=1, name="f.pdf", mime_type=None)
+        doc = await create_document(session, 1, "f.pdf", None, DOCUMENT_SOURCE)
         assert doc.id is not None
         document_id = doc.id
         await session.commit()
@@ -101,7 +110,7 @@ class TestUpdateDocumentStatus:
 
 class TestGetDocument:
     async def test_returns_document_for_owner(self, session: AsyncSession) -> None:
-        doc = await create_document(session, user_id=1, name="f.pdf", mime_type=None)
+        doc = await create_document(session, 1, "f.pdf", None, DOCUMENT_SOURCE)
         assert doc.id is not None
         document_id = doc.id
         await session.commit()
@@ -111,7 +120,7 @@ class TestGetDocument:
         assert found.id == document_id
 
     async def test_returns_none_for_wrong_user(self, session: AsyncSession) -> None:
-        doc = await create_document(session, user_id=1, name="f.pdf", mime_type=None)
+        doc = await create_document(session, 1, "f.pdf", None, DOCUMENT_SOURCE)
         assert doc.id is not None
         document_id = doc.id
         await session.commit()
@@ -120,7 +129,7 @@ class TestGetDocument:
         assert found is None
 
     async def test_returns_none_for_deleted(self, session: AsyncSession) -> None:
-        doc = await create_document(session, user_id=1, name="f.pdf", mime_type=None)
+        doc = await create_document(session, 1, "f.pdf", None, DOCUMENT_SOURCE)
         assert doc.id is not None
         document_id = doc.id
         await session.commit()
@@ -151,7 +160,7 @@ class TestListReadyDocuments:
 
 class TestSoftDeleteDocument:
     async def test_sets_is_deleted(self, session: AsyncSession) -> None:
-        doc = await create_document(session, user_id=1, name="f.pdf", mime_type=None)
+        doc = await create_document(session, 1, "f.pdf", None, DOCUMENT_SOURCE)
         assert doc.id is not None
         document_id = doc.id
         await session.commit()
@@ -166,7 +175,7 @@ class TestSoftDeleteDocument:
     async def test_records_deletion_audit_event(self, session: AsyncSession, audit_events: AuditEventsFetcher) -> None:
         """Removing a document from the retrieval corpus is audited in the
         same transaction as the soft-delete."""
-        doc = await create_document(session, user_id=1, name="report.pdf", mime_type=None)
+        doc = await create_document(session, 1, "report.pdf", None, DOCUMENT_SOURCE)
         assert doc.id is not None
         document_id = doc.id
         await session.commit()
