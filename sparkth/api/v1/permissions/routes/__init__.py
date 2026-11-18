@@ -53,9 +53,13 @@ async def check_permission(
     A self-check any authenticated user may call about their own grants. It is not a security
     boundary (endpoints enforce their own permissions and return 403); it lets a client gate UI
     precisely. The permission and scope names are resolved against the registered vocabulary
-    (unknown → 422). With ``scope_object_id``, the answer covers that one object. Without it, an
-    object-bearing scope answers whether the user holds the permission at any of its objects, the
-    check a list route makes; an objectless scope answers for the scope itself.
+    (unknown → 422).
+
+    - With ``scope_object_id``, an object-bearing scope answers whether the user holds the
+      permission at that one object.
+    - Without ``scope_object_id`` an object-bearing scope answers whether the user holds the
+      permission at any of its objects.
+    - An objectless scope answers for the scope itself.
     """
     resolved_permission = get_permission(permission)
     permission_scope = get_permission_scope(scope)
