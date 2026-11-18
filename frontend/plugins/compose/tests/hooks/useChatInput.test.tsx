@@ -255,6 +255,31 @@ describe("useChatInput — files uploaded from the computer", () => {
     expect(result.current.attachments[0]).toMatchObject({ text: "Week 1", isUploading: false });
   });
 
+  it("cancels a file's upload when it is removed while uploading", async () => {
+    let failUpload: (error: Error) => void = () => {};
+    vi.mocked(uploadFile).mockReturnValueOnce(
+      new Promise((_, reject) => {
+        failUpload = reject;
+      }),
+    );
+    const { result } = setupWithAttachments(null);
+    let upload: Promise<void> = Promise.resolve();
+    act(() => {
+      upload = result.current.handleUploadFromComputer([new File(["Week 1"], "notes.txt")]);
+    });
+    const signal = vi.mocked(uploadFile).mock.calls[0][2];
+
+    act(() => result.current.handleRemoveAttachment(result.current.attachments[0]));
+    await act(async () => {
+      failUpload(new DOMException("The operation was aborted.", "AbortError"));
+      await upload;
+    });
+
+    expect(signal?.aborted).toBe(true);
+    expect(result.current.attachments).toEqual([]);
+    expect(result.current.uploadError).toBeNull();
+  });
+
   it("removes a file whose upload fails and reports the error", async () => {
     vi.mocked(uploadFile).mockRejectedValueOnce(
       new Error("Only .txt and .pdf files are supported"),
