@@ -7,15 +7,13 @@ from pathlib import Path
 
 import pytest
 
-from sparkth.plugins.googledrive.constants import GOOGLE_DRIVE_PLUGIN_NAME
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "dump_openapi.py"
 
 PLUGIN_SENTINEL_PATHS = [
     "/api/v1/compose/completions",
     "/api/v1/slack/oauth/status",
-    f"/api/v1/{GOOGLE_DRIVE_PLUGIN_NAME}/oauth/status",
+    "/api/v1/google-drive/oauth/status",
 ]
 
 
