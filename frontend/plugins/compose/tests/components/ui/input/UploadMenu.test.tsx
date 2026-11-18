@@ -39,6 +39,7 @@ function renderMenu() {
 }
 
 const filesSource: AttachmentSource = {
+  id: "files-source",
   label: "Pick from Files",
   icon: FilesIcon,
   loadPicker: () => Promise.resolve({ default: () => null }),

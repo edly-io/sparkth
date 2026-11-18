@@ -97,12 +97,20 @@ export function useChatInput({
     // update so both diff computations read a consistent pre-update view.
     const prevDocumentAttachments = attachments.filter((a) => a.documentId !== undefined);
 
-    const newDocumentAttachments = documents.map((document) => ({
-      name: document.name,
-      size: document.size ?? 0,
-      text: `[File: ${document.name}]`,
-      documentId: document.documentId,
-    }));
+    // A newly picked document comes from the open picker's source; one picked again keeps the
+    // source it had.
+    const newDocumentAttachments = documents.map((document) => {
+      const source =
+        prevDocumentAttachments.find((a) => a.documentId === document.documentId)?.source ??
+        pickingFrom?.id;
+      return {
+        name: document.name,
+        size: document.size ?? 0,
+        text: `[File: ${document.name}]`,
+        documentId: document.documentId,
+        source,
+      };
+    });
     setAttachments((prev) => {
       const nonDocument = prev.filter((a) => a.documentId === undefined);
       return [...nonDocument, ...newDocumentAttachments];

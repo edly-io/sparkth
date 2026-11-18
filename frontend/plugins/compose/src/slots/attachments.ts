@@ -34,6 +34,11 @@ export interface AttachmentPickerProps {
 
 /** A place Compose's attach menu can pick documents from. */
 export interface AttachmentSource {
+  /**
+   * Identifies the source. A document from it records this id as its source, so it must match the id
+   * the source's backend saves on the documents it registers.
+   */
+  id: string;
   /** The attach menu's entry for the source. */
   label: string;
   icon: ComponentType<{ className?: string }>;

@@ -111,7 +111,7 @@ describe("useConversation — attached files line", () => {
       ],
     } as Awaited<ReturnType<typeof getConversation>>);
     vi.mocked(getConversationAttachments).mockResolvedValueOnce([
-      { id: 7, name: "drive.pdf", size: 1024 },
+      { id: 7, name: "drive.pdf", size: 1024, source: "googledrive" },
     ] as Awaited<ReturnType<typeof getConversationAttachments>>);
 
     const { result } = renderHook(() => useConversation("conv-1", "test-token"));
@@ -119,7 +119,13 @@ describe("useConversation — attached files line", () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.inputAttachments).toEqual([
-      { name: "drive.pdf", size: 1024, text: "[File: drive.pdf]", documentId: 7 },
+      {
+        name: "drive.pdf",
+        size: 1024,
+        text: "[File: drive.pdf]",
+        documentId: 7,
+        source: "googledrive",
+      },
       { name: "notes.txt", size: 6, text: "", uploadId: "message-5", isSent: true },
     ]);
   });

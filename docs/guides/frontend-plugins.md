@@ -415,12 +415,17 @@ import { EXAMPLEPLUGIN_PLUGIN_NAME } from "@/plugins/exampleplugin/src/constants
 
 ATTACHMENT_SOURCES.set(EXAMPLEPLUGIN_PLUGIN_NAME, [
   {
+    id: EXAMPLEPLUGIN_PLUGIN_NAME,
     label: "Pick from Example",
     icon: ExampleIcon,
     loadPicker: () => import("@/plugins/exampleplugin/src/components/ui/AttachmentPicker"),
   },
 ]);
 ```
+
+A source's `id` is what the plugin's backend passes as the source when it registers a document with
+`create_document`, so Compose can show the source's icon next to a document attached from it. Each source needs an
+id of its own; a plugin with one source can use its plugin name, as Google Drive does.
 
 The plugin's `src/index.ts` imports that file, or the source is never set:
 
