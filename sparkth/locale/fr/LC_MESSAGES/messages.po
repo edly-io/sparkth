@@ -42,20 +42,24 @@ msgstr "Cette adresse e-mail est déjà enregistrée"
 msgid "Incorrect username or password"
 msgstr "Nom d'utilisateur ou mot de passe incorrect"
 
-#: sparkth/api/v1/file_parser.py:48 sparkth/api/v1/user_plugins.py:128
+#: sparkth/api/v1/user_plugins.py:128
 #: sparkth/api/v1/user_plugins.py:215 sparkth/api/v1/user_plugins.py:249
 msgid "User not authenticated."
 msgstr "Utilisateur non authentifié."
 
-#: sparkth/api/v1/file_parser.py:53
+#: sparkth/api/v1/file_upload/routes.py:46
 msgid "Only .txt and .pdf files are supported"
 msgstr "Seuls les fichiers .txt et .pdf sont pris en charge"
 
-#: sparkth/api/v1/file_parser.py:62
-msgid "File size exceeds 30MB limit"
-msgstr "Le fichier dépasse la limite de 30 Mo"
+#: sparkth/api/v1/file_upload/routes.py:55
+msgid "File size exceeds {limit_mb}MB limit"
+msgstr "Le fichier dépasse la limite de {limit_mb} Mo"
 
-#: sparkth/api/v1/file_parser.py:72
+#: sparkth/api/v1/file_upload/routes.py:69
+msgid "No text could be read from this file"
+msgstr "Aucun texte n'a pu être lu dans ce fichier"
+
+#: sparkth/api/v1/file_upload/routes.py:65
 msgid "Unsupported file type"
 msgstr "Type de fichier non pris en charge"
 

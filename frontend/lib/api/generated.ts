@@ -2946,7 +2946,10 @@ export interface components {
             /** Enabled */
             enabled: boolean;
         };
-        /** UploadResponse */
+        /**
+         * UploadResponse
+         * @description The text read from an uploaded file.
+         */
         UploadResponse: {
             /** Filename */
             filename: string | null;

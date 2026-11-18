@@ -95,11 +95,11 @@ A module under `sparkth/api/v1/` takes one of two shapes. `sparkth/api/v1/__init
 both the same way, `include_router(<module>.router, prefix=...)`, so the shape is an internal
 organisation choice and changing it never moves a URL.
 
-**Single file** (`auth.py`, `llm.py`, `audit.py`, `file_parser.py`)
+**Single file** (`auth.py`, `llm.py`, `audit.py`)
 — a module that declares `router` at the top level. The default for a small surface with
 no request/response models of its own.
 
-**Package** (`user/`, `language/`, `permissions/`, `whitelist/`, `analytics/`, `plugins/`) — reach for
+**Package** (`user/`, `language/`, `permissions/`, `whitelist/`, `analytics/`, `plugins/`, `file_upload/`) — reach for
 this once a module owns its own pydantic models, or once its routes outgrow one readable file:
 
 ```
@@ -108,6 +108,7 @@ sparkth/api/v1/<name>/
     routes.py         # the endpoint functions (a routes/ package when they need splitting)
     schemas.py        # request/response models owned by this module
     dependencies.py   # FastAPI dependencies owned by this module (optional)
+    constants.py      # fixed values the module's routes use, such as limits (optional)
 ```
 
 - A package's `__init__.py` re-exports `router` and carries `__all__ = ["router"]`, a

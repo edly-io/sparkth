@@ -1,4 +1,7 @@
+import io
+
 import httpx
+from pypdf import PdfWriter
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.user import User
@@ -9,6 +12,16 @@ from sparkth.main import assemble_app
 
 UPLOAD = "/api/v1/parser/upload"
 TEXT_FILE = {"file": ("notes.txt", b"hello", "text/plain")}
+THREE_MB = 3 * 1024 * 1024
+
+
+def blank_pdf() -> bytes:
+    """A one-page PDF with no text on it."""
+    writer = PdfWriter()
+    writer.add_blank_page(width=200, height=200)
+    buffer = io.BytesIO()
+    writer.write(buffer)
+    return buffer.getvalue()
 
 
 async def revoke_own_role(session: AsyncSession) -> None:
@@ -63,3 +76,30 @@ async def test_upload_asks_an_anonymous_caller_to_log_in(client: httpx.AsyncClie
     response = await client.post(UPLOAD, files=TEXT_FILE)
 
     assert response.status_code == 401
+
+
+async def test_upload_accepts_a_file_of_3mb(client: httpx.AsyncClient, current_user: User) -> None:
+    response = await client.post(UPLOAD, files={"file": ("notes.txt", b"a" * THREE_MB, "text/plain")})
+
+    assert response.status_code == 200
+
+
+async def test_upload_refuses_a_file_over_3mb(client: httpx.AsyncClient, current_user: User) -> None:
+    response = await client.post(UPLOAD, files={"file": ("notes.txt", b"a" * (THREE_MB + 1), "text/plain")})
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "File size exceeds 3MB limit"}
+
+
+async def test_upload_refuses_a_text_file_with_no_text(client: httpx.AsyncClient, current_user: User) -> None:
+    response = await client.post(UPLOAD, files={"file": ("notes.txt", b"  \n\t ", "text/plain")})
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "No text could be read from this file"}
+
+
+async def test_upload_refuses_a_pdf_with_no_text(client: httpx.AsyncClient, current_user: User) -> None:
+    response = await client.post(UPLOAD, files={"file": ("scan.pdf", blank_pdf(), "application/pdf")})
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "No text could be read from this file"}
