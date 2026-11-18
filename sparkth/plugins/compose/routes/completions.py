@@ -39,13 +39,17 @@ from sparkth.plugins.compose.config import ComposeSettings, get_compose_settings
 from sparkth.plugins.compose.constants import LLM_PROVIDER_API_ERRORS
 from sparkth.plugins.compose.conversation_title import extract_title_from_messages, schedule_title_generation
 from sparkth.plugins.compose.enums import PlannerModel
-from sparkth.plugins.compose.exceptions import RAGSearchError
+from sparkth.plugins.compose.exceptions import ConversationBusy, RAGSearchError
 from sparkth.plugins.compose.llm import complete_turn
 from sparkth.plugins.compose.messages import get_last_user_text
 from sparkth.plugins.compose.permissions import CONVERSATION_WRITE
 from sparkth.plugins.compose.routes.dependencies import get_turn_owner_id
 from sparkth.plugins.compose.routes.utils import resolve_tools
-from sparkth.plugins.compose.routes.utils.live_turns import request_stop
+from sparkth.plugins.compose.routes.utils.live_turns import (
+    claim_conversation,
+    release_conversation,
+    request_stop,
+)
 from sparkth.plugins.compose.routes.utils.message_assembly import assemble_provider_messages
 from sparkth.plugins.compose.routes.utils.stream_processor import (
     ComposeStreamProcessor,
@@ -196,38 +200,44 @@ async def compose_completion(
         # completed, which for a streamed turn is after the whole stream.
         turn_analytics.schedule_conversation_started(occurred_at=conversation.created_at)
 
-    if request.document_ids:
-        attached = await service.attach_owned_documents(session, conversation_id, request.document_ids, int(owner_id))
-        for attachment in attached.created:
-            attachment_analytics.schedule_document_attached(
-                document_id=attachment.document_id,
-                source="completion_request",
-                occurred_at=attachment.attached_at,
-            )
-        if attached.skipped_count:
-            # The instructor named documents that were dropped and the reply says nothing
-            # about it, so this is the only record that their turn was not what they asked
-            # for. Nothing records the moment, so it is stamped here.
-            attachment_analytics.schedule_documents_skipped(
-                requested_count=attached.requested_count,
-                skipped_count=attached.skipped_count,
-                occurred_at=datetime.now(timezone.utc),
-            )
-    incoming_messages = await service.add_incoming_messages(session, conversation_id, request.messages)
-    for stored in incoming_messages:
-        # Instructor turns only: an assistant turn in the request is history the client
-        # replayed, and assistant output is counted by compose.completion_served instead.
-        if stored.role != "user":
-            continue
-        turn_analytics.schedule_message_sent(
-            message_length=len(stored.content),
-            has_attachment=stored.message_type == "attachment",
-            occurred_at=stored.created_at,
-        )
-
-    db_messages = await service.get_conversation_messages(session=session, conversation_id=conversation_id)
-
+    if not claim_conversation(str(conversation.uuid)):
+        raise ConversationBusy(_("A reply is still being generated in this conversation. Wait for it to finish."))
+    # A streamed turn frees the conversation itself, when its stream task ends.
+    stream_owns_claim = False
     try:
+        if request.document_ids:
+            attached = await service.attach_owned_documents(
+                session, conversation_id, request.document_ids, int(owner_id)
+            )
+            for attachment in attached.created:
+                attachment_analytics.schedule_document_attached(
+                    document_id=attachment.document_id,
+                    source="completion_request",
+                    occurred_at=attachment.attached_at,
+                )
+            if attached.skipped_count:
+                # The instructor named documents that were dropped and the reply says nothing
+                # about it, so this is the only record that their turn was not what they asked
+                # for. Nothing records the moment, so it is stamped here.
+                attachment_analytics.schedule_documents_skipped(
+                    requested_count=attached.requested_count,
+                    skipped_count=attached.skipped_count,
+                    occurred_at=datetime.now(timezone.utc),
+                )
+        incoming_messages = await service.add_incoming_messages(session, conversation_id, request.messages)
+        for stored in incoming_messages:
+            # Instructor turns only: an assistant turn in the request is history the client
+            # replayed, and assistant output is counted by compose.completion_served instead.
+            if stored.role != "user":
+                continue
+            turn_analytics.schedule_message_sent(
+                message_length=len(stored.content),
+                has_attachment=stored.message_type == "attachment",
+                occurred_at=stored.created_at,
+            )
+
+        db_messages = await service.get_conversation_messages(session=session, conversation_id=conversation_id)
+
         # The search classifier judges the message against these.
         conversation_documents = await service.list_conversation_attachments(
             session=session, conversation_id=conversation_id
@@ -301,6 +311,7 @@ async def compose_completion(
                 agents=agents,
                 planner_llm=planner_llm,
             )
+            stream_owns_claim = True
             return StreamingResponse(
                 # The stream task outlives this response — it writes its analytics after the
                 # SSE sentinel — so the holder keeps it referenced until it finishes.
@@ -390,6 +401,9 @@ async def compose_completion(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=_("Chat completion failed"),
         ) from e
+    finally:
+        if not stream_owns_claim:
+            release_conversation(str(conversation.uuid))
 
 
 @router.post("/turns/{turn_id}/stop", status_code=status.HTTP_204_NO_CONTENT)

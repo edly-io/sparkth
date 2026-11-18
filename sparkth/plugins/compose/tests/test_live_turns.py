@@ -1,9 +1,12 @@
-"""The registry that lets a stop request reach the turn it names."""
+"""The registry that lets a stop request reach the turn it names, and keeps a conversation to one turn."""
 
 import pytest
 
+from sparkth.plugins.compose.config import ComposeSettings
 from sparkth.plugins.compose.routes.utils.live_turns import (
+    claim_conversation,
     register_turn,
+    release_conversation,
     release_turn,
     request_stop,
 )
@@ -70,3 +73,51 @@ async def test_releasing_one_users_turn_leaves_the_others_live() -> None:
         assert request_stop("shared-id-2", user_id=8) is True
     finally:
         release_turn("shared-id-2", user_id=8)
+
+
+def test_a_claimed_conversation_cannot_be_claimed_again() -> None:
+    assert claim_conversation("conversation-101") is True
+    try:
+        assert claim_conversation("conversation-101") is False
+    finally:
+        release_conversation("conversation-101")
+
+
+def test_a_released_conversation_can_be_claimed_again() -> None:
+    claim_conversation("conversation-102")
+    release_conversation("conversation-102")
+    try:
+        assert claim_conversation("conversation-102") is True
+    finally:
+        release_conversation("conversation-102")
+
+
+def test_claiming_one_conversation_leaves_another_free() -> None:
+    claim_conversation("conversation-103")
+    try:
+        assert claim_conversation("conversation-104") is True
+    finally:
+        release_conversation("conversation-103")
+        release_conversation("conversation-104")
+
+
+def test_releasing_an_unclaimed_conversation_is_harmless() -> None:
+    release_conversation("conversation-105")
+
+
+def test_a_claim_that_is_never_released_lapses_after_the_configured_time(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A stream that never starts has nothing to release its claim, so the claim ends itself."""
+    clock = [1000.0]
+    monkeypatch.setattr("sparkth.plugins.compose.routes.utils.live_turns.monotonic", lambda: clock[0])
+    monkeypatch.setattr(
+        "sparkth.plugins.compose.routes.utils.live_turns.get_compose_settings",
+        lambda: ComposeSettings(conversation_claim_seconds=5),
+    )
+    claim_conversation("conversation-106")
+    try:
+        clock[0] += 4
+        assert claim_conversation("conversation-106") is False
+        clock[0] += 1
+        assert claim_conversation("conversation-106") is True
+    finally:
+        release_conversation("conversation-106")

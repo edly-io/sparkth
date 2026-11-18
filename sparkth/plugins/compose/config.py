@@ -21,6 +21,8 @@ class ComposeSettings(BaseSettings):
     planner_model: PlannerModel = PlannerModel.SMALL
     # How long a streamed turn may stay silent before a keep-alive comment is sent, in seconds.
     stream_heartbeat_seconds: float = 15
+    # How long a conversation stays claimed by a reply that never frees it, in seconds.
+    conversation_claim_seconds: float = 600
     title_max_length: int = 60
     title_prompt_max_chars: int = 500
     title_llm_max_tokens: int = 20

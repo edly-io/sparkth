@@ -21,7 +21,7 @@ from sparkth.plugins.compose.analytics import events
 from sparkth.plugins.compose.analytics.reads import SUMMARY_FIGURES_COMPOSE
 from sparkth.plugins.compose.config import ComposeUserConfig
 from sparkth.plugins.compose.constants import COMPOSE_PLUGIN_NAME
-from sparkth.plugins.compose.exceptions import ConversationNotFound, DocumentNotFound
+from sparkth.plugins.compose.exceptions import ConversationBusy, ConversationNotFound, DocumentNotFound
 from sparkth.plugins.compose.models import (  # noqa: F401 — registers tables in SQLModel metadata for Alembic
     Conversation,
     Message,
@@ -33,6 +33,7 @@ logger = get_logger(__name__)
 
 # Registered here rather than in ComposePlugin.__init__: a second registration of the same
 # type raises, and the plugin class is instantiated more than once across a test session.
+register_exception_handler(ConversationBusy, status.HTTP_409_CONFLICT)
 register_exception_handler(ConversationNotFound, status.HTTP_404_NOT_FOUND)
 register_exception_handler(DocumentNotFound, status.HTTP_404_NOT_FOUND)
 
