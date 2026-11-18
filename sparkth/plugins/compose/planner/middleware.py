@@ -1,9 +1,9 @@
-"""The planner's middleware: one call per reply, a limit on steps, a limit on rejected calls and no
-repeat hand-off."""
+"""The planner's middleware: one call per reply, a limit on steps, a limit on rejected calls, no
+repeat hand-off and no step after an agent's choices."""
 
 from typing import Any
 
-from langchain.agents.middleware import AgentState, after_model
+from langchain.agents.middleware import AgentState, after_model, before_model
 from langchain_core.messages import AIMessage, AnyMessage, ToolCall, ToolMessage
 from langgraph.runtime import Runtime
 
@@ -12,8 +12,12 @@ from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME
 from sparkth.lib.i18n import gettext
 from sparkth.lib.log import get_logger
 from sparkth.plugins.compose.constants import MAX_REJECTED_PLANNER_CALLS, MAX_STEPS_PER_TURN, STOPPED_EARLY_NOTICE
+from sparkth.plugins.compose.enums import OptionsFence
 
 logger = get_logger(__name__)
+
+# The lines that open a block of choices in a reply.
+_CHOICES_FENCES = tuple(f"```{fence}" for fence in OptionsFence)
 
 
 def _with_calls(reply: AIMessage, kept: list[ToolCall]) -> AIMessage:
@@ -108,4 +112,36 @@ def enforce_rejected_call_limit(state: AgentState[Any], runtime: Runtime[AuditMo
                 )
             ],
         }
+    return None
+
+
+def _agent_reply_ends_with_choices(reply: str) -> bool:
+    """Whether ``reply`` ends with a block of choices for the author, closed or left open."""
+    lines = [line.strip() for line in reply.splitlines()]
+    opening_fences = [index for index, line in enumerate(lines) if line in _CHOICES_FENCES]
+    if not opening_fences:
+        return False
+    # The block starts after the last opening fence.
+    block = lines[opening_fences[-1] + 1 :]
+    close = block.index("```") if "```" in block else len(block)
+    return any(block[:close]) and not any(block[close + 1 :])
+
+
+@before_model(can_jump_to=["end"], name="end_turn_after_agent_offers_choices")
+def end_turn_after_agent_offers_choices(
+    state: AgentState[Any], runtime: Runtime[AuditModelInfo]
+) -> dict[str, Any] | None:
+    """End the turn as it stands, without asking the planner, when an agent's reply ended with
+    choices for the author.
+
+    The author answers them before anything else runs. An operation's result never ends the turn:
+    the author never reads the operator's text.
+    """
+    # The result of a step that has just run, when the last message is one.
+    just_ran = _step_results(state["messages"][-1:])
+    if not just_ran or just_ran[0].name == OPERATOR_AGENT_NAME:
+        return None
+    if _agent_reply_ends_with_choices(just_ran[0].artifact or ""):
+        logger.info("Agent '%s' offered the author choices; the turn ends there", just_ran[0].name)
+        return {"jump_to": "end"}
     return None

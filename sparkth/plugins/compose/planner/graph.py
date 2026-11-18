@@ -12,8 +12,10 @@ from sparkth.lib.audit.events import AuditModelInfo
 from sparkth.lib.compose.constants import PLANNER_AGENT_NAME
 from sparkth.lib.compose.hooks import Agent
 from sparkth.plugins.compose.constants import PLANNER_OPERATIONS, PLANNER_PROMPT, PLANNER_WITHOUT_OPERATIONS
+from sparkth.plugins.compose.enums import OptionsFence
 from sparkth.plugins.compose.planner.middleware import (
     end_at_repeat_hand_off,
+    end_turn_after_agent_offers_choices,
     enforce_rejected_call_limit,
     enforce_step_limit,
     first_hand_off_only,
@@ -27,7 +29,10 @@ def render_planner_prompt(agents: Sequence[Agent], *, operations: bool) -> str:
     saying how to run operations when there are ``operations``, or what to do without them."""
     listed = "\n\n".join(f"## {agent.title}\n{agent.description}" for agent in agents)
     return PLANNER_PROMPT.format(
-        agents=listed, operations=PLANNER_OPERATIONS if operations else PLANNER_WITHOUT_OPERATIONS
+        agents=listed,
+        operations=PLANNER_OPERATIONS if operations else PLANNER_WITHOUT_OPERATIONS,
+        options_tag=OptionsFence.MULTIPLE,
+        single_options_tag=OptionsFence.SINGLE,
     )
 
 
@@ -43,8 +48,9 @@ def build_planner(
     call waits until the reader sets the ``go`` of its ``routed`` or ``tool_start`` event.
     """
     # After-model hooks run in reverse order: a reply is trimmed to one call, checked against each limit,
-    # then checked for a repeat hand-off.
+    # then checked for a repeat hand-off. The before-model hook runs each time before the planner is asked.
     middleware: list[AgentMiddleware[Any, Any, Any]] = [
+        end_turn_after_agent_offers_choices,
         end_at_repeat_hand_off,
         enforce_step_limit,
         enforce_rejected_call_limit,
