@@ -94,7 +94,7 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
     [skipNextLoadRef, router, inputAttachments, token, setError],
   );
 
-  const { handleSend, stopGeneration, isStopping } = useChatStream({
+  const { handleSend, stopGeneration, isStopping, isTurnLive } = useChatStream({
     token,
     llmConfigId,
     modelOverride,
@@ -104,6 +104,7 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
   });
 
   // Every send path runs through this, and it resolves false when it refuses the send.
+  // A refused send keeps the typed message, so a send while a reply is running loses nothing.
   const sendIfAiKeyReady = useCallback(
     async (dispatch: () => void): Promise<boolean> => {
       const problem = await checkAiKeyReady();
@@ -111,10 +112,11 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
         setAiKeyProblem(problem);
         return false;
       }
+      if (isTurnLive()) return false;
       dispatch();
       return true;
     },
-    [checkAiKeyReady],
+    [checkAiKeyReady, isTurnLive],
   );
 
   const handleGuardedSend = useCallback(
