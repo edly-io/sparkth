@@ -7,6 +7,14 @@ the step returns goes back to the planner, which runs the next step or ends the 
 
 from sparkth.plugins.compose.planner.graph import build_planner, render_planner_prompt
 from sparkth.plugins.compose.planner.tools import agent_input
-from sparkth.plugins.compose.planner.types import AgentGraph, TurnRouting
+from sparkth.plugins.compose.planner.types import AgentGraph, OpenPlan, PlannedStep, TurnRouting
 
-__all__ = ["AgentGraph", "TurnRouting", "agent_input", "build_planner", "render_planner_prompt"]
+__all__ = [
+    "AgentGraph",
+    "OpenPlan",
+    "PlannedStep",
+    "TurnRouting",
+    "agent_input",
+    "build_planner",
+    "render_planner_prompt",
+]
