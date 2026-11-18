@@ -1,4 +1,4 @@
-"""Tests for ``GET /api/v1/google-drive/analytics/documents``."""
+"""Tests for the Drive plugin's analytics documents read."""
 
 from datetime import datetime, timezone
 
@@ -13,7 +13,7 @@ from sparkth.lib.permissions.scopes import GLOBAL, PLUGIN, USER
 from sparkth.lib.testing import AuditEventsFetcher, grant_global_permission, grant_permission_at_scope
 from sparkth.plugins.googledrive.constants import GOOGLE_DRIVE_PLUGIN_NAME
 
-URL = "/api/v1/google-drive/analytics/documents"
+URL = f"/api/v1/{GOOGLE_DRIVE_PLUGIN_NAME}/analytics/documents"
 
 
 async def _seed(session: SQLAlchemyAsyncSession, outcome: str, seconds: int) -> None:

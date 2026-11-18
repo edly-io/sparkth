@@ -297,7 +297,7 @@ async def test_endpoint_denies_a_grant_at_another_plugin(
 ) -> None:
     session.add(current_user)
     await session.flush()
-    await grant_permission_at_scope(session, 1, "analytics.read", PLUGIN, "google-drive")
+    await grant_permission_at_scope(session, 1, "analytics.read", PLUGIN, "slack")
     await session.commit()
 
     response = await client.get(URL, params={"from": "2026-03-01", "to": "2026-03-31"})
