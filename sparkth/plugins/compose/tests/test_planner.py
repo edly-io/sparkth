@@ -3,6 +3,7 @@
 from itertools import count, islice, repeat
 from typing import Any, cast
 
+import pytest
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import StructuredTool
 from langgraph.graph.state import CompiledStateGraph
@@ -35,6 +36,7 @@ from sparkth.plugins.compose.tests.helpers import RecordingChatModel
 
 CONTEXT = AuditModelInfo("anthropic", "claude-sonnet-5")
 COULD_NOT_FINISH = "Something went wrong and I couldn't finish this. Please send your message again."
+CHOICES = "Which level?\n\n```options single\nBeginner\nAdvanced\n```"
 SPANISH_REFUSAL = "Solo puedo ayudar con el diseño de cursos."
 
 
@@ -291,6 +293,59 @@ class TestSeveralSteps:
 
         assert len(agent_model.seen) == 1
         assert not cast(AIMessage, messages[-1]).tool_calls
+
+    @pytest.mark.parametrize(
+        "reply",
+        [CHOICES, "Pick any.\n\n```options\nQuiz\nGame\n```\n", "Which level?\n\n```options single\nBeginner"],
+        ids=["one_answer", "several_answers", "block_left_open"],
+    )
+    async def test_the_turn_ends_when_an_agent_offered_the_author_choices(self, reply: str) -> None:
+        """The author answers the agent's question before anything else happens: no step runs and
+        the planner is not asked again."""
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "An outline")]),
+            AIMessage("", tool_calls=[_hand_off(OTHER_AGENT.name, "An activity", "call_2")]),
+        )
+        other_model = RecordingChatModel(messages=repeat(AIMessage("Here is the activity.")))
+
+        await _run(
+            planner_model,
+            _agent_graph(STUB_AGENT, ScriptedChatModel(messages=iter([AIMessage(reply)]))),
+            _agent_graph(OTHER_AGENT, other_model),
+        )
+
+        assert other_model.seen == []
+        assert len(planner_model.seen) == 1
+
+    async def test_choices_before_the_end_of_an_agents_reply_do_not_hold_the_next_step(self) -> None:
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "An outline")]),
+            AIMessage("", tool_calls=[_hand_off(OTHER_AGENT.name, "An activity", "call_2")]),
+        )
+        other_model = RecordingChatModel(messages=repeat(AIMessage("Here is the activity.")))
+
+        await _run(
+            planner_model,
+            _agent_graph(
+                STUB_AGENT, ScriptedChatModel(messages=iter([AIMessage(f"{CHOICES}\n\nI went with Beginner.")]))
+            ),
+            _agent_graph(OTHER_AGENT, other_model),
+        )
+
+        assert len(other_model.seen) == 1
+
+    async def test_an_operation_runs_after_one_whose_result_ends_with_choices(self) -> None:
+        """The author never reads the operator's text, so it has asked them nothing."""
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[_operation("Retrieve the course", "op_1")]),
+            AIMessage("", tool_calls=[_operation("Publish a copy", "op_2")]),
+            AIMessage("A copy is published."),
+        )
+        operator_model = RecordingChatModel(messages=repeat(AIMessage(CHOICES)))
+
+        await _run(planner_model, operator=_operator(operator_model))
+
+        assert len(operator_model.seen) == 2
 
     async def test_two_operations_in_a_row_both_run(self) -> None:
         planner_model = _planner_model(

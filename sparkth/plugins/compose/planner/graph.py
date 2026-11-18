@@ -17,6 +17,7 @@ from sparkth.plugins.compose.planner.middleware import (
     enforce_step_limit,
     first_hand_off_only,
     no_repeat_hand_off,
+    no_step_after_choices,
 )
 from sparkth.plugins.compose.planner.tools import REFUSE_TOOL, build_handoff_tool, build_operator_tool
 from sparkth.plugins.compose.planner.types import AgentGraph
@@ -43,8 +44,9 @@ def build_planner(
     call waits until the reader sets the ``go`` of its ``routed`` or ``tool_start`` event.
     """
     # After-model hooks run in reverse order: a reply is trimmed to one call, checked against each limit,
-    # then checked for a repeat hand-off.
+    # then checked for a repeat hand-off. The before-model hook runs each time before the planner is asked.
     middleware: list[AgentMiddleware[Any, Any, Any]] = [
+        no_step_after_choices,
         no_repeat_hand_off,
         enforce_step_limit,
         enforce_rejected_call_limit,

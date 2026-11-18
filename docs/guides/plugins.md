@@ -779,10 +779,10 @@ system-wide or by the user contributes no agent and no tools.
   What each step returns goes back to the planner, which runs the next part the author asked for, up
   to a fixed limit of steps a message, without asking between them. Each agent's reply streams as it
   is written, and a later step reads what earlier steps returned. An agent's question or choices are
-  the last thing the author reads, and their answer continues that work; after an operation the
-  planner says briefly what was done. All of a turn's replies are stored as one reply, which lists
-  its steps; when a step fails, what was written before it is kept as a reply marked as interrupted,
-  followed by the error.
+  the last thing the author reads, and their answer continues that work: a reply that ends with
+  choices ends the turn, whatever was left to run. After an operation the planner says briefly what
+  was done. All of a turn's replies are stored as one reply, which lists its steps; when a step
+  fails, what was written before it is kept as a reply marked as interrupted, followed by the error.
 
 Plugin-specific knowledge belongs in a `<prefix>about` tool, not in an agent's `prompt`;
 see the LMS `about` tool [above](#lms-plugins-tools-without-credentials) for the convention.
