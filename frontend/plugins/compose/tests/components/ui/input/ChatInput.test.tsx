@@ -35,7 +35,7 @@ vi.mock("@/plugins/compose/src/hooks/useChatInput", () => ({
     setPickingFrom,
     uploadError: null,
     setUploadError,
-    handleUploadAsText: vi.fn(),
+    handleUploadFromComputer: vi.fn(),
     handleDocumentsSelected,
     handleRemoveAttachment: vi.fn(),
     canSend,

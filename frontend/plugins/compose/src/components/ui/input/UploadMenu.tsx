@@ -1,5 +1,6 @@
 import { FileText } from "lucide-react";
 import { useRef } from "react";
+import { useTranslations } from "next-intl";
 import { ATTACHMENT_SOURCES, type AttachmentSource } from "@/plugins/compose/src/slots/attachments";
 import { Button } from "@/lib/components/ui/Button";
 import { usePlugin } from "@/lib/plugins/context";
@@ -7,7 +8,8 @@ import { slotItems } from "@/lib/slots";
 
 interface UploadMenuProps {
   onClose: () => void;
-  onUploadText: (file: File) => void;
+  /** Uploads the files picked from the user's computer. */
+  onUploadFromComputer: (files: File[]) => void;
   /** Opens the chosen source's picker. */
   onPickSource: (source: AttachmentSource) => void;
 }
@@ -39,10 +41,11 @@ function SourceItem({
 }
 
 /**
- * Compose's attach menu: a file from the user's computer, then one entry for each attachment
- * source whose plugin is enabled.
+ * Compose's attach menu: files from the user's computer, then one entry for each attachment source
+ * whose plugin is enabled.
  */
-export function UploadMenu({ onClose, onUploadText, onPickSource }: UploadMenuProps) {
+export function UploadMenu({ onClose, onUploadFromComputer, onPickSource }: UploadMenuProps) {
+  const t = useTranslations("compose");
   const inputRef = useRef<HTMLInputElement>(null);
   return (
     <>
@@ -52,11 +55,12 @@ export function UploadMenu({ onClose, onUploadText, onPickSource }: UploadMenuPr
         ref={inputRef}
         type="file"
         accept=".txt,.pdf"
+        multiple
         hidden
         onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) {
-            onUploadText(file);
+          const files = Array.from(e.target.files ?? []);
+          if (files.length > 0) {
+            onUploadFromComputer(files);
             onClose();
           }
         }}
@@ -70,7 +74,7 @@ export function UploadMenu({ onClose, onUploadText, onPickSource }: UploadMenuPr
           className="w-full !justify-start gap-3 rounded-none"
         >
           <FileText className="w-5 h-5" />
-          <span className="text-left">Select File</span>
+          <span className="text-left">{t("selectFiles")}</span>
         </Button>
         {slotItems(ATTACHMENT_SOURCES).map(([plugin, source], index) => (
           <SourceItem

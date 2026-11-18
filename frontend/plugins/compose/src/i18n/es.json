@@ -32,6 +32,12 @@
     "attachedFileCount": "{count, plural, one {# archivo adjunto} other {# archivos adjuntos}}",
     "removeAttachedFile": "Quitar archivo",
     "uploadingFile": "Subiendo archivo",
-    "uploadingFileProgress": "Subiendo archivo ({current} de {total})"
+    "uploadingFileProgress": "Subiendo archivo ({current} de {total})",
+    "selectFiles": "Seleccionar archivos",
+    "uploadLimitExceeded": "Estos archivos superarían el límite de {limitMb} MB de la conversación.",
+    "uploadSkippedDuplicates": "{count, plural, one {El archivo ya está adjunto.} other {Los archivos ya están adjuntos.}}",
+    "uploadFailed": "No se pudo subir \"{name}\": {reason}",
+    "attachFailed": "No se pudo adjuntar \"{name}\". Inténtalo de nuevo.",
+    "detachFailed": "No se pudo quitar \"{name}\". Inténtalo de nuevo."
   }
 }

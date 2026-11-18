@@ -49,7 +49,7 @@ export function ChatInput({
     setPickingFrom,
     uploadError,
     setUploadError,
-    handleUploadAsText,
+    handleUploadFromComputer,
     handleDocumentsSelected,
     handleRemoveAttachment,
     canSend,
@@ -133,7 +133,7 @@ export function ChatInput({
               {showUploadMenu && (
                 <UploadMenu
                   onClose={() => setShowUploadMenu(false)}
-                  onUploadText={handleUploadAsText}
+                  onUploadFromComputer={handleUploadFromComputer}
                   onPickSource={setPickingFrom}
                 />
               )}

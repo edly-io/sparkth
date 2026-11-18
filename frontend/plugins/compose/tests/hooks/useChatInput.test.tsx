@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -7,6 +7,8 @@ import { attachDocument, detachDocument } from "@/plugins/compose/src/client";
 import type { TextAttachment } from "@/plugins/compose/src/types";
 import { uploadFile, type UploadResponse } from "@/plugins/compose/src/upload";
 import type { AttachmentSource } from "@/plugins/compose/src/slots/attachments";
+import composeEn from "@/plugins/compose/src/i18n/en.json";
+import { IntlTestProvider } from "@/lib/testing/intl";
 
 vi.mock("@/plugins/compose/src/client", () => ({
   attachDocument: vi.fn(() => Promise.resolve()),
@@ -17,24 +19,31 @@ vi.mock("@/plugins/compose/src/upload", () => ({
   uploadFile: vi.fn(() => Promise.resolve({ filename: "notes.txt", length: 5, text: "Week 1" })),
 }));
 
+function wrapper({ children }: { children: ReactNode }) {
+  return <IntlTestProvider messages={composeEn}>{children}</IntlTestProvider>;
+}
+
 function setup(accepted: boolean) {
   const onSend = vi.fn(() => Promise.resolve(accepted));
-  const { result } = renderHook(() => {
-    const [message, setMessage] = useState("");
-    return {
-      message,
-      setMessage,
-      ...useChatInput({
+  const { result } = renderHook(
+    () => {
+      const [message, setMessage] = useState("");
+      return {
         message,
         setMessage,
-        token: "test-token",
-        conversationId: null,
-        attachments: [],
-        setAttachments: vi.fn(),
-        onSend,
-      }),
-    };
-  });
+        ...useChatInput({
+          message,
+          setMessage,
+          token: "test-token",
+          conversationId: null,
+          attachments: [],
+          setAttachments: vi.fn(),
+          onSend,
+        }),
+      };
+    },
+    { wrapper },
+  );
   return { result, onSend };
 }
 
@@ -67,21 +76,24 @@ describe("useChatInput — a refused send", () => {
 });
 
 function setupWithAttachments(conversationId: string | null, initial: TextAttachment[] = []) {
-  const { result } = renderHook(() => {
-    const [attachments, setAttachments] = useState<TextAttachment[]>(initial);
-    return {
-      attachments,
-      ...useChatInput({
-        message: "",
-        setMessage: vi.fn(),
-        token: "test-token",
-        conversationId,
+  const { result } = renderHook(
+    () => {
+      const [attachments, setAttachments] = useState<TextAttachment[]>(initial);
+      return {
         attachments,
-        setAttachments,
-        onSend: vi.fn(() => Promise.resolve(true)),
-      }),
-    };
-  });
+        ...useChatInput({
+          message: "",
+          setMessage: vi.fn(),
+          token: "test-token",
+          conversationId,
+          attachments,
+          setAttachments,
+          onSend: vi.fn(() => Promise.resolve(true)),
+        }),
+      };
+    },
+    { wrapper },
+  );
   return { result };
 }
 
@@ -181,7 +193,7 @@ describe("useChatInput — files uploaded from the computer", () => {
     const { result } = setupWithAttachments(null);
 
     await act(async () => {
-      await result.current.handleUploadAsText(new File(["Week 1"], "notes.txt"));
+      await result.current.handleUploadFromComputer([new File(["Week 1"], "notes.txt")]);
     });
 
     expect(result.current.attachments).toEqual([
@@ -206,7 +218,7 @@ describe("useChatInput — files uploaded from the computer", () => {
 
     let upload: Promise<void> = Promise.resolve();
     act(() => {
-      upload = result.current.handleUploadAsText(new File(["Week 1"], "notes.txt"));
+      upload = result.current.handleUploadFromComputer([new File(["Week 1"], "notes.txt")]);
     });
 
     expect(result.current.attachments).toEqual([
@@ -228,17 +240,19 @@ describe("useChatInput — files uploaded from the computer", () => {
     const { result } = setupWithAttachments(null);
 
     await act(async () => {
-      await result.current.handleUploadAsText(new File(["x"], "notes.docx"));
+      await result.current.handleUploadFromComputer([new File(["x"], "notes.docx")]);
     });
 
     expect(result.current.attachments).toEqual([]);
-    expect(result.current.uploadError).toBe("Only .txt and .pdf files are supported");
+    expect(result.current.uploadError).toBe(
+      'Failed to upload "notes.docx": Only .txt and .pdf files are supported',
+    );
   });
 
   it("removes only the uploaded file and leaves documents attached", async () => {
     const { result } = setupWithAttachments("conversation-1", [attachedDocument]);
     await act(async () => {
-      await result.current.handleUploadAsText(new File(["Week 1"], "notes.txt"));
+      await result.current.handleUploadFromComputer([new File(["Week 1"], "notes.txt")]);
     });
     const uploadedFile = result.current.attachments[1];
 
@@ -258,6 +272,98 @@ describe("useChatInput — files uploaded from the computer", () => {
   });
 });
 
+describe("useChatInput — picking several files from the computer", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const MB = 1024 * 1024;
+  const fileOfSize = (name: string, bytes: number) => new File([new Uint8Array(bytes)], name);
+  const listedFile = (name: string, size: number): TextAttachment => ({
+    name,
+    size,
+    text: "Week 1",
+    uploadId: `upload-${name}`,
+  });
+
+  it("uploads every picked file", async () => {
+    const { result } = setupWithAttachments(null);
+
+    await act(async () => {
+      await result.current.handleUploadFromComputer([
+        new File(["Week 1"], "notes.txt"),
+        new File(["Week 2"], "outline.txt"),
+      ]);
+    });
+
+    expect(uploadFile).toHaveBeenCalledTimes(2);
+    expect(result.current.attachments.map((a) => [a.name, a.isUploading])).toEqual([
+      ["notes.txt", false],
+      ["outline.txt", false],
+    ]);
+  });
+
+  it("rejects the whole selection when it goes over 3 MB", async () => {
+    const { result } = setupWithAttachments(null);
+
+    await act(async () => {
+      await result.current.handleUploadFromComputer([
+        fileOfSize("week1.pdf", 2 * MB),
+        fileOfSize("week2.pdf", 2 * MB),
+      ]);
+    });
+
+    expect(uploadFile).not.toHaveBeenCalled();
+    expect(result.current.attachments).toEqual([]);
+    expect(result.current.uploadError).toBe(
+      "These files would take the conversation over its 3 MB limit.",
+    );
+  });
+
+  it("counts uploads already sent toward the limit", async () => {
+    const { result } = setupWithAttachments(null, [
+      { ...listedFile("week1.pdf", 2 * MB), isSent: true },
+    ]);
+
+    await act(async () => {
+      await result.current.handleUploadFromComputer([fileOfSize("week2.pdf", 2 * MB)]);
+    });
+
+    expect(uploadFile).not.toHaveBeenCalled();
+    expect(result.current.uploadError).toBe(
+      "These files would take the conversation over its 3 MB limit.",
+    );
+  });
+
+  it("does not count documents toward the limit", async () => {
+    const { result } = setupWithAttachments(null, [
+      { name: "drive.pdf", size: 5 * MB, text: "[File: drive.pdf]", documentId: 7 },
+    ]);
+
+    await act(async () => {
+      await result.current.handleUploadFromComputer([fileOfSize("week2.pdf", 2 * MB)]);
+    });
+
+    expect(uploadFile).toHaveBeenCalledOnce();
+    expect(result.current.uploadError).toBeNull();
+  });
+
+  it("skips a file already listed, even one already sent, and says so", async () => {
+    const { result } = setupWithAttachments(null, [
+      { ...listedFile("notes.txt", 6), isSent: true },
+    ]);
+
+    await act(async () => {
+      await result.current.handleUploadFromComputer([
+        new File(["Week 1"], "notes.txt"),
+        new File(["Week 2"], "outline.txt"),
+      ]);
+    });
+
+    expect(uploadFile).toHaveBeenCalledOnce();
+    expect(result.current.attachments.map((a) => a.name)).toEqual(["notes.txt", "outline.txt"]);
+    expect(result.current.uploadError).toBe("File already attached.");
+  });
+});
+
 describe("useChatInput — sending computer uploads", () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -270,21 +376,24 @@ describe("useChatInput — sending computer uploads", () => {
 
   function setupSend(initial: TextAttachment[]) {
     const onSend = vi.fn(() => Promise.resolve(true));
-    const { result } = renderHook(() => {
-      const [attachments, setAttachments] = useState<TextAttachment[]>(initial);
-      return {
-        attachments,
-        ...useChatInput({
-          message: "Summarise this",
-          setMessage: vi.fn(),
-          token: "test-token",
-          conversationId: "conversation-1",
+    const { result } = renderHook(
+      () => {
+        const [attachments, setAttachments] = useState<TextAttachment[]>(initial);
+        return {
           attachments,
-          setAttachments,
-          onSend,
-        }),
-      };
-    });
+          ...useChatInput({
+            message: "Summarise this",
+            setMessage: vi.fn(),
+            token: "test-token",
+            conversationId: "conversation-1",
+            attachments,
+            setAttachments,
+            onSend,
+          }),
+        };
+      },
+      { wrapper },
+    );
     return { result, onSend };
   }
 
@@ -317,16 +426,18 @@ describe("useChatInput — when a message can be sent", () => {
 
   function setupCanSend(message: string, attachments: TextAttachment[]) {
     const onSend = vi.fn(() => Promise.resolve(true));
-    const { result } = renderHook(() =>
-      useChatInput({
-        message,
-        setMessage: vi.fn(),
-        token: "test-token",
-        conversationId: null,
-        attachments,
-        setAttachments: vi.fn(),
-        onSend,
-      }),
+    const { result } = renderHook(
+      () =>
+        useChatInput({
+          message,
+          setMessage: vi.fn(),
+          token: "test-token",
+          conversationId: null,
+          attachments,
+          setAttachments: vi.fn(),
+          onSend,
+        }),
+      { wrapper },
     );
     return { result, onSend };
   }
