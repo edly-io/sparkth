@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: sparkth 0.1.11\n"
 "Report-Msgid-Bugs-To: https://github.com/edly-io/sparkth/issues\n"
-"POT-Creation-Date: 2026-10-07 13:46+0500\n"
+"POT-Creation-Date: 2026-11-16 11:39+0500\n"
 "PO-Revision-Date: 2026-09-07 20:12+0500\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: es\n"
@@ -18,15 +18,20 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: sparkth/plugins/pxc/plugin.py:85
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/pxc/agent.py:17
+msgid "Building your activity…"
+msgstr "Creando tu actividad…"
+
+#: sparkth/plugins/pxc/plugin.py:74
 msgid "PXC Activities"
 msgstr "Actividades PXC"
 
-#: sparkth/plugins/pxc/plugin.py:86
+#: sparkth/plugins/pxc/plugin.py:75
 msgid "Portable, sandboxed learning activities hosted by Sparkth"
 msgstr "Actividades de aprendizaje portátiles y aisladas alojadas en Sparkth"
 
-#: sparkth/plugins/pxc/plugin.py:89
+#: sparkth/plugins/pxc/plugin.py:78
 msgid "Activities"
 msgstr "Actividades"
 
