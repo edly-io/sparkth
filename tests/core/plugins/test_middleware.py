@@ -29,13 +29,12 @@ from sparkth.core.routes import get_route_plugin_name
 from sparkth.core.security import create_access_token
 from sparkth.lib.testing import grant_global_permission
 from sparkth.main import assemble_app
-from sparkth.plugins.googledrive.constants import GOOGLE_DRIVE_PLUGIN_NAME
 
 COMPOSE_COMPLETIONS_PATH = "/api/v1/compose/completions"
 SLACK_CALLBACK_PATH = "/api/v1/slack/oauth/callback"
 ANALYTICS_READS = [
     ("compose", "/api/v1/compose/analytics/activity"),
-    (GOOGLE_DRIVE_PLUGIN_NAME, f"/api/v1/{GOOGLE_DRIVE_PLUGIN_NAME}/analytics/documents"),
+    ("googledrive", "/api/v1/googledrive/analytics/documents"),
 ]
 ANALYTICS_RANGE = {"from": "2026-03-01", "to": "2026-03-31"}
 
@@ -159,7 +158,7 @@ class TestRoutePluginResolution:
         [
             ("POST", COMPOSE_COMPLETIONS_PATH, "compose"),
             ("GET", "/api/v1/slack/oauth/status", "slack"),
-            ("GET", f"/api/v1/{GOOGLE_DRIVE_PLUGIN_NAME}/oauth/status", GOOGLE_DRIVE_PLUGIN_NAME),
+            ("GET", "/api/v1/googledrive/oauth/status", "googledrive"),
         ],
     )
     def test_resolves_the_plugin_that_owns_a_plugin_route(self, method: str, path: str, plugin_name: str) -> None:
