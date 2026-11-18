@@ -5,6 +5,7 @@ Each agent then runs with only the tools it names.
 
 import json
 from collections.abc import AsyncGenerator
+from dataclasses import asdict
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -24,7 +25,7 @@ from sparkth.plugins.compose.config import ComposeSettings, get_compose_settings
 from sparkth.plugins.compose.constants import REFUSAL_MESSAGE
 from sparkth.plugins.compose.enums import PlannerModel
 from sparkth.plugins.compose.models import Conversation
-from sparkth.plugins.compose.planner import TurnRouting, render_planner_prompt
+from sparkth.plugins.compose.planner import PLAN_KEY, OpenPlan, PlannedStep, TurnRouting, render_planner_prompt
 from sparkth.plugins.compose.prompt import render_system_prompt
 from sparkth.plugins.compose.tests.helpers import CANVAS_CONFIG, OPENEDX_CONFIG, answering_model, planning, refusal
 
@@ -158,6 +159,27 @@ class TestThePlannersModel:
         models = await self._models_asked_for(client, session, current_user.id or 1)
 
         assert models == ["gpt-4o", "gpt-4o"]
+
+
+class TestAnUnfinishedPlan:
+    async def test_the_next_message_is_given_the_plan_the_latest_reply_left_open(
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
+    ) -> None:
+        config_id = await _seed_llm_config(session, current_user.id or 1)
+        conversation_uuid = await _seed_conversation(session, current_user.id or 1)
+        plan = OpenPlan((PlannedStep(stub_agent.name, "Write the lesson"), PlannedStep("operator", "Publish it")), 1)
+        reply = {"content": "Who are your learners?", "metadata": {PLAN_KEY: asdict(plan)}, "routing": TurnRouting()}
+
+        with (
+            patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()),
+            patch(
+                "sparkth.plugins.compose.routes.completions.complete_turn", new=AsyncMock(return_value=reply)
+            ) as turn,
+        ):
+            await _turn(client, config_id, conversation_uuid)
+            await _turn(client, config_id, conversation_uuid)
+
+        assert [call.kwargs["open_plan"] for call in turn.await_args_list] == [None, plan]
 
 
 class TestOneAssistantPerTurn:

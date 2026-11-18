@@ -4,7 +4,7 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator, Iterator, Sequence
 from contextlib import aclosing
-from dataclasses import replace
+from dataclasses import asdict, replace
 from functools import partial
 from itertools import repeat
 from typing import Any, cast
@@ -26,7 +26,7 @@ from sparkth.lib.mcp.hooks import Tool
 from sparkth.lib.testing import AddTranslation, ScriptedChatModel
 from sparkth.plugins.compose.constants import MAX_REJECTED_PLANNER_CALLS, MAX_STEPS_PER_TURN, REFUSAL_MESSAGE
 from sparkth.plugins.compose.llm import complete_turn, stream_turn
-from sparkth.plugins.compose.planner import TurnRouting
+from sparkth.plugins.compose.planner import OpenPlan, PlannedStep, TurnRouting
 from sparkth.plugins.compose.tests.conftest import OTHER_AGENT, STUB_AGENT
 from sparkth.plugins.compose.tests.helpers import RecordingChatModel, handing_off_to, planner_answering
 
@@ -454,7 +454,7 @@ def _planner_replying(*replies: AIMessage) -> dict[str, Any]:
     """A turn with the stub agent whose planner replies with ``replies`` in turn, then with nothing, which ends
     the turn."""
     planner = ScriptedChatModel(messages=iter([*replies, AIMessage("")]), disable_streaming=True)
-    return {"agents": [STUB_AGENT], "planner_llm": planner}
+    return {"agents": [STUB_AGENT], "planner_llm": planner, "open_plan": None}
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
@@ -582,6 +582,7 @@ def _two_step_turn(*then: AIMessage) -> dict[str, Any]:
     return {
         "agents": [STUB_AGENT, OTHER_AGENT],
         "planner_llm": ScriptedChatModel(messages=iter(replies), disable_streaming=True),
+        "open_plan": None,
     }
 
 
@@ -753,6 +754,7 @@ async def test_the_plan_shows_first_then_each_steps_reply(stream: bool, monkeypa
     turn = {
         "agents": [STUB_AGENT, OTHER_AGENT],
         "planner_llm": ScriptedChatModel(messages=iter(replies), disable_streaming=True),
+        "open_plan": None,
     }
 
     reply = await _reply(turn, _two_replies(monkeypatch), stream)
@@ -768,3 +770,43 @@ async def test_a_rejected_plan_never_shows(stream: bool, monkeypatch: pytest.Mon
     )
 
     assert await _reply(planner, provider, stream) == "What for?"
+
+
+# The plan the planner of these turns makes: the stub agent writes, then the other agent builds.
+WRITE_THEN_BUILD = (PlannedStep(STUB_AGENT.name, "Write the lesson"), PlannedStep(OTHER_AGENT.name, "Build it"))
+
+
+def _planned_turn(*then: AIMessage, open_plan: OpenPlan | None = None) -> dict[str, Any]:
+    """A turn with the stub and other agents whose planner replies ``then``, carrying on ``open_plan`` if given."""
+    return {
+        "agents": [STUB_AGENT, OTHER_AGENT],
+        "planner_llm": ScriptedChatModel(messages=iter([*then, AIMessage("")]), disable_streaming=True),
+        "open_plan": open_plan,
+    }
+
+
+def _plan_call() -> AIMessage:
+    steps = [_step(step.agent, step.task) for step in WRITE_THEN_BUILD]
+    return _calling(SHOW_PLAN_TOOL_NAME, {"steps": steps}, "plan")
+
+
+async def test_a_turn_that_stops_partway_through_its_plan_leaves_it_open(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = _provider(ScriptedChatModel(messages=iter([AIMessage("Who are your learners?")])), monkeypatch)
+    turn = _planned_turn(_plan_call(), _calling(STUB_AGENT.name, {"request": "Write the lesson", "step": 1}, "c1"))
+
+    response = await complete_turn(TURN, [], provider, 50, **turn)
+
+    assert response["metadata"]["plan"] == asdict(OpenPlan(WRITE_THEN_BUILD, current=1))
+
+
+async def test_a_turn_that_finishes_an_earlier_plan_leaves_none_open(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = _provider(ScriptedChatModel(messages=iter([AIMessage("Here is the activity.")])), monkeypatch)
+    turn = _planned_turn(
+        _calling(OTHER_AGENT.name, {"request": "Build it", "step": 2}, "c1"),
+        open_plan=OpenPlan(WRITE_THEN_BUILD, current=1),
+    )
+
+    response = await complete_turn(TURN, [], provider, 50, **turn)
+
+    assert "plan" not in response["metadata"]
+    assert response["metadata"]["steps"] == [OTHER_AGENT.name]

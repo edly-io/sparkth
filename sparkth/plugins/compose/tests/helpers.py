@@ -23,6 +23,7 @@ from sparkth.lib.models import LLMConfig
 from sparkth.lib.settings import get_settings
 from sparkth.lib.testing import ScriptedChatModel
 from sparkth.plugins.compose.models import Conversation, Message
+from sparkth.plugins.compose.planner import OpenPlan
 
 GOOGLE_INVALID_KEY = "Invalid API key. Please check your Google API key in AI Keys."
 GOOGLE_UNREACHABLE = "Could not reach Google. Please check your network connection."
@@ -50,6 +51,7 @@ async def replay_turn(
     *,
     agents: Sequence[Agent],
     planner_llm: Any,
+    open_plan: OpenPlan | None,
 ) -> AsyncGenerator[dict[str, Any], None]:
     """Stand in for ``stream_turn`` with a turn that streams ``events``.
 
@@ -117,13 +119,14 @@ def refusal() -> AIMessage:
 
 
 def planner_answering(reply: AIMessage, agent: Agent) -> dict[str, Any]:
-    """The ``agents`` and ``planner_llm`` of a turn offering ``agent``, whose planner answers every message
-    with ``reply``."""
-    return {"agents": [agent], "planner_llm": planner_model(reply)}
+    """The ``agents``, ``planner_llm`` and absent ``open_plan`` of a turn offering ``agent``, whose planner
+    answers every message with ``reply``."""
+    return {"agents": [agent], "planner_llm": planner_model(reply), "open_plan": None}
 
 
 def handing_off_to(agent: Agent) -> dict[str, Any]:
-    """The ``agents`` and ``planner_llm`` of a turn whose planner hands every message to ``agent``."""
+    """The ``agents``, ``planner_llm`` and absent ``open_plan`` of a turn whose planner hands every message to
+    ``agent``."""
     return planner_answering(hand_off(agent), agent)
 
 
