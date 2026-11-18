@@ -11,6 +11,7 @@ from sparkth.lib.models import User
 from sparkth.lib.permissions import PLUGIN_USER_ROLE, SPARKTH_USER_ROLE, revoke_role
 from sparkth.lib.permissions.scopes import GLOBAL, PLUGIN, USER
 from sparkth.lib.testing import AuditEventsFetcher, grant_global_permission, grant_permission_at_scope
+from sparkth.plugins.googledrive.analytics.events import GoogleDriveDocumentProcessed
 from sparkth.plugins.googledrive.constants import GOOGLE_DRIVE_PLUGIN_NAME
 
 URL = f"/api/v1/{GOOGLE_DRIVE_PLUGIN_NAME}/analytics/documents"
@@ -19,7 +20,7 @@ URL = f"/api/v1/{GOOGLE_DRIVE_PLUGIN_NAME}/analytics/documents"
 async def _seed(session: SQLAlchemyAsyncSession, outcome: str, seconds: int) -> None:
     await ingest_event(
         session,
-        "google-drive.document_processed",
+        GoogleDriveDocumentProcessed.event_type,
         1,
         {
             "document_id": 1,
