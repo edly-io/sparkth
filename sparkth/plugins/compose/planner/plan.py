@@ -7,7 +7,7 @@ from typing import Any
 from pydantic import TypeAdapter, ValidationError
 
 from sparkth.lib.log import get_logger
-from sparkth.plugins.compose.constants import MAX_STEPS_PER_TURN, PLAN_TASK_MAX_CHARS, PLAN_TASK_PATTERN
+from sparkth.plugins.compose.constants import MAX_PLAN_STEPS, PLAN_TASK_MAX_CHARS, PLAN_TASK_PATTERN
 from sparkth.plugins.compose.planner.types import OpenPlan, PlannedStep
 
 logger = get_logger(__name__)
@@ -48,7 +48,7 @@ def _within_plan_limits(plan: OpenPlan) -> bool:
     """Whether ``plan`` keeps the limits a plan is shown under: as many steps as a plan holds, each
     task one short line, and a latest step of its own."""
     return (
-        2 <= len(plan.steps) <= MAX_STEPS_PER_TURN
+        2 <= len(plan.steps) <= MAX_PLAN_STEPS
         and 1 <= plan.current <= len(plan.steps)
         and all(
             len(step.task) <= PLAN_TASK_MAX_CHARS and re.fullmatch(PLAN_TASK_PATTERN, step.task) is not None

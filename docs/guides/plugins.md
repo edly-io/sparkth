@@ -778,23 +778,25 @@ system-wide or by the user contributes no agent and no tools.
   can need several steps, such as writing a lesson, building an activity for it and publishing both.
   The planner first shows the author its plan, a numbered list of its tasks, each one short line.
   What each step returns goes back to the planner, which runs the next part the author asked for, up
-  to a fixed limit of steps a message, without asking between them. The plan comes before the first
-  step, and from then on every call names the step of the plan it carries out and is rejected if it
-  doesn't fit; each step runs once, in order. Without a plan, an operation runs only as a message's
-  first step. An operation that follows another step is asked for its task as the plan states it,
-  not for what the planner wrote afterwards. So text a step brought in, from an agent's reply or
-  from the LMS, can't start an operation the author wasn't shown, or change what a planned one does.
-  A plan a turn leaves unfinished, because an agent asked the author something, the turn was stopped
-  or failed, or it reached its limit, is kept with the reply until its last step has run, and the
-  next message carries it on from the step in progress; a message about something else drops it, and
-  so does a step left for an agent or operator that is no longer enabled. An operation of a plan
-  carried on this way is always asked for its task as the plan states it. Each agent's reply streams
-  as it is written, and a later step reads what earlier steps returned. An agent's question or
-  choices are the last thing the author reads, and their answer continues that work: a reply that
-  ends with choices ends the turn, whatever was left to run. After an operation the planner says
-  briefly what was done. All of a turn's replies are stored as one reply, which lists its steps;
-  when a step fails, what was written before it is kept as a reply marked as interrupted, followed
-  by the error.
+  to a fixed limit of steps a message, without asking between them. A plan may hold more steps than
+  a message runs. The plan comes before the first step, and from then on every call names the step
+  of the plan it carries out and is rejected if it doesn't fit; each step runs once, in order.
+  Without a plan, an operation runs only as a message's first step. An operation that follows
+  another step is asked for its task as the plan states it, not for what the planner wrote
+  afterwards. So text a step brought in, from an agent's reply or from the LMS, can't start an
+  operation the author wasn't shown, or change what a planned one does. A plan a turn leaves
+  unfinished, because an agent asked the author something or the turn was stopped or failed, is kept
+  with the reply until its last step has run, and the next message carries it on from the step in
+  progress; a message about something else drops it, and so does a step left for an agent or
+  operator that is no longer enabled. An operation of a plan carried on this way is always asked for
+  its task as the plan states it. A message that reaches its limit with steps of the plan left ends
+  with a note Compose writes, not the planner: the tasks done, the tasks left, and the choices to
+  continue or to stop here. The plan then waits at its next step. Each agent's reply streams as it
+  is written, and a later step reads what earlier steps returned. An agent's question or choices are
+  the last thing the author reads, and their answer continues that work: a reply that ends with
+  choices ends the turn, whatever was left to run. After an operation the planner says briefly what
+  was done. All of a turn's replies are stored as one reply, which lists its steps; when a step
+  fails, what was written before it is kept as a reply marked as interrupted, followed by the error.
 
 Plugin-specific knowledge belongs in a `<prefix>about` tool, not in an agent's `prompt`;
 see the LMS `about` tool [above](#lms-plugins-tools-without-credentials) for the convention.

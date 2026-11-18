@@ -35,7 +35,8 @@ class PlannedStep:
 
 @dataclass(frozen=True)
 class OpenPlan:
-    """A plan the author was shown that isn't finished: its steps, and the number of the latest one that started."""
+    """A plan the author was shown that isn't finished: its steps, and the number of the one it is at, the
+    latest that started or the next when the turn stopped at its limit of steps."""
 
     steps: tuple[PlannedStep, ...]
     current: int

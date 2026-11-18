@@ -13,6 +13,7 @@ from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME, PLANNER_AGENT_NAM
 from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.log import get_logger
 from sparkth.plugins.compose.constants import (
+    MAX_PLAN_STEPS,
     MAX_STEPS_PER_TURN,
     PLANNER_OPEN_PLAN,
     PLANNER_OPERATIONS,
@@ -60,13 +61,14 @@ def _step_state(number: int, plan: OpenPlan) -> str:
 def render_planner_prompt(agents: Sequence[Agent], *, operations: bool, open_plan: OpenPlan | None) -> str:
     """The planner's system prompt, listing each of ``agents`` by its title and its description,
     saying how to run operations when there are ``operations``, or what to do without them, giving
-    the most steps a plan may have, and ending with ``open_plan``, a plan from an earlier message that
-    isn't finished, when there is one."""
+    the most steps a plan may have and a message may run, and ending with ``open_plan``, a plan from
+    an earlier message that isn't finished, when there is one."""
     listed = "\n\n".join(f"## {agent.title}\n{agent.description}" for agent in agents)
     prompt = PLANNER_PROMPT.format(
         agents=listed,
         operations=PLANNER_OPERATIONS if operations else PLANNER_WITHOUT_OPERATIONS,
         max_steps=MAX_STEPS_PER_TURN,
+        max_plan_steps=MAX_PLAN_STEPS,
     )
     if open_plan is None:
         return prompt
@@ -102,8 +104,8 @@ def build_planner(
     middleware: list[AgentMiddleware[Any, Any, Any]] = [
         no_step_after_choices,
         no_repeat_hand_off(carried),
-        enforce_step_limit,
-        enforce_rejected_call_limit,
+        enforce_step_limit(carried),
+        enforce_rejected_call_limit(carried),
         first_hand_off_only,
         enforce_plan(carried),
     ]

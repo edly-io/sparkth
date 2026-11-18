@@ -24,7 +24,13 @@ from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME, REFUSAL_TOOL_NAME
 from sparkth.lib.llm import BaseChatProvider, get_provider
 from sparkth.lib.mcp.hooks import Tool
 from sparkth.lib.testing import AddTranslation, ScriptedChatModel
-from sparkth.plugins.compose.constants import MAX_REJECTED_PLANNER_CALLS, MAX_STEPS_PER_TURN, REFUSAL_MESSAGE
+from sparkth.plugins.compose.constants import (
+    MAX_REJECTED_PLANNER_CALLS,
+    MAX_STEPS_PER_TURN,
+    PLAN_CONTINUE_CHOICE,
+    PLAN_STOP_CHOICE,
+    REFUSAL_MESSAGE,
+)
 from sparkth.plugins.compose.llm import complete_turn, stream_turn
 from sparkth.plugins.compose.planner import OpenPlan, PlannedStep, TurnRouting
 from sparkth.plugins.compose.tests.conftest import OTHER_AGENT, STUB_AGENT
@@ -810,3 +816,20 @@ async def test_a_turn_that_finishes_an_earlier_plan_leaves_none_open(monkeypatch
 
     assert "plan" not in response["metadata"]
     assert response["metadata"]["steps"] == [OTHER_AGENT.name]
+
+
+async def test_a_turn_stopped_at_its_limit_leaves_the_plan_waiting_at_the_next_step(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agents = [STUB_AGENT.name, OTHER_AGENT.name] * 4
+    steps = tuple(PlannedStep(agent, f"Part {number}") for number, agent in enumerate(agents, start=1))
+    provider = _provider(ScriptedChatModel(messages=repeat(AIMessage("Here it is."))), monkeypatch)
+    calls = [
+        _calling(agent, {"request": f"Part {number}", "step": number}, f"c{number}")
+        for number, agent in enumerate(agents[: MAX_STEPS_PER_TURN + 1], start=1)
+    ]
+
+    response = await complete_turn(TURN, [], provider, 50, **_planned_turn(*calls, open_plan=OpenPlan(steps, 1)))
+
+    assert response["metadata"]["plan"] == asdict(OpenPlan(steps, current=MAX_STEPS_PER_TURN + 1))
+    assert response["content"].endswith(f"{PLAN_CONTINUE_CHOICE}\n{PLAN_STOP_CHOICE}\n```")
