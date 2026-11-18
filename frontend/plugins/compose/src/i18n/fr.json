@@ -27,6 +27,8 @@
     "historyLoadError": "Impossible de charger les discussions. Veuillez réessayer.",
     "historyToday": "Aujourd'hui",
     "historyYesterday": "Hier",
-    "historyDaysAgo": "{count, plural, one {il y a # jour} other {il y a # jours}}"
+    "historyDaysAgo": "{count, plural, one {il y a # jour} other {il y a # jours}}",
+    "attachedFileCount": "{count, plural, one {# fichier joint} other {# fichiers joints}}",
+    "removeAttachedFile": "Retirer le fichier"
   }
 }

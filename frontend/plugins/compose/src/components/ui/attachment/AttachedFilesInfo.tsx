@@ -1,34 +1,41 @@
 "use client";
 
 import { X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { TextAttachment } from "@/plugins/compose/src/types";
 import { Button } from "@/lib/components/ui/Button";
 import { Popover, PopoverTrigger, PopoverContent } from "@/lib/components/ui/Popover";
 import { truncate, DOCUMENT_DISPLAY_NAME_MAX_CHARS } from "@/plugins/compose/src/displayName";
 
-interface PersistedFilesInfoProps {
+interface AttachedFilesInfoProps {
   attachments: TextAttachment[];
-  onDetachFile: (documentId: number) => void;
+  onRemoveFile: (attachment: TextAttachment) => void;
 }
 
-export function PersistedFilesInfo({ attachments, onDetachFile }: PersistedFilesInfoProps) {
-  const driveAttachments = attachments.filter((a) => a.documentId !== undefined);
+/**
+ * The line above the message box counting the attached files. Opening it lists every file's name,
+ * each with a button that removes it.
+ */
+export function AttachedFilesInfo({ attachments, onRemoveFile }: AttachedFilesInfoProps) {
+  const t = useTranslations("compose");
 
-  if (driveAttachments.length === 0) return null;
-
-  const count = driveAttachments.length;
-  const label = count === 1 ? "1 file" : `${count} files`;
+  if (attachments.length === 0) return null;
 
   return (
     <div className="text-sm text-muted-foreground">
       <Popover>
         <PopoverTrigger asChild>
-          <span className="underline cursor-pointer">{label}</span>
+          <span className="underline cursor-pointer">
+            {t("attachedFileCount", { count: attachments.length })}
+          </span>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-72 p-2">
           <ul className="space-y-1">
-            {driveAttachments.map((file) => (
-              <li key={file.documentId} className="flex items-center justify-between gap-2 text-sm">
+            {attachments.map((file) => (
+              <li
+                key={file.documentId ?? file.uploadId}
+                className="flex items-center justify-between gap-2 text-sm"
+              >
                 <span className="truncate">
                   {truncate(file.name, DOCUMENT_DISPLAY_NAME_MAX_CHARS)}
                 </span>
@@ -36,8 +43,8 @@ export function PersistedFilesInfo({ attachments, onDetachFile }: PersistedFiles
                   variant="ghost"
                   size="sm"
                   className="p-0 h-auto text-muted-foreground hover:text-foreground flex-shrink-0"
-                  title="Remove file"
-                  onClick={() => onDetachFile(file.documentId!)}
+                  title={t("removeAttachedFile")}
+                  onClick={() => onRemoveFile(file)}
                 >
                   <X className="w-4 h-4" />
                 </Button>
@@ -46,7 +53,6 @@ export function PersistedFilesInfo({ attachments, onDetachFile }: PersistedFiles
           </ul>
         </PopoverContent>
       </Popover>
-      {" will be read for relevant context"}
     </div>
   );
 }

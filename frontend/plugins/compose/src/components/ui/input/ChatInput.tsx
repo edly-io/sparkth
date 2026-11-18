@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { Paperclip, ArrowUp, Square, X } from "lucide-react";
 import { UploadMenu } from "@/plugins/compose/src/components/ui/input/UploadMenu";
 import { TextAttachment } from "@/plugins/compose/src/types";
-import { PersistedFilesInfo } from "@/plugins/compose/src/components/ui/attachment/PersistedFilesInfo";
+import { AttachedFilesInfo } from "@/plugins/compose/src/components/ui/attachment/AttachedFilesInfo";
 import { PickerErrorBoundary } from "@/plugins/compose/src/components/ui/input/PickerErrorBoundary";
 import { Button } from "@/lib/components/ui/Button";
 import { useAuth } from "@/lib/auth/hooks";
@@ -99,8 +99,7 @@ export function ChatInput({
           </div>
         )}
 
-        {/* Persisted document info line */}
-        <PersistedFilesInfo attachments={attachments} onDetachFile={handleRemoveAttachment} />
+        <AttachedFilesInfo attachments={attachments} onRemoveFile={handleRemoveAttachment} />
 
         {/* Input box */}
         <div className="relative bg-input border border-border rounded-2xl p-3">

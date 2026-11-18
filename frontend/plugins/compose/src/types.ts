@@ -22,6 +22,7 @@ export interface TextAttachment {
   base64Data?: string;
   mediaType?: string;
   documentId?: number; // Core Document ID used by chat/RAG.
+  uploadId?: string; // Identifies a file uploaded from the computer, which has no document ID.
 }
 
 export type ChatRole = "user" | "assistant";

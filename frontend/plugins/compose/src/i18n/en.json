@@ -27,6 +27,8 @@
     "historyLoadError": "Failed to load conversations. Please try again.",
     "historyToday": "Today",
     "historyYesterday": "Yesterday",
-    "historyDaysAgo": "{count, plural, one {# day ago} other {# days ago}}"
+    "historyDaysAgo": "{count, plural, one {# day ago} other {# days ago}}",
+    "attachedFileCount": "{count, plural, one {# file attached} other {# files attached}}",
+    "removeAttachedFile": "Remove file"
   }
 }

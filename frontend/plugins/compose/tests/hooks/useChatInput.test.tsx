@@ -12,6 +12,10 @@ vi.mock("@/plugins/compose/src/client", () => ({
   detachDocument: vi.fn(() => Promise.resolve()),
 }));
 
+vi.mock("@/plugins/compose/src/upload", () => ({
+  uploadFile: vi.fn(() => Promise.resolve({ filename: "notes.txt", length: 5, text: "Week 1" })),
+}));
+
 function setup(accepted: boolean) {
   const onSend = vi.fn(() => Promise.resolve(accepted));
   const { result } = renderHook(() => {
@@ -159,5 +163,50 @@ describe("useChatInput — documents picked from a source", () => {
 
     await waitFor(() => expect(result.current.attachments).toEqual([]));
     expect(result.current.uploadError).toBe('Failed to attach "notes.pdf". Please try again.');
+  });
+});
+
+describe("useChatInput — files uploaded from the computer", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const attachedDocument: TextAttachment = {
+    name: "drive.pdf",
+    size: 1024,
+    text: "[File: drive.pdf]",
+    documentId: 7,
+  };
+
+  it("adds an uploaded file with its own upload id", async () => {
+    const { result } = setupWithAttachments(null);
+
+    await act(async () => {
+      await result.current.handleUploadAsText(new File(["Week 1"], "notes.txt"));
+    });
+
+    expect(result.current.attachments).toEqual([
+      { name: "notes.txt", size: 6, text: "Week 1", uploadId: expect.any(String) },
+    ]);
+  });
+
+  it("removes only the uploaded file and leaves documents attached", async () => {
+    const { result } = setupWithAttachments("conversation-1", [attachedDocument]);
+    await act(async () => {
+      await result.current.handleUploadAsText(new File(["Week 1"], "notes.txt"));
+    });
+    const uploadedFile = result.current.attachments[1];
+
+    act(() => result.current.handleRemoveAttachment(uploadedFile));
+
+    expect(result.current.attachments).toEqual([attachedDocument]);
+    expect(detachDocument).not.toHaveBeenCalled();
+  });
+
+  it("detaches a removed document from the conversation", () => {
+    const { result } = setupWithAttachments("conversation-1", [attachedDocument]);
+
+    act(() => result.current.handleRemoveAttachment(attachedDocument));
+
+    expect(result.current.attachments).toEqual([]);
+    expect(detachDocument).toHaveBeenCalledWith("test-token", "conversation-1", 7);
   });
 });
