@@ -55,12 +55,14 @@ export function AssistantMessage({
   const isThinking = message.isTyping && !displayText;
   // The sentence belongs to the start of a turn: once any tool call exists the count
   // line above the card carries the state, so the card falls back to the dots.
+  // A running step says what it is doing whether or not its tools have started.
   const statusLine =
-    toolCalls.length > 0
+    message.stepLabel ??
+    (toolCalls.length > 0
       ? null
       : message.statusPhase
         ? statusTexts[message.statusPhase]
-        : t("working");
+        : t("working"));
 
   return (
     <div className="flex gap-4">
@@ -189,7 +191,7 @@ export function AssistantMessage({
           <Card variant="outlined" className="p-4">
             {isThinking ? (
               statusLine ? (
-                <div className="flex items-center gap-2 py-1">
+                <div role="status" className="flex items-center gap-2 py-1">
                   <span className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-pulse" />
                   <p className="text-sm text-muted-foreground">{statusLine}</p>
                 </div>
@@ -210,6 +212,12 @@ export function AssistantMessage({
               <div className="prose prose-neutral dark:prose-invert max-w-none">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
               </div>
+            )}
+
+            {message.isTyping && displayText && message.stepLabel && (
+              <p role="status" className="mt-2 text-xs text-muted-foreground">
+                {message.stepLabel}
+              </p>
             )}
 
             {message.stopped && (

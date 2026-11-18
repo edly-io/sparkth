@@ -55,6 +55,38 @@ describe("AssistantMessage — pending indicator", () => {
   });
 });
 
+describe("AssistantMessage — the running step", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const LABEL = "Building your activity…";
+
+  it("names the step under the text while the reply is being written", () => {
+    renderMessage({ isTyping: true, streamedContent: "Here is the first part.", stepLabel: LABEL });
+    expect(screen.getByText("Here is the first part.")).toBeInTheDocument();
+    expect(screen.getByText(LABEL)).toBeInTheDocument();
+  });
+
+  it("names the step before any text arrives", () => {
+    renderMessage({ isTyping: true, content: "", stepLabel: LABEL });
+    expect(screen.getByText(LABEL)).toBeInTheDocument();
+  });
+
+  it("names the step while its tools run and nothing is written yet", () => {
+    renderMessage({
+      isTyping: true,
+      content: "",
+      stepLabel: LABEL,
+      toolCalls: [{ name: "canvas_create_course", status: "running" }],
+    });
+    expect(screen.getByRole("status")).toHaveTextContent(LABEL);
+  });
+
+  it("names no step once the reply is finished", () => {
+    renderMessage({ isTyping: false, stepLabel: LABEL });
+    expect(screen.queryByText(LABEL)).not.toBeInTheDocument();
+  });
+});
+
 describe("AssistantMessage — status sentence", () => {
   beforeEach(() => vi.clearAllMocks());
 
