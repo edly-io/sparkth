@@ -23,7 +23,7 @@ from sparkth.lib.permissions import (
     has_role,
     revoke_role,
 )
-from sparkth.lib.permissions.scopes import GLOBAL, WHITELIST, PermissionScope
+from sparkth.lib.permissions.scopes import GLOBAL, PLUGIN, WHITELIST, PermissionScope
 from sparkth.lib.testing import make_role, make_user
 
 
@@ -189,6 +189,31 @@ async def test_revoke_role_revokes_access(session: AsyncSession) -> None:
     await assign_role(user.id, "grader", GLOBAL, None, session)
     await revoke_role(user.id, "grader", GLOBAL, None, session)
     assert await can(user, Permission("assignment.grade"), GLOBAL, None, session) is False
+
+
+async def test_revoke_role_returns_the_number_of_assignments_revoked(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    assert user.id is not None
+    await make_role(session, "grader", ["assignment.grade"])
+    await assign_role(user.id, "grader", GLOBAL, None, session)
+    assert await revoke_role(user.id, "grader", GLOBAL, None, session) == 1
+    assert await revoke_role(user.id, "grader", GLOBAL, None, session) == 0
+
+
+async def test_revoke_role_returns_zero_for_an_unknown_role(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    assert user.id is not None
+    assert await revoke_role(user.id, "nope", GLOBAL, None, session) == 0
+
+
+async def test_revoke_role_rejects_an_object_id_on_an_objectless_scope(session: AsyncSession) -> None:
+    with pytest.raises(InvalidScopeObjectId):
+        await revoke_role(1, "grader", GLOBAL, "42", session)
+
+
+async def test_revoke_role_rejects_a_missing_object_id_on_an_object_bearing_scope(session: AsyncSession) -> None:
+    with pytest.raises(InvalidScopeObjectId):
+        await revoke_role(1, "grader", PLUGIN, None, session)
 
 
 async def test_revoke_role_noop_when_no_assignment(session: AsyncSession) -> None:
