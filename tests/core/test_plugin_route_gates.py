@@ -11,16 +11,15 @@ from sparkth.core.models.user import User
 from sparkth.core.routes import get_route_plugin_name
 from sparkth.lib.testing import AuditEventsFetcher, assert_plugin_use_denied
 from sparkth.main import app
-from sparkth.plugins.googledrive.constants import GOOGLE_DRIVE_PLUGIN_NAME
 
 WEBSOCKET = "WEBSOCKET"
 
 UNGATED_PLUGIN_ROUTES: dict[tuple[str, str], str] = {
-    ("GET", f"/api/v1/{GOOGLE_DRIVE_PLUGIN_NAME}/oauth/callback"): "signed OAuth state, no user login",
+    ("GET", "/api/v1/google-drive/oauth/callback"): "signed OAuth state, no user login",
     ("GET", "/api/v1/slack/oauth/callback"): "signed OAuth state, no user login",
     ("POST", "/api/v1/slack/events"): "Slack request signature",
     ("GET", "/api/v1/compose/analytics/activity"): "gated by analytics.read at the plugin scope",
-    ("GET", f"/api/v1/{GOOGLE_DRIVE_PLUGIN_NAME}/analytics/documents"): "gated by analytics.read at the plugin scope",
+    ("GET", "/api/v1/google-drive/analytics/documents"): "gated by analytics.read at the plugin scope",
     ("GET", "/api/v1/pxc/embed"): "PXC learner router: launch token",
     ("GET", "/api/v1/pxc/client/{file_name}"): "PXC learner router: launch token",
     ("GET", "/api/v1/pxc/assets/{file_path:path}"): "PXC learner router: launch token",
