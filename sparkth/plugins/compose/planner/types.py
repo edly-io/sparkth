@@ -23,3 +23,11 @@ class TurnRouting:
 
     agent: str | None = None
     refused: bool = False
+
+
+@dataclass(frozen=True)
+class PlannedStep:
+    """One step of the planner's plan: the agent or operator that does it, and the task the author reads."""
+
+    agent: str
+    task: str

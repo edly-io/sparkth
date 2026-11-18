@@ -9,26 +9,40 @@ from langchain_core.language_models import BaseChatModel
 from langgraph.graph.state import CompiledStateGraph
 
 from sparkth.lib.audit.events import AuditModelInfo
-from sparkth.lib.compose.constants import PLANNER_AGENT_NAME
+from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME, PLANNER_AGENT_NAME
 from sparkth.lib.compose.hooks import Agent
-from sparkth.plugins.compose.constants import PLANNER_OPERATIONS, PLANNER_PROMPT, PLANNER_WITHOUT_OPERATIONS
+from sparkth.plugins.compose.constants import (
+    MAX_STEPS_PER_TURN,
+    PLANNER_OPERATIONS,
+    PLANNER_PROMPT,
+    PLANNER_WITHOUT_OPERATIONS,
+)
 from sparkth.plugins.compose.planner.middleware import (
+    enforce_plan,
     enforce_rejected_call_limit,
     enforce_step_limit,
     first_hand_off_only,
     no_repeat_hand_off,
     no_step_after_choices,
 )
-from sparkth.plugins.compose.planner.tools import REFUSE_TOOL, build_handoff_tool, build_operator_tool
+from sparkth.plugins.compose.planner.tools import (
+    REFUSAL_TOOL,
+    build_handoff_tool,
+    build_operator_tool,
+    show_plan_tool,
+)
 from sparkth.plugins.compose.planner.types import AgentGraph
 
 
 def render_planner_prompt(agents: Sequence[Agent], *, operations: bool) -> str:
-    """The planner's system prompt, listing each of ``agents`` by its title and its description, and
-    saying how to run operations when there are ``operations``, or what to do without them."""
+    """The planner's system prompt, listing each of ``agents`` by its title and its description,
+    saying how to run operations when there are ``operations``, or what to do without them, and
+    giving the most steps a plan may have."""
     listed = "\n\n".join(f"## {agent.title}\n{agent.description}" for agent in agents)
     return PLANNER_PROMPT.format(
-        agents=listed, operations=PLANNER_OPERATIONS if operations else PLANNER_WITHOUT_OPERATIONS
+        agents=listed,
+        operations=PLANNER_OPERATIONS if operations else PLANNER_WITHOUT_OPERATIONS,
+        max_steps=MAX_STEPS_PER_TURN,
     )
 
 
@@ -43,6 +57,11 @@ def build_planner(
     Stream it with ``stream_mode`` including ``"custom"`` and ``subgraphs=True``. Each step and tool
     call waits until the reader sets the ``go`` of its ``routed`` or ``tool_start`` event.
     """
+    operator_tools = [build_operator_tool(operator)] if operator is not None else []
+    names = [agent.spec.name for agent in agents] + ([OPERATOR_AGENT_NAME] if operator is not None else [])
+    # Nobody to give a step to means nothing to plan.
+    plan_tools = [show_plan_tool(names)] if names else []
+    tools = [*(build_handoff_tool(agent) for agent in agents), *operator_tools, *plan_tools, REFUSAL_TOOL]
     # After-model hooks run in reverse order: a reply is trimmed to one call, checked against each limit,
     # then checked for a repeat hand-off. The before-model hook runs each time before the planner is asked.
     middleware: list[AgentMiddleware[Any, Any, Any]] = [
@@ -51,11 +70,11 @@ def build_planner(
         enforce_step_limit,
         enforce_rejected_call_limit,
         first_hand_off_only,
+        enforce_plan,
     ]
-    operator_tools = [build_operator_tool(operator)] if operator is not None else []
     return create_agent(
         llm,
-        [*(build_handoff_tool(agent) for agent in agents), *operator_tools, REFUSE_TOOL],
+        tools,
         system_prompt=render_planner_prompt([agent.spec for agent in agents], operations=operator is not None),
         middleware=middleware,
         context_schema=AuditModelInfo,

@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from sparkth.core.i18n import locale_context
 from sparkth.lib.audit import ToolFailureKind
 from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG
-from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME, REFUSE_TOOL_NAME
+from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME, REFUSAL_TOOL_NAME, SHOW_PLAN_TOOL_NAME
 from sparkth.lib.llm import BaseChatProvider, get_provider
 from sparkth.lib.mcp.hooks import Tool
 from sparkth.lib.testing import AddTranslation, ScriptedChatModel
@@ -426,7 +426,7 @@ async def test_a_lead_in_to_a_hand_off_never_shows(stream: bool, monkeypatch: py
 @pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
 async def test_a_refusal_is_the_refusal_sentence(stream: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     provider = _provider(ScriptedChatModel(messages=iter([])), monkeypatch)
-    refusal = AIMessage("", tool_calls=[{"name": REFUSE_TOOL_NAME, "args": {}, "id": "c1"}])
+    refusal = AIMessage("", tool_calls=[{"name": REFUSAL_TOOL_NAME, "args": {}, "id": "c1"}])
 
     reply = await _reply(planner_answering(refusal, STUB_AGENT), provider, stream)
 
@@ -462,7 +462,7 @@ def _planner_replying(*replies: AIMessage) -> dict[str, Any]:
     ("replies", "expected"),
     [
         ([_calling(STUB_AGENT.name, {"request": "An outline"})], TurnRouting(agent=STUB_AGENT.name)),
-        ([_calling(REFUSE_TOOL_NAME, {})], TurnRouting(refused=True)),
+        ([_calling(REFUSAL_TOOL_NAME, {})], TurnRouting(refused=True)),
         ([AIMessage("Hello!")], TurnRouting()),
         (
             [_calling(STUB_AGENT.name, {}), _calling(STUB_AGENT.name, {"request": "An outline"}, "c2")],
@@ -567,6 +567,11 @@ async def test_the_agents_model_is_made_to_stream(monkeypatch: pytest.MonkeyPatc
     assert made_with_streaming == [True]
 
 
+def _step(agent: str, task: str) -> dict[str, str]:
+    """One step of a plan: ``task``, done by ``agent``."""
+    return {"agent": agent, "task": task}
+
+
 def _two_step_turn(*then: AIMessage) -> dict[str, Any]:
     """A turn with the stub and other agents whose planner hands a part to each, then replies ``then``."""
     replies = [
@@ -617,12 +622,17 @@ async def test_the_planner_tells_the_author_what_an_operation_after_an_agent_did
         monkeypatch,
     )
     planner = _planner_replying(
-        _calling(STUB_AGENT.name, {"request": "Write the lesson"}), _operation(), AIMessage("Step 1 is recorded.")
+        _calling(
+            SHOW_PLAN_TOOL_NAME, {"steps": [_step(STUB_AGENT.name, "Write"), _step(OPERATOR_AGENT_NAME, "Record")]}
+        ),
+        _calling(STUB_AGENT.name, {"request": "Write the lesson", "step": 1}, "c2"),
+        _calling(OPERATOR_AGENT_NAME, {"request": "Record step 1", "step": 2}, "op"),
+        AIMessage("Step 1 is recorded."),
     )
 
     reply = await _reply(planner, provider, stream, [_record_tool([])])
 
-    assert reply == "Here is the lesson.\n\nStep 1 is recorded."
+    assert reply == "1. Write\n2. Record\n\nHere is the lesson.\n\nStep 1 is recorded."
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
@@ -630,16 +640,19 @@ async def test_the_planner_tells_the_author_what_an_operation_after_an_agent_did
 async def test_the_limit_notice_shows_even_after_an_agent_wrote(stream: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     done = [AIMessage("Done.") for _ in range(MAX_STEPS_PER_TURN - 1)]
     provider = _provider(ScriptedChatModel(messages=iter([*done, AIMessage("Here is the lesson.")])), monkeypatch)
-    operations = [_calling(OPERATOR_AGENT_NAME, {"request": "Go"}, f"op{n}") for n in range(MAX_STEPS_PER_TURN - 1)]
+    operations = range(1, MAX_STEPS_PER_TURN)
+    plan = [*(_step(OPERATOR_AGENT_NAME, f"Go {n}") for n in operations), _step(STUB_AGENT.name, "Write the lesson")]
     planner = _planner_replying(
-        *operations,
-        _calling(STUB_AGENT.name, {"request": "Write the lesson"}),
+        _calling(SHOW_PLAN_TOOL_NAME, {"steps": plan}, "plan"),
+        *(_calling(OPERATOR_AGENT_NAME, {"request": "Go", "step": n}, f"op{n}") for n in operations),
+        _calling(STUB_AGENT.name, {"request": "Write the lesson", "step": MAX_STEPS_PER_TURN}),
         _calling(OPERATOR_AGENT_NAME, {"request": "Go"}, "over"),
     )
 
     reply = await _reply(planner, provider, stream, [_record_tool([])])
 
-    assert reply == f"Here is the lesson.\n\n{LIMIT_NOTICE}"
+    listed = "\n".join(f"{number}. {step['task']}" for number, step in enumerate(plan, start=1))
+    assert reply == f"{listed}\n\nHere is the lesson.\n\n{LIMIT_NOTICE}"
 
 
 async def test_a_step_never_starts_for_a_reader_that_stops_when_it_is_announced(
@@ -676,7 +689,7 @@ async def test_a_refusal_after_an_agents_reply_shows_apart_from_it(
 ) -> None:
     provider = _provider(ScriptedChatModel(messages=iter([AIMessage("Here is the lesson.")])), monkeypatch)
     planner = _planner_replying(
-        _calling(STUB_AGENT.name, {"request": "Write the lesson"}), _calling(REFUSE_TOOL_NAME, {}, "c2")
+        _calling(STUB_AGENT.name, {"request": "Write the lesson"}), _calling(REFUSAL_TOOL_NAME, {}, "c2")
     )
 
     assert await _reply(planner, provider, stream) == f"Here is the lesson.\n\n{REFUSAL_MESSAGE}"
@@ -726,3 +739,32 @@ async def test_an_agent_may_answer_again_after_another_step(monkeypatch: pytest.
     response = await complete_turn(TURN, [], _provider(ScriptedChatModel(messages=replies), monkeypatch), 50, **planner)
 
     assert response["metadata"]["steps"] == [STUB_AGENT.name, OTHER_AGENT.name, STUB_AGENT.name]
+
+
+@pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
+async def test_the_plan_shows_first_then_each_steps_reply(stream: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    plan = {"steps": [_step(STUB_AGENT.name, "Write the lesson"), _step(OTHER_AGENT.name, "Build the activity")]}
+    replies = [
+        _calling(SHOW_PLAN_TOOL_NAME, plan, "plan"),
+        _calling(STUB_AGENT.name, {"request": "Write the lesson", "step": 1}, "c1"),
+        _calling(OTHER_AGENT.name, {"request": "Build the activity", "step": 2}, "c2"),
+        AIMessage(""),
+    ]
+    turn = {
+        "agents": [STUB_AGENT, OTHER_AGENT],
+        "planner_llm": ScriptedChatModel(messages=iter(replies), disable_streaming=True),
+    }
+
+    reply = await _reply(turn, _two_replies(monkeypatch), stream)
+
+    assert reply == "1. Write the lesson\n2. Build the activity\n\nHere is the lesson.\n\nHere is the activity."
+
+
+@pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
+async def test_a_rejected_plan_never_shows(stream: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = _provider(ScriptedChatModel(messages=iter([])), monkeypatch)
+    planner = _planner_replying(
+        _calling(SHOW_PLAN_TOOL_NAME, {"steps": [_step(STUB_AGENT.name, "Write the lesson")]}), AIMessage("What for?")
+    )
+
+    assert await _reply(planner, provider, stream) == "What for?"
