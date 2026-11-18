@@ -7,13 +7,13 @@ from typing import Final
 REFUSE_TOOL_NAME: Final = "refuse"
 
 # The name of Compose's planner, which hands each message to an agent.
-PLANNER_NAME: Final = "compose"
+PLANNER_AGENT_NAME: Final = "compose"
 
-# The planner's tool that runs operations, such as publishing a course.
-OPERATOR_TOOL_NAME: Final = "operator"
+# The name of Compose's operator, which runs operations such as publishing a course.
+OPERATOR_AGENT_NAME: Final = "operator"
 
 # Names Compose keeps for itself.
-RESERVED_AGENT_NAMES: Final = frozenset({PLANNER_NAME, OPERATOR_TOOL_NAME, REFUSE_TOOL_NAME})
+RESERVED_AGENT_NAMES: Final = frozenset({PLANNER_AGENT_NAME, OPERATOR_AGENT_NAME, REFUSE_TOOL_NAME})
 
 # An agent's name is the tool name Compose calls it by.
 AGENT_NAME_PATTERN: Final = re.compile(r"^[a-z][a-z0-9_]*$")

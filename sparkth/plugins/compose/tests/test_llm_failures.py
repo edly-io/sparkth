@@ -85,7 +85,7 @@ async def test_invalid_arguments_are_a_validation_failure(monkeypatch: pytest.Mo
     assert execution["failure"] is ToolFailureKind.VALIDATION
 
 
-async def test_a_refused_call_warns_with_the_tool_name_and_never_the_arguments(
+async def test_a_rejected_call_warns_with_the_tool_name_and_never_the_arguments(
     caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
 
@@ -93,7 +93,7 @@ async def test_a_refused_call_warns_with_the_tool_name_and_never_the_arguments(
         await _first_execution(lookup_course, "lookup_course", {"course_id": "private-course-text"}, monkeypatch)
 
     warnings = [record for record in caplog.records if record.levelno >= logging.WARNING]
-    assert [record.getMessage() for record in warnings] == ["Tool 'lookup_course' call was refused"]
+    assert [record.getMessage() for record in warnings] == ["Tool 'lookup_course' call was rejected"]
     details = [record for record in caplog.records if record.levelno == logging.DEBUG]
     assert any("private-course-text" in record.getMessage() for record in details)
 
