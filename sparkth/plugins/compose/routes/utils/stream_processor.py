@@ -45,14 +45,14 @@ from sparkth.plugins.compose.analytics import (
 from sparkth.plugins.compose.config import get_compose_settings
 from sparkth.plugins.compose.constants import LLM_PROVIDER_API_ERRORS, RAG_CONTEXT_PROMPT, SSE_HEARTBEAT
 from sparkth.plugins.compose.detached import detach
-from sparkth.plugins.compose.enums import TurnEventType
+from sparkth.plugins.compose.enums import StreamStatus, ToolCallStatus, TurnEventType
 from sparkth.plugins.compose.llm import stream_turn
 from sparkth.plugins.compose.messages import get_last_user_text
 from sparkth.plugins.compose.models import Conversation
 from sparkth.plugins.compose.planner import PLAN_KEY, OpenPlan, PlanProgress, TurnRouting
 from sparkth.plugins.compose.routes.utils.live_turns import register_turn, release_turn
 from sparkth.plugins.compose.routes.utils.rag_search import collect_document_ids
-from sparkth.plugins.compose.schemas import ChatMessage
+from sparkth.plugins.compose.schemas import ChatMessage, RagSection, StreamStatusEvent
 from sparkth.plugins.compose.service import ComposeService
 
 logger = get_logger(__name__)
@@ -346,6 +346,11 @@ class ComposeStreamProcessor:
         """Serialise an SSE payload onto the queue; every status/token/error event flows through here."""
         await self._put(json.dumps(payload))
 
+    async def _emit_status(self, event: StreamStatusEvent) -> None:
+        """Emit a status ``event`` without the fields it leaves unset."""
+        # Only the event's own unset fields go: a section keeps its empty source, as the client reads it.
+        await self._emit({name: value for name, value in event.model_dump(mode="json").items() if value is not None})
+
     def _stop_is_requested(self) -> bool:
         """Whether the author has asked for this turn to stop."""
         return self.stop_requested is not None and self.stop_requested.is_set()
@@ -415,7 +420,9 @@ class ComposeStreamProcessor:
         bg_session: AsyncSession,
     ) -> list[RetrievedChunk] | None:
         """Returns None when retrieval fails; the error SSE and DB write are already handled before returning."""
-        await self._emit({"status": "searching_documents", "file_count": len(document_ids), "done": False})
+        await self._emit_status(
+            StreamStatusEvent(status=StreamStatus.SEARCHING_DOCUMENTS, file_count=len(document_ids))
+        )
         logger.info("Agentic RAG search for document_ids=%s query_len=%d", document_ids, len(query_text))
         if self.llm is None:
             raise AssertionError("llm must be provided when RAG resolution is active")
@@ -449,11 +456,12 @@ class ComposeStreamProcessor:
         """Two-pass emit (scanning then confirmed) lets the UI animate each section
         before marking it resolved, rather than all sections appearing at once.
         """
-        for section in confirmed_rag_sections:
-            await self._emit({"status": "section_scanning", "section": section, "done": False})
-        for section in confirmed_rag_sections:
-            await self._emit({"status": "section_confirmed", "section": section, "done": False})
-        await self._emit({"status": "generating", "done": False})
+        sections = [RagSection.model_validate(section) for section in confirmed_rag_sections]
+        for section in sections:
+            await self._emit_status(StreamStatusEvent(status=StreamStatus.SECTION_SCANNING, section=section))
+        for section in sections:
+            await self._emit_status(StreamStatusEvent(status=StreamStatus.SECTION_CONFIRMED, section=section))
+        await self._emit_status(StreamStatusEvent(status=StreamStatus.GENERATING))
 
     async def _run_rag_phase(self, bg_session: AsyncSession) -> list[dict[str, str | None]] | None:
         """Return value convention: None means the response is already complete (error or no-results handled);
@@ -461,11 +469,13 @@ class ComposeStreamProcessor:
         """
         if not self.rag_search_required or not self.unresolved_messages or self.user_id is None:
             if self.rag_search_declined:
-                await self._emit({"status": "skipping_rag", "done": False})
+                await self._emit_status(StreamStatusEvent(status=StreamStatus.SKIPPING_RAG))
             return []
 
         document_ids = collect_document_ids(self.unresolved_messages)
-        await self._emit({"status": "scanning_attachments", "file_count": len(document_ids), "done": False})
+        await self._emit_status(
+            StreamStatusEvent(status=StreamStatus.SCANNING_ATTACHMENTS, file_count=len(document_ids))
+        )
 
         query_text = get_last_user_text(self.unresolved_messages)
         chunks = await self._retrieve_rag_chunks(query_text, document_ids, bg_session)
@@ -546,7 +556,7 @@ class ComposeStreamProcessor:
                             steps.append(routing.agent)
                         label = event.get("label")
                         if label:
-                            await self._emit({"status": "step", "label": gettext(label), "done": False})
+                            await self._emit_status(StreamStatusEvent(status=StreamStatus.STEP, label=gettext(label)))
                     elif event["type"] == TurnEventType.PLAN:
                         progress.record_plan(event["steps"])
                     elif event["type"] == TurnEventType.PLAN_STEP:
@@ -557,14 +567,22 @@ class ComposeStreamProcessor:
                         await self._emit({"token": token, "done": False})
                     elif event["type"] == TurnEventType.TOOL_START:
                         tool_running = True
-                        await self._emit(
-                            {"status": "tool_call", "tool_name": event["name"], "tool_status": "running", "done": False}
+                        await self._emit_status(
+                            StreamStatusEvent(
+                                status=StreamStatus.TOOL_CALL,
+                                tool_name=event["name"],
+                                tool_status=ToolCallStatus.RUNNING,
+                            )
                         )
                     elif event["type"] == TurnEventType.TOOL_END:
                         tool_running = False
                         completed_tool_calls.append({"name": event["name"], "failure": event.get("failure")})
-                        await self._emit(
-                            {"status": "tool_call", "tool_name": event["name"], "tool_status": "done", "done": False}
+                        await self._emit_status(
+                            StreamStatusEvent(
+                                status=StreamStatus.TOOL_CALL,
+                                tool_name=event["name"],
+                                tool_status=ToolCallStatus.DONE,
+                            )
                         )
                     if self._stop_is_requested():
                         stopped = True
