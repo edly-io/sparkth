@@ -1,4 +1,4 @@
-"""Analytics producer tests: a sync run writes one ``google-drive.document_processed`` per document.
+"""Analytics producer tests: a sync run writes one document-processed event per document.
 
 Drives the real ``process_folder_rag`` against the test databases and asserts on rows that
 landed in ``raw_events``; only the Drive download and the RAG extraction are stubbed.
@@ -18,11 +18,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.core.analytics.models import raw_events
 from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.lib.rag import ScannedPDFError, UnsupportedFileTypeError
+from sparkth.plugins.googledrive.analytics.events import GoogleDriveDocumentProcessed
 from sparkth.plugins.googledrive.exceptions import GoogleDriveAPIError
 from sparkth.plugins.googledrive.models import DriveFile, DriveFolder
 from sparkth.plugins.googledrive.utils import process_folder_rag
 
-EVENT = "google-drive.document_processed"
+EVENT = GoogleDriveDocumentProcessed.event_type
 PDF = b"%PDF-1.4\n"
 
 

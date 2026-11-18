@@ -34,7 +34,7 @@ COMPOSE_COMPLETIONS_PATH = "/api/v1/compose/completions"
 SLACK_CALLBACK_PATH = "/api/v1/slack/oauth/callback"
 ANALYTICS_READS = [
     ("compose", "/api/v1/compose/analytics/activity"),
-    ("google-drive", "/api/v1/google-drive/analytics/documents"),
+    ("googledrive", "/api/v1/googledrive/analytics/documents"),
 ]
 ANALYTICS_RANGE = {"from": "2026-03-01", "to": "2026-03-31"}
 
@@ -158,7 +158,7 @@ class TestRoutePluginResolution:
         [
             ("POST", COMPOSE_COMPLETIONS_PATH, "compose"),
             ("GET", "/api/v1/slack/oauth/status", "slack"),
-            ("GET", "/api/v1/google-drive/oauth/status", "google-drive"),
+            ("GET", "/api/v1/googledrive/oauth/status", "googledrive"),
         ],
     )
     def test_resolves_the_plugin_that_owns_a_plugin_route(self, method: str, path: str, plugin_name: str) -> None:

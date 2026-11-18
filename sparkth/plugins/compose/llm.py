@@ -31,13 +31,14 @@ from sparkth.lib.audit import ToolFailureKind, tool_failure
 from sparkth.lib.audit.context import AuditSource, ai_audit_context
 from sparkth.lib.audit.events import AuditModelInfo
 from sparkth.lib.audit.exceptions import AuditCaptureError
-from sparkth.lib.compose.constants import OPERATOR_TOOL_NAME, REFUSE_TOOL_NAME
+from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME, REFUSE_TOOL_NAME
 from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.i18n import gettext
 from sparkth.lib.llm import BaseChatProvider, to_langchain_messages
 from sparkth.lib.log import get_logger
+from sparkth.lib.mcp.exceptions import ToolFailure
 from sparkth.lib.plugins import PluginConfigInvalidError, PluginNotConfiguredError
-from sparkth.plugins.compose.constants import OPERATOR_PROMPT, TOOL_CALL_LIMIT_NOTICE
+from sparkth.plugins.compose.constants import OPERATOR_PROMPT, STOPPED_EARLY_NOTICE, TOOL_FAILED_UNEXPECTEDLY
 from sparkth.plugins.compose.enums import TurnEventType
 from sparkth.plugins.compose.planner import AgentGraph, TurnRouting, build_planner
 from sparkth.plugins.compose.prompt import render_system_prompt
@@ -83,9 +84,10 @@ def _audit_model_info(turn_model: AuditModelInfo, messages: Sequence[BaseMessage
 
 
 def _failed_call(request: ToolCallRequest, detail: str = "") -> ToolMessage:
-    """The model-visible result of a call whose tool raised, with ``detail`` when there is any."""
+    """The model-visible result of a call whose tool raised: ``detail`` when the failure is one the
+    model may read, and otherwise only that the tool failed."""
     name = request.tool_call["name"]
-    text = f"Error executing tool '{name}': {detail}" if detail else f"Error executing tool '{name}'."
+    text = f"Error executing tool '{name}': {detail}" if detail else TOOL_FAILED_UNEXPECTEDLY.format(name=name)
     return ToolMessage(text, tool_call_id=request.tool_call["id"], name=name, status="error")
 
 
@@ -114,8 +116,10 @@ async def _classified_tool_call(
     """Run one tool call and say how it failed (None on success).
 
     Invalid arguments and a tool name that is not bound come back from the handler as an
-    error result, so they are a validation failure (see :func:`_refused_call`); a tool that
-    raised is an unknown one.
+    error result, so they are a validation failure (see :func:`_rejected_call`); a tool that
+    raised is an unknown one. The model reads what a tool reported on purpose and what missing
+    settings say; of any other exception it reads only that the tool failed, and the cause is
+    logged.
     """
     name = request.tool_call["name"]
     try:
@@ -129,34 +133,39 @@ async def _classified_tool_call(
     except (PluginNotConfiguredError, PluginConfigInvalidError) as e:
         logger.warning("Tool '%s' cannot run for this user: %s", name, e)
         return _failed_call(request, str(e)), ToolFailureKind.UNKNOWN
+    # What the tool reports for the agent to act on, such as what to fix in the work it submitted.
+    except ToolFailure as e:
+        logger.warning("Tool '%s' reported a failure to its agent", name)
+        logger.debug("Tool '%s' reported: %s", name, e)
+        return _failed_call(request, str(e)), ToolFailureKind.UNKNOWN
     # NOTE: Kept broad here intentionally — tool handlers are user-supplied plugins that can
     # raise anything. Narrowing would silently swallow legitimate errors from arbitrary
     # third-party tool implementations.
     except Exception as e:
         logger.error("Error executing tool '%s': %s", name, e, exc_info=True)
-        return _failed_call(request, str(e)), ToolFailureKind.UNKNOWN
+        return _failed_call(request), ToolFailureKind.UNKNOWN
     if not isinstance(result, ToolMessage):
         return result, None
     if result.status == "error":
-        return _refused_call(request, result)
+        return _rejected_call(request, result)
     return result, _reported_failure(result.content)
 
 
-def _refused_call(request: ToolCallRequest, refusal: ToolMessage) -> tuple[ToolMessage, ToolFailureKind]:
+def _rejected_call(request: ToolCallRequest, rejection: ToolMessage) -> tuple[ToolMessage, ToolFailureKind]:
     """Classify a call the agent turned into an error result without the tool's own error.
 
     LangGraph does this for an unknown tool name, for arguments that do not fit the tool's
     schema, and for a ``ValidationError`` the handler itself raised. Only the first two are the
-    model's to fix. The refusal text repeats the call's arguments, which can be user data, so it
+    model's to fix. The rejection text repeats the call's arguments, which can be user data, so it
     is only logged at debug level.
     """
     name = request.tool_call["name"]
-    logger.debug("Tool '%s' refusal: %s", name, refusal.text)
+    logger.debug("Tool '%s' rejection: %s", name, rejection.text)
     if _arguments_are_valid(request):
         logger.error("Tool '%s' raised a validation error inside its handler", name)
         return _failed_call(request), ToolFailureKind.UNKNOWN
-    logger.warning("Tool '%s' call was refused", name)
-    return refusal, ToolFailureKind.VALIDATION
+    logger.warning("Tool '%s' call was rejected", name)
+    return rejection, ToolFailureKind.VALIDATION
 
 
 @wrap_tool_call
@@ -201,7 +210,7 @@ def _end_after_a_block(limit: int, state: ToolCallLimitState[Any], runtime: Runt
     if counted <= limit or not (isinstance(reply, AIMessage) and reply.tool_calls):
         return None
     logger.warning("Model asked for tools after the limit (%s); the turn ends with a notice", limit)
-    return {"jump_to": "end", "messages": [AIMessage(content=gettext(TOOL_CALL_LIMIT_NOTICE))]}
+    return {"jump_to": "end", "messages": [AIMessage(content=gettext(STOPPED_EARLY_NOTICE))]}
 
 
 def _update_events(node: str, update: dict[str, Any] | None, max_tool_executions: int) -> list[dict[str, Any]]:
@@ -227,36 +236,54 @@ def _update_events(node: str, update: dict[str, Any] | None, max_tool_executions
 class _TurnText:
     """The text a turn shows the author, sorted from the planner's and the agents' messages.
 
-    An agent's text shows as it is written, with a blank line between its messages. The planner's
-    is held until the turn ends, and a message of its that hands off never shows.
+    An agent's text shows as it is written, with a blank line between messages. The planner's own
+    text is held until the turn ends and shows only when no agent wrote last: when no step ran, or
+    the last step was an operation, whose own text never shows. So an agent's reply, a question
+    or choices included, is the last thing the author reads, and the planner never repeats it. A
+    planner message that calls a tool never shows.
     """
 
     def __init__(self) -> None:
         self._held: dict[str | None, list[str]] = {}
-        self._handing_off: set[str | None] = set()
-        self._last_agent_message: str | None = None
-        self._agent_spoke = False
+        self._calling: set[str | None] = set()
+        self._last_shown_message: str | None = None
+        self._shown = False
+        self._agent_wrote_last = False
+
+    def step_started(self) -> None:
+        """Note that a new step is answering, which has written nothing yet."""
+        self._agent_wrote_last = False
 
     def agent_text(self, message: BaseMessage) -> list[str]:
-        """The text of an agent's ``message`` to show now, after a blank line when it starts a new message."""
-        texts = [] if isinstance(message, ToolMessage) else _text_blocks(message.content)
+        """The text of an agent's ``message`` to show now."""
+        texts = self._show(message.id, [] if isinstance(message, ToolMessage) else _text_blocks(message.content))
+        self._agent_wrote_last = self._agent_wrote_last or bool(texts)
+        return texts
+
+    def notice_text(self, message: BaseMessage) -> list[str]:
+        """The text of a notice that ends the turn, to show now whoever wrote last."""
+        return self._show(message.id, _text_blocks(message.content))
+
+    def _show(self, message_id: str | None, texts: list[str]) -> list[str]:
+        """``texts`` of the message ``message_id``, after a blank line when they start a new message."""
         if not texts:
             return []
-        gap = ["\n\n"] if self._agent_spoke and message.id != self._last_agent_message else []
-        self._last_agent_message, self._agent_spoke = message.id, True
+        gap = ["\n\n"] if self._shown and message_id != self._last_shown_message else []
+        self._last_shown_message, self._shown = message_id, True
         return [*gap, *texts]
 
     def hold_planner_text(self, message: BaseMessage) -> None:
-        """Hold the text of the planner's ``message``, noting whether it hands off."""
+        """Hold the text of the planner's ``message``, noting whether it calls a tool."""
         if getattr(message, "tool_call_chunks", None) or getattr(message, "tool_calls", None):
-            self._handing_off.add(message.id)
+            self._calling.add(message.id)
         self._held.setdefault(message.id, []).extend(_text_blocks(message.content))
 
     def unsent(self) -> list[str]:
-        """The planner's held text from its messages that didn't hand off."""
-        return [
-            text for message_id, texts in self._held.items() if message_id not in self._handing_off for text in texts
-        ]
+        """The planner's held text from its messages that called no tool, or nothing when an agent wrote last."""
+        if self._agent_wrote_last:
+            return []
+        texts = [text for message_id, held in self._held.items() if message_id not in self._calling for text in held]
+        return ["\n\n", *texts] if texts and self._shown else texts
 
 
 def build_turn_agent(
@@ -315,7 +342,7 @@ def _planner_for_turn(
             for agent in agents
         ],
         operator=(
-            build_turn_agent(agent_llm, operations, OPERATOR_PROMPT, max_tool_executions, name=OPERATOR_TOOL_NAME)
+            build_turn_agent(agent_llm, operations, OPERATOR_PROMPT, max_tool_executions, name=OPERATOR_AGENT_NAME)
             if operations
             else None
         ),
@@ -355,14 +382,16 @@ async def _turn_events(
 ) -> AsyncGenerator[dict[str, Any], None]:
     """Run one turn on the planner, yielding what happens as it happens.
 
-    The planner hands the message to one of ``agents``, each running on the provider's model
-    with its own prompt and its own tools, runs operations on the operator with the turn's
-    ``tools``, answers it itself, or refuses it. Yields ``routed`` with a :class:`TurnRouting`
-    when a hand-off or an operation starts or the refusal returns (a call its tool refused never
-    does either), ``token`` for the text the author sees (the operator's text never shows, only its
-    tool calls), ``tool_start`` and ``tool_end`` for each tool call, ``limit_reached`` when an
-    agent's calls were blocked, ``usage`` with the tokens of each model reply, the planner's, the
-    agents' and the operator's, and ``final`` with each closing model reply. A call reported as
+    The planner hands the message to one of ``agents``, each running on the provider's model with
+    its own prompt and its own tools, runs operations on the operator with the turn's ``tools``,
+    one step after another when the author asked for several, answers the message itself, or
+    refuses it. Yields ``routed`` with a :class:`TurnRouting` when a step (a hand-off or an
+    operation) starts or the refusal returns (a call its tool rejected never does either),
+    ``token`` for the text the author sees (the agents' replies, the planner's own when no agent
+    wrote last, and a notice that ends the turn; the operator's text never shows, only its tool
+    calls), ``tool_start`` and ``tool_end`` for each tool call, ``limit_reached`` when an agent's
+    calls were blocked, ``usage`` with the tokens of each model reply, the planner's, the agents'
+    and the operator's, and ``final`` with each closing model reply. A step or a call reported as
     started runs only once this generator is asked for its next event. A refusal arrives as the
     refusal sentence.
     """
@@ -373,6 +402,8 @@ async def _turn_events(
         async for namespace, mode, chunk in stream:
             if mode == "custom":
                 go = chunk.pop("go", None)
+                if chunk["type"] == TurnEventType.ROUTED:
+                    turn_text.step_started()
                 yield chunk
                 # The tool reported as started runs only now, once the next event is asked for.
                 if go is not None:
@@ -385,7 +416,7 @@ async def _turn_events(
                 message, metadata = chunk
                 if namespace:
                     # The operator's text never shows, only its tool calls.
-                    if metadata.get("lc_agent_name") == OPERATOR_TOOL_NAME:
+                    if metadata.get("lc_agent_name") == OPERATOR_AGENT_NAME:
                         continue
                     for token in turn_text.agent_text(message):
                         yield {"type": TurnEventType.TOKEN, "content": token}
@@ -393,9 +424,14 @@ async def _turn_events(
                     # An agent's reply has already streamed; only a refusal is new text.
                     if message.name == REFUSE_TOOL_NAME and message.status != "error":
                         yield {"type": TurnEventType.ROUTED, "routing": TurnRouting(refused=True)}
-                        yield {"type": TurnEventType.TOKEN, "content": message.text}
-                else:
+                        for token in turn_text.notice_text(message):
+                            yield {"type": TurnEventType.TOKEN, "content": token}
+                elif metadata.get("langgraph_node") == "model":
                     turn_text.hold_planner_text(message)
+                else:
+                    # What a planner hook wrote to end the turn, not the planner's model.
+                    for token in turn_text.notice_text(message):
+                        yield {"type": TurnEventType.TOKEN, "content": token}
     for token in turn_text.unsent():
         yield {"type": TurnEventType.TOKEN, "content": token}
 
@@ -411,12 +447,13 @@ async def complete_turn(
 ) -> dict[str, Any]:
     """Run one non-streamed turn on the planner and return its answer.
 
-    The answer is the text a streamed turn would have shown, ``routing`` says who answered it,
-    and ``metadata`` lists every tool call the turn made and the tokens of all its model replies,
-    the planner's and the agents'.
+    The answer is the text a streamed turn would have shown, ``routing`` says who answered it last,
+    and ``metadata`` lists the steps the turn ran, every tool call it made and the tokens of all its
+    model replies, the planner's and the agents'.
     """
     tokens: list[str] = []
     routing = TurnRouting()
+    steps: list[str] = []
     tool_executions: list[dict[str, Any]] = []
     limit_reached = False
     usage: UsageMetadata | None = None
@@ -426,6 +463,8 @@ async def complete_turn(
         async for event in events:
             if event["type"] == TurnEventType.ROUTED:
                 routing = event["routing"]
+                if routing.agent is not None:
+                    steps.append(routing.agent)
             elif event["type"] == TurnEventType.TOKEN:
                 tokens.append(event["content"])
             elif event["type"] == TurnEventType.TOOL_END:
@@ -441,7 +480,8 @@ async def complete_turn(
                 limit_reached = True
             elif event["type"] == TurnEventType.USAGE:
                 usage = add_usage(usage, event["usage"])
-            elif event["type"] == TurnEventType.FINAL:
+            elif event["type"] == TurnEventType.FINAL and (final is None or event["message"].text):
+                # The planner's empty reply that ends a turn after a step is not the turn's answer.
                 final = event["message"]
 
     return {
@@ -451,6 +491,7 @@ async def complete_turn(
         "tool_calls": None,
         "routing": routing,
         "metadata": {
+            "steps": steps,
             "tool_executions": tool_executions,
             "num_executions": len(tool_executions),
             "limit_reached": limit_reached,
@@ -473,16 +514,16 @@ async def stream_turn(
 
     Yields:
       {"type": "routed",    "routing": TurnRouting}
-                                               — who answers the turn, when a hand-off or the operator
-                                                 starts or the refusal returns; never sent when the
-                                                 planner answers
+                                               — who answers next, when a step (a hand-off or the
+                                                 operator) starts or the refusal returns; never sent
+                                                 when the planner answers
       {"type": "token",     "content": str}   — text to display
       {"type": "tool_start","name": str}       — tool execution beginning
       {"type": "tool_end",  "name": str, "failure": ToolFailureKind | None}
                                                — tool execution finished, and how it failed
 
-    A call reported by ``tool_start`` runs only once the reader asks for the next event, so a
-    reader that stops on ``tool_start`` keeps that tool from running.
+    A call reported by ``tool_start``, or a step reported by ``routed``, runs only once the reader
+    asks for the next event, so a reader that stops there keeps it from running.
     """
     events = _turn_events(messages, tools, provider, max_tool_executions, agents, planner_llm)
     async with aclosing(events):

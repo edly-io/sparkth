@@ -151,7 +151,9 @@ class TestThePlannersModel:
     async def test_the_planner_can_be_set_to_run_on_the_same_model_as_the_reply(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
     ) -> None:
-        app.dependency_overrides[get_compose_settings] = lambda: ComposeSettings(planner_model=PlannerModel.SAME)
+        app.dependency_overrides[get_compose_settings] = lambda: ComposeSettings(
+            planner_model=PlannerModel.SAME_AS_COMPOSE
+        )
 
         models = await self._models_asked_for(client, session, current_user.id or 1)
 
