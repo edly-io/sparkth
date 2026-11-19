@@ -24,7 +24,7 @@ function toError(prefix: string, error: unknown): never {
 // OAuth functions
 export async function getConnectionStatus(token: string): Promise<ConnectionStatus> {
   try {
-    const { data } = await api.GET("/api/v1/google-drive/oauth/status", {
+    const { data } = await api.GET("/api/v1/googledrive/oauth/status", {
       headers: bearer(token),
     });
     return data as ConnectionStatus;
@@ -35,7 +35,7 @@ export async function getConnectionStatus(token: string): Promise<ConnectionStat
 
 export async function getAuthorizationUrl(token: string): Promise<string> {
   try {
-    const { data } = await api.GET("/api/v1/google-drive/oauth/authorize", {
+    const { data } = await api.GET("/api/v1/googledrive/oauth/authorize", {
       headers: bearer(token),
     });
     return (data as AuthorizationUrlResponse).url;
@@ -46,7 +46,7 @@ export async function getAuthorizationUrl(token: string): Promise<string> {
 
 export async function disconnectGoogle(token: string): Promise<void> {
   try {
-    await api.DELETE("/api/v1/google-drive/oauth/disconnect", { headers: bearer(token) });
+    await api.DELETE("/api/v1/googledrive/oauth/disconnect", { headers: bearer(token) });
   } catch (error) {
     toError("Failed to disconnect Google Drive", error);
   }
@@ -77,7 +77,7 @@ export async function fetchAllPages<T>(
 // Folder functions
 export async function listFolders(token: string, skip = 0, limit = 20): Promise<PaginatedFolders> {
   try {
-    const { data } = await api.GET("/api/v1/google-drive/folders", {
+    const { data } = await api.GET("/api/v1/googledrive/folders", {
       params: { query: { skip, limit } },
       headers: bearer(token),
     });
@@ -89,7 +89,7 @@ export async function listFolders(token: string, skip = 0, limit = 20): Promise<
 
 export async function syncFolder(driveFolderId: string, token: string): Promise<DriveFolder> {
   try {
-    const { data } = await api.POST("/api/v1/google-drive/folders/sync", {
+    const { data } = await api.POST("/api/v1/googledrive/folders/sync", {
       body: { drive_folder_id: driveFolderId },
       headers: bearer(token),
     });
@@ -101,7 +101,7 @@ export async function syncFolder(driveFolderId: string, token: string): Promise<
 
 export async function refreshFolder(folderId: number, token: string): Promise<SyncStatus> {
   try {
-    const { data } = await api.POST("/api/v1/google-drive/folders/{folder_id}/refresh", {
+    const { data } = await api.POST("/api/v1/googledrive/folders/{folder_id}/refresh", {
       params: { path: { folder_id: folderId } },
       headers: bearer(token),
     });
@@ -119,7 +119,7 @@ export async function listFiles(
   limit = 20,
 ): Promise<PaginatedFiles> {
   try {
-    const { data } = await api.GET("/api/v1/google-drive/folders/{folder_id}/files", {
+    const { data } = await api.GET("/api/v1/googledrive/folders/{folder_id}/files", {
       params: { path: { folder_id: folderId }, query: { skip, limit } },
       headers: bearer(token),
     });
@@ -131,7 +131,7 @@ export async function listFiles(
 
 export async function downloadFile(fileId: number, token: string): Promise<Blob> {
   try {
-    const { data } = await api.GET("/api/v1/google-drive/files/{file_id}/download", {
+    const { data } = await api.GET("/api/v1/googledrive/files/{file_id}/download", {
       params: { path: { file_id: fileId } },
       parseAs: "blob",
       headers: bearer(token),
@@ -144,7 +144,7 @@ export async function downloadFile(fileId: number, token: string): Promise<Blob>
 
 export async function deleteFile(fileId: number, token: string): Promise<void> {
   try {
-    await api.DELETE("/api/v1/google-drive/files/{file_id}", {
+    await api.DELETE("/api/v1/googledrive/files/{file_id}", {
       params: { path: { file_id: fileId } },
       headers: bearer(token),
     });
@@ -159,7 +159,7 @@ export async function browseDrive(
   token: string,
 ): Promise<DriveBrowseResponse> {
   try {
-    const { data } = await api.GET("/api/v1/google-drive/browse", {
+    const { data } = await api.GET("/api/v1/googledrive/browse", {
       params: { query: parentId ? { folder_id: parentId } : undefined },
       headers: bearer(token),
     });
@@ -175,7 +175,7 @@ export async function getFolderDocumentStatus(
   token: string,
 ): Promise<FolderDocumentStatusResponse> {
   try {
-    const { data } = await api.GET("/api/v1/google-drive/folders/{folder_id}/rag-status", {
+    const { data } = await api.GET("/api/v1/googledrive/folders/{folder_id}/rag-status", {
       params: { path: { folder_id: folderId } },
       headers: bearer(token),
     });

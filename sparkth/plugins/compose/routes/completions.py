@@ -24,7 +24,6 @@ from sparkth.lib.llm import (
 )
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
-from sparkth.lib.permissions.scopes import USER
 from sparkth.lib.plugins import get_disabled_plugins
 from sparkth.plugins.compose.analytics import (
     ComposeAttachmentAnalytics,
@@ -38,11 +37,13 @@ from sparkth.plugins.compose.classifiers import RAGSearchClassifier
 from sparkth.plugins.compose.config import ComposeSettings, get_compose_settings
 from sparkth.plugins.compose.constants import LLM_PROVIDER_API_ERRORS
 from sparkth.plugins.compose.conversation_title import extract_title_from_messages, schedule_title_generation
+from sparkth.plugins.compose.enums import PlannerModel
 from sparkth.plugins.compose.exceptions import RAGSearchError
 from sparkth.plugins.compose.llm import complete_turn
 from sparkth.plugins.compose.messages import get_last_user_text
-from sparkth.plugins.compose.permissions import CONVERSATION_WRITE
-from sparkth.plugins.compose.routes.dependencies import get_turn_owner_id
+from sparkth.plugins.compose.models import Conversation
+from sparkth.plugins.compose.permissions import CONVERSATION, CONVERSATION_WRITE
+from sparkth.plugins.compose.routes.dependencies import get_attachable_document_ids, get_turn_conversation
 from sparkth.plugins.compose.routes.utils import resolve_tools
 from sparkth.plugins.compose.routes.utils.live_turns import request_stop
 from sparkth.plugins.compose.routes.utils.message_assembly import assemble_provider_messages
@@ -91,20 +92,21 @@ def _unusable_status(document: Document) -> Literal["queued", "processing", "fai
             "content": {"text/event-stream": {"schema": {"type": "string"}}},
         }
     },
-    dependencies=[Depends(CONVERSATION_WRITE.require_for_object(USER, get_turn_owner_id))],
+    dependencies=[Depends(CONVERSATION_WRITE.require_for_object(CONVERSATION, get_turn_conversation))],
 )
 async def compose_completion(
     request: ChatCompletionRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
-    owner_id: str = Depends(get_turn_owner_id),
+    turn_conversation: Conversation = Depends(get_turn_conversation),
+    attachable_document_ids: list[int] = Depends(get_attachable_document_ids),
     session: AsyncSession = Depends(get_async_session),
     service: ComposeService = Depends(get_compose_service),
     llm_service: LLMConfigService = Depends(get_llm_service),
     config: ComposeSettings = Depends(get_compose_settings),
     disabled_plugins: set[str] = Depends(get_disabled_plugins),
 ) -> Any:
-    # The caller runs the turn; the conversation and what it stores belong to owner_id.
+    # The caller runs the turn; the conversation and what it stores belong to the conversation's owner.
     user_id: int = cast(int, current_user.id)
     try:
         llm_config, api_key = await llm_service.resolve(
@@ -156,7 +158,7 @@ async def compose_completion(
     conversation, conversation_was_created = await service.get_or_create_conversation(
         session,
         conversation_uuid=conversation_uuid,
-        user_id=int(owner_id),
+        user_id=turn_conversation.user_id,
         llm_config_id=request.llm_config_id,
         provider=provider_name,
         model=model,
@@ -180,7 +182,7 @@ async def compose_completion(
             background_tasks,
             service,
             conversation_id=conversation_id,
-            user_id=int(owner_id),
+            user_id=turn_conversation.user_id,
             messages=request.messages,
             provider_name=provider_name,
             api_key=api_key,
@@ -195,8 +197,17 @@ async def compose_completion(
         # completed, which for a streamed turn is after the whole stream.
         turn_analytics.schedule_conversation_started(occurred_at=conversation.created_at)
 
-    if request.document_ids:
-        attached = await service.attach_owned_documents(session, conversation_id, request.document_ids, int(owner_id))
+    if request.document_ids and not attachable_document_ids:
+        # The caller may not add documents here, so all of them are dropped and the turn runs without them.
+        attachment_analytics.schedule_documents_skipped(
+            requested_count=len(set(request.document_ids)),
+            skipped_count=len(set(request.document_ids)),
+            occurred_at=datetime.now(timezone.utc),
+        )
+    if attachable_document_ids:
+        attached = await service.attach_owned_documents(
+            session, conversation_id, attachable_document_ids, turn_conversation.user_id
+        )
         for attachment in attached.created:
             attachment_analytics.schedule_document_attached(
                 document_id=attachment.document_id,
@@ -248,8 +259,10 @@ async def compose_completion(
             model=model,
             temperature=request.temperature,
         )
-        # The planner picks who answers, so it runs on the provider's smallest model.
-        planner_llm = get_provider(provider_name, api_key, small_model_for(provider_name), temperature=0).create_llm()
+        # The planner picks who answers. The small model is quicker and cheaper; the reply's model follows the
+        # planner's rules more closely.
+        planner_model = small_model_for(provider_name) if config.planner_model == PlannerModel.SMALL else model
+        planner_llm = get_provider(provider_name, api_key, planner_model, temperature=0).create_llm()
 
         # Only asked when there is something to search and something to search for.
         rag_search_required = False

@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 
 import DashboardLayout from "@/app/dashboard/layout";
 
-// The layout's only job under test is resolving the gated-nav permission map and
+// The layout's only job under test is resolving the gated sidebar links' permission map and
 // threading it to the sidebars, so stub every collaborator that would otherwise
 // need a router, a network client or a plugin registry.
 const auth = {
@@ -22,18 +22,18 @@ vi.mock("@/core/plugins/context", () => ({
 }));
 vi.mock("@/core/sidebar/components/layout/MobileSidebar", () => ({ default: () => null }));
 vi.mock("@/core/sidebar/components/layout/AppSidebar", () => ({
-  default: ({ navPermissions }: { navPermissions?: Record<string, boolean> }) => (
-    <div data-testid="nav-permissions">{JSON.stringify(navPermissions ?? null)}</div>
+  default: ({ sidebarPermissions }: { sidebarPermissions?: Record<string, boolean> }) => (
+    <div data-testid="sidebar-permissions">{JSON.stringify(sidebarPermissions ?? null)}</div>
   ),
 }));
 
-const resolveNavPermissions = vi.hoisted(() => vi.fn());
-vi.mock("@/core/sidebar/gatedNav", () => ({ resolveNavPermissions }));
+const resolveSidebarPermissions = vi.hoisted(() => vi.fn());
+vi.mock("@/core/sidebar/gatedSidebarLinks", () => ({ resolveSidebarPermissions }));
 
-describe("DashboardLayout nav permission gating", () => {
+describe("DashboardLayout sidebar permission gating", () => {
   beforeEach(() => {
     auth.token = "token-a";
-    resolveNavPermissions.mockReset();
+    resolveSidebarPermissions.mockReset();
     vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
@@ -41,10 +41,10 @@ describe("DashboardLayout nav permission gating", () => {
     vi.restoreAllMocks();
   });
 
-  const permissions = () => screen.getByTestId("nav-permissions").textContent;
+  const permissions = () => screen.getByTestId("sidebar-permissions").textContent;
 
   it("threads the resolved permission map to the sidebar", async () => {
-    resolveNavPermissions.mockResolvedValue({ analytics: true, admin: false });
+    resolveSidebarPermissions.mockResolvedValue({ analytics: true, admin: false });
 
     render(<DashboardLayout>child</DashboardLayout>);
 
@@ -54,7 +54,7 @@ describe("DashboardLayout nav permission gating", () => {
   });
 
   it("grants nothing when resolution rejects outright", async () => {
-    resolveNavPermissions.mockRejectedValue(new Error("boom"));
+    resolveSidebarPermissions.mockRejectedValue(new Error("boom"));
 
     render(<DashboardLayout>child</DashboardLayout>);
 
@@ -63,7 +63,7 @@ describe("DashboardLayout nav permission gating", () => {
   });
 
   it("clears previously granted entries when a re-resolve for a new token fails", async () => {
-    resolveNavPermissions.mockResolvedValue({ analytics: true, admin: true });
+    resolveSidebarPermissions.mockResolvedValue({ analytics: true, admin: true });
 
     const { rerender } = render(<DashboardLayout>child</DashboardLayout>);
     await waitFor(() =>
@@ -72,7 +72,7 @@ describe("DashboardLayout nav permission gating", () => {
 
     // Re-login as someone else: the token changes and the re-resolve errors out.
     // The previous user's map must not survive.
-    resolveNavPermissions.mockRejectedValue(new Error("boom"));
+    resolveSidebarPermissions.mockRejectedValue(new Error("boom"));
     auth.token = "token-b";
     rerender(<DashboardLayout>child</DashboardLayout>);
 
@@ -80,7 +80,7 @@ describe("DashboardLayout nav permission gating", () => {
   });
 
   it("clears the previous user's map immediately on a token change, before the re-resolve settles", async () => {
-    resolveNavPermissions.mockResolvedValueOnce({ analytics: true, admin: true });
+    resolveSidebarPermissions.mockResolvedValueOnce({ analytics: true, admin: true });
 
     const { rerender } = render(<DashboardLayout>child</DashboardLayout>);
     await waitFor(() =>
@@ -89,7 +89,7 @@ describe("DashboardLayout nav permission gating", () => {
 
     // Re-login: new token, and the re-resolve is still in flight (never settles here). The
     // previous user's gated entries must not linger while the new checks are pending.
-    resolveNavPermissions.mockReturnValueOnce(new Promise<Record<string, boolean>>(() => {}));
+    resolveSidebarPermissions.mockReturnValueOnce(new Promise<Record<string, boolean>>(() => {}));
     auth.token = "token-b";
     rerender(<DashboardLayout>child</DashboardLayout>);
 

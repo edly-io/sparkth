@@ -31,3 +31,11 @@ export class ApiRequestError extends Error {
     }
   }
 }
+
+/**
+ * Whether the API answered that the item a request names does not exist: a 404, or a 422 for an id
+ * so malformed that nothing can have it.
+ */
+export function isNotFoundError(error: unknown): boolean {
+  return error instanceof ApiRequestError && (error.status === 404 || error.status === 422);
+}

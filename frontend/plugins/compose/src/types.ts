@@ -48,7 +48,6 @@ export interface ChatMessage {
   isTyping?: boolean;
   isError?: boolean;
   isPending?: boolean;
-  pillAttachment?: TextAttachment | null;
   statusPhase?: StreamStatusPhase;
   ragSections?: {
     type: string;

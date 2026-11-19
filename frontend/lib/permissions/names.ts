@@ -21,7 +21,9 @@ type CorePermissionName =
   | "llm.config.create"
   | "llm.config.read"
   | "llm.config.update"
-  | "llm.config.delete";
+  | "llm.config.delete"
+  | "plugin.use"
+  | "file.upload";
 
 /**
  * One entry per plugin that registers permissions, valued with the union of its permission

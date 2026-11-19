@@ -19,6 +19,12 @@ const OPENEDX_SCHEMA = {
   required: ["lms_url", "lms_username", "lms_password"],
 };
 
+const STORED_PASSWORD: Partial<UserPluginState> = {
+  config: { lms_url: "https://l.example.com", lms_username: "s" },
+  secrets_set: ["lms_password"],
+  masked_secrets: {},
+};
+
 function renderModal(
   plugin: Partial<UserPluginState>,
   onSave = vi.fn(async () => {}),
@@ -27,7 +33,7 @@ function renderModal(
   renderWithIntl(
     <PluginConfigModal
       plugin={{
-        plugin_name: "open-edx",
+        plugin_name: "openedx",
         enabled: true,
         config: {},
         config_schema: OPENEDX_SCHEMA,
@@ -199,11 +205,7 @@ describe("PluginConfigModal", () => {
   });
 
   it("shows a stored secret as dots, never as a value", () => {
-    renderModal({
-      config: { lms_url: "https://l.example.com", lms_username: "s" },
-      secrets_set: ["lms_password"],
-      masked_secrets: {},
-    });
+    renderModal(STORED_PASSWORD);
 
     expect(screen.getByText("••••••••")).toBeDefined();
     // The selector skips the Replace button, whose aria-label also mentions the field.
@@ -212,11 +214,7 @@ describe("PluginConfigModal", () => {
   });
 
   it("keeps a stored secret it was not asked to replace", async () => {
-    const onSave = renderModal({
-      config: { lms_url: "https://l.example.com", lms_username: "s" },
-      secrets_set: ["lms_password"],
-      masked_secrets: {},
-    });
+    const onSave = renderModal(STORED_PASSWORD);
 
     fireEvent.click(screen.getByRole("button", { name: /Save/ }));
 
@@ -230,11 +228,7 @@ describe("PluginConfigModal", () => {
   });
 
   it("sends a replaced secret", async () => {
-    const onSave = renderModal({
-      config: { lms_url: "https://l.example.com", lms_username: "s" },
-      secrets_set: ["lms_password"],
-      masked_secrets: {},
-    });
+    const onSave = renderModal(STORED_PASSWORD);
 
     fireEvent.click(screen.getByRole("button", { name: "Replace Lms Password" }));
     fireEvent.change(screen.getByLabelText(/Lms Password/, { selector: "input" }), {
@@ -248,11 +242,7 @@ describe("PluginConfigModal", () => {
   });
 
   it("refuses to save a replaced secret left empty", async () => {
-    const onSave = renderModal({
-      config: { lms_url: "https://l.example.com", lms_username: "s" },
-      secrets_set: ["lms_password"],
-      masked_secrets: {},
-    });
+    const onSave = renderModal(STORED_PASSWORD);
 
     fireEvent.click(screen.getByRole("button", { name: "Replace Lms Password" }));
     fireEvent.click(screen.getByRole("button", { name: /Save/ }));
@@ -262,11 +252,7 @@ describe("PluginConfigModal", () => {
   });
 
   it("keeps the stored secret again after a replace is undone", async () => {
-    const onSave = renderModal({
-      config: { lms_url: "https://l.example.com", lms_username: "s" },
-      secrets_set: ["lms_password"],
-      masked_secrets: {},
-    });
+    const onSave = renderModal(STORED_PASSWORD);
 
     fireEvent.click(screen.getByRole("button", { name: "Replace Lms Password" }));
     fireEvent.change(screen.getByLabelText(/Lms Password/, { selector: "input" }), {
@@ -284,6 +270,42 @@ describe("PluginConfigModal", () => {
     );
     expect(screen.getByText("••••••••")).toBeDefined();
   });
+
+  it("moves focus to the new input when Replace is clicked", () => {
+    renderModal(STORED_PASSWORD);
+
+    fireEvent.click(screen.getByRole("button", { name: "Replace Lms Password" }));
+
+    expect(screen.getByLabelText(/Lms Password/, { selector: "input" })).toHaveFocus();
+  });
+
+  it("moves focus back to Replace when Keep stored is clicked", () => {
+    renderModal(STORED_PASSWORD);
+
+    fireEvent.click(screen.getByRole("button", { name: "Replace Lms Password" }));
+    fireEvent.click(screen.getByRole("button", { name: "Keep stored Lms Password" }));
+
+    expect(screen.getByRole("button", { name: "Replace Lms Password" })).toHaveFocus();
+  });
+
+  it("focuses the input of the secret being replaced, not another one", () => {
+    renderModal({
+      ...STORED_PASSWORD,
+      config_schema: {
+        ...OPENEDX_SCHEMA,
+        properties: {
+          ...OPENEDX_SCHEMA.properties,
+          api_key: { title: "Api Key", type: "string", widget: "password" },
+        },
+      },
+      secrets_set: ["lms_password", "api_key"],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Replace Lms Password" }));
+    fireEvent.click(screen.getByRole("button", { name: "Replace Api Key" }));
+
+    expect(screen.getByLabelText(/Api Key/, { selector: "input" })).toHaveFocus();
+  });
 });
 
 const PICKER_SCHEMA = {
@@ -293,6 +315,10 @@ const PICKER_SCHEMA = {
 
 function ExamplePicker({ field }: ConfigWidgetProps) {
   return <p>Example picker for {field.label}</p>;
+}
+
+function ExampleSecret({ field }: ConfigWidgetProps) {
+  return <input aria-label={field.label} />;
 }
 
 describe("PluginConfigModal field controls", () => {
@@ -312,5 +338,23 @@ describe("PluginConfigModal field controls", () => {
     renderModal({ config_schema: PICKER_SCHEMA });
 
     expect(screen.getByLabelText("Picks").getAttribute("type")).toBe("text");
+  });
+
+  it("moves focus to a passed control when its stored secret is replaced", () => {
+    renderModal(
+      {
+        config_schema: {
+          type: "object",
+          properties: { token: { title: "Token", type: "string", widget: "example-secret" } },
+        },
+        secrets_set: ["token"],
+      },
+      vi.fn(async () => {}),
+      { "example-secret": ExampleSecret },
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Replace Token" }));
+
+    expect(screen.getByLabelText("Token", { selector: "input" })).toHaveFocus();
   });
 });

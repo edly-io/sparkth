@@ -9,7 +9,7 @@ from sparkth.core.models.user import User
 from sparkth.lib.auth import get_current_user
 from sparkth.main import app
 
-pytestmark = pytest.mark.usefixtures("default_user_role")
+pytestmark = pytest.mark.usefixtures("default_user_roles")
 
 _TEST_USER = User(
     id=1,

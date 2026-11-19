@@ -16,6 +16,7 @@ from sparkth.core.models.user import User
 from sparkth.lib.assets import read_asset
 from sparkth.lib.auth import bind_current_user_id
 from sparkth.lib.exceptions.auth import NoAuthenticatedUser
+from sparkth.lib.mcp.exceptions import ToolFailure
 from sparkth.lib.models import utc_now
 from sparkth.plugins.pxc import tools as pxc_tools
 from sparkth.plugins.pxc.activities import generated_activity_dir, preview_url
@@ -24,7 +25,6 @@ from sparkth.plugins.pxc.constants import PXC_PREVIEW_ACTIVITY_INSTANCE, PXC_PRE
 from sparkth.plugins.pxc.enums import PreviewPermission, PxcFailureKind
 from sparkth.plugins.pxc.exceptions import (
     PxcActivityNotFound,
-    PxcBuildFailed,
     PxcCompileFailed,
     PxcFieldsFrozen,
     PxcManifestInvalid,
@@ -96,12 +96,12 @@ async def test_build_returns_the_new_activitys_id_and_preview_url() -> None:
 
 
 async def test_a_failed_build_reaches_the_agent_with_its_message() -> None:
-    # Raised, not caught: both tool paths render str(exc) as the tool result the agent reads.
+    # Raised as a ToolFailure: the agent is handed its text, and of any other exception only that the tool failed.
     bind_current_user_id(7)
     failure = PxcCompileFailed("sandbox.js:3:7 Unexpected token")
     with (
         patch("sparkth.plugins.pxc.tools.build_activity", new=AsyncMock(side_effect=failure)),
-        pytest.raises(PxcBuildFailed) as caught,
+        pytest.raises(ToolFailure) as caught,
     ):
         await pxc_build_activity("Poll", "A one-question poll", MANIFEST, "ui", "sandbox")
 
@@ -331,7 +331,7 @@ async def test_a_refused_update_reaches_the_agent_with_its_message() -> None:
     refusal = PxcFieldsFrozen("Nothing was updated. field 'question' was removed")
     with (
         patch("sparkth.plugins.pxc.tools.update_activity", new=AsyncMock(side_effect=refusal)),
-        pytest.raises(PxcBuildFailed) as caught,
+        pytest.raises(ToolFailure) as caught,
     ):
         await pxc_update_activity(str(uuid7()), "Poll", "A one-question poll", MANIFEST, "ui", "sandbox")
 
