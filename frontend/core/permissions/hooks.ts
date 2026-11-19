@@ -18,7 +18,7 @@ export type Access = "checking" | "allowed" | "denied";
 export function usePermissionCheck(
   token: string | null,
   permission: PermissionName,
-  { scope, scopeObjectId }: { scope?: string; scopeObjectId?: string } = {},
+  { scope, scopeObjectId }: { scope: string; scopeObjectId?: string },
 ): Access {
   const [access, setAccess] = useState<Access>("checking");
 

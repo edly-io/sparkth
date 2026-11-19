@@ -17,7 +17,7 @@ describe("checkPermission", () => {
   it("POSTs the permission to /api/v1/permissions/can with the bearer token and returns allowed", async () => {
     const spy = mockFetch({ allowed: true });
 
-    const result = await checkPermission("test-token", "analytics.read");
+    const result = await checkPermission("test-token", "analytics.read", { scope: "global" });
 
     const request = sentRequest(spy);
     expect(request.method).toBe("POST");
@@ -30,7 +30,7 @@ describe("checkPermission", () => {
   it("returns false when the backend says not allowed", async () => {
     mockFetch({ allowed: false });
 
-    expect(await checkPermission("test-token", "analytics.read")).toBe(false);
+    expect(await checkPermission("test-token", "analytics.read", { scope: "global" })).toBe(false);
   });
 
   it("sends a non-global scope and object id in the body", async () => {
@@ -48,13 +48,17 @@ describe("checkPermission", () => {
   it("throws rather than quietly answering false when the response carries no body", async () => {
     mockFetch(null, 204);
 
-    await expect(checkPermission("test-token", "analytics.read")).rejects.toThrow();
+    await expect(
+      checkPermission("test-token", "analytics.read", { scope: "global" }),
+    ).rejects.toThrow();
   });
 
   it("wraps a transport failure as an ApiRequestError rather than answering false", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("network down"));
 
-    const error = await checkPermission("test-token", "analytics.read").catch((e: unknown) => e);
+    const error = await checkPermission("test-token", "analytics.read", { scope: "global" }).catch(
+      (e: unknown) => e,
+    );
 
     expect(error).toBeInstanceOf(ApiRequestError);
     expect((error as ApiRequestError).message).toMatch(/unable to connect/i);
@@ -79,7 +83,7 @@ describe("checkPermissions", () => {
     ]);
 
     const result = await checkPermissions("test-token", [
-      { permission: "analytics.read" },
+      { permission: "analytics.read", scope: "global" },
       { permission: "group.read", scope: "group", scopeObjectId: "7" },
     ]);
 
@@ -97,9 +101,9 @@ describe("checkPermissions", () => {
   it("wraps a transport failure as an ApiRequestError rather than answering false", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("network down"));
 
-    const error = await checkPermissions("test-token", [{ permission: "analytics.read" }]).catch(
-      (e: unknown) => e,
-    );
+    const error = await checkPermissions("test-token", [
+      { permission: "analytics.read", scope: "global" },
+    ]).catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(ApiRequestError);
   });

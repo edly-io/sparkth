@@ -35,7 +35,14 @@ describe("GATED_SIDEBAR_LINKS config", () => {
 
 describe("resolveSidebarPermissions", () => {
   const links: GatedSidebarLink[] = [
-    { key: "a", label: "A", icon: noopIcon, route: "a", permission: "analytics.read" },
+    {
+      key: "a",
+      label: "A",
+      icon: noopIcon,
+      route: "a",
+      permission: "analytics.read",
+      scope: "global",
+    },
     {
       key: "b",
       label: "B",
@@ -53,7 +60,7 @@ describe("resolveSidebarPermissions", () => {
 
     expect(checkPermissions).toHaveBeenCalledTimes(1);
     expect(checkPermissions).toHaveBeenCalledWith("tok", [
-      { permission: "analytics.read", scope: undefined },
+      { permission: "analytics.read", scope: "global" },
       { permission: "email.whitelist.read", scope: "whitelist" },
     ]);
   });

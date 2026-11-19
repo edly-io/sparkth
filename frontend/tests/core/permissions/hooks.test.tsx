@@ -27,7 +27,9 @@ beforeEach(() => {
 
 describe("usePermissionCheck", () => {
   it("stays checking without a token", () => {
-    const { result } = renderHook(() => usePermissionCheck(null, "analytics.read"));
+    const { result } = renderHook(() =>
+      usePermissionCheck(null, "analytics.read", { scope: "global" }),
+    );
 
     expect(result.current).toBe("checking");
     expect(mockCheck).not.toHaveBeenCalled();
@@ -47,7 +49,9 @@ describe("usePermissionCheck", () => {
   it("is denied when the backend refuses", async () => {
     mockCheck.mockResolvedValue(false);
 
-    const { result } = renderHook(() => usePermissionCheck("tok", "analytics.read"));
+    const { result } = renderHook(() =>
+      usePermissionCheck("tok", "analytics.read", { scope: "global" }),
+    );
 
     await waitFor(() => expect(result.current).toBe("denied"));
   });
@@ -56,7 +60,9 @@ describe("usePermissionCheck", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     mockCheck.mockRejectedValue(new Error("network"));
 
-    const { result } = renderHook(() => usePermissionCheck("tok", "analytics.read"));
+    const { result } = renderHook(() =>
+      usePermissionCheck("tok", "analytics.read", { scope: "global" }),
+    );
 
     await waitFor(() => expect(result.current).toBe("denied"));
   });
@@ -67,7 +73,7 @@ describe("usePermissionCheck", () => {
     mockCheck.mockReturnValueOnce(new Promise(() => {}));
 
     const { result, rerender } = renderHook(
-      ({ token }) => usePermissionCheck(token, "analytics.read"),
+      ({ token }) => usePermissionCheck(token, "analytics.read", { scope: "global" }),
       {
         initialProps: { token: "old" },
       },
@@ -125,7 +131,7 @@ describe("usePermissionChecks", () => {
     mockChecks.mockResolvedValue([true]);
 
     const { result } = renderHook(() =>
-      usePermissionChecks("tok", [{ permission: "analytics.read" }]),
+      usePermissionChecks("tok", [{ permission: "analytics.read", scope: "global" }]),
     );
     await waitFor(() => expect(result.current).toEqual(["allowed"]));
 
