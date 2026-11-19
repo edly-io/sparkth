@@ -11,6 +11,11 @@
     "message": "Demandez l'accès à un administrateur si nécessaire.",
     "back": "Retour au tableau de bord"
   },
+  "pluginNotFound": {
+    "title": "Plugin introuvable",
+    "message": "Aucun plugin n'est enregistré sous le nom {name}.",
+    "back": "Retour au tableau de bord"
+  },
   "api": {
     "connectionFailed": "Impossible de se connecter au serveur : {detail}"
   }

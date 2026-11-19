@@ -1,7 +1,9 @@
 "use client";
 
 import { useParams, redirect } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/core/auth/hooks";
+import { NotFound } from "@/core/components/layout/NotFound";
 import { Spinner } from "@/core/components/ui/Spinner";
 import { usePlugin, usePluginContext } from "@/core/plugins/context";
 import { displayNameOf } from "@/core/plugins/metadata";
@@ -12,6 +14,7 @@ import Link from "next/link";
 
 export default function PluginPageClient() {
   const params = useParams();
+  const t = useTranslations("pluginNotFound");
   const { isAuthenticated, loading: authLoading } = useAuth();
 
   const pluginName = params?.pluginName as string;
@@ -38,72 +41,23 @@ export default function PluginPageClient() {
     );
   }
 
-  if (!pluginName) {
-    return (
-      <div className="flex items-center justify-center h-full min-h-screen bg-background">
-        <div className="text-center max-w-md">
-          <div className="text-error-600 dark:text-error-400 mb-4">
-            <svg
-              className="w-16 h-16 mx-auto"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-              />
-            </svg>
-          </div>
-          <h2 className="text-2xl font-bold text-foreground mb-2">Invalid URL</h2>
-          <p className="text-muted-foreground mb-4">No plugin name specified.</p>
-          <Link
-            className="inline-block px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
-            href="/dashboard"
-          >
-            Go to Dashboard
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
+  // A URL with no plugin name finds no plugin either.
   if (!pluginDef) {
     return (
-      <div className="flex items-center justify-center h-full min-h-screen bg-background">
-        <div className="text-center max-w-md">
-          <div className="text-muted mb-4">
-            <svg
-              className="w-16 h-16 mx-auto"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-          </div>
-          <h2 className="text-2xl font-bold text-foreground mb-2">Plugin Not Found</h2>
-          <p className="text-muted-foreground mb-4">
-            No plugin registered with name:{" "}
-            <code className="bg-surface-variant px-2 py-1 rounded text-foreground">
-              {pluginName}
-            </code>
-          </p>
-          <Link
-            className="inline-block px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
-            href="/dashboard"
-          >
-            Go to Dashboard
-          </Link>
+      <div className="flex items-center justify-center h-full min-h-screen bg-background p-4">
+        <div className="w-full max-w-md">
+          <NotFound
+            title={t("title")}
+            message={pluginName ? t("message", { name: pluginName }) : undefined}
+            action={
+              <Link
+                href="/dashboard"
+                className="font-medium text-primary-600 hover:underline dark:text-primary-400"
+              >
+                {t("back")}
+              </Link>
+            }
+          />
         </div>
       </div>
     );

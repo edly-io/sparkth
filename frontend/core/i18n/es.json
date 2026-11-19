@@ -11,6 +11,11 @@
     "message": "Pide acceso a un administrador si lo necesitas.",
     "back": "Volver al panel"
   },
+  "pluginNotFound": {
+    "title": "Plugin no encontrado",
+    "message": "No hay ningún plugin registrado con el nombre {name}.",
+    "back": "Volver al panel"
+  },
   "api": {
     "connectionFailed": "No se pudo conectar con el servidor: {detail}"
   }

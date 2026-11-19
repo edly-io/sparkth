@@ -11,6 +11,11 @@
     "message": "Ask an administrator if you need access.",
     "back": "Back to dashboard"
   },
+  "pluginNotFound": {
+    "title": "Plugin not found",
+    "message": "No plugin is registered with the name {name}.",
+    "back": "Back to dashboard"
+  },
   "api": {
     "connectionFailed": "Unable to connect to server: {detail}"
   }
