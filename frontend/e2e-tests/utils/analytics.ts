@@ -57,17 +57,27 @@ async function stubPeriods(
 }
 
 /**
- * Makes `GET /api/v1/permissions/can` answer `allowed` for one permission and pass every other
- * check through. The seeded e2e user has no roles, so specs grant or deny what they need here.
+ * Makes the `/api/v1/permissions/can` probes answer `allowed` for one permission and pass every
+ * other check through. A single check naming it is answered here; a batch goes on to the backend
+ * and the results naming it are overwritten. The seeded e2e user has no roles, so specs grant or
+ * deny what they need here.
  */
 export async function stubPermission(
   page: Page,
   permission: string,
   allowed: boolean,
 ): Promise<void> {
-  await page.route("**/api/v1/permissions/can**", (route) => {
-    const url = new URL(route.request().url());
-    if (url.searchParams.get("permission") !== permission) return route.continue();
+  await page.route("**/api/v1/permissions/can**", async (route) => {
+    const request = route.request();
+    if (new URL(request.url()).pathname.endsWith("/batch")) {
+      const response = await route.fetch();
+      const results = (await response.json()) as { permission: string; allowed: boolean }[];
+      const json = results.map((result) =>
+        result.permission === permission ? { ...result, allowed } : result,
+      );
+      return route.fulfill({ response, json });
+    }
+    if (request.postDataJSON()?.permission !== permission) return route.continue();
     return route.fulfill({
       status: 200,
       contentType: "application/json",

@@ -4,7 +4,8 @@ import { useReducer, useEffect, useCallback, type SubmitEvent } from "react";
 import { redirect } from "next/navigation";
 import { Plus, Trash2, Mail, Globe } from "lucide-react";
 import { useAuth } from "@/core/auth/hooks";
-import { usePermissionCheck } from "@/core/permissions/hooks";
+import type { PermissionQuestion } from "@/core/permissions/client";
+import { usePermissionChecks } from "@/core/permissions/hooks";
 import { ApiRequestError } from "@/lib/api";
 import {
   getWhitelist,
@@ -56,6 +57,13 @@ function reducer(state: WhitelistState, action: WhitelistAction): WhitelistState
   }
 }
 
+/** The whitelist permissions the page gates on, asked in one request: read, create, delete. */
+const WHITELIST_QUESTIONS: PermissionQuestion[] = [
+  { permission: "email.whitelist.read", scope: "whitelist" },
+  { permission: "email.whitelist.create", scope: "whitelist" },
+  { permission: "email.whitelist.delete", scope: "whitelist" },
+];
+
 const initialState: WhitelistState = {
   entries: [],
   loading: true,
@@ -70,11 +78,9 @@ export default function WhitelistPage() {
   const { token } = useAuth();
   const [state, dispatch] = useReducer(reducer, initialState);
 
-  const access = usePermissionCheck(token, "email.whitelist.read", { scope: "whitelist" });
-  const canAdd =
-    usePermissionCheck(token, "email.whitelist.create", { scope: "whitelist" }) === "allowed";
-  const canRemove =
-    usePermissionCheck(token, "email.whitelist.delete", { scope: "whitelist" }) === "allowed";
+  const [access, addAccess, removeAccess] = usePermissionChecks(token, WHITELIST_QUESTIONS);
+  const canAdd = addAccess === "allowed";
+  const canRemove = removeAccess === "allowed";
 
   if (access === "denied") {
     redirect("/dashboard");

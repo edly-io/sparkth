@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
-import { checkPermission } from "@/core/permissions/client";
+import {
+  checkPermission,
+  checkPermissions,
+  type PermissionQuestion,
+} from "@/core/permissions/client";
 import type { PermissionName } from "@/lib/permissions/names";
 
 /** Where a permission check stands: still in flight, granted, or refused (including on error). */
@@ -36,4 +40,38 @@ export function usePermissionCheck(
   }, [token, permission, scope, scopeObjectId]);
 
   return access;
+}
+
+/**
+ * Whether the signed-in user holds each of `questions`, answered by one request, for gating
+ * several controls at once. Returns one `Access` per question, in order.
+ *
+ * Pass a stable array (a module constant or a memoized value): a new array on every render asks
+ * again. Goes back to `"checking"` whenever the token or questions change, and fails closed,
+ * denying every question, when the request errors.
+ */
+export function usePermissionChecks(
+  token: string | null,
+  questions: PermissionQuestion[],
+): Access[] {
+  const [answers, setAnswers] = useState<Access[]>(() => questions.map(() => "checking"));
+
+  useEffect(() => {
+    setAnswers(questions.map(() => "checking"));
+    if (!token) return;
+    let active = true;
+    checkPermissions(token, questions)
+      .then((allowed) => {
+        if (active) setAnswers(allowed.map((granted) => (granted ? "allowed" : "denied")));
+      })
+      .catch((error: unknown) => {
+        console.error("Permission checks failed:", error);
+        if (active) setAnswers(questions.map(() => "denied"));
+      });
+    return () => {
+      active = false;
+    };
+  }, [token, questions]);
+
+  return answers;
 }
