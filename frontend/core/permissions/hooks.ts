@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import {
   checkPermission,
   checkPermissions,
-  type PermissionQuestion,
+  type PermissionCheckQuery,
 } from "@/core/permissions/client";
 import type { PermissionName } from "@/lib/permissions/names";
 
@@ -52,14 +52,14 @@ export function usePermissionCheck(
  */
 export function usePermissionChecks(
   token: string | null,
-  questions: PermissionQuestion[],
+  questions: PermissionCheckQuery[],
 ): Access[] {
   // Keyed by content, not identity: a new array with the same questions must not ask again.
   const questionsKey = JSON.stringify(questions);
   const [answers, setAnswers] = useState<Access[]>(() => questions.map(() => "checking"));
 
   useEffect(() => {
-    const asked: PermissionQuestion[] = JSON.parse(questionsKey);
+    const asked: PermissionCheckQuery[] = JSON.parse(questionsKey);
     setAnswers(asked.map(() => "checking"));
     if (!token) return;
     let active = true;

@@ -4,7 +4,7 @@ import { useReducer, useEffect, useCallback, type SubmitEvent } from "react";
 import { redirect } from "next/navigation";
 import { Plus, Trash2, Mail, Globe } from "lucide-react";
 import { useAuth } from "@/core/auth/hooks";
-import type { PermissionQuestion } from "@/core/permissions/client";
+import type { PermissionCheckQuery } from "@/core/permissions/client";
 import { usePermissionChecks } from "@/core/permissions/hooks";
 import { ApiRequestError } from "@/lib/api";
 import {
@@ -58,7 +58,7 @@ function reducer(state: WhitelistState, action: WhitelistAction): WhitelistState
 }
 
 /** The whitelist permissions the page gates on, asked in one request: read, create, delete. */
-const WHITELIST_QUESTIONS: PermissionQuestion[] = [
+const WHITELIST_QUESTIONS: PermissionCheckQuery[] = [
   { permission: "email.whitelist.read", scope: "whitelist" },
   { permission: "email.whitelist.create", scope: "whitelist" },
   { permission: "email.whitelist.delete", scope: "whitelist" },

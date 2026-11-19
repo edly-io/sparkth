@@ -3,7 +3,7 @@ import type { PermissionCheckResponse, PermissionCheckResult } from "@/core/perm
 import type { PermissionName } from "@/lib/permissions/names";
 
 /** One "may the current user do this?" question: a permission at a scope, optionally at one of its objects. */
-export interface PermissionQuestion {
+export interface PermissionCheckQuery {
   permission: PermissionName;
   scope: string; // e.g. "global"
   scopeObjectId?: string; // omit at an object-bearing scope to ask about any of its objects
@@ -33,7 +33,7 @@ export async function checkPermission(
  */
 export async function checkPermissions(
   token: string,
-  questions: PermissionQuestion[],
+  questions: PermissionCheckQuery[],
 ): Promise<boolean[]> {
   const results = await call<PermissionCheckResult[]>(() =>
     api.POST("/api/v1/permissions/can/batch", {

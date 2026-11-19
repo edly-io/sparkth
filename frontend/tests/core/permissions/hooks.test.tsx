@@ -4,7 +4,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import {
   checkPermission,
   checkPermissions,
-  type PermissionQuestion,
+  type PermissionCheckQuery,
 } from "@/core/permissions/client";
 import { usePermissionCheck, usePermissionChecks } from "@/core/permissions/hooks";
 
@@ -16,7 +16,7 @@ vi.mock("@/core/permissions/client", () => ({
 const mockCheck = vi.mocked(checkPermission);
 const mockChecks = vi.mocked(checkPermissions);
 
-const QUESTIONS: PermissionQuestion[] = [
+const QUESTIONS: PermissionCheckQuery[] = [
   { permission: "email.whitelist.read", scope: "whitelist" },
   { permission: "email.whitelist.create", scope: "whitelist" },
 ];
