@@ -10,6 +10,7 @@ from langgraph.types import Command
 from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME, REFUSAL_TOOL_NAME, SHOW_PLAN_TOOL_NAME
 from sparkth.lib.log import get_logger
 from sparkth.plugins.compose.constants import (
+    PLANNER_STEP_REQUEST,
     REJECT_MISSING_STEP_NUMBER,
     REJECT_OTHER_AGENTS_STEP,
     REJECT_PLAN_AFTER_A_STEP,
@@ -125,6 +126,7 @@ def enforce_plan(existing_plan: ExistingPlan | None) -> AgentMiddleware[Any, Any
     - Without a plan, an operation runs only as the turn's first step.
     - An operation is asked for its step's task as the author read it, not for what the planner
       wrote, when it follows another step or belongs to the existing plan.
+    - An agent carrying out a step of a plan is told which step it is and its task, and to do only that step.
     - Each step of a plan is reported on the stream when it starts, and again once it has run.
 
     The rules about operations exist because what a step returned, an agent's reply or what an
@@ -176,6 +178,16 @@ def enforce_plan(existing_plan: ExistingPlan | None) -> AgentMiddleware[Any, Any
             )
             task = plan.steps[step_number - 1].task
             request = request.override(tool_call={**call, "args": {**call["args"], "request": task}})
+
+        # An agent is told which step of the plan it is doing, so it leaves the other steps to their agents.
+        elif tool_name != OPERATOR_AGENT_NAME:
+            framed = PLANNER_STEP_REQUEST.format(
+                number=step_number,
+                total=len(plan.steps),
+                task=plan.steps[step_number - 1].task,
+                request=call["args"].get("request", ""),
+            )
+            request = request.override(tool_call={**call, "args": {**call["args"], "request": framed}})
 
         return await _run_and_report_step(request, handler, step_number)
 

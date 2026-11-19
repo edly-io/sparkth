@@ -25,6 +25,8 @@ PLANNER_PROMPT = read_asset(__file__, "planner/prompt.txt")
 PLANNER_OPERATIONS = read_asset(__file__, "planner/operations.txt")
 PLANNER_WITHOUT_OPERATIONS = read_asset(__file__, "planner/without_operations.txt")
 PLANNER_EXISTING_PLAN = read_asset(__file__, "planner/load_existing_plan.txt")
+# What an agent is asked when it carries out a step of a plan: which step it is, and its request.
+PLANNER_STEP_REQUEST = read_asset(__file__, "planner/plan_step_request.txt")
 OPERATOR_PROMPT = read_asset(__file__, "operator_prompt.txt")
 
 # Heads what an operation returned when the planner or a later step reads it, so it is taken as data.

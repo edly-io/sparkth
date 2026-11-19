@@ -19,6 +19,7 @@ from sparkth.plugins.compose.constants import (
     OPERATION_RESULT_HEADING,
     PLAN_TASK_MAX_CHARS,
     PLANNER_OPERATIONS,
+    PLANNER_STEP_REQUEST,
     PLANNER_WITHOUT_OPERATIONS,
     REFUSAL_MESSAGE,
     REJECT_MISSING_STEP_NUMBER,
@@ -474,6 +475,31 @@ class TestThePlan:
 
         listed = [m for m in messages if isinstance(m, ToolMessage) and m.name == SHOW_PLAN_TOOL_NAME]
         assert [m.text for m in listed] == ["1. Write the lesson\n2. Build the activity"]
+
+    async def test_an_agent_doing_a_planned_step_is_told_it_is_that_step_alone(self) -> None:
+        """So it leaves the plan's other steps to their agents and doesn't end its step with choices."""
+        plan = _plan((STUB_AGENT.name, "Write the lesson"), (OTHER_AGENT.name, "Build the activity"))
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[plan]),
+            AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "Write a lesson on photosynthesis", step=1)]),
+        )
+        stub_model = RecordingChatModel(messages=iter([AIMessage("Here is the lesson.")]))
+        other = _agent_graph(OTHER_AGENT, ScriptedChatModel(messages=iter([])))
+
+        await _run(planner_model, _agent_graph(STUB_AGENT, stub_model), other)
+
+        expected = PLANNER_STEP_REQUEST.format(
+            number=1, total=2, task="Write the lesson", request="Write a lesson on photosynthesis"
+        )
+        assert stub_model.seen[0][-1].text == expected
+
+    async def test_a_hand_off_without_a_plan_is_asked_as_the_planner_wrote_it(self) -> None:
+        planner_model = _planner_model(AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "Write a lesson")]))
+        stub_model = RecordingChatModel(messages=iter([AIMessage("Here is the lesson.")]))
+
+        await _run(planner_model, _agent_graph(STUB_AGENT, stub_model))
+
+        assert stub_model.seen[0][-1].text == "Write a lesson"
 
     async def test_a_plan_of_one_step_is_rejected(self) -> None:
         planner_model = _planner_model(AIMessage("", tool_calls=[_plan((STUB_AGENT.name, "Write the lesson"))]))
@@ -997,6 +1023,21 @@ class TestAPlanFromAnEarlierMessage:
 
         assert _rejected(messages, OPERATOR_AGENT_NAME) == [REJECT_STEP_NOT_NEXT.format(step=1, next="2")]
         assert operator_model.seen == []
+        assert "1. Publish it (operator): done" in planner_model.seen[0][0].text
+
+    async def test_a_step_that_ran_may_be_carried_on_or_followed_by_the_next(self) -> None:
+        """Its agent may have asked the author something, or finished: only the planner can tell."""
+        planner_model = _planner_model(AIMessage("", tool_calls=[_operation("Publish it", step=2)]))
+        operator_model = RecordingChatModel(messages=iter([AIMessage("Published.")]))
+
+        await _run(
+            planner_model,
+            _agent_graph(STUB_AGENT, ScriptedChatModel(messages=iter([]))),
+            operator=_operator(operator_model),
+            existing_plan=WRITE_THEN_PUBLISH,
+        )
+
+        assert len(operator_model.seen) == 1
 
     async def test_a_message_about_something_else_runs_without_it(self) -> None:
         planner_model = _planner_model(AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "A quiz instead")]))
@@ -1110,12 +1151,12 @@ class TestAPlanFromAnEarlierMessage:
         assert f"2. Redesign it ({STUB_AGENT.name}): in progress" in prompt
         assert "3. Publish it (operator): not started" in prompt
 
-    def test_the_planner_is_shown_a_step_that_never_ran_as_not_started(self) -> None:
+    def test_the_planner_is_shown_a_step_waiting_to_start_as_next(self) -> None:
         plan = ExistingPlan(WRITE_THEN_PUBLISH.steps, current_step=2, has_current_step_run=False)
 
         prompt = render_planner_prompt([STUB_AGENT], operations=True, existing_plan=plan)
 
-        assert "2. Publish it (operator): not started" in prompt
+        assert "2. Publish it (operator): next" in prompt
 
     def test_the_planner_is_shown_no_plan_without_an_existing_plan(self) -> None:
         assert "EXISTING PLAN" not in render_planner_prompt([STUB_AGENT], operations=True, existing_plan=None)
@@ -1374,6 +1415,35 @@ class TestARunThatGoesWrong:
         assert _numbered(done) == [f"{number}. Publish module {number}" for number in range(1, 7)]
         assert _numbered(left) == ["7. Publish module 7", "8. Publish module 8"]
         assert _plan_steps(reported)[-1] == (7, False)
+
+    async def test_rejected_calls_past_their_limit_with_steps_of_the_plan_left_end_with_the_same_note(self) -> None:
+        plan, first, second, _third = _planned_operations(3)
+        unnumbered = [AIMessage("", tool_calls=[_operation("Publish", f"bad_{number}")]) for number in range(3)]
+        operator_model = RecordingChatModel(messages=repeat(AIMessage("Published.")))
+        reported: list[dict[str, Any]] = []
+
+        messages = await _run(
+            _planner_model(plan, first, *unnumbered, second), operator=_operator(operator_model), reported=reported
+        )
+
+        assert len(operator_model.seen) == 1
+        assert _numbered(messages[-1].text) == ["1. Publish module 1", "2. Publish module 2", "3. Publish module 3"]
+        assert _plan_steps(reported)[-1] == (2, False)
+
+    async def test_at_a_limit_a_call_that_is_not_for_the_next_step_ends_without_a_way_to_continue(self) -> None:
+        """The plan stays where it was: nothing says its latest step is finished."""
+        plan, first, *_rest = _planned_operations(3)
+        unnumbered = [AIMessage("", tool_calls=[_operation("Publish", f"bad_{number}")]) for number in range(4)]
+        reported: list[dict[str, Any]] = []
+
+        messages = await _run(
+            _planner_model(plan, first, *unnumbered),
+            operator=_operator(ScriptedChatModel(messages=repeat(AIMessage("Published.")))),
+            reported=reported,
+        )
+
+        assert messages[-1].text == COULD_NOT_FINISH
+        assert _plan_steps(reported) == [(1, False), (1, True)]
 
     async def test_the_note_at_the_limit_is_in_the_request_locale(self, translation_catalog: AddTranslation) -> None:
         translation_catalog(PLAN_LEFT_HEADING, "Por hacer:")
