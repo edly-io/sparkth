@@ -22,7 +22,7 @@ from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
 from sparkth.lib.permissions import (
     PERMISSION_READ,
-    PermissionQuestion,
+    PermissionCheckQuery,
     batched_can,
     can,
     get_accessible_scope_object_ids,
@@ -80,12 +80,12 @@ async def check_permission(
     return PermissionCheckResponse(allowed=allowed)
 
 
-def _resolve_check(check: PermissionCheck) -> PermissionQuestion:
+def _get_permission_check_query(check: PermissionCheck) -> PermissionCheckQuery:
     """Resolve a check's permission, then its scope, and build the checked object's scope path when it names one."""
     permission = get_permission(check.permission)
     permission_scope = get_permission_scope(check.scope)
     scope_path = None if check.scope_object_id is None else build_scope_path(permission_scope, check.scope_object_id)
-    return PermissionQuestion(permission, permission_scope, scope_path)
+    return PermissionCheckQuery(permission, permission_scope, scope_path)
 
 
 @router.post("/can", response_model=PermissionCheckResponse)
@@ -107,7 +107,7 @@ async def answer_permission_check(
       permission at any of its objects.
     - An objectless scope answers for the scope itself.
     """
-    [allowed] = await batched_can(current_user, [_resolve_check(check)], session)
+    [allowed] = await batched_can(current_user, [_get_permission_check_query(check)], session)
     return PermissionCheckResponse(allowed=allowed)
 
 
@@ -131,7 +131,7 @@ async def answer_permission_checks(
       permission at any of its objects.
     - An objectless scope answers for the scope itself.
     """
-    answers = await batched_can(current_user, [_resolve_check(check) for check in checks], session)
+    answers = await batched_can(current_user, [_get_permission_check_query(check) for check in checks], session)
     return [
         PermissionCheckResult(**check.model_dump(), allowed=allowed)
         for check, allowed in zip(checks, answers, strict=True)

@@ -42,7 +42,7 @@ from sparkth.core.permissions import (
 from sparkth.core.permissions.constants import PLUGIN_USER_ROLE, SPARKTH_USER_ROLE
 from sparkth.core.permissions.dependencies import get_listed_owner_id, object_id_str_to_int
 from sparkth.core.permissions.engine import (
-    PermissionQuestion,
+    PermissionCheckQuery,
     batched_can,
     can,
     get_accessible_scope_object_ids,
@@ -61,7 +61,7 @@ from sparkth.core.permissions.scopes import get_permission_scope
 __all__ = [
     "SPARKTH_USER_ROLE",
     "PLUGIN_USER_ROLE",
-    "PermissionQuestion",
+    "PermissionCheckQuery",
     "assign_default_roles",
     "add_group_member",
     "assign_role",

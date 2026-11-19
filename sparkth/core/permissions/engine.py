@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from sparkth.core.permissions import Permission
 
 
-class PermissionQuestion(NamedTuple):
+class PermissionCheckQuery(NamedTuple):
     """One check: does the user hold ``permission`` at ``scope``?
 
     ``scope_path`` names the checked object. Without it, an object-bearing scope asks about any of its
@@ -220,7 +220,7 @@ async def get_accessible_scope_object_ids(
     return _reduce_grant_rows(result.all(), scope_name)
 
 
-def _answer_check(
+def _check_permission_grant(
     grants: set[tuple[str, str | None]], permission_scope: PermissionScope, scope_path: str | None
 ) -> bool:
     """Whether ``grants``, the ``(scope, object id)`` pairs at which the user holds the checked permission, satisfy a
@@ -236,17 +236,19 @@ def _answer_check(
     return not grants.isdisjoint(permission_scope.scope_chain(scope_path))
 
 
-async def batched_can(user: User, questions: list[PermissionQuestion], session: AsyncSession) -> list[bool]:
-    """Return, in order, whether user holds each question's permission at its scope, reading the grants in one query.
+async def batched_can(user: User, check_queries: list[PermissionCheckQuery], session: AsyncSession) -> list[bool]:
+    """Return, in order, whether user holds each check query's permission at its scope, reading the grants once.
 
     A scope path names one object, and a grant at it or at an ancestor object on the path authorizes. Grants come
     from the user's own active assignments and from active assignments of the groups they actively belong to.
     Raises ``ValueError`` when a path's leaf names another scope.
     """
-    if not questions:
+    if not check_queries:
         return []
-    permission_names = {question.permission.name for question in questions}
-    scope_names = {name for question in questions for name, _ in question.scope.scope_chain(question.scope_path)}
+    permission_names = {check_query.permission.name for check_query in check_queries}
+    scope_names = {
+        name for check_query in check_queries for name, _ in check_query.scope.scope_chain(check_query.scope_path)
+    }
     # ponytail: a check on one object fetches every grant of its permission at that scope; narrow the filter to the
     # checked objects if users come to hold thousands of object grants.
     grants = _select_user_grants(user.id, permission_names, scope_names)
@@ -255,6 +257,8 @@ async def batched_can(user: User, questions: list[PermissionQuestion], session: 
     for permission_name, scope, scope_object_id in result.all():
         grants_by_permission[permission_name].add((scope, scope_object_id))
     return [
-        _answer_check(grants_by_permission[question.permission.name], question.scope, question.scope_path)
-        for question in questions
+        _check_permission_grant(
+            grants_by_permission[check_query.permission.name], check_query.scope, check_query.scope_path
+        )
+        for check_query in check_queries
     ]
