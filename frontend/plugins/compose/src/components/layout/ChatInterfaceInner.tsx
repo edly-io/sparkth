@@ -41,18 +41,28 @@ async function readAiKeyProblem(token: string): Promise<AiKeyProblem> {
 // Takes the chat's place when it fails to load, so there is no message box to type into.
 function ConversationLoadFailed({ loadError }: { loadError: ConversationLoadError }) {
   const t = useTranslations("compose");
-  const notFound = loadError === "notFound";
+  if (loadError === "failed") {
+    return (
+      <div className="px-4 pt-4">
+        <Alert severity="error" title={t("chatLoadFailedTitle")}>
+          {t("chatLoadFailedMessage")}
+        </Alert>
+      </div>
+    );
+  }
   return (
-    <div className="flex-1 min-h-0">
-      <NotFound
-        title={notFound ? t("chatNotFoundTitle") : t("chatLoadFailedTitle")}
-        message={notFound ? t("chatNotFoundMessage") : t("chatLoadFailedMessage")}
-        action={
-          <Button asChild variant="primary">
-            <Link href={pluginPath(COMPOSE_PLUGIN_NAME)}>{t("historyNewChat")}</Link>
-          </Button>
-        }
-      />
+    <div className="flex flex-1 min-h-0 items-center justify-center p-6">
+      <div className="w-full max-w-md">
+        <NotFound
+          title={t("chatNotFoundTitle")}
+          message={t("chatNotFoundMessage")}
+          action={
+            <Button asChild variant="primary">
+              <Link href={pluginPath(COMPOSE_PLUGIN_NAME)}>{t("historyNewChat")}</Link>
+            </Button>
+          }
+        />
+      </div>
     </div>
   );
 }

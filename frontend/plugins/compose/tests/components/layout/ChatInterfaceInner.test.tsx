@@ -214,14 +214,16 @@ describe("ChatInterfaceInner — a chat that fails to load", () => {
     );
   });
 
-  it("shows a load-failed page instead of the chat when the chat could not be loaded", () => {
+  it("shows an error instead of the chat when the chat could not be loaded", () => {
     loadError = "failed";
 
     renderChat();
 
-    expect(
-      screen.getByRole("heading", { name: composeEn.compose.chatLoadFailedTitle }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(composeEn.compose.chatLoadFailedMessage);
     expect(screen.queryByPlaceholderText(composeEn.compose.inputPlaceholder)).toBeNull();
+    // A chat that may still exist is not shown as missing.
+    expect(
+      screen.queryByRole("heading", { name: composeEn.compose.chatLoadFailedTitle }),
+    ).toBeNull();
   });
 });
