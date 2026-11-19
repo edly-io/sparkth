@@ -32,17 +32,22 @@ describe("PluginPageClient — a URL that names no registered plugin", () => {
 
     renderWithIntl(<PluginPageClient />, coreEn);
 
-    expect(screen.getByRole("alert")).toHaveTextContent(coreEn.pluginNotFound.title);
-    expect(screen.getByText(/nosuchplugin/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: coreEn.pluginNotFound.back })).toHaveAttribute(
+    const panel = screen.getByRole("alert");
+    expect(panel).toHaveTextContent(coreEn.pluginNotFound.title);
+    expect(panel).toHaveTextContent(
+      coreEn.pluginNotFound.message.replace("{name}", "nosuchplugin"),
+    );
+    expect(screen.getByRole("link", { name: coreEn.dashboardLink.back })).toHaveAttribute(
       "href",
       "/dashboard",
     );
   });
 
-  it("shows the not-found panel when the URL names no plugin at all", () => {
+  it("shows the not-found panel without naming a plugin when the URL names none", () => {
     renderWithIntl(<PluginPageClient />, coreEn);
 
-    expect(screen.getByRole("alert")).toHaveTextContent(coreEn.pluginNotFound.title);
+    const panel = screen.getByRole("alert");
+    expect(panel).toHaveTextContent(coreEn.pluginNotFound.title);
+    expect(panel).not.toHaveTextContent("No plugin is registered");
   });
 });

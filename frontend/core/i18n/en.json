@@ -8,12 +8,13 @@
   },
   "forbidden": {
     "title": "You don't have access to this page",
-    "message": "Ask an administrator if you need access.",
-    "back": "Back to dashboard"
+    "message": "Ask an administrator if you need access."
   },
   "pluginNotFound": {
     "title": "Plugin not found",
-    "message": "No plugin is registered with the name {name}.",
+    "message": "No plugin is registered with the name {name}."
+  },
+  "dashboardLink": {
     "back": "Back to dashboard"
   },
   "api": {

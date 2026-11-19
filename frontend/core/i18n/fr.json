@@ -8,12 +8,13 @@
   },
   "forbidden": {
     "title": "Vous n'avez pas accès à cette page",
-    "message": "Demandez l'accès à un administrateur si nécessaire.",
-    "back": "Retour au tableau de bord"
+    "message": "Demandez l'accès à un administrateur si nécessaire."
   },
   "pluginNotFound": {
     "title": "Plugin introuvable",
-    "message": "Aucun plugin n'est enregistré sous le nom {name}.",
+    "message": "Aucun plugin n'est enregistré sous le nom {name}."
+  },
+  "dashboardLink": {
     "back": "Retour au tableau de bord"
   },
   "api": {

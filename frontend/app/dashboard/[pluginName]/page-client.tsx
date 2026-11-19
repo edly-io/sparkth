@@ -3,6 +3,7 @@
 import { useParams, redirect } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/core/auth/hooks";
+import { BackToDashboardLink } from "@/core/components/layout/BackToDashboardLink";
 import { NotFound } from "@/core/components/layout/NotFound";
 import { Spinner } from "@/core/components/ui/Spinner";
 import { usePlugin, usePluginContext } from "@/core/plugins/context";
@@ -17,7 +18,7 @@ export default function PluginPageClient() {
   const t = useTranslations("pluginNotFound");
   const { isAuthenticated, loading: authLoading } = useAuth();
 
-  const pluginName = params?.pluginName as string;
+  const pluginName = String(params?.pluginName ?? "");
 
   const { isEnabled } = usePlugin(pluginName);
   const { userPlugins, loading: pluginsLoading } = usePluginContext();
@@ -49,14 +50,7 @@ export default function PluginPageClient() {
           <NotFound
             title={t("title")}
             message={pluginName ? t("message", { name: pluginName }) : undefined}
-            action={
-              <Link
-                href="/dashboard"
-                className="font-medium text-primary-600 hover:underline dark:text-primary-400"
-              >
-                {t("back")}
-              </Link>
-            }
+            action={<BackToDashboardLink />}
           />
         </div>
       </div>

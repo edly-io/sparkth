@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { ShieldAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { BackToDashboardLink } from "@/core/components/layout/BackToDashboardLink";
 
 // Rendered in place of content the user lacks permission for. It names no permission, so
 // nothing about the access model is disclosed. A static export can't send a 403 status, so
@@ -15,12 +15,9 @@ export function Forbidden() {
       <ShieldAlert className="mx-auto mb-4 h-12 w-12 text-muted-foreground/50" aria-hidden="true" />
       <h2 className="text-xl font-semibold text-foreground">{t("title")}</h2>
       <p className="mt-2 text-muted-foreground">{t("message")}</p>
-      <Link
-        href="/dashboard"
-        className="mt-6 inline-block font-medium text-primary-600 hover:underline dark:text-primary-400"
-      >
-        {t("back")}
-      </Link>
+      <div className="mt-6">
+        <BackToDashboardLink />
+      </div>
     </div>
   );
 }
