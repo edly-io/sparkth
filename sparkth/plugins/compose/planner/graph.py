@@ -53,12 +53,15 @@ def _get_plan_or_none(existing_plan: ExistingPlan | None, agents: Sequence[str])
 
 
 def _get_step_state(number: int, plan: ExistingPlan) -> str:
-    """Where step ``number`` of ``plan`` stands, as the planner reads it."""
+    """Where step ``number`` of ``plan`` stands, as the planner reads it: an operation that has run is done,
+    an agent's step that has run is in progress, and one that hasn't run is next."""
     if number < plan.current_step:
         return "done"
-    if number == plan.current_step and plan.has_current_step_run:
-        return "in progress"
-    return "not started"
+    if number > plan.current_step:
+        return "not started"
+    if not plan.has_current_step_run:
+        return "next"
+    return "done" if plan.steps[number - 1].agent == OPERATOR_AGENT_NAME else "in progress"
 
 
 def render_planner_prompt(agents: Sequence[Agent], *, operations: bool, existing_plan: ExistingPlan | None) -> str:

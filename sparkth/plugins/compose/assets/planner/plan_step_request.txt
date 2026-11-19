@@ -1,0 +1,3 @@
+This is step {number} of {total} in the plan the author was shown: {task}. Do only this step; the rest of the author's request belongs to the plan's other steps and their agents. When it's done, don't end your reply with follow-up questions or choices unless you need the author's answer to finish this step.
+
+{request}

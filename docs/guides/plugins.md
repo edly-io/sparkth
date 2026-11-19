@@ -776,23 +776,30 @@ system-wide or by the user contributes no agent and no tools.
 - **Steps.** A step is one piece of work the planner gives to one agent or to its operator. It
   counts as one step however many tools that agent or the operator calls while doing it. A request
   can need several steps, such as writing a lesson, building an activity for it and publishing both.
-  The planner first shows the author its plan, a numbered list of its tasks, each one short line.
-  What each step returns goes back to the planner, which runs the next part the author asked for, up
-  to a fixed limit of steps a message, without asking between them. A plan may hold more steps than
-  a message runs. The plan comes before the first step, and from then on every call names the step
-  of the plan it carries out and is rejected if it doesn't fit; each step runs once, in order.
-  Without a plan, an operation runs only as a message's first step. An operation that follows
-  another step is asked for its task as the plan states it, not for what the planner wrote
+  The planner shows the author its plan, a numbered list of its tasks, each one short line, before
+  the first step. When the work begins with an agent gathering the author's requirements, such as a
+  course's audience and goals, that agent asks first and the plan comes once the author has
+  answered. What each step returns goes back to the planner, which runs the next part the author
+  asked for, up to a fixed limit of steps a message, without asking between them. A plan may hold
+  more steps than a message runs. The plan comes before the first step, and from then on every call
+  names the step of the plan it carries out and is rejected if it doesn't fit; each step runs once,
+  in order, and none is skipped. An agent carrying out a step is told which step it is and to do
+  only that one, so it leaves the plan's other steps to their agents. Outside a plan, a hand-off to
+  the agent that has just answered ends the message instead of running, so a request is never handed
+  over twice. Without a plan, an operation runs only as a message's first step. An operation that
+  follows another step is asked for its task as the plan states it, not for what the planner wrote
   afterwards. So text a step brought in, from an agent's reply or from the LMS, can't start an
   operation the author wasn't shown, or change what a planned one does.
 - **Unfinished plans.** A plan a turn leaves unfinished, because an agent asked the author
-  something or the turn was stopped or failed, is kept with the reply until its last step has run,
-  and a later message carries it on from the step in progress. A message that runs none of its steps
-  leaves the plan as it was, and no message carries it on while a step left is for an agent or
+  something or the turn was stopped or failed, is kept with the reply until its last step has run.
+  A later message carries it on from the step it is at: that step again or the one after it when it
+  has run, since only the planner can tell whether its agent finished, and that step itself when it
+  hasn't. An operation that has run is never carried out again. A message that runs none of its
+  steps leaves the plan as it was, and no message carries it on while a step left is for an agent or
   operator that is no longer enabled. An operation of a plan carried on this way is always asked for
-  its task as the plan states it. A message that reaches its limit with steps of the plan left ends
-  with a note Compose writes, not the planner: the tasks done, the tasks left, and the choices to
-  continue or to stop here. The plan then waits at its next step.
+  its task as the plan states it. A message that reaches its limit as the planner asks for the plan's
+  next step ends with a note Compose writes, not the planner: the tasks done, the tasks left, and the
+  choices to continue or to stop here. The plan then waits at that step.
 - **Replies.** Each agent's reply streams as it is written, and a later step reads what earlier steps
   returned. An agent's question or choices are the last thing the author reads, and their answer
   continues that work: a reply that ends with choices ends the turn, whatever was left to run. After
