@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Alert } from "@/lib/components/ui/Alert";
 import { Button } from "@/lib/components/ui/Button";
-import { NotFound } from "@/lib/components/ui/NotFound";
+import { NotFound } from "@/lib/components/layout/NotFound";
 import { Spinner } from "@/lib/components/ui/Spinner";
 import { ApiRequestError } from "@/lib/api";
 import { useAuth } from "@/lib/auth/hooks";
