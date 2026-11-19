@@ -1,6 +1,7 @@
 "use client";
 
-import { ComponentType, useCallback, useEffect, useMemo, useState } from "react";
+import { ComponentType, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { Save } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -35,7 +36,8 @@ interface PluginConfigModalProps extends ConfigModalProps {
  * Every field, its control, its validation and the types it saves come from the
  * backend's `config_schema`. A plugin passes `controls` only for a field whose control
  * core doesn't ship. A stored secret shows as dots with a Replace action, and is neither
- * validated nor sent until replaced; Keep stored undoes a replace.
+ * validated nor sent until replaced; Keep stored undoes a replace. Each moves focus to the
+ * control it reveals.
  */
 export function PluginConfigModal({
   plugin,
@@ -62,6 +64,7 @@ export function PluginConfigModal({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const storedWrappers = useRef(new Map<string, HTMLDivElement>());
 
   // Reopening shows what is stored, not what was typed and abandoned last time.
   useEffect(() => {
@@ -83,14 +86,33 @@ export function PluginConfigModal({
     [fields],
   );
 
-  const keepStored = (name: string) => {
-    setReplacing((previous) => {
-      const next = new Set(previous);
-      next.delete(name);
-      return next;
+  const updateAndFocus = (name: string, update: () => void) => {
+    flushSync(update);
+    storedWrappers.current
+      .get(name)
+      ?.querySelector<HTMLElement>(
+        'input, select, textarea, button, [tabindex]:not([tabindex="-1"])',
+      )
+      ?.focus();
+  };
+
+  const replace = (name: string) =>
+    updateAndFocus(name, () => setReplacing((previous) => new Set(previous).add(name)));
+
+  const keepStored = (name: string) =>
+    updateAndFocus(name, () => {
+      setReplacing((previous) => {
+        const next = new Set(previous);
+        next.delete(name);
+        return next;
+      });
+      setValues((previous) => ({ ...previous, [name]: undefined }));
+      setErrors((previous) => ({ ...previous, [name]: "" }));
     });
-    setValues((previous) => ({ ...previous, [name]: undefined }));
-    setErrors((previous) => ({ ...previous, [name]: "" }));
+
+  const storedWrapperRef = (name: string) => (element: HTMLDivElement | null) => {
+    if (element) storedWrappers.current.set(name, element);
+    else storedWrappers.current.delete(name);
   };
 
   const handleSave = async () => {
@@ -133,7 +155,7 @@ export function PluginConfigModal({
               {fields.map((field) => {
                 if (!editable.includes(field)) {
                   return (
-                    <div key={field.name}>
+                    <div key={field.name} ref={storedWrapperRef(field.name)}>
                       <p className="text-sm font-medium leading-none text-foreground">
                         {field.label}
                       </p>
@@ -148,7 +170,7 @@ export function PluginConfigModal({
                           variant="outline"
                           size="sm"
                           aria-label={t("replaceField", { field: field.label })}
-                          onClick={() => setReplacing((prev) => new Set(prev).add(field.name))}
+                          onClick={() => replace(field.name)}
                         >
                           {t("replace")}
                         </Button>
@@ -171,10 +193,10 @@ export function PluginConfigModal({
                 );
                 if (!stored.has(field.name)) return widget;
                 return (
-                  <div key={field.name} className="space-y-1.5">
+                  <div key={field.name} ref={storedWrapperRef(field.name)} className="space-y-1.5">
                     {widget}
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
                       aria-label={t("keepStoredField", { field: field.label })}
                       disabled={isSaving}
