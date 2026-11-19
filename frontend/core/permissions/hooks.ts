@@ -46,32 +46,35 @@ export function usePermissionCheck(
  * Whether the signed-in user holds each of `questions`, answered by one request, for gating
  * several controls at once. Returns one `Access` per question, in order.
  *
- * Pass a stable array (a module constant or a memoized value): a new array on every render asks
- * again. Goes back to `"checking"` whenever the token or questions change, and fails closed,
- * denying every question, when the request errors.
+ * Asks again only when the token or the questions' content changes, so an inline array is fine.
+ * Goes back to `"checking"` on such a change, and fails closed, denying every question, when the
+ * request errors.
  */
 export function usePermissionChecks(
   token: string | null,
   questions: PermissionQuestion[],
 ): Access[] {
+  // Keyed by content, not identity: a new array with the same questions must not ask again.
+  const questionsKey = JSON.stringify(questions);
   const [answers, setAnswers] = useState<Access[]>(() => questions.map(() => "checking"));
 
   useEffect(() => {
-    setAnswers(questions.map(() => "checking"));
+    const asked: PermissionQuestion[] = JSON.parse(questionsKey);
+    setAnswers(asked.map(() => "checking"));
     if (!token) return;
     let active = true;
-    checkPermissions(token, questions)
+    checkPermissions(token, asked)
       .then((allowed) => {
         if (active) setAnswers(allowed.map((granted) => (granted ? "allowed" : "denied")));
       })
       .catch((error: unknown) => {
         console.error("Permission checks failed:", error);
-        if (active) setAnswers(questions.map(() => "denied"));
+        if (active) setAnswers(asked.map(() => "denied"));
       });
     return () => {
       active = false;
     };
-  }, [token, questions]);
+  }, [token, questionsKey]);
 
   return answers;
 }

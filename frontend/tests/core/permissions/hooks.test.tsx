@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 
 import {
   checkPermission,
@@ -115,10 +115,21 @@ describe("usePermissionChecks", () => {
       initialProps: { token: "old" },
     });
     rerender({ token: "new" });
-    resolveOld([true, true]);
+    await act(async () => resolveOld([true, true]));
 
-    await waitFor(() => expect(mockChecks).toHaveBeenCalledTimes(2));
+    expect(mockChecks).toHaveBeenCalledTimes(2);
     expect(result.current).toEqual(["checking", "checking"]);
+  });
+
+  it("asks once when given an inline questions array", async () => {
+    mockChecks.mockResolvedValue([true]);
+
+    const { result } = renderHook(() =>
+      usePermissionChecks("tok", [{ permission: "analytics.read" }]),
+    );
+    await waitFor(() => expect(result.current).toEqual(["allowed"]));
+
+    expect(mockChecks).toHaveBeenCalledTimes(1);
   });
 
   it("asks once across rerenders when the questions array is stable", async () => {
