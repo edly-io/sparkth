@@ -324,7 +324,6 @@ describe("ExplorePage", () => {
 
   it("says a saved view failed to load, not that it doesn't exist, on a server error", async () => {
     nav.search = "view=9b2f6c1e-4d1a-4c3b-8e2f-0a1b2c3d4e5f";
-    vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(fetchView).mockRejectedValue(
       new ApiRequestError({ message: "Server error", fieldErrors: {} }, 500),
     );

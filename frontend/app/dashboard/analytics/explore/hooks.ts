@@ -72,7 +72,7 @@ export function useSavedView(): SavedView {
   const replaceQuery = useReplaceQuery();
   const viewId = params.get("view");
   const query = params.toString();
-  // The last saved view fetched or written, by id; "missing" when it 404'd or 422'd, "error" otherwise.
+  // The last saved view fetched or written, by id; "missing" when it isn't found, "error" otherwise.
   const [loaded, setLoaded] = useState<{
     id: string;
     view: AnalyticsView | "missing" | "error";
