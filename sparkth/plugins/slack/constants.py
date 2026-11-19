@@ -3,6 +3,9 @@ import re
 from sparkth.lib.assets import read_asset
 from sparkth.lib.i18n import lazy_gettext
 
+# The name the plugin registers under.
+SLACK_PLUGIN_NAME = "slack"
+
 # Slack OAuth endpoints
 SLACK_AUTHORIZE_URL = "https://slack.com/oauth/v2/authorize"
 SLACK_TOKEN_URL = "https://slack.com/api/oauth.v2.access"
@@ -19,6 +22,7 @@ NO_FILES_RESOLVED_MESSAGE = lazy_gettext(
     "I don't have any documents available to answer that. "
     "Please ask your instructor to add documents to my reference list."
 )
+PLUGIN_DISABLED_MESSAGE = lazy_gettext("The TA Bot is currently disabled by your instructor.")
 RAG_NOT_READY_MESSAGE = lazy_gettext("I'm still indexing the course documents. Please try again in a few minutes.")
 DRIVE_FILE_NOT_FOUND_MESSAGE = lazy_gettext(
     "I couldn't access one of my reference documents. Please ask your instructor to check the bot's configured sources."

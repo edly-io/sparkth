@@ -18,7 +18,7 @@ from sparkth.lib.audit.events import (
     RegisteredAuditEvent,
 )
 from sparkth.lib.db import session_scope
-from sparkth.lib.permissions import assign_default_role
+from sparkth.lib.permissions import assign_default_roles
 
 app = typer.Typer(help="User management commands")
 
@@ -81,7 +81,7 @@ async def _create_user_in_session(
         session.add(user)
         # Flush to assign user.id, which the audit target needs.
         await session.flush()
-        await assign_default_role(cast(int, user.id), session)
+        await assign_default_roles(cast(int, user.id), session)
 
         target, change = _cli_change(user)
         await record_event(session, RegisteredAuditEvent(outcome=AuditOutcome.SUCCESS, target=target, change=change))

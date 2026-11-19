@@ -210,3 +210,7 @@ GROUP = PermissionScope.create("group", parent=GLOBAL)
 # A user's own records (conversations, keys, files) live at the user scope, named by the user's id,
 # so a grant at one user reaches that user's records and a GLOBAL grant reaches every user's.
 USER = PermissionScope.create("user", parent=GLOBAL)
+
+# A plugin's feature routes are gated per plugin: a role assigned at this scope authorizes using
+# one plugin, named by scope_object_id (the plugin's name); a GLOBAL grant reaches every plugin.
+PLUGIN = PermissionScope.create("plugin", parent=GLOBAL)

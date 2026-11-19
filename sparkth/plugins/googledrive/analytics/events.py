@@ -36,7 +36,7 @@ class GoogleDriveDocumentProcessed(AnalyticsEventSchema):
     document's creation; it includes time queued behind the run's other files.
     """
 
-    event_type = "google-drive.document_processed"
+    event_type = "googledrive.document_processed"
     version = 1
 
     document_id: int

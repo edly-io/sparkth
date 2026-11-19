@@ -214,3 +214,14 @@ body {
     background-color 0.2s ease,
     color 0.2s ease;
 }
+
+/* Lists in chat replies keep their numbers and bullets, which the base reset removes. */
+.prose ol {
+  list-style: decimal;
+  padding-inline-start: 1.5rem;
+}
+
+.prose ul {
+  list-style: disc;
+  padding-inline-start: 1.5rem;
+}

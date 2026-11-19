@@ -4,6 +4,9 @@ from pxc.lib.permission import Permission
 
 from sparkth.lib.assets import read_asset
 
+# The name the plugin registers under.
+PXC_PLUGIN_NAME = "pxc"
+
 # Bundled activity sources, one directory per activity type.
 PXC_ACTIVITY_ROOT = Path(__file__).parent / "activities"
 
