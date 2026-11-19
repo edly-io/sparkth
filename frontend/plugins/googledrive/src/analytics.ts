@@ -15,7 +15,7 @@ export async function fetchDriveDocuments(
   { from, to }: { from: IsoDate; to: IsoDate },
 ): Promise<DriveDocumentsPoint[]> {
   return call<DriveDocumentsPoint[]>(() =>
-    api.GET("/api/v1/google-drive/analytics/documents", {
+    api.GET("/api/v1/googledrive/analytics/documents", {
       params: { query: { from, to, bucket: "day" } },
       headers: bearer(token),
     }),

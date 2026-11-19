@@ -3,17 +3,23 @@ from typing import Literal
 from uuid import UUID
 
 from pydantic import field_validator
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, UniqueConstraint
+from sqlalchemy import Connection, DateTime, ForeignKey, Index, Integer, UniqueConstraint, event
+from sqlalchemy.orm import Mapper
 from sqlmodel import Column, Field, Relationship, SQLModel, Text
 from uuid6 import uuid7
 
 from sparkth.lib.models import TimestampedModel
+from sparkth.lib.permissions.scopes import USER, ScopeObjectMixin, build_scope_path
+from sparkth.plugins.compose.permissions import CONVERSATION
 
 MessageType = Literal["text", "attachment"]
 MessageRole = Literal["system", "user", "assistant", "tool"]
 
 
-class Conversation(TimestampedModel, SQLModel, table=True):
+class Conversation(ScopeObjectMixin, TimestampedModel, SQLModel, table=True):
+    """A chat conversation, an object of the conversation scope under its owner's user scope."""
+
+    scope = CONVERSATION
     __tablename__ = "compose_conversations"
     __table_args__ = (
         Index("idx_user_created", "user_id", "created_at"),
@@ -45,6 +51,26 @@ class Conversation(TimestampedModel, SQLModel, table=True):
     attachments: list["ConversationAttachment"] = Relationship(
         sa_relationship_kwargs={"cascade": "all, delete-orphan", "lazy": "select"}
     )
+
+    @property
+    def scope_id(self) -> str:
+        """The conversation's UUID as a string."""
+        return str(self.uuid)
+
+    @property
+    def scope_path(self) -> str:
+        """The conversation's path: its stored parent, or its owner's user scope when none is stored."""
+        parent = self.parent_scope_path or build_scope_path(USER, str(self.user_id))
+        return build_scope_path(self.scope, self.scope_id, parent)
+
+
+@event.listens_for(Conversation, "before_insert")
+def set_conversation_parent_scope_path(
+    _mapper: Mapper[Conversation], _connection: Connection, conversation: Conversation
+) -> None:
+    """Fill the owner's scope path on a conversation stored without one."""
+    if conversation.parent_scope_path is None:
+        conversation.parent_scope_path = build_scope_path(USER, str(conversation.user_id))
 
 
 class Message(TimestampedModel, SQLModel, table=True):

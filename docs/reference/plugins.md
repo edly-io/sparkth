@@ -15,6 +15,10 @@ guide](../guides/plugins.md) for the how-to; this page is the generated referenc
 
 ::: sparkth.lib.mcp.hooks
 
+## MCP tool exceptions
+
+::: sparkth.lib.mcp.exceptions
+
 ## Config hooks
 
 ::: sparkth.lib.config

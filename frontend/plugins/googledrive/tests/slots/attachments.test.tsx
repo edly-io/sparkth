@@ -28,7 +28,7 @@ beforeEach(() => {
 });
 
 async function renderPicker() {
-  const source = ATTACHMENT_SOURCES.get("google-drive")?.[0];
+  const source = ATTACHMENT_SOURCES.get("googledrive")?.[0];
   const { default: Picker } = await source!.loadPicker();
   const onSelect = vi.fn();
   const onClose = vi.fn();
@@ -45,7 +45,7 @@ async function renderPicker() {
 
 describe("Google Drive's attachment source", () => {
   it("offers Compose one source, picking from Google Drive with its icon", () => {
-    const sources = ATTACHMENT_SOURCES.get("google-drive");
+    const sources = ATTACHMENT_SOURCES.get("googledrive");
 
     expect(sources).toHaveLength(1);
     expect(sources![0].label).toBe("Pick from Google Drive");

@@ -10,11 +10,13 @@ describe("Input", () => {
     const input = screen.getByLabelText("Name");
     expect(input).toHaveAttribute("aria-invalid", "true");
     expect(input).toHaveAccessibleDescription("Name is required.");
+    expect(screen.getByRole("alert")).toHaveTextContent("Name is required.");
   });
 
   it("is not marked invalid without an error", () => {
     render(<Input id="name" label="Name" />);
 
     expect(screen.getByLabelText("Name")).not.toHaveAttribute("aria-invalid");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import "@/app/plugins";
 import { useAuth } from "@/core/auth/hooks";
-import { resolveNavPermissions } from "@/core/sidebar/gatedNav";
+import { resolveSidebarPermissions } from "@/core/sidebar/gatedSidebarLinks";
 import { PluginProvider } from "@/core/plugins/context";
 import AppSidebar from "@/core/sidebar/components/layout/AppSidebar";
 import MobileSidebar from "@/core/sidebar/components/layout/MobileSidebar";
@@ -33,7 +33,7 @@ function DashboardContent({
   children,
   user,
   logout,
-  navPermissions,
+  sidebarPermissions,
 }: {
   children: React.ReactNode;
   user: {
@@ -43,7 +43,7 @@ function DashboardContent({
     plan?: string;
   };
   logout: () => void;
-  navPermissions: Record<string, boolean>;
+  sidebarPermissions: Record<string, boolean>;
 }) {
   const { isCollapsed, toggleCollapsed } = useSidebar();
 
@@ -54,14 +54,14 @@ function DashboardContent({
         <div className="hidden lg:block">
           <AppSidebar
             user={user}
-            navPermissions={navPermissions}
+            sidebarPermissions={sidebarPermissions}
             onLogout={logout}
             variant="desktop"
             isCollapsed={isCollapsed}
             onToggleCollapse={toggleCollapsed}
           />
         </div>
-        <MobileSidebar user={user} navPermissions={navPermissions} onLogout={logout} />
+        <MobileSidebar user={user} sidebarPermissions={sidebarPermissions} onLogout={logout} />
         <main className="flex-1 overflow-auto bg-background relative">
           <div className="absolute top-3 right-3 z-10 hidden lg:block">
             <ThemeToggle />
@@ -76,18 +76,18 @@ function DashboardContent({
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { token, user, isAuthenticated, loading, logout } = useAuth();
 
-  const [navPermissions, setNavPermissions] = useState<Record<string, boolean>>({});
+  const [sidebarPermissions, setSidebarPermissions] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    setNavPermissions({});
+    setSidebarPermissions({});
     if (!token) return;
     let active = true;
-    resolveNavPermissions(token)
+    resolveSidebarPermissions(token)
       .then((perms) => {
-        if (active) setNavPermissions(perms);
+        if (active) setSidebarPermissions(perms);
       })
       .catch((error) => {
-        console.error("Failed to resolve nav permissions:", error);
+        console.error("Failed to resolve sidebar permissions:", error);
       });
     return () => {
       active = false;
@@ -117,7 +117,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <PluginProvider token={token}>
       <SidebarProvider>
-        <DashboardContent user={userInfo} logout={logout} navPermissions={navPermissions}>
+        <DashboardContent user={userInfo} logout={logout} sidebarPermissions={sidebarPermissions}>
           {children}
         </DashboardContent>
       </SidebarProvider>

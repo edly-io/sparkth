@@ -1,13 +1,12 @@
 from types import SimpleNamespace
-from typing import cast
 from unittest.mock import AsyncMock, patch
 
-from fastapi import FastAPI, status
-from httpx import ASGITransport, AsyncClient
+from fastapi import status
+from httpx import AsyncClient
 
 from sparkth.core.models.user import User
 from sparkth.core.plugins.service import ConfigValidationError, InternalServerError, PluginService
-from sparkth.lib.auth import get_current_user
+from sparkth.lib.testing import AuditEventsFetcher
 
 
 async def test_configure_user_plugin_success(client: AsyncClient, user_plugins: User) -> None:
@@ -58,23 +57,11 @@ async def test_configure_user_plugin_success(client: AsyncClient, user_plugins: 
     assert data["is_core"] is True
 
 
-async def test_configure_user_plugin_unauthorized(client: AsyncClient) -> None:
-    user = User(
-        name="Test User",
-        username="unauthorized_user",
-        email="unauthorized@example.com",
-        hashed_password="fakehashedpassword",
-    )
-
-    def get_user_override() -> User:
-        return user
-
-    transport = cast(ASGITransport, client._transport)
-    app = cast(FastAPI, transport.app)
-    app.dependency_overrides[get_current_user] = get_user_override
-
+async def test_configure_user_plugin_unauthenticated(client: AsyncClient, audit_events: AuditEventsFetcher) -> None:
     response = await client.post("/api/v1/user-plugins/plugin_a/configure", json={})
+
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert [event for event in await audit_events() if event.category == "permission"] == []
 
 
 async def test_configure_user_plugin_not_found(client: AsyncClient, user_plugins: User) -> None:

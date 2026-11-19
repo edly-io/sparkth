@@ -10,6 +10,7 @@ from sparkth.lib.db import get_async_session
 from sparkth.lib.i18n import _
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
+from sparkth.plugins.googledrive.constants import GOOGLE_DRIVE_PLUGIN_NAME
 from sparkth.plugins.googledrive.oauth import (
     connect_drive,
     decode_state,
@@ -22,6 +23,7 @@ from sparkth.plugins.googledrive.oauth import (
     get_valid_access_token,
     revoke_token,
 )
+from sparkth.plugins.googledrive.routes.dependencies import require_drive_use
 from sparkth.plugins.googledrive.routes.route_utils import get_drive_credentials
 from sparkth.plugins.googledrive.schemas import (
     GoogleDriveAuthorizationUrlResponse,
@@ -32,7 +34,9 @@ router = APIRouter()
 logger = get_logger(__name__)
 
 
-@router.get("/oauth/authorize", response_model=GoogleDriveAuthorizationUrlResponse)
+@router.get(
+    "/oauth/authorize", response_model=GoogleDriveAuthorizationUrlResponse, dependencies=[Depends(require_drive_use)]
+)
 def get_authorization_url(
     current_user: User = Depends(get_current_user),
     user_id: int = Depends(get_current_user_id),
@@ -99,10 +103,10 @@ async def oauth_callback(
             detail=_("Failed to save tokens."),
         )
 
-    return RedirectResponse(url="/dashboard/google-drive?connected=true")
+    return RedirectResponse(url=f"/dashboard/{GOOGLE_DRIVE_PLUGIN_NAME}?connected=true")
 
 
-@router.delete("/oauth/disconnect")
+@router.delete("/oauth/disconnect", dependencies=[Depends(require_drive_use)])
 async def disconnect_drive(
     user_id: int = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_async_session),
@@ -122,7 +126,9 @@ async def disconnect_drive(
     return {"detail": "Google Drive disconnected successfully"}
 
 
-@router.get("/oauth/status", response_model=GoogleDriveConnectionStatusResponse)
+@router.get(
+    "/oauth/status", response_model=GoogleDriveConnectionStatusResponse, dependencies=[Depends(require_drive_use)]
+)
 async def get_connection_status(
     user_id: int = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_async_session),

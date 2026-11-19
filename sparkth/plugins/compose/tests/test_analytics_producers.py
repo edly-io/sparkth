@@ -26,7 +26,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.analytics.models import raw_events
 from sparkth.lib.analytics import ingest_event as real_ingest_event
-from sparkth.lib.compose.constants import REFUSE_TOOL_NAME
+from sparkth.lib.compose.constants import REFUSAL_TOOL_NAME
 from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.llm import get_provider
 from sparkth.lib.mcp.hooks import Tool
@@ -373,7 +373,7 @@ async def test_assistant_turns_in_the_request_do_not_emit_message_sent(
     ("reply", "agent", "refused"),
     [
         (hand_off(STUB_AGENT), STUB_AGENT.name, False),
-        (AIMessage("", tool_calls=[{"name": REFUSE_TOOL_NAME, "args": {}, "id": "c1"}]), None, True),
+        (AIMessage("", tool_calls=[{"name": REFUSAL_TOOL_NAME, "args": {}, "id": "c1"}]), None, True),
     ],
     ids=["handed_off", "refused"],
 )
