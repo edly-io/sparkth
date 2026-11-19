@@ -784,12 +784,18 @@ system-wide or by the user contributes no agent and no tools.
   first step. An operation that follows another step is asked for its task as the plan states it,
   not for what the planner wrote afterwards. So text a step brought in, from an agent's reply or
   from the LMS, can't start an operation the author wasn't shown, or change what a planned one does.
-  Each agent's reply streams as it is written, and a later step reads what earlier steps returned.
-  An agent's question or choices are the last thing the author reads, and their answer continues
-  that work: a reply that ends with choices ends the turn, whatever was left to run. After an
-  operation the planner says briefly what was done. All of a turn's replies are stored as one reply,
-  which lists its steps; when a step fails, what was written before it is kept as a reply marked as
-  interrupted, followed by the error.
+- **Unfinished plans.** A plan a turn leaves unfinished, because an agent asked the author
+  something, the turn was stopped or failed, or it reached its limit, is kept with the reply until
+  its last step has run, and a later message carries it on from the step in progress. A message that
+  runs none of its steps leaves the plan as it was, and no message carries it on while a step left is
+  for an agent or operator that is no longer enabled. An operation of a plan carried on this way is
+  always asked for its task as the plan states it.
+- **Replies.** Each agent's reply streams as it is written, and a later step reads what earlier steps
+  returned. An agent's question or choices are the last thing the author reads, and their answer
+  continues that work: a reply that ends with choices ends the turn, whatever was left to run. After
+  an operation the planner says briefly what was done. All of a turn's replies are stored as one
+  reply, which lists the agents its steps went to; when a step fails, what was written before it is
+  kept as a reply marked as interrupted, followed by the error.
 
 Plugin-specific knowledge belongs in a `<prefix>about` tool, not in an agent's `prompt`;
 see the LMS `about` tool [above](#lms-plugins-tools-without-credentials) for the convention.

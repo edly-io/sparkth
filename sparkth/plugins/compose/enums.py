@@ -21,6 +21,7 @@ class TurnEventType(StrEnum):
     """What one event of a running turn reports."""
 
     ROUTED = "routed"
+    PLAN = "plan"
     PLAN_STEP = "plan_step"
     TOKEN = "token"
     TOOL_START = "tool_start"

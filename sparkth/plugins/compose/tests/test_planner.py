@@ -37,13 +37,15 @@ from sparkth.plugins.compose.planner import (
     AgentGraph,
     ExistingPlan,
     PlannedStep,
+    TurnRouting,
     agent_input,
     build_planner,
     render_planner_prompt,
 )
+from sparkth.plugins.compose.planner.turn_activity import TurnActivity
 from sparkth.plugins.compose.prompt import render_system_prompt
 from sparkth.plugins.compose.tests.conftest import OTHER_AGENT, STUB_AGENT
-from sparkth.plugins.compose.tests.helpers import RecordingChatModel
+from sparkth.plugins.compose.tests.helpers import RecordingChatModel, plan_step, routed, shown_plan
 
 CONTEXT = AuditModelInfo("anthropic", "claude-sonnet-5")
 COULD_NOT_FINISH = "Something went wrong and I couldn't finish this. Please send your message again."
@@ -1050,8 +1052,73 @@ class TestAPlanFromAnEarlierMessage:
         assert f"2. Redesign it ({STUB_AGENT.name}): in progress" in prompt
         assert "3. Publish it (operator): not started" in prompt
 
-    def test_the_planner_is_shown_no_plan_when_none_is_open(self) -> None:
+    def test_the_planner_is_shown_no_plan_without_an_existing_plan(self) -> None:
         assert "EXISTING PLAN" not in render_planner_prompt([STUB_AGENT], operations=True, existing_plan=None)
+
+
+class TestTurnActivity:
+    STEPS = WRITE_THEN_PUBLISH.steps
+
+    def _recorded(self, existing_plan: ExistingPlan | None, *events: dict[str, Any]) -> TurnActivity:
+        turn_activity = TurnActivity(existing_plan)
+        for event in events:
+            turn_activity.record(event)
+        return turn_activity
+
+    def test_each_agent_a_step_went_to_is_kept_in_order(self) -> None:
+        turn_activity = self._recorded(None, routed(STUB_AGENT.name), routed(OPERATOR_AGENT_NAME))
+
+        assert turn_activity.agents == [STUB_AGENT.name, OPERATOR_AGENT_NAME]
+        assert turn_activity.routing == TurnRouting(agent=OPERATOR_AGENT_NAME)
+
+    def test_a_refusal_is_the_routing_but_no_step(self) -> None:
+        turn_activity = self._recorded(None, routed(None))
+
+        assert turn_activity.agents == []
+        assert turn_activity.routing.refused
+
+    def test_events_that_say_nothing_about_routing_or_the_plan_are_ignored(self) -> None:
+        turn_activity = self._recorded(None, {"type": TurnEventType.TOKEN, "content": "Hello"})
+
+        assert (turn_activity.routing, turn_activity.agents, turn_activity.get_plan_in_progress()) == (
+            TurnRouting(),
+            [],
+            None,
+        )
+
+    def test_a_plan_whose_step_ran_is_kept_at_that_step(self) -> None:
+        turn_activity = self._recorded(None, shown_plan(self.STEPS), plan_step(1, ran=False), plan_step(1, ran=True))
+
+        assert turn_activity.get_plan_in_progress() == ExistingPlan(self.STEPS, current=1)
+
+    def test_a_plan_whose_last_step_ran_is_closed(self) -> None:
+        turn_activity = self._recorded(
+            None,
+            shown_plan(self.STEPS),
+            plan_step(1, ran=True),
+            plan_step(2, ran=False),
+            plan_step(2, ran=True),
+        )
+
+        assert turn_activity.get_plan_in_progress() is None
+
+    def test_a_plan_whose_last_step_started_but_never_ran_is_kept_at_it(self) -> None:
+        """A stop or a failure on the last step leaves it to be carried on, as on any other step."""
+        turn_activity = self._recorded(None, shown_plan(self.STEPS), plan_step(1, ran=True), plan_step(2, ran=False))
+
+        assert turn_activity.get_plan_in_progress() == ExistingPlan(self.STEPS, current=2)
+
+    def test_a_plan_none_of_whose_steps_started_is_closed(self) -> None:
+        assert self._recorded(None, shown_plan(self.STEPS)).get_plan_in_progress() is None
+
+    def test_an_existing_plan_the_turn_did_not_carry_on_is_kept_as_it_was(self) -> None:
+        assert TurnActivity(WRITE_THEN_PUBLISH).get_plan_in_progress() == WRITE_THEN_PUBLISH
+
+    def test_an_existing_plan_the_turn_carried_on_is_kept(self) -> None:
+        longer = ExistingPlan((*self.STEPS, PlannedStep(STUB_AGENT.name, "Summarise it")), current=1)
+        turn_activity = self._recorded(longer, plan_step(2, ran=False), plan_step(2, ran=True))
+
+        assert turn_activity.get_plan_in_progress() == ExistingPlan(longer.steps, current=2)
 
 
 class TestThePlannersOwnReplies:
