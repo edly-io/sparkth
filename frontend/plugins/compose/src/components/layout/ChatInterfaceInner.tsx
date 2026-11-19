@@ -45,7 +45,6 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewAttachment, setPreviewAttachment] = useState<TextAttachment | null>(null);
   const [aiKeyProblem, setAiKeyProblem] = useState<AiKeyProblem | null>(null);
-  const [inputMessage, setInputMessage] = useState("");
   const inFlightCheckRef = useRef<Promise<AiKeyProblem | null> | null>(null);
 
   // A concurrent second send shares this in-flight check instead of starting its own —
@@ -68,6 +67,8 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
     messages,
     error,
     setError,
+    inputMessage,
+    setInputMessage,
     inputAttachments,
     setInputAttachments,
     setMessages,
@@ -130,7 +131,7 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
       setInputMessage((prev) =>
         previous === undefined ? appendLine(prev, option) : replaceLine(prev, previous, option),
       ),
-    [],
+    [setInputMessage],
   );
 
   const isStreaming = messages.some((m) => m.isTyping === true);

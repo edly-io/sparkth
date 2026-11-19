@@ -20,6 +20,7 @@ from sparkth.plugins.googledrive.audit import (
     GoogleDriveConnectedAuditEvent,
     GoogleDriveDisconnectedAuditEvent,
 )
+from sparkth.plugins.googledrive.exceptions import GoogleDriveNotConnected
 from sparkth.plugins.googledrive.models import DriveOAuthToken
 
 # Google OAuth endpoints
@@ -260,10 +261,13 @@ async def get_token_record(session: AsyncSession, user_id: int) -> DriveOAuthTok
 
 
 async def get_valid_access_token(session: AsyncSession, user_id: int, client_id: str, client_secret: str) -> str:
-    """Get a valid access token for a user, refreshing if necessary."""
+    """Get a valid access token for a user, refreshing if necessary.
+
+    Raises when the user has no Google Drive connection.
+    """
     token_record = await get_token_record(session, user_id)
     if not token_record:
-        raise ValueError("Google Drive not connected")
+        raise GoogleDriveNotConnected
 
     now = utc_now()
     buffer = timedelta(minutes=5)
