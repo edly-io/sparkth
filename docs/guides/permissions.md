@@ -500,20 +500,21 @@ fails rather than returning 403. Calling `can()` or `batched_can()` directly, or
 
 **Check the current user's permission** — a client (e.g. the web UI) can ask whether the
 authenticated user holds a permission via `POST /api/v1/permissions/can` with a JSON body of
-`permission`, an optional `scope` (default `global`) and an optional `scope_object_id`, which
-returns `{"allowed": true|false}`. With `scope_object_id`, the answer covers that one object.
+`permission`, `scope` (required, e.g. `global`) and an optional `scope_object_id`, which returns
+`{"allowed": true|false}`; a check without a scope is rejected with 422. With `scope_object_id`,
+the answer covers that one object.
 Without it, an object-bearing scope answers whether the user holds the permission at any of its
 objects, the same check `require_for_any_object()` makes for a list route:
 `{"permission": "group.read", "scope": "group"}` is `true` for a grant at `global` or at any
 `group:<id>`. An objectless scope answers for the scope itself.
 `GET /api/v1/permissions/can?permission=<name>&scope=<kind>&scope_object_id=<id>` takes the same
-fields as query parameters and gives the same answer.
+fields as query parameters, with `scope` defaulting to `global`, and gives the same answer.
 
 To ask many questions in one request, `POST /api/v1/permissions/can/batch` takes a list of up to 50
 such checks and returns one result per check, in request order. Each result repeats its check and
 adds `allowed`, so the same permission can be asked at two scopes. `batched_can()` answers them all
-from one read of the user's grants. An unknown permission or scope name rejects the whole request
-with 422, and no check is answered.
+from one read of the user's grants. A check without a scope, or an unknown permission or scope
+name, rejects the whole request with 422, and no check is answered.
 
 The probes are a convenience for gating UI, not a security boundary, since every endpoint still
 enforces its own permission and returns 403.

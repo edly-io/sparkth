@@ -2744,8 +2744,7 @@ export interface components {
             permission: string;
             /**
              * Scope
-             * @description Scope kind to check at (defaults to 'global').
-             * @default global
+             * @description Scope kind to check at, e.g. 'global'.
              */
             scope: string;
             /**
@@ -2773,8 +2772,7 @@ export interface components {
             permission: string;
             /**
              * Scope
-             * @description Scope kind to check at (defaults to 'global').
-             * @default global
+             * @description Scope kind to check at, e.g. 'global'.
              */
             scope: string;
             /**

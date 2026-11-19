@@ -117,7 +117,7 @@ async def test_post_can_answers_one_check(client: AsyncClient, session: AsyncSes
     await grant_global_permission(session, cast(int, current_user.id), "analytics.read")
     await session.commit()
 
-    resp = await client.post(URL, json={"permission": "analytics.read"})
+    resp = await client.post(URL, json={"permission": "analytics.read", "scope": "global"})
     assert resp.status_code == 200
     assert resp.json() == {"allowed": True}
 
@@ -132,7 +132,7 @@ async def test_post_can_at_an_object_and_at_any_object(client: AsyncClient) -> N
 
 
 async def test_post_can_unknown_permission_returns_422(client: AsyncClient, current_user: User) -> None:
-    resp = await client.post(URL, json={"permission": "does.not.exist"})
+    resp = await client.post(URL, json={"permission": "does.not.exist", "scope": "global"})
     assert resp.status_code == 422
     assert "does.not.exist" in str(resp.json()["detail"])
 
@@ -145,7 +145,7 @@ async def test_batch_answers_in_request_order_and_echoes_each_check(client: Asyn
             {"permission": "analytics.read", "scope": ROLE.name, "scope_object_id": "5"},
             {"permission": "analytics.read", "scope": ROLE.name, "scope_object_id": "6"},
             {"permission": "analytics.read", "scope": ROLE.name},
-            {"permission": "analytics.read"},
+            {"permission": "analytics.read", "scope": "global"},
         ],
     )
 
@@ -159,7 +159,10 @@ async def test_batch_answers_in_request_order_and_echoes_each_check(client: Asyn
 
 
 async def test_batch_unknown_permission_fails_the_whole_request(client: AsyncClient, current_user: User) -> None:
-    resp = await client.post(BATCH_URL, json=[{"permission": "analytics.read"}, {"permission": "does.not.exist"}])
+    resp = await client.post(
+        BATCH_URL,
+        json=[{"permission": "analytics.read", "scope": "global"}, {"permission": "does.not.exist", "scope": "global"}],
+    )
     assert resp.status_code == 422
     assert "does.not.exist" in str(resp.json()["detail"])
 
@@ -176,7 +179,7 @@ async def test_batch_object_id_with_a_slash_returns_422(client: AsyncClient, cur
 
 
 async def test_batch_accepts_50_checks_and_rejects_51(client: AsyncClient, current_user: User) -> None:
-    check = {"permission": "analytics.read"}
+    check = {"permission": "analytics.read", "scope": "global"}
 
     accepted = await client.post(BATCH_URL, json=[check] * 50)
     assert accepted.status_code == 200
@@ -191,15 +194,28 @@ async def test_batch_with_no_checks_returns_an_empty_list(client: AsyncClient, c
 
 
 async def test_post_routes_require_authentication(client: AsyncClient) -> None:
-    assert (await client.post(URL, json={"permission": "analytics.read"})).status_code == 401
-    assert (await client.post(BATCH_URL, json=[{"permission": "analytics.read"}])).status_code == 401
+    assert (await client.post(URL, json={"permission": "analytics.read", "scope": "global"})).status_code == 401
+    assert (await client.post(BATCH_URL, json=[{"permission": "analytics.read", "scope": "global"}])).status_code == 401
 
 
 async def test_post_routes_record_no_audit_event(
     client: AsyncClient, current_user: User, audit_events: AuditEventsFetcher
 ) -> None:
-    assert (await client.post(URL, json={"permission": "analytics.read"})).json() == {"allowed": False}
-    batch = await client.post(BATCH_URL, json=[{"permission": "analytics.read"}])
+    assert (await client.post(URL, json={"permission": "analytics.read", "scope": "global"})).json() == {
+        "allowed": False
+    }
+    batch = await client.post(BATCH_URL, json=[{"permission": "analytics.read", "scope": "global"}])
     assert batch.json()[0]["allowed"] is False
 
     assert await audit_events() == []
+
+
+async def test_post_can_without_a_scope_returns_422(client: AsyncClient, current_user: User) -> None:
+    resp = await client.post(URL, json={"permission": "analytics.read"})
+    assert resp.status_code == 422
+
+
+async def test_batch_check_without_a_scope_fails_the_whole_request(client: AsyncClient, current_user: User) -> None:
+    checks = [{"permission": "analytics.read", "scope": "global"}, {"permission": "analytics.read"}]
+    resp = await client.post(BATCH_URL, json=checks)
+    assert resp.status_code == 422

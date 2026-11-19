@@ -9,7 +9,7 @@ class PermissionCheck(BaseModel):
     """One question: does the current user hold a permission at a scope?"""
 
     permission: str = Field(description="Permission name to check, e.g. 'analytics.read'.")
-    scope: str = Field("global", description="Scope kind to check at (defaults to 'global').")
+    scope: str = Field(description="Scope kind to check at, e.g. 'global'.")
     scope_object_id: str | None = Field(
         None, description="Object id for an object-bearing scope. Omit it to ask about any object of the scope."
     )
