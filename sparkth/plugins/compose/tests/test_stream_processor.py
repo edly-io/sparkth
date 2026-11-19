@@ -108,7 +108,7 @@ def _make_processor(
         tools=None,
         user_id=user_id,
         turn_id=turn_id,
-        **{**handing_off_to(replace(STUB_AGENT, tools=agent_tools)), "existing_plan": existing_plan},
+        planner_setup=replace(handing_off_to(replace(STUB_AGENT, tools=agent_tools)), existing_plan=existing_plan),
     )
 
 

@@ -45,6 +45,7 @@ from sparkth.plugins.compose.llm import complete_turn
 from sparkth.plugins.compose.messages import get_last_user_text
 from sparkth.plugins.compose.models import Conversation
 from sparkth.plugins.compose.permissions import CONVERSATION, CONVERSATION_WRITE
+from sparkth.plugins.compose.planner import PlannerSetup
 from sparkth.plugins.compose.routes.dependencies import get_attachable_document_ids, get_turn_conversation
 from sparkth.plugins.compose.routes.utils import (
     get_existing_plan_or_none,
@@ -304,7 +305,7 @@ async def compose_completion(
         )
 
         tools = await resolve_tools(request, tool_registry, disabled_plugins, allowed_plugins)
-        existing_plan = get_existing_plan_or_none(conversation_messages)
+        planner_setup = PlannerSetup(agents, planner_llm, get_existing_plan_or_none(conversation_messages))
 
         if request.stream:
             # Gated together so no LLM is built for a turn that will not retrieve.
@@ -328,9 +329,7 @@ async def compose_completion(
                 analytics=turn_analytics.attribution,
                 turn_id=turn_key,
                 max_tool_executions=config.max_tool_executions,
-                agents=agents,
-                planner_llm=planner_llm,
-                existing_plan=existing_plan,
+                planner_setup=planner_setup,
             )
             stream_owns_claim = True
             return StreamingResponse(
@@ -345,9 +344,7 @@ async def compose_completion(
                 tools or [],
                 provider,
                 config.max_tool_executions,
-                agents=agents,
-                planner_llm=planner_llm,
-                existing_plan=existing_plan,
+                planner_setup=planner_setup,
             )
 
             tokens_used = response.get("metadata", {}).get("usage_metadata", {}).get("total_tokens")

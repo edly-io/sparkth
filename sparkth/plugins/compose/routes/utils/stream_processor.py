@@ -13,11 +13,9 @@ import openai
 from google.api_core import exceptions as google_exceptions
 from google.genai import errors as google_genai_errors
 from langchain_core.exceptions import LangChainException
-from langchain_core.language_models import BaseChatModel
 from langchain_google_genai.chat_models import ChatGoogleGenerativeAIError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.db import session_scope
 from sparkth.lib.i18n import _, gettext
 from sparkth.lib.llm import BaseChatProvider
@@ -55,7 +53,7 @@ from sparkth.plugins.compose.enums import (
 from sparkth.plugins.compose.llm import stream_turn
 from sparkth.plugins.compose.messages import get_last_user_text
 from sparkth.plugins.compose.models import Conversation
-from sparkth.plugins.compose.planner import ExistingPlan, TurnRouting
+from sparkth.plugins.compose.planner import ExistingPlan, PlannerSetup, TurnRouting
 from sparkth.plugins.compose.planner.turn_activity import TurnActivity
 from sparkth.plugins.compose.planner.types import PlanSnapshot
 from sparkth.plugins.compose.routes.utils.live_turns import register_turn, release_conversation, release_turn
@@ -277,15 +275,10 @@ class ComposeStreamProcessor:
         turn_id: str | None = None,
         max_tool_executions: int | None = None,
         *,
-        agents: Sequence[Agent],
-        planner_llm: BaseChatModel,
-        existing_plan: ExistingPlan | None,
+        planner_setup: PlannerSetup,
     ) -> None:
         self.provider = provider
-        self.existing_plan = existing_plan
-        # The turn's planner hands the message to one of ``agents``, running on ``planner_llm``.
-        self.agents = agents
-        self.planner_llm = planner_llm
+        self.planner_setup = planner_setup
         self.messages = messages
         self.service = service
         self.tools = tools
@@ -474,7 +467,7 @@ class ComposeStreamProcessor:
             content=no_chunks_msg,
             message_type="text",
             metadata=_agent_reply_metadata(
-                [], [], [], self.existing_plan, plan_snapshot=None, stopped=False, interrupted=False
+                [], [], [], self.planner_setup.existing_plan, plan_snapshot=None, stopped=False, interrupted=False
             )
             or None,
         )
@@ -560,7 +553,7 @@ class ComposeStreamProcessor:
         completed_tool_calls: list[dict[str, Any]] = []
         stopped = False
         tool_running = False
-        turn_activity = TurnActivity(self.existing_plan)
+        turn_activity = TurnActivity(self.planner_setup.existing_plan)
         max_tool_executions = self.max_tool_executions
         if max_tool_executions is None:
             max_tool_executions = get_compose_settings().max_tool_executions
@@ -570,9 +563,7 @@ class ComposeStreamProcessor:
                 self.tools or [],
                 self.provider,
                 max_tool_executions,
-                agents=self.agents,
-                planner_llm=self.planner_llm,
-                existing_plan=self.existing_plan,
+                planner_setup=self.planner_setup,
             )
             # Closing the turn ends whatever part of it is still running.
             async with aclosing(turn):
@@ -800,13 +791,15 @@ class ComposeStreamProcessor:
         persists a turn, just an empty one carrying the ``stopped`` marker.
         """
         if self._stop_is_requested():
-            return await self._persist_and_emit_done("", [], [], bg_session, self.existing_plan, StopPoint.BEFORE_MODEL)
+            return await self._persist_and_emit_done(
+                "", [], [], bg_session, self.planner_setup.existing_plan, StopPoint.BEFORE_MODEL
+            )
         confirmed_rag_sections = await self._run_rag_phase(bg_session)
         if confirmed_rag_sections is None:
             return None
         if self._stop_is_requested():
             return await self._persist_and_emit_done(
-                "", confirmed_rag_sections, [], bg_session, self.existing_plan, StopPoint.BEFORE_MODEL
+                "", confirmed_rag_sections, [], bg_session, self.planner_setup.existing_plan, StopPoint.BEFORE_MODEL
             )
         self._strip_unresolved_document_blocks()
         return await self._run_llm_phase(confirmed_rag_sections, bg_session)

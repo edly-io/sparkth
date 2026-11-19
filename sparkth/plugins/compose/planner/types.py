@@ -1,8 +1,10 @@
 """Types the planner builds on."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from langchain_core.language_models import BaseChatModel
 from langgraph.graph.state import CompiledStateGraph
 
 from sparkth.lib.audit.events import AuditModelInfo
@@ -60,3 +62,18 @@ class PlanSnapshot:
     tasks: tuple[str, ...]
     current_step: int
     has_current_step_run: bool
+
+
+@dataclass(frozen=True)
+class PlannerSetup:
+    """Inputs for building the planner for one turn.
+
+    Attributes:
+        agents: Agents the planner can hand the message to.
+        planner_llm: Model the planner runs on.
+        existing_plan: The plan saved with the latest reply, for this turn to carry on, or None.
+    """
+
+    agents: Sequence[Agent]
+    planner_llm: BaseChatModel
+    existing_plan: ExistingPlan | None
