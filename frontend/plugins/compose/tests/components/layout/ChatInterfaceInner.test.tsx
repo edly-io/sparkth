@@ -22,19 +22,28 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
 }));
 
-vi.mock("@/plugins/compose/src/hooks/useConversation", () => ({
-  useConversation: () => ({
-    loading: false,
-    messages: [],
-    error: null,
-    setError: vi.fn(),
-    inputAttachments: [],
-    setInputAttachments: vi.fn(),
-    setMessages: vi.fn(),
-    clearError: vi.fn(),
-    skipNextLoadRef: { current: false },
-  }),
-}));
+// The message box's text is real state, so typing and option checks reach the input.
+vi.mock("@/plugins/compose/src/hooks/useConversation", async () => {
+  const { useState } = await import("react");
+  return {
+    useConversation: () => {
+      const [inputMessage, setInputMessage] = useState("");
+      return {
+        loading: false,
+        messages: [],
+        error: null,
+        setError: vi.fn(),
+        inputMessage,
+        setInputMessage,
+        inputAttachments: [],
+        setInputAttachments: vi.fn(),
+        setMessages: vi.fn(),
+        clearError: vi.fn(),
+        skipNextLoadRef: { current: false },
+      };
+    },
+  };
+});
 
 const mockHandleSend = vi.fn();
 vi.mock("@/plugins/compose/src/hooks/useChatStream", () => ({

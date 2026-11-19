@@ -32,13 +32,7 @@ export async function stubDriveDocuments(
   previous: unknown = [],
   status = 200,
 ): Promise<void> {
-  await stubPeriods(
-    page,
-    "**/api/v1/google-drive/analytics/documents**",
-    current,
-    previous,
-    status,
-  );
+  await stubPeriods(page, "**/api/v1/googledrive/analytics/documents**", current, previous, status);
 }
 
 /** Stubs the period summary API: one response carries both periods. */

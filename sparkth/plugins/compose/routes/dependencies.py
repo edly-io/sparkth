@@ -3,12 +3,22 @@ from uuid import UUID
 from fastapi import Depends
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.lib.auth import get_current_user
+from sparkth.lib.auth import get_current_user, get_current_user_id
 from sparkth.lib.db import get_async_session
+from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
+from sparkth.lib.permissions import PLUGIN_USE, can
+from sparkth.lib.permissions.scopes import PLUGIN, USER, build_scope_path
+from sparkth.plugins.compose.constants import COMPOSE_PLUGIN_NAME
 from sparkth.plugins.compose.models import Conversation
+from sparkth.plugins.compose.permissions import CONVERSATION_WRITE
 from sparkth.plugins.compose.schemas import ChatCompletionRequest
 from sparkth.plugins.compose.service import ComposeService, get_compose_service
+
+logger = get_logger(__name__)
+
+# Gates every authoring route on the caller being allowed to use Compose.
+require_compose_use = PLUGIN_USE.require_for_object(PLUGIN, COMPOSE_PLUGIN_NAME)
 
 
 async def get_conversation(
@@ -24,25 +34,58 @@ async def get_conversation(
     return await service.get_conversation(session, conversation_id)
 
 
-async def get_conversation_owner_id(conversation: Conversation = Depends(get_conversation)) -> str:
-    """Return the id of the user who owns the conversation, as the object id of its ``user`` scope."""
-    return str(conversation.user_id)
+async def get_conversation_owner_id(conversation: Conversation = Depends(get_conversation)) -> int:
+    """Return the id of the user who owns the conversation named in the path.
+
+    Raises the not-found error for an unknown UUID, before any permission is checked.
+    """
+    return conversation.user_id
 
 
-async def get_turn_owner_id(
+async def get_turn_conversation(
     request: ChatCompletionRequest,
-    current_user: User = Depends(get_current_user),
+    user_id: int = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_async_session),
     service: ComposeService = Depends(get_compose_service),
-) -> str:
-    """Return the ``user`` scope object id a turn is checked at: the caller's for a first message, which
-    starts a conversation they will own, otherwise the owner of the conversation the turn names.
+) -> Conversation:
+    """Return the conversation a turn is checked at.
+
+    A turn that names a conversation gets the stored one, whoever owns it. A first message gets an unsaved
+    stand-in owned by the caller: only its path is checked, it is never stored, and the turn creates its
+    own conversation.
 
     Takes the turn's body under the route's own parameter name and type, so the request still has one
     flat body. Raises ConversationNotFound when the named conversation does not exist, which the
     registry renders as a 404.
     """
-    if request.conversation_id is None:
-        return str(current_user.id)
-    conversation = await service.get_conversation(session, request.conversation_id)
-    return str(conversation.user_id)
+    if request.conversation_id is not None:
+        return await service.get_conversation(session, request.conversation_id)
+    # Empty provider and model: the stand-in is never saved.
+    return Conversation(user_id=user_id, provider="", model="")
+
+
+async def get_attachable_document_ids(
+    request: ChatCompletionRequest,
+    turn_conversation: Conversation = Depends(get_turn_conversation),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_async_session),
+) -> list[int]:
+    """Return the document ids a turn may attach to its conversation.
+
+    The ids the request names when the caller holds write access at the conversation owner's user scope,
+    otherwise an empty list. Never refuses the turn.
+    """
+    if not request.document_ids:
+        return []
+    owner_scope_path = build_scope_path(USER, str(turn_conversation.user_id))
+    if await can(current_user, CONVERSATION_WRITE, USER, owner_scope_path, session):
+        return request.document_ids
+    logger.warning(
+        "Dropped %d document(s) from a turn by user %s: no write access at the scope of conversation owner %s "
+        "(conversation %s)",
+        len(request.document_ids),
+        current_user.id,
+        turn_conversation.user_id,
+        turn_conversation.uuid,
+    )
+    return []

@@ -105,7 +105,9 @@ helper per shape keeps what gets sealed in a single place a reviewer can check.
 
 - **Never key material.** Record a masked form (`masked_key`) or nothing.
 - **Plugin or other free-form configs: key names only.** `{"plugin": name, "keys": sorted(config)}`
-  is the shape to copy (`PluginService._create_config_audit_snapshot`).
+  is the shape to copy (`PluginService._create_config_audit_snapshot`). An update may also name the
+  fields that changed (`"changed": [...]`) and flag whether a secret is among them
+  (`"secret_changed": true`), still never a value.
 - **Never the actor's own identity in a snapshot.** The actor's username rides on `actor_label`,
   which sits outside the seal so a GDPR erasure can blank it. A username copied into `change.new`
   is sealed and can never be erased. (`auth.registered` records only the `method` for this

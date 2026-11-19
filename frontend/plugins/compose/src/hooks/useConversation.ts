@@ -57,6 +57,8 @@ interface UseConversationResult {
   messages: ChatMessage[];
   error: string | null;
   setError: Dispatch<SetStateAction<string | null>>;
+  inputMessage: string;
+  setInputMessage: Dispatch<SetStateAction<string>>;
   inputAttachments: TextAttachment[];
   setInputAttachments: Dispatch<SetStateAction<TextAttachment[]>>;
   setMessages: (updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => void;
@@ -69,6 +71,7 @@ export function useConversation(
   token: string | null,
 ): UseConversationResult {
   const [error, setError] = useState<string | null>(null);
+  const [inputMessage, setInputMessage] = useState("");
   const [inputAttachments, setInputAttachments] = useState<TextAttachment[]>([]);
   // Prevents loadConversation from overwriting messages when we navigated there ourselves
   const skipNextLoadRef = useRef(false);
@@ -91,18 +94,22 @@ export function useConversation(
 
   const loadConversation = useCallback(
     async (signal: AbortSignal) => {
+      // We just navigated here ourselves after a send — keep current messages state
+      if (conversationId && skipNextLoadRef.current) {
+        skipNextLoadRef.current = false;
+        return;
+      }
+
+      // A different chat starts with an empty box and without the last chat's error.
+      setError(null);
+      setInputMessage("");
+
       if (!conversationId) {
         setHistoryState({
           loading: false,
           messages: [WELCOME_MESSAGE],
         });
         setInputAttachments([]);
-        return;
-      }
-
-      // We just navigated here ourselves after a send — keep current messages state
-      if (skipNextLoadRef.current) {
-        skipNextLoadRef.current = false;
         return;
       }
 
@@ -299,6 +306,8 @@ export function useConversation(
     messages: historyState.messages,
     error,
     setError,
+    inputMessage,
+    setInputMessage,
     inputAttachments,
     setInputAttachments,
     setMessages,

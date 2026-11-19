@@ -5,7 +5,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.user import User
-from sparkth.lib.permissions.scopes import ROLE
+from sparkth.lib.permissions.scopes import GROUP, ROLE, WHITELIST
 from sparkth.lib.testing import grant_global_permission, grant_permission_at_scope
 
 URL = "/api/v1/permissions/can"
@@ -58,7 +58,45 @@ async def test_can_at_an_object_is_true_for_the_granted_object_only(client: Asyn
 
     assert (await client.get(URL, params={**params, "scope_object_id": "5"})).json() == {"allowed": True}
     assert (await client.get(URL, params={**params, "scope_object_id": "6"})).json() == {"allowed": False}
-    assert (await client.get(URL, params=params)).json() == {"allowed": False}
+
+
+@pytest.mark.usefixtures("role_grant")
+async def test_can_without_an_object_id_is_true_when_held_at_one_object(client: AsyncClient) -> None:
+    resp = await client.get(URL, params={"permission": "analytics.read", "scope": ROLE.name})
+    assert resp.json() == {"allowed": True}
+
+
+async def test_can_without_an_object_id_is_true_for_a_global_grant(
+    client: AsyncClient, session: AsyncSession, current_user: User
+) -> None:
+    await grant_global_permission(session, cast(int, current_user.id), "analytics.read")
+    await session.commit()
+
+    resp = await client.get(URL, params={"permission": "analytics.read", "scope": ROLE.name})
+    assert resp.json() == {"allowed": True}
+
+
+async def test_can_without_an_object_id_is_false_when_held_at_no_object(
+    client: AsyncClient, current_user: User
+) -> None:
+    resp = await client.get(URL, params={"permission": "analytics.read", "scope": ROLE.name})
+    assert resp.json() == {"allowed": False}
+
+
+@pytest.mark.usefixtures("role_grant")
+async def test_can_without_an_object_id_ignores_grants_at_other_scopes(client: AsyncClient) -> None:
+    resp = await client.get(URL, params={"permission": "analytics.read", "scope": GROUP.name})
+    assert resp.json() == {"allowed": False}
+
+
+async def test_can_at_an_objectless_scope_is_true_for_a_global_grant(
+    client: AsyncClient, session: AsyncSession, current_user: User
+) -> None:
+    await grant_global_permission(session, cast(int, current_user.id), "email.whitelist.read")
+    await session.commit()
+
+    resp = await client.get(URL, params={"permission": "email.whitelist.read", "scope": WHITELIST.name})
+    assert resp.json() == {"allowed": True}
 
 
 @pytest.mark.usefixtures("role_grant")

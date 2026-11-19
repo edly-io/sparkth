@@ -92,7 +92,7 @@ from sparkth.lib.plugins import SparkthPlugin
 
 class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
-        super().__init__("my-app")
+        super().__init__("myapp")
         CONFIG_SCHEMAS.add_item(self, MyAppPluginConfig)
 ```
 
@@ -126,7 +126,7 @@ from sparkth.plugins.myappplugin.config import MyAppPluginConfig
 
 class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
-        super().__init__("my-app")
+        super().__init__("myapp")
         CONFIG_SCHEMAS.add_item(self, MyAppPluginConfig)
         CONFIG_ADAPTERS.add_item(self, LLMConfigAdapter())
 ```
@@ -216,7 +216,7 @@ Every plugin **declares its own name explicitly** by passing it positionally to 
 ```python
 class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
-        super().__init__("my-app")
+        super().__init__("myapp")
 ```
 
 The name must be a kebab-case slug (lowercase letters, digits, single hyphens: `PLUGIN_NAME_PATTERN` in `sparkth/core/plugins/constants.py`); `super().__init__()` raises `ValueError` otherwise. It appears in URLs (`/api/v1/<name>`, `/dashboard/<name>`), keys the plugin's database row, and is what every hook lookup (`CONFIG_SCHEMAS`, `CONFIG_ADAPTERS`, the frontend metadata hooks) resolves by, so treat it as permanent once released.
@@ -231,18 +231,19 @@ routes via `register_router`, MCP tools to `MCP_TOOLS`, a config schema to `CONF
 
 ```python
 # sparkth/plugins/myappplugin/plugin.py
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from sparkth.plugins.myappplugin.config import MyAppPluginConfig
 from sparkth.lib.analytics import AnalyticsEventSchema, register_event_schema
 from sparkth.lib.config.hooks import CONFIG_SCHEMAS
 from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
-from sparkth.lib.permissions import Permission
+from sparkth.lib.permissions import PLUGIN_USE, Permission
+from sparkth.lib.permissions.scopes import PLUGIN
 from sparkth.lib.routes import register_router
 from sparkth.lib.plugins import SparkthPlugin
 
-# Create router outside the class
-router = APIRouter()
+# Create router outside the class; every route on it requires `plugin.use` for this plugin
+router = APIRouter(dependencies=[Depends(PLUGIN_USE.require_for_object(PLUGIN, "my-app"))])
 
 MYAPP_PROCESS = Permission.create("myapp.process")
 
@@ -264,7 +265,7 @@ class MyAppDataProcessed(AnalyticsEventSchema):
 # Plugin class
 class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
-        super().__init__("my-app")  # the plugin declares its own name
+        super().__init__("myapp")  # the plugin declares its own name
         CONFIG_SCHEMAS.add_item(self, MyAppPluginConfig)
         register_router(self, router)
         MCP_TOOLS.add_item(self, Tool(process_data, category="utilities"))
@@ -288,14 +289,15 @@ rows from `raw_events`, so `dims` must match the aggregate's definition. To also
 value per group, pass `sums` (output column → payload key); on PostgreSQL the aggregate needs a
 column of that output name summing the key. Take the range as
 `Annotated[RangeQuery, Query()]`, gate the route with
-`Depends(ANALYTICS_READ.require_in_global_scope())` (`sparkth.lib.permissions`) and read on
+`Depends(ANALYTICS_READ.require_for_object(PLUGIN, "<plugin-name>"))` (`ANALYTICS_READ` from
+`sparkth.lib.permissions`, `PLUGIN` from `sparkth.lib.permissions.scopes`; a `global` grant also passes) and read on
 `get_analytics_session` (`sparkth.lib.db`). The aggregate's DDL still goes in the analytics
 migration lineage (`sparkth/migrations/analytics/`). The compose plugin's `analytics/reads.py` is a
 worked example. To put a headline figure on the analytics Overview, build a `SummaryFigure` at
 module level (a plugin-prefixed `key`, a `gettext_noop` label, an async `count(session, from_, to)`
 and the `view` it links to) and register it from `__init__` with
-`register_summary_figure(self, figure)`. The Overview shows it to every viewer with
-`analytics.read` while the plugin is installed, whatever the plugin switches say. Mark the plugin's
+`register_summary_figure(self, figure)`. The Overview shows it to every viewer holding
+`analytics.read` at `global` while the plugin is installed, whatever the plugin switches say. Mark the plugin's
 analytics read routes `@platform_wide` (see [Who can reach plugin routes?](#who-can-reach-plugin-routes))
 so they answer the same way.
 
@@ -303,7 +305,23 @@ so they answer the same way.
 
 `register_router` mounts the router at `/api/v1/<plugin-name>` automatically, using
 the plugin instance's declared name. The router above is reachable at
-`http://localhost:7727/api/v1/my-app/`.
+`http://localhost:7727/api/v1/myapp/`.
+
+### Gating plugin routes on `plugin.use`
+
+A plugin gates its own routes: build the dependency once with
+`PLUGIN_USE.require_for_object(PLUGIN, "<plugin-name>")` (`PLUGIN_USE` from `sparkth.lib.permissions`,
+`PLUGIN` from `sparkth.lib.permissions.scopes`) and pass it as `dependencies=[Depends(...)]` on the
+router, or on each route that needs it. A caller without `plugin.use` for the plugin (a `global` grant
+also passes) is answered `403` before the handler runs.
+
+A route called without a Sparkth user login declares no gate: an OAuth callback, a signed webhook, a
+launch-token route or a WebSocket. Authenticate such a route the way it needs (signed state, request
+signature, launch token). An analytics read, which `analytics.read` gates instead (see above), is listed
+the same way. Add it to `UNGATED_PLUGIN_ROUTES` in `tests/core/test_plugin_route_gates.py`
+with the reason, keyed by method and path template (`"WEBSOCKET"` as the method for a WebSocket). That
+test calls every other plugin route with no grant and fails on any that is not denied on `plugin.use` at
+`plugin:<name>`, and on any listed route that no longer exists.
 
 ### Who can reach plugin routes?
 
@@ -369,7 +387,7 @@ from sparkth.lib.frontend.hooks import (
 
 class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
-        super().__init__("my-app")
+        super().__init__("myapp")
         DISPLAY_INFO.add_item(self, DisplayInfo("My App", "What the plugin does, in one line", icon="sparkles"))
         SIDEBAR_ENTRIES.add_item(self, SidebarEntry("My App", icon="sparkles", order=5))
         FRONTEND_APPS.add_item(self, FrontendApp())
@@ -448,7 +466,7 @@ from sparkth.plugins.my_app.models import MyModel  # noqa: F401
 
 class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
-        super().__init__("my-app")
+        super().__init__("myapp")
         CONFIG_SCHEMAS.add_item(self, MyAppPluginConfig)
         register_router(self, router)
 ```
@@ -469,7 +487,7 @@ Register each tool in `__init__`; pass an optional `category` to group it.
 ```python
 class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
-        super().__init__("my-app")
+        super().__init__("myapp")
         MCP_TOOLS.add_item(self, Tool(my_tool, category="my-category"))
 
 
@@ -503,6 +521,27 @@ named after the plugin (`googledrive.connected`, `slack.disconnected`), register
 records them imports the module, so no side-effect import is needed.
 The audit events guide (`docs/guides/audit-events.md`) covers what a snapshot may carry, which
 transaction to record in, and how to test it.
+
+### Telling the agent a tool failed
+
+A tool that turns work down on purpose raises `ToolFailure` from `sparkth.lib.mcp.exceptions`, or a
+subclass of it, with a message written for the agent: what was wrong with what it submitted and
+what to change. An agent that runs the tool reads that message and can try again.
+
+```python
+from sparkth.lib.mcp.exceptions import ToolFailure
+
+
+class MyAppBuildRejected(ToolFailure):
+    """The item the agent submitted can't be built as it is."""
+
+
+raise MyAppBuildRejected("The quiz has no questions. Add at least one and build it again.")
+```
+
+Any other exception is treated as unplanned: the agent is told only that the tool failed, and the
+cause goes to the log. An agent may repeat what it reads to the author, so keep paths, stack traces
+and stored values out of a `ToolFailure` message.
 
 ### Tool executions are audited
 
@@ -571,7 +610,7 @@ registered and `ContentContributorUnavailableError` when the plugin is switched 
 `sparkth.lib.content.exceptions`. With no authenticated caller, only the system-wide switch applies.
 
 `builders` is keyed by the publishing plugin's registered name, so its keys are the LMSes a
-contributor targets. `open-edx` is the one shipped publisher. Register one builder per LMS you
+contributor targets. `openedx` is the one shipped publisher. Register one builder per LMS you
 can produce a block for; a publishing plugin skips any contributor that has no builder for it,
 so a misspelled key reads as "does not target that LMS".
 
@@ -609,12 +648,10 @@ async def build_my_openedx_block(course_id: str, option_id: str | None) -> Conte
 
 class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
-        super().__init__("my-app")
+        super().__init__("myapp")
         register_content_contributor(
             self,
-            ContentContributor(
-                "my-app", "What this contributes", {"open-edx": build_my_openedx_block}, list_my_options
-            ),
+            ContentContributor("myapp", "What this contributes", {"openedx": build_my_openedx_block}, list_my_options),
         )
 ```
 
@@ -650,7 +687,7 @@ instance.
 An `Agent` has five fields:
 
 - `name` identifies the agent: lowercase letters, digits and underscores, starting with a letter.
-  `compose`, `operator` and `refuse` are reserved.
+  `compose`, `operator`, `show_plan` and `refuse` are reserved.
 - `title` is the heading the agent appears under, both in the system prompt and in the planner's
   list.
 - `description` is the text the planner reads to decide whether a message is this agent's.
@@ -696,7 +733,7 @@ from sparkth.plugins.myappplugin.agent import MY_AGENT, MY_APP_BUILD
 
 class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
-        super().__init__("my-app")
+        super().__init__("myapp")
         # Only when MCP clients should see the tool too.
         MCP_TOOLS.add_item(self, MY_APP_BUILD)
         register_agent(self, MY_AGENT)
@@ -707,7 +744,7 @@ is harmless: the loader and a plugin's own tests each build an instance, and equ
 one. `register_agent` raises, from `sparkth.lib.compose.exceptions`:
 
 - `InvalidAgentName` for a name that breaks the pattern above;
-- `ReservedAgentName` for `compose`, `operator` or `refuse`;
+- `ReservedAgentName` for `compose`, `operator`, `show_plan` or `refuse`;
 - `DuplicateAgentName` when another agent, another plugin or a registered MCP tool already holds the name;
 - `DuplicateAgentTool` when two of the agent's tools share a name.
 
@@ -721,8 +758,8 @@ system-wide or by the user contributes no agent and no tools.
 
 - **Planner.** A planner reads each message and hands it to the one agent whose description fits.
   It runs on the small model of the user's provider, or on the reply's own model when
-  `COMPOSE_PLANNER_MODEL` is `same`. It answers greetings, questions about what Compose
-  can do, and unclear messages (with a question back) itself, and refuses a message no agent covers
+  `COMPOSE_PLANNER_MODEL` is `same_as_compose`. It answers greetings, questions about what
+  Compose can do, and unclear messages (with a question back) itself, and refuses a message no agent covers
   with a fixed sentence in the request's language. A refusal is stored like any other reply, and a
   refused first message still starts a conversation.
 - **Agent.** The agent runs on the user's model, with Compose's skeleton wrapped around its
@@ -736,6 +773,23 @@ system-wide or by the user contributes no agent and no tools.
   author sees each tool call but not the operator's text. What an operation returns goes back to
   the planner, which tells the author or hands the rest of the request to an agent, which reads
   it too. With no such plugin enabled there are no operations.
+- **Steps.** A step is one piece of work the planner gives to one agent or to its operator. It
+  counts as one step however many tools that agent or the operator calls while doing it. A request
+  can need several steps, such as writing a lesson, building an activity for it and publishing both.
+  The planner first shows the author its plan, a numbered list of its tasks, each one short line.
+  What each step returns goes back to the planner, which runs the next part the author asked for, up
+  to a fixed limit of steps a message, without asking between them. The plan comes before the first
+  step, and from then on every call names the step of the plan it carries out and is rejected if it
+  doesn't fit; each step runs once, in order. Without a plan, an operation runs only as a message's
+  first step. An operation that follows another step is asked for its task as the plan states it,
+  not for what the planner wrote afterwards. So text a step brought in, from an agent's reply or
+  from the LMS, can't start an operation the author wasn't shown, or change what a planned one does.
+  Each agent's reply streams as it is written, and a later step reads what earlier steps returned.
+  An agent's question or choices are the last thing the author reads, and their answer continues
+  that work: a reply that ends with choices ends the turn, whatever was left to run. After an
+  operation the planner says briefly what was done. All of a turn's replies are stored as one reply,
+  which lists its steps; when a step fails, what was written before it is kept as a reply marked as
+  interrupted, followed by the error.
 
 Plugin-specific knowledge belongs in a `<prefix>about` tool, not in an agent's `prompt`;
 see the LMS `about` tool [above](#lms-plugins-tools-without-credentials) for the convention.
@@ -767,7 +821,7 @@ async def drop_my_rows(session: AsyncSession, document: Document) -> None:
 
 class MyAppPlugin(SparkthPlugin):
     def __init__(self) -> None:
-        super().__init__("my-app")
+        super().__init__("myapp")
         DOCUMENT_DELETED.add_item(self, drop_my_rows)
 ```
 
@@ -778,14 +832,16 @@ an analytics event, say) has it without a second query. The compose plugin regis
 ## Complete Example
 
 ```python
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
+from sparkth.lib.permissions import PLUGIN_USE
+from sparkth.lib.permissions.scopes import PLUGIN
 from sparkth.lib.routes import register_router
 from sparkth.lib.plugins import SparkthPlugin
 
-# Router
-router = APIRouter()
+# Router: every route requires `plugin.use` for this plugin
+router = APIRouter(dependencies=[Depends(PLUGIN_USE.require_for_object(PLUGIN, "weather"))])
 
 
 @router.get("/{city}")
@@ -812,7 +868,7 @@ class WeatherPlugin(SparkthPlugin):
 make backend.up.dev
 
 # Test API (routes mount at /api/v1/<plugin-name>)
-curl http://localhost:7727/api/v1/my-app/
+curl http://localhost:7727/api/v1/myapp/
 ```
 
 For real-world examples, see the `sparkth/plugins/canvas/` directory.

@@ -34,7 +34,7 @@ COMPOSE_COMPLETIONS_PATH = "/api/v1/compose/completions"
 SLACK_CALLBACK_PATH = "/api/v1/slack/oauth/callback"
 ANALYTICS_READS = [
     ("compose", "/api/v1/compose/analytics/activity"),
-    ("google-drive", "/api/v1/google-drive/analytics/documents"),
+    ("googledrive", "/api/v1/googledrive/analytics/documents"),
 ]
 ANALYTICS_RANGE = {"from": "2026-03-01", "to": "2026-03-31"}
 
@@ -113,6 +113,12 @@ def _auth_headers(username: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {create_access_token({'sub': username})}"}
 
 
+async def _allow_plugin_use(session: AsyncSession, user: User) -> None:
+    """Let ``user`` use every plugin, as a real account does, so a request reaches the plugin's own routes."""
+    await grant_global_permission(session, cast(int, user.id), "plugin.use")
+    await session.commit()
+
+
 async def _seed_user(session: AsyncSession, username: str) -> User:
     user = User(
         name="Gate Test",
@@ -152,7 +158,7 @@ class TestRoutePluginResolution:
         [
             ("POST", COMPOSE_COMPLETIONS_PATH, "compose"),
             ("GET", "/api/v1/slack/oauth/status", "slack"),
-            ("GET", "/api/v1/google-drive/oauth/status", "google-drive"),
+            ("GET", "/api/v1/googledrive/oauth/status", "googledrive"),
         ],
     )
     def test_resolves_the_plugin_that_owns_a_plugin_route(self, method: str, path: str, plugin_name: str) -> None:
@@ -284,6 +290,7 @@ class TestPluginAccessGate:
         # The inverse of the block: without it, a gate that rejects everything would pass the
         # tests above while breaking every plugin endpoint in the product.
         user = await _seed_user(session, "enabled-chat-user")
+        await _allow_plugin_use(session, user)
         plugin = await _seed_plugin(session, "compose", True)
         await _seed_user_plugin(session, user, plugin, True)
 
@@ -299,6 +306,7 @@ class TestPluginAccessGate:
         self, client: AsyncClient, session: AsyncSession
     ) -> None:
         user = await _seed_user(session, "no-preference-user")
+        await _allow_plugin_use(session, user)
         await _seed_plugin(session, "compose", True)
 
         response = await client.post(
@@ -373,6 +381,7 @@ class TestPluginAccessGate:
         preference together means keying that lookup on the user as well — miss it, and one
         user turning a plugin off would turn it off for everybody."""
         caller = await _seed_user(session, "unaffected-caller")
+        await _allow_plugin_use(session, caller)
         other = await _seed_user(session, "opted-out-user")
         plugin = await _seed_plugin(session, "compose", True)
         await _seed_user_plugin(session, other, plugin, False)
@@ -391,6 +400,7 @@ class TestPluginAccessGate:
         """No row is not the same as a disabled row: a plugin absent from the registry
         stays reachable rather than being treated as switched off."""
         user = await _seed_user(session, "unregistered-plugin-user")
+        await _allow_plugin_use(session, user)
 
         response = await client.post(
             COMPOSE_COMPLETIONS_PATH,

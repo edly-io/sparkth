@@ -17,9 +17,32 @@ from sparkth.lib.frontend.hooks import (
     SidebarEntry,
 )
 from sparkth.lib.plugins import SparkthPlugin, secret
-from sparkth.lib.testing import AddTranslation
+from sparkth.lib.testing import AddTranslation, AuditEventsFetcher, restrict_plugin_use
 
 from .conftest import SCHEMA_PLUGIN_CONFIG_SCHEMA, add_user_plugin
+
+
+async def test_list_shows_only_the_plugins_granted(
+    client: AsyncClient, session: AsyncSession, user_plugins: User
+) -> None:
+    await restrict_plugin_use(session, "plugin_a")
+
+    response = await client.get("/api/v1/user-plugins/")
+
+    assert response.status_code == 200
+    assert [entry["plugin_name"] for entry in response.json()] == ["plugin_a"]
+
+
+async def test_list_is_empty_without_a_grant(
+    client: AsyncClient, session: AsyncSession, user_plugins: User, audit_events: AuditEventsFetcher
+) -> None:
+    await restrict_plugin_use(session, None)
+
+    response = await client.get("/api/v1/user-plugins/")
+
+    assert response.status_code == 200
+    assert response.json() == []
+    assert [event.action for event in await audit_events() if event.category == "permission"] == []
 
 
 def _plugin_entry(plugin_name: str, enabled: bool, config: dict[str, str], is_core: bool) -> dict[str, object]:

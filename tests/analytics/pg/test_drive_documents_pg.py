@@ -8,6 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from sparkth.lib.analytics import Bucket, ingest_event
+from sparkth.plugins.googledrive.analytics.events import GoogleDriveDocumentProcessed
 from sparkth.plugins.googledrive.analytics.reads import get_drive_documents
 
 pytestmark = pytest.mark.pg
@@ -56,7 +57,7 @@ async def test_pg_drive_documents_matches_sqlite(
     for session in (pg_analytics_session, analytics_session):
         for occurred_at, payload in seed:
             await ingest_event(
-                session, "google-drive.document_processed", 1, payload, actor_id="1", occurred_at=occurred_at
+                session, GoogleDriveDocumentProcessed.event_type, 1, payload, actor_id="1", occurred_at=occurred_at
             )
     await pg_refresh()
 
