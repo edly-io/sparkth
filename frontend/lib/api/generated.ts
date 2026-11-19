@@ -1040,9 +1040,9 @@ export interface paths {
          * Answer Permission Checks
          * @description Return, in request order, each check with whether the current user holds its permission at its scope.
          *
-         *     A self-check any authenticated user may call about their own grants, for up to 50 checks per
-         *     request. It is not a security boundary (endpoints enforce their own permissions and return 403);
-         *     it lets a client gate UI precisely. Every permission and scope name is resolved against the
+         *     A self-check any authenticated user may call about their own grants, for a capped number of
+         *     checks per request. It is not a security boundary (endpoints enforce their own permissions and
+         *     return 403); it lets a client gate UI precisely. Every permission and scope name is resolved against the
          *     registered vocabulary first: an unknown name rejects the whole request (422) and no check is
          *     answered.
          *

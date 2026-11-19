@@ -7,7 +7,14 @@ import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.user import User
-from sparkth.lib.permissions import GROUP_READ, GROUP_UPDATE, batched_can, can, get_accessible_scope_object_ids
+from sparkth.lib.permissions import (
+    GROUP_READ,
+    GROUP_UPDATE,
+    PermissionQuestion,
+    batched_can,
+    can,
+    get_accessible_scope_object_ids,
+)
 from sparkth.lib.permissions.scopes import (
     GLOBAL,
     GROUP,
@@ -65,7 +72,9 @@ async def test_matches_the_single_checks(
     user = await make_user(session, "alice")
     await _grant_group_read(session, user, scope_name, object_id, via_group)
 
-    answers = await batched_can(user, [(GROUP_READ, scope, path) for scope, path in QUESTIONS], session)
+    answers = await batched_can(
+        user, [PermissionQuestion(GROUP_READ, scope, path) for scope, path in QUESTIONS], session
+    )
 
     assert answers == [await _answer_one_check(session, user, scope, path) for scope, path in QUESTIONS]
 
@@ -73,7 +82,9 @@ async def test_matches_the_single_checks(
 async def test_user_without_grants_is_denied_every_check(session: AsyncSession) -> None:
     user = await make_user(session, "alice")
 
-    answers = await batched_can(user, [(GROUP_READ, scope, path) for scope, path in QUESTIONS], session)
+    answers = await batched_can(
+        user, [PermissionQuestion(GROUP_READ, scope, path) for scope, path in QUESTIONS], session
+    )
 
     assert answers == [False] * len(QUESTIONS)
 
@@ -85,10 +96,10 @@ async def test_answers_follow_check_order_and_repeat_duplicates(session: AsyncSe
     answers = await batched_can(
         user,
         [
-            (GROUP_READ, GROUP, "group:8"),
-            (GROUP_READ, GROUP, "group:7"),
-            (GROUP_READ, GROUP, "group:7"),
-            (GROUP_READ, GROUP, None),
+            PermissionQuestion(GROUP_READ, GROUP, "group:8"),
+            PermissionQuestion(GROUP_READ, GROUP, "group:7"),
+            PermissionQuestion(GROUP_READ, GROUP, "group:7"),
+            PermissionQuestion(GROUP_READ, GROUP, None),
         ],
         session,
     )
@@ -100,7 +111,9 @@ async def test_grant_for_one_check_does_not_answer_another(session: AsyncSession
     user = await make_user(session, "alice")
     await _grant_group_read(session, user, WHITELIST.name, None, False)
 
-    answers = await batched_can(user, [(GROUP_READ, WHITELIST, None), (GROUP_READ, GROUP, None)], session)
+    answers = await batched_can(
+        user, [PermissionQuestion(GROUP_READ, WHITELIST, None), PermissionQuestion(GROUP_READ, GROUP, None)], session
+    )
 
     assert answers == [True, False]
 
@@ -110,7 +123,9 @@ async def test_grant_of_another_permission_does_not_answer(session: AsyncSession
     role = await make_role(session, "updater", [GROUP_UPDATE.name])
     await add_role_assignment(session, user, role, GLOBAL.name, None)
 
-    answers = await batched_can(user, [(GROUP_READ, GROUP, None), (GROUP_UPDATE, GROUP, None)], session)
+    answers = await batched_can(
+        user, [PermissionQuestion(GROUP_READ, GROUP, None), PermissionQuestion(GROUP_UPDATE, GROUP, None)], session
+    )
 
     assert answers == [False, True]
 
@@ -127,7 +142,11 @@ async def test_soft_deleted_grants_answer_nothing(session: AsyncSession) -> None
 
     answers = await batched_can(
         user,
-        [(GROUP_READ, GROUP, "group:7"), (GROUP_READ, GROUP, "group:8"), (GROUP_READ, GROUP, None)],
+        [
+            PermissionQuestion(GROUP_READ, GROUP, "group:7"),
+            PermissionQuestion(GROUP_READ, GROUP, "group:8"),
+            PermissionQuestion(GROUP_READ, GROUP, None),
+        ],
         session,
     )
 
@@ -139,12 +158,29 @@ async def test_runs_one_query_for_many_checks(session: AsyncSession) -> None:
     await _grant_group_read(session, user, GROUP.name, "7", False)
 
     with patch.object(session, "exec", wraps=session.exec) as spy:
-        await batched_can(user, [(GROUP_READ, scope, path) for scope, path in QUESTIONS], session)
+        await batched_can(user, [PermissionQuestion(GROUP_READ, scope, path) for scope, path in QUESTIONS], session)
 
     assert spy.call_count == 1
 
 
-async def test_no_checks_returns_an_empty_list(session: AsyncSession) -> None:
+async def test_no_checks_returns_an_empty_list_without_a_query(session: AsyncSession) -> None:
     user = await make_user(session, "alice")
 
-    assert await batched_can(user, [], session) == []
+    with patch.object(session, "exec", wraps=session.exec) as spy:
+        assert await batched_can(user, [], session) == []
+
+    assert spy.call_count == 0
+
+
+async def test_soft_deleted_group_role_assignment_answers_nothing(session: AsyncSession) -> None:
+    user = await make_user(session, "alice")
+    role = await make_role(session, "reader", [GROUP_READ.name])
+    _, assignment = await assign_through_group(session, user, role, GROUP.name, "7")
+    assignment.soft_delete()
+    await session.flush()
+
+    answers = await batched_can(
+        user, [PermissionQuestion(GROUP_READ, GROUP, "group:7"), PermissionQuestion(GROUP_READ, GROUP, None)], session
+    )
+
+    assert answers == [False, False]

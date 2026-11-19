@@ -13,6 +13,7 @@ from typing import Annotated
 from fastapi import APIRouter, Body, Depends, Query
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.api.v1.permissions.constants import MAX_PERMISSION_CHECKS
 from sparkth.api.v1.permissions.routes import groups, roles
 from sparkth.api.v1.permissions.schemas import PermissionCheck, PermissionCheckResponse, PermissionCheckResult
 from sparkth.core.models.user import User
@@ -21,16 +22,14 @@ from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
 from sparkth.lib.permissions import (
     PERMISSION_READ,
-    Permission,
+    PermissionQuestion,
     batched_can,
     can,
     get_accessible_scope_object_ids,
     get_permission,
     get_permission_scope,
 )
-from sparkth.lib.permissions.scopes import ObjectlessPermissionScope, PermissionScope, build_scope_path
-
-MAX_PERMISSION_CHECKS = 50
+from sparkth.lib.permissions.scopes import ObjectlessPermissionScope, build_scope_path
 
 router = APIRouter()
 
@@ -81,12 +80,12 @@ async def check_permission(
     return PermissionCheckResponse(allowed=allowed)
 
 
-def _resolve_check(check: PermissionCheck) -> tuple[Permission, PermissionScope, str | None]:
+def _resolve_check(check: PermissionCheck) -> PermissionQuestion:
     """Resolve a check's permission, then its scope, and build the checked object's scope path when it names one."""
     permission = get_permission(check.permission)
     permission_scope = get_permission_scope(check.scope)
     scope_path = None if check.scope_object_id is None else build_scope_path(permission_scope, check.scope_object_id)
-    return permission, permission_scope, scope_path
+    return PermissionQuestion(permission, permission_scope, scope_path)
 
 
 @router.post("/can", response_model=PermissionCheckResponse)
@@ -120,9 +119,9 @@ async def answer_permission_checks(
 ) -> list[PermissionCheckResult]:
     """Return, in request order, each check with whether the current user holds its permission at its scope.
 
-    A self-check any authenticated user may call about their own grants, for up to 50 checks per
-    request. It is not a security boundary (endpoints enforce their own permissions and return 403);
-    it lets a client gate UI precisely. Every permission and scope name is resolved against the
+    A self-check any authenticated user may call about their own grants, for a capped number of
+    checks per request. It is not a security boundary (endpoints enforce their own permissions and
+    return 403); it lets a client gate UI precisely. Every permission and scope name is resolved against the
     registered vocabulary first: an unknown name rejects the whole request (422) and no check is
     answered.
 
