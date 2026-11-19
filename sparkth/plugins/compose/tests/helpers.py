@@ -22,7 +22,9 @@ from sparkth.lib.llm import small_model_for
 from sparkth.lib.models import LLMConfig
 from sparkth.lib.settings import get_settings
 from sparkth.lib.testing import ScriptedChatModel
+from sparkth.plugins.compose.enums import TurnEventType
 from sparkth.plugins.compose.models import Conversation, Message
+from sparkth.plugins.compose.planner import ExistingPlan, PlannedStep, TurnRouting
 
 GOOGLE_INVALID_KEY = "Invalid API key. Please check your Google API key in AI Keys."
 GOOGLE_UNREACHABLE = "Could not reach Google. Please check your network connection."
@@ -50,6 +52,7 @@ async def replay_turn(
     *,
     agents: Sequence[Agent],
     planner_llm: Any,
+    existing_plan: ExistingPlan | None,
 ) -> AsyncGenerator[dict[str, Any], None]:
     """Stand in for ``stream_turn`` with a turn that streams ``events``.
 
@@ -117,13 +120,14 @@ def refusal() -> AIMessage:
 
 
 def planner_answering(reply: AIMessage, agent: Agent) -> dict[str, Any]:
-    """The ``agents`` and ``planner_llm`` of a turn offering ``agent``, whose planner answers every message
-    with ``reply``."""
-    return {"agents": [agent], "planner_llm": planner_model(reply)}
+    """The ``agents``, ``planner_llm`` and absent ``existing_plan`` of a turn offering ``agent``, whose planner
+    answers every message with ``reply``."""
+    return {"agents": [agent], "planner_llm": planner_model(reply), "existing_plan": None}
 
 
 def handing_off_to(agent: Agent) -> dict[str, Any]:
-    """The ``agents`` and ``planner_llm`` of a turn whose planner hands every message to ``agent``."""
+    """The ``agents``, ``planner_llm`` and absent ``existing_plan`` of a turn whose planner hands every message to
+    ``agent``."""
     return planner_answering(hand_off(agent), agent)
 
 
@@ -228,3 +232,18 @@ GOOGLE_FAILURES = [
     pytest.param(GOOGLE_OVERLOADED_ERROR, GOOGLE_OVERLOADED, id="google-5xx"),
     pytest.param(aiohttp.ClientConnectionError("Connection refused"), GOOGLE_UNREACHABLE, id="google-transport"),
 ]
+
+
+def routed(agent: str | None) -> dict[str, Any]:
+    """The event of a turn routed to ``agent``, or refused when it is None."""
+    return {"type": TurnEventType.ROUTED, "routing": TurnRouting(agent=agent, refused=agent is None)}
+
+
+def shown_plan(steps: Sequence[PlannedStep]) -> dict[str, Any]:
+    """The event of a turn showing the author a plan of ``steps``."""
+    return {"type": TurnEventType.PLAN, "steps": list(steps)}
+
+
+def plan_step(number: int, *, ran: bool) -> dict[str, Any]:
+    """The event of a plan's step ``number`` starting, or having run when ``ran``."""
+    return {"type": TurnEventType.PLAN_STEP, "number": number, "ran": ran}
