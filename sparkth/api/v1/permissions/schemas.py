@@ -1,8 +1,24 @@
-"""Pydantic models for the role- and group-management API."""
+"""Pydantic models for the permissions API: permission checks, role management and group management."""
 
 from typing import Self
 
 from pydantic import BaseModel, Field, model_validator
+
+
+class PermissionCheck(BaseModel):
+    """One question: does the current user hold a permission at a scope?"""
+
+    permission: str = Field(description="Permission name to check, e.g. 'analytics.read'.")
+    scope: str = Field("global", description="Scope kind to check at (defaults to 'global').")
+    scope_object_id: str | None = Field(
+        None, description="Object id for an object-bearing scope. Omit it to ask about any object of the scope."
+    )
+
+
+class PermissionCheckResult(PermissionCheck):
+    """A question and its answer."""
+
+    allowed: bool
 
 
 class PermissionCheckResponse(BaseModel):
