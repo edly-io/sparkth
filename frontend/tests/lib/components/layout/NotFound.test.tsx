@@ -4,6 +4,12 @@ import { render, screen } from "@testing-library/react";
 import { NotFound } from "@/lib/components/layout/NotFound";
 
 describe("NotFound", () => {
+  it("announces itself to screen readers when it appears", () => {
+    render(<NotFound title="Chat not found" />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Chat not found");
+  });
+
   it("names what was not found as a heading", () => {
     render(<NotFound title="Chat not found" />);
 

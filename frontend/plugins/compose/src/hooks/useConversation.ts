@@ -1,5 +1,5 @@
 import { Dispatch, SetStateAction, useCallback, useEffect, useRef, useState } from "react";
-import { ApiRequestError } from "@/lib/api";
+import { ApiRequestError, isNotFoundError } from "@/lib/api/errors";
 import {
   getConversation,
   getConversationAttachments,
@@ -54,12 +54,10 @@ const WELCOME_MESSAGE: ChatMessage = {
   content: "Hi! Upload a document or tell me what you'd like to create.",
 };
 
-// A malformed id fails path validation (422) and someone else's chat is refused (403): to the
-// author, both are a chat that does not exist, like a 404.
+// Compose refuses someone else's chat with a 403: to the author, that chat does not exist either.
 function getLoadError(error: unknown): ConversationLoadError {
-  if (!(error instanceof ApiRequestError)) return "failed";
-  const { status } = error;
-  return status === 403 || status === 404 || status === 422 ? "notFound" : "failed";
+  const refused = error instanceof ApiRequestError && error.status === 403;
+  return isNotFoundError(error) || refused ? "notFound" : "failed";
 }
 
 interface UseConversationResult {
