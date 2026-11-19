@@ -12,11 +12,20 @@ from sparkth.core.plugins.service import PluginService
 from sparkth.lib.testing import AuditEventsFetcher
 
 SECRET = "lms-p4ssw0rd"
+NEW_SECRET = "n3w-lms-p4ssw0rd"
+URL = "https://x"
+NEW_URL = "https://y"
+PLUGIN_NAME = "audited_plugin"
 
 
 @pytest.fixture
 async def plugin(session: AsyncSession) -> Plugin:
-    plugin = Plugin(name="audited_plugin", is_core=True, enabled=True)
+    plugin = Plugin(
+        name=PLUGIN_NAME,
+        is_core=True,
+        enabled=True,
+        config_schema={"properties": {"url": {}, "lms_password": {"secret": True}}},
+    )
     session.add(plugin)
     await session.flush()
     return plugin
@@ -41,7 +50,7 @@ async def test_create_user_plugin_records_config_keys_only(
     assert event.outcome == "success"
     assert event.target_type == "user_plugin"
     assert event.target_id == str(user_plugin.id)
-    assert event.new_values == {"plugin": "audited_plugin", "keys": ["lms_password", "url"]}
+    assert event.new_values == {"plugin": PLUGIN_NAME, "keys": ["lms_password", "url"]}
     assert SECRET not in event.canonical_bytes.decode()
 
 
@@ -56,9 +65,76 @@ async def test_update_user_plugin_config_records_old_and_new_keys(
 
     _, event = await audit_events()
     assert (event.category, event.action) == ("user_plugin", "config_updated")
-    assert event.old_values == {"plugin": "audited_plugin", "keys": ["url"]}
-    assert event.new_values == {"plugin": "audited_plugin", "keys": ["lms_password", "url"]}
+    assert event.old_values == {"plugin": PLUGIN_NAME, "keys": ["url"]}
+    assert event.new_values == {
+        "plugin": PLUGIN_NAME,
+        "keys": ["lms_password", "url"],
+        "changed": ["lms_password"],
+        "secret_changed": True,
+    }
     assert SECRET not in event.canonical_bytes.decode()
+
+
+@pytest.mark.parametrize(
+    ("stored", "update", "changed", "secret_changed"),
+    [
+        pytest.param({"url": URL, "lms_password": SECRET}, {"url": NEW_URL}, ["url"], False, id="plain-field-edit"),
+        pytest.param(
+            {"url": URL, "lms_password": SECRET},
+            {"lms_password": NEW_SECRET},
+            ["lms_password"],
+            True,
+            id="replaced-secret",
+        ),
+        pytest.param({"url": URL}, {"url": URL}, [], False, id="nothing-changed"),
+    ],
+)
+async def test_update_user_plugin_config_records_changed_fields(
+    session: AsyncSession,
+    plugin: Plugin,
+    audit_events: AuditEventsFetcher,
+    passthrough_validation: None,
+    stored: dict[str, str],
+    update: dict[str, str],
+    changed: list[str],
+    secret_changed: bool,
+) -> None:
+    assert plugin.id is not None
+    service = PluginService()
+    await service.create_user_plugin(session, 1, plugin.id, stored)
+    await service.update_user_plugin_config(session, 1, plugin, update)
+    await session.commit()
+
+    _, event = await audit_events()
+    keys = sorted({**stored, **update})
+    assert event.old_values == {"plugin": PLUGIN_NAME, "keys": sorted(stored)}
+    assert event.new_values == {
+        "plugin": PLUGIN_NAME,
+        "keys": keys,
+        "changed": changed,
+        "secret_changed": secret_changed,
+    }
+    sealed = event.canonical_bytes.decode()
+    for value in (SECRET, NEW_SECRET, NEW_URL):
+        assert value not in sealed
+
+
+async def test_update_user_plugin_config_without_secret_fields_flags_no_secret(
+    session: AsyncSession, audit_events: AuditEventsFetcher, passthrough_validation: None
+) -> None:
+    plugin = Plugin(name=PLUGIN_NAME, is_core=True, enabled=True, config_schema={})
+    session.add(plugin)
+    await session.flush()
+    assert plugin.id is not None
+    service = PluginService()
+    await service.create_user_plugin(session, 1, plugin.id, {"url": URL})
+    await service.update_user_plugin_config(session, 1, plugin, {"url": NEW_URL})
+    await session.commit()
+
+    _, event = await audit_events()
+    assert event.old_values == {"plugin": PLUGIN_NAME, "keys": ["url"]}
+    assert event.new_values == {"plugin": PLUGIN_NAME, "keys": ["url"], "changed": ["url"], "secret_changed": False}
+    assert NEW_URL not in event.canonical_bytes.decode()
 
 
 async def test_update_enabled_records_transition(
@@ -70,5 +146,5 @@ async def test_update_enabled_records_transition(
     (event,) = await audit_events()
     assert (event.category, event.action) == ("user_plugin", "enabled_changed")
     assert event.target_id == str(user_plugin.id)
-    assert event.old_values == {"plugin": "audited_plugin", "enabled": True}
-    assert event.new_values == {"plugin": "audited_plugin", "enabled": False}
+    assert event.old_values == {"plugin": PLUGIN_NAME, "enabled": True}
+    assert event.new_values == {"plugin": PLUGIN_NAME, "enabled": False}

@@ -293,7 +293,7 @@ const doc = (outcome: string, document_count: number, seconds_total = 0): DriveD
 
 describe("AuthoringPage documents", () => {
   it("shows processed documents, the ready share and why the rest weren't usable", async () => {
-    plugins.installed = ["compose", "google-drive"];
+    plugins.installed = ["compose", "googledrive"];
     answer([row(COMPOSE_EVENTS.messages, 1)]);
     vi.mocked(fetchDriveDocuments).mockImplementation(async (_t, { to }) =>
       to === "2026-07-24" ? [doc("ingested", 3, 90), doc("scanned_pdf", 1, 2)] : [],
@@ -307,7 +307,7 @@ describe("AuthoringPage documents", () => {
   });
 
   it("keeps the compose figures when the Drive read fails", async () => {
-    plugins.installed = ["compose", "google-drive"];
+    plugins.installed = ["compose", "googledrive"];
     answer([row(COMPOSE_EVENTS.messages, 10)]);
     vi.mocked(fetchDriveDocuments).mockRejectedValue(
       new ApiRequestError({ message: "Permission denied", fieldErrors: {} }, 403),

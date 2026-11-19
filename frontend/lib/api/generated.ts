@@ -545,7 +545,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/google-drive/analytics/documents": {
+    "/api/v1/googledrive/analytics/documents": {
         parameters: {
             query?: never;
             header?: never;
@@ -558,7 +558,7 @@ export interface paths {
          *
          *     Sparse: consumers zero-fill. Answers whatever the plugin switches say.
          */
-        get: operations["drive_documents_api_v1_google_drive_analytics_documents_get"];
+        get: operations["drive_documents_api_v1_googledrive_analytics_documents_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -567,7 +567,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/google-drive/browse": {
+    "/api/v1/googledrive/browse": {
         parameters: {
             query?: never;
             header?: never;
@@ -578,7 +578,7 @@ export interface paths {
          * Browse Drive
          * @description Browse Google Drive contents.
          */
-        get: operations["browse_drive_api_v1_google_drive_browse_get"];
+        get: operations["browse_drive_api_v1_googledrive_browse_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -587,7 +587,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/google-drive/files/{file_id}": {
+    "/api/v1/googledrive/files/{file_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -598,20 +598,20 @@ export interface paths {
          * Get File
          * @description Get file metadata.
          */
-        get: operations["get_file_api_v1_google_drive_files__file_id__get"];
+        get: operations["get_file_api_v1_googledrive_files__file_id__get"];
         put?: never;
         post?: never;
         /**
          * Delete File
          * @description Soft-delete a file from Sparkth (does not delete from Drive).
          */
-        delete: operations["delete_file_api_v1_google_drive_files__file_id__delete"];
+        delete: operations["delete_file_api_v1_googledrive_files__file_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/google-drive/files/{file_id}/download": {
+    "/api/v1/googledrive/files/{file_id}/download": {
         parameters: {
             query?: never;
             header?: never;
@@ -622,7 +622,7 @@ export interface paths {
          * Download File
          * @description Download a file from Google Drive, using the file owner's Google connection.
          */
-        get: operations["download_file_api_v1_google_drive_files__file_id__download_get"];
+        get: operations["download_file_api_v1_googledrive_files__file_id__download_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -631,7 +631,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/google-drive/files/{file_id}/rag-status": {
+    "/api/v1/googledrive/files/{file_id}/rag-status": {
         parameters: {
             query?: never;
             header?: never;
@@ -642,7 +642,7 @@ export interface paths {
          * Get File Rag Status
          * @description Get the RAG processing status for a single file.
          */
-        get: operations["get_file_rag_status_api_v1_google_drive_files__file_id__rag_status_get"];
+        get: operations["get_file_rag_status_api_v1_googledrive_files__file_id__rag_status_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -651,7 +651,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/google-drive/folders": {
+    "/api/v1/googledrive/folders": {
         parameters: {
             query?: never;
             header?: never;
@@ -662,7 +662,7 @@ export interface paths {
          * List Folders
          * @description List the synced Google Drive folders of the user named by ``owner_id``, or of the caller, with pagination.
          */
-        get: operations["list_folders_api_v1_google_drive_folders_get"];
+        get: operations["list_folders_api_v1_googledrive_folders_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -671,7 +671,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/google-drive/folders/sync": {
+    "/api/v1/googledrive/folders/sync": {
         parameters: {
             query?: never;
             header?: never;
@@ -684,14 +684,14 @@ export interface paths {
          * Sync Folder
          * @description Sync an existing Google Drive folder.
          */
-        post: operations["sync_folder_api_v1_google_drive_folders_sync_post"];
+        post: operations["sync_folder_api_v1_googledrive_folders_sync_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/google-drive/folders/{folder_id}/files": {
+    "/api/v1/googledrive/folders/{folder_id}/files": {
         parameters: {
             query?: never;
             header?: never;
@@ -702,7 +702,7 @@ export interface paths {
          * List Files
          * @description List files in a synced folder with pagination.
          */
-        get: operations["list_files_api_v1_google_drive_folders__folder_id__files_get"];
+        get: operations["list_files_api_v1_googledrive_folders__folder_id__files_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -711,7 +711,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/google-drive/folders/{folder_id}/rag-status": {
+    "/api/v1/googledrive/folders/{folder_id}/rag-status": {
         parameters: {
             query?: never;
             header?: never;
@@ -722,7 +722,7 @@ export interface paths {
          * Get Folder Rag Status
          * @description Get the RAG processing status for all files in a folder.
          */
-        get: operations["get_folder_rag_status_api_v1_google_drive_folders__folder_id__rag_status_get"];
+        get: operations["get_folder_rag_status_api_v1_googledrive_folders__folder_id__rag_status_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -731,7 +731,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/google-drive/folders/{folder_id}/refresh": {
+    "/api/v1/googledrive/folders/{folder_id}/refresh": {
         parameters: {
             query?: never;
             header?: never;
@@ -744,14 +744,14 @@ export interface paths {
          * Refresh Folder
          * @description Refresh folder contents from Google Drive, using the folder owner's Google connection.
          */
-        post: operations["refresh_folder_api_v1_google_drive_folders__folder_id__refresh_post"];
+        post: operations["refresh_folder_api_v1_googledrive_folders__folder_id__refresh_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/google-drive/oauth/authorize": {
+    "/api/v1/googledrive/oauth/authorize": {
         parameters: {
             query?: never;
             header?: never;
@@ -762,7 +762,7 @@ export interface paths {
          * Get Authorization Url
          * @description Generate Google OAuth authorization URL.
          */
-        get: operations["get_authorization_url_api_v1_google_drive_oauth_authorize_get"];
+        get: operations["get_authorization_url_api_v1_googledrive_oauth_authorize_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -771,7 +771,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/google-drive/oauth/callback": {
+    "/api/v1/googledrive/oauth/callback": {
         parameters: {
             query?: never;
             header?: never;
@@ -785,7 +785,7 @@ export interface paths {
          *     The user is identified by the signed ``state``, not a session, so it is
          *     bound as the audit actor here for the ``googledrive.connected`` record.
          */
-        get: operations["oauth_callback_api_v1_google_drive_oauth_callback_get"];
+        get: operations["oauth_callback_api_v1_googledrive_oauth_callback_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -794,7 +794,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/google-drive/oauth/disconnect": {
+    "/api/v1/googledrive/oauth/disconnect": {
         parameters: {
             query?: never;
             header?: never;
@@ -808,13 +808,13 @@ export interface paths {
          * Disconnect Drive
          * @description Disconnect Google Drive by revoking and deleting tokens.
          */
-        delete: operations["disconnect_drive_api_v1_google_drive_oauth_disconnect_delete"];
+        delete: operations["disconnect_drive_api_v1_googledrive_oauth_disconnect_delete"];
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/google-drive/oauth/status": {
+    "/api/v1/googledrive/oauth/status": {
         parameters: {
             query?: never;
             header?: never;
@@ -825,7 +825,7 @@ export interface paths {
          * Get Connection Status
          * @description Get Google Drive connection status.
          */
-        get: operations["get_connection_status_api_v1_google_drive_oauth_status_get"];
+        get: operations["get_connection_status_api_v1_googledrive_oauth_status_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -995,7 +995,13 @@ export interface paths {
          *     A self-check any authenticated user may call about their own grants. It is not a security
          *     boundary (endpoints enforce their own permissions and return 403); it lets a client gate UI
          *     precisely. The permission and scope names are resolved against the registered vocabulary
-         *     (unknown → 422) and the decision is delegated to the engine's ``can()``.
+         *     (unknown → 422).
+         *
+         *     - With ``scope_object_id``, an object-bearing scope answers whether the user holds the
+         *       permission at that one object.
+         *     - Without ``scope_object_id`` an object-bearing scope answers whether the user holds the
+         *       permission at any of its objects.
+         *     - An objectless scope answers for the scope itself.
          */
         get: operations["check_permission_api_v1_permissions_can_get"];
         put?: never;
@@ -1494,9 +1500,9 @@ export interface paths {
         };
         /**
          * List User Plugins
-         * @description List all plugins with their enabled status for the current user.
+         * @description List the plugins the current user may use, with their enabled status.
          *
-         *     Returns all available plugins and whether they are enabled or disabled,
+         *     Returns each usable plugin and whether it is enabled or disabled,
          *     and pre-populates the config with keys from the plugin's schema.
          */
         get: operations["list_user_plugins_api_v1_user_plugins__get"];
@@ -4049,7 +4055,7 @@ export interface operations {
             };
         };
     };
-    drive_documents_api_v1_google_drive_analytics_documents_get: {
+    drive_documents_api_v1_googledrive_analytics_documents_get: {
         parameters: {
             query: {
                 from: string;
@@ -4082,7 +4088,7 @@ export interface operations {
             };
         };
     };
-    browse_drive_api_v1_google_drive_browse_get: {
+    browse_drive_api_v1_googledrive_browse_get: {
         parameters: {
             query?: {
                 /** @description Drive folder ID to browse (root if omitted) */
@@ -4116,7 +4122,7 @@ export interface operations {
             };
         };
     };
-    get_file_api_v1_google_drive_files__file_id__get: {
+    get_file_api_v1_googledrive_files__file_id__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -4147,7 +4153,7 @@ export interface operations {
             };
         };
     };
-    delete_file_api_v1_google_drive_files__file_id__delete: {
+    delete_file_api_v1_googledrive_files__file_id__delete: {
         parameters: {
             query?: never;
             header?: never;
@@ -4180,7 +4186,7 @@ export interface operations {
             };
         };
     };
-    download_file_api_v1_google_drive_files__file_id__download_get: {
+    download_file_api_v1_googledrive_files__file_id__download_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -4211,7 +4217,7 @@ export interface operations {
             };
         };
     };
-    get_file_rag_status_api_v1_google_drive_files__file_id__rag_status_get: {
+    get_file_rag_status_api_v1_googledrive_files__file_id__rag_status_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -4242,7 +4248,7 @@ export interface operations {
             };
         };
     };
-    list_folders_api_v1_google_drive_folders_get: {
+    list_folders_api_v1_googledrive_folders_get: {
         parameters: {
             query?: {
                 /** @description Number of items to skip */
@@ -4277,7 +4283,7 @@ export interface operations {
             };
         };
     };
-    sync_folder_api_v1_google_drive_folders_sync_post: {
+    sync_folder_api_v1_googledrive_folders_sync_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -4310,7 +4316,7 @@ export interface operations {
             };
         };
     };
-    list_files_api_v1_google_drive_folders__folder_id__files_get: {
+    list_files_api_v1_googledrive_folders__folder_id__files_get: {
         parameters: {
             query?: {
                 /** @description Number of items to skip */
@@ -4346,7 +4352,7 @@ export interface operations {
             };
         };
     };
-    get_folder_rag_status_api_v1_google_drive_folders__folder_id__rag_status_get: {
+    get_folder_rag_status_api_v1_googledrive_folders__folder_id__rag_status_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -4377,7 +4383,7 @@ export interface operations {
             };
         };
     };
-    refresh_folder_api_v1_google_drive_folders__folder_id__refresh_post: {
+    refresh_folder_api_v1_googledrive_folders__folder_id__refresh_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -4408,7 +4414,7 @@ export interface operations {
             };
         };
     };
-    get_authorization_url_api_v1_google_drive_oauth_authorize_get: {
+    get_authorization_url_api_v1_googledrive_oauth_authorize_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -4428,7 +4434,7 @@ export interface operations {
             };
         };
     };
-    oauth_callback_api_v1_google_drive_oauth_callback_get: {
+    oauth_callback_api_v1_googledrive_oauth_callback_get: {
         parameters: {
             query: {
                 code: string;
@@ -4460,7 +4466,7 @@ export interface operations {
             };
         };
     };
-    disconnect_drive_api_v1_google_drive_oauth_disconnect_delete: {
+    disconnect_drive_api_v1_googledrive_oauth_disconnect_delete: {
         parameters: {
             query?: never;
             header?: never;
@@ -4482,7 +4488,7 @@ export interface operations {
             };
         };
     };
-    get_connection_status_api_v1_google_drive_oauth_status_get: {
+    get_connection_status_api_v1_googledrive_oauth_status_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -4801,7 +4807,7 @@ export interface operations {
                 permission: string;
                 /** @description Scope kind to check at (defaults to 'global'). */
                 scope?: string;
-                /** @description Object id for an object-bearing scope. */
+                /** @description Object id for an object-bearing scope. Omit it to ask about any object of the scope. */
                 scope_object_id?: string | null;
             };
             header?: never;

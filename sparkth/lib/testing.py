@@ -51,7 +51,9 @@ from sparkth.core.cache import get_cache_service
 from sparkth.core.db import dispose_engine, get_engine
 from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.core.models.user import User
-from sparkth.core.permissions.constants import DEFAULT_USER_ROLE
+from sparkth.core.permissions import PLUGIN_USE
+from sparkth.core.permissions.constants import PLUGIN_USER_ROLE, SPARKTH_USER_ROLE
+from sparkth.core.permissions.grants import revoke_role
 from sparkth.core.permissions.models import (
     Group,
     GroupMembership,
@@ -61,7 +63,7 @@ from sparkth.core.permissions.models import (
     RolePermission,
 )
 from sparkth.core.permissions.roles import available_permissions
-from sparkth.core.permissions.scopes import GLOBAL, USER, PermissionScope
+from sparkth.core.permissions.scopes import GLOBAL, PLUGIN, USER, PermissionScope
 from sparkth.lib.auth import bind_request_user, get_current_user
 from sparkth.lib.i18n import LOCALE_DIRS
 from sparkth.lib.mcp.hooks import MCP_TOOLS
@@ -165,16 +167,41 @@ async def grant_permission_at_scope(
 
 
 @pytest.fixture
-async def default_user_role(session: AsyncSession) -> Role:
-    """Seed the built-in ``sparkth_user`` role with every registered permission and assign it to user 1.
+async def default_user_roles(session: AsyncSession) -> Role:
+    """Seed the built-in ``sparkth_user`` and ``plugin_user`` roles and assign both to user 1.
+
+    ``sparkth_user`` holds every registered permission and is assigned at the user's own scope;
+    ``plugin_user`` holds ``plugin.use`` and is assigned at ``global``. Returns the ``sparkth_user`` role.
 
     Not autouse: a test that creates accounts, or relies on every user holding the role, opts in.
     """
-    role = await make_role(session, DEFAULT_USER_ROLE, available_permissions())
+    role = await make_role(session, SPARKTH_USER_ROLE, available_permissions())
     role.is_builtin = True
     session.add(RoleAssignment(user_id=1, role_id=cast(int, role.id), scope=USER.name, scope_object_id="1"))
+    plugin_role = await make_role(session, PLUGIN_USER_ROLE, [PLUGIN_USE.name])
+    plugin_role.is_builtin = True
+    session.add(RoleAssignment(user_id=1, role_id=cast(int, plugin_role.id), scope=GLOBAL.name, scope_object_id=None))
     await session.commit()
     return role
+
+
+async def restrict_plugin_use(session: AsyncSession, plugin_name: str | None) -> None:
+    """Take user 1's global built-in plugin role away, then grant ``plugin.use`` at that plugin's scope if named."""
+    await revoke_role(1, PLUGIN_USER_ROLE, GLOBAL, None, session)
+    if plugin_name is not None:
+        await grant_permission_at_scope(session, 1, PLUGIN_USE.name, PLUGIN, plugin_name)
+    await session.commit()
+
+
+async def assert_plugin_use_denied(audit_events: AuditEventsFetcher, plugin_name: str) -> None:
+    """Assert the last audit row is a permission denial for ``plugin.use`` at the named plugin's scope."""
+    event = (await audit_events())[-1]
+    assert (event.category, event.action, event.target_id, event.error_detail) == (
+        "permission",
+        "denied",
+        "plugin.use",
+        f"scope=plugin:{plugin_name}",
+    )
 
 
 async def grant_global_permission(session: AsyncSession, user_id: int, permission: str) -> None:

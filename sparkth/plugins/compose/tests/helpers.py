@@ -1,7 +1,7 @@
 """Helpers shared by the Compose plugin's tests: seeded rows, LMS configs, mocked providers and Google's errors."""
 
 from collections.abc import AsyncGenerator, Callable, Iterator, Sequence
-from itertools import repeat
+from itertools import chain, repeat
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID
@@ -9,13 +9,13 @@ from uuid import UUID
 import aiohttp
 import pytest
 from google.genai import errors as google_genai_errors
-from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 from langchain_google_genai.chat_models import ChatGoogleGenerativeAIError
 from pydantic import Field
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.lib.compose.constants import OPERATOR_TOOL_NAME, REFUSE_TOOL_NAME
+from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME, REFUSAL_TOOL_NAME
 from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.llm import small_model_for
@@ -90,9 +90,20 @@ def failing_model(failure: Exception) -> ScriptedChatModel:
     return ScriptedChatModel(messages=_raising(failure))
 
 
+class _PlannerModel(ScriptedChatModel):
+    """A scripted planner's model that answers nothing when asked again after an agent's reply, which ends the
+    turn; after an operation it goes on with its script."""
+
+    def _generate(self, messages: list[BaseMessage], *args: Any, **kwargs: Any) -> Any:
+        last = messages[-1]
+        if isinstance(last, ToolMessage) and last.status != "error" and last.name != OPERATOR_AGENT_NAME:
+            self.messages = chain([AIMessage("")], self.messages)
+        return super()._generate(messages, *args, **kwargs)
+
+
 def planner_model(reply: AIMessage) -> ScriptedChatModel:
     """A planner's model answering every message with ``reply``, whole: the fake drops tool calls when it streams."""
-    return ScriptedChatModel(messages=repeat(reply), disable_streaming=True)
+    return _PlannerModel(messages=repeat(reply), disable_streaming=True)
 
 
 def hand_off(agent: Agent) -> AIMessage:
@@ -102,7 +113,7 @@ def hand_off(agent: Agent) -> AIMessage:
 
 def refusal() -> AIMessage:
     """A planner reply refusing the message."""
-    return AIMessage("", tool_calls=[{"name": REFUSE_TOOL_NAME, "args": {}, "id": "refuse"}])
+    return AIMessage("", tool_calls=[{"name": REFUSAL_TOOL_NAME, "args": {}, "id": "refuse"}])
 
 
 def planner_answering(reply: AIMessage, agent: Agent) -> dict[str, Any]:
@@ -124,7 +135,7 @@ def planning(provider: Any, reply: AIMessage) -> Callable[..., Any]:
 
 def operating(provider: Any) -> Callable[..., Any]:
     """:func:`planning` with a planner that runs one operation, then says it is done."""
-    operation = AIMessage("", tool_calls=[{"name": OPERATOR_TOOL_NAME, "args": {"request": "Go"}, "id": "op"}])
+    operation = AIMessage("", tool_calls=[{"name": OPERATOR_AGENT_NAME, "args": {"request": "Go"}, "id": "op"}])
     return _planning(provider, iter([operation, AIMessage("Done.")]))
 
 
@@ -132,7 +143,7 @@ def _planning(provider: Any, replies: Iterator[AIMessage]) -> Callable[..., Any]
     """Stand in for the route's ``get_provider``: the planner's small model answers with ``replies`` in
     turn, and every other model is ``provider``'s."""
     planner = MagicMock()
-    planner.create_llm.return_value = ScriptedChatModel(messages=replies, disable_streaming=True)
+    planner.create_llm.return_value = _PlannerModel(messages=replies, disable_streaming=True)
 
     def get_provider(provider_name: str, api_key: str, model: str, **kwargs: Any) -> Any:
         return planner if model == small_model_for(provider_name) else provider
