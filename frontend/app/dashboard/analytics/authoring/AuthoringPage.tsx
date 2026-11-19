@@ -29,7 +29,7 @@ type DocumentsData = { current: DriveDocumentsPoint[]; previous: DriveDocumentsP
 
 export default function AuthoringPage() {
   const t = useTranslations("analytics.authoring");
-  const drive = isInstalled("google-drive");
+  const drive = isInstalled("googledrive");
   const load = async (token: string, range: { from: IsoDate; to: IsoDate }) => {
     const [compose, documents] = await Promise.all([
       bothPeriods(fetchComposeActivity)(token, range),

@@ -24,7 +24,7 @@ from sparkth.plugins.googledrive.models import DriveFile, DriveFolder, DriveOAut
 
 
 @pytest.fixture(autouse=True)
-def _default_role(default_user_role: object) -> None:
+def _default_role(default_user_roles: object) -> None:
     """Give the test caller the default role, so Drive routes are reachable at their own user scope."""
 
 

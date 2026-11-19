@@ -57,6 +57,18 @@ Options:
 - `--password, -p`: Password (optional, will prompt if not provided)
 - `--email-verified`: mark the user's email as already verified (optional, default: false)
 
+## Assign and revoke roles
+
+Assign a role with `roles assign-role` and take it away with `roles revoke-role`. Both look the user up by
+username or email and take the same arguments and `--scope` / `--scope-object-id` options:
+
+```bash
+make cli -- roles assign-role jane admin
+make cli -- roles revoke-role jane admin
+```
+
+See the [permissions guide](permissions.md) for scopes and for limiting a user to some plugins.
+
 ## Reset a password
 
 The user is given as a positional username **or** email:

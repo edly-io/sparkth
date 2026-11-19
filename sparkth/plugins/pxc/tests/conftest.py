@@ -91,6 +91,11 @@ def reused_compiles(monkeypatch: pytest.MonkeyPatch, compile_store: tuple[Path, 
 
 
 @pytest.fixture(autouse=True)
+def _every_user_holds_default_role(default_user_roles: object) -> None:
+    """Give the signed-in test user the default roles, so the authoring routes' ``plugin.use`` gate passes."""
+
+
+@pytest.fixture(autouse=True)
 def pxc_settings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[None]:
     """Pin every PXC setting so the developer's own env files cannot reach a test.
 

@@ -318,7 +318,11 @@ class UserPluginConfigCreatedAuditEvent(MutationAuditEvent):
 @AUDIT_EVENTS.register
 @dataclass(frozen=True, slots=True, kw_only=True)
 class UserPluginConfigUpdatedAuditEvent(MutationAuditEvent):
-    """A user's plugin configuration changed (keys only, see above)."""
+    """A user's plugin configuration changed.
+
+    The snapshots carry the config key names; ``change.new`` also names the
+    fields that changed and whether any is a secret. Never a value.
+    """
 
     event_type: ClassVar[str] = "user_plugin.config_updated"
 

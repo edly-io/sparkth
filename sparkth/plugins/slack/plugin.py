@@ -15,6 +15,7 @@ from sparkth.lib.llm import LLMConfigAdapter
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.lib.routes import register_router
 from sparkth.plugins.slack.config import SlackConfig
+from sparkth.plugins.slack.constants import SLACK_PLUGIN_NAME
 from sparkth.plugins.slack.routes import router
 
 
@@ -22,7 +23,7 @@ class Slack(SparkthPlugin):
     """Slack TA Bot — OAuth-connected RAG assistant for Slack workspaces."""
 
     def __init__(self) -> None:
-        super().__init__("slack")
+        super().__init__(SLACK_PLUGIN_NAME)
         CONFIG_SCHEMAS.add_item(self, SlackConfig)
         CONFIG_ADAPTERS.add_item(self, LLMConfigAdapter())
         register_router(self, router)

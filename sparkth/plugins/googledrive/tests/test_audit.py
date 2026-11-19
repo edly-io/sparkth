@@ -21,13 +21,14 @@ from sparkth.plugins.googledrive.audit import (
     GoogleDriveDisconnectedAuditEvent,
     GoogleDriveFileRemovedAuditEvent,
 )
+from sparkth.plugins.googledrive.constants import GOOGLE_DRIVE_PLUGIN_NAME
 from sparkth.plugins.googledrive.models import DriveFile, DriveFolder, DriveOAuthToken
 from sparkth.plugins.googledrive.oauth import get_token_record, get_valid_access_token
 from sparkth.plugins.googledrive.permissions import DRIVE_DELETE
 
-CALLBACK_URL = "/api/v1/google-drive/oauth/callback"
-DISCONNECT_URL = "/api/v1/google-drive/oauth/disconnect"
-FILES_URL = "/api/v1/google-drive/files"
+CALLBACK_URL = f"/api/v1/{GOOGLE_DRIVE_PLUGIN_NAME}/oauth/callback"
+DISCONNECT_URL = f"/api/v1/{GOOGLE_DRIVE_PLUGIN_NAME}/oauth/disconnect"
+FILES_URL = f"/api/v1/{GOOGLE_DRIVE_PLUGIN_NAME}/files"
 SCOPES = "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly"
 ACCESS = "ya29.access-secret-value"
 REFRESH = "1//refresh-secret-value"

@@ -20,7 +20,7 @@ from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG
 from sparkth.lib.compose.hooks import COMPOSE_AGENTS
 from sparkth.lib.log import get_logger
 from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
-from sparkth.plugins.compose.constants import UNKNOWN_TOOL_CATEGORY
+from sparkth.plugins.compose.constants import TOOL_FAILED_UNEXPECTEDLY, UNKNOWN_TOOL_CATEGORY
 
 logger = get_logger(__name__)
 
@@ -256,7 +256,7 @@ def convert_mcp_to_langchain_tool(mcp_tool: Tool) -> BaseTool:
             return str(result)
         except (ValidationError, ValueError, TypeError, RuntimeError) as e:
             logger.error("Error executing tool '%s': %s", name, e, exc_info=True)
-            return f"Error executing tool: {str(e)}"
+            return TOOL_FAILED_UNEXPECTEDLY.format(name=name)
 
     # The handler is already audit-wrapped (it comes from the MCP_TOOLS
     # hook), so the tag tells the process-global LangChain audit callback

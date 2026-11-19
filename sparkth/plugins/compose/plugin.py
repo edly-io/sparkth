@@ -19,7 +19,8 @@ from sparkth.lib.plugins import SparkthPlugin
 from sparkth.lib.routes import register_router
 from sparkth.plugins.compose.analytics import events
 from sparkth.plugins.compose.analytics.reads import SUMMARY_FIGURES_COMPOSE
-from sparkth.plugins.compose.config import ComposeUserConfig
+from sparkth.plugins.compose.config import ComposeUserConfig, get_compose_settings
+from sparkth.plugins.compose.constants import COMPOSE_PLUGIN_NAME
 from sparkth.plugins.compose.exceptions import ConversationNotFound, DocumentNotFound
 from sparkth.plugins.compose.models import (  # noqa: F401 — registers tables in SQLModel metadata for Alembic
     Conversation,
@@ -38,7 +39,9 @@ register_exception_handler(DocumentNotFound, status.HTTP_404_NOT_FOUND)
 
 class ComposePlugin(SparkthPlugin):
     def __init__(self) -> None:
-        super().__init__("compose")
+        super().__init__(COMPOSE_PLUGIN_NAME)
+        # Read before anything registers, so a setting that cannot be read keeps the plugin from loading.
+        get_compose_settings()
         register_router(self, compose_router)
         DOCUMENT_DELETED.add_item(self, detach_deleted_document)
         CONFIG_SCHEMAS.add_item(self, ComposeUserConfig)
