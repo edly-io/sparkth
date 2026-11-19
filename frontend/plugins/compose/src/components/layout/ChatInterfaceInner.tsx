@@ -20,7 +20,7 @@ import { fetchLLMConfigs } from "@/lib/llm/client";
 import { usePlugin } from "@/lib/plugins/context";
 import { Alert } from "@/lib/components/ui/Alert";
 import { Button } from "@/lib/components/ui/Button";
-import { NotFound } from "@/lib/components/ui/NotFound";
+import { NotFound } from "@/lib/components/layout/NotFound";
 import { useConversation } from "@/plugins/compose/src/hooks/useConversation";
 import { useChatStream } from "@/plugins/compose/src/hooks/useChatStream";
 import { pluginPath } from "@/lib/plugins/routes";
