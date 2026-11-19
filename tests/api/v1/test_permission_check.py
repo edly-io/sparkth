@@ -76,7 +76,7 @@ async def test_can_resolves_the_permission_before_the_scope(client: AsyncClient)
     assert "does.not.exist" in str(resp.json()["detail"])
 
 
-async def test_post_can_answers_one_check(client: AsyncClient, session: AsyncSession, current_user: User) -> None:
+async def test_can_answers_one_check(client: AsyncClient, session: AsyncSession, current_user: User) -> None:
     await grant_global_permission(session, cast(int, current_user.id), "analytics.read")
     await session.commit()
 
@@ -86,7 +86,7 @@ async def test_post_can_answers_one_check(client: AsyncClient, session: AsyncSes
 
 
 @pytest.mark.usefixtures("role_grant")
-async def test_post_can_at_an_object_and_at_any_object(client: AsyncClient) -> None:
+async def test_can_at_an_object_and_at_any_object(client: AsyncClient) -> None:
     check = {"permission": "analytics.read", "scope": ROLE.name}
 
     assert (await client.post(URL, json={**check, "scope_object_id": "5"})).json() == {"allowed": True}
@@ -94,7 +94,7 @@ async def test_post_can_at_an_object_and_at_any_object(client: AsyncClient) -> N
     assert (await client.post(URL, json=check)).json() == {"allowed": True}
 
 
-async def test_post_can_unknown_permission_returns_422(client: AsyncClient, current_user: User) -> None:
+async def test_can_unknown_permission_returns_422(client: AsyncClient, current_user: User) -> None:
     resp = await client.post(URL, json={"permission": "does.not.exist", "scope": "global"})
     assert resp.status_code == 422
     assert "does.not.exist" in str(resp.json()["detail"])
@@ -156,12 +156,12 @@ async def test_batch_with_no_checks_returns_an_empty_list(client: AsyncClient, c
     assert resp.json() == []
 
 
-async def test_post_routes_require_authentication(client: AsyncClient) -> None:
+async def test_can_and_batch_require_authentication(client: AsyncClient) -> None:
     assert (await client.post(URL, json={"permission": "analytics.read", "scope": "global"})).status_code == 401
     assert (await client.post(BATCH_URL, json=[{"permission": "analytics.read", "scope": "global"}])).status_code == 401
 
 
-async def test_post_routes_record_no_audit_event(
+async def test_can_and_batch_record_no_audit_event(
     client: AsyncClient, current_user: User, audit_events: AuditEventsFetcher
 ) -> None:
     assert (await client.post(URL, json={"permission": "analytics.read", "scope": "global"})).json() == {
@@ -178,7 +178,7 @@ async def test_get_can_is_not_served(client: AsyncClient, current_user: User) ->
     assert resp.status_code == 405
 
 
-async def test_post_can_without_a_scope_returns_422(client: AsyncClient, current_user: User) -> None:
+async def test_can_without_a_scope_returns_422(client: AsyncClient, current_user: User) -> None:
     resp = await client.post(URL, json={"permission": "analytics.read"})
     assert resp.status_code == 422
 
