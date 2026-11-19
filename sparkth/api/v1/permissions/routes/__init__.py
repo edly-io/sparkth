@@ -2,15 +2,15 @@
 mounted sub-routers.
 
 The router is mounted at ``/permissions``. The permission vocabulary is read here (``GET
-/permissions``); ``GET /permissions/can`` and ``POST /permissions/can`` answer whether the current
-user holds a permission, and ``POST /permissions/can/batch`` answers many such checks at once;
+/permissions``); ``POST /permissions/can`` answers whether the current user holds a permission,
+and ``POST /permissions/can/batch`` answers many such checks at once;
 role management lives under ``/permissions/roles`` via the role sub-router, group management
 under ``/permissions/groups`` via the group sub-router.
 """
 
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Depends, Query
+from fastapi import APIRouter, Body, Depends
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.api.v1.permissions.constants import MAX_PERMISSION_CHECKS
@@ -24,12 +24,10 @@ from sparkth.lib.permissions import (
     PERMISSION_READ,
     PermissionCheckQuery,
     batched_can,
-    can,
-    get_accessible_scope_object_ids,
     get_permission,
     get_permission_scope,
 )
-from sparkth.lib.permissions.scopes import ObjectlessPermissionScope, build_scope_path
+from sparkth.lib.permissions.scopes import build_scope_path
 
 router = APIRouter()
 
@@ -42,42 +40,6 @@ router = APIRouter()
 async def list_permissions() -> list[str]:
     """List the permissions assignable to a role. Returns a list of permission strings."""
     return available_permissions()
-
-
-@router.get("/can", response_model=PermissionCheckResponse)
-async def check_permission(
-    permission: str = Query(..., description="Permission name to check, e.g. 'analytics.read'."),
-    scope: str = Query("global", description="Scope kind to check at (defaults to 'global')."),
-    scope_object_id: str | None = Query(
-        None, description="Object id for an object-bearing scope. Omit it to ask about any object of the scope."
-    ),
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
-) -> PermissionCheckResponse:
-    """Return whether the current user holds ``permission`` at the given scope.
-
-    A self-check any authenticated user may call about their own grants. It is not a security
-    boundary (endpoints enforce their own permissions and return 403); it lets a client gate UI
-    precisely. The permission and scope names are resolved against the registered vocabulary
-    (unknown → 422).
-
-    - With ``scope_object_id``, an object-bearing scope answers whether the user holds the
-      permission at that one object.
-    - Without ``scope_object_id`` an object-bearing scope answers whether the user holds the
-      permission at any of its objects.
-    - An objectless scope answers for the scope itself.
-    """
-    resolved_permission = get_permission(permission)
-    permission_scope = get_permission_scope(scope)
-    # If no scope_object_id is given with an object-bearing scope (for endpoints like list and create)
-    if scope_object_id is None and not isinstance(permission_scope, ObjectlessPermissionScope):
-        accessible_ids = await get_accessible_scope_object_ids(
-            current_user, resolved_permission, permission_scope, session
-        )
-        return PermissionCheckResponse(allowed=accessible_ids is None or bool(accessible_ids))
-    scope_path = None if scope_object_id is None else build_scope_path(permission_scope, scope_object_id)
-    allowed = await can(current_user, resolved_permission, permission_scope, scope_path, session)
-    return PermissionCheckResponse(allowed=allowed)
 
 
 def _get_permission_check_query(check: PermissionCheck) -> PermissionCheckQuery:

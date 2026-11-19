@@ -507,8 +507,6 @@ Without it, an object-bearing scope answers whether the user holds the permissio
 objects, the same check `require_for_any_object()` makes for a list route:
 `{"permission": "group.read", "scope": "group"}` is `true` for a grant at `global` or at any
 `group:<id>`. An objectless scope answers for the scope itself.
-`GET /api/v1/permissions/can?permission=<name>&scope=<kind>&scope_object_id=<id>` takes the same
-fields as query parameters, with `scope` defaulting to `global`, and gives the same answer.
 
 To run many checks in one request, `POST /api/v1/permissions/can/batch` takes a list of such
 checks, at most `MAX_PERMISSION_CHECKS` (50), and returns one result per check, in request order.
