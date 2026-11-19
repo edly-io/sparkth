@@ -44,6 +44,7 @@ function buildFile(id: number): DriveFile {
 
 describe("GoogleDrive re-sync", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.mocked(listFolders).mockImplementation(async () => ({
       items: [buildFolder(1), buildFolder(2)],
       total: 2,
