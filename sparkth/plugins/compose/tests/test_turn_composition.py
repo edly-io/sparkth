@@ -454,7 +454,10 @@ class TestPluginSwitches:
 
         call = complete_turn.await_args_list[-1]
         agents = call.kwargs["agents"]
-        prompts = [render_planner_prompt(agents, operations=True), *(render_system_prompt([agent]) for agent in agents)]
+        prompts = [
+            render_planner_prompt(agents, operations=True, existing_plan=None),
+            *(render_system_prompt([agent]) for agent in agents),
+        ]
         sent = [str(call.args[0]), *prompts]
         for value in (*OPENEDX_CONFIG.values(), *CANVAS_CONFIG.values()):
             assert not any(value in text for text in sent)

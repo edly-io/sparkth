@@ -995,7 +995,13 @@ export interface paths {
          *     A self-check any authenticated user may call about their own grants. It is not a security
          *     boundary (endpoints enforce their own permissions and return 403); it lets a client gate UI
          *     precisely. The permission and scope names are resolved against the registered vocabulary
-         *     (unknown → 422) and the decision is delegated to the engine's ``can()``.
+         *     (unknown → 422).
+         *
+         *     - With ``scope_object_id``, an object-bearing scope answers whether the user holds the
+         *       permission at that one object.
+         *     - Without ``scope_object_id`` an object-bearing scope answers whether the user holds the
+         *       permission at any of its objects.
+         *     - An objectless scope answers for the scope itself.
          */
         get: operations["check_permission_api_v1_permissions_can_get"];
         put?: never;
@@ -4801,7 +4807,7 @@ export interface operations {
                 permission: string;
                 /** @description Scope kind to check at (defaults to 'global'). */
                 scope?: string;
-                /** @description Object id for an object-bearing scope. */
+                /** @description Object id for an object-bearing scope. Omit it to ask about any object of the scope. */
                 scope_object_id?: string | null;
             };
             header?: never;

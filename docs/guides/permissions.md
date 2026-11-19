@@ -33,7 +33,7 @@ is declared in application code, not kept in a catalogue table.
 - **Scope kinds** are declared with `PermissionScope.create("course", parent=...)`, which
   registers the scope on the **`PERMISSION_SCOPES`** hook. The root `global` scope is declared
   this way in `sparkth.core.permissions.scopes`; plugins declare their own at module level in
-  their `plugin.py`.
+  their `plugin.py`, or in a module their routes import when the routes need the constant.
 
 Each hook is a `SingleNamedItemHook` keyed by name: declaring two permissions or two scope
 kinds with the same name **raises `ValueError`**, so a collision fails fast at import time.
@@ -102,14 +102,31 @@ assigned at.
 
 | Kind | Names | Notes |
 |---|---|---|
-| **Scopes** | `global`, `whitelist`, `role`, `group`, `user`, `plugin` | `global` is the objectless root (applies platform-wide). `whitelist` is an objectless singleton nested under `global` for the registration whitelist. `role` is object-bearing (nested under `global`) so role management can be delegated per-role by that role's id. `group` is object-bearing (nested under `global`) so group management can be delegated per-group by that group's id. `user` is object-bearing (nested under `global`) and names one user by id: a user's own records live at their `user` scope, so a grant there reaches that user's records only. `plugin` is object-bearing (nested under `global`) and names one plugin by its name, so a grant there reaches that plugin only (`plugin.use` to use it, `analytics.read` to read its analytics). A `global` grant cascades down to all five. |
-| **Permissions** | `email.whitelist.{read,create,delete}`; `role.{create,read,update,delete}`; `group.{create,read,update,delete}`; `permission.read`; `analytics.read`; `audit.read`; `user.read`; `llm.config.{create,read,update,delete}`; `plugin.use`; `file.upload`; `compose.conversation.{read,write}`; `googledrive.{read,sync,delete}` | Gate the registration email-whitelist endpoints, the role-management API, the group-management API, listing the assignable permission vocabulary, the analytics dashboards and their read API, querying and exporting the audit trail, and reading usernames outside user management (Explore's `/analytics/query`, which names each actor, and its saved `/analytics/views`; both also need `analytics.read`) respectively. The `llm.config.*`, `compose.conversation.*` and `googledrive.*` names authorize actions on one user's records, at the `user` scope of the record's owner: `compose.conversation.read` to list and read Compose conversations and their attachments, `compose.conversation.write` to send turns and to attach and detach documents; `llm.config.create`, `llm.config.read`, `llm.config.update` and `llm.config.delete` to create, list, change (edit, rotate the key, set active) and delete AI keys; `googledrive.read` to list and read Google Drive folders and files and download files, `googledrive.sync` to sync and refresh folders, and `googledrive.delete` to delete files. A plugin's analytics read checks `analytics.read` at that plugin's `plugin:<name>` scope (Compose at `plugin:compose`, Drive at its own `plugin:<name>` scope), so a `global` holder reads every plugin's and a holder at one plugin reads only that plugin's. A plugin-scoped `analytics.read` serves that plugin's read API only; the analytics dashboards need it at `global`. `plugin.use` authorizes using one plugin's routes, at that plugin's `plugin` scope (every Compose route except its analytics read needs it at `plugin:compose`, every Google Drive route except the OAuth callback and its analytics read needs it at its own `plugin:<name>` scope, the PXC authoring routes need it at `plugin:pxc` (the learner routes need no user login), and every Slack route except the OAuth callback and the events webhook needs it at `plugin:slack`), and the `/api/v1/user-plugins` routes list only the plugins the caller holds it at (an empty list, not 403, when it holds it at none), while reading, configuring, enabling or disabling one plugin needs it at that plugin; `file.upload` authorizes `POST /api/v1/parser/upload`, checked at the uploader's own `user` scope (a `global` holder passes too). |
+| **Scopes** | `global`, `whitelist`, `role`, `group`, `user`, `plugin`, `conversation` | `global` is the objectless root (applies platform-wide). `whitelist` is an objectless singleton nested under `global` for the registration whitelist. `role` is object-bearing (nested under `global`) so role management can be delegated per-role by that role's id. `group` is object-bearing (nested under `global`) so group management can be delegated per-group by that group's id. `user` is object-bearing (nested under `global`) and names one user by id: a user's own records live at their `user` scope, so a grant there reaches that user's records only. `plugin` is object-bearing (nested under `global`) and names one plugin by its name, so a grant there reaches that plugin only (`plugin.use` to use it, `analytics.read` to read its analytics). `conversation` is object-bearing, declared by Compose and nested under `user`, and names one conversation by its UUID: a grant at the owner's `user` scope or at `global` cascades to it. A `global` grant cascades down to all six. |
+| **Permissions** | `email.whitelist.{read,create,delete}`; `role.{create,read,update,delete}`; `group.{create,read,update,delete}`; `permission.read`; `analytics.read`; `audit.read`; `user.read`; `llm.config.{create,read,update,delete}`; `plugin.use`; `file.upload`; `compose.conversation.{read,write}`; `googledrive.{read,sync,delete}` | Gate the registration email-whitelist endpoints, the role-management API, the group-management API, listing the assignable permission vocabulary, the analytics dashboards and their read API, querying and exporting the audit trail, and reading usernames outside user management (Explore's `/analytics/query`, which names each actor, and its saved `/analytics/views`; both also need `analytics.read`) respectively. The `llm.config.*`, `compose.conversation.*` and `googledrive.*` names authorize actions on one user's records. `llm.config.*` and `googledrive.*` are checked at the `user` scope of the record's owner; `compose.conversation.*` is checked as described below the table. `compose.conversation.read` lists and reads Compose conversations and their attachments, `compose.conversation.write` sends turns and attaches and detaches documents; `llm.config.create`, `llm.config.read`, `llm.config.update` and `llm.config.delete` to create, list, change (edit, rotate the key, set active) and delete AI keys; `googledrive.read` to list and read Google Drive folders and files and download files, `googledrive.sync` to sync and refresh folders, and `googledrive.delete` to delete files. A plugin's analytics read checks `analytics.read` at that plugin's `plugin:<name>` scope (Compose at `plugin:compose`, Drive at its own `plugin:<name>` scope), so a `global` holder reads every plugin's and a holder at one plugin reads only that plugin's. A plugin-scoped `analytics.read` serves that plugin's read API only; the analytics dashboards need it at `global`. `plugin.use` authorizes using one plugin's routes, at that plugin's `plugin` scope (every Compose route except its analytics read needs it at `plugin:compose`, every Google Drive route except the OAuth callback and its analytics read needs it at its own `plugin:<name>` scope, the PXC authoring routes need it at `plugin:pxc` (the learner routes need no user login), and every Slack route except the OAuth callback and the events webhook needs it at `plugin:slack`), and the `/api/v1/user-plugins` routes list only the plugins the caller holds it at (an empty list, not 403, when it holds it at none), while reading, configuring, enabling or disabling one plugin needs it at that plugin; `file.upload` authorizes `POST /api/v1/parser/upload`, checked at the uploader's own `user` scope (a `global` holder passes too). |
 | **Roles** | `admin`, `sparkth_user`, `plugin_user` (none can be changed or deleted) | `admin` grants the three `email.whitelist.*`, the four `role.*`, the four `group.*`, `permission.read`, `analytics.read`, `audit.read`, and `user.read` (it does not hold the `llm.config.*`, `compose.conversation.*` or `googledrive.*` names). A seed migration also assigned it at `global` to every account that was a superuser when the migration ran — a one-time backfill. `sparkth_user` is the default role: every account holds it at its own `user` scope (a migration assigned it to every existing account; registration, Google sign-up and `create-user` assign it to each new one), and its default permissions, the `llm.config.*`, `compose.conversation.*`, `googledrive.*` and `file.upload` names, are granted by later migrations, one of which also assigns the role to any account that never had it. `plugin_user` holds `plugin.use`; every account holds it at `global` (registration, Google sign-up and `create-user` assign it to each new one), so every account can use every plugin. |
 
 Roles and their permission grants are managed at runtime through the role-management REST API
 under `/api/v1/permissions` (gated by `role.*` / `permission.read`). See the REST API docs
 (`/docs`) for the endpoints. Permissions and scope kinds themselves are **not** editable
 there — they are declared in code.
+
+Compose checks a conversation's permissions at the conversation itself where one is named, except that attaching
+documents is checked at the owner's `user` scope. Reading one conversation, its last message and its attachments,
+sending a turn into it, and detaching documents are checked at that conversation's `conversation` scope; listing
+conversations and starting one are checked at a `user` scope. Attaching a document is checked at the conversation
+owner's `user` scope, so a role granted at one conversation cannot add the owner's documents to it, and documents
+such a holder names on a turn are not attached. A conversation granted this way does not appear in the holder's
+conversation list, the holder opens it by id. A role assigned at a conversation takes effect there only for the
+conversation permissions it holds, so a role holding only `compose.conversation.read` shares it view-only. A holder
+of `compose.conversation.write` can also learn the conversation's history, because a turn replays it to the model;
+a turn also retrieves from the documents already attached to the conversation, so a write grant exposes their
+content too.
+
+```bash
+# let jane open one conversation, through a role that holds compose.conversation.read
+make cli -- roles assign-role jane conversation-reader --scope conversation --scope-object-id <uuid>
+```
 
 Management of one role can be delegated through the `role` scope, the way a group's can (see
 [Groups](#groups)): a role assigned at `role` with that role's id covers that role only. Listing
@@ -226,6 +243,8 @@ and `group.role_revoked` for each of its active assignments (users and groups) a
 active grant scoped to it (revoked grants record nothing). Deleting a group records
 `group.member_removed` and `group.role_revoked` for its active memberships and assignments, and
 `role.unassigned` and `group.role_revoked` for the active grants at `group:<id>`.
+
+A refused attempt to start a conversation is recorded against a conversation id that was never stored.
 
 ## Before adding one
 
@@ -352,9 +371,11 @@ time (a wiring error, never a silent 403).
   reaches the route, which raises its own not-found. The dependency runs after authentication, so
   an anonymous caller gets 401 first.
 
-  To gate a record owned by a user, the dependency loads the record, raises the record's not-found
-  error when it is missing (a 404 for everyone, with no denial audit row), and returns the owner's id
-  as the object id of the `user` scope. A caller who lacks the permission on an existing record gets 403.
+  To gate a record owned by a user, the dependency loads the record and raises the record's not-found
+  error when it is missing (a 404 for everyone, with no denial audit row). A record that is itself a
+  scope object is gated by returning the record, so grants at the record, at its owner and at `global`
+  all authorize. A record that is not one is gated by returning the owner's id as the object id of the
+  `user` scope. A caller who lacks the permission on an existing record gets 403.
 
 ```python
 from fastapi import Depends
@@ -480,5 +501,9 @@ below, records nothing.
 **Check the current user's permission** — a client (e.g. the web UI) can ask whether the
 authenticated user holds a permission via `GET /api/v1/permissions/can?permission=<name>`
 (optionally `&scope=<kind>&scope_object_id=<id>`), which returns `{"allowed": true|false}`.
-It is backed by `can()` and is a convenience for gating UI — not a security boundary, since
-every endpoint still enforces its own permission and returns 403.
+With `scope_object_id`, the answer covers that one object. Without it, an object-bearing scope
+answers whether the user holds the permission at any of its objects, the same check
+`require_for_any_object()` makes for a list route: `?permission=group.read&scope=group` is `true`
+for a grant at `global` or at any `group:<id>`. An objectless scope answers for the scope itself.
+The probe is a convenience for gating UI, not a security boundary, since every endpoint still
+enforces its own permission and returns 403.

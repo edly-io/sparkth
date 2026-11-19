@@ -687,7 +687,7 @@ instance.
 An `Agent` has five fields:
 
 - `name` identifies the agent: lowercase letters, digits and underscores, starting with a letter.
-  `compose`, `operator` and `refuse` are reserved.
+  `compose`, `operator`, `show_plan` and `refuse` are reserved.
 - `title` is the heading the agent appears under, both in the system prompt and in the planner's
   list.
 - `description` is the text the planner reads to decide whether a message is this agent's.
@@ -744,7 +744,7 @@ is harmless: the loader and a plugin's own tests each build an instance, and equ
 one. `register_agent` raises, from `sparkth.lib.compose.exceptions`:
 
 - `InvalidAgentName` for a name that breaks the pattern above;
-- `ReservedAgentName` for `compose`, `operator` or `refuse`;
+- `ReservedAgentName` for `compose`, `operator`, `show_plan` or `refuse`;
 - `DuplicateAgentName` when another agent, another plugin or a registered MCP tool already holds the name;
 - `DuplicateAgentTool` when two of the agent's tools share a name.
 
@@ -776,13 +776,20 @@ system-wide or by the user contributes no agent and no tools.
 - **Steps.** A step is one piece of work the planner gives to one agent or to its operator. It
   counts as one step however many tools that agent or the operator calls while doing it. A request
   can need several steps, such as writing a lesson, building an activity for it and publishing both.
+  The planner first shows the author its plan, a numbered list of its tasks, each one short line.
   What each step returns goes back to the planner, which runs the next part the author asked for, up
-  to a fixed limit of steps a message, without asking between them. Each agent's reply streams as it
-  is written, and a later step reads what earlier steps returned. An agent's question or choices are
-  the last thing the author reads, and their answer continues that work; after an operation the
-  planner says briefly what was done. All of a turn's replies are stored as one reply, which lists
-  its steps; when a step fails, what was written before it is kept as a reply marked as interrupted,
-  followed by the error.
+  to a fixed limit of steps a message, without asking between them. The plan comes before the first
+  step, and from then on every call names the step of the plan it carries out and is rejected if it
+  doesn't fit; each step runs once, in order. Without a plan, an operation runs only as a message's
+  first step. An operation that follows another step is asked for its task as the plan states it,
+  not for what the planner wrote afterwards. So text a step brought in, from an agent's reply or
+  from the LMS, can't start an operation the author wasn't shown, or change what a planned one does.
+  Each agent's reply streams as it is written, and a later step reads what earlier steps returned.
+  An agent's question or choices are the last thing the author reads, and their answer continues
+  that work: a reply that ends with choices ends the turn, whatever was left to run. After an
+  operation the planner says briefly what was done. All of a turn's replies are stored as one reply,
+  which lists its steps; when a step fails, what was written before it is kept as a reply marked as
+  interrupted, followed by the error.
 
 Plugin-specific knowledge belongs in a `<prefix>about` tool, not in an agent's `prompt`;
 see the LMS `about` tool [above](#lms-plugins-tools-without-credentials) for the convention.

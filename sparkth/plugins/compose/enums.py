@@ -10,10 +10,18 @@ class PlannerModel(StrEnum):
     SAME_AS_COMPOSE = "same_as_compose"
 
 
+class OptionsFence(StrEnum):
+    """The tag of the fenced block that offers the author choices."""
+
+    MULTIPLE = "options"
+    SINGLE = "options single"
+
+
 class TurnEventType(StrEnum):
     """What one event of a running turn reports."""
 
     ROUTED = "routed"
+    PLAN_STEP = "plan_step"
     TOKEN = "token"
     TOOL_START = "tool_start"
     TOOL_END = "tool_end"

@@ -1,40 +1,53 @@
 """How Compose's planner hands a message to its agents, one step after another, answers it itself, or refuses it."""
 
-from itertools import count, islice, repeat
+from itertools import count, repeat
 from typing import Any, cast
 
+import pytest
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import StructuredTool
 from langgraph.graph.state import CompiledStateGraph
 
 from sparkth.core.i18n import locale_context
 from sparkth.lib.audit.events import AuditModelInfo
-from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME, REFUSE_TOOL_NAME
+from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME, REFUSAL_TOOL_NAME, SHOW_PLAN_TOOL_NAME
 from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.testing import AddTranslation, AuditEventsFetcher, ScriptedChatModel
 from sparkth.plugins.compose.constants import (
     MAX_STEPS_PER_TURN,
     OPERATION_RESULT_HEADING,
+    PLAN_TASK_MAX_CHARS,
     PLANNER_OPERATIONS,
     PLANNER_WITHOUT_OPERATIONS,
     REFUSAL_MESSAGE,
+    REJECT_MISSING_STEP_NUMBER,
+    REJECT_OTHER_AGENTS_STEP,
+    REJECT_PLAN_AFTER_A_STEP,
+    REJECT_SECOND_PLAN,
+    REJECT_STEP_AFTER_PLAN,
+    REJECT_STEP_NOT_NEXT,
+    REJECT_UNPLANNED_OPERATION,
     STEP_RESULT_HEADING,
     STEP_RESULT_TAIL_CHARS,
     STOPPED_EARLY_NOTICE,
-    SYSTEM_PROMPT_SKELETON,
 )
+from sparkth.plugins.compose.enums import TurnEventType
 from sparkth.plugins.compose.llm import build_turn_agent
 from sparkth.plugins.compose.planner import (
     AgentGraph,
+    ExistingPlan,
+    PlannedStep,
     agent_input,
     build_planner,
     render_planner_prompt,
 )
+from sparkth.plugins.compose.prompt import render_system_prompt
 from sparkth.plugins.compose.tests.conftest import OTHER_AGENT, STUB_AGENT
 from sparkth.plugins.compose.tests.helpers import RecordingChatModel
 
 CONTEXT = AuditModelInfo("anthropic", "claude-sonnet-5")
 COULD_NOT_FINISH = "Something went wrong and I couldn't finish this. Please send your message again."
+CHOICES = "Which level?\n\n```options single\nBeginner\nAdvanced\n```"
 SPANISH_REFUSAL = "Solo puedo ayudar con el diseño de cursos."
 
 
@@ -46,12 +59,39 @@ def _planner_model(*replies: AIMessage) -> RecordingChatModel:
     return RecordingChatModel(messages=iter([*replies, AIMessage("")]), disable_streaming=True)
 
 
-def _hand_off(name: str, request: str, call_id: str = "call_1") -> dict[str, Any]:
-    return {"name": name, "args": {"request": request}, "id": call_id}
+def _hand_off(name: str, request: str, call_id: str = "call_1", step: int | None = None) -> dict[str, Any]:
+    args: dict[str, Any] = {"request": request} if step is None else {"request": request, "step": step}
+    return {"name": name, "args": args, "id": call_id}
 
 
-def _operation(request: str, call_id: str = "op_1") -> dict[str, Any]:
-    return {"name": OPERATOR_AGENT_NAME, "args": {"request": request}, "id": call_id}
+def _operation(request: str, call_id: str = "op_1", step: int | None = None) -> dict[str, Any]:
+    return _hand_off(OPERATOR_AGENT_NAME, request, call_id, step)
+
+
+def _plan(*steps: tuple[str, str], call_id: str = "plan") -> dict[str, Any]:
+    """A call to the plan tool with ``steps``, each an (agent, task) pair."""
+    return {
+        "name": SHOW_PLAN_TOOL_NAME,
+        "args": {"steps": [{"agent": agent, "task": task} for agent, task in steps]},
+        "id": call_id,
+    }
+
+
+def _planned_operations(count: int) -> list[AIMessage]:
+    """A plan of ``count`` operations, then a planner reply carrying out each one by its number."""
+    plan = _plan(*((OPERATOR_AGENT_NAME, f"Publish module {n}") for n in range(1, count + 1)))
+    return [
+        AIMessage("", tool_calls=[plan]),
+        *(
+            AIMessage("", tool_calls=[_operation(f"Publish module {n}", f"op_{n}", step=n)])
+            for n in range(1, count + 1)
+        ),
+    ]
+
+
+def _rejected(messages: list[AnyMessage], name: str) -> list[str]:
+    """What the planner was told about each of its calls to ``name`` that was rejected."""
+    return [m.text for m in messages if isinstance(m, ToolMessage) and m.name == name and m.status == "error"]
 
 
 def _step(reply: str) -> str:
@@ -82,9 +122,12 @@ async def _run(
     planner_model: ScriptedChatModel,
     *agents: AgentGraph,
     operator: CompiledStateGraph[Any, AuditModelInfo, Any, Any] | None = None,
+    existing_plan: ExistingPlan | None = None,
+    reported: list[dict[str, Any]] | None = None,
 ) -> list[AnyMessage]:
-    """Stream the planner the way a turn does, starting each step and tool call it reports, and return its messages."""
-    planner = build_planner(planner_model, list(agents), operator=operator)
+    """Stream the planner the way a turn does, starting each step and tool call it reports, and return its
+    messages. What it reports on the way is added to ``reported``."""
+    planner = build_planner(planner_model, list(agents), operator=operator, existing_plan=existing_plan)
     messages: list[AnyMessage] = []
     stream = planner.astream(
         {"messages": [HumanMessage("Design a course on photosynthesis.")]},
@@ -97,14 +140,23 @@ async def _run(
             go = cast(dict[str, Any], chunk).pop("go", None)
             if go is not None:
                 go.set()
+            if reported is not None:
+                reported.append(cast(dict[str, Any], chunk))
         elif not namespace:
             messages = cast(dict[str, Any], chunk)["messages"]
     return messages
 
 
+def _plan_steps(reported: list[dict[str, Any]]) -> list[tuple[int, bool]]:
+    """Each step of a plan the planner reported, as its number and whether it had run."""
+    return [(event["number"], event["ran"]) for event in reported if event["type"] == TurnEventType.PLAN_STEP]
+
+
 def _step_results(messages: list[AnyMessage]) -> list[str]:
     """What each step that ran returned to the planner, in order."""
-    return [m.text for m in messages if isinstance(m, ToolMessage) and m.status != "error"]
+    return [
+        m.text for m in messages if isinstance(m, ToolMessage) and m.status != "error" and m.name != SHOW_PLAN_TOOL_NAME
+    ]
 
 
 class TestAgentInput:
@@ -167,13 +219,30 @@ class TestAgentInput:
             HumanMessage("Publish it"),
         ]
 
+    def test_it_drops_the_plan(self) -> None:
+        history: list[AnyMessage] = [
+            HumanMessage("A lesson and an activity"),
+            AIMessage("", tool_calls=[_plan((STUB_AGENT.name, "Write the lesson"), (OTHER_AGENT.name, "Build it"))]),
+            ToolMessage(
+                "1. Write the lesson\n2. Build it",
+                artifact=[{"agent": STUB_AGENT.name, "task": "Write the lesson"}],
+                tool_call_id="plan",
+                name=SHOW_PLAN_TOOL_NAME,
+            ),
+        ]
+
+        assert agent_input(history, "Write the lesson") == [
+            HumanMessage("A lesson and an activity"),
+            HumanMessage("Write the lesson"),
+        ]
+
     def test_it_drops_a_refusal_and_a_call_its_tool_rejected(self) -> None:
         history: list[AnyMessage] = [
             HumanMessage("Publish my course"),
             AIMessage("", tool_calls=[{"name": OPERATOR_AGENT_NAME, "args": {}, "id": "op_1"}]),
             ToolMessage("1 validation error", tool_call_id="op_1", name=OPERATOR_AGENT_NAME, status="error"),
-            AIMessage("", tool_calls=[{"name": REFUSE_TOOL_NAME, "args": {}, "id": "c1"}]),
-            ToolMessage("I can only help with courses.", tool_call_id="c1", name=REFUSE_TOOL_NAME),
+            AIMessage("", tool_calls=[{"name": REFUSAL_TOOL_NAME, "args": {}, "id": "c1"}]),
+            ToolMessage("I can only help with courses.", tool_call_id="c1", name=REFUSAL_TOOL_NAME),
         ]
 
         assert agent_input(history, "Publish Biology 101") == [
@@ -238,9 +307,19 @@ class TestHandOff:
 class TestSeveralSteps:
     async def test_each_step_runs_in_order(self) -> None:
         planner_model = _planner_model(
-            AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "Write the lesson")]),
-            AIMessage("", tool_calls=[_hand_off(OTHER_AGENT.name, "Build the activity", "call_2")]),
-            AIMessage("", tool_calls=[_operation("Publish both")]),
+            AIMessage(
+                "",
+                tool_calls=[
+                    _plan(
+                        (STUB_AGENT.name, "Write the lesson"),
+                        (OTHER_AGENT.name, "Build the activity"),
+                        (OPERATOR_AGENT_NAME, "Publish both"),
+                    )
+                ],
+            ),
+            AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "Write the lesson", step=1)]),
+            AIMessage("", tool_calls=[_hand_off(OTHER_AGENT.name, "Build the activity", "call_2", step=2)]),
+            AIMessage("", tool_calls=[_operation("Publish both", step=3)]),
             AIMessage("Both are published."),
         )
         stub_model = ScriptedChatModel(messages=iter([AIMessage("Here is the lesson.")]))
@@ -292,18 +371,687 @@ class TestSeveralSteps:
         assert len(agent_model.seen) == 1
         assert not cast(AIMessage, messages[-1]).tool_calls
 
-    async def test_two_operations_in_a_row_both_run(self) -> None:
+    @pytest.mark.parametrize(
+        "reply",
+        [CHOICES, "Pick any.\n\n```options\nQuiz\nGame\n```\n", "Which level?\n\n```options single\nBeginner"],
+        ids=["one_answer", "several_answers", "block_left_open"],
+    )
+    async def test_the_turn_ends_when_an_agent_offered_the_author_choices(self, reply: str) -> None:
+        """The author answers the agent's question before anything else happens: no step runs and
+        the planner is not asked again."""
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "An outline")]),
+            AIMessage("", tool_calls=[_hand_off(OTHER_AGENT.name, "An activity", "call_2")]),
+        )
+        other_model = RecordingChatModel(messages=repeat(AIMessage("Here is the activity.")))
+
+        await _run(
+            planner_model,
+            _agent_graph(STUB_AGENT, ScriptedChatModel(messages=iter([AIMessage(reply)]))),
+            _agent_graph(OTHER_AGENT, other_model),
+        )
+
+        assert other_model.seen == []
+        assert len(planner_model.seen) == 1
+
+    async def test_choices_before_the_end_of_an_agents_reply_do_not_hold_the_next_step(self) -> None:
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "An outline")]),
+            AIMessage("", tool_calls=[_hand_off(OTHER_AGENT.name, "An activity", "call_2")]),
+        )
+        other_model = RecordingChatModel(messages=repeat(AIMessage("Here is the activity.")))
+
+        await _run(
+            planner_model,
+            _agent_graph(
+                STUB_AGENT, ScriptedChatModel(messages=iter([AIMessage(f"{CHOICES}\n\nI went with Beginner.")]))
+            ),
+            _agent_graph(OTHER_AGENT, other_model),
+        )
+
+        assert len(other_model.seen) == 1
+
+    async def test_an_operation_runs_after_one_whose_result_ends_with_choices(self) -> None:
+        """The author never reads the operator's text, so it has asked them nothing."""
+        operator_model = RecordingChatModel(messages=repeat(AIMessage(CHOICES)))
+
+        await _run(
+            _planner_model(*_planned_operations(2), AIMessage("Both are published.")),
+            operator=_operator(operator_model),
+        )
+
+        assert len(operator_model.seen) == 2
+
+    async def test_a_planned_step_does_not_run_after_an_agent_offered_the_author_choices(self) -> None:
+        plan = _plan((STUB_AGENT.name, "Write the lesson"), (OTHER_AGENT.name, "Build the activity"))
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[plan]),
+            AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "Write the lesson", step=1)]),
+            AIMessage("", tool_calls=[_hand_off(OTHER_AGENT.name, "Build the activity", "call_2", step=2)]),
+        )
+        other_model = RecordingChatModel(messages=repeat(AIMessage("Here is the activity.")))
+
+        await _run(
+            planner_model,
+            _agent_graph(STUB_AGENT, ScriptedChatModel(messages=iter([AIMessage(CHOICES)]))),
+            _agent_graph(OTHER_AGENT, other_model),
+        )
+
+        assert other_model.seen == []
+
+    async def test_two_operations_in_a_row_run_as_steps_of_a_plan(self) -> None:
+        operator_model = RecordingChatModel(messages=repeat(AIMessage("Done.")))
+
+        messages = await _run(
+            _planner_model(*_planned_operations(2), AIMessage("Both are published.")),
+            operator=_operator(operator_model),
+        )
+
+        assert len(operator_model.seen) == 2
+        assert messages[-1].text == "Both are published."
+
+
+class TestThePlan:
+    async def test_the_plan_lists_each_task_for_the_author(self) -> None:
+        plan = _plan((STUB_AGENT.name, "Write the lesson"), (OTHER_AGENT.name, "Build the activity"))
+        planner_model = _planner_model(AIMessage("", tool_calls=[plan]))
+        agents = [_agent_graph(agent, ScriptedChatModel(messages=iter([]))) for agent in (STUB_AGENT, OTHER_AGENT)]
+
+        messages = await _run(planner_model, *agents)
+
+        listed = [m for m in messages if isinstance(m, ToolMessage) and m.name == SHOW_PLAN_TOOL_NAME]
+        assert [m.text for m in listed] == ["1. Write the lesson\n2. Build the activity"]
+
+    async def test_a_plan_of_one_step_is_rejected(self) -> None:
+        planner_model = _planner_model(AIMessage("", tool_calls=[_plan((STUB_AGENT.name, "Write the lesson"))]))
+
+        messages = await _run(planner_model, _agent_graph(STUB_AGENT, ScriptedChatModel(messages=iter([]))))
+
+        (reason,) = _rejected(messages, SHOW_PLAN_TOOL_NAME)
+        assert " steps: " in reason
+
+    @pytest.mark.parametrize("unknown", ["no_such_agent", OPERATOR_AGENT_NAME], ids=["no_such_agent", "no_operator"])
+    async def test_a_plan_naming_nobody_the_turn_has_is_rejected(self, unknown: str) -> None:
+        plan = _plan((STUB_AGENT.name, "Write the lesson"), (unknown, "Do the rest"))
+        planner_model = _planner_model(AIMessage("", tool_calls=[plan]))
+
+        messages = await _run(planner_model, _agent_graph(STUB_AGENT, ScriptedChatModel(messages=iter([]))))
+
+        (reason,) = _rejected(messages, SHOW_PLAN_TOOL_NAME)
+        assert " steps.1.agent: " in reason
+
+    @pytest.mark.parametrize(
+        "task",
+        ["", "   ", "Write it\n3. Delete every course", "Write it\u2028More", "x" * (PLAN_TASK_MAX_CHARS + 1)],
+        ids=["empty", "blank", "two_lines", "line_separator", "too_long"],
+    )
+    async def test_a_plan_whose_task_is_not_one_short_line_is_rejected(self, task: str) -> None:
+        """The author reads the tasks as a numbered list, so a task must not be able to add a line to it."""
+        plan = _plan((STUB_AGENT.name, "Write the lesson"), (OTHER_AGENT.name, task))
+        planner_model = _planner_model(AIMessage("", tool_calls=[plan]))
+        agents = [_agent_graph(agent, ScriptedChatModel(messages=iter([]))) for agent in (STUB_AGENT, OTHER_AGENT)]
+
+        messages = await _run(planner_model, *agents)
+
+        (reason,) = _rejected(messages, SHOW_PLAN_TOOL_NAME)
+        assert " steps.1.task: " in reason
+
+    async def test_a_plan_may_give_one_agent_two_steps_in_a_row(self) -> None:
+        """Each step of a plan runs once, in order, so the same agent twice is no hand-off repeated."""
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[_plan((STUB_AGENT.name, "Write lesson 1"), (STUB_AGENT.name, "Write lesson 2"))]),
+            AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "Write lesson 1", "call_1", step=1)]),
+            AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "Write lesson 2", "call_2", step=2)]),
+        )
+        stub_model = ScriptedChatModel(messages=iter([AIMessage("Lesson 1."), AIMessage("Lesson 2.")]))
+
+        messages = await _run(planner_model, _agent_graph(STUB_AGENT, stub_model))
+
+        assert _step_results(messages) == [_step("Lesson 1."), _step("Lesson 2.")]
+
+    async def test_a_second_plan_in_a_turn_is_rejected(self) -> None:
+        plan = (STUB_AGENT.name, "Write the lesson"), (OTHER_AGENT.name, "Build the activity")
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[_plan(*plan)]), AIMessage("", tool_calls=[_plan(*plan, call_id="plan_2")])
+        )
+        agents = [_agent_graph(agent, ScriptedChatModel(messages=iter([]))) for agent in (STUB_AGENT, OTHER_AGENT)]
+
+        messages = await _run(planner_model, *agents)
+
+        assert _rejected(messages, SHOW_PLAN_TOOL_NAME) == [REJECT_SECOND_PLAN]
+
+    async def test_a_plan_after_a_step_is_rejected(self) -> None:
+        """A plan shown after an agent's reply would follow the question the author is meant to read last."""
+        plan = (STUB_AGENT.name, "Write the lesson"), (OTHER_AGENT.name, "Build the activity")
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "Write the lesson")]),
+            AIMessage("", tool_calls=[_plan(*plan)]),
+        )
+        stub_model = ScriptedChatModel(messages=iter([AIMessage("Here is the lesson.")]))
+        other = _agent_graph(OTHER_AGENT, ScriptedChatModel(messages=iter([])))
+
+        messages = await _run(planner_model, _agent_graph(STUB_AGENT, stub_model), other)
+
+        assert _rejected(messages, SHOW_PLAN_TOOL_NAME) == [REJECT_PLAN_AFTER_A_STEP]
+
+    async def test_a_plan_is_no_step(self) -> None:
+        operator_model = RecordingChatModel(messages=repeat(AIMessage("Published.")))
+
+        messages = await _run(
+            _planner_model(*_planned_operations(MAX_STEPS_PER_TURN), AIMessage("All published.")),
+            operator=_operator(operator_model),
+        )
+
+        assert len(operator_model.seen) == MAX_STEPS_PER_TURN
+        assert messages[-1].text == "All published."
+
+    async def test_a_call_without_its_step_number_is_rejected_and_never_runs(self) -> None:
+        """Otherwise a step could run unnumbered and then again under its number."""
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[_plan((OPERATOR_AGENT_NAME, "Retrieve it"), (STUB_AGENT.name, "Redesign it"))]),
+            AIMessage("", tool_calls=[_operation("Retrieve it")]),
+        )
+        operator_model = RecordingChatModel(messages=repeat(AIMessage("Biology 101.")))
+
+        messages = await _run(
+            planner_model,
+            _agent_graph(STUB_AGENT, ScriptedChatModel(messages=iter([]))),
+            operator=_operator(operator_model),
+        )
+
+        assert _rejected(messages, OPERATOR_AGENT_NAME) == [REJECT_MISSING_STEP_NUMBER]
+        assert operator_model.seen == []
+
+    async def test_a_step_number_that_is_no_whole_number_is_rejected_and_the_call_never_runs(self) -> None:
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[_plan((STUB_AGENT.name, "Write it"), (OPERATOR_AGENT_NAME, "Publish it"))]),
+            AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "Write it", step=1)]),
+            AIMessage(
+                "",
+                tool_calls=[
+                    {"name": OPERATOR_AGENT_NAME, "args": {"request": "Publish it", "step": "two"}, "id": "op"}
+                ],
+            ),
+        )
+        operator_model = RecordingChatModel(messages=repeat(AIMessage("Published.")))
+        stub_model = ScriptedChatModel(messages=iter([AIMessage("Here it is.")]))
+
+        messages = await _run(planner_model, _agent_graph(STUB_AGENT, stub_model), operator=_operator(operator_model))
+
+        assert _rejected(messages, OPERATOR_AGENT_NAME) == [REJECT_MISSING_STEP_NUMBER]
+        assert operator_model.seen == []
+
+    async def test_a_call_for_another_agents_step_is_rejected_and_never_runs(self) -> None:
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[_plan((STUB_AGENT.name, "Write the lesson"), (OTHER_AGENT.name, "Build it"))]),
+            AIMessage("", tool_calls=[_hand_off(OTHER_AGENT.name, "Build it", step=1)]),
+        )
+        other_model = RecordingChatModel(messages=iter([AIMessage("Here is the activity.")]))
+
+        messages = await _run(
+            planner_model,
+            _agent_graph(STUB_AGENT, ScriptedChatModel(messages=iter([]))),
+            _agent_graph(OTHER_AGENT, other_model),
+        )
+
+        assert _rejected(messages, OTHER_AGENT.name) == [REJECT_OTHER_AGENTS_STEP.format(step=1)]
+        assert other_model.seen == []
+
+    async def test_a_call_that_skips_ahead_is_rejected(self) -> None:
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[_plan((STUB_AGENT.name, "Write the lesson"), (OTHER_AGENT.name, "Build it"))]),
+            AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "Write more", step=3)]),
+        )
+        agents = [_agent_graph(agent, ScriptedChatModel(messages=iter([]))) for agent in (STUB_AGENT, OTHER_AGENT)]
+
+        messages = await _run(planner_model, *agents)
+
+        assert _rejected(messages, STUB_AGENT.name) == [REJECT_STEP_NOT_NEXT.format(step=3, next=1)]
+
+    async def test_a_step_that_has_run_is_rejected_and_never_runs_again(self) -> None:
+        """A planned operation can't be reused, by text an earlier step brought in, for another one."""
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[_plan((OPERATOR_AGENT_NAME, "Publish it"), (STUB_AGENT.name, "Summarise it"))]),
+            AIMessage("", tool_calls=[_operation("Publish it", "op_1", step=1)]),
+            AIMessage("", tool_calls=[_operation("Delete my other courses", "op_2", step=1)]),
+        )
+        operator_model = RecordingChatModel(messages=repeat(AIMessage("Done.")))
+
+        messages = await _run(
+            planner_model,
+            _agent_graph(STUB_AGENT, ScriptedChatModel(messages=iter([]))),
+            operator=_operator(operator_model),
+        )
+
+        assert _rejected(messages, OPERATOR_AGENT_NAME) == [REJECT_STEP_NOT_NEXT.format(step=1, next=2)]
+        assert len(operator_model.seen) == 1
+
+    async def test_a_step_that_is_not_next_is_rejected_and_never_runs(self) -> None:
+        """A skipped step would never run, and the plan the author read would not be what was done."""
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[_plan((STUB_AGENT.name, "Write it"), (OPERATOR_AGENT_NAME, "Publish it"))]),
+            AIMessage("", tool_calls=[_operation("Publish it", step=2)]),
+        )
+        operator_model = RecordingChatModel(messages=repeat(AIMessage("Published.")))
+
+        messages = await _run(
+            planner_model,
+            _agent_graph(STUB_AGENT, ScriptedChatModel(messages=iter([]))),
+            operator=_operator(operator_model),
+        )
+
+        assert _rejected(messages, OPERATOR_AGENT_NAME) == [REJECT_STEP_NOT_NEXT.format(step=2, next=1)]
+        assert operator_model.seen == []
+
+    async def test_a_call_after_the_plans_last_step_is_rejected(self) -> None:
+        operator_model = RecordingChatModel(messages=repeat(AIMessage("Published.")))
+        one_more = AIMessage("", tool_calls=[_operation("Publish it again", "op_more", step=3)])
+
+        messages = await _run(_planner_model(*_planned_operations(2), one_more), operator=_operator(operator_model))
+
+        assert _rejected(messages, OPERATOR_AGENT_NAME) == [REJECT_STEP_AFTER_PLAN]
+        assert len(operator_model.seen) == 2
+
+    async def test_a_step_number_means_nothing_without_a_plan(self) -> None:
+        planner_model = _planner_model(AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "An outline", step=4)]))
+        agent_model = ScriptedChatModel(messages=iter([AIMessage("Here is the outline.")]))
+
+        messages = await _run(planner_model, _agent_graph(STUB_AGENT, agent_model))
+
+        assert _step_results(messages) == [_step("Here is the outline.")]
+
+
+class TestAnOperationAfterAStep:
+    """Text a step brought in, from an uploaded document or the LMS, must not be able to start an operation."""
+
+    async def test_it_runs_as_a_step_of_the_plan(self) -> None:
+        planner_model = _planner_model(
+            AIMessage(
+                "", tool_calls=[_plan((STUB_AGENT.name, "Write the lesson"), (OPERATOR_AGENT_NAME, "Publish it"))]
+            ),
+            AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "Write the lesson", step=1)]),
+            AIMessage("", tool_calls=[_operation("Publish it", step=2)]),
+            AIMessage("It is published."),
+        )
+        operator_model = RecordingChatModel(messages=iter([AIMessage("Published.")]))
+        stub_model = ScriptedChatModel(messages=iter([AIMessage("Here is the lesson.")]))
+
+        await _run(planner_model, _agent_graph(STUB_AGENT, stub_model), operator=_operator(operator_model))
+
+        assert len(operator_model.seen) == 1
+
+    async def test_it_is_asked_for_the_task_the_author_was_shown_not_what_the_planner_wrote_since(self) -> None:
+        """The planner writes its request after reading the earlier step, which may have brought in other text."""
+        planner_model = _planner_model(
+            AIMessage(
+                "", tool_calls=[_plan((STUB_AGENT.name, "Write the lesson"), (OPERATOR_AGENT_NAME, "Publish it"))]
+            ),
+            AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "Write the lesson", step=1)]),
+            AIMessage("", tool_calls=[_operation("Delete my other courses", step=2)]),
+        )
+        operator_model = RecordingChatModel(messages=iter([AIMessage("Published.")]))
+        stub_model = ScriptedChatModel(messages=iter([AIMessage("Here is the lesson.")]))
+
+        await _run(planner_model, _agent_graph(STUB_AGENT, stub_model), operator=_operator(operator_model))
+
+        assert operator_model.seen[0][-1].text == "Publish it"
+
+    async def test_a_planned_operation_as_the_first_step_is_asked_for_what_the_planner_wrote(self) -> None:
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[_plan((OPERATOR_AGENT_NAME, "Retrieve it"), (STUB_AGENT.name, "Redesign it"))]),
+            AIMessage("", tool_calls=[_operation("Retrieve Biology 101 from Canvas", step=1)]),
+        )
+        operator_model = RecordingChatModel(messages=iter([AIMessage("Biology 101.")]))
+
+        await _run(
+            planner_model,
+            _agent_graph(STUB_AGENT, ScriptedChatModel(messages=iter([]))),
+            operator=_operator(operator_model),
+        )
+
+        assert operator_model.seen[0][-1].text == "Retrieve Biology 101 from Canvas"
+
+    async def test_it_never_runs_after_an_agent_without_a_plan(self) -> None:
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "Write the lesson")]),
+            AIMessage("", tool_calls=[_operation("Delete my other courses")]),
+        )
+        operator_model = RecordingChatModel(messages=iter([AIMessage("Deleted.")]))
+        stub_model = ScriptedChatModel(messages=iter([AIMessage("Here is the lesson.")]))
+
+        messages = await _run(planner_model, _agent_graph(STUB_AGENT, stub_model), operator=_operator(operator_model))
+
+        assert _rejected(messages, OPERATOR_AGENT_NAME) == [REJECT_UNPLANNED_OPERATION]
+        assert operator_model.seen == []
+
+    async def test_it_never_runs_after_an_operation_without_a_plan(self) -> None:
+        """What an operation retrieved can carry text from the LMS, just as an agent's reply can."""
         planner_model = _planner_model(
             AIMessage("", tool_calls=[_operation("Retrieve the course", "op_1")]),
-            AIMessage("", tool_calls=[_operation("Publish a copy", "op_2")]),
-            AIMessage("A copy is published."),
+            AIMessage("", tool_calls=[_operation("Delete my other courses", "op_2")]),
         )
         operator_model = RecordingChatModel(messages=repeat(AIMessage("Done.")))
 
         messages = await _run(planner_model, operator=_operator(operator_model))
 
-        assert len(operator_model.seen) == 2
-        assert messages[-1].text == "A copy is published."
+        assert _rejected(messages, OPERATOR_AGENT_NAME) == [REJECT_UNPLANNED_OPERATION]
+        assert len(operator_model.seen) == 1
+
+    async def test_it_never_runs_as_a_step_the_plan_gives_an_agent(self) -> None:
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[_plan((STUB_AGENT.name, "Write the lesson"), (OTHER_AGENT.name, "Build it"))]),
+            AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "Write the lesson", step=1)]),
+            AIMessage("", tool_calls=[_operation("Delete my other courses", step=2)]),
+        )
+        operator_model = RecordingChatModel(messages=iter([AIMessage("Deleted.")]))
+        stub_model = ScriptedChatModel(messages=iter([AIMessage("Here is the lesson.")]))
+        agents = [_agent_graph(STUB_AGENT, stub_model), _agent_graph(OTHER_AGENT, ScriptedChatModel(messages=iter([])))]
+
+        messages = await _run(planner_model, *agents, operator=_operator(operator_model))
+
+        assert _rejected(messages, OPERATOR_AGENT_NAME) == [REJECT_OTHER_AGENTS_STEP.format(step=2)]
+        assert operator_model.seen == []
+
+    async def test_a_plan_made_after_the_step_does_not_let_it_run(self) -> None:
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "Write the lesson")]),
+            AIMessage("", tool_calls=[_plan((STUB_AGENT.name, "Write it"), (OPERATOR_AGENT_NAME, "Delete the rest"))]),
+            AIMessage("", tool_calls=[_operation("Delete the rest", step=2)]),
+        )
+        operator_model = RecordingChatModel(messages=iter([AIMessage("Deleted.")]))
+        stub_model = ScriptedChatModel(messages=iter([AIMessage("Here is the lesson.")]))
+
+        messages = await _run(planner_model, _agent_graph(STUB_AGENT, stub_model), operator=_operator(operator_model))
+
+        assert _rejected(messages, SHOW_PLAN_TOOL_NAME) == [REJECT_PLAN_AFTER_A_STEP]
+        assert _rejected(messages, OPERATOR_AGENT_NAME) == [REJECT_UNPLANNED_OPERATION]
+        assert operator_model.seen == []
+
+    async def test_an_operation_as_the_first_step_needs_no_plan(self) -> None:
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[_operation("Retrieve the course")]),
+            AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "Redesign it")]),
+        )
+        operator_model = RecordingChatModel(messages=iter([AIMessage("Biology 101.")]))
+        stub_model = ScriptedChatModel(messages=iter([AIMessage("Here is the redesign.")]))
+
+        await _run(planner_model, _agent_graph(STUB_AGENT, stub_model), operator=_operator(operator_model))
+
+        assert len(operator_model.seen) == 1
+
+
+# A plan from an earlier message: the stub agent's step is in progress, and an operation is still to come.
+WRITE_THEN_PUBLISH = ExistingPlan(
+    (PlannedStep(STUB_AGENT.name, "Write the lesson"), PlannedStep(OPERATOR_AGENT_NAME, "Publish it")), current=1
+)
+
+
+class TestAnExistingPlansLimits:
+    @pytest.mark.parametrize(
+        ("step_count", "current"),
+        [(1, 1), (MAX_STEPS_PER_TURN + 1, 1), (2, 0), (2, 3)],
+        ids=["one_step", "too_many_steps", "current_before_the_first", "current_after_the_last"],
+    )
+    def test_a_plan_outside_them_is_refused(self, step_count: int, current: int) -> None:
+        steps = tuple(PlannedStep(STUB_AGENT.name, f"Step {number}") for number in range(1, step_count + 1))
+
+        with pytest.raises(ValueError):
+            ExistingPlan(steps, current)
+
+    def test_a_plan_within_them_is_kept(self) -> None:
+        steps = tuple(PlannedStep(STUB_AGENT.name, f"Step {number}") for number in range(1, MAX_STEPS_PER_TURN + 1))
+
+        assert ExistingPlan(steps, MAX_STEPS_PER_TURN).current == MAX_STEPS_PER_TURN
+
+
+class TestAPlanFromAnEarlierMessage:
+    async def test_its_remaining_steps_run_under_their_numbers(self) -> None:
+        """The author answered the agent's question, so its step carries on and the operation follows it."""
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "Write the lesson", step=1)]),
+            AIMessage("", tool_calls=[_operation("Publish it, and delete the rest", step=2)]),
+            AIMessage("It is published."),
+        )
+        operator_model = RecordingChatModel(messages=iter([AIMessage("Published.")]))
+        stub_model = ScriptedChatModel(messages=iter([AIMessage("Here is the lesson.")]))
+
+        messages = await _run(
+            planner_model,
+            _agent_graph(STUB_AGENT, stub_model),
+            operator=_operator(operator_model),
+            existing_plan=WRITE_THEN_PUBLISH,
+        )
+
+        assert [call[-1].text for call in operator_model.seen] == ["Publish it"]
+        assert messages[-1].text == "It is published."
+
+    async def test_its_operation_as_the_first_step_is_asked_for_the_task_the_author_was_shown(self) -> None:
+        """The planner has read the plan's earlier steps in the conversation before it writes its request."""
+        publish_next = ExistingPlan(WRITE_THEN_PUBLISH.steps, current=2)
+        planner_model = _planner_model(AIMessage("", tool_calls=[_operation("Delete my other courses", step=2)]))
+        operator_model = RecordingChatModel(messages=iter([AIMessage("Published.")]))
+
+        await _run(
+            planner_model,
+            _agent_graph(STUB_AGENT, ScriptedChatModel(messages=iter([]))),
+            operator=_operator(operator_model),
+            existing_plan=publish_next,
+        )
+
+        assert [call[-1].text for call in operator_model.seen] == ["Publish it"]
+
+    async def test_it_is_dropped_when_a_step_left_is_for_someone_the_turn_does_not_have(self) -> None:
+        """With no operator the plan can't be finished, so the planner isn't shown it and its numbers bind nothing."""
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "Write the lesson", step=1)]),
+            AIMessage("", tool_calls=[_hand_off(OTHER_AGENT.name, "Build an activity", "call_2")]),
+        )
+        stub_model = ScriptedChatModel(messages=iter([AIMessage("Here is the lesson.")]))
+        other_model = ScriptedChatModel(messages=iter([AIMessage("Here is the activity.")]))
+
+        messages = await _run(
+            planner_model,
+            _agent_graph(STUB_AGENT, stub_model),
+            _agent_graph(OTHER_AGENT, other_model),
+            existing_plan=WRITE_THEN_PUBLISH,
+        )
+
+        assert _step_results(messages) == [_step("Here is the lesson."), _step("Here is the activity.")]
+        assert "EXISTING PLAN" not in planner_model.seen[0][0].text
+
+    async def test_each_step_is_reported_when_it_starts_and_when_it_has_run(self) -> None:
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "Write the lesson", step=1)]),
+            AIMessage("", tool_calls=[_operation("Publish it", step=2)]),
+        )
+        reported: list[dict[str, Any]] = []
+
+        await _run(
+            planner_model,
+            _agent_graph(STUB_AGENT, ScriptedChatModel(messages=iter([AIMessage("Here is the lesson.")]))),
+            operator=_operator(ScriptedChatModel(messages=iter([AIMessage("Published.")]))),
+            existing_plan=WRITE_THEN_PUBLISH,
+            reported=reported,
+        )
+
+        assert _plan_steps(reported) == [(1, False), (1, True), (2, False), (2, True)]
+
+    async def test_a_step_that_fails_is_reported_as_started_only(self) -> None:
+        planner_model = _planner_model(AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "Write it", step=1)]))
+        reported: list[dict[str, Any]] = []
+
+        with pytest.raises(RuntimeError, match="During task with name 'tools'"):
+            await _run(
+                planner_model,
+                _agent_graph(STUB_AGENT, ScriptedChatModel(messages=iter([]))),
+                operator=_operator(ScriptedChatModel(messages=iter([]))),
+                existing_plan=WRITE_THEN_PUBLISH,
+                reported=reported,
+            )
+
+        assert _plan_steps(reported) == [(1, False)]
+
+    async def test_a_rejected_call_and_a_step_outside_it_are_not_reported(self) -> None:
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "A quiz instead")]),
+            AIMessage("", tool_calls=[_operation("Publish it", step=2)]),
+        )
+        reported: list[dict[str, Any]] = []
+
+        await _run(
+            planner_model,
+            _agent_graph(STUB_AGENT, ScriptedChatModel(messages=iter([AIMessage("Here is the quiz.")]))),
+            operator=_operator(ScriptedChatModel(messages=iter([]))),
+            existing_plan=WRITE_THEN_PUBLISH,
+            reported=reported,
+        )
+
+        assert _plan_steps(reported) == []
+
+    async def test_it_carries_on_at_its_step_in_progress_or_the_next_and_no_further(self) -> None:
+        plan = ExistingPlan((*WRITE_THEN_PUBLISH.steps, PlannedStep(STUB_AGENT.name, "Sum up")), current=1)
+        planner_model = _planner_model(AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "Sum up", step=3)]))
+        stub_model = RecordingChatModel(messages=iter([AIMessage("In short.")]))
+
+        messages = await _run(
+            planner_model,
+            _agent_graph(STUB_AGENT, stub_model),
+            operator=_operator(ScriptedChatModel(messages=iter([]))),
+            existing_plan=plan,
+        )
+
+        assert _rejected(messages, STUB_AGENT.name) == [REJECT_STEP_NOT_NEXT.format(step=3, next="1 or 2")]
+        assert stub_model.seen == []
+
+    async def test_a_step_that_was_finished_is_rejected(self) -> None:
+        finished = ExistingPlan(WRITE_THEN_PUBLISH.steps, current=2)
+        planner_model = _planner_model(AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "Write it", step=1)]))
+        stub_model = RecordingChatModel(messages=iter([AIMessage("Here is the lesson.")]))
+
+        messages = await _run(
+            planner_model,
+            _agent_graph(STUB_AGENT, stub_model),
+            operator=_operator(ScriptedChatModel(messages=iter([]))),
+            existing_plan=finished,
+        )
+
+        assert _rejected(messages, STUB_AGENT.name) == [REJECT_STEP_NOT_NEXT.format(step=1, next="2")]
+        assert stub_model.seen == []
+
+    async def test_a_message_about_something_else_runs_without_it(self) -> None:
+        planner_model = _planner_model(AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "A quiz instead")]))
+        stub_model = ScriptedChatModel(messages=iter([AIMessage("Here is the quiz.")]))
+
+        messages = await _run(
+            planner_model,
+            _agent_graph(STUB_AGENT, stub_model),
+            operator=_operator(ScriptedChatModel(messages=iter([]))),
+            existing_plan=WRITE_THEN_PUBLISH,
+        )
+
+        assert _step_results(messages) == [_step("Here is the quiz.")]
+
+    async def test_its_operation_never_runs_after_a_step_outside_it(self) -> None:
+        """A turn that starts outside the plan has dropped it, so its numbers unlock nothing."""
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "A quiz instead")]),
+            AIMessage("", tool_calls=[_operation("Delete my other courses", step=2)]),
+        )
+        operator_model = RecordingChatModel(messages=iter([AIMessage("Deleted.")]))
+        stub_model = ScriptedChatModel(messages=iter([AIMessage("Here is the quiz.")]))
+
+        messages = await _run(
+            planner_model,
+            _agent_graph(STUB_AGENT, stub_model),
+            operator=_operator(operator_model),
+            existing_plan=WRITE_THEN_PUBLISH,
+        )
+
+        assert _rejected(messages, OPERATOR_AGENT_NAME) == [REJECT_UNPLANNED_OPERATION]
+        assert operator_model.seen == []
+
+    async def test_a_numbered_step_after_one_outside_it_does_not_bring_it_back(self) -> None:
+        """The turn's first step decides, once, whether it follows the plan."""
+        plan = ExistingPlan(
+            (
+                PlannedStep(STUB_AGENT.name, "Write the lesson"),
+                PlannedStep(OTHER_AGENT.name, "Build the activity"),
+                PlannedStep(OPERATOR_AGENT_NAME, "Publish both"),
+            ),
+            current=1,
+        )
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "A quiz instead")]),
+            AIMessage("", tool_calls=[_hand_off(OTHER_AGENT.name, "Build the activity", "call_2", step=2)]),
+            AIMessage("", tool_calls=[_operation("Delete my other courses", step=3)]),
+        )
+        operator_model = RecordingChatModel(messages=iter([AIMessage("Deleted.")]))
+        stub_model = ScriptedChatModel(messages=iter([AIMessage("Here is the quiz.")]))
+        other_model = ScriptedChatModel(messages=iter([AIMessage("Here is the activity.")]))
+
+        messages = await _run(
+            planner_model,
+            _agent_graph(STUB_AGENT, stub_model),
+            _agent_graph(OTHER_AGENT, other_model),
+            operator=_operator(operator_model),
+            existing_plan=plan,
+        )
+
+        assert _rejected(messages, OPERATOR_AGENT_NAME) == [REJECT_UNPLANNED_OPERATION]
+        assert operator_model.seen == []
+
+    async def test_once_a_turn_follows_it_every_call_names_its_step(self) -> None:
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "Write the lesson", step=1)]),
+            AIMessage("", tool_calls=[_operation("Publish it")]),
+        )
+        operator_model = RecordingChatModel(messages=iter([AIMessage("Published.")]))
+        stub_model = ScriptedChatModel(messages=iter([AIMessage("Here is the lesson.")]))
+
+        messages = await _run(
+            planner_model,
+            _agent_graph(STUB_AGENT, stub_model),
+            operator=_operator(operator_model),
+            existing_plan=WRITE_THEN_PUBLISH,
+        )
+
+        assert _rejected(messages, OPERATOR_AGENT_NAME) == [REJECT_MISSING_STEP_NUMBER]
+        assert operator_model.seen == []
+
+    async def test_a_new_plan_replaces_it(self) -> None:
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[_plan((OPERATOR_AGENT_NAME, "Retrieve it"), (STUB_AGENT.name, "Redesign it"))]),
+            AIMessage("", tool_calls=[_operation("Retrieve it", step=1)]),
+        )
+        operator_model = RecordingChatModel(messages=iter([AIMessage("Biology 101.")]))
+
+        await _run(
+            planner_model,
+            _agent_graph(STUB_AGENT, ScriptedChatModel(messages=iter([]))),
+            operator=_operator(operator_model),
+            existing_plan=WRITE_THEN_PUBLISH,
+        )
+
+        assert len(operator_model.seen) == 1
+
+    def test_the_planner_is_shown_what_is_done_in_progress_and_left(self) -> None:
+        plan = ExistingPlan(
+            (
+                PlannedStep(OPERATOR_AGENT_NAME, "Retrieve the course"),
+                PlannedStep(STUB_AGENT.name, "Redesign it"),
+                PlannedStep(OPERATOR_AGENT_NAME, "Publish it"),
+            ),
+            current=2,
+        )
+
+        prompt = render_planner_prompt([STUB_AGENT], operations=True, existing_plan=plan)
+
+        assert "1. Retrieve the course (operator): done" in prompt
+        assert f"2. Redesign it ({STUB_AGENT.name}): in progress" in prompt
+        assert "3. Publish it (operator): not started" in prompt
+
+    def test_the_planner_is_shown_no_plan_when_none_is_open(self) -> None:
+        assert "EXISTING PLAN" not in render_planner_prompt([STUB_AGENT], operations=True, existing_plan=None)
 
 
 class TestThePlannersOwnReplies:
@@ -318,7 +1066,7 @@ class TestThePlannersOwnReplies:
         self, translation_catalog: AddTranslation
     ) -> None:
         translation_catalog(REFUSAL_MESSAGE, SPANISH_REFUSAL)
-        planner_model = _planner_model(AIMessage("", tool_calls=[{"name": REFUSE_TOOL_NAME, "args": {}, "id": "c1"}]))
+        planner_model = _planner_model(AIMessage("", tool_calls=[{"name": REFUSAL_TOOL_NAME, "args": {}, "id": "c1"}]))
 
         with locale_context("es"):
             messages = await _run(planner_model, _agent_graph(STUB_AGENT, ScriptedChatModel(messages=iter([]))))
@@ -326,7 +1074,7 @@ class TestThePlannersOwnReplies:
         assert messages[-1].text == SPANISH_REFUSAL
 
     async def test_a_refusal_is_not_audited(self, audit_events: AuditEventsFetcher) -> None:
-        planner_model = _planner_model(AIMessage("", tool_calls=[{"name": REFUSE_TOOL_NAME, "args": {}, "id": "c1"}]))
+        planner_model = _planner_model(AIMessage("", tool_calls=[{"name": REFUSAL_TOOL_NAME, "args": {}, "id": "c1"}]))
 
         await _run(planner_model, _agent_graph(STUB_AGENT, ScriptedChatModel(messages=iter([]))))
 
@@ -382,35 +1130,38 @@ class TestOperations:
 class TestPlannerPrompt:
     def test_it_is_told_never_to_claim_work_no_step_of_the_message_did(self) -> None:
         """Earlier replies read as if the assistant did the work itself, which a planner may copy."""
-        prompt = render_planner_prompt([STUB_AGENT], operations=True)
+        prompt = render_planner_prompt([STUB_AGENT], operations=True, existing_plan=None)
 
         assert "Never tell the author that work was done" in prompt
 
     def test_it_is_told_the_refuse_tool_is_the_only_way_to_turn_a_message_down(self) -> None:
         """A decline in the planner's own words skips the fixed sentence and is not recorded as a refusal."""
-        prompt = render_planner_prompt([STUB_AGENT], operations=False)
+        prompt = render_planner_prompt([STUB_AGENT], operations=False, existing_plan=None)
 
         assert "Never turn a message down in your own words" in prompt
 
     def test_it_lists_each_agent_by_title_and_description(self) -> None:
-        prompt = render_planner_prompt([STUB_AGENT, OTHER_AGENT], operations=False)
+        prompt = render_planner_prompt([STUB_AGENT, OTHER_AGENT], operations=False, existing_plan=None)
 
         for agent in (STUB_AGENT, OTHER_AGENT):
             assert f"## {agent.title}\n{agent.description}" in prompt
 
     def test_it_offers_choices_exactly_as_the_agents_do(self) -> None:
         """The client parses the options block, so the planner and the agents must ask for it alike."""
-        section = SYSTEM_PROMPT_SKELETON.split("OFFERING CHOICES")[1].split("CAPABILITIES")[0].strip()
+        section = render_system_prompt([STUB_AGENT]).split("OFFERING CHOICES")[1].split("CAPABILITIES")[0].strip()
 
-        assert section in render_planner_prompt([STUB_AGENT], operations=False)
+        assert section in render_planner_prompt([STUB_AGENT], operations=False, existing_plan=None)
 
     def test_it_offers_operations_only_when_there_are_some(self) -> None:
-        assert PLANNER_OPERATIONS in render_planner_prompt([STUB_AGENT], operations=True)
-        assert PLANNER_OPERATIONS not in render_planner_prompt([STUB_AGENT], operations=False)
+        assert PLANNER_OPERATIONS in render_planner_prompt([STUB_AGENT], operations=True, existing_plan=None)
+        assert PLANNER_OPERATIONS not in render_planner_prompt([STUB_AGENT], operations=False, existing_plan=None)
 
     def test_without_operations_it_still_says_what_to_do_with_an_lms_request(self) -> None:
-        assert PLANNER_WITHOUT_OPERATIONS in render_planner_prompt([STUB_AGENT], operations=False)
-        assert PLANNER_WITHOUT_OPERATIONS not in render_planner_prompt([STUB_AGENT], operations=True)
+        without = render_planner_prompt([STUB_AGENT], operations=False, existing_plan=None)
+        with_operations = render_planner_prompt([STUB_AGENT], operations=True, existing_plan=None)
+
+        assert PLANNER_WITHOUT_OPERATIONS in without
+        assert PLANNER_WITHOUT_OPERATIONS not in with_operations
 
 
 class TestARunThatGoesWrong:
@@ -429,24 +1180,22 @@ class TestARunThatGoesWrong:
         rejected = [
             AIMessage("", tool_calls=[{"name": OPERATOR_AGENT_NAME, "args": {}, "id": f"b{n}"}]) for n in (1, 2)
         ]
-        operations = [
-            AIMessage("", tool_calls=[_operation("Publish it", f"op_{n}")]) for n in range(MAX_STEPS_PER_TURN)
-        ]
         operator_model = RecordingChatModel(messages=repeat(AIMessage("Done.")))
 
         messages = await _run(
-            _planner_model(*rejected, *operations, AIMessage("All published.")), operator=_operator(operator_model)
+            _planner_model(*rejected, *_planned_operations(MAX_STEPS_PER_TURN), AIMessage("All published.")),
+            operator=_operator(operator_model),
         )
 
         assert len(operator_model.seen) == MAX_STEPS_PER_TURN
         assert messages[-1].text == "All published."
 
     async def test_a_step_past_the_limit_never_runs_and_the_turn_ends_with_the_notice(self) -> None:
-        operations = (AIMessage("", tool_calls=[_operation("Publish it", f"op_{n}")]) for n in count())
         operator_model = RecordingChatModel(messages=repeat(AIMessage("Published.")))
+        one_more = AIMessage("", tool_calls=[_operation("Publish it again", "op_more", step=1)])
 
         messages = await _run(
-            _planner_model(*islice(operations, MAX_STEPS_PER_TURN + 1)), operator=_operator(operator_model)
+            _planner_model(*_planned_operations(MAX_STEPS_PER_TURN), one_more), operator=_operator(operator_model)
         )
 
         assert len(operator_model.seen) == MAX_STEPS_PER_TURN
@@ -491,6 +1240,7 @@ class TestARunThatGoesWrong:
             ScriptedChatModel(messages=calls, disable_streaming=True),
             [_agent_graph(STUB_AGENT, ScriptedChatModel(messages=iter([])))],
             operator=None,
+            existing_plan=None,
         )
 
         result = await planner.ainvoke({"messages": [HumanMessage("Hello")]}, context=CONTEXT)
@@ -517,6 +1267,7 @@ class TestAStreamedHandOff:
             _planner_model(AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "Note it")])),
             [AgentGraph(STUB_AGENT, build_turn_agent(agent_model, [tool], "Agent prompt.", 50, name=STUB_AGENT.name))],
             operator=None,
+            existing_plan=None,
         )
 
         stream = planner.astream(

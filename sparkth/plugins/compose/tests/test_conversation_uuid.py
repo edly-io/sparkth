@@ -4,7 +4,7 @@ Tests for the conversation UUID feature:
   - ComposeService.get_conversation_by_uuid lookups
   - Schemas expose UUID instead of int IDs
   - API routes accept/return UUIDs for conversations
-  - Reads and turns are checked at the conversation owner's user scope
+  - Reads and turns are checked at the conversation, a first message at the caller's user scope
 """
 
 from datetime import datetime, timezone
@@ -31,12 +31,17 @@ from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG
 from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.lib.llm import get_llm_service, get_provider
-from sparkth.lib.permissions.scopes import GLOBAL, USER
+from sparkth.lib.permissions.scopes import GLOBAL, USER, PermissionScope
 from sparkth.lib.testing import AuditEventsFetcher, ScriptedChatModel, grant_permission_at_scope
 from sparkth.main import app
 from sparkth.plugins.compose.config import get_compose_settings
 from sparkth.plugins.compose.detached import join_live_tasks
-from sparkth.plugins.compose.models import Conversation, Message  # noqa: F401 used in route fixture tests
+from sparkth.plugins.compose.models import (  # noqa: F401 used in route fixture tests
+    Conversation,
+    ConversationAttachment,
+    Message,
+)
+from sparkth.plugins.compose.permissions import CONVERSATION
 from sparkth.plugins.compose.schemas import (
     ChatCompletionRequest,
     ChatCompletionResponse,
@@ -378,7 +383,7 @@ def test_conversation_model_has_no_system_prompt_field() -> None:
 
 
 # ===========================================================================
-# Read gate — compose.conversation.read at the owner's user scope
+# Read gate — compose.conversation.read at the conversation
 # ===========================================================================
 
 OWNER_ID = 2
@@ -432,7 +437,7 @@ class TestConversationReadGate:
         (event,) = await audit_events()
         assert event.action == "denied"
         assert event.target_id == READ
-        assert event.error_detail == f"scope=user:{OWNER_ID}"
+        assert event.error_detail == f"scope=conversation:{conv_uuid}"
 
     @pytest.mark.parametrize("suffix", BY_ID_SUFFIXES)
     @pytest.mark.parametrize("scope_id", [None, str(OWNER_ID)])
@@ -463,6 +468,47 @@ class TestConversationReadGate:
         await session.commit()
 
         assert (await client.get(f"/api/v1/compose/conversations/{conv_uuid}{suffix}")).status_code == 403
+
+    @pytest.mark.parametrize("suffix", BY_ID_SUFFIXES)
+    async def test_grant_at_the_conversation_reaches_it(
+        self, client: httpx.AsyncClient, current_user: MagicMock, session: AsyncSession, suffix: str
+    ) -> None:
+        conv_uuid = await _owned_by(session, OWNER_ID)
+        await grant_permission_at_scope(session, 1, READ, CONVERSATION, str(conv_uuid))
+        await session.commit()
+
+        assert (await client.get(f"/api/v1/compose/conversations/{conv_uuid}{suffix}")).status_code == 200
+
+    @pytest.mark.parametrize("suffix", BY_ID_SUFFIXES)
+    async def test_grant_at_another_conversation_of_the_owner_is_403(
+        self,
+        client: httpx.AsyncClient,
+        current_user: MagicMock,
+        session: AsyncSession,
+        audit_events: AuditEventsFetcher,
+        suffix: str,
+    ) -> None:
+        granted = await _owned_by(session, OWNER_ID)
+        other = await _owned_by(session, OWNER_ID)
+        await grant_permission_at_scope(session, 1, READ, CONVERSATION, str(granted))
+        await session.commit()
+
+        assert (await client.get(f"/api/v1/compose/conversations/{other}{suffix}")).status_code == 403
+        (event,) = await audit_events()
+        assert event.error_detail == f"scope=conversation:{other}"
+
+    async def test_shared_conversation_is_not_in_the_holders_list(
+        self, client: httpx.AsyncClient, current_user: MagicMock, session: AsyncSession
+    ) -> None:
+        conv_uuid = await _owned_by(session, OWNER_ID)
+        await grant_permission_at_scope(session, 1, READ, CONVERSATION, str(conv_uuid))
+        await session.commit()
+
+        opened = await client.get(f"/api/v1/compose/conversations/{conv_uuid}")
+        body = (await client.get("/api/v1/compose/conversations")).json()
+
+        assert opened.status_code == 200
+        assert (body["total"], body["conversations"]) == (0, [])
 
     @pytest.mark.parametrize("suffix", BY_ID_SUFFIXES)
     async def test_unknown_uuid_is_404_without_a_denial_row(
@@ -524,7 +570,7 @@ class TestConversationReadGate:
 
 
 # ===========================================================================
-# Write gate — compose.conversation.write on a turn, at the owner's user scope
+# Write gate — compose.conversation.write on a turn, at the conversation (a first message at the caller's user scope)
 # ===========================================================================
 
 WRITE = "compose.conversation.write"
@@ -579,7 +625,11 @@ class TestTurnWriteGate:
         assert (str(conversation.uuid), conversation.user_id) == (response.json()["conversation_id"], 1)
 
     async def test_first_message_without_a_grant_is_403(
-        self, client: httpx.AsyncClient, current_user: MagicMock, session: AsyncSession
+        self,
+        client: httpx.AsyncClient,
+        current_user: MagicMock,
+        session: AsyncSession,
+        audit_events: AuditEventsFetcher,
     ) -> None:
         config_id = await seed_llm_config(session, 1)
         await _drop_caller_assignment(session)
@@ -588,6 +638,11 @@ class TestTurnWriteGate:
 
         assert response.status_code == 403
         assert (await session.exec(select(Conversation))).all() == []
+        (event,) = await audit_events()
+        prefix = "scope=conversation:"
+        assert (event.error_detail or "").startswith(prefix)
+        named = UUID((event.error_detail or "").removeprefix(prefix))
+        assert (await session.exec(select(Conversation).where(Conversation.uuid == named))).first() is None
 
     async def test_turn_into_another_users_conversation_is_403_and_audited(
         self,
@@ -606,7 +661,49 @@ class TestTurnWriteGate:
         (event,) = await audit_events()
         assert event.action == "denied"
         assert event.target_id == WRITE
-        assert event.error_detail == f"scope=user:{OWNER_ID}"
+        assert event.error_detail == f"scope=conversation:{conv_uuid}"
+
+    async def test_write_grant_at_the_conversation_sends_a_turn_into_it(
+        self, client: httpx.AsyncClient, current_user: MagicMock, session: AsyncSession
+    ) -> None:
+        conv_uuid = await _owned_by(session, OWNER_ID)
+        config_id = await seed_llm_config(session, 1)
+        await grant_permission_at_scope(session, 1, WRITE, CONVERSATION, str(conv_uuid))
+        await session.commit()
+
+        with patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_answering_provider()):
+            response = await client.post(COMPLETIONS_URL, json=_turn(config_id, conv_uuid))
+
+        assert response.status_code == 200
+        assert await stored_messages(session, str(conv_uuid))
+        assert (await session.exec(select(Conversation))).one().user_id == OWNER_ID
+
+    async def test_read_grant_at_the_conversation_cannot_send_a_turn(
+        self, client: httpx.AsyncClient, current_user: MagicMock, session: AsyncSession
+    ) -> None:
+        conv_uuid = await _owned_by(session, OWNER_ID)
+        config_id = await seed_llm_config(session, 1)
+        await grant_permission_at_scope(session, 1, READ, CONVERSATION, str(conv_uuid))
+        await session.commit()
+
+        response = await client.post(COMPLETIONS_URL, json=_turn(config_id, conv_uuid))
+
+        assert response.status_code == 403
+        assert await stored_messages(session, str(conv_uuid)) == []
+
+    async def test_conversation_grant_does_not_start_a_new_conversation(
+        self, client: httpx.AsyncClient, current_user: MagicMock, session: AsyncSession
+    ) -> None:
+        conv_uuid = await _owned_by(session, OWNER_ID)
+        config_id = await seed_llm_config(session, 1)
+        await _drop_caller_assignment(session)
+        await grant_permission_at_scope(session, 1, WRITE, CONVERSATION, str(conv_uuid))
+        await session.commit()
+
+        response = await client.post(COMPLETIONS_URL, json=_turn(config_id))
+
+        assert response.status_code == 403
+        assert len((await session.exec(select(Conversation))).all()) == 1
 
     @pytest.mark.parametrize(
         ("permission", "scope_id"), [(READ, None), (WRITE, str(THIRD_ID))], ids=["read-at-global", "write-at-third"]
@@ -677,6 +774,85 @@ class TestTurnWriteGate:
         audited = await audit_events()
         assert audited
         assert {event.actor_id for event in audited} == {"1"}
+
+    @pytest.mark.parametrize(
+        ("grant_scope", "attached"), [(CONVERSATION, False), (USER, True)], ids=["conversation", "owner"]
+    )
+    async def test_a_turn_attaches_documents_only_with_write_at_the_owner(
+        self,
+        client: httpx.AsyncClient,
+        current_user: MagicMock,
+        session: AsyncSession,
+        analytics_session: SQLAlchemyAsyncSession,
+        grant_scope: PermissionScope,
+        attached: bool,
+    ) -> None:
+        conv_uuid = await _owned_by(session, OWNER_ID)
+        config_id = await seed_llm_config(session, 1)
+        document = Document(user_id=OWNER_ID, name="owner.pdf", status=DocumentStatus.READY)
+        session.add(document)
+        await session.flush()
+        document_id = document.id
+        scope_object_id = str(conv_uuid) if grant_scope is CONVERSATION else str(OWNER_ID)
+        await grant_permission_at_scope(session, 1, WRITE, grant_scope, scope_object_id)
+        await session.commit()
+        search = MagicMock(requires_search=AsyncMock(return_value=False))
+        # A dropped id named twice still counts once.
+        named_ids = [document_id] if attached else [document_id, document_id]
+
+        with (
+            patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_answering_provider()),
+            patch("sparkth.plugins.compose.routes.completions.RAGSearchClassifier", return_value=search),
+        ):
+            response = await client.post(
+                COMPLETIONS_URL, json={**_turn(config_id, conv_uuid), "document_ids": named_ids}
+            )
+
+        conversation = (await session.exec(select(Conversation))).one()
+        rows = (
+            await session.exec(
+                select(ConversationAttachment.document_id).where(
+                    ConversationAttachment.conversation_id == conversation.id
+                )
+            )
+        ).all()
+        assert response.status_code == 200
+        assert await stored_messages(session, str(conv_uuid))
+        assert rows == ([document_id] if attached else [])
+        events = (await analytics_session.execute(sa_select(raw_events))).mappings().all()
+        skipped = [row["payload"] for row in events if row["event_type"] == "compose.documents_skipped"]
+        assert skipped == (
+            [] if attached else [{"conversation_id": str(conv_uuid), "requested_count": 1, "skipped_count": 1}]
+        )
+
+    async def test_owner_first_message_attaches_named_documents(
+        self, client: httpx.AsyncClient, current_user: MagicMock, session: AsyncSession
+    ) -> None:
+        config_id = await seed_llm_config(session, 1)
+        document = Document(user_id=1, name="mine.pdf", status=DocumentStatus.READY)
+        session.add(document)
+        await session.flush()
+        document_id = document.id
+        await session.commit()
+        search = MagicMock(requires_search=AsyncMock(return_value=False))
+
+        with (
+            patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_answering_provider()),
+            patch("sparkth.plugins.compose.conversation_title.get_provider", return_value=_answering_provider()),
+            patch("sparkth.plugins.compose.routes.completions.RAGSearchClassifier", return_value=search),
+        ):
+            response = await client.post(COMPLETIONS_URL, json={**_turn(config_id), "document_ids": [document_id]})
+
+        conversation = (await session.exec(select(Conversation))).one()
+        rows = (
+            await session.exec(
+                select(ConversationAttachment.document_id).where(
+                    ConversationAttachment.conversation_id == conversation.id
+                )
+            )
+        ).all()
+        assert response.status_code == 200
+        assert rows == [document_id]
 
     async def test_a_holder_turn_attaches_only_the_owners_documents(
         self,

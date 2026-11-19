@@ -6,6 +6,7 @@ from sparkth.plugins.compose.constants import (
     REFUSAL_MESSAGE,
     SYSTEM_PROMPT_SKELETON,
 )
+from sparkth.plugins.compose.enums import OptionsFence
 
 
 def render_system_prompt(agents: list[Agent]) -> str:
@@ -25,6 +26,8 @@ def render_system_prompt(agents: list[Agent]) -> str:
         current_datetime=datetime.now(),
         refusal_message=REFUSAL_MESSAGE,
         capabilities=sections,
+        options_tag=OptionsFence.MULTIPLE,
+        single_options_tag=OptionsFence.SINGLE,
     )
 
 
