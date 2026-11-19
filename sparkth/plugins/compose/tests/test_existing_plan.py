@@ -7,14 +7,14 @@ from typing import Any
 import pytest
 
 from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME
-from sparkth.plugins.compose.constants import MAX_STEPS_PER_TURN
+from sparkth.plugins.compose.constants import MAX_PLAN_STEPS
 from sparkth.plugins.compose.models import Message
 from sparkth.plugins.compose.planner import ExistingPlan, PlannedStep
 from sparkth.plugins.compose.routes.utils import get_existing_plan_or_none
 from sparkth.plugins.compose.tests.conftest import STUB_AGENT
 
 STEPS = (PlannedStep(STUB_AGENT.name, "Write the lesson"), PlannedStep(OPERATOR_AGENT_NAME, "Publish it"))
-PLAN = ExistingPlan(STEPS, current=1)
+PLAN = ExistingPlan(STEPS, current_step=1)
 
 
 def _reply(metadata: dict[str, Any] | None, *, is_error: bool = False) -> Message:
@@ -28,9 +28,13 @@ def _reply(metadata: dict[str, Any] | None, *, is_error: bool = False) -> Messag
     )
 
 
-@pytest.mark.parametrize("current", [1, 2], ids=["first_step", "last_step"])
-def test_a_saved_plan_reads_back_as_it_was(current: int) -> None:
-    plan = ExistingPlan(STEPS, current)
+@pytest.mark.parametrize(
+    ("current", "has_current_step_run"),
+    [(1, True), (2, True), (2, False)],
+    ids=["first_step", "last_step", "a_step_that_never_ran"],
+)
+def test_a_saved_plan_reads_back_as_it_was(current: int, has_current_step_run: bool) -> None:
+    plan = ExistingPlan(STEPS, current, has_current_step_run)
 
     assert get_existing_plan_or_none([_reply({"plan": asdict(plan)})]) == plan
 
@@ -39,11 +43,11 @@ def test_a_saved_plan_reads_back_as_it_was(current: int) -> None:
     "stored",
     [
         "soon",
-        {"steps": [], "current": 1},
-        {"steps": [{"agent": "a"}, {"agent": "b"}], "current": 1},
-        {"steps": [asdict(step) for step in STEPS], "current": 0},
-        {"steps": [asdict(step) for step in STEPS], "current": 3},
-        {"steps": [asdict(STEPS[0])] * (MAX_STEPS_PER_TURN + 1), "current": 1},
+        {"steps": [], "current_step": 1},
+        {"steps": [{"agent": "a"}, {"agent": "b"}], "current_step": 1},
+        {"steps": [asdict(step) for step in STEPS], "current_step": 0},
+        {"steps": [asdict(step) for step in STEPS], "current_step": 3},
+        {"steps": [asdict(STEPS[0])] * (MAX_PLAN_STEPS + 1), "current_step": 1},
     ],
     ids=["not_a_plan", "no_steps", "half_a_step", "before_its_first_step", "past_its_last_step", "too_many_steps"],
 )

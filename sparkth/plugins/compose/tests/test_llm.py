@@ -24,7 +24,11 @@ from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME, REFUSAL_TOOL_NAME
 from sparkth.lib.llm import BaseChatProvider, get_provider
 from sparkth.lib.mcp.hooks import Tool
 from sparkth.lib.testing import AddTranslation, ScriptedChatModel
-from sparkth.plugins.compose.constants import MAX_REJECTED_PLANNER_CALLS, MAX_STEPS_PER_TURN, REFUSAL_MESSAGE
+from sparkth.plugins.compose.constants import (
+    MAX_REJECTED_PLANNER_CALLS,
+    MAX_STEPS_PER_TURN,
+    REFUSAL_MESSAGE,
+)
 from sparkth.plugins.compose.llm import complete_turn, stream_turn
 from sparkth.plugins.compose.planner import ExistingPlan, PlannedStep, TurnRouting
 from sparkth.plugins.compose.tests.conftest import OTHER_AGENT, STUB_AGENT
@@ -796,17 +800,38 @@ async def test_a_turn_that_stops_partway_through_its_plan_saves_it(monkeypatch: 
 
     response = await complete_turn(TURN, [], provider, 50, **turn)
 
-    assert response["metadata"]["plan"] == asdict(ExistingPlan(WRITE_THEN_BUILD, current=1))
+    assert response["metadata"]["plan"] == asdict(ExistingPlan(WRITE_THEN_BUILD, current_step=1))
 
 
 async def test_a_turn_that_finishes_an_existing_plan_saves_none(monkeypatch: pytest.MonkeyPatch) -> None:
     provider = _provider(ScriptedChatModel(messages=iter([AIMessage("Here is the activity.")])), monkeypatch)
     turn = _planned_turn(
         _calling(OTHER_AGENT.name, {"request": "Build it", "step": 2}, "c1"),
-        existing_plan=ExistingPlan(WRITE_THEN_BUILD, current=1),
+        existing_plan=ExistingPlan(WRITE_THEN_BUILD, current_step=1),
     )
 
     response = await complete_turn(TURN, [], provider, 50, **turn)
 
     assert "plan" not in response["metadata"]
     assert response["metadata"]["agents"] == [OTHER_AGENT.name]
+
+
+async def test_a_turn_stopped_at_its_limit_leaves_the_plan_waiting_at_the_next_step(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agents = [STUB_AGENT.name, OTHER_AGENT.name] * 4
+    steps = tuple(PlannedStep(agent, f"Part {number}") for number, agent in enumerate(agents, start=1))
+    provider = _provider(ScriptedChatModel(messages=repeat(AIMessage("Here it is."))), monkeypatch)
+    calls = [
+        _calling(agent, {"request": f"Part {number}", "step": number}, f"c{number}")
+        for number, agent in enumerate(agents[: MAX_STEPS_PER_TURN + 1], start=1)
+    ]
+
+    response = await complete_turn(
+        TURN, [], provider, 50, **_planned_turn(*calls, existing_plan=ExistingPlan(steps, 1))
+    )
+
+    assert response["metadata"]["plan"] == asdict(
+        ExistingPlan(steps, current_step=MAX_STEPS_PER_TURN + 1, has_current_step_run=False)
+    )
+    assert response["content"].endswith("Continue\nStop here\n```")
