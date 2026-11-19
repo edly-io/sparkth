@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from typing import Any, cast
 
 import pydantic
@@ -32,6 +32,9 @@ from sparkth.lib.i18n import gettext as translate
 from sparkth.lib.log import get_logger
 
 logger = get_logger(__name__)
+
+MISSING = object()
+"""Stands in for a config key that is absent."""
 
 
 async def disabled_plugin_names(user_id: int | None, session: AsyncSession) -> set[str]:
@@ -199,7 +202,7 @@ class UserPluginResponse(pydantic.BaseModel):
         if sidebar is not None:
             sidebar = SidebarEntry(translate(sidebar.label), sidebar.icon, sidebar.order)
         properties = (config_schema or {}).get("properties", {})
-        secrets = [name for name, prop in properties.items() if prop.get("secret")]
+        secrets = secret_field_names(config_schema or {})
         return cls(
             plugin_name=plugin_name,
             enabled=enabled,
@@ -216,6 +219,11 @@ class UserPluginResponse(pydantic.BaseModel):
             sidebar=sidebar,
             has_frontend=plugin_has_frontend(plugin_name),
         )
+
+
+def secret_field_names(config_schema: dict[str, Any]) -> list[str]:
+    """The names of the fields a config schema marks secret."""
+    return [name for name, prop in config_schema.get("properties", {}).items() if prop.get("secret")]
 
 
 def get_plugin_service() -> PluginService:
@@ -471,6 +479,25 @@ class PluginService:
         """
         return {"plugin": plugin_name, "keys": sorted(config)}
 
+    @staticmethod
+    def _create_config_update_audit_snapshot(
+        plugin_name: str | None,
+        previous_config: dict[str, Any],
+        config: dict[str, Any],
+        secret_names: Collection[str],
+    ) -> dict[str, Any]:
+        """The key-names snapshot plus ``changed`` and ``secret_changed``; never a value."""
+        changed = sorted(
+            name
+            for name in previous_config.keys() | config.keys()
+            if previous_config.get(name, MISSING) != config.get(name, MISSING)
+        )
+        return {
+            **PluginService._create_config_audit_snapshot(plugin_name, config),
+            "changed": changed,
+            "secret_changed": any(name in secret_names for name in changed),
+        }
+
     async def create_user_plugin(
         self, session: AsyncSession, user_id: int, plugin_id: int, user_config: dict[str, Any]
     ) -> UserPlugin:
@@ -545,7 +572,9 @@ class PluginService:
                 target=AuditTarget(type="user_plugin", id=str(user_plugin.id)),
                 change=AuditChange(
                     old=self._create_config_audit_snapshot(plugin.name, previous_config),
-                    new=self._create_config_audit_snapshot(plugin.name, validated_config),
+                    new=self._create_config_update_audit_snapshot(
+                        plugin.name, previous_config, validated_config, secret_field_names(plugin.config_schema)
+                    ),
                 ),
             ),
         )
