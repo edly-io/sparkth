@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Alert } from "@/lib/components/ui/Alert";
 import { Button } from "@/lib/components/ui/Button";
+import { NotFound } from "@/lib/components/ui/NotFound";
 import { Spinner } from "@/lib/components/ui/Spinner";
 import { ApiRequestError } from "@/lib/api";
 import { useAuth } from "@/lib/auth/hooks";
@@ -83,7 +84,7 @@ function LaunchFrame({
     return () => controller.abort();
   }, [token, activityId, permission]);
 
-  if (error === "notFound") return <Alert severity="error">{t("notFound")}</Alert>;
+  if (error === "notFound") return <NotFound title={t("notFound")} />;
   if (error === "notConfigured") return <Alert severity="error">{t("notConfigured")}</Alert>;
   if (error === "failed") return <RetryAlert message={t("launchFailed")} onRetry={onRetry} />;
   if (embedUrl === null) {
