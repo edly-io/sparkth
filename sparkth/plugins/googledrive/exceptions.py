@@ -1,7 +1,7 @@
 """Exceptions for the Google Drive plugin."""
 
 
-class DriveNotConnected(Exception):
+class GoogleDriveNotConnected(Exception):
     """Raised when a user has no Google Drive connection."""
 
     def __init__(self) -> None:

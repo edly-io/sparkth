@@ -1001,7 +1001,7 @@ DELETE = "googledrive.delete"
 UNKNOWN_ID = 999999
 
 
-class TestDriveNotConnected:
+class TestGoogleDriveNotConnected:
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
         ("method", "path", "body"),

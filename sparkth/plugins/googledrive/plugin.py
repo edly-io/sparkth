@@ -20,10 +20,10 @@ from sparkth.lib.routes import register_router
 from sparkth.plugins.googledrive.analytics import events
 from sparkth.plugins.googledrive.config import GoogleDriveConfig
 from sparkth.plugins.googledrive.constants import GOOGLE_DRIVE_PLUGIN_NAME
-from sparkth.plugins.googledrive.exceptions import DriveNotConnected
+from sparkth.plugins.googledrive.exceptions import GoogleDriveNotConnected
 from sparkth.plugins.googledrive.routes import router
 
-register_exception_handler(DriveNotConnected, status.HTTP_409_CONFLICT)
+register_exception_handler(GoogleDriveNotConnected, status.HTTP_409_CONFLICT)
 
 
 class GoogleDrivePlugin(SparkthPlugin):
