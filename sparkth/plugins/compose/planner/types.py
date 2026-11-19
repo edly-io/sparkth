@@ -1,8 +1,10 @@
 """Types the planner builds on."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from langchain_core.language_models import BaseChatModel
 from langgraph.graph.state import CompiledStateGraph
 
 from sparkth.lib.audit.events import AuditModelInfo
@@ -50,3 +52,13 @@ class ExistingPlan:
             raise ValueError(f"A plan can have 2 to {MAX_PLAN_STEPS} steps, not {len(self.steps)}.")
         if not 1 <= self.current_step <= len(self.steps):
             raise ValueError(f"Step {self.current_step} is not one of the plan's {len(self.steps)} steps.")
+
+
+@dataclass(frozen=True)
+class TurnPlanner:
+    """What a turn's planner runs with: the agents it can hand a message to, the model it runs on, and the
+    existing plan it may carry on."""
+
+    agents: Sequence[Agent]
+    planner_llm: BaseChatModel
+    existing_plan: ExistingPlan | None
