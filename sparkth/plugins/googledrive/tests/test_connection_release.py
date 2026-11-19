@@ -14,9 +14,11 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib import db
+from sparkth.plugins.googledrive.constants import GOOGLE_DRIVE_PLUGIN_NAME
 from sparkth.plugins.googledrive.models import DriveFile, DriveFolder, DriveOAuthToken
 from sparkth.plugins.googledrive.utils import _process_single_file
 
+BASE = f"/api/v1/{GOOGLE_DRIVE_PLUGIN_NAME}"
 _REAL_SESSION_SCOPE = db.session_scope
 
 
@@ -82,7 +84,7 @@ async def test_refresh_holds_no_transaction_when_ingestion_starts(
     mock_valid_access_token: None,
 ) -> None:
     seen = await _post_and_record_transaction_at_ingestion_start(
-        drive_client, f"/api/v1/google-drive/folders/{test_folder.id}/refresh"
+        drive_client, f"{BASE}/folders/{test_folder.id}/refresh"
     )
 
     assert seen == [False]
@@ -94,7 +96,7 @@ async def test_sync_holds_no_transaction_when_ingestion_starts(
     mock_valid_access_token: None,
 ) -> None:
     seen = await _post_and_record_transaction_at_ingestion_start(
-        drive_client, "/api/v1/google-drive/folders/sync", {"drive_folder_id": "new_drive_folder_id"}
+        drive_client, f"{BASE}/folders/sync", {"drive_folder_id": "new_drive_folder_id"}
     )
 
     assert seen == [False]
