@@ -198,6 +198,8 @@ async def _sync_folder_files(session: AsyncSession, folder: DriveFolder, user_id
 
     Fetches the current file list from Drive, upserts new or changed files,
     and soft-deletes any local records whose Drive counterpart has been removed.
+    Ends on a commit and reads nothing after it, so the session holds no database
+    connection when this returns.
 
     Returns:
         Number of active (non-deleted) files after sync.
@@ -257,6 +259,5 @@ async def _sync_folder_files(session: AsyncSession, folder: DriveFolder, user_id
     folder.update_timestamp()
     session.add(folder)
     await session.commit()
-    await session.refresh(folder)
 
     return len(drive_files)
