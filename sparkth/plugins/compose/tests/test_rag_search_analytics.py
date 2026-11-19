@@ -94,7 +94,7 @@ async def _stream(retrieve: AsyncMock, service: MagicMock | None = None) -> None
             MagicMock(),
             True,
             analytics=AnalyticsAttribution(provider="openai", actor_id="1"),
-            **PLANNER,
+            planner_setup=PLANNER,
         ).stream():
             pass
     await join_live_tasks()  # the stream task emits after its sentinel
@@ -151,7 +151,7 @@ async def test_streamed_turn_without_search_records_nothing(analytics_session: S
             _service(),
             None,
             analytics=AnalyticsAttribution(provider="openai", actor_id="1"),
-            **PLANNER,
+            planner_setup=PLANNER,
         ).stream():
             pass
     await join_live_tasks()
