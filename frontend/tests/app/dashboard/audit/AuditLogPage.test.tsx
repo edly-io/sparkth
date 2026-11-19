@@ -76,7 +76,7 @@ describe("AuditLogPage", () => {
 
     expect(await screen.findByText("auth.login")).toBeInTheDocument();
     expect(screen.getByText("alice")).toBeInTheDocument();
-    expect(checkPermission).toHaveBeenCalledWith("test-token", "audit.read", {});
+    expect(checkPermission).toHaveBeenCalledWith("test-token", "audit.read", { scope: "global" });
     expect(audit.fetchAuditEvents).toHaveBeenCalledWith("test-token", {}, undefined);
   });
 

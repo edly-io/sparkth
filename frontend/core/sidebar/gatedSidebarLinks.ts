@@ -22,6 +22,7 @@ export const GATED_SIDEBAR_LINKS: GatedSidebarLink[] = [
     icon: ChartColumn,
     route: "analytics",
     permission: "analytics.read",
+    scope: "global",
   },
   {
     key: "admin",
@@ -38,6 +39,7 @@ export const GATED_SIDEBAR_LINKS: GatedSidebarLink[] = [
     icon: ScrollText,
     route: "audit",
     permission: "audit.read",
+    scope: "global",
   },
 ];
 

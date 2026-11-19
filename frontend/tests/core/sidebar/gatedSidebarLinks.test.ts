@@ -21,14 +21,14 @@ describe("GATED_SIDEBAR_LINKS config", () => {
     const analytics = GATED_SIDEBAR_LINKS.find((link) => link.key === "analytics")!;
     const admin = GATED_SIDEBAR_LINKS.find((link) => link.key === "admin")!;
     expect(analytics.permission).toBe("analytics.read");
-    expect(analytics.scope).toBeUndefined();
+    expect(analytics.scope).toBe("global");
     expect(admin.permission).toBe("email.whitelist.read");
     expect(admin.scope).toBe("whitelist");
     expect(admin.route).toBe("admin/whitelist");
     expect(admin.activeKey).toBe("admin");
     const audit = GATED_SIDEBAR_LINKS.find((link) => link.key === "audit")!;
     expect(audit.permission).toBe("audit.read");
-    expect(audit.scope).toBeUndefined();
+    expect(audit.scope).toBe("global");
     expect(audit.route).toBe("audit");
   });
 });

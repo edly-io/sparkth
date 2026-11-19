@@ -39,7 +39,9 @@ describe("AnalyticsLayout", () => {
     );
     expect(await screen.findByText("view body")).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Analytics views" })).toBeInTheDocument();
-    expect(checkPermission).toHaveBeenCalledWith("test-token", "analytics.read", {});
+    expect(checkPermission).toHaveBeenCalledWith("test-token", "analytics.read", {
+      scope: "global",
+    });
   });
 
   it("lists Course authoring on the rail while Compose is installed", async () => {
