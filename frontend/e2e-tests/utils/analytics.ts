@@ -59,7 +59,7 @@ async function stubPeriods(
 /**
  * Makes the `/api/v1/permissions/can` probes answer `allowed` for one permission and pass every
  * other check through. A single check naming it is answered here; a batch goes on to the backend
- * and the results naming it are overwritten. The seeded e2e user has no roles, so specs grant or
+ * and the results naming it are overwritten, unless the backend refuses the batch. The seeded e2e user has no roles, so specs grant or
  * deny what they need here.
  */
 export async function stubPermission(
@@ -71,6 +71,7 @@ export async function stubPermission(
     const request = route.request();
     if (new URL(request.url()).pathname.endsWith("/batch")) {
       const response = await route.fetch();
+      if (!response.ok()) return route.fulfill({ response });
       const results = (await response.json()) as { permission: string; allowed: boolean }[];
       const json = results.map((result) =>
         result.permission === permission ? { ...result, allowed } : result,
