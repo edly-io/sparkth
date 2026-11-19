@@ -16,7 +16,7 @@ from sparkth.lib.audit.events import AuditModelInfo
 from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME, REFUSAL_TOOL_NAME, SHOW_PLAN_TOOL_NAME
 from sparkth.lib.i18n import gettext
 from sparkth.plugins.compose.constants import (
-    MAX_STEPS_PER_TURN,
+    MAX_PLAN_STEPS,
     OPERATION_RESULT_HEADING,
     PLAN_TASK_MAX_CHARS,
     PLAN_TASK_PATTERN,
@@ -152,7 +152,7 @@ def build_operator_tool(operator: CompiledStateGraph[Any, AuditModelInfo, Any, A
 
 
 def _get_plan_schema(agents: Sequence[str]) -> type[BaseModel]:
-    """What a plan must look like: at least two steps and no more than ``MAX_STEPS_PER_TURN``. Each
+    """What a plan must look like: at least two steps and no more than ``MAX_PLAN_STEPS``. Each
     step names one of ``agents`` and gives its task in one short line."""
     step_model = create_model(
         "PlanStep",
@@ -172,7 +172,7 @@ def _get_plan_schema(agents: Sequence[str]) -> type[BaseModel]:
     )
     return create_model(
         "Plan",
-        steps=(list[step_model], Field(min_length=2, max_length=MAX_STEPS_PER_TURN)),
+        steps=(list[step_model], Field(min_length=2, max_length=MAX_PLAN_STEPS)),
     )
 
 

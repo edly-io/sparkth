@@ -15,8 +15,8 @@ class TurnActivity:
         self.routing = TurnRouting()
         self.agents: list[str] = []
         self._plan_steps = existing_plan.steps if existing_plan is not None else ()
-        self._current_step = existing_plan.current if existing_plan is not None else 0
-        self._current_step_done = False
+        self._current_step = existing_plan.current_step if existing_plan is not None else 0
+        self._has_current_step_run = existing_plan.has_current_step_run if existing_plan is not None else False
 
     def record(self, event: dict[str, Any]) -> None:
         """Note what the turn's ``event`` says it did: a hand-off, a plan it made, or a plan step that
@@ -29,17 +29,17 @@ class TurnActivity:
             case TurnEventType.PLAN:
                 self._plan_steps = tuple(event["steps"])
                 self._current_step = 0
-                self._current_step_done = False
+                self._has_current_step_run = False
             case TurnEventType.PLAN_STEP:
                 self._current_step = event["number"]
-                self._current_step_done = event["ran"]
+                self._has_current_step_run = event["ran"]
 
     def get_plan_in_progress(self) -> ExistingPlan | None:
         """The plan still in progress when the turn ends, or None if:
         1. None of its steps has started
-        2. Its last step is done.
+        2. Its last step has run.
         An existing plan the turn didn't touch is returned unchanged."""
-        finished = self._current_step_done and self._current_step >= len(self._plan_steps)
+        finished = self._has_current_step_run and self._current_step >= len(self._plan_steps)
         if self._current_step == 0 or finished:
             return None
-        return ExistingPlan(self._plan_steps, self._current_step)
+        return ExistingPlan(self._plan_steps, self._current_step, self._has_current_step_run)
