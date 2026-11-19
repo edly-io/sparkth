@@ -38,7 +38,7 @@ describe("oauth", () => {
     const result = await getConnectionStatus("test-token");
 
     const request = sentRequest(spy);
-    expect(new URL(request.url).pathname).toBe("/api/v1/google-drive/oauth/status");
+    expect(new URL(request.url).pathname).toBe("/api/v1/googledrive/oauth/status");
     expect(request.headers.get("authorization")).toBe("Bearer test-token");
     expect(result).toEqual(status);
   });
@@ -66,7 +66,7 @@ describe("oauth", () => {
 
     const result = await getAuthorizationUrl("test-token");
 
-    expect(new URL(sentRequest(spy).url).pathname).toBe("/api/v1/google-drive/oauth/authorize");
+    expect(new URL(sentRequest(spy).url).pathname).toBe("/api/v1/googledrive/oauth/authorize");
     expect(result).toBe("https://accounts.google.com/o/x");
   });
 
@@ -76,7 +76,7 @@ describe("oauth", () => {
     await expect(disconnectGoogle("test-token")).resolves.toBeUndefined();
 
     const request = sentRequest(spy);
-    expect(new URL(request.url).pathname).toBe("/api/v1/google-drive/oauth/disconnect");
+    expect(new URL(request.url).pathname).toBe("/api/v1/googledrive/oauth/disconnect");
     expect(request.method).toBe("DELETE");
   });
 });
@@ -89,7 +89,7 @@ describe("folders", () => {
     const result = await listFolders("test-token");
 
     const url = new URL(sentRequest(spy).url);
-    expect(url.pathname).toBe("/api/v1/google-drive/folders");
+    expect(url.pathname).toBe("/api/v1/googledrive/folders");
     expect(url.searchParams.get("skip")).toBe("0");
     expect(url.searchParams.get("limit")).toBe("20");
     expect(result).toEqual(page);
@@ -118,7 +118,7 @@ describe("folders", () => {
     const result = await syncFolder("abc", "test-token");
 
     const request = sentRequest(spy);
-    expect(new URL(request.url).pathname).toBe("/api/v1/google-drive/folders/sync");
+    expect(new URL(request.url).pathname).toBe("/api/v1/googledrive/folders/sync");
     expect(request.method).toBe("POST");
     await expect(request.clone().json()).resolves.toEqual({ drive_folder_id: "abc" });
     expect(result).toEqual(folder);
@@ -131,7 +131,7 @@ describe("folders", () => {
     const result = await refreshFolder(7, "test-token");
 
     const request = sentRequest(spy);
-    expect(new URL(request.url).pathname).toBe("/api/v1/google-drive/folders/7/refresh");
+    expect(new URL(request.url).pathname).toBe("/api/v1/googledrive/folders/7/refresh");
     expect(request.method).toBe("POST");
     expect(result).toEqual(status);
   });
@@ -145,7 +145,7 @@ describe("files", () => {
     const result = await listFiles(7, "test-token");
 
     const url = new URL(sentRequest(spy).url);
-    expect(url.pathname).toBe("/api/v1/google-drive/folders/7/files");
+    expect(url.pathname).toBe("/api/v1/googledrive/folders/7/files");
     expect(url.searchParams.get("skip")).toBe("0");
     expect(url.searchParams.get("limit")).toBe("20");
     expect(result).toEqual(page);
@@ -169,7 +169,7 @@ describe("files", () => {
     await expect(deleteFile(9, "test-token")).resolves.toBeUndefined();
 
     const request = sentRequest(spy);
-    expect(new URL(request.url).pathname).toBe("/api/v1/google-drive/files/9");
+    expect(new URL(request.url).pathname).toBe("/api/v1/googledrive/files/9");
     expect(request.method).toBe("DELETE");
   });
 });
@@ -182,7 +182,7 @@ describe("browseDrive", () => {
     const result = await browseDrive(undefined, "test-token");
 
     const url = new URL(sentRequest(spy).url);
-    expect(url.pathname).toBe("/api/v1/google-drive/browse");
+    expect(url.pathname).toBe("/api/v1/googledrive/browse");
     expect(url.search).toBe("");
     expect(result).toEqual(listing);
   });
@@ -210,7 +210,7 @@ describe("getFolderDocumentStatus", () => {
     const result = await getFolderDocumentStatus(42, "test-token");
 
     const request = sentRequest(spy);
-    expect(new URL(request.url).pathname).toBe("/api/v1/google-drive/folders/42/rag-status");
+    expect(new URL(request.url).pathname).toBe("/api/v1/googledrive/folders/42/rag-status");
     expect(request.headers.get("authorization")).toBe("Bearer test-token");
     expect(result).toEqual(mockResponse);
   });

@@ -54,6 +54,11 @@ def _clear_settings_cache() -> Generator[None, None, None]:
     get_settings.cache_clear()
 
 
+@pytest.fixture(autouse=True)
+def _every_user_holds_default_role(default_user_roles: object) -> None:
+    """Give user 1 the default roles, so the routes' gate and the bot's ``plugin.use`` check pass."""
+
+
 @pytest.fixture
 async def test_user(session: AsyncSession) -> User:
     user = User(

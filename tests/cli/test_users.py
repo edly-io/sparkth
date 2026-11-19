@@ -17,7 +17,7 @@ from sparkth.cli import users
 from sparkth.cli.main import app as root_cli
 from sparkth.core.models.user import User
 
-pytestmark = pytest.mark.usefixtures("default_user_role")
+pytestmark = pytest.mark.usefixtures("default_user_roles")
 
 
 async def test_create_user_persists_a_hashed_user(session: AsyncSession) -> None:

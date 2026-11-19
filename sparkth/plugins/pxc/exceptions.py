@@ -5,8 +5,10 @@ with ``register_exception_handler``, so the routes just raise and the framework 
 response.
 """
 
+from sparkth.lib.mcp.exceptions import ToolFailure
 
-class PxcActivityNotFound(Exception):
+
+class PxcActivityNotFound(ToolFailure):
     """No bundled or generated activity goes by this name, the caller does not own the one asked for,
     or its files are gone."""
 
@@ -48,7 +50,7 @@ class PxcLaunchNotConfigured(Exception):
     """Sparkth cannot mint a launch token because ``PXC_LAUNCH_SECRET`` is empty."""
 
 
-class PxcBuildFailed(Exception):
+class PxcBuildFailed(ToolFailure):
     """An activity build failed.
 
     ``str()`` is written for the agent that submitted the code, not for an operator. It says
@@ -80,12 +82,12 @@ class PxcTrialFailed(Exception):
     """A run of an activity's actions for the agent stopped before it could report, for a server-side reason."""
 
 
-class PxcTrialTimedOut(Exception):
+class PxcTrialTimedOut(ToolFailure):
     """A run of an activity's actions for the agent did not finish within the time a run gets.
 
     Not a ``PxcBuildFailed``: a trial builds nothing, and the agent must not count it as a failed build.
     """
 
 
-class PxcTrialReportTooLarge(Exception):
+class PxcTrialReportTooLarge(ToolFailure):
     """A run of an activity's actions reported more than ``PXC_TRIAL_REPORT_LIMIT``, so it is not handed over."""

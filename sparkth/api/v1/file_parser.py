@@ -1,12 +1,13 @@
 import io
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
 from pypdf import PdfReader
 
-from sparkth.core.models.user import User
-from sparkth.lib.auth import get_current_user
+from sparkth.lib.auth import get_current_user_id
 from sparkth.lib.i18n import _
+from sparkth.lib.permissions import FILE_UPLOAD
+from sparkth.lib.permissions.scopes import USER
 
 router: APIRouter = APIRouter()
 
@@ -42,11 +43,12 @@ async def parse_pdf(content: bytes) -> str:
     return text.strip()
 
 
-@router.post("/upload", response_model=UploadResponse)
-async def upload_text(current_user: User = Depends(get_current_user), file: UploadFile = File(...)) -> UploadResponse:
-    if not current_user or not current_user.id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=_("User not authenticated."))
-
+@router.post(
+    "/upload",
+    response_model=UploadResponse,
+    dependencies=[Depends(FILE_UPLOAD.require_for_object(USER, get_current_user_id))],
+)
+async def upload_text(file: UploadFile = File(...)) -> UploadResponse:
     if file.content_type not in ALLOWED_TYPES:
         raise HTTPException(
             status_code=400,

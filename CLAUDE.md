@@ -158,6 +158,12 @@ sample activity and its toolchain, so they skip on a clean checkout. Run them wi
 builds the sample first). In CI they run in the `pxc-sandbox` job, in parallel with the backend job, which runs
 everything else with `-m "not wasm"`.
 
+## Naming
+
+Name a function with a verb. A function that gets or fetches a value starts with `get_`
+(`get_step_results`, not `step_results`), and one that may find nothing and returns `None` is named
+`get_<thing>_or_none`.
+
 ## Database Migrations
 
 **Never edit an existing migration file. No exceptions.**

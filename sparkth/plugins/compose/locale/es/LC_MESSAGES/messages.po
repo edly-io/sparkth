@@ -30,11 +30,18 @@ msgstr ""
 # Machine-generated translation (LLM), not yet reviewed by a native speaker.
 #: sparkth/plugins/compose/llm.py:194
 msgid ""
-"I stopped because I reached the tool-call limit for this turn. You can "
-"send another message to continue."
+"I've done as much as I can in one go. Send another message and I'll carry"
+" on from here."
 msgstr ""
-"Me detuve porque alcancé el límite de llamadas a herramientas de este "
-"turno. Puedes enviar otro mensaje para continuar."
+"Hice todo lo que podía por ahora. Envía otro mensaje y continuaré "
+"desde aquí."
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/compose/planner/middleware.py:107
+msgid ""
+"Something went wrong and I couldn't finish this. Please send your message"
+" again."
+msgstr "Algo salió mal y no pude terminar. Envía tu mensaje de nuevo."
 
 #: sparkth/plugins/compose/plugin.py:51 sparkth/plugins/compose/plugin.py:56
 msgid "Compose"

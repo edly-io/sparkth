@@ -11,10 +11,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.permissions.constants import DEFAULT_USER_ROLE
+from sparkth.core.permissions.constants import PLUGIN_USER_ROLE, SPARKTH_USER_ROLE
 from sparkth.core.permissions.exceptions import RoleNotFound
 from sparkth.core.permissions.models import GroupRoleAssignment, Role, RoleAssignment
-from sparkth.core.permissions.scopes import USER, PermissionScope
+from sparkth.core.permissions.scopes import GLOBAL, USER, PermissionScope
 from sparkth.lib.audit import record_event
 from sparkth.lib.audit.events import (
     AuditChange,
@@ -111,13 +111,15 @@ async def assign_role(
     return assignment
 
 
-async def assign_default_role(user_id: int, session: AsyncSession) -> RoleAssignment:
-    """Assign the default user role to user_id at that user's own ``user`` scope.
+async def assign_default_roles(user_id: int, session: AsyncSession) -> list[RoleAssignment]:
+    """Assign the default user role at user_id's own ``user`` scope and the plugin user role at ``global``.
 
-    Called for every new account in the transaction that creates it. Raises RoleNotFound
-    if the default role has not been seeded.
+    Called for every new account in the transaction that creates it. Returns both assignments,
+    the user role first. Raises RoleNotFound if either role has not been seeded.
     """
-    return await assign_role(user_id, DEFAULT_USER_ROLE, USER, str(user_id), session)
+    user_role = await assign_role(user_id, SPARKTH_USER_ROLE, USER, str(user_id), session)
+    plugin_role = await assign_role(user_id, PLUGIN_USER_ROLE, GLOBAL, None, session)
+    return [user_role, plugin_role]
 
 
 async def revoke_role(
@@ -126,12 +128,15 @@ async def revoke_role(
     permission_scope: PermissionScope,
     scope_object_id: str | None,
     session: AsyncSession,
-) -> None:
+) -> int:
     """Soft-delete all active assignments of role_name for user_id at the given permission scope.
 
-    Revoking an active assignment records ``role.unassigned`` in the caller's transaction; a
-    call that finds nothing active records nothing.
+    Returns the number of assignments revoked. Revoking an active assignment records
+    ``role.unassigned`` in the caller's transaction; a call that finds nothing active (including
+    an unknown role name) returns 0 and records nothing. Raises InvalidScopeObjectId if the
+    (permission_scope, scope_object_id) pairing is invalid (see PermissionScope.validate_object_id).
     """
+    permission_scope.validate_object_id(scope_object_id)
     statement = (
         select(RoleAssignment)
         .join(Role, col(Role.id) == col(RoleAssignment.role_id))
@@ -158,6 +163,7 @@ async def revoke_role(
                 change=AuditChange(old=create_grant_audit_snapshot(role_name, permission_scope.name, scope_object_id)),
             ),
         )
+    return len(assignments)
 
 
 async def record_active_user_grants_removed(match: ColumnElement[bool], session: AsyncSession) -> None:
