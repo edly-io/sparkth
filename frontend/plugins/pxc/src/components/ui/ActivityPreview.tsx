@@ -8,7 +8,7 @@ import { Alert } from "@/lib/components/ui/Alert";
 import { Button } from "@/lib/components/ui/Button";
 import { NotFound } from "@/lib/components/layout/NotFound";
 import { Spinner } from "@/lib/components/ui/Spinner";
-import { ApiRequestError } from "@/lib/api";
+import { ApiRequestError, isNotFoundError } from "@/lib/api/errors";
 import { useAuth } from "@/lib/auth/hooks";
 import { getActivityEmbedUrl, type LaunchPermission } from "@/plugins/pxc/src/client";
 import { RetryAlert } from "@/plugins/pxc/src/components/ui/RetryAlert";
@@ -17,12 +17,10 @@ const ACTIVITIES_PATH = "/dashboard/pxc";
 
 type LaunchError = "notFound" | "notConfigured" | "failed";
 
-// A malformed id fails path validation (422), which for the author is a missing activity too.
 // A 503 means the server has no launch secret, which a retry cannot fix.
 function launchErrorOf(error: unknown): LaunchError {
-  if (!(error instanceof ApiRequestError)) return "failed";
-  if (error.status === 404 || error.status === 422) return "notFound";
-  return error.status === 503 ? "notConfigured" : "failed";
+  if (isNotFoundError(error)) return "notFound";
+  return error instanceof ApiRequestError && error.status === 503 ? "notConfigured" : "failed";
 }
 
 function PermissionToggle({
@@ -84,7 +82,8 @@ function LaunchFrame({
     return () => controller.abort();
   }, [token, activityId, permission]);
 
-  if (error === "notFound") return <NotFound title={t("notFound")} />;
+  if (error === "notFound")
+    return <NotFound title={t("notFound")} message={t("notFoundMessage")} />;
   if (error === "notConfigured") return <Alert severity="error">{t("notConfigured")}</Alert>;
   if (error === "failed") return <RetryAlert message={t("launchFailed")} onRetry={onRetry} />;
   if (embedUrl === null) {

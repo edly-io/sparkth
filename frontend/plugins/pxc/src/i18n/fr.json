@@ -15,6 +15,7 @@
     "studentView": "Étudiant",
     "authorView": "Auteur",
     "notFound": "Activité introuvable",
+    "notFoundMessage": "Cette activité n'existe pas ou a été supprimée.",
     "notConfigured": "Les aperçus ne sont pas configurés sur ce serveur.",
     "launchFailed": "Impossible de charger l'activité.",
     "frameTitle": "Aperçu de l'activité",
