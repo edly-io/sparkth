@@ -58,7 +58,7 @@ function reducer(state: WhitelistState, action: WhitelistAction): WhitelistState
 }
 
 /** The whitelist permissions the page gates on, asked in one request: read, create, delete. */
-const WHITELIST_QUESTIONS: PermissionCheckQuery[] = [
+const WHITELIST_PERMISSION_CHECKS: PermissionCheckQuery[] = [
   { permission: "email.whitelist.read", scope: "whitelist" },
   { permission: "email.whitelist.create", scope: "whitelist" },
   { permission: "email.whitelist.delete", scope: "whitelist" },
@@ -78,7 +78,7 @@ export default function WhitelistPage() {
   const { token } = useAuth();
   const [state, dispatch] = useReducer(reducer, initialState);
 
-  const [access, addAccess, removeAccess] = usePermissionChecks(token, WHITELIST_QUESTIONS);
+  const [access, addAccess, removeAccess] = usePermissionChecks(token, WHITELIST_PERMISSION_CHECKS);
   const canAdd = addAccess === "allowed";
   const canRemove = removeAccess === "allowed";
 

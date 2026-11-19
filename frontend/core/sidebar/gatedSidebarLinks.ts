@@ -51,15 +51,15 @@ export async function resolveSidebarPermissions(
   token: string,
   links: GatedSidebarLink[] = GATED_SIDEBAR_LINKS,
 ): Promise<Record<string, boolean>> {
-  let answers: boolean[];
+  let grants: boolean[];
   try {
-    answers = await checkPermissions(
+    grants = await checkPermissions(
       token,
       links.map(({ permission, scope }) => ({ permission, scope })),
     );
   } catch (error) {
     console.error("Sidebar permission checks failed:", error);
-    answers = links.map(() => false);
+    grants = links.map(() => false);
   }
-  return Object.fromEntries(links.map((link, index) => [link.key, answers[index]]));
+  return Object.fromEntries(links.map((link, index) => [link.key, grants[index]]));
 }

@@ -19,7 +19,7 @@ import { getWhitelist, removeWhitelistEntry } from "@/core/whitelist/client";
 import { redirect } from "next/navigation";
 import WhitelistPage from "@/app/dashboard/admin/whitelist/WhitelistPage";
 
-const QUESTIONS = [
+const PERMISSION_CHECKS = [
   { permission: "email.whitelist.read", scope: "whitelist" },
   { permission: "email.whitelist.create", scope: "whitelist" },
   { permission: "email.whitelist.delete", scope: "whitelist" },
@@ -154,7 +154,7 @@ describe("WhitelistPage write controls", () => {
 
     await screen.findByPlaceholderText(ADD_INPUT);
     expect(checkPermissions).toHaveBeenCalledTimes(1);
-    expect(checkPermissions).toHaveBeenCalledWith("test-token", QUESTIONS);
+    expect(checkPermissions).toHaveBeenCalledWith("test-token", PERMISSION_CHECKS);
   });
 });
 
