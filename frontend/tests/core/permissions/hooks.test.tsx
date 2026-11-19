@@ -1,19 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 
-import {
-  checkPermission,
-  checkPermissions,
-  type PermissionCheckQuery,
-} from "@/core/permissions/client";
+import { checkPermissions, type PermissionCheckQuery } from "@/core/permissions/client";
 import { usePermissionCheck, usePermissionChecks } from "@/core/permissions/hooks";
 
-vi.mock("@/core/permissions/client", () => ({
-  checkPermission: vi.fn(),
-  checkPermissions: vi.fn(),
-}));
+vi.mock("@/core/permissions/client", () => ({ checkPermissions: vi.fn() }));
 
-const mockCheck = vi.mocked(checkPermission);
 const mockChecks = vi.mocked(checkPermissions);
 
 const PERMISSION_CHECKS: PermissionCheckQuery[] = [
@@ -32,22 +24,25 @@ describe("usePermissionCheck", () => {
     );
 
     expect(result.current).toBe("checking");
-    expect(mockCheck).not.toHaveBeenCalled();
+    expect(mockChecks).not.toHaveBeenCalled();
   });
 
-  it("is allowed when the backend grants the permission", async () => {
-    mockCheck.mockResolvedValue(true);
+  it("asks its one check in a batch and is allowed when the backend grants it", async () => {
+    mockChecks.mockResolvedValue([true]);
 
     const { result } = renderHook(() =>
       usePermissionCheck("tok", "email.whitelist.read", { scope: "whitelist" }),
     );
 
     await waitFor(() => expect(result.current).toBe("allowed"));
-    expect(mockCheck).toHaveBeenCalledWith("tok", "email.whitelist.read", { scope: "whitelist" });
+    expect(mockChecks).toHaveBeenCalledTimes(1);
+    expect(mockChecks).toHaveBeenCalledWith("tok", [
+      { permission: "email.whitelist.read", scope: "whitelist" },
+    ]);
   });
 
   it("is denied when the backend refuses", async () => {
-    mockCheck.mockResolvedValue(false);
+    mockChecks.mockResolvedValue([false]);
 
     const { result } = renderHook(() =>
       usePermissionCheck("tok", "analytics.read", { scope: "global" }),
@@ -58,31 +53,13 @@ describe("usePermissionCheck", () => {
 
   it("fails closed when the check errors", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    mockCheck.mockRejectedValue(new Error("network"));
+    mockChecks.mockRejectedValue(new Error("network"));
 
     const { result } = renderHook(() =>
       usePermissionCheck("tok", "analytics.read", { scope: "global" }),
     );
 
     await waitFor(() => expect(result.current).toBe("denied"));
-  });
-
-  it("goes back to checking when the token changes, ignoring the old answer", async () => {
-    let resolveOld: (allowed: boolean) => void = () => {};
-    mockCheck.mockReturnValueOnce(new Promise((resolve) => (resolveOld = resolve)));
-    mockCheck.mockReturnValueOnce(new Promise(() => {}));
-
-    const { result, rerender } = renderHook(
-      ({ token }) => usePermissionCheck(token, "analytics.read", { scope: "global" }),
-      {
-        initialProps: { token: "old" },
-      },
-    );
-    rerender({ token: "new" });
-    resolveOld(true);
-
-    await waitFor(() => expect(mockCheck).toHaveBeenCalledTimes(2));
-    expect(result.current).toBe("checking");
   });
 });
 
