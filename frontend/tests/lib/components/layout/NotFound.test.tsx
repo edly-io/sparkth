@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-import { NotFound } from "@/lib/components/ui/NotFound";
+import { NotFound } from "@/lib/components/layout/NotFound";
 
 describe("NotFound", () => {
   it("names what was not found as a heading", () => {

@@ -210,13 +210,13 @@ and that every plugin's page opens (`e2e-tests/dashboard.spec.ts`).
 
 A plugin's page addresses its content through the query string (a chat id, an activity id), so the URL always reaches
 the plugin even when the id names nothing. When the API answers that the item is missing, render `NotFound` from
-`@/lib/components/ui/NotFound` where the item would have been. The plugin's own navigation stays on screen, and nothing
-the user could type into is left showing. The panel has no text of its own: pass the plugin's translated title, an
+`@/lib/components/layout/NotFound` where the item would have been. The plugin's own navigation stays on screen, and
+nothing the user could type into is left showing. The panel has no text of its own: pass the plugin's translated title, an
 optional message and an optional action that leads somewhere that exists.
 
 ```tsx
 import Link from "next/link";
-import { NotFound } from "@/lib/components/ui/NotFound";
+import { NotFound } from "@/lib/components/layout/NotFound";
 
 <NotFound
   title={t("chatNotFoundTitle")}
