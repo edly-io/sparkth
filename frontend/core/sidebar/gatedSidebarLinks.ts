@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 import { ChartColumn, ScrollText, Shield } from "lucide-react";
-import { checkPermission } from "@/core/permissions/client";
+import { checkPermissions } from "@/core/permissions/client";
 import type { PermissionName } from "@/lib/permissions/names";
 
 /** A sidebar link shown only to users who hold its permission. */
@@ -11,7 +11,7 @@ export interface GatedSidebarLink {
   route: string; // href suffix: `${basePath}/${route}`
   activeKey?: string; // isActiveRoute() key; defaults to `route`
   permission: PermissionName;
-  scope?: string;
+  scope: string; // e.g. "global"
 }
 
 /** The permission-gated sidebar links, in the order the sidebar shows them. */
@@ -43,21 +43,23 @@ export const GATED_SIDEBAR_LINKS: GatedSidebarLink[] = [
   },
 ];
 
-/** Checks each gated link's permission once, failing closed per link, and maps each link's key to the result. */
+/**
+ * Checks every gated link's permission in one request and maps each link's key to its answer.
+ * The request fails as a whole, so a failure denies every link.
+ */
 export async function resolveSidebarPermissions(
   token: string,
   links: GatedSidebarLink[] = GATED_SIDEBAR_LINKS,
 ): Promise<Record<string, boolean>> {
-  const entries = await Promise.all(
-    links.map(async (link) => {
-      try {
-        const allowed = await checkPermission(token, link.permission, { scope: link.scope });
-        return [link.key, allowed] as const;
-      } catch (error) {
-        console.error(`Permission check failed for "${link.permission}":`, error);
-        return [link.key, false] as const;
-      }
-    }),
-  );
-  return Object.fromEntries(entries);
+  let grants: boolean[];
+  try {
+    grants = await checkPermissions(
+      token,
+      links.map(({ permission, scope }) => ({ permission, scope })),
+    );
+  } catch (error) {
+    console.error("Sidebar permission checks failed:", error);
+    grants = links.map(() => false);
+  }
+  return Object.fromEntries(links.map((link, index) => [link.key, grants[index]]));
 }

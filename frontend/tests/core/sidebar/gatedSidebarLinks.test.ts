@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/core/permissions/client", () => ({ checkPermission: vi.fn() }));
+vi.mock("@/core/permissions/client", () => ({ checkPermissions: vi.fn() }));
 
-import { checkPermission } from "@/core/permissions/client";
+import { checkPermissions } from "@/core/permissions/client";
 import {
   GATED_SIDEBAR_LINKS,
   resolveSidebarPermissions,
@@ -34,49 +34,47 @@ describe("GATED_SIDEBAR_LINKS config", () => {
 });
 
 describe("resolveSidebarPermissions", () => {
-  it("returns a map keyed by link key with each check's result", async () => {
-    vi.mocked(checkPermission).mockResolvedValueOnce(true).mockResolvedValueOnce(false);
-    const links: GatedSidebarLink[] = [
-      { key: "a", label: "A", icon: noopIcon, route: "a", permission: "analytics.read" },
-      {
-        key: "b",
-        label: "B",
-        icon: noopIcon,
-        route: "b",
-        permission: "email.whitelist.read",
-        scope: "whitelist",
-      },
-    ];
+  const links: GatedSidebarLink[] = [
+    {
+      key: "a",
+      label: "A",
+      icon: noopIcon,
+      route: "a",
+      permission: "analytics.read",
+      scope: "global",
+    },
+    {
+      key: "b",
+      label: "B",
+      icon: noopIcon,
+      route: "b",
+      permission: "email.whitelist.read",
+      scope: "whitelist",
+    },
+  ];
+
+  it("asks every link's permission and scope in one request", async () => {
+    vi.mocked(checkPermissions).mockResolvedValue([true, true]);
+
+    await resolveSidebarPermissions("tok", links);
+
+    expect(checkPermissions).toHaveBeenCalledTimes(1);
+    expect(checkPermissions).toHaveBeenCalledWith("tok", [
+      { permission: "analytics.read", scope: "global" },
+      { permission: "email.whitelist.read", scope: "whitelist" },
+    ]);
+  });
+
+  it("returns a map keyed by link key with each answer", async () => {
+    vi.mocked(checkPermissions).mockResolvedValue([true, false]);
 
     expect(await resolveSidebarPermissions("tok", links)).toEqual({ a: true, b: false });
   });
 
-  it("passes each link's permission and scope through to checkPermission", async () => {
-    vi.mocked(checkPermission).mockResolvedValue(true);
-    const links: GatedSidebarLink[] = [
-      {
-        key: "b",
-        label: "B",
-        icon: noopIcon,
-        route: "b",
-        permission: "email.whitelist.read",
-        scope: "whitelist",
-      },
-    ];
+  it("fails closed (false) for every link when the request rejects", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(checkPermissions).mockRejectedValue(new Error("network"));
 
-    await resolveSidebarPermissions("tok", links);
-
-    expect(checkPermission).toHaveBeenCalledWith("tok", "email.whitelist.read", {
-      scope: "whitelist",
-    });
-  });
-
-  it("fails closed (false) when a link's check rejects", async () => {
-    vi.mocked(checkPermission).mockRejectedValueOnce(new Error("network"));
-    const links: GatedSidebarLink[] = [
-      { key: "a", label: "A", icon: noopIcon, route: "a", permission: "analytics.read" },
-    ];
-
-    expect(await resolveSidebarPermissions("tok", links)).toEqual({ a: false });
+    expect(await resolveSidebarPermissions("tok", links)).toEqual({ a: false, b: false });
   });
 });

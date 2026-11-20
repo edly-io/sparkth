@@ -6,18 +6,24 @@ const auth = vi.hoisted(() => ({ token: "test-token" }));
 vi.mock("@/core/auth/hooks", () => ({
   useAuth: () => ({ token: auth.token, user: { name: "A" } }),
 }));
-vi.mock("@/core/permissions/client", () => ({ checkPermission: vi.fn() }));
+vi.mock("@/core/permissions/client", () => ({ checkPermissions: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("@/core/whitelist/client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/core/whitelist/client")>();
   return { ...actual, getWhitelist: vi.fn().mockResolvedValue([]), removeWhitelistEntry: vi.fn() };
 });
 
-import { checkPermission } from "@/core/permissions/client";
+import { checkPermissions } from "@/core/permissions/client";
 import { ApiRequestError } from "@/lib/api";
 import { getWhitelist, removeWhitelistEntry } from "@/core/whitelist/client";
 import { redirect } from "next/navigation";
 import WhitelistPage from "@/app/dashboard/admin/whitelist/WhitelistPage";
+
+const PERMISSION_CHECKS = [
+  { permission: "email.whitelist.read", scope: "whitelist" },
+  { permission: "email.whitelist.create", scope: "whitelist" },
+  { permission: "email.whitelist.delete", scope: "whitelist" },
+];
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -26,19 +32,16 @@ beforeEach(() => {
 
 describe("WhitelistPage access guard", () => {
   it("renders the page when the user holds email.whitelist.read", async () => {
-    vi.mocked(checkPermission).mockResolvedValue(true);
+    vi.mocked(checkPermissions).mockResolvedValue([true, true, true]);
 
     render(<WhitelistPage />);
 
     expect(await screen.findByText("Email Whitelist")).toBeInTheDocument();
-    expect(checkPermission).toHaveBeenCalledWith("test-token", "email.whitelist.read", {
-      scope: "whitelist",
-    });
     expect(redirect).not.toHaveBeenCalled();
   });
 
   it("redirects to /dashboard when the user lacks the permission", async () => {
-    vi.mocked(checkPermission).mockResolvedValue(false);
+    vi.mocked(checkPermissions).mockResolvedValue([false, false, false]);
 
     render(<WhitelistPage />);
 
@@ -47,8 +50,11 @@ describe("WhitelistPage access guard", () => {
 
   it("resets to the checking state on a token change, not showing the prior user's page", async () => {
     auth.token = "token-A";
-    vi.mocked(checkPermission).mockImplementation(
-      (token) => (token === "token-A" ? Promise.resolve(true) : new Promise<boolean>(() => {})), // B: still pending
+    vi.mocked(checkPermissions).mockImplementation(
+      (token) =>
+        token === "token-A"
+          ? Promise.resolve([true, true, true])
+          : new Promise<boolean[]>(() => {}), // B: pending
     );
 
     const { rerender } = render(<WhitelistPage />);
@@ -65,7 +71,7 @@ describe("WhitelistPage access guard", () => {
   it("does not fetch the whitelist for a denied user", async () => {
     // The fetch must be gated on access === "allowed": a denied user should never fire
     // getWhitelist (no wasted 403).
-    vi.mocked(checkPermission).mockResolvedValue(false);
+    vi.mocked(checkPermissions).mockResolvedValue([false, false, false]);
 
     render(<WhitelistPage />);
 
@@ -82,7 +88,7 @@ const ENTRY = {
 };
 
 async function confirmRemoval() {
-  vi.mocked(checkPermission).mockResolvedValue(true);
+  vi.mocked(checkPermissions).mockResolvedValue([true, true, true]);
   vi.mocked(getWhitelist).mockResolvedValueOnce([ENTRY]);
   render(<WhitelistPage />);
   await userEvent.click(await screen.findByRole("button", { name: "Remove @example.com" }));
@@ -90,8 +96,8 @@ async function confirmRemoval() {
 }
 
 function grant(...granted: string[]) {
-  vi.mocked(checkPermission).mockImplementation(async (_token, permission) =>
-    granted.includes(permission),
+  vi.mocked(checkPermissions).mockImplementation(async (_token, checks) =>
+    checks.map(({ permission }) => granted.includes(permission)),
   );
 }
 
@@ -131,31 +137,24 @@ describe("WhitelistPage write controls", () => {
     expect(screen.queryByPlaceholderText(ADD_INPUT)).not.toBeInTheDocument();
   });
 
-  it("hides both controls while the create and delete checks are pending", async () => {
-    vi.mocked(checkPermission).mockImplementation((_token, permission) =>
-      permission === "email.whitelist.read"
-        ? Promise.resolve(true)
-        : new Promise<boolean>(() => {}),
-    );
+  it("shows loading and neither control while the checks are pending", async () => {
+    vi.mocked(checkPermissions).mockReturnValue(new Promise<boolean[]>(() => {}));
 
     render(<WhitelistPage />);
 
-    expect(await screen.findByText("@example.com")).toBeInTheDocument();
+    expect(await screen.findByText(/loading whitelist/i)).toBeInTheDocument();
     expect(screen.queryByPlaceholderText(ADD_INPUT)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", REMOVE_BUTTON)).not.toBeInTheDocument();
   });
 
-  it("checks create and delete at the whitelist scope", async () => {
+  it("checks read, create and delete at the whitelist scope in one request", async () => {
     grant("email.whitelist.read", "email.whitelist.create", "email.whitelist.delete");
 
     render(<WhitelistPage />);
 
     await screen.findByPlaceholderText(ADD_INPUT);
-    for (const permission of ["email.whitelist.create", "email.whitelist.delete"]) {
-      expect(checkPermission).toHaveBeenCalledWith("test-token", permission, {
-        scope: "whitelist",
-      });
-    }
+    expect(checkPermissions).toHaveBeenCalledTimes(1);
+    expect(checkPermissions).toHaveBeenCalledWith("test-token", PERMISSION_CHECKS);
   });
 });
 
