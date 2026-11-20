@@ -13,7 +13,7 @@ import {
   type AnalyticsView,
   type ExploreConfig,
 } from "@/core/analytics";
-import { ApiRequestError } from "@/lib/api";
+import { isNotFoundError } from "@/lib/api/errors";
 import { useAuth } from "@/core/auth/hooks";
 import { VIEWS_CHANGED } from "@/core/analytics/components/layout/AnalyticsNav";
 import { useReplaceQuery } from "@/app/dashboard/analytics/hooks";
@@ -72,7 +72,7 @@ export function useSavedView(): SavedView {
   const replaceQuery = useReplaceQuery();
   const viewId = params.get("view");
   const query = params.toString();
-  // The last saved view fetched or written, by id; "missing" when it 404'd or 422'd, "error" otherwise.
+  // The last saved view fetched or written, by id; "missing" when it isn't found, "error" otherwise.
   const [loaded, setLoaded] = useState<{
     id: string;
     view: AnalyticsView | "missing" | "error";
@@ -90,10 +90,7 @@ export function useSavedView(): SavedView {
       .catch((err: unknown) => {
         console.error("Saved analytics view failed to load:", err);
         if (active) {
-          // 422: the id isn't a UUID, so no view can have it.
-          const missing =
-            err instanceof ApiRequestError && (err.status === 404 || err.status === 422);
-          setLoaded({ id: viewId, view: missing ? "missing" : "error" });
+          setLoaded({ id: viewId, view: isNotFoundError(err) ? "missing" : "error" });
         }
       });
     return () => {
