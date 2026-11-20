@@ -51,7 +51,7 @@ from sparkth.plugins.compose.messages import get_last_user_text
 from sparkth.plugins.compose.models import Conversation
 from sparkth.plugins.compose.planner import ExistingPlan, TurnRouting
 from sparkth.plugins.compose.planner.turn_activity import TurnActivity
-from sparkth.plugins.compose.routes.utils.live_turns import register_turn, release_turn
+from sparkth.plugins.compose.routes.utils.live_turns import register_turn, release_conversation, release_turn
 from sparkth.plugins.compose.routes.utils.rag_search import collect_document_ids
 from sparkth.plugins.compose.schemas import ChatMessage
 from sparkth.plugins.compose.service import ComposeService
@@ -233,6 +233,8 @@ class ComposeStreamProcessor:
     whatever the reason. A stop ends the turn at once while it waits on the model, and after
     the running tool finishes while a tool runs, so a tool call is never cut off.
     A turn stopped this way still persists what it produced, with a ``stopped`` marker.
+
+    The background task also frees the conversation for its next turn when it ends.
     """
 
     def __init__(
@@ -769,6 +771,7 @@ class ComposeStreamProcessor:
         finally:
             if self.stoppable_turn:
                 release_turn(*self.stoppable_turn)
+            release_conversation(self.conversation_uuid)
             await self._put(None)
 
         if self.analytics is None:

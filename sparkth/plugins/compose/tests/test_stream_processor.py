@@ -25,7 +25,7 @@ from sparkth.lib.testing import ScriptedChatModel
 from sparkth.plugins.compose.analytics import StopPoint
 from sparkth.plugins.compose.constants import SSE_HEARTBEAT
 from sparkth.plugins.compose.planner import ExistingPlan, PlannedStep
-from sparkth.plugins.compose.routes.utils.live_turns import request_stop
+from sparkth.plugins.compose.routes.utils.live_turns import claim_conversation, release_conversation, request_stop
 from sparkth.plugins.compose.routes.utils.stream_processor import ComposeStreamProcessor
 from sparkth.plugins.compose.schemas import ChatMessage
 from sparkth.plugins.compose.tests.conftest import OTHER_AGENT, STUB_AGENT
@@ -1038,6 +1038,20 @@ class TestStopHonoured:
             pass
 
         assert request_stop("turn-4", 1) is False
+
+    @pytest.mark.asyncio
+    async def test_the_conversation_is_freed_when_the_stream_ends(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(STREAM_TURN, HELLO_WORLD_TURN)
+        processor = _make_processor()
+        claim_conversation(processor.conversation_uuid)
+
+        async for _ in processor.stream():
+            pass
+
+        try:
+            assert claim_conversation(processor.conversation_uuid) is True
+        finally:
+            release_conversation(processor.conversation_uuid)
 
     @pytest.mark.asyncio
     async def test_a_turn_is_not_registered_until_its_stream_runs(self) -> None:

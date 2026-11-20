@@ -3,11 +3,16 @@
 A turn registers when its stream starts and releases when it ends. The stop route sets the
 event its processor watches. The processor ends the turn at once while it waits on the model
 and after the running tool finishes while a tool runs.
+
+A conversation is claimed for the length of one turn, so a second turn on it is refused
+until the first ends.
 """
 
 import asyncio
+from time import monotonic
 
 from sparkth.lib.log import get_logger
+from sparkth.plugins.compose.config import get_compose_settings
 
 logger = get_logger(__name__)
 
@@ -16,6 +21,28 @@ logger = get_logger(__name__)
 # another's id must not reach, displace or release that turn.
 # ponytail: per-process registry, Redis pub/sub if the backend ever runs more than one replica
 _live_turns: dict[tuple[int, str], asyncio.Event] = {}
+
+# Conversation UUID to the moment its claim lapses, on the monotonic clock.
+# ponytail: per-process like the turns above, and a turn outliving its claim lets a second one in
+_claimed_conversations: dict[str, float] = {}
+
+
+def claim_conversation(conversation_uuid: str) -> bool:
+    """Reserve a conversation for one turn, returning False while another turn holds it.
+
+    A claim lapses on its own after the configured time, so a turn that never reaches its
+    release cannot lock the conversation for good.
+    """
+    now = monotonic()
+    if _claimed_conversations.get(conversation_uuid, 0) > now:
+        return False
+    _claimed_conversations[conversation_uuid] = now + get_compose_settings().conversation_claim_seconds
+    return True
+
+
+def release_conversation(conversation_uuid: str) -> None:
+    """Free a conversation for its next turn. An unclaimed conversation is ignored."""
+    _claimed_conversations.pop(conversation_uuid, None)
 
 
 def register_turn(turn_id: str, user_id: int) -> asyncio.Event:
