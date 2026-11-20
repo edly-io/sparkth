@@ -55,6 +55,7 @@ export function useChatInput({
           name: file.name,
           size: file.size,
           text: data.text,
+          uploadId: crypto.randomUUID(),
         },
       ]);
 
@@ -107,29 +108,20 @@ export function useChatInput({
     }
   };
 
-  const handleRemoveAttachment = (documentId?: number) => {
-    if (documentId !== undefined) {
-      const removed = attachments.find((a) => a.documentId === documentId);
-      setAttachments((prev) => prev.filter((a) => a.documentId !== documentId));
-      if (conversationId && removed) {
-        detachDocument(token, conversationId, documentId).catch((err) => {
-          console.warn("Failed to detach drive file:", err);
-          setUploadError(`Failed to detach "${removed.name}". Please try again.`);
-          setAttachments((prev) => [...prev, removed]);
-        });
-      }
-    } else {
-      const driveAtts = attachments.filter((a) => a.documentId !== undefined);
-      setAttachments([]);
-      if (conversationId) {
-        for (const att of driveAtts) {
-          detachDocument(token, conversationId, att.documentId!).catch((err) => {
-            console.warn("Failed to detach drive file:", err);
-            setUploadError("Some files could not be detached. Please try again.");
-            setAttachments((prev) => [...prev, att]);
-          });
-        }
-      }
+  const handleRemoveAttachment = (removed: TextAttachment) => {
+    const { documentId, uploadId } = removed;
+    if (documentId === undefined) {
+      setAttachments((prev) => prev.filter((a) => a.uploadId !== uploadId));
+      return;
+    }
+
+    setAttachments((prev) => prev.filter((a) => a.documentId !== documentId));
+    if (conversationId) {
+      detachDocument(token, conversationId, documentId).catch((err) => {
+        console.warn("Failed to detach document:", err);
+        setUploadError(`Failed to detach "${removed.name}". Please try again.`);
+        setAttachments((prev) => [...prev, removed]);
+      });
     }
   };
 

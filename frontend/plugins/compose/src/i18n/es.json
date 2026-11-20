@@ -27,6 +27,8 @@
     "historyLoadError": "No se pudieron cargar las conversaciones. Inténtalo de nuevo.",
     "historyToday": "Hoy",
     "historyYesterday": "Ayer",
-    "historyDaysAgo": "{count, plural, one {hace # día} other {hace # días}}"
+    "historyDaysAgo": "{count, plural, one {hace # día} other {hace # días}}",
+    "attachedFileCount": "{count, plural, one {# archivo adjunto} other {# archivos adjuntos}}",
+    "removeAttachedFile": "Quitar archivo"
   }
 }
