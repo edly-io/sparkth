@@ -23,6 +23,7 @@ export interface TextAttachment {
   mediaType?: string;
   documentId?: number; // Core Document ID used by chat/RAG.
   uploadId?: string; // Identifies a file uploaded from the computer, which has no document ID.
+  isSent?: boolean; // An upload already sent, whose text is now part of the conversation.
 }
 
 export type ChatRole = "user" | "assistant";

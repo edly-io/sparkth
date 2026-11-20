@@ -210,3 +210,57 @@ describe("useChatInput — files uploaded from the computer", () => {
     expect(detachDocument).toHaveBeenCalledWith("test-token", "conversation-1", 7);
   });
 });
+
+describe("useChatInput — sending computer uploads", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const uploadedNotes: TextAttachment = {
+    name: "notes.txt",
+    size: 6,
+    text: "Week 1",
+    uploadId: "upload-1",
+  };
+
+  function setupSend(initial: TextAttachment[]) {
+    const onSend = vi.fn(() => Promise.resolve(true));
+    const { result } = renderHook(() => {
+      const [attachments, setAttachments] = useState<TextAttachment[]>(initial);
+      return {
+        attachments,
+        ...useChatInput({
+          message: "Summarise this",
+          setMessage: vi.fn(),
+          token: "test-token",
+          conversationId: "conversation-1",
+          attachments,
+          setAttachments,
+          onSend,
+        }),
+      };
+    });
+    return { result, onSend };
+  }
+
+  it("keeps a sent upload listed and marks it as sent", async () => {
+    const { result } = setupSend([uploadedNotes]);
+
+    await act(async () => {
+      await result.current.handleSend();
+    });
+
+    expect(result.current.attachments).toEqual([{ ...uploadedNotes, isSent: true }]);
+  });
+
+  it("does not send an upload again with the next message", async () => {
+    const { result, onSend } = setupSend([uploadedNotes]);
+
+    await act(async () => {
+      await result.current.handleSend();
+    });
+    await act(async () => {
+      await result.current.handleSend();
+    });
+
+    expect(onSend).toHaveBeenLastCalledWith({ message: "Summarise this", attachments: [] });
+  });
+});
