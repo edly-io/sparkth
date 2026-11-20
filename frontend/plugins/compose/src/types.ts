@@ -22,8 +22,6 @@ export interface TextAttachment {
   name: string;
   text: string;
   size: number;
-  base64Data?: string;
-  mediaType?: string;
   documentId?: number; // Core Document ID used by chat/RAG.
   source?: string; // The id of the attachment source a document came from, which gives its icon.
   uploadId?: string; // Identifies a file uploaded from the computer, which has no document ID.

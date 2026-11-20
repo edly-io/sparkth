@@ -5,6 +5,7 @@ import { ApiRequestError } from "@/lib/api";
 import type { ApiMessage } from "@/plugins/compose/src/types";
 import { getConversation, getConversationAttachments } from "@/plugins/compose/src/client";
 import { useConversation } from "@/plugins/compose/src/hooks/useConversation";
+import { addStoredFiles } from "@/plugins/compose/src/storedFiles";
 
 const turn = (id: number, role: ApiMessage["role"], content: string): ApiMessage => ({
   id,
@@ -37,7 +38,7 @@ vi.mock("@/plugins/compose/src/client", () => ({
 
 describe("useConversation — loading history", () => {
   it("shows only user and assistant turns", async () => {
-    const { result } = renderHook(() => useConversation("conv-1", "test-token"));
+    const { result } = renderHook(() => useConversation("conv-1", "test-token", 7));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -50,7 +51,7 @@ describe("useConversation — loading history", () => {
 
 describe("useConversation — switching chats", () => {
   const renderAt = (initialId: string | null) =>
-    renderHook(({ id }: { id: string | null }) => useConversation(id, "test-token"), {
+    renderHook(({ id }: { id: string | null }) => useConversation(id, "test-token", 7), {
       initialProps: { id: initialId },
     });
 
@@ -137,7 +138,7 @@ describe("useConversation — a chat that fails to load", () => {
     );
     vi.spyOn(console, "error").mockImplementationOnce(() => {});
 
-    const { result } = renderHook(() => useConversation("not-a-real-id", "test-token"));
+    const { result } = renderHook(() => useConversation("not-a-real-id", "test-token", 7));
 
     await waitFor(() => expect(result.current.loadError).toBe("notFound"));
     expect(result.current.error).toBeNull();
@@ -150,7 +151,7 @@ describe("useConversation — a chat that fails to load", () => {
     vi.mocked(getConversation).mockRejectedValueOnce(failure);
     vi.spyOn(console, "error").mockImplementationOnce(() => {});
 
-    const { result } = renderHook(() => useConversation("conv-1", "test-token"));
+    const { result } = renderHook(() => useConversation("conv-1", "test-token", 7));
 
     await waitFor(() => expect(result.current.loadError).toBe("failed"));
     expect(result.current.error).toBeNull();
@@ -175,7 +176,7 @@ describe("useConversation — attached files line", () => {
       { id: 7, name: "drive.pdf", size: 1024, source: "googledrive" },
     ] as Awaited<ReturnType<typeof getConversationAttachments>>);
 
-    const { result } = renderHook(() => useConversation("conv-1", "test-token"));
+    const { result } = renderHook(() => useConversation("conv-1", "test-token", 7));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -188,6 +189,19 @@ describe("useConversation — attached files line", () => {
         source: "googledrive",
       },
       { name: "notes.txt", size: 6, text: "", uploadId: "message-5", isSent: true },
+    ]);
+  });
+
+  it("lists the files this browser keeps for the conversation as sent", async () => {
+    localStorage.clear();
+    addStoredFiles(7, "conv-1", [{ name: "syllabus.txt", size: 12, text: "Week 1: cells" }]);
+
+    const { result } = renderHook(() => useConversation("conv-1", "test-token", 7));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.inputAttachments).toEqual([
+      { name: "syllabus.txt", size: 12, text: "", uploadId: "stored-0", isSent: true },
     ]);
   });
 });
