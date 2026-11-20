@@ -57,7 +57,10 @@ function reducer(state: WhitelistState, action: WhitelistAction): WhitelistState
   }
 }
 
-/** The whitelist permissions the page gates on, asked in one request: read, create, delete. */
+/**
+ * The whitelist permissions the page gates on, asked in one request. The order matters: the page
+ * reads the answers by position as read, create, delete.
+ */
 const WHITELIST_PERMISSION_CHECKS: PermissionCheckQuery[] = [
   { permission: "email.whitelist.read", scope: "whitelist" },
   { permission: "email.whitelist.create", scope: "whitelist" },
@@ -78,11 +81,14 @@ export default function WhitelistPage() {
   const { token } = useAuth();
   const [state, dispatch] = useReducer(reducer, initialState);
 
-  const [access, addAccess, removeAccess] = usePermissionChecks(token, WHITELIST_PERMISSION_CHECKS);
+  const [readAccess, addAccess, removeAccess] = usePermissionChecks(
+    token,
+    WHITELIST_PERMISSION_CHECKS,
+  );
   const canAdd = addAccess === "allowed";
   const canRemove = removeAccess === "allowed";
 
-  if (access === "denied") {
+  if (readAccess === "denied") {
     redirect("/dashboard");
   }
 
@@ -102,8 +108,8 @@ export default function WhitelistPage() {
   }, [token]);
 
   useEffect(() => {
-    if (access === "allowed") fetchEntries();
-  }, [access, fetchEntries]);
+    if (readAccess === "allowed") fetchEntries();
+  }, [readAccess, fetchEntries]);
 
   const handleAdd = async (e: SubmitEvent) => {
     e.preventDefault();
@@ -133,7 +139,7 @@ export default function WhitelistPage() {
     await fetchEntries();
   };
 
-  if (access === "checking") {
+  if (readAccess === "checking") {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="text-center">
