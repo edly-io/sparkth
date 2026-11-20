@@ -262,7 +262,7 @@ describe("ChatInput", () => {
     }
 
     function pickFrom(loadPicker: AttachmentSource["loadPicker"]) {
-      pickingFrom = { label: "Pick from Files", icon: () => null, loadPicker };
+      pickingFrom = { id: "files-source", label: "Pick from Files", icon: () => null, loadPicker };
     }
 
     const attachments: TextAttachment[] = [

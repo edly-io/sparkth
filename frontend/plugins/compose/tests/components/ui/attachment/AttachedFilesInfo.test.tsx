@@ -1,6 +1,7 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { ATTACHMENT_SOURCES } from "@/plugins/compose/src/slots/attachments";
 import { AttachedFilesInfo } from "@/plugins/compose/src/components/ui/attachment/AttachedFilesInfo";
 import { TextAttachment } from "@/plugins/compose/src/types";
 import { DOCUMENT_DISPLAY_NAME_MAX_CHARS } from "@/plugins/compose/src/displayName";
@@ -12,6 +13,15 @@ describe("AttachedFilesInfo", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    ATTACHMENT_SOURCES.clear();
+    ATTACHMENT_SOURCES.set("drive-plugin", [
+      {
+        id: "drive-source",
+        label: "Pick from Drive",
+        icon: () => <svg data-testid="drive-icon" />,
+        loadPicker: () => Promise.resolve({ default: () => null }),
+      },
+    ]);
   });
 
   const makeDocument = (id: number, name: string): TextAttachment => ({
@@ -19,6 +29,7 @@ describe("AttachedFilesInfo", () => {
     text: "content",
     size: 1024,
     documentId: id,
+    source: "drive-source",
   });
 
   const makeComputerFile = (uploadId: string, name: string): TextAttachment => ({
@@ -141,5 +152,34 @@ describe("AttachedFilesInfo", () => {
     renderInfo([makeComputerFile("upload-1", "notes.txt")]);
 
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("starts a document's row with its source's icon", async () => {
+    const user = userEvent.setup();
+    renderInfo([makeDocument(1, "drive.pdf")]);
+
+    await user.click(screen.getByText("1 file attached"));
+
+    expect(screen.getByRole("listitem")).toContainElement(screen.getByTestId("drive-icon"));
+  });
+
+  it("starts a computer file's row with the file icon", async () => {
+    const user = userEvent.setup();
+    renderInfo([makeComputerFile("upload-1", "notes.txt")]);
+
+    await user.click(screen.getByText("1 file attached"));
+
+    expect(screen.getByRole("listitem").querySelector(".lucide-file-text")).toBeInTheDocument();
+  });
+
+  it("shows the spinner in place of the icon while a file uploads", async () => {
+    const user = userEvent.setup();
+    renderInfo([{ ...makeComputerFile("upload-1", "notes.txt"), text: "", isUploading: true }]);
+
+    await user.click(screen.getByText("1 file attached"));
+
+    const row = screen.getByRole("listitem");
+    expect(row.firstElementChild?.firstElementChild).toHaveAttribute("role", "status");
+    expect(row.querySelector(".lucide-file-text")).not.toBeInTheDocument();
   });
 });

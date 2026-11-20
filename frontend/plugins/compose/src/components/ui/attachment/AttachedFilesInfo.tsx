@@ -1,12 +1,14 @@
 "use client";
 
-import { X } from "lucide-react";
+import { FileText, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { isUnsentUpload, TextAttachment } from "@/plugins/compose/src/types";
 import { Button } from "@/lib/components/ui/Button";
 import { Popover, PopoverTrigger, PopoverContent } from "@/lib/components/ui/Popover";
 import { Spinner } from "@/lib/components/ui/Spinner";
 import { truncate, DOCUMENT_DISPLAY_NAME_MAX_CHARS } from "@/plugins/compose/src/displayName";
+import { ATTACHMENT_SOURCES } from "@/plugins/compose/src/slots/attachments";
+import { slotItems } from "@/lib/slots";
 
 interface AttachedFilesInfoProps {
   attachments: TextAttachment[];
@@ -14,10 +16,19 @@ interface AttachedFilesInfoProps {
 }
 
 /**
+ * The icon a listed file starts with: its attachment source's icon for a document, the file icon
+ * for an upload from the computer or a document whose source isn't known.
+ */
+function fileIcon(file: TextAttachment) {
+  const sources = slotItems(ATTACHMENT_SOURCES).map(([, source]) => source);
+  return sources.find((source) => source.id === file.source)?.icon ?? FileText;
+}
+
+/**
  * The line above the message box counting the attached files. Opening it lists every file's name,
- * each with a button that removes it, except a file already sent, whose text the conversation keeps.
- * While files upload, the line says which of the files waiting to be sent is uploading, and a
- * spinner starts the uploading file's row.
+ * after an icon showing where it came from, each with a button that removes it, except a file
+ * already sent, whose text the conversation keeps. While files upload, the line says which of the
+ * files waiting to be sent is uploading, and a spinner takes the uploading file's icon's place.
  */
 export function AttachedFilesInfo({ attachments, onRemoveFile }: AttachedFilesInfoProps) {
   const t = useTranslations("compose");
@@ -53,30 +64,33 @@ export function AttachedFilesInfo({ attachments, onRemoveFile }: AttachedFilesIn
         </PopoverTrigger>
         <PopoverContent align="start" className="w-72 p-2">
           <ul className="space-y-1">
-            {attachments.map((file) => (
-              <li
-                key={file.documentId ?? file.uploadId}
-                className="flex items-center justify-between gap-2 text-sm"
-              >
-                <span className="flex items-center gap-2 min-w-0">
-                  {file.isUploading && uploadingIndicator}
-                  <span className="truncate">
-                    {truncate(file.name, DOCUMENT_DISPLAY_NAME_MAX_CHARS)}
+            {attachments.map((file) => {
+              const Icon = fileIcon(file);
+              return (
+                <li
+                  key={file.documentId ?? file.uploadId}
+                  className="flex items-center justify-between gap-2 text-sm"
+                >
+                  <span className="flex items-center gap-2 min-w-0">
+                    {file.isUploading ? uploadingIndicator : <Icon className="w-4 h-4 shrink-0" />}
+                    <span className="truncate">
+                      {truncate(file.name, DOCUMENT_DISPLAY_NAME_MAX_CHARS)}
+                    </span>
                   </span>
-                </span>
-                {!file.isSent && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="p-0 h-auto text-muted-foreground hover:text-foreground flex-shrink-0"
-                    title={t("removeAttachedFile")}
-                    onClick={() => onRemoveFile(file)}
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                )}
-              </li>
-            ))}
+                  {!file.isSent && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="p-0 h-auto text-muted-foreground hover:text-foreground flex-shrink-0"
+                      title={t("removeAttachedFile")}
+                      onClick={() => onRemoveFile(file)}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </PopoverContent>
       </Popover>

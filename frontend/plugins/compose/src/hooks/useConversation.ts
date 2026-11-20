@@ -224,6 +224,7 @@ export function useConversation(
             size: f.size ?? 0,
             text: `[File: ${f.name}]`,
             documentId: f.id,
+            source: f.source ?? undefined,
           })),
           ...sentUploads,
         ]);

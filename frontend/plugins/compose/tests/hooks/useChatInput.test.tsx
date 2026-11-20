@@ -6,7 +6,7 @@ import { useChatInput } from "@/plugins/compose/src/hooks/useChatInput";
 import { attachDocument, detachDocument } from "@/plugins/compose/src/client";
 import type { TextAttachment } from "@/plugins/compose/src/types";
 import { uploadFile, type UploadResponse } from "@/plugins/compose/src/upload";
-import type { AttachmentSource } from "@/plugins/compose/src/slots/attachments";
+import { ATTACHMENT_SOURCES, type AttachmentSource } from "@/plugins/compose/src/slots/attachments";
 import composeEn from "@/plugins/compose/src/i18n/en.json";
 import { IntlTestProvider } from "@/lib/testing/intl";
 
@@ -98,13 +98,18 @@ function setupWithAttachments(conversationId: string | null, initial: TextAttach
 }
 
 const filesSource: AttachmentSource = {
+  id: "files-source",
   label: "Pick from Files",
   icon: () => null,
   loadPicker: () => Promise.resolve({ default: () => null }),
 };
 
 describe("useChatInput — documents picked from a source", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    ATTACHMENT_SOURCES.clear();
+    ATTACHMENT_SOURCES.set("files-plugin", [filesSource]);
+  });
   // Puts back the console methods a test silenced.
   afterEach(() => vi.restoreAllMocks());
 
@@ -125,7 +130,13 @@ describe("useChatInput — documents picked from a source", () => {
     );
 
     expect(result.current.attachments).toEqual([
-      { name: "notes.pdf", size: 1024, text: "[File: notes.pdf]", documentId: 7 },
+      {
+        name: "notes.pdf",
+        size: 1024,
+        text: "[File: notes.pdf]",
+        documentId: 7,
+        source: "files-source",
+      },
     ]);
     expect(result.current.pickingFrom).toBeNull();
   });
@@ -154,6 +165,17 @@ describe("useChatInput — documents picked from a source", () => {
 
     expect(detachDocument).toHaveBeenCalledWith("test-token", "conversation-1", 7);
     expect(result.current.attachments).toEqual([]);
+  });
+
+  it("keeps the source of a document picked again", () => {
+    const { result } = setupWithAttachments(null, [{ ...attachedNotes, source: "drive-source" }]);
+    act(() => result.current.setPickingFrom(filesSource));
+
+    act(() =>
+      result.current.handleDocumentsSelected([{ documentId: 7, name: "notes.pdf", size: 1024 }]),
+    );
+
+    expect(result.current.attachments[0].source).toBe("drive-source");
   });
 
   it("keeps text attachments when documents are picked", () => {
