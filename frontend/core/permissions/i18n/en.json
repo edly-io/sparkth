@@ -6,6 +6,16 @@
       "label": "Access sections",
       "roles": "Roles",
       "groups": "Groups"
+    },
+    "roles": {
+      "label": "Roles",
+      "empty": "No roles yet.",
+      "loadFailed": "Couldn't load the roles. Try again later."
+    },
+    "groups": {
+      "label": "Groups",
+      "empty": "No groups yet.",
+      "loadFailed": "Couldn't load the groups. Try again later."
     }
   }
 }
