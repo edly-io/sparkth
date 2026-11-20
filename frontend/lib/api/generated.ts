@@ -981,52 +981,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/permissions/can": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Check Permission
-         * @description Return whether the current user holds ``permission`` at the given scope.
-         *
-         *     A self-check any authenticated user may call about their own grants. It is not a security
-         *     boundary (endpoints enforce their own permissions and return 403); it lets a client gate UI
-         *     precisely. The permission and scope names are resolved against the registered vocabulary
-         *     (unknown → 422).
-         *
-         *     - With ``scope_object_id``, an object-bearing scope answers whether the user holds the
-         *       permission at that one object.
-         *     - Without ``scope_object_id`` an object-bearing scope answers whether the user holds the
-         *       permission at any of its objects.
-         *     - An objectless scope answers for the scope itself.
-         */
-        get: operations["check_permission_api_v1_permissions_can_get"];
-        put?: never;
-        /**
-         * Answer Permission Check
-         * @description Return whether the current user holds the check's permission at its scope.
-         *
-         *     A self-check any authenticated user may call about their own grants. It is not a security
-         *     boundary (endpoints enforce their own permissions and return 403); it lets a client gate UI
-         *     precisely. The permission and scope names are resolved against the registered vocabulary
-         *     (unknown → 422).
-         *
-         *     - With ``scope_object_id``, an object-bearing scope answers whether the user holds the
-         *       permission at that one object.
-         *     - Without ``scope_object_id`` an object-bearing scope answers whether the user holds the
-         *       permission at any of its objects.
-         *     - An objectless scope answers for the scope itself.
-         */
-        post: operations["answer_permission_check_api_v1_permissions_can_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/permissions/can/batch": {
         parameters: {
             query?: never;
@@ -2752,11 +2706,6 @@ export interface components {
              * @description Object id for an object-bearing scope. Omit it to ask about any object of the scope.
              */
             scope_object_id?: string | null;
-        };
-        /** PermissionCheckResponse */
-        PermissionCheckResponse: {
-            /** Allowed */
-            allowed: boolean;
         };
         /**
          * PermissionCheckResult
@@ -4887,75 +4836,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": string[];
-                };
-            };
-        };
-    };
-    check_permission_api_v1_permissions_can_get: {
-        parameters: {
-            query: {
-                /** @description Permission name to check, e.g. 'analytics.read'. */
-                permission: string;
-                /** @description Scope kind to check at (defaults to 'global'). */
-                scope?: string;
-                /** @description Object id for an object-bearing scope. Omit it to ask about any object of the scope. */
-                scope_object_id?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PermissionCheckResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    answer_permission_check_api_v1_permissions_can_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PermissionCheck"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PermissionCheckResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

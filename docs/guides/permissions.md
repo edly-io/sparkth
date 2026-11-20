@@ -93,7 +93,7 @@ The path rules:
   segments before it must be the ancestors of that scope that name an object, in order
   (`org:5/course:123/quiz:777`). Any other path raises `ValueError`.
 - An object id may not contain `/` wherever it becomes a path: `build_scope_path`, the ids given to
-  `require_for_object()`, and `scope_object_id` on `/permissions/can` (answered with 422).
+  `require_for_object()`, and `scope_object_id` on `/permissions/can/batch` (answered with 422).
 
 Role assignment and revocation never cascade: a grant is stored at exactly the scope it was
 assigned at.
@@ -496,26 +496,23 @@ event: the caller is the actor, the target is the permission checked, and `error
 names the scope (e.g. `scope=role:7`). The row is committed in its own transaction before
 the 403 is raised, so it survives the request's rollback; if the write fails, the request
 fails rather than returning 403. Calling `can()` or `batched_can()` directly, or the
-`/permissions/can` probes below, records nothing.
+`/permissions/can/batch` probe below, records nothing.
 
-**Check the current user's permission** — a client (e.g. the web UI) can ask whether the
-authenticated user holds a permission via `POST /api/v1/permissions/can` with a JSON body of
-`permission`, `scope` (required, e.g. `global`) and an optional `scope_object_id`, which returns
-`{"allowed": true|false}`; a check without a scope is rejected with 422. With `scope_object_id`,
-the answer covers that one object.
-Without it, an object-bearing scope answers whether the user holds the permission at any of its
-objects, the same check `require_for_any_object()` makes for a list route:
+**Check the current user's permissions** — a client (e.g. the web UI) can ask whether the
+authenticated user holds permissions via `POST /api/v1/permissions/can/batch`. The body is a list of
+checks, at most `MAX_PERMISSION_CHECKS` (50), each with `permission`, `scope` (required, e.g.
+`global`) and an optional `scope_object_id`. The response has one result per check, in request
+order. Each result repeats its check and adds `allowed` (`true` or `false`), so the same permission
+can be checked at two scopes. A single check is a list of one, and `batched_can()` answers them all
+from one read of the user's grants.
+
+With `scope_object_id`, a check covers that one object. Without it, an object-bearing scope answers
+whether the user holds the permission at any of its objects, the same check
+`require_for_any_object()` makes for a list route:
 `{"permission": "group.read", "scope": "group"}` is `true` for a grant at `global` or at any
-`group:<id>`. An objectless scope answers for the scope itself.
-`GET /api/v1/permissions/can?permission=<name>&scope=<kind>&scope_object_id=<id>` takes the same
-fields as query parameters, with `scope` defaulting to `global`, and gives the same answer.
+`group:<id>`. An objectless scope answers for the scope itself. A check without a scope, an unknown
+permission or scope name, or a `scope_object_id` containing `/` rejects the whole request with 422,
+and no check is answered.
 
-To run many checks in one request, `POST /api/v1/permissions/can/batch` takes a list of such
-checks, at most `MAX_PERMISSION_CHECKS` (50), and returns one result per check, in request order.
-Each result repeats its check and adds `allowed`, so the same permission can be checked at two
-scopes. `batched_can()` answers them all from one read of the user's grants. A check without a
-scope, or an unknown permission or scope name, rejects the whole request with 422, and no check is
-answered.
-
-The probes are a convenience for gating UI, not a security boundary, since every endpoint still
+The probe is a convenience for gating UI, not a security boundary, since every endpoint still
 enforces its own permission and returns 403.
