@@ -16,6 +16,7 @@ import Link from "next/link";
 export default function PluginPageClient() {
   const params = useParams();
   const t = useTranslations("pluginNotFound");
+  const tPage = useTranslations("pluginPage");
   const { isAuthenticated, loading: authLoading } = useAuth();
 
   const pluginName = String(params?.pluginName ?? "");
@@ -36,7 +37,7 @@ export default function PluginPageClient() {
       <div className="flex items-center justify-center h-full min-h-screen bg-background">
         <div className="text-center">
           <Spinner className="mx-auto mb-4" />
-          <p className="text-muted-foreground">Authenticating...</p>
+          <p className="text-muted-foreground">{tPage("authenticating")}</p>
         </div>
       </div>
     );
@@ -87,23 +88,23 @@ export default function PluginPageClient() {
               />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold text-foreground mb-2">Plugin Not Enabled</h2>
+          <h2 className="text-2xl font-bold text-foreground mb-2">{tPage("notEnabledTitle")}</h2>
           <p className="text-muted-foreground mb-4">
-            {displayName} is not enabled for your account.
+            {tPage("notEnabledMessage", { name: displayName })}
           </p>
           <div className="flex justify-center gap-3">
             <Link
               className="inline-block px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
               href="/dashboard/settings/"
             >
-              Enable in Settings
+              {tPage("enableInSettings")}
             </Link>
 
             <Link
               className="inline-block px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
               href="/dashboard"
             >
-              Go Back
+              {tPage("goBack")}
             </Link>
           </div>
         </div>

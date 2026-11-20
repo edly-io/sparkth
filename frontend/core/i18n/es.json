@@ -14,6 +14,13 @@
     "title": "Plugin no encontrado",
     "message": "No hay ningún plugin registrado con el nombre {name}."
   },
+  "pluginPage": {
+    "authenticating": "Autenticando...",
+    "notEnabledTitle": "Plugin no habilitado",
+    "notEnabledMessage": "{name} no está habilitado para tu cuenta.",
+    "enableInSettings": "Habilitar en Configuración",
+    "goBack": "Volver"
+  },
   "dashboardLink": {
     "back": "Volver al panel"
   },
