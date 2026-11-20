@@ -8,12 +8,18 @@ import { ChatHeader } from "@/plugins/compose/src/components/ui/ChatHeader";
 import { ChatMessages } from "@/plugins/compose/src/components/ui/messages/ChatMessages";
 import { ChatInput } from "@/plugins/compose/src/components/ui/input/ChatInput";
 import { appendLine, replaceLine } from "@/plugins/compose/src/components/ui/messages/optionsBlock";
-import { AiKeyProblem, TextAttachment } from "@/plugins/compose/src/types";
+import {
+  AiKeyProblem,
+  type ConversationLoadError,
+  TextAttachment,
+} from "@/plugins/compose/src/types";
 import { useAuth } from "@/lib/auth/hooks";
 import { attachDocument } from "@/plugins/compose/src/client";
 import { fetchLLMConfigs } from "@/lib/llm/client";
 import { usePlugin } from "@/lib/plugins/context";
 import { Alert } from "@/lib/components/ui/Alert";
+import { Button } from "@/lib/components/ui/Button";
+import { NotFound } from "@/lib/components/layout/NotFound";
 import { useConversation } from "@/plugins/compose/src/hooks/useConversation";
 import { useChatStream } from "@/plugins/compose/src/hooks/useChatStream";
 import { pluginPath } from "@/lib/plugins/routes";
@@ -29,6 +35,35 @@ async function readAiKeyProblem(token: string): Promise<AiKeyProblem> {
     console.error("Failed to read the AI keys on this account:", err);
     return "not-selected";
   }
+}
+
+// Takes the chat's place when it fails to load, so there is no message box to type into.
+function ConversationLoadFailed({ loadError }: { loadError: ConversationLoadError }) {
+  const t = useTranslations("compose");
+  if (loadError === "failed") {
+    return (
+      <div className="px-4 pt-4">
+        <Alert severity="error" title={t("chatLoadFailedTitle")}>
+          {t("chatLoadFailedMessage")}
+        </Alert>
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-1 min-h-0 items-center justify-center p-6">
+      <div className="w-full max-w-md">
+        <NotFound
+          title={t("chatNotFoundTitle")}
+          message={t("chatNotFoundMessage")}
+          action={
+            <Button asChild variant="primary">
+              <Link href={pluginPath(COMPOSE_PLUGIN_NAME)}>{t("historyNewChat")}</Link>
+            </Button>
+          }
+        />
+      </div>
+    </div>
+  );
 }
 
 export default function ChatInterfaceInner({ conversationId }: { conversationId: string | null }) {
@@ -62,6 +97,7 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
   const {
     loading: loadingHistory,
     messages,
+    loadError,
     error,
     setError,
     inputMessage,
@@ -132,6 +168,15 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
   );
 
   const isStreaming = messages.some((m) => m.isTyping === true);
+
+  if (loadError) {
+    return (
+      <div className="flex flex-col h-full bg-background transition-colors">
+        <ChatHeader />
+        <ConversationLoadFailed loadError={loadError} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full bg-background transition-colors">

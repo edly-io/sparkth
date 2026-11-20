@@ -4,11 +4,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import ChatInterfaceInner from "@/plugins/compose/src/components/layout/ChatInterfaceInner";
 import composeEn from "@/plugins/compose/src/i18n/en.json";
+import type { ConversationLoadError } from "@/plugins/compose/src/types";
 import { IntlTestProvider } from "@/lib/testing/intl";
 import { fetchLLMConfigs } from "@/lib/llm/client";
 
 // usePlugin is mocked to read this directly, so a test sets it before rendering.
 let pluginConfig: Record<string, unknown> = {};
+// useConversation is mocked to read this directly, so a test sets it before rendering.
+let loadError: ConversationLoadError | null = null;
 
 vi.mock("@/lib/auth/hooks", () => ({
   useAuth: () => ({ token: "test-token" }),
@@ -31,6 +34,7 @@ vi.mock("@/plugins/compose/src/hooks/useConversation", async () => {
       return {
         loading: false,
         messages: [],
+        loadError,
         error: null,
         setError: vi.fn(),
         inputMessage,
@@ -203,5 +207,38 @@ describe("ChatInterfaceInner — AI key guidance", () => {
     expect(screen.getByPlaceholderText(composeEn.compose.inputPlaceholder)).toHaveValue(
       "Beginners",
     );
+  });
+});
+
+describe("ChatInterfaceInner — a chat that fails to load", () => {
+  beforeEach(() => {
+    loadError = null;
+  });
+
+  it("shows a not-found page instead of the chat when the chat does not exist", () => {
+    loadError = "notFound";
+
+    renderChat();
+
+    expect(
+      screen.getByRole("heading", { name: composeEn.compose.chatNotFoundTitle }),
+    ).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(composeEn.compose.inputPlaceholder)).toBeNull();
+    // By its visible text: the header's icon link carries the same accessible name.
+    expect(screen.getByText(composeEn.compose.historyNewChat)).toHaveAttribute(
+      "href",
+      "/dashboard/compose",
+    );
+  });
+
+  it("shows an error instead of the chat when the chat could not be loaded", () => {
+    loadError = "failed";
+
+    renderChat();
+
+    expect(screen.getByRole("alert")).toHaveTextContent(composeEn.compose.chatLoadFailedMessage);
+    expect(screen.queryByPlaceholderText(composeEn.compose.inputPlaceholder)).toBeNull();
+    // A chat that may still exist is not shown as missing.
+    expect(screen.queryByRole("heading", { name: composeEn.compose.chatNotFoundTitle })).toBeNull();
   });
 });

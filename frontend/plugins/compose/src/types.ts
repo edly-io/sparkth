@@ -15,6 +15,9 @@ export type ChatCompletionRequestBody = Schema<"ChatCompletionRequest">;
 // never selected in the plugin's configuration.
 export type AiKeyProblem = "no-key" | "not-selected";
 
+/** Why a chat failed to load: it does not exist for this user, or it could not be fetched. */
+export type ConversationLoadError = "notFound" | "failed";
+
 export interface TextAttachment {
   name: string;
   text: string;

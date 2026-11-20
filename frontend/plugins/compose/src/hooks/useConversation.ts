@@ -1,4 +1,5 @@
 import { Dispatch, SetStateAction, useCallback, useEffect, useRef, useState } from "react";
+import { ApiRequestError, isNotFoundError } from "@/lib/api/errors";
 import {
   getConversation,
   getConversationAttachments,
@@ -8,6 +9,7 @@ import {
   type ApiMessage,
   ChatMessage,
   ChatRole,
+  type ConversationLoadError,
   TextAttachment,
 } from "@/plugins/compose/src/types";
 import {
@@ -52,9 +54,16 @@ const WELCOME_MESSAGE: ChatMessage = {
   content: "Hi! Upload a document or tell me what you'd like to create.",
 };
 
+// Compose refuses someone else's chat with a 403: to the author, that chat does not exist either.
+function getLoadError(error: unknown): ConversationLoadError {
+  const refused = error instanceof ApiRequestError && error.status === 403;
+  return isNotFoundError(error) || refused ? "notFound" : "failed";
+}
+
 interface UseConversationResult {
   loading: boolean;
   messages: ChatMessage[];
+  loadError: ConversationLoadError | null;
   error: string | null;
   setError: Dispatch<SetStateAction<string | null>>;
   inputMessage: string;
@@ -71,6 +80,7 @@ export function useConversation(
   token: string | null,
 ): UseConversationResult {
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<ConversationLoadError | null>(null);
   const [inputMessage, setInputMessage] = useState("");
   const [inputAttachments, setInputAttachments] = useState<TextAttachment[]>([]);
   // Prevents loadConversation from overwriting messages when we navigated there ourselves
@@ -100,8 +110,9 @@ export function useConversation(
         return;
       }
 
-      // A different chat starts with an empty box and without the last chat's error.
+      // A different chat starts with an empty box and without the last chat's errors.
       setError(null);
+      setLoadError(null);
       setInputMessage("");
 
       if (!conversationId) {
@@ -229,9 +240,10 @@ export function useConversation(
           ...sentUploads,
         ]);
       } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") return;
+        // A failure from a load already superseded by another chat says nothing about that chat.
+        if (signal.aborted) return;
         console.error(err);
-        setError("Failed to load conversation. Please try again.");
+        setLoadError(getLoadError(err));
         setHistoryState({ loading: false, messages: [WELCOME_MESSAGE] });
       }
     },
@@ -320,6 +332,7 @@ export function useConversation(
   return {
     loading: historyState.loading,
     messages: historyState.messages,
+    loadError,
     error,
     setError,
     inputMessage,

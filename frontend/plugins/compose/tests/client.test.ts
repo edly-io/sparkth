@@ -90,12 +90,10 @@ describe("getConversation", () => {
     expect(result).toEqual(conversation);
   });
 
-  it("throws with the status code on non-ok response", async () => {
+  it("rejects with the API error and its status", async () => {
     mockFetch({ detail: "missing" }, 404);
 
-    await expect(getConversation(TOKEN, "missing")).rejects.toThrow(
-      "Load conversation failed with status 404",
-    );
+    await expect(getConversation(TOKEN, "missing")).rejects.toMatchObject({ status: 404 });
   });
 
   it("sends a literal Bearer null header when the token is null (legacy behavior)", async () => {

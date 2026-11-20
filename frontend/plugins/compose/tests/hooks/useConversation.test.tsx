@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 
+import { ApiRequestError } from "@/lib/api";
 import type { ApiMessage } from "@/plugins/compose/src/types";
 import { getConversation, getConversationAttachments } from "@/plugins/compose/src/client";
 import { useConversation } from "@/plugins/compose/src/hooks/useConversation";
@@ -88,11 +89,71 @@ describe("useConversation — switching chats", () => {
     vi.mocked(getConversation).mockRejectedValueOnce(new Error("not found"));
     vi.spyOn(console, "error").mockImplementationOnce(() => {});
     const { result, rerender } = renderAt("not-a-real-id");
-    await waitFor(() => expect(result.current.error).not.toBeNull());
+    await waitFor(() => expect(result.current.loadError).not.toBeNull());
 
     rerender({ id: null });
 
-    await waitFor(() => expect(result.current.error).toBeNull());
+    await waitFor(() => expect(result.current.loadError).toBeNull());
+  });
+
+  it("ignores a failure that lands after another chat was opened", async () => {
+    let failFirstLoad: (error: unknown) => void = () => {};
+    vi.mocked(getConversation).mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          failFirstLoad = reject;
+        }),
+    );
+    const { result, rerender } = renderAt("conv-1");
+
+    rerender({ id: "conv-2" });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    await act(async () =>
+      failFirstLoad(
+        new ApiRequestError({ message: "Conversation not found", fieldErrors: {} }, 404),
+      ),
+    );
+
+    expect(result.current.loadError).toBeNull();
+    expect(result.current.messages.map((m) => m.content)).toEqual(["hello", "hi"]);
+  });
+
+  it("drops a chat's load error when another chat is opened", async () => {
+    vi.mocked(getConversation).mockRejectedValueOnce(new Error("not found"));
+    vi.spyOn(console, "error").mockImplementationOnce(() => {});
+    const { result, rerender } = renderAt("not-a-real-id");
+    await waitFor(() => expect(result.current.loadError).not.toBeNull());
+
+    rerender({ id: "conv-2" });
+
+    await waitFor(() => expect(result.current.loadError).toBeNull());
+  });
+});
+
+describe("useConversation — a chat that fails to load", () => {
+  it.each([404, 403, 422])("reports a chat that does not exist on a %i", async (status) => {
+    vi.mocked(getConversation).mockRejectedValueOnce(
+      new ApiRequestError({ message: "Conversation not found", fieldErrors: {} }, status),
+    );
+    vi.spyOn(console, "error").mockImplementationOnce(() => {});
+
+    const { result } = renderHook(() => useConversation("not-a-real-id", "test-token"));
+
+    await waitFor(() => expect(result.current.loadError).toBe("notFound"));
+    expect(result.current.error).toBeNull();
+  });
+
+  it.each([
+    ["a server error", new ApiRequestError({ message: "boom", fieldErrors: {} }, 500)],
+    ["a network failure", new Error("Network error: Failed to fetch")],
+  ])("reports a chat that could not be loaded on %s", async (_, failure) => {
+    vi.mocked(getConversation).mockRejectedValueOnce(failure);
+    vi.spyOn(console, "error").mockImplementationOnce(() => {});
+
+    const { result } = renderHook(() => useConversation("conv-1", "test-token"));
+
+    await waitFor(() => expect(result.current.loadError).toBe("failed"));
+    expect(result.current.error).toBeNull();
   });
 });
 

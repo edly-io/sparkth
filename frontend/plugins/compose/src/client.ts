@@ -7,11 +7,8 @@ import type {
   PersistedAttachment,
 } from "@/plugins/compose/src/types";
 
-// NOTE: compose endpoints throw plain `Error` on failure, while `@/lib/api`
-// and `@/lib/llm` throw the structured `ApiRequestError`. The compose plugin's
-// callers only need a message, so the lighter contract is intentional for
-// now (requestChatCompletionStream is the exception: its caller branches on
-// the structured error). Aligning the rest is tracked as a follow-up.
+// Most calls here turn an API error into a plain `Error` carrying only its message; the ones whose
+// callers act on the HTTP status let `ApiRequestError` through.
 
 // TODO: tighten the signature to `token: string` once every caller has a
 // guaranteed-non-null token. The backend rejects "Bearer null" with 401,
@@ -58,6 +55,7 @@ export async function stopChatTurn(token: string | null, turnId: string): Promis
   }
 }
 
+/** Fetches one chat; rejects with the API error, status included, when the backend refuses it. */
 export async function getConversation(
   token: string | null,
   conversationId: string,
@@ -71,9 +69,6 @@ export async function getConversation(
     });
     return data as ApiConversation;
   } catch (error) {
-    if (error instanceof ApiRequestError) {
-      throw new Error(`Load conversation failed with status ${error.status}`);
-    }
     passOrWrapNetworkError(error);
   }
 }
