@@ -95,8 +95,9 @@ export default function ExamplePlugin() {
 - Reads its own state and config with `usePlugin` from `@/lib/plugins/context`
 - This component is lazy-loaded
 - Takes shared UI components from `@/lib/components/ui/<Name>`, for example
-  `import { Button } from "@/lib/components/ui/Button";`. Core UI lives in `@/core`, which a plugin may not
-  import (see [Import Rules](#import-rules)).
+  `import { Button } from "@/lib/components/ui/Button";`, and page-level panels from
+  `@/lib/components/layout/<Name>`. Core UI lives in `@/core`, which a plugin may not import (see
+  [Import Rules](#import-rules)).
 - Reads the signed-in user and their token with `useAuth` from `@/lib/auth/hooks`.
 - Links to another plugin's page with `pluginPath("<pluginname>")` from `@/lib/plugins/routes`, never by writing the
   `/dashboard/<pluginname>` route out.
@@ -205,6 +206,35 @@ The display name, description, icon and sidebar entry stay **declared by the bac
 user-plugins API. A plugin must set a component for every icon name its backend declares (see above); the e2e suite
 reads the declared icons from that API and checks each one shows on the plugin's dashboard card and sidebar link,
 and that every plugin's page opens (`e2e-tests/dashboard.spec.ts`).
+
+### When a URL names something that doesn't exist
+
+A plugin's page addresses its content through the query string (a chat id, an activity id), so the URL always reaches
+the plugin even when the id names nothing. `isNotFoundError` from `@/lib/api/errors` tells whether a failed request
+means the item is missing (a 404, or a 422 for a malformed id). When it does, render `NotFound` from
+`@/lib/components/layout/NotFound` where the item would have been. The plugin's own navigation stays on screen, and
+nothing the user could type into is left showing. The panel has no text of its own: pass the plugin's translated
+title, an optional message and an optional action that leads somewhere that exists. For a 403, render `Forbidden`
+from `@/lib/components/layout/Forbidden` instead, unless the item's existence is private: compose treats a 403 on
+another user's chat as not found, so it does not reveal that the chat exists. Any other failure is an error, not a
+missing item, so show it as one.
+
+```tsx
+import Link from "next/link";
+import { Button } from "@/lib/components/ui/Button";
+import { NotFound } from "@/lib/components/layout/NotFound";
+import { pluginPath } from "@/lib/plugins/routes";
+
+<NotFound
+  title={t("chatNotFoundTitle")}
+  message={t("chatNotFoundMessage")}
+  action={
+    <Button asChild variant="primary">
+      <Link href={pluginPath("compose")}>{t("historyNewChat")}</Link>
+    </Button>
+  }
+/>;
+```
 
 ## Translations (Optional)
 
