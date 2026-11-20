@@ -26,7 +26,7 @@
     "chatNotFoundTitle": "Chat not found",
     "chatNotFoundMessage": "This chat doesn't exist or you can't open it.",
     "chatLoadFailedTitle": "Couldn't load this chat",
-    "chatLoadFailedMessage": "Check your connection and reload the page.",
+    "chatLoadFailedMessage": "Something went wrong while loading this chat. Please try again.",
     "historyUntitled": "Untitled",
     "historyErrorTitle": "Something went wrong",
     "historyLoadError": "Failed to load conversations. Please try again.",
