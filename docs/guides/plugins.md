@@ -754,7 +754,8 @@ The loader logs the failed construction and skips that plugin.
 
 On every request Compose reads the agents of the plugins enabled for the requesting user, in
 plugin-name order. Course design comes from the course design plugin. A plugin switched off
-system-wide or by the user contributes no agent and no tools.
+system-wide or by the user contributes no agent and no tools. A plugin the user does not hold
+`plugin.use` at contributes no agent either (a `global` grant covers every plugin).
 
 - **Planner.** A planner reads each message and hands it to the one agent whose description fits.
   It runs on the small model of the user's provider, or on the reply's own model when
