@@ -692,7 +692,7 @@ without importing compose, by registering an `Agent` with `register_agent` from
 `sparkth.lib.compose.hooks`. A plugin registers one agent, from its `__init__`, keyed by the plugin
 instance.
 
-An `Agent` has five fields:
+An `Agent` has six fields:
 
 - `name` identifies the agent: lowercase letters, digits and underscores, starting with a letter.
   `compose`, `operator`, `show_plan` and `refuse` are reserved.
@@ -702,6 +702,9 @@ An `Agent` has five fields:
 - `prompt` is plain text inserted into the system prompt as written, so a brace in it needs no
   escaping. Keep it in the plugin's `assets/` and load it with `read_asset(__file__, "<name>.txt")`
   from `sparkth.lib.assets`.
+- `status` is the short line the author reads while the agent works, such as "Building your
+  activity…". Mark it with `gettext_noop` and translate it in the plugin's catalogs; Compose shows
+  it in the author's language.
 - `tools` are the `Tool`s the agent runs, built like the ones for `MCP_TOOLS`. A tool given only
   to the agent is private to it: no MCP client sees it. To offer a tool on the MCP server as well,
   add the same `Tool` to `MCP_TOOLS`. Agents compare without their tools, so a plugin may build
@@ -712,6 +715,7 @@ Define the agent in the plugin's `agent.py` and register it from `plugin.py`. Fo
 ```python
 # sparkth/plugins/myappplugin/agent.py
 from sparkth.lib.compose.hooks import Agent
+from sparkth.lib.i18n import gettext_noop
 from sparkth.lib.mcp.hooks import Tool
 
 
@@ -727,6 +731,7 @@ MY_AGENT = Agent(
     "My App builder",
     "Requests to build or change things in My App.",
     "Ask which My App item the author wants, then build it with the My App tools.",
+    gettext_noop("Building your My App item…"),
     tools=(MY_APP_BUILD,),
 )
 ```
