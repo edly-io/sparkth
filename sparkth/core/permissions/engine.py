@@ -2,14 +2,16 @@
 
 A user's roles are their own active assignments plus the assignments of any group they actively
 belong to, both matched against the same scope chain. It answers whether a permission or role is held
-at one scope object, and at which objects of a scope a permission is held. The write operations
-(assigning and revoking roles) never cascade and live elsewhere.
+at one scope object, and at which objects of a scope a permission is held. It also answers many
+permission checks at once from one read of the user's grants. The write operations (assigning and
+revoking roles) never cascade and live elsewhere.
 """
 
+from collections import defaultdict
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
-from sqlalchemy import ColumnElement, and_, or_
+from sqlalchemy import ColumnElement, Subquery, and_, or_
 from sqlalchemy.orm import Mapped
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -23,10 +25,22 @@ from sparkth.core.permissions.models import (
     RoleAssignment,
     RolePermission,
 )
-from sparkth.core.permissions.scopes import PermissionScope
+from sparkth.core.permissions.scopes import ObjectlessPermissionScope, PermissionScope
 
 if TYPE_CHECKING:
     from sparkth.core.permissions import Permission
+
+
+class PermissionCheckQuery(NamedTuple):
+    """One check: does the user hold ``permission`` at ``scope``?
+
+    ``scope_path`` names the checked object. Without it, an object-bearing scope asks about any of its
+    objects and an objectless scope asks about the scope itself.
+    """
+
+    permission: "Permission"
+    scope: PermissionScope
+    scope_path: str | None
 
 
 def _scope_clause(
@@ -151,20 +165,39 @@ def _reduce_grant_rows(grant_rows: Sequence[tuple[str, str | None]], scope_name:
     return object_ids
 
 
-def _grants_with_permission(
+def _select_grants_with_permissions(
     model: type[RoleAssignment] | type[GroupRoleAssignment],
     owner: ColumnElement[bool],
-    roles_with_permission: SelectOfScalar[int],
+    permission_names: set[str],
     scope_names: set[str],
-) -> Select[tuple[str, str | None]]:
-    """Select the ``(scope, object id)`` of the active ``model`` rows held by ``owner`` that grant a role in
-    ``roles_with_permission`` at one of ``scope_names``."""
-    return select(col(model.scope), col(model.scope_object_id)).where(
-        owner,
-        col(model.is_deleted) == False,
-        col(model.role_id).in_(roles_with_permission),
-        col(model.scope).in_(scope_names),
+) -> Select[tuple[str, str, str | None]]:
+    """Select the ``(permission, scope, object id)`` of the active ``model`` rows held by ``owner`` whose role grants
+    one of ``permission_names`` at one of ``scope_names``."""
+    return (
+        select(col(RolePermission.permission), col(model.scope), col(model.scope_object_id))
+        .join(RolePermission, col(RolePermission.role_id) == col(model.role_id))
+        .where(
+            owner,
+            col(model.is_deleted) == False,
+            col(RolePermission.permission).in_(permission_names),
+            col(model.scope).in_(scope_names),
+        )
     )
+
+
+def _select_user_grants(user_id: int | None, permission_names: set[str], scope_names: set[str]) -> Subquery:
+    """Subquery of the ``(permission, scope, object id)`` grants the user holds of one of ``permission_names`` at one
+    of ``scope_names``, through their own active assignments or those of the groups they actively belong to."""
+    own_grants = _select_grants_with_permissions(
+        RoleAssignment, col(RoleAssignment.user_id) == user_id, permission_names, scope_names
+    )
+    group_grants = _select_grants_with_permissions(
+        GroupRoleAssignment,
+        col(GroupRoleAssignment.group_id).in_(_active_membership_group_ids(user_id)),
+        permission_names,
+        scope_names,
+    )
+    return own_grants.union_all(group_grants).subquery()
 
 
 async def get_accessible_scope_object_ids(
@@ -182,16 +215,50 @@ async def get_accessible_scope_object_ids(
     """
     scope_name = permission_scope.name
     scope_names = {name for name, _ in permission_scope.scope_chain(None)}
-    roles_with_permission = select(RolePermission.role_id).where(RolePermission.permission == permission.name)
-    own_grants = _grants_with_permission(
-        RoleAssignment, col(RoleAssignment.user_id) == user.id, roles_with_permission, scope_names
-    )
-    group_grants = _grants_with_permission(
-        GroupRoleAssignment,
-        col(GroupRoleAssignment.group_id).in_(_active_membership_group_ids(user.id)),
-        roles_with_permission,
-        scope_names,
-    )
-    grants = own_grants.union_all(group_grants).subquery()
+    grants = _select_user_grants(user.id, {permission.name}, scope_names)
     result = await session.exec(select(grants.c.scope, grants.c.scope_object_id))
     return _reduce_grant_rows(result.all(), scope_name)
+
+
+def _check_permission_grant(
+    grants: set[tuple[str, str | None]], permission_scope: PermissionScope, scope_path: str | None
+) -> bool:
+    """Whether ``grants``, the ``(scope, object id)`` pairs at which the user holds the checked permission, satisfy a
+    check at ``permission_scope``.
+
+    Without ``scope_path``, an object-bearing scope is satisfied by a grant at any of its objects or at an objectless
+    ancestor. Otherwise a grant must be on the scope chain of ``scope_path``.
+    """
+    if scope_path is None and not isinstance(permission_scope, ObjectlessPermissionScope):
+        scope_names = {name for name, _ in permission_scope.scope_chain(None)}
+        covered = _reduce_grant_rows([grant for grant in grants if grant[0] in scope_names], permission_scope.name)
+        return covered is None or bool(covered)
+    return not grants.isdisjoint(permission_scope.scope_chain(scope_path))
+
+
+async def batched_can(user: User, check_queries: list[PermissionCheckQuery], session: AsyncSession) -> list[bool]:
+    """Return, in order, whether user holds each check query's permission at its scope, reading the grants once.
+
+    A scope path names one object, and a grant at it or at an ancestor object on the path authorizes. Grants come
+    from the user's own active assignments and from active assignments of the groups they actively belong to.
+    Raises ``ValueError`` when a path's leaf names another scope.
+    """
+    if not check_queries:
+        return []
+    permission_names = {check_query.permission.name for check_query in check_queries}
+    scope_names = {
+        name for check_query in check_queries for name, _ in check_query.scope.scope_chain(check_query.scope_path)
+    }
+    # ponytail: a check on one object fetches every grant of its permission at that scope; narrow the filter to the
+    # checked objects if users come to hold thousands of object grants.
+    grants = _select_user_grants(user.id, permission_names, scope_names)
+    result = await session.exec(select(grants.c.permission, grants.c.scope, grants.c.scope_object_id))
+    grants_by_permission: defaultdict[str, set[tuple[str, str | None]]] = defaultdict(set)
+    for permission_name, scope, scope_object_id in result.all():
+        grants_by_permission[permission_name].add((scope, scope_object_id))
+    return [
+        _check_permission_grant(
+            grants_by_permission[check_query.permission.name], check_query.scope, check_query.scope_path
+        )
+        for check_query in check_queries
+    ]

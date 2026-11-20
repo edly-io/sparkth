@@ -1,7 +1,7 @@
 """Tests for Google Drive RAG pipeline utilities."""
 
 from typing import cast
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -9,6 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.lib.models import User
 from sparkth.lib.rag import ScannedPDFError, UnsupportedFileTypeError
+from sparkth.plugins.googledrive.constants import GOOGLE_DRIVE_PLUGIN_NAME
 from sparkth.plugins.googledrive.exceptions import GoogleDriveAPIError
 from sparkth.plugins.googledrive.models import DriveFile, DriveFolder
 from sparkth.plugins.googledrive.utils import (
@@ -139,11 +140,9 @@ class TestProcessSingleFile:
         session = _make_async_session()
         mock_doc = MagicMock()
         mock_doc.id = 42
+        create_document = AsyncMock(return_value=mock_doc)
         with (
-            patch(
-                "sparkth.plugins.googledrive.utils.create_document",
-                new=AsyncMock(return_value=mock_doc),
-            ),
+            patch("sparkth.plugins.googledrive.utils.create_document", new=create_document),
             patch("sparkth.plugins.googledrive.utils.update_document_status", new=AsyncMock()),
             patch("sparkth.plugins.googledrive.utils._download_file", new=AsyncMock(return_value=b"x")),
             patch(
@@ -157,6 +156,7 @@ class TestProcessSingleFile:
         ):
             await _process_single_file(drive_file, 1, "tok", session)
         assert drive_file.document_id == 42
+        create_document.assert_awaited_once_with(session, 1, ANY, ANY, GOOGLE_DRIVE_PLUGIN_NAME)
 
     async def test_unsupported_file_marks_document_failed(self) -> None:
         drive_file = _make_drive_file(document_id=10)

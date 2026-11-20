@@ -41,6 +41,9 @@ STEP_RESULT_TAIL_CHARS = 600
 # How many steps, each an agent's or the operator's work, Compose's planner may run in one turn.
 MAX_STEPS_PER_TURN = 5
 
+# How many steps a plan may have. Steps past a message's limit run in a later message, once the author asks to continue.
+MAX_PLAN_STEPS = 10
+
 # How long a step's task may be in the plan the author reads, in characters.
 PLAN_TASK_MAX_CHARS = 200
 

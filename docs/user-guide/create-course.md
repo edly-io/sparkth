@@ -41,13 +41,19 @@ such as interactive activities), and it answers in the language you write in.
 Attaching material is optional: the assistant can design a course from your description alone.
 To give it your own documents, open the attach menu next to the message box:
 
-- **Select File** uploads a file from your computer.
+- **Select files** uploads one or more `.txt` or `.pdf` files from your computer. The files you
+  attach can total up to 3 MB.
 - The online drive option (for example **Pick from Google Drive**) uses a file you have
   imported into [Resources](resources.md).
 
 The assistant reads attached files as source material for the course. A file that is still
 indexing can't be picked yet. Hover over the dot next to it in the picker: it can be picked once
 it reads **Ready**.
+
+The files you attach are counted above the message box, for example **2 files attached**. Click
+the count to list them and to remove one. Files are sent with your next message, so type one to
+send them. A file from your computer stays listed once it is sent and can no longer be removed,
+because its text is now part of the conversation.
 
 ## While it works
 

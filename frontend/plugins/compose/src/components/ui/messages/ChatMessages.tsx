@@ -1,21 +1,14 @@
 import { useCallback, useEffect, useRef } from "react";
-import { ChatMessage, TextAttachment } from "@/plugins/compose/src/types";
+import { ChatMessage } from "@/plugins/compose/src/types";
 import { UserMessage } from "@/plugins/compose/src/components/ui/messages/UserMessage";
 import { AssistantMessage } from "@/plugins/compose/src/components/ui/messages/AssistantMessage";
 
 interface ChatMessagesProps {
   messages: ChatMessage[];
-  setPreviewOpen: (open: boolean) => void;
-  setPreviewAttachment: (attachment: TextAttachment | null) => void;
   onOptionCheck: (option: string) => void;
 }
 
-export function ChatMessages({
-  messages,
-  setPreviewOpen,
-  setPreviewAttachment,
-  onOptionCheck,
-}: ChatMessagesProps) {
+export function ChatMessages({ messages, onOptionCheck }: ChatMessagesProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
@@ -44,12 +37,7 @@ export function ChatMessages({
     <div ref={containerRef} onScroll={onScroll} className="flex-1 overflow-y-auto p-6 space-y-6">
       {messages.map((msg, index) =>
         msg.role === "user" ? (
-          <UserMessage
-            key={msg.id}
-            message={msg}
-            setPreviewOpen={setPreviewOpen}
-            setPreviewAttachment={setPreviewAttachment}
-          />
+          <UserMessage key={msg.id} message={msg} />
         ) : (
           <AssistantMessage
             key={msg.id}
