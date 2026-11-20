@@ -13,6 +13,7 @@ from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME, PLANNER_AGENT_NAM
 from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.log import get_logger
 from sparkth.plugins.compose.constants import (
+    MAX_PLAN_STEPS,
     MAX_STEPS_PER_TURN,
     PLANNER_EXISTING_PLAN,
     PLANNER_OPERATIONS,
@@ -44,7 +45,7 @@ def _get_plan_or_none(existing_plan: ExistingPlan | None, agents: Sequence[str])
     onwards is for an agent that isn't in ``agents``."""
     if existing_plan is None:
         return None
-    missing = {step.agent for step in existing_plan.steps[existing_plan.current - 1 :]} - set(agents)
+    missing = {step.agent for step in existing_plan.steps[existing_plan.current_step - 1 :]} - set(agents)
     if missing:
         logger.info("The existing plan is dropped: no agent in this turn does the steps of %s", sorted(missing))
         return None
@@ -53,21 +54,23 @@ def _get_plan_or_none(existing_plan: ExistingPlan | None, agents: Sequence[str])
 
 def _get_step_state(number: int, plan: ExistingPlan) -> str:
     """Where step ``number`` of ``plan`` stands, as the planner reads it."""
-    if number < plan.current:
+    if number < plan.current_step:
         return "done"
-    return "in progress" if number == plan.current else "not started"
+    if number == plan.current_step and plan.has_current_step_run:
+        return "in progress"
+    return "not started"
 
 
 def render_planner_prompt(agents: Sequence[Agent], *, operations: bool, existing_plan: ExistingPlan | None) -> str:
-    """The planner's system prompt, listing each of ``agents`` by its title and its description,
-    saying how to run operations when there are ``operations``, or what to do without them, giving
-    the most steps a plan may have, and ending with ``existing_plan``, a plan from an earlier message that
-    isn't finished, when there is one."""
+    """The planner's system prompt. It lists each of ``agents`` by title and description, says how to
+    run operations when there are ``operations`` or what to do without them, gives the step limits for a
+    plan and for a message, and ends with ``existing_plan`` when there is one."""
     listed = "\n\n".join(f"## {agent.title}\n{agent.description}" for agent in agents)
     prompt = PLANNER_PROMPT.format(
         agents=listed,
         operations=PLANNER_OPERATIONS if operations else PLANNER_WITHOUT_OPERATIONS,
         max_steps=MAX_STEPS_PER_TURN,
+        max_plan_steps=MAX_PLAN_STEPS,
         options_tag=OptionsFence.MULTIPLE,
         single_options_tag=OptionsFence.SINGLE,
     )
@@ -105,8 +108,8 @@ def build_planner(
     middleware: list[AgentMiddleware[Any, Any, Any]] = [
         end_turn_after_agent_offers_choices,
         end_at_repeat_hand_off(existing_plan),
-        enforce_step_limit,
-        enforce_rejected_call_limit,
+        enforce_step_limit(existing_plan),
+        enforce_rejected_call_limit(existing_plan),
         first_hand_off_only,
         enforce_plan(existing_plan),
     ]

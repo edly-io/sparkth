@@ -15,8 +15,9 @@ const handleSend = vi.fn();
 const setPickingFrom = vi.fn();
 const setUploadError = vi.fn();
 const handleDocumentsSelected = vi.fn();
-// useChatInput is mocked to read this directly, so a test sets it before rendering.
+// useChatInput is mocked to read these directly, so a test sets them before rendering.
 let pickingFrom: AttachmentSource | null = null;
+let canSend = true;
 
 vi.mock("@/lib/auth/hooks", () => ({
   useAuth: () => ({ token: "test-token" }),
@@ -34,9 +35,10 @@ vi.mock("@/plugins/compose/src/hooks/useChatInput", () => ({
     setPickingFrom,
     uploadError: null,
     setUploadError,
-    handleUploadAsText: vi.fn(),
+    handleUploadFromComputer: vi.fn(),
     handleDocumentsSelected,
     handleRemoveAttachment: vi.fn(),
+    canSend,
     handleSend,
   }),
 }));
@@ -45,6 +47,7 @@ describe("ChatInput", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     pickingFrom = null;
+    canSend = true;
   });
   // Puts back console.error, which the load-failure test silences.
   afterEach(() => vi.restoreAllMocks());
@@ -149,6 +152,38 @@ describe("ChatInput", () => {
     expect(screen.queryByRole("button", { name: /stop/i })).not.toBeInTheDocument();
   });
 
+  function renderSendButton() {
+    renderWithIntl(
+      <ChatInput
+        message="Summarise this"
+        setMessage={vi.fn()}
+        attachments={[]}
+        setAttachments={vi.fn()}
+        onSend={vi.fn()}
+        conversationId={null}
+        isStreaming={false}
+        isStopping={false}
+        onStop={vi.fn()}
+      />,
+      composeEn,
+    );
+    return screen.getByRole("button", { name: composeEn.compose.sendMessage });
+  }
+
+  it("sends when the send button is clicked", async () => {
+    const sendButton = renderSendButton();
+
+    await userEvent.click(sendButton);
+
+    expect(handleSend).toHaveBeenCalledOnce();
+  });
+
+  it("disables the send button while the message cannot be sent", () => {
+    canSend = false;
+
+    expect(renderSendButton()).toBeDisabled();
+  });
+
   it("does not send on Enter while a turn is streaming", () => {
     renderWithIntl(
       <ChatInput
@@ -227,7 +262,7 @@ describe("ChatInput", () => {
     }
 
     function pickFrom(loadPicker: AttachmentSource["loadPicker"]) {
-      pickingFrom = { label: "Pick from Files", icon: () => null, loadPicker };
+      pickingFrom = { id: "files-source", label: "Pick from Files", icon: () => null, loadPicker };
     }
 
     const attachments: TextAttachment[] = [

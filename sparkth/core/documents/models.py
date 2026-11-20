@@ -29,6 +29,9 @@ class Document(TimestampedModel, SoftDeleteModel, table=True):
 
     name: str = Field(max_length=500)
     mime_type: Optional[str] = Field(default=None, max_length=255)
+    # The id of the source the document came from, such as a plugin's attachment source, so a client
+    # can show where it came from.
+    source: Optional[str] = Field(default=None, max_length=100)
 
     # Native documentstatus enum; labels are the member *values* so they match
     # both the stored rows and the API serialization of DocumentStatus.

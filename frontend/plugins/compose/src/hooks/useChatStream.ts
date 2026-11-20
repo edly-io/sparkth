@@ -310,6 +310,13 @@ async function readStream(
   };
 }
 
+/**
+ * Sends a message and streams the reply into the conversation.
+ *
+ * One turn runs per conversation at a time: `handleSend` does nothing while `isTurnLive()` is
+ * true, which it is from the moment a send starts until its reply ends. A turn in another
+ * conversation does not block this one.
+ */
 export function useChatStream({
   token,
   llmConfigId,
@@ -320,7 +327,13 @@ export function useChatStream({
 }: UseChatStreamOptions) {
   // The backend only notices a stop between provider events, so the button has to say it heard.
   const [isStopping, setIsStopping] = useState(false);
-  const turnIdRef = useRef<string | null>(null);
+  // A ref, not state: sends fired before the next render must all see the turn that just started.
+  const liveTurnRef = useRef<{ turnId: string; conversationId: string | null } | null>(null);
+
+  const isTurnLive = useCallback(
+    () => liveTurnRef.current !== null && liveTurnRef.current.conversationId === conversationId,
+    [conversationId],
+  );
 
   const failAssistantMessage = useCallback(
     (id: string, errorText: string) => {
@@ -344,6 +357,11 @@ export function useChatStream({
 
   const handleSend = useCallback(
     async ({ message, attachments, documentIds }: SendPayload) => {
+      if (isTurnLive()) return;
+      const turnId = crypto.randomUUID();
+      liveTurnRef.current = { turnId, conversationId };
+      setIsStopping(false);
+
       // Strip recovery placeholders before starting a fresh stream — prevents the
       // post-refresh polling from conflicting with a new, live stream.
       setMessages((prev) => prev.filter((m) => !RECOVERY_PLACEHOLDER_IDS.has(m.id)));
@@ -369,10 +387,6 @@ export function useChatStream({
           isTyping: true,
         },
       ]);
-
-      const turnId = crypto.randomUUID();
-      turnIdRef.current = turnId;
-      setIsStopping(false);
 
       try {
         const res = await requestChatCompletionStream(token, {
@@ -405,8 +419,6 @@ export function useChatStream({
         } = await readStream(res.body, assistantId, conversationId, setMessages, (text) =>
           failAssistantMessage(assistantId, text),
         );
-        turnIdRef.current = null;
-        setIsStopping(false);
 
         if (!hasError) {
           setMessages((prev) =>
@@ -442,9 +454,13 @@ export function useChatStream({
         // ApiRequestError extends Error, so its message — the API's own text — flows straight
         // through; the guard now catches the no-key case before a request is ever made.
         const errorMsg = err instanceof Error ? err.message : "Something went wrong.";
-        turnIdRef.current = null;
-        setIsStopping(false);
         failAssistantMessage(assistantId, errorMsg);
+      } finally {
+        // A turn started since, in another conversation, stays live.
+        if (liveTurnRef.current?.turnId === turnId) {
+          liveTurnRef.current = null;
+          setIsStopping(false);
+        }
       }
     },
     [
@@ -453,13 +469,14 @@ export function useChatStream({
       modelOverride,
       conversationId,
       setMessages,
+      isTurnLive,
       failAssistantMessage,
       onNewConversation,
     ],
   );
 
   const stopGeneration = useCallback(async () => {
-    const turnId = turnIdRef.current;
+    const turnId = liveTurnRef.current?.turnId;
     if (!turnId) return;
     setIsStopping(true);
     await stopChatTurn(token, turnId).catch((err) =>
@@ -467,5 +484,5 @@ export function useChatStream({
     );
   }, [token]);
 
-  return { handleSend, stopGeneration, isStopping };
+  return { handleSend, stopGeneration, isStopping, isTurnLive };
 }

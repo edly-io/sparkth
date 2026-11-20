@@ -265,6 +265,8 @@ class AttachedDocumentResponse(BaseModel):
     id: int
     name: str
     size: int | None
+    # The id of the source the document came from, or None when that isn't recorded.
+    source: str | None
 
 
 class ConversationListResponse(BaseModel):

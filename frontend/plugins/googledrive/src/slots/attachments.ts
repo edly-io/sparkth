@@ -4,6 +4,7 @@ import { GOOGLEDRIVE_PLUGIN_NAME } from "@/plugins/googledrive/src/constants";
 
 ATTACHMENT_SOURCES.set(GOOGLEDRIVE_PLUGIN_NAME, [
   {
+    id: GOOGLEDRIVE_PLUGIN_NAME,
     label: "Pick from Google Drive",
     icon: GoogleDriveIcon,
     loadPicker: () => import("@/plugins/googledrive/src/components/ui/AttachmentPicker"),

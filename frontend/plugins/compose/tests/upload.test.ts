@@ -37,6 +37,16 @@ describe("uploadFile", () => {
     expect(result).toEqual(parsed);
   });
 
+  it("sends the request with the given signal, so the upload can be cancelled", async () => {
+    const spy = mockFetch({ filename: "notes.txt", length: 5, text: "hello" });
+    const controller = new AbortController();
+
+    await uploadFile(makeFormData(), "test-token", controller.signal);
+    controller.abort();
+
+    expect(sentRequest(spy).signal.aborted).toBe(true);
+  });
+
   it("sends no authorization header when no token is given and storage is empty", async () => {
     const spy = mockFetch({ filename: "n", length: 0, text: "" });
 

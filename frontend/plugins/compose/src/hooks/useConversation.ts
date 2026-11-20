@@ -215,14 +215,30 @@ export function useConversation(
           messages: loaded.length ? loaded : [WELCOME_MESSAGE],
         });
 
-        setInputAttachments(
-          persistedFiles.map((f) => ({
+        const sentUploads: TextAttachment[] = transcript.flatMap((m) =>
+          m.message_type === "attachment" && m.attachment_name
+            ? [
+                {
+                  name: m.attachment_name,
+                  size: m.attachment_size ?? 0,
+                  // Never sent again, so its text isn't kept.
+                  text: "",
+                  uploadId: `message-${m.id}`,
+                  isSent: true,
+                },
+              ]
+            : [],
+        );
+        setInputAttachments([
+          ...persistedFiles.map((f) => ({
             name: f.name,
             size: f.size ?? 0,
             text: `[File: ${f.name}]`,
             documentId: f.id,
+            source: f.source ?? undefined,
           })),
-        );
+          ...sentUploads,
+        ]);
       } catch (err) {
         // A failure from a load already superseded by another chat says nothing about that chat.
         if (signal.aborted) return;

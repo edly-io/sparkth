@@ -12,6 +12,7 @@
     "optionsTypeElse": "Vous voulez autre chose ? Écrivez-le dans la zone de message ci-dessous.",
     "optionsNoneSelected": "Aucune option sélectionnée",
     "stopGenerating": "Arrêter la génération",
+    "sendMessage": "Envoyer le message",
     "pickerFailed": "Impossible d'ouvrir le sélecteur de fichiers. Veuillez réessayer.",
     "aiKeyMissing": "Vous n'avez pas encore ajouté de clé d'IA à Sparkth. Ajoutez-en une, puis sélectionnez-la dans la configuration de Composer.",
     "aiKeyMissingAction": "Ajouter une clé d'IA",
@@ -31,6 +32,16 @@
     "historyLoadError": "Impossible de charger les discussions. Veuillez réessayer.",
     "historyToday": "Aujourd'hui",
     "historyYesterday": "Hier",
-    "historyDaysAgo": "{count, plural, one {il y a # jour} other {il y a # jours}}"
+    "historyDaysAgo": "{count, plural, one {il y a # jour} other {il y a # jours}}",
+    "attachedFileCount": "{count, plural, one {# fichier joint} other {# fichiers joints}}",
+    "removeAttachedFile": "Retirer le fichier",
+    "uploadingFile": "Envoi du fichier",
+    "uploadingFileProgress": "Envoi du fichier ({current} sur {total})",
+    "selectFiles": "Sélectionner des fichiers",
+    "uploadLimitExceeded": "Ces fichiers dépasseraient la limite de {limitMb} Mo de la conversation.",
+    "uploadSkippedDuplicates": "{count, plural, one {Fichier déjà joint.} other {Fichiers déjà joints.}}",
+    "uploadFailed": "Impossible d'envoyer « {name} » : {reason}",
+    "attachFailed": "Impossible de joindre « {name} ». Veuillez réessayer.",
+    "detachFailed": "Impossible de retirer « {name} ». Veuillez réessayer."
   }
 }
