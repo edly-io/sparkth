@@ -45,7 +45,11 @@ jobs:
       # exactly `make test.frontend` (lint + react-doctor + api drift + typecheck + vitest + format check).
       # Override the react-doctor base to the PR's actual base.
       - name: Run frontend tests
-        run: make test.frontend REACT_DOCTOR_BASE=origin/${{ github.event.pull_request.base.ref }}
+        run: make test.frontend with-coverage=1 REACT_DOCTOR_BASE=origin/${{ github.event.pull_request.base.ref }}
+
+      - name: Report frontend coverage
+        run: |
+          echo "Frontend line coverage: $(jq .total.lines.pct frontend/coverage/coverage-summary.json)%" >> "$GITHUB_STEP_SUMMARY"
 
   backend:
     name: Backend Lint, Type Check, Test & Format
@@ -71,7 +75,12 @@ jobs:
       # tests that need the built PXC sample (the `wasm` marker) run in the
       # pxc-sandbox job, in parallel with this one.
       - name: Run backend tests
-        run: make test.backend ARGS='-m "not wasm"'
+        run: make test.backend with-coverage=1 ARGS='-m "not wasm"'
+
+      # Excludes the code only the `pg` and `wasm` lanes exercise.
+      - name: Report backend coverage
+        run: |
+          echo "Backend line coverage: $(uv run coverage report --format=total)%" >> "$GITHUB_STEP_SUMMARY"
 
   # The tests that compile and run PXC sandboxes: the slowest part of the suite,
   # split out so they run alongside the backend job instead of after it.
