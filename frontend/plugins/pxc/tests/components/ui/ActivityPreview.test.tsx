@@ -104,7 +104,8 @@ describe("ActivityPreview", () => {
 
     renderWithIntl(<ActivityPreview activityId={ACTIVITY_ID} permission="play" />, pxcEn);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Activity not found");
+    expect(await screen.findByRole("heading", { name: "Activity not found" })).toBeInTheDocument();
+    expect(screen.getByText(pxcEn.pxc.notFoundMessage)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
     expect(screen.queryByTitle("Activity preview")).not.toBeInTheDocument();
   });

@@ -16,6 +16,7 @@
     "studentView": "Student",
     "authorView": "Author",
     "notFound": "Activity not found",
+    "notFoundMessage": "This activity doesn't exist or was deleted.",
     "notConfigured": "Previews aren't set up on this server.",
     "launchFailed": "Could not load the activity.",
     "frameTitle": "Activity preview",
