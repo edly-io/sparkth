@@ -202,7 +202,7 @@ test.backend: lint.backend mypy test.backend.pytest test.backend.format ## Run b
 
 .PHONY: test.backend.pytest
 test.backend.pytest: ## Run backend unit tests (make test.backend.pytest [path] [with-coverage=1])
-	uv run pytest $(ARGS) $(if $(with-coverage),--cov-report=term-missing)
+	uv run pytest $(ARGS) $(if $(with-coverage),--cov --cov-report=term-missing)
 
 .PHONY: test.backend.format
 test.backend.format: ## Run backend formatting tests

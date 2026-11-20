@@ -127,6 +127,10 @@ module = ["pxc.lib.field_store", "pxc.lib.fields"]
 follow_untyped_imports = true
 
 
+[tool.coverage.run]
+source = ["sparkth"]
+omit = ["*/tests/*", "sparkth/migrations/*"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 markers = [

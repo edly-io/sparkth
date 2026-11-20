@@ -23,6 +23,11 @@ Numbered steps to verify the change works.
 - Added: `VAR_NAME` (sensitive|non-sensitive) — what it controls or what changed
 Leave this section empty if no variable changes. -->
 
+## Test Coverage
+<!-- Line coverage of this branch from `make test with-coverage=1`, e.g.:
+- Backend: 95%
+- Frontend: 71% -->
+
 ## Notes
 Migration required? Breaking change? Dependency bumped?
 Leave blank if none.
