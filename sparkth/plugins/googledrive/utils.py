@@ -33,6 +33,7 @@ from sparkth.lib.rag import (
 from sparkth.plugins.googledrive.analytics.events import DocumentOutcome, GoogleDriveDocumentProcessed
 from sparkth.plugins.googledrive.client import GoogleDriveClient
 from sparkth.plugins.googledrive.config import get_googledrive_settings
+from sparkth.plugins.googledrive.constants import GOOGLE_DRIVE_PLUGIN_NAME
 from sparkth.plugins.googledrive.exceptions import GoogleDriveAPIError
 from sparkth.plugins.googledrive.models import DriveFile, DriveFolder
 
@@ -219,7 +220,7 @@ async def _process_single_file(
         return
 
     if drive_file.document_id is None:
-        doc = await create_document(session, user_id, filename, drive_file.mime_type)
+        doc = await create_document(session, user_id, filename, drive_file.mime_type, GOOGLE_DRIVE_PLUGIN_NAME)
         drive_file.document_id = doc.id
         session.add(drive_file)
         await session.flush()
