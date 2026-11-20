@@ -4,15 +4,15 @@ import {
   stubComposeActivity,
   stubDriveDocuments,
   stubLogins,
-  stubPermission,
   stubSummary,
   todayUtc,
 } from "./utils/analytics";
+import { stubPermissions } from "./utils/permissions";
 
 /**
  * Analytics dashboard. Runs as the seeded e2e user (auth.setup.ts), which has no roles, so
- * analytics.read and the read API are stubbed (utils/analytics.ts). Each view adds its own
- * specs here.
+ * analytics.read and the read API are stubbed (utils/permissions.ts, utils/analytics.ts). Each
+ * view adds its own specs here.
  */
 const summary = [
   {
@@ -34,13 +34,13 @@ const summary = [
 ];
 
 test.beforeEach(async ({ page }) => {
-  await stubPermission(page, "analytics.read", true);
+  await stubPermissions(page, ["analytics.read"]);
 });
 
 test.describe("analytics", () => {
   test("shows the 403 view without analytics.read, staying on the URL", async ({ page }) => {
     // Registered after the beforeEach grant, so this route wins.
-    await stubPermission(page, "analytics.read", false);
+    await stubPermissions(page, []);
     await page.goto("/dashboard/analytics/logins");
     await expect(
       page.getByRole("heading", { name: "You don't have access to this page" }),

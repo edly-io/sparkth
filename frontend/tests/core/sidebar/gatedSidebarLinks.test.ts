@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("@/core/permissions/client", () => ({ checkPermissions: vi.fn() }));
 
 import { checkPermissions } from "@/core/permissions/client";
+import { PERMISSIONS_SECTION_CHECKS } from "@/core/permissions/section";
 import {
   GATED_SIDEBAR_LINKS,
   resolveSidebarPermissions,
@@ -16,20 +17,33 @@ beforeEach(() => {
 });
 
 describe("GATED_SIDEBAR_LINKS config", () => {
-  it("declares the analytics, admin and audit entries with their permissions/scopes", () => {
-    expect(GATED_SIDEBAR_LINKS.map((link) => link.key)).toEqual(["analytics", "admin", "audit"]);
-    const analytics = GATED_SIDEBAR_LINKS.find((link) => link.key === "analytics")!;
-    const admin = GATED_SIDEBAR_LINKS.find((link) => link.key === "admin")!;
-    expect(analytics.permission).toBe("analytics.read");
-    expect(analytics.scope).toBe("global");
-    expect(admin.permission).toBe("email.whitelist.read");
-    expect(admin.scope).toBe("whitelist");
-    expect(admin.route).toBe("admin/whitelist");
-    expect(admin.activeKey).toBe("admin");
-    const audit = GATED_SIDEBAR_LINKS.find((link) => link.key === "audit")!;
-    expect(audit.permission).toBe("audit.read");
-    expect(audit.scope).toBe("global");
-    expect(audit.route).toBe("audit");
+  const link = (key: string) => GATED_SIDEBAR_LINKS.find((entry) => entry.key === key)!;
+
+  it("declares the gated entries in sidebar order", () => {
+    expect(GATED_SIDEBAR_LINKS.map((entry) => entry.key)).toEqual([
+      "analytics",
+      "permissions",
+      "admin",
+      "audit",
+    ]);
+  });
+
+  it("gates analytics, admin and audit on one permission each", () => {
+    expect(link("analytics").checks).toEqual([{ permission: "analytics.read", scope: "global" }]);
+    expect(link("admin").checks).toEqual([
+      { permission: "email.whitelist.read", scope: "whitelist" },
+    ]);
+    expect(link("admin").route).toBe("admin/whitelist");
+    expect(link("admin").activeKey).toBe("admin");
+    expect(link("audit").checks).toEqual([{ permission: "audit.read", scope: "global" }]);
+  });
+
+  it("gates Access & permissions on the section's checks and opens its first tab", () => {
+    const permissions = link("permissions");
+    expect(permissions.label).toBe("Access & permissions");
+    expect(permissions.checks).toEqual(PERMISSIONS_SECTION_CHECKS);
+    expect(permissions.route).toBe("permissions/roles");
+    expect(permissions.activeKey).toBe("permissions");
   });
 });
 
@@ -40,41 +54,61 @@ describe("resolveSidebarPermissions", () => {
       label: "A",
       icon: noopIcon,
       route: "a",
-      permission: "analytics.read",
-      scope: "global",
+      checks: [{ permission: "analytics.read", scope: "global" }],
     },
     {
       key: "b",
       label: "B",
       icon: noopIcon,
       route: "b",
-      permission: "email.whitelist.read",
-      scope: "whitelist",
+      checks: [
+        { permission: "role.read", scope: "role" },
+        { permission: "group.read", scope: "group" },
+      ],
+    },
+    {
+      key: "c",
+      label: "C",
+      icon: noopIcon,
+      route: "c",
+      checks: [{ permission: "email.whitelist.read", scope: "whitelist" }],
     },
   ];
 
-  it("asks every link's permission and scope in one request", async () => {
-    vi.mocked(checkPermissions).mockResolvedValue([true, true]);
+  it("asks every link's checks in one request, in link order", async () => {
+    vi.mocked(checkPermissions).mockResolvedValue([true, true, true, true]);
 
     await resolveSidebarPermissions("tok", links);
 
     expect(checkPermissions).toHaveBeenCalledTimes(1);
     expect(checkPermissions).toHaveBeenCalledWith("tok", [
       { permission: "analytics.read", scope: "global" },
+      { permission: "role.read", scope: "role" },
+      { permission: "group.read", scope: "group" },
       { permission: "email.whitelist.read", scope: "whitelist" },
     ]);
   });
 
-  it("returns a map keyed by link key with each answer", async () => {
-    vi.mocked(checkPermissions).mockResolvedValue([true, false]);
+  it("shows a link only when every one of its checks passes", async () => {
+    vi.mocked(checkPermissions).mockResolvedValue([true, true, true, false]);
 
-    expect(await resolveSidebarPermissions("tok", links)).toEqual({ a: true, b: false });
+    expect(await resolveSidebarPermissions("tok", links)).toEqual({ a: true, b: true, c: false });
+  });
+
+  it("hides a link when any one of its checks is refused", async () => {
+    vi.mocked(checkPermissions).mockResolvedValue([true, true, false, true]);
+
+    expect(await resolveSidebarPermissions("tok", links)).toEqual({ a: true, b: false, c: true });
   });
 
   it("fails closed (false) for every link when the request rejects", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(checkPermissions).mockRejectedValue(new Error("network"));
 
-    expect(await resolveSidebarPermissions("tok", links)).toEqual({ a: false, b: false });
+    expect(await resolveSidebarPermissions("tok", links)).toEqual({
+      a: false,
+      b: false,
+      c: false,
+    });
   });
 });
