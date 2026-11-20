@@ -367,6 +367,11 @@ MCP is not the only tool door. Compose applies both switches for the requesting 
 turn: a plugin switched off system-wide or by that user has none of its tools bound, no
 agent offered. Only `/ai/mcp` stays system-wide.
 
+Compose also leaves out the tools and the agent of a plugin the requesting user does not hold
+`plugin.use` at (a `global` grant covers every plugin). Your plugin checks nothing for this. A
+request that names a tool of a plugin left out this way records one `permission.denied` audit
+event for that plugin. A request for every tool records none.
+
 Because `/ai/mcp` has no per-user switch, a tool that must not run for a particular caller
 over MCP has to enforce that inside the tool.
 
@@ -754,8 +759,8 @@ The loader logs the failed construction and skips that plugin.
 
 On every request Compose reads the agents of the plugins enabled for the requesting user, in
 plugin-name order. Course design comes from the course design plugin. A plugin switched off
-system-wide or by the user contributes no agent and no tools. A plugin the user does not hold
-`plugin.use` at contributes no agent either (a `global` grant covers every plugin).
+system-wide or by the user contributes no agent and no tools, and neither does a plugin the user
+does not hold `plugin.use` at (a `global` grant covers every plugin).
 
 - **Planner.** A planner reads each message and hands it to the one agent whose description fits.
   It runs on the small model of the user's provider, or on the reply's own model when

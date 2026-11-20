@@ -2021,7 +2021,7 @@ export interface components {
             tool_choice: string | null;
             /**
              * Tools
-             * @description Includes every tool of the plugins switched on for the requesting user. Use 'none' or empty list to disable.
+             * @description Includes every tool of the plugins the requesting user has switched on and has permission to use. Use 'none' or empty list to disable.
              * @default *
              */
             tools: string[] | string | null;
