@@ -69,6 +69,7 @@ from sparkth.plugins.compose.schemas import (
 )
 from sparkth.plugins.compose.service import ComposeService, get_compose_service
 from sparkth.plugins.compose.tools import get_tool_registry
+from sparkth.plugins.compose.uploaded_files import add_uploaded_files
 
 logger = get_logger(__name__)
 
@@ -242,6 +243,8 @@ async def compose_completion(
                     skipped_count=attached.skipped_count,
                     occurred_at=datetime.now(timezone.utc),
                 )
+        # Before the turn is stored, so the typed turn of a request refused for its files isn't saved.
+        uploaded_files = await add_uploaded_files(conversation.uuid, request.files)
         incoming_messages = await service.add_incoming_messages(session, conversation_id, request.messages)
         for stored in incoming_messages:
             # Instructor turns only: an assistant turn in the request is history the client
@@ -250,7 +253,7 @@ async def compose_completion(
                 continue
             turn_analytics.schedule_message_sent(
                 message_length=len(stored.content),
-                has_attachment=stored.message_type == "attachment",
+                has_attachment=stored.message_type == "attachment" or bool(request.files),
                 occurred_at=stored.created_at,
             )
 
@@ -301,6 +304,7 @@ async def compose_completion(
             query_text,
             rag_search_required,
             provider,
+            uploaded_files=uploaded_files,
             analytics=turn_analytics,
         )
 

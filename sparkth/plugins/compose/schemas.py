@@ -6,6 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from sparkth.plugins.compose.constants import MAX_COMBINED_UPLOAD_MB
 from sparkth.plugins.compose.enums import (
     DocumentProcessingStatus,
     DocumentSectionProcessingStatus,
@@ -63,6 +64,14 @@ class ChatMessage(BaseModel):
         return v
 
 
+class UploadedFile(BaseModel):
+    """A file uploaded from the computer, as the text read from it."""
+
+    name: str = Field(max_length=255)
+    # A file with more text than a conversation may keep can never be accepted.
+    text: str = Field(max_length=MAX_COMBINED_UPLOAD_MB * 1024 * 1024)
+
+
 class ToolCall(BaseModel):
     id: str
     name: str
@@ -99,6 +108,10 @@ class ChatCompletionRequest(BaseModel):
     turn_id: UUID | None = Field(
         default=None,
         description="Client-generated id for this turn, used to stop it while it streams.",
+    )
+    files: list[UploadedFile] = Field(
+        default_factory=list,
+        description="The files uploaded from the computer with this turn. Kept for later turns, never in the database.",
     )
 
     @field_validator("messages")

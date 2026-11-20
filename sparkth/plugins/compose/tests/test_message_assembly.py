@@ -15,7 +15,7 @@ import pytest
 from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.plugins.compose.models import Message
 from sparkth.plugins.compose.routes.utils.message_assembly import assemble_provider_messages
-from sparkth.plugins.compose.schemas import ChatCompletionRequest, ChatMessage
+from sparkth.plugins.compose.schemas import ChatCompletionRequest, ChatMessage, UploadedFile
 
 _RESOLVE = "sparkth.plugins.compose.routes.utils.message_assembly.resolve_document_blocks"
 
@@ -49,7 +49,7 @@ class TestHistoryAndCurrentTurns:
         ]
 
         messages, _unresolved = await assemble_provider_messages(
-            request, db_messages, [], "", False, MagicMock(), analytics=MagicMock()
+            request, db_messages, [], "", False, MagicMock(), uploaded_files=[], analytics=MagicMock()
         )
 
         assert [m["content"] for m in messages] == ["hello", "hi", "what about chapter 3?"]
@@ -63,7 +63,7 @@ class TestHistoryAndCurrentTurns:
         db_messages = [_stored("user", "summarise this")]
 
         messages, _unresolved = await assemble_provider_messages(
-            request, db_messages, [], "", False, MagicMock(), analytics=MagicMock()
+            request, db_messages, [], "", False, MagicMock(), uploaded_files=[], analytics=MagicMock()
         )
 
         assert messages[-1]["content"] == blocks
@@ -73,10 +73,38 @@ class TestHistoryAndCurrentTurns:
         request = _request("first message")
 
         messages, _unresolved = await assemble_provider_messages(
-            request, [_stored("user", "first message")], [], "", False, MagicMock(), analytics=MagicMock()
+            request,
+            [_stored("user", "first message")],
+            [],
+            "",
+            False,
+            MagicMock(),
+            uploaded_files=[],
+            analytics=MagicMock(),
         )
 
         assert [m["content"] for m in messages] == ["first message"]
+
+    @pytest.mark.asyncio
+    async def test_uploaded_files_come_between_the_history_and_the_current_turn(self) -> None:
+        request = _request("summarise them")
+        uploaded_files = [
+            UploadedFile(name="a.txt", text="alpha"),
+            UploadedFile(name="b.txt", text="beta"),
+        ]
+        db_messages = [_stored("user", "hello"), _stored("assistant", "hi"), _stored("user", "summarise them")]
+
+        messages, _unresolved = await assemble_provider_messages(
+            request, db_messages, [], "", False, MagicMock(), uploaded_files=uploaded_files, analytics=MagicMock()
+        )
+
+        assert [m["content"] for m in messages] == [
+            "hello",
+            "hi",
+            "[File: a.txt]\n\nalpha",
+            "[File: b.txt]\n\nbeta",
+            "summarise them",
+        ]
 
 
 class TestWhenRetrievalWillRun:
@@ -88,7 +116,14 @@ class TestWhenRetrievalWillRun:
         request = _request("what powers a cell?", stream=True)
 
         messages, unresolved = await assemble_provider_messages(
-            request, [], [_document(7)], "what powers a cell?", True, MagicMock(), analytics=MagicMock()
+            request,
+            [],
+            [_document(7)],
+            "what powers a cell?",
+            True,
+            MagicMock(),
+            uploaded_files=[],
+            analytics=MagicMock(),
         )
 
         assert unresolved is not None
@@ -104,7 +139,14 @@ class TestWhenRetrievalWillRun:
 
         with patch(_RESOLVE, new_callable=AsyncMock, return_value=resolved) as mock_resolve:
             messages, unresolved = await assemble_provider_messages(
-                request, [], [_document(7)], "what powers a cell?", True, MagicMock(), analytics=MagicMock()
+                request,
+                [],
+                [_document(7)],
+                "what powers a cell?",
+                True,
+                MagicMock(),
+                uploaded_files=[],
+                analytics=MagicMock(),
             )
 
         mock_resolve.assert_awaited_once()
@@ -122,6 +164,7 @@ class TestWhenRetrievalWillRun:
             "compare them",
             True,
             MagicMock(),
+            uploaded_files=[],
             analytics=MagicMock(),
         )
 
@@ -134,11 +177,30 @@ class TestWhenRetrievalWillRun:
         request = _request([{"type": "document", "source": {"type": "base64", "data": ""}}], stream=True)
 
         messages, _unresolved = await assemble_provider_messages(
-            request, [], [_document(3)], "", True, MagicMock(), analytics=MagicMock()
+            request, [], [_document(3)], "", True, MagicMock(), uploaded_files=[], analytics=MagicMock()
         )
 
         blocks = messages[-1]["content"]
         assert blocks == [{"type": "drive_file", "file_id": 3}]
+
+    @pytest.mark.asyncio
+    async def test_uploaded_files_still_reach_the_model(self) -> None:
+        """Retrieval replaces the request's turns, but not the files sent alongside them."""
+        request = _request("what powers a cell?", stream=True)
+        uploaded_files = [UploadedFile(name="notes.txt", text="mitochondria")]
+
+        messages, _unresolved = await assemble_provider_messages(
+            request,
+            [],
+            [_document(7)],
+            "what powers a cell?",
+            True,
+            MagicMock(),
+            uploaded_files=uploaded_files,
+            analytics=MagicMock(),
+        )
+
+        assert messages[0]["content"] == "[File: notes.txt]\n\nmitochondria"
 
 
 class TestWhenRetrievalWillNotRun:
@@ -149,7 +211,7 @@ class TestWhenRetrievalWillNotRun:
         request = _request("just chatting", stream=True)
 
         _messages, unresolved = await assemble_provider_messages(
-            request, [], [_document()], "just chatting", False, MagicMock(), analytics=MagicMock()
+            request, [], [_document()], "just chatting", False, MagicMock(), uploaded_files=[], analytics=MagicMock()
         )
 
         assert unresolved is None
@@ -160,7 +222,14 @@ class TestWhenRetrievalWillNotRun:
 
         with patch(_RESOLVE, new_callable=AsyncMock) as mock_resolve:
             await assemble_provider_messages(
-                request, [], [_document()], "just chatting", False, MagicMock(), analytics=MagicMock()
+                request,
+                [],
+                [_document()],
+                "just chatting",
+                False,
+                MagicMock(),
+                uploaded_files=[],
+                analytics=MagicMock(),
             )
 
         mock_resolve.assert_not_awaited()
