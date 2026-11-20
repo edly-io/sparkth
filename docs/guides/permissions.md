@@ -510,11 +510,12 @@ objects, the same check `require_for_any_object()` makes for a list route:
 `GET /api/v1/permissions/can?permission=<name>&scope=<kind>&scope_object_id=<id>` takes the same
 fields as query parameters, with `scope` defaulting to `global`, and gives the same answer.
 
-To ask many questions in one request, `POST /api/v1/permissions/can/batch` takes a list of such
-checks, at most `MAX_PERMISSION_CHECKS` (50), and returns one result per check, in request order. Each result repeats its check and
-adds `allowed`, so the same permission can be asked at two scopes. `batched_can()` answers them all
-from one read of the user's grants. A check without a scope, or an unknown permission or scope
-name, rejects the whole request with 422, and no check is answered.
+To run many checks in one request, `POST /api/v1/permissions/can/batch` takes a list of such
+checks, at most `MAX_PERMISSION_CHECKS` (50), and returns one result per check, in request order.
+Each result repeats its check and adds `allowed`, so the same permission can be checked at two
+scopes. `batched_can()` answers them all from one read of the user's grants. A check without a
+scope, or an unknown permission or scope name, rejects the whole request with 422, and no check is
+answered.
 
 The probes are a convenience for gating UI, not a security boundary, since every endpoint still
 enforces its own permission and returns 403.

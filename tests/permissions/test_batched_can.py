@@ -25,7 +25,7 @@ from sparkth.lib.permissions.scopes import (
 )
 from sparkth.lib.testing import add_role_assignment, assign_through_group, make_role, make_user
 
-QUESTIONS: list[tuple[PermissionScope, str | None]] = [
+SCOPE_CHECKS: list[tuple[PermissionScope, str | None]] = [
     (GROUP, "group:7"),
     (GROUP, "group:8"),
     (GROUP, None),
@@ -73,20 +73,20 @@ async def test_matches_the_single_checks(
     await _grant_group_read(session, user, scope_name, object_id, via_group)
 
     answers = await batched_can(
-        user, [PermissionCheckQuery(GROUP_READ, scope, path) for scope, path in QUESTIONS], session
+        user, [PermissionCheckQuery(GROUP_READ, scope, path) for scope, path in SCOPE_CHECKS], session
     )
 
-    assert answers == [await _answer_one_check(session, user, scope, path) for scope, path in QUESTIONS]
+    assert answers == [await _answer_one_check(session, user, scope, path) for scope, path in SCOPE_CHECKS]
 
 
 async def test_user_without_grants_is_denied_every_check(session: AsyncSession) -> None:
     user = await make_user(session, "alice")
 
     answers = await batched_can(
-        user, [PermissionCheckQuery(GROUP_READ, scope, path) for scope, path in QUESTIONS], session
+        user, [PermissionCheckQuery(GROUP_READ, scope, path) for scope, path in SCOPE_CHECKS], session
     )
 
-    assert answers == [False] * len(QUESTIONS)
+    assert answers == [False] * len(SCOPE_CHECKS)
 
 
 async def test_answers_follow_check_order_and_repeat_duplicates(session: AsyncSession) -> None:
@@ -160,7 +160,9 @@ async def test_runs_one_query_for_many_checks(session: AsyncSession) -> None:
     await _grant_group_read(session, user, GROUP.name, "7", False)
 
     with patch.object(session, "exec", wraps=session.exec) as spy:
-        await batched_can(user, [PermissionCheckQuery(GROUP_READ, scope, path) for scope, path in QUESTIONS], session)
+        await batched_can(
+            user, [PermissionCheckQuery(GROUP_READ, scope, path) for scope, path in SCOPE_CHECKS], session
+        )
 
     assert spy.call_count == 1
 

@@ -2734,7 +2734,7 @@ export interface components {
         };
         /**
          * PermissionCheck
-         * @description One question: does the current user hold a permission at a scope?
+         * @description One check: does the current user hold a permission at a scope?
          */
         PermissionCheck: {
             /**
@@ -2760,7 +2760,7 @@ export interface components {
         };
         /**
          * PermissionCheckResult
-         * @description A question and its answer.
+         * @description A check and its answer.
          */
         PermissionCheckResult: {
             /** Allowed */

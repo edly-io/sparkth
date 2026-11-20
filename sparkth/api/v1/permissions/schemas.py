@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class PermissionCheck(BaseModel):
-    """One question: does the current user hold a permission at a scope?"""
+    """One check: does the current user hold a permission at a scope?"""
 
     permission: str = Field(description="Permission name to check, e.g. 'analytics.read'.")
     scope: str = Field(description="Scope kind to check at, e.g. 'global'.")
@@ -16,7 +16,7 @@ class PermissionCheck(BaseModel):
 
 
 class PermissionCheckResult(PermissionCheck):
-    """A question and its answer."""
+    """A check and its answer."""
 
     allowed: bool
 
