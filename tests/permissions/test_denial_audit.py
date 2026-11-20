@@ -16,7 +16,7 @@ from sparkth.core.permissions.models import Role, RoleAssignment, RolePermission
 from sparkth.core.permissions.scopes import PERMISSION_SCOPES, PermissionScope
 from sparkth.core.security import create_access_token
 from sparkth.lib.permissions import Permission
-from sparkth.lib.permissions.scopes import GLOBAL
+from sparkth.lib.permissions.scopes import GLOBAL, build_scope_path
 from sparkth.lib.testing import AuditEventsFetcher
 
 ROLES_URL = "/api/v1/permissions/roles"
@@ -191,3 +191,13 @@ async def test_denial_names_the_object_id_the_check_ran_at(
     assert response.status_code == 403
     (event,) = await audit_events()
     assert event.error_detail == "scope=quiz:7"
+
+
+async def test_a_denial_is_recorded_without_refusing_a_request(
+    quiz_scope: PermissionScope, audit_events: AuditEventsFetcher
+) -> None:
+    await Permission("quiz.read").record_denial(quiz_scope, build_scope_path(quiz_scope, "7"))
+
+    (event,) = await audit_events()
+    assert (event.category, event.action, event.outcome) == ("permission", "denied", "denied")
+    assert (event.target_type, event.target_id, event.error_detail) == ("permission", "quiz.read", "scope=quiz:7")
