@@ -76,7 +76,7 @@ describe("checkPermission", () => {
 });
 
 describe("checkPermissions", () => {
-  it("POSTs every question to /api/v1/permissions/can/batch and returns the answers in order", async () => {
+  it("POSTs every check to /api/v1/permissions/can/batch and returns the answers in order", async () => {
     const spy = mockFetch([
       { permission: "analytics.read", scope: "global", scope_object_id: null, allowed: true },
       { permission: "group.read", scope: "group", scope_object_id: "7", allowed: false },

@@ -96,8 +96,8 @@ async function confirmRemoval() {
 }
 
 function grant(...granted: string[]) {
-  vi.mocked(checkPermissions).mockImplementation(async (_token, questions) =>
-    questions.map(({ permission }) => granted.includes(permission)),
+  vi.mocked(checkPermissions).mockImplementation(async (_token, checks) =>
+    checks.map(({ permission }) => granted.includes(permission)),
   );
 }
 

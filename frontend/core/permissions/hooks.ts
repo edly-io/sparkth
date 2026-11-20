@@ -43,23 +43,23 @@ export function usePermissionCheck(
 }
 
 /**
- * Whether the signed-in user holds each of `questions`, answered by one request, for gating
- * several controls at once. Returns one `Access` per question, in order.
+ * Whether the signed-in user holds each of `checks`, answered by one request, for gating
+ * several controls at once. Returns one `Access` per check, in order.
  *
- * Asks again only when the token or the questions' content changes, so an inline array is fine.
- * Goes back to `"checking"` on such a change, and fails closed, denying every question, when the
+ * Asks again only when the token or the checks' content changes, so an inline array is fine.
+ * Goes back to `"checking"` on such a change, and fails closed, denying every check, when the
  * request errors.
  */
 export function usePermissionChecks(
   token: string | null,
-  questions: PermissionCheckQuery[],
+  checks: PermissionCheckQuery[],
 ): Access[] {
-  // Keyed by content, not identity: a new array with the same questions must not ask again.
-  const questionsKey = JSON.stringify(questions);
-  const [answers, setAnswers] = useState<Access[]>(() => questions.map(() => "checking"));
+  // Keyed by content, not identity: a new array with the same checks must not ask again.
+  const checksKey = JSON.stringify(checks);
+  const [answers, setAnswers] = useState<Access[]>(() => checks.map(() => "checking"));
 
   useEffect(() => {
-    const asked: PermissionCheckQuery[] = JSON.parse(questionsKey);
+    const asked: PermissionCheckQuery[] = JSON.parse(checksKey);
     setAnswers(asked.map(() => "checking"));
     if (!token) return;
     let active = true;
@@ -74,7 +74,7 @@ export function usePermissionChecks(
     return () => {
       active = false;
     };
-  }, [token, questionsKey]);
+  }, [token, checksKey]);
 
   return answers;
 }

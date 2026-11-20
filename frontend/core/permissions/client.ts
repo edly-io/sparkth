@@ -2,7 +2,7 @@ import { api, bearer, call } from "@/lib/api";
 import type { PermissionCheckResponse, PermissionCheckResult } from "@/core/permissions/types";
 import type { PermissionName } from "@/lib/permissions/names";
 
-/** One "may the current user do this?" question: a permission at a scope, optionally at one of its objects. */
+/** One permission check: a permission at a scope, optionally at one of its objects. */
 export interface PermissionCheckQuery {
   permission: PermissionName;
   scope: string; // e.g. "global"
@@ -28,16 +28,16 @@ export async function checkPermission(
 }
 
 /**
- * Ask the backend about several permissions in one request. Returns one answer per question, in
+ * Ask the backend about several permissions in one request. Returns one answer per check, in
  * the order asked. The request fails as a whole, so a caller treats a rejection as a denial of all.
  */
 export async function checkPermissions(
   token: string,
-  questions: PermissionCheckQuery[],
+  checks: PermissionCheckQuery[],
 ): Promise<boolean[]> {
   const results = await call<PermissionCheckResult[]>(() =>
     api.POST("/api/v1/permissions/can/batch", {
-      body: questions.map(({ permission, scope, scopeObjectId }) => ({
+      body: checks.map(({ permission, scope, scopeObjectId }) => ({
         permission,
         scope,
         scope_object_id: scopeObjectId,

@@ -16,7 +16,7 @@ vi.mock("@/core/permissions/client", () => ({
 const mockCheck = vi.mocked(checkPermission);
 const mockChecks = vi.mocked(checkPermissions);
 
-const QUESTIONS: PermissionCheckQuery[] = [
+const PERMISSION_CHECKS: PermissionCheckQuery[] = [
   { permission: "email.whitelist.read", scope: "whitelist" },
   { permission: "email.whitelist.create", scope: "whitelist" },
 ];
@@ -88,7 +88,7 @@ describe("usePermissionCheck", () => {
 
 describe("usePermissionChecks", () => {
   it("stays checking without a token", () => {
-    const { result } = renderHook(() => usePermissionChecks(null, QUESTIONS));
+    const { result } = renderHook(() => usePermissionChecks(null, PERMISSION_CHECKS));
 
     expect(result.current).toEqual(["checking", "checking"]);
     expect(mockChecks).not.toHaveBeenCalled();
@@ -97,17 +97,17 @@ describe("usePermissionChecks", () => {
   it("maps each answer to allowed or denied, in order", async () => {
     mockChecks.mockResolvedValue([true, false]);
 
-    const { result } = renderHook(() => usePermissionChecks("tok", QUESTIONS));
+    const { result } = renderHook(() => usePermissionChecks("tok", PERMISSION_CHECKS));
 
     await waitFor(() => expect(result.current).toEqual(["allowed", "denied"]));
-    expect(mockChecks).toHaveBeenCalledWith("tok", QUESTIONS);
+    expect(mockChecks).toHaveBeenCalledWith("tok", PERMISSION_CHECKS);
   });
 
-  it("denies every question when the batch errors", async () => {
+  it("denies every check when the batch errors", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     mockChecks.mockRejectedValue(new Error("network"));
 
-    const { result } = renderHook(() => usePermissionChecks("tok", QUESTIONS));
+    const { result } = renderHook(() => usePermissionChecks("tok", PERMISSION_CHECKS));
 
     await waitFor(() => expect(result.current).toEqual(["denied", "denied"]));
   });
@@ -117,9 +117,12 @@ describe("usePermissionChecks", () => {
     mockChecks.mockReturnValueOnce(new Promise((resolve) => (resolveOld = resolve)));
     mockChecks.mockReturnValueOnce(new Promise(() => {}));
 
-    const { result, rerender } = renderHook(({ token }) => usePermissionChecks(token, QUESTIONS), {
-      initialProps: { token: "old" },
-    });
+    const { result, rerender } = renderHook(
+      ({ token }) => usePermissionChecks(token, PERMISSION_CHECKS),
+      {
+        initialProps: { token: "old" },
+      },
+    );
     rerender({ token: "new" });
     await act(async () => resolveOld([true, true]));
 
@@ -127,7 +130,7 @@ describe("usePermissionChecks", () => {
     expect(result.current).toEqual(["checking", "checking"]);
   });
 
-  it("asks once when given an inline questions array", async () => {
+  it("asks once when given an inline checks array", async () => {
     mockChecks.mockResolvedValue([true]);
 
     const { result } = renderHook(() =>
@@ -138,10 +141,10 @@ describe("usePermissionChecks", () => {
     expect(mockChecks).toHaveBeenCalledTimes(1);
   });
 
-  it("asks once across rerenders when the questions array is stable", async () => {
+  it("asks once across rerenders when the checks array is stable", async () => {
     mockChecks.mockResolvedValue([true, true]);
 
-    const { result, rerender } = renderHook(() => usePermissionChecks("tok", QUESTIONS));
+    const { result, rerender } = renderHook(() => usePermissionChecks("tok", PERMISSION_CHECKS));
     await waitFor(() => expect(result.current).toEqual(["allowed", "allowed"]));
     rerender();
 
