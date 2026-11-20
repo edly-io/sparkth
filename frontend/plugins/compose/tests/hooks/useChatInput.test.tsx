@@ -6,6 +6,7 @@ import { useChatInput } from "@/plugins/compose/src/hooks/useChatInput";
 import { attachDocument, detachDocument } from "@/plugins/compose/src/client";
 import type { TextAttachment } from "@/plugins/compose/src/types";
 import { uploadFile, type UploadResponse } from "@/plugins/compose/src/upload";
+import { isWithinStorageLimit } from "@/plugins/compose/src/storedFiles";
 import { ATTACHMENT_SOURCES, type AttachmentSource } from "@/plugins/compose/src/slots/attachments";
 import composeEn from "@/plugins/compose/src/i18n/en.json";
 import { IntlTestProvider } from "@/lib/testing/intl";
@@ -13,6 +14,10 @@ import { IntlTestProvider } from "@/lib/testing/intl";
 vi.mock("@/plugins/compose/src/client", () => ({
   attachDocument: vi.fn(() => Promise.resolve()),
   detachDocument: vi.fn(() => Promise.resolve()),
+}));
+
+vi.mock("@/plugins/compose/src/storedFiles", () => ({
+  isWithinStorageLimit: vi.fn(() => true),
 }));
 
 vi.mock("@/plugins/compose/src/upload", () => ({
@@ -293,6 +298,21 @@ describe("useChatInput — files uploaded from the computer", () => {
     expect(result.current.attachments).toEqual([]);
     expect(result.current.uploadError).toBe(
       'Failed to upload "notes.docx": Only .txt and .pdf files are supported',
+    );
+  });
+
+  it("removes a file over this browser's storage limit and says so", async () => {
+    vi.mocked(isWithinStorageLimit).mockReturnValueOnce(false);
+    const { result } = setupWithAttachments(null);
+
+    await act(async () => {
+      await result.current.handleUploadFromComputer([new File(["Week 1"], "notes.txt")]);
+    });
+
+    expect(isWithinStorageLimit).toHaveBeenCalledWith("Week 1");
+    expect(result.current.attachments).toEqual([]);
+    expect(result.current.uploadError).toBe(
+      "\"notes.txt\" exceeds this browser's storage limit, so it wasn't attached.",
     );
   });
 

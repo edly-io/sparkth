@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { addStoredFiles, getStoredFiles } from "@/plugins/compose/src/storedFiles";
+import {
+  addStoredFiles,
+  getStoredFiles,
+  isWithinStorageLimit,
+} from "@/plugins/compose/src/storedFiles";
 
 const notes = { name: "notes.txt", size: 5, text: "mitochondria" };
 const syllabus = { name: "syllabus.txt", size: 12, text: "Week 1: cells" };
@@ -68,5 +72,18 @@ describe("storedFiles", () => {
 
     expect(() => addStoredFiles(7, "conv-1", [syllabus])).not.toThrow();
     expect(getStoredFiles(7, "conv-1")).toEqual([]);
+  });
+
+  it("finds text that fits within the storage limit, and leaves nothing behind checking", () => {
+    expect(isWithinStorageLimit("Week 1: cells")).toBe(true);
+    expect(localStorage.length).toBe(0);
+  });
+
+  it("finds text over the storage limit even with nothing else kept", () => {
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw quotaExceeded();
+    });
+
+    expect(isWithinStorageLimit("Week 1: cells")).toBe(false);
   });
 });

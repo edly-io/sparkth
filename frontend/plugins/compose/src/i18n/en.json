@@ -40,6 +40,7 @@
     "selectFiles": "Select files",
     "uploadLimitExceeded": "These files would take the conversation over its {limitMb} MB limit.",
     "uploadSkippedDuplicates": "{count, plural, one {File already attached.} other {Files already attached.}}",
+    "uploadStorageLimitExceeded": "\"{name}\" exceeds this browser's storage limit, so it wasn't attached.",
     "uploadFailed": "Failed to upload \"{name}\": {reason}",
     "attachFailed": "Failed to attach \"{name}\". Please try again.",
     "detachFailed": "Failed to detach \"{name}\". Please try again."

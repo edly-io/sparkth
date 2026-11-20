@@ -51,6 +51,23 @@ function removeOldestEntry(keptKey: string): boolean {
   return true;
 }
 
+// Writes `value` under `key`, and returns whether it was written. While storage is full, other
+// conversations give up their files, those added longest ago first.
+function saveToStorage(key: string, value: string): boolean {
+  for (;;) {
+    try {
+      localStorage.setItem(key, value);
+      return true;
+    } catch (error) {
+      const isFull = error instanceof DOMException && error.name === "QuotaExceededError";
+      if (!isFull || !removeOldestEntry(key)) {
+        console.warn("Could not keep the conversation's files in this browser:", error);
+        return false;
+      }
+    }
+  }
+}
+
 /**
  * Adds files to the ones this browser keeps for a conversation.
  *
@@ -58,22 +75,21 @@ function removeOldestEntry(keptKey: string): boolean {
  * When the files still don't fit, or storage is blocked, they aren't kept.
  */
 export function addStoredFiles(userId: number, conversationId: string, files: StoredFile[]): void {
-  const key = getKey(userId, conversationId);
   const entry: StoredEntry = {
     updatedAt: Date.now(),
     files: [...getStoredFiles(userId, conversationId), ...files],
   };
-  const value = JSON.stringify(entry);
-  for (;;) {
-    try {
-      localStorage.setItem(key, value);
-      return;
-    } catch (error) {
-      const isFull = error instanceof DOMException && error.name === "QuotaExceededError";
-      if (!isFull || !removeOldestEntry(key)) {
-        console.warn("Could not keep the conversation's files in this browser:", error);
-        return;
-      }
-    }
-  }
+  saveToStorage(getKey(userId, conversationId), JSON.stringify(entry));
+}
+
+const LIMIT_CHECK_KEY = `${KEY_PREFIX}limit-check`;
+
+/**
+ * Whether a file's text fits within this browser's storage limit, checked by writing it and removing it
+ * again. Other conversations may give up their files to make it fit.
+ */
+export function isWithinStorageLimit(text: string): boolean {
+  const isWithin = saveToStorage(LIMIT_CHECK_KEY, text);
+  if (isWithin) localStorage.removeItem(LIMIT_CHECK_KEY);
+  return isWithin;
 }

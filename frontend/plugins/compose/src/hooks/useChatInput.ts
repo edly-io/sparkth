@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { isUnsentUpload, TextAttachment } from "@/plugins/compose/src/types";
 import { attachDocument, detachDocument } from "@/plugins/compose/src/client";
 import { uploadFile, UploadResponse } from "@/plugins/compose/src/upload";
+import { isWithinStorageLimit } from "@/plugins/compose/src/storedFiles";
 import type { AttachedDocument, AttachmentSource } from "@/plugins/compose/src/slots/attachments";
 
 /** How many megabytes of computer files one conversation can carry; documents don't count. */
@@ -60,6 +61,13 @@ export function useChatInput({
         token ?? undefined,
         cancelUpload.signal,
       );
+
+      // The browser keeps the text for every later message, so a file over its storage limit can't be used.
+      if (!isWithinStorageLimit(data.text)) {
+        setAttachments((prev) => prev.filter((a) => a.uploadId !== uploadId));
+        setUploadError(t("uploadStorageLimitExceeded", { name: file.name }));
+        return;
+      }
 
       setAttachments((prev) =>
         prev.map((a) =>
