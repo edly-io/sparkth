@@ -16,7 +16,7 @@ describe("Forbidden", () => {
   it("leads back to the dashboard", () => {
     renderWithIntl(<Forbidden />, coreEn);
 
-    expect(screen.getByRole("link", { name: coreEn.forbidden.back })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: coreEn.dashboardLink.back })).toHaveAttribute(
       "href",
       "/dashboard",
     );
