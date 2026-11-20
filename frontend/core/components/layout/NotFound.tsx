@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { SearchX } from "lucide-react";
+import { MessagePanel } from "@/core/components/layout/MessagePanel";
 
 interface NotFoundProps {
   title: string;
@@ -16,11 +17,8 @@ interface NotFoundProps {
  */
 export function NotFound({ title, message, action }: NotFoundProps): React.JSX.Element {
   return (
-    <div role="alert" className="bg-card rounded-lg border border-border p-12 text-center">
-      <SearchX className="mx-auto mb-4 h-12 w-12 text-muted-foreground/50" aria-hidden="true" />
-      <h2 className="text-xl font-semibold text-foreground">{title}</h2>
-      {message && <p className="mt-2 text-muted-foreground">{message}</p>}
-      {action && <div className="mt-6">{action}</div>}
+    <div role="alert">
+      <MessagePanel icon={SearchX} title={title} message={message} action={action} />
     </div>
   );
 }
