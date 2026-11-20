@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { ShieldAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { BackToDashboardLink } from "@/core/components/layout/BackToDashboardLink";
 import { MessagePanel } from "@/core/components/layout/MessagePanel";
 
 // Rendered in place of content the user lacks permission for. It names no permission, so
@@ -16,14 +16,7 @@ export function Forbidden() {
       icon={ShieldAlert}
       title={t("title")}
       message={t("message")}
-      action={
-        <Link
-          href="/dashboard"
-          className="font-medium text-primary-600 hover:underline dark:text-primary-400"
-        >
-          {t("back")}
-        </Link>
-      }
+      action={<BackToDashboardLink />}
     />
   );
 }
