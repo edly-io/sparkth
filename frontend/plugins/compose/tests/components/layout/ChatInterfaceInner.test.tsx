@@ -239,8 +239,6 @@ describe("ChatInterfaceInner — a chat that fails to load", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(composeEn.compose.chatLoadFailedMessage);
     expect(screen.queryByPlaceholderText(composeEn.compose.inputPlaceholder)).toBeNull();
     // A chat that may still exist is not shown as missing.
-    expect(
-      screen.queryByRole("heading", { name: composeEn.compose.chatLoadFailedTitle }),
-    ).toBeNull();
+    expect(screen.queryByRole("heading", { name: composeEn.compose.chatNotFoundTitle })).toBeNull();
   });
 });
