@@ -37,11 +37,6 @@ test.beforeEach(async ({ page }) => {
   await stubPermission(page, "analytics.read", true);
 });
 
-// The sidebar's permission batch can still be in flight when a test ends; drop it without an error.
-test.afterEach(async ({ page }) => {
-  await page.unrouteAll({ behavior: "ignoreErrors" });
-});
-
 test.describe("analytics", () => {
   test("shows the 403 view without analytics.read, staying on the URL", async ({ page }) => {
     // Registered after the beforeEach grant, so this route wins.

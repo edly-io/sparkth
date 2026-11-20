@@ -56,34 +56,32 @@ async function stubPeriods(
   });
 }
 
+/** One permission check as the `/api/v1/permissions/can` probes send it. */
+type SentCheck = { permission: string; scope: string; scope_object_id?: string | null };
+
 /**
- * Makes the `/api/v1/permissions/can` probes answer `allowed` for one permission and pass every
- * other check through. A single check naming it is answered here; a batch goes on to the backend
- * and the results naming it are overwritten, unless the backend refuses the batch. The seeded e2e user has no roles, so specs grant or
- * deny what they need here.
+ * Makes the `/api/v1/permissions/can` probes answer `allowed` for one permission. A single check
+ * naming another permission passes through. A batch is answered here in full, with every other
+ * permission denied: the seeded e2e user has no roles, so that is what the backend would answer.
  */
 export async function stubPermission(
   page: Page,
   permission: string,
   allowed: boolean,
 ): Promise<void> {
-  await page.route("**/api/v1/permissions/can**", async (route) => {
+  await page.route("**/api/v1/permissions/can**", (route) => {
     const request = route.request();
     if (new URL(request.url()).pathname.endsWith("/batch")) {
-      const response = await route.fetch();
-      if (!response.ok()) return route.fulfill({ response });
-      const results = (await response.json()) as { permission: string; allowed: boolean }[];
-      const json = results.map((result) =>
-        result.permission === permission ? { ...result, allowed } : result,
-      );
-      return route.fulfill({ response, json });
+      const checks = request.postDataJSON() as SentCheck[];
+      const json = checks.map((check) => ({
+        ...check,
+        scope_object_id: check.scope_object_id ?? null,
+        allowed: check.permission === permission && allowed,
+      }));
+      return route.fulfill({ json });
     }
     if (request.postDataJSON()?.permission !== permission) return route.continue();
-    return route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ allowed }),
-    });
+    return route.fulfill({ json: { allowed } });
   });
 }
 
