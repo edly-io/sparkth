@@ -1,6 +1,6 @@
 "use client";
 
-import { Dispatch, SetStateAction, useState } from "react";
+import { Dispatch, SetStateAction, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { isUnsentUpload, TextAttachment } from "@/plugins/compose/src/types";
 import { attachDocument, detachDocument } from "@/plugins/compose/src/client";
@@ -38,6 +38,8 @@ export function useChatInput({
   const [pickingFrom, setPickingFrom] = useState<AttachmentSource | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const t = useTranslations("compose");
+  // Each upload in progress, by upload ID, so removing its file can cancel it.
+  const uploadsInProgress = useRef(new Map<string, AbortController>());
 
   const uploadComputerFile = async (file: File) => {
     // Listed straight away, so the user sees the file while it uploads.
@@ -47,11 +49,17 @@ export function useChatInput({
       { name: file.name, size: file.size, text: "", uploadId, isUploading: true },
     ]);
 
+    const cancelUpload = new AbortController();
+    uploadsInProgress.current.set(uploadId, cancelUpload);
     try {
       const formData = new FormData();
       formData.append("file", file);
 
-      const data: UploadResponse = await uploadFile(formData, token ?? undefined);
+      const data: UploadResponse = await uploadFile(
+        formData,
+        token ?? undefined,
+        cancelUpload.signal,
+      );
 
       setAttachments((prev) =>
         prev.map((a) =>
@@ -59,9 +67,13 @@ export function useChatInput({
         ),
       );
     } catch (error) {
+      // A cancelled upload's file was already removed by the user.
+      if (cancelUpload.signal.aborted) return;
       setAttachments((prev) => prev.filter((a) => a.uploadId !== uploadId));
       const reason = error instanceof Error ? error.message : String(error);
       setUploadError(t("uploadFailed", { name: file.name, reason }));
+    } finally {
+      uploadsInProgress.current.delete(uploadId);
     }
   };
 
@@ -139,9 +151,11 @@ export function useChatInput({
     }
   };
 
+  // Removing a file that is still uploading also cancels its upload.
   const handleRemoveAttachment = (removed: TextAttachment) => {
     const { documentId, uploadId } = removed;
     if (documentId === undefined) {
+      if (uploadId !== undefined) uploadsInProgress.current.get(uploadId)?.abort();
       setAttachments((prev) => prev.filter((a) => a.uploadId !== uploadId));
       return;
     }
