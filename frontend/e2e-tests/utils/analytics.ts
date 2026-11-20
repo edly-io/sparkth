@@ -56,23 +56,27 @@ async function stubPeriods(
   });
 }
 
+/** One permission check as `POST /api/v1/permissions/can/batch` sends it. */
+type SentCheck = { permission: string; scope: string; scope_object_id?: string | null };
+
 /**
- * Makes `GET /api/v1/permissions/can` answer `allowed` for one permission and pass every other
- * check through. The seeded e2e user has no roles, so specs grant or deny what they need here.
+ * Makes `POST /api/v1/permissions/can/batch` answer `allowed` for one permission. The batch is
+ * answered here in full, with every other permission denied: the seeded e2e user has no roles, so
+ * that is what the backend would answer.
  */
 export async function stubPermission(
   page: Page,
   permission: string,
   allowed: boolean,
 ): Promise<void> {
-  await page.route("**/api/v1/permissions/can**", (route) => {
-    const url = new URL(route.request().url());
-    if (url.searchParams.get("permission") !== permission) return route.continue();
-    return route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ allowed }),
-    });
+  await page.route("**/api/v1/permissions/can/batch", (route) => {
+    const checks = route.request().postDataJSON() as SentCheck[];
+    const json = checks.map((check) => ({
+      ...check,
+      scope_object_id: check.scope_object_id ?? null,
+      allowed: check.permission === permission && allowed,
+    }));
+    return route.fulfill({ json });
   });
 }
 

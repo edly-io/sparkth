@@ -6,8 +6,8 @@ import { ApiRequestError } from "@/lib/api";
 vi.mock("@/core/auth/hooks", () => ({
   useAuth: () => ({ token: "test-token" }),
 }));
-const checkPermission = vi.hoisted(() => vi.fn());
-vi.mock("@/core/permissions/client", () => ({ checkPermission }));
+const checkPermissions = vi.hoisted(() => vi.fn());
+vi.mock("@/core/permissions/client", () => ({ checkPermissions }));
 const audit = vi.hoisted(() => ({
   fetchAuditEvents: vi.fn(),
   fetchAuditEvent: vi.fn(),
@@ -61,7 +61,7 @@ function record(id: number, overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  checkPermission.mockResolvedValue(true);
+  checkPermissions.mockResolvedValue([true]);
   audit.fetchAuditCategories.mockResolvedValue(["auth", "tool"]);
 });
 
@@ -76,12 +76,14 @@ describe("AuditLogPage", () => {
 
     expect(await screen.findByText("auth.login")).toBeInTheDocument();
     expect(screen.getByText("alice")).toBeInTheDocument();
-    expect(checkPermission).toHaveBeenCalledWith("test-token", "audit.read", {});
+    expect(checkPermissions).toHaveBeenCalledWith("test-token", [
+      { permission: "audit.read", scope: "global" },
+    ]);
     expect(audit.fetchAuditEvents).toHaveBeenCalledWith("test-token", {}, undefined);
   });
 
   it("shows the 403 view when denied", async () => {
-    checkPermission.mockResolvedValue(false);
+    checkPermissions.mockResolvedValue([false]);
 
     renderWithIntl(<AuditLogPage />);
 

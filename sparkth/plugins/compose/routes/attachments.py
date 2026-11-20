@@ -42,6 +42,7 @@ async def list_conversation_attachments(
             id=cast(int, document.id),
             name=document.name,
             size=None,
+            source=document.source,
         )
         for document in attachments.ready
     ]

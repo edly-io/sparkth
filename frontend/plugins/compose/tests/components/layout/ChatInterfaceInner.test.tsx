@@ -50,11 +50,14 @@ vi.mock("@/plugins/compose/src/hooks/useConversation", async () => {
 });
 
 const mockHandleSend = vi.fn();
+// Whether the mocked stream reports a turn still running in the open conversation.
+let turnLive = false;
 vi.mock("@/plugins/compose/src/hooks/useChatStream", () => ({
   useChatStream: () => ({
     handleSend: mockHandleSend,
     stopGeneration: vi.fn(),
     isStopping: false,
+    isTurnLive: () => turnLive,
   }),
 }));
 
@@ -177,6 +180,20 @@ describe("ChatInterfaceInner — AI key guidance", () => {
     });
 
     expect(mockedFetchLLMConfigs).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the typed message when a turn is still running in this conversation", async () => {
+    pluginConfig = { llm_config_id: 1 };
+    turnLive = true;
+
+    renderChat();
+    await sendFromInput("a second message");
+    turnLive = false;
+
+    expect(mockHandleSend).not.toHaveBeenCalled();
+    expect(screen.getByPlaceholderText(composeEn.compose.inputPlaceholder)).toHaveValue(
+      "a second message",
+    );
   });
 
   it("puts a checked option into the message box", async () => {

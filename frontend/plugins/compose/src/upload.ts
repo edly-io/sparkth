@@ -2,10 +2,16 @@ import { api, ApiRequestError, bearer, type Schema } from "@/lib/api";
 
 export type UploadResponse = Schema<"UploadResponse">;
 
-export async function uploadFile(formData: FormData, token?: string): Promise<UploadResponse> {
+/** Sends a file to the parser and returns its text; aborting `signal` cancels the upload. */
+export async function uploadFile(
+  formData: FormData,
+  token?: string,
+  signal?: AbortSignal,
+): Promise<UploadResponse> {
   try {
     const { data } = await api.POST("/api/v1/parser/upload", {
       body: { file: "" },
+      signal,
       bodySerializer: () => formData,
       // Content-Type must stay unset so fetch adds the multipart boundary.
       headers: {

@@ -63,6 +63,21 @@ function runStream(payloads: Record<string, unknown>[]) {
   };
 }
 
+// The chat view is not remounted when the author switches chats, so one hook serves them all.
+function renderConversationHook(conversationId: string) {
+  return renderHook(
+    (props: { conversationId: string }) =>
+      useChatStream({
+        token: "test-token",
+        llmConfigId: 1,
+        conversationId: props.conversationId,
+        setMessages: vi.fn(),
+        onNewConversation: vi.fn(),
+      }),
+    { initialProps: { conversationId } },
+  );
+}
+
 const DONE = { token: "", done: true, conversation_id: "conv-1" };
 
 describe("useChatStream — status phases", () => {
@@ -170,5 +185,90 @@ describe("useChatStream — stopping", () => {
       await stream.stopGeneration();
     });
     expect(stream.isStopping()).toBe(false);
+  });
+});
+
+describe("useChatStream — one turn at a time", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("sends one request when send fires again before the turn ends", async () => {
+    const stream = runStream([DONE]);
+    await act(async () => {
+      await Promise.all([stream.send(), stream.send(), stream.send()]);
+    });
+    expect(requestChatCompletionStream).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends again once the turn has ended", async () => {
+    const stream = runStream([DONE]);
+    await act(async () => {
+      await stream.send();
+    });
+    await act(async () => {
+      await stream.send();
+    });
+    expect(requestChatCompletionStream).toHaveBeenCalledTimes(2);
+  });
+
+  it("sends in another conversation while the first one's turn is still running", async () => {
+    requestChatCompletionStream.mockReturnValue(new Promise(() => {}));
+    const hook = renderConversationHook("conv-1");
+    act(() => {
+      void hook.result.current.handleSend({ message: "first", attachments: [] });
+    });
+
+    hook.rerender({ conversationId: "conv-2" });
+    act(() => {
+      void hook.result.current.handleSend({ message: "second", attachments: [] });
+    });
+
+    expect(requestChatCompletionStream).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the other conversation's turn live when the first one ends", async () => {
+    let finishFirst!: (value: { body: ReadableStream<Uint8Array> }) => void;
+    requestChatCompletionStream
+      .mockReturnValueOnce(new Promise((resolve) => (finishFirst = resolve)))
+      .mockReturnValueOnce(new Promise(() => {}));
+    const hook = renderConversationHook("conv-1");
+    act(() => {
+      void hook.result.current.handleSend({ message: "first", attachments: [] });
+    });
+    hook.rerender({ conversationId: "conv-2" });
+    act(() => {
+      void hook.result.current.handleSend({ message: "second", attachments: [] });
+    });
+
+    await act(async () => finishFirst({ body: sseBody([DONE]) }));
+    await act(async () => {
+      await hook.result.current.stopGeneration();
+    });
+
+    const secondTurnId = requestChatCompletionStream.mock.calls[1][1].turn_id;
+    expect(stopChatTurn).toHaveBeenCalledWith("test-token", secondTurnId);
+  });
+
+  it("reports a turn live only in the conversation that sent it", async () => {
+    requestChatCompletionStream.mockReturnValue(new Promise(() => {}));
+    const hook = renderConversationHook("conv-1");
+    act(() => {
+      void hook.result.current.handleSend({ message: "first", attachments: [] });
+    });
+    expect(hook.result.current.isTurnLive()).toBe(true);
+
+    hook.rerender({ conversationId: "conv-2" });
+    expect(hook.result.current.isTurnLive()).toBe(false);
+  });
+
+  it("sends again after a response that had no body", async () => {
+    const stream = runStream([DONE]);
+    requestChatCompletionStream.mockResolvedValue({ body: null });
+    await act(async () => {
+      await stream.send();
+    });
+    await act(async () => {
+      await stream.send();
+    });
+    expect(requestChatCompletionStream).toHaveBeenCalledTimes(2);
   });
 });

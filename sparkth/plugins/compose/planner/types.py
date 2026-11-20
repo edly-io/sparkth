@@ -7,7 +7,7 @@ from langgraph.graph.state import CompiledStateGraph
 
 from sparkth.lib.audit.events import AuditModelInfo
 from sparkth.lib.compose.hooks import Agent
-from sparkth.plugins.compose.constants import MAX_STEPS_PER_TURN
+from sparkth.plugins.compose.constants import MAX_PLAN_STEPS
 
 
 @dataclass(frozen=True)
@@ -36,14 +36,17 @@ class PlannedStep:
 
 @dataclass(frozen=True)
 class ExistingPlan:
-    """A plan the author was shown that isn't finished: its steps, and the number of the latest one that started."""
+    """A plan the author was shown that isn't finished: its steps, the number of the step it is at, the
+    latest that started or the next when the turn stopped at its limit of steps, and whether that step
+    has run."""
 
     steps: tuple[PlannedStep, ...]
-    current: int
+    current_step: int
+    has_current_step_run: bool = True
 
     def __post_init__(self) -> None:
-        """Refuse a plan whose number of steps a plan can't have, or whose ``current`` isn't one of its steps."""
-        if not 2 <= len(self.steps) <= MAX_STEPS_PER_TURN:
-            raise ValueError(f"A plan has 2 to {MAX_STEPS_PER_TURN} steps, not {len(self.steps)}.")
-        if not 1 <= self.current <= len(self.steps):
-            raise ValueError(f"Step {self.current} is not one of the plan's {len(self.steps)} steps.")
+        """Refuse a plan whose number of steps a plan can't have, or whose ``current_step`` isn't one of its steps."""
+        if not 2 <= len(self.steps) <= MAX_PLAN_STEPS:
+            raise ValueError(f"A plan can have 2 to {MAX_PLAN_STEPS} steps, not {len(self.steps)}.")
+        if not 1 <= self.current_step <= len(self.steps):
+            raise ValueError(f"Step {self.current_step} is not one of the plan's {len(self.steps)} steps.")

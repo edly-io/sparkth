@@ -4,7 +4,7 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator, Iterator, Sequence
 from contextlib import aclosing
-from dataclasses import replace
+from dataclasses import asdict, replace
 from functools import partial
 from itertools import repeat
 from typing import Any, cast
@@ -24,9 +24,13 @@ from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME, REFUSAL_TOOL_NAME
 from sparkth.lib.llm import BaseChatProvider, get_provider
 from sparkth.lib.mcp.hooks import Tool
 from sparkth.lib.testing import AddTranslation, ScriptedChatModel
-from sparkth.plugins.compose.constants import MAX_REJECTED_PLANNER_CALLS, MAX_STEPS_PER_TURN, REFUSAL_MESSAGE
+from sparkth.plugins.compose.constants import (
+    MAX_REJECTED_PLANNER_CALLS,
+    MAX_STEPS_PER_TURN,
+    REFUSAL_MESSAGE,
+)
 from sparkth.plugins.compose.llm import complete_turn, stream_turn
-from sparkth.plugins.compose.planner import TurnRouting
+from sparkth.plugins.compose.planner import ExistingPlan, PlannedStep, TurnRouting
 from sparkth.plugins.compose.tests.conftest import OTHER_AGENT, STUB_AGENT
 from sparkth.plugins.compose.tests.helpers import RecordingChatModel, handing_off_to, planner_answering
 
@@ -454,7 +458,7 @@ def _planner_replying(*replies: AIMessage) -> dict[str, Any]:
     """A turn with the stub agent whose planner replies with ``replies`` in turn, then with nothing, which ends
     the turn."""
     planner = ScriptedChatModel(messages=iter([*replies, AIMessage("")]), disable_streaming=True)
-    return {"agents": [STUB_AGENT], "planner_llm": planner}
+    return {"agents": [STUB_AGENT], "planner_llm": planner, "existing_plan": None}
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
@@ -582,6 +586,7 @@ def _two_step_turn(*then: AIMessage) -> dict[str, Any]:
     return {
         "agents": [STUB_AGENT, OTHER_AGENT],
         "planner_llm": ScriptedChatModel(messages=iter(replies), disable_streaming=True),
+        "existing_plan": None,
     }
 
 
@@ -672,7 +677,7 @@ async def test_a_step_never_starts_for_a_reader_that_stops_when_it_is_announced(
 async def test_a_turn_lists_its_steps_in_order(monkeypatch: pytest.MonkeyPatch) -> None:
     response = await complete_turn(TURN, [], _two_replies(monkeypatch), 50, **_two_step_turn(AIMessage("")))
 
-    assert response["metadata"]["steps"] == [STUB_AGENT.name, OTHER_AGENT.name]
+    assert response["metadata"]["agents"] == [STUB_AGENT.name, OTHER_AGENT.name]
 
 
 async def test_a_turn_the_planner_answers_has_no_steps(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -680,7 +685,7 @@ async def test_a_turn_the_planner_answers_has_no_steps(monkeypatch: pytest.Monke
 
     response = await complete_turn(TURN, [], provider, 50, **planner_answering(AIMessage("Hello!"), STUB_AGENT))
 
-    assert response["metadata"]["steps"] == []
+    assert response["metadata"]["agents"] == []
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
@@ -738,7 +743,7 @@ async def test_an_agent_may_answer_again_after_another_step(monkeypatch: pytest.
 
     response = await complete_turn(TURN, [], _provider(ScriptedChatModel(messages=replies), monkeypatch), 50, **planner)
 
-    assert response["metadata"]["steps"] == [STUB_AGENT.name, OTHER_AGENT.name, STUB_AGENT.name]
+    assert response["metadata"]["agents"] == [STUB_AGENT.name, OTHER_AGENT.name, STUB_AGENT.name]
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
@@ -753,6 +758,7 @@ async def test_the_plan_shows_first_then_each_steps_reply(stream: bool, monkeypa
     turn = {
         "agents": [STUB_AGENT, OTHER_AGENT],
         "planner_llm": ScriptedChatModel(messages=iter(replies), disable_streaming=True),
+        "existing_plan": None,
     }
 
     reply = await _reply(turn, _two_replies(monkeypatch), stream)
@@ -768,3 +774,64 @@ async def test_a_rejected_plan_never_shows(stream: bool, monkeypatch: pytest.Mon
     )
 
     assert await _reply(planner, provider, stream) == "What for?"
+
+
+# The plan the planner of these turns makes: the stub agent writes, then the other agent builds.
+WRITE_THEN_BUILD = (PlannedStep(STUB_AGENT.name, "Write the lesson"), PlannedStep(OTHER_AGENT.name, "Build it"))
+
+
+def _planned_turn(*then: AIMessage, existing_plan: ExistingPlan | None = None) -> dict[str, Any]:
+    """A turn with the stub and other agents whose planner replies ``then``, carrying on ``existing_plan`` if given."""
+    return {
+        "agents": [STUB_AGENT, OTHER_AGENT],
+        "planner_llm": ScriptedChatModel(messages=iter([*then, AIMessage("")]), disable_streaming=True),
+        "existing_plan": existing_plan,
+    }
+
+
+def _plan_call() -> AIMessage:
+    steps = [_step(step.agent, step.task) for step in WRITE_THEN_BUILD]
+    return _calling(SHOW_PLAN_TOOL_NAME, {"steps": steps}, "plan")
+
+
+async def test_a_turn_that_stops_partway_through_its_plan_saves_it(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = _provider(ScriptedChatModel(messages=iter([AIMessage("Who are your learners?")])), monkeypatch)
+    turn = _planned_turn(_plan_call(), _calling(STUB_AGENT.name, {"request": "Write the lesson", "step": 1}, "c1"))
+
+    response = await complete_turn(TURN, [], provider, 50, **turn)
+
+    assert response["metadata"]["plan"] == asdict(ExistingPlan(WRITE_THEN_BUILD, current_step=1))
+
+
+async def test_a_turn_that_finishes_an_existing_plan_saves_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = _provider(ScriptedChatModel(messages=iter([AIMessage("Here is the activity.")])), monkeypatch)
+    turn = _planned_turn(
+        _calling(OTHER_AGENT.name, {"request": "Build it", "step": 2}, "c1"),
+        existing_plan=ExistingPlan(WRITE_THEN_BUILD, current_step=1),
+    )
+
+    response = await complete_turn(TURN, [], provider, 50, **turn)
+
+    assert "plan" not in response["metadata"]
+    assert response["metadata"]["agents"] == [OTHER_AGENT.name]
+
+
+async def test_a_turn_stopped_at_its_limit_leaves_the_plan_waiting_at_the_next_step(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agents = [STUB_AGENT.name, OTHER_AGENT.name] * 4
+    steps = tuple(PlannedStep(agent, f"Part {number}") for number, agent in enumerate(agents, start=1))
+    provider = _provider(ScriptedChatModel(messages=repeat(AIMessage("Here it is."))), monkeypatch)
+    calls = [
+        _calling(agent, {"request": f"Part {number}", "step": number}, f"c{number}")
+        for number, agent in enumerate(agents[: MAX_STEPS_PER_TURN + 1], start=1)
+    ]
+
+    response = await complete_turn(
+        TURN, [], provider, 50, **_planned_turn(*calls, existing_plan=ExistingPlan(steps, 1))
+    )
+
+    assert response["metadata"]["plan"] == asdict(
+        ExistingPlan(steps, current_step=MAX_STEPS_PER_TURN + 1, has_current_step_run=False)
+    )
+    assert response["content"].endswith("Continue\nStop here\n```")
