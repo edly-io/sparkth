@@ -270,3 +270,7 @@ msgstr ""
 msgid "Failed to search the attached document. Please try again."
 msgstr "No se pudo buscar en el documento adjunto. Inténtalo de nuevo."
 
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/compose/constants.py:45
+msgid "Working with your LMS…"
+msgstr "Trabajando con tu LMS…"
