@@ -40,6 +40,7 @@
     "selectFiles": "Sélectionner des fichiers",
     "uploadLimitExceeded": "Ces fichiers dépasseraient la limite de {limitMb} Mo de la conversation.",
     "uploadSkippedDuplicates": "{count, plural, one {Fichier déjà joint.} other {Fichiers déjà joints.}}",
+    "filesNotKept": "Ce navigateur n'a pas pu conserver les fichiers que vous venez d'envoyer : l'assistant ne les verra pas dans les messages suivants.",
     "uploadFailed": "Impossible d'envoyer « {name} » : {reason}",
     "attachFailed": "Impossible de joindre « {name} ». Veuillez réessayer.",
     "detachFailed": "Impossible de retirer « {name} ». Veuillez réessayer."

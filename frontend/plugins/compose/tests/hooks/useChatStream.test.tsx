@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { afterEach, describe, it, expect, vi, beforeEach } from "vitest";
 
 import { useChatStream } from "@/plugins/compose/src/hooks/useChatStream";
 import { addStoredFiles, getStoredFiles } from "@/plugins/compose/src/storedFiles";
@@ -281,10 +281,11 @@ describe("useChatStream — uploaded files", () => {
     vi.clearAllMocks();
     localStorage.clear();
   });
+  afterEach(() => vi.restoreAllMocks());
 
   const syllabus = { name: "syllabus.txt", size: 12, text: "Week 1: cells" };
 
-  function sendWithFiles(conversationId: string | null, attachments = [syllabus]) {
+  async function sendWithFiles(conversationId: string | null, attachments = [syllabus]) {
     const { result } = renderHook(() =>
       useChatStream({
         token: "test-token",
@@ -295,9 +296,10 @@ describe("useChatStream — uploaded files", () => {
         onNewConversation: vi.fn(),
       }),
     );
-    return act(async () => {
+    await act(async () => {
       await result.current.handleSend({ message: "Build a quiz", attachments });
     });
+    return result;
   }
 
   it("sends the typed text as the turn and the file's text beside it", async () => {
@@ -338,5 +340,21 @@ describe("useChatStream — uploaded files", () => {
     await sendWithFiles("conv-1");
 
     expect(getStoredFiles(7, "conv-1")).toEqual([syllabus]);
+  });
+
+  it("says so when this browser couldn't keep the files", async () => {
+    requestChatCompletionStream.mockResolvedValue({ body: sseBody([DONE]) });
+    // Only the files' write fails; the stream's own progress still goes to sessionStorage.
+    const setItem = Storage.prototype.setItem;
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (this: Storage, key, value) {
+      if (key.startsWith("compose.files.")) {
+        throw new DOMException("Storage is full.", "QuotaExceededError");
+      }
+      setItem.call(this, key, value);
+    });
+
+    const result = await sendWithFiles("conv-1");
+
+    expect(result.current.filesNotKept).toBe(true);
   });
 });
