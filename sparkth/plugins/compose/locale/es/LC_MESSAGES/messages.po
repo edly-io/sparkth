@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: sparkth 0.1.11\n"
 "Report-Msgid-Bugs-To: https://github.com/edly-io/sparkth/issues\n"
-"POT-Creation-Date: 2026-11-17 23:29+0500\n"
+"POT-Creation-Date: 2026-11-20 11:04+0500\n"
 "PO-Revision-Date: 2026-08-14 07:25+0500\n"
 "Last-Translator: Hamza Shafique <hamza.shafique1@arbisoft.com>\n"
 "Language: es\n"
@@ -19,7 +19,7 @@ msgstr ""
 "Generated-By: Babel 2.18.0\n"
 
 # Machine-generated translation (LLM), not yet reviewed by a native speaker.
-#: sparkth/plugins/compose/constants.py:48
+#: sparkth/plugins/compose/constants.py:96
 msgid ""
 "I'm a course creation assistant and can only help with designing and "
 "building courses."
@@ -28,26 +28,19 @@ msgstr ""
 "crear cursos."
 
 # Machine-generated translation (LLM), not yet reviewed by a native speaker.
-#: sparkth/plugins/compose/constants.py:53
+#: sparkth/plugins/compose/constants.py:101
 msgid ""
 "I've done as much as I can in one go. Send another message and I'll carry"
 " on from here."
 msgstr ""
-"Hice todo lo que podía por ahora. Envía otro mensaje y continuaré "
-"desde aquí."
+"Hice todo lo que podía por ahora. Envía otro mensaje y continuaré desde "
+"aquí."
 
-# Machine-generated translation (LLM), not yet reviewed by a native speaker.
-#: sparkth/plugins/compose/planner/middleware.py:107
-msgid ""
-"Something went wrong and I couldn't finish this. Please send your message"
-" again."
-msgstr "Algo salió mal y no pude terminar. Envía tu mensaje de nuevo."
-
-#: sparkth/plugins/compose/plugin.py:51 sparkth/plugins/compose/plugin.py:56
+#: sparkth/plugins/compose/plugin.py:53 sparkth/plugins/compose/plugin.py:58
 msgid "Compose"
 msgstr "Componer"
 
-#: sparkth/plugins/compose/plugin.py:52
+#: sparkth/plugins/compose/plugin.py:54
 msgid "Transform your resources into courses with AI"
 msgstr "Transforma tus recursos en cursos con IA"
 
@@ -75,7 +68,44 @@ msgstr "Llamadas a herramientas"
 msgid "Messages failed"
 msgstr "Mensajes fallidos"
 
-#: sparkth/plugins/compose/routes/completions.py:125
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/compose/planner/middleware/turn_limits.py:45
+msgid "Continue"
+msgstr "Continuar"
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/compose/planner/middleware/turn_limits.py:45
+msgid "Stop here"
+msgstr "Detener aquí"
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/compose/planner/middleware/turn_limits.py:48
+msgid "I've paused here so you can check the work so far."
+msgstr "He hecho una pausa aquí para que puedas revisar el trabajo hasta ahora."
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/compose/planner/middleware/turn_limits.py:49
+msgid "Done:"
+msgstr "Hecho:"
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/compose/planner/middleware/turn_limits.py:51
+msgid "Still to do:"
+msgstr "Pendiente:"
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/compose/planner/middleware/turn_limits.py:53
+msgid "Shall I continue with the rest?"
+msgstr "¿Continúo con el resto?"
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/compose/planner/middleware/turn_limits.py:132
+msgid ""
+"Something went wrong and I couldn't finish this. Please send your message"
+" again."
+msgstr "Algo salió mal y no pude terminar. Envía tu mensaje de nuevo."
+
+#: sparkth/plugins/compose/routes/completions.py:126
 msgid ""
 "No AI Key found for the current user. Please configure an AI key in your "
 "chat plugin settings."
@@ -83,7 +113,7 @@ msgstr ""
 "No se encontró una clave de IA para el usuario actual. Configura una "
 "clave de IA en los ajustes del plugin de chat."
 
-#: sparkth/plugins/compose/routes/completions.py:128
+#: sparkth/plugins/compose/routes/completions.py:129
 msgid ""
 "The selected AI key has no model configured. Go to AI Keys to set a model"
 " before chatting."
@@ -91,7 +121,7 @@ msgstr ""
 "La clave de IA seleccionada no tiene un modelo configurado. Ve a AI Keys "
 "para establecer un modelo antes de chatear."
 
-#: sparkth/plugins/compose/routes/completions.py:132
+#: sparkth/plugins/compose/routes/completions.py:133
 msgid ""
 "The selected AI key is deactivated. Go to AI Keys to reactivate it, or "
 "choose a different one in chat settings."
@@ -99,7 +129,7 @@ msgstr ""
 "La clave de IA seleccionada está desactivada. Ve a AI Keys para "
 "reactivarla o elige otra en los ajustes del chat."
 
-#: sparkth/plugins/compose/routes/completions.py:221
+#: sparkth/plugins/compose/routes/completions.py:205
 msgid ""
 "A reply is still being generated in this conversation. Wait for it to "
 "finish."
@@ -107,16 +137,16 @@ msgstr ""
 "Todavía se está generando una respuesta en esta conversación. Espera a "
 "que termine."
 
-#: sparkth/plugins/compose/routes/completions.py:366
+#: sparkth/plugins/compose/routes/completions.py:386
 msgid "Failed to determine retrieval intent. Please try again."
 msgstr "No se pudo determinar la intención de búsqueda. Inténtalo de nuevo."
 
-#: sparkth/plugins/compose/routes/completions.py:400
+#: sparkth/plugins/compose/routes/completions.py:420
 msgid "Chat completion failed"
 msgstr "Error al generar la respuesta del chat"
 
 # Machine-generated translation (LLM), not yet reviewed by a native speaker.
-#: sparkth/plugins/compose/routes/completions.py:413
+#: sparkth/plugins/compose/routes/completions.py:433
 msgid "No generation is running for this turn."
 msgstr "No hay ninguna generación en curso para este turno."
 
@@ -137,106 +167,106 @@ msgstr ""
 msgid "Failed to retrieve document context. Please try again."
 msgstr "No se pudo recuperar el contexto del documento. Inténtalo de nuevo."
 
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:102
+#: sparkth/plugins/compose/routes/utils/stream_processor.py:140
 msgid "Invalid API key. Please check your Anthropic API key in AI Keys."
 msgstr "Clave de API no válida. Comprueba tu clave de API de Anthropic en AI Keys."
 
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:104
+#: sparkth/plugins/compose/routes/utils/stream_processor.py:142
 msgid "Your Anthropic API key does not have permission to use this model."
 msgstr "Tu clave de API de Anthropic no tiene permiso para usar este modelo."
 
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:106
+#: sparkth/plugins/compose/routes/utils/stream_processor.py:144
 msgid "Anthropic rate limit reached. Please wait a moment and try again."
 msgstr ""
 "Se alcanzó el límite de peticiones de Anthropic. Espera un momento e "
 "inténtalo de nuevo."
 
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:108
+#: sparkth/plugins/compose/routes/utils/stream_processor.py:146
 msgid "The request was rejected by Anthropic. Please try a different message."
 msgstr "Anthropic rechazó la petición. Prueba con un mensaje diferente."
 
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:110
+#: sparkth/plugins/compose/routes/utils/stream_processor.py:148
 #, python-brace-format
 msgid "Anthropic API error ({status_code}). Please try again."
 msgstr "Error de la API de Anthropic ({status_code}). Inténtalo de nuevo."
 
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:112
+#: sparkth/plugins/compose/routes/utils/stream_processor.py:150
 msgid "Could not reach Anthropic. Please check your network connection."
 msgstr "No se pudo conectar con Anthropic. Comprueba tu conexión de red."
 
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:116
+#: sparkth/plugins/compose/routes/utils/stream_processor.py:154
 msgid "Invalid API key. Please check your OpenAI API key in AI Keys."
 msgstr "Clave de API no válida. Comprueba tu clave de API de OpenAI en AI Keys."
 
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:118
+#: sparkth/plugins/compose/routes/utils/stream_processor.py:156
 msgid "Your OpenAI API key does not have permission to use this model."
 msgstr "Tu clave de API de OpenAI no tiene permiso para usar este modelo."
 
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:120
+#: sparkth/plugins/compose/routes/utils/stream_processor.py:158
 msgid "OpenAI rate limit reached. Please wait a moment and try again."
 msgstr ""
 "Se alcanzó el límite de peticiones de OpenAI. Espera un momento e "
 "inténtalo de nuevo."
 
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:122
+#: sparkth/plugins/compose/routes/utils/stream_processor.py:160
 msgid "The request was rejected by OpenAI. Please try a different message."
 msgstr "OpenAI rechazó la petición. Prueba con un mensaje diferente."
 
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:124
+#: sparkth/plugins/compose/routes/utils/stream_processor.py:162
 #, python-brace-format
 msgid "OpenAI API error ({status_code}). Please try again."
 msgstr "Error de la API de OpenAI ({status_code}). Inténtalo de nuevo."
 
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:126
+#: sparkth/plugins/compose/routes/utils/stream_processor.py:164
 msgid "Could not reach OpenAI. Please check your network connection."
 msgstr "No se pudo conectar con OpenAI. Comprueba tu conexión de red."
 
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:130
 #: sparkth/plugins/compose/routes/utils/stream_processor.py:168
+#: sparkth/plugins/compose/routes/utils/stream_processor.py:206
 msgid "Invalid API key. Please check your Google API key in AI Keys."
 msgstr "Clave de API no válida. Comprueba tu clave de API de Google en AI Keys."
 
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:132
 #: sparkth/plugins/compose/routes/utils/stream_processor.py:170
+#: sparkth/plugins/compose/routes/utils/stream_processor.py:208
 msgid "Your Google API key does not have permission to use this model."
 msgstr "Tu clave de API de Google no tiene permiso para usar este modelo."
 
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:134
 #: sparkth/plugins/compose/routes/utils/stream_processor.py:172
+#: sparkth/plugins/compose/routes/utils/stream_processor.py:210
 msgid "Google API rate limit reached. Please wait a moment and try again."
 msgstr ""
 "Se alcanzó el límite de peticiones de la API de Google. Espera un momento"
 " e inténtalo de nuevo."
 
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:136
 #: sparkth/plugins/compose/routes/utils/stream_processor.py:174
+#: sparkth/plugins/compose/routes/utils/stream_processor.py:212
 msgid "The request was rejected by Google. Please try a different message."
 msgstr "Google rechazó la petición. Prueba con un mensaje diferente."
 
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:138
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:150
+#: sparkth/plugins/compose/routes/utils/stream_processor.py:176
+#: sparkth/plugins/compose/routes/utils/stream_processor.py:188
 msgid "Could not reach Google. Please check your network connection."
 msgstr "No se pudo conectar con Google. Comprueba tu conexión de red."
 
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:143
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:175
+#: sparkth/plugins/compose/routes/utils/stream_processor.py:181
+#: sparkth/plugins/compose/routes/utils/stream_processor.py:213
 #, python-brace-format
 msgid "Google API error ({status_code}). Please try again."
 msgstr "Error de la API de Google ({status_code}). Inténtalo de nuevo."
 
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:154
+#: sparkth/plugins/compose/routes/utils/stream_processor.py:192
 msgid "The connection was interrupted. Please try again."
 msgstr "La conexión se interrumpió. Inténtalo de nuevo."
 
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:157
+#: sparkth/plugins/compose/routes/utils/stream_processor.py:195
 msgid "An error occurred while generating a response. Please try again."
 msgstr "Ocurrió un error al generar la respuesta. Inténtalo de nuevo."
 
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:181
+#: sparkth/plugins/compose/routes/utils/stream_processor.py:219
 msgid "The attached document could not be found or is no longer accessible."
 msgstr "El documento adjunto no se encontró o ya no es accesible."
 
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:183
+#: sparkth/plugins/compose/routes/utils/stream_processor.py:221
 msgid ""
 "The attached document is still being processed. Please wait a moment and "
 "try again."
@@ -244,7 +274,7 @@ msgstr ""
 "El documento adjunto todavía se está procesando. Espera un momento e "
 "inténtalo de nuevo."
 
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:184
+#: sparkth/plugins/compose/routes/utils/stream_processor.py:222
 msgid "Failed to search the attached document. Please try again."
 msgstr "No se pudo buscar en el documento adjunto. Inténtalo de nuevo."
 

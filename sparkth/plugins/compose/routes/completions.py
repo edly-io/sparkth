@@ -44,7 +44,7 @@ from sparkth.plugins.compose.messages import get_last_user_text
 from sparkth.plugins.compose.models import Conversation
 from sparkth.plugins.compose.permissions import CONVERSATION, CONVERSATION_WRITE
 from sparkth.plugins.compose.routes.dependencies import get_attachable_document_ids, get_turn_conversation
-from sparkth.plugins.compose.routes.utils import resolve_tools
+from sparkth.plugins.compose.routes.utils import get_existing_plan_or_none, resolve_tools
 from sparkth.plugins.compose.routes.utils.live_turns import (
     claim_conversation,
     release_conversation,
@@ -244,7 +244,9 @@ async def compose_completion(
                 occurred_at=stored.created_at,
             )
 
-        db_messages = await service.get_conversation_messages(session=session, conversation_id=conversation_id)
+        conversation_messages = await service.get_conversation_messages(
+            session=session, conversation_id=conversation_id
+        )
 
         # The search classifier judges the message against these.
         conversation_documents = await service.list_conversation_attachments(
@@ -284,7 +286,7 @@ async def compose_completion(
 
         messages, unresolved_messages = await assemble_provider_messages(
             request,
-            db_messages,
+            conversation_messages,
             attached_documents,
             query_text,
             rag_search_required,
@@ -293,6 +295,7 @@ async def compose_completion(
         )
 
         tools = await resolve_tools(request, get_tool_registry(), disabled_plugins)
+        existing_plan = get_existing_plan_or_none(conversation_messages)
 
         if request.stream:
             # Gated together so no LLM is built for a turn that will not retrieve.
@@ -318,6 +321,7 @@ async def compose_completion(
                 max_tool_executions=config.max_tool_executions,
                 agents=agents,
                 planner_llm=planner_llm,
+                existing_plan=existing_plan,
             )
             stream_owns_claim = True
             return StreamingResponse(
@@ -328,7 +332,13 @@ async def compose_completion(
             )
         else:
             response = await complete_turn(
-                messages, tools or [], provider, config.max_tool_executions, agents=agents, planner_llm=planner_llm
+                messages,
+                tools or [],
+                provider,
+                config.max_tool_executions,
+                agents=agents,
+                planner_llm=planner_llm,
+                existing_plan=existing_plan,
             )
 
             tokens_used = response.get("metadata", {}).get("usage_metadata", {}).get("total_tokens")

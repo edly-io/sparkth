@@ -2,7 +2,7 @@ import asyncio
 import json
 import uuid
 from collections.abc import AsyncGenerator, Sequence
-from dataclasses import replace
+from dataclasses import asdict, replace
 from functools import partial
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -24,12 +24,19 @@ from sparkth.lib.rag import (
 from sparkth.lib.testing import ScriptedChatModel
 from sparkth.plugins.compose.analytics import StopPoint
 from sparkth.plugins.compose.constants import SSE_HEARTBEAT
-from sparkth.plugins.compose.planner import TurnRouting
+from sparkth.plugins.compose.planner import ExistingPlan, PlannedStep
 from sparkth.plugins.compose.routes.utils.live_turns import claim_conversation, release_conversation, request_stop
 from sparkth.plugins.compose.routes.utils.stream_processor import ComposeStreamProcessor
 from sparkth.plugins.compose.schemas import ChatMessage
 from sparkth.plugins.compose.tests.conftest import OTHER_AGENT, STUB_AGENT
-from sparkth.plugins.compose.tests.helpers import STREAM_TURN, handing_off_to, replay_turn
+from sparkth.plugins.compose.tests.helpers import (
+    STREAM_TURN,
+    handing_off_to,
+    plan_step,
+    replay_turn,
+    routed,
+    shown_plan,
+)
 
 
 async def _stopping_tool(executed: list[str]) -> str:
@@ -84,6 +91,7 @@ def _make_processor(
     turn_id: str | None = None,
     user_id: int | None = None,
     agent_tools: tuple[Tool, ...] = (),
+    existing_plan: ExistingPlan | None = None,
 ) -> ComposeStreamProcessor:
     conversation = MagicMock()
     conversation.id = 1
@@ -98,7 +106,7 @@ def _make_processor(
         tools=None,
         user_id=user_id,
         turn_id=turn_id,
-        **handing_off_to(replace(STUB_AGENT, tools=agent_tools)),
+        **{**handing_off_to(replace(STUB_AGENT, tools=agent_tools)), "existing_plan": existing_plan},
     )
 
 
@@ -243,10 +251,6 @@ def _stored_replies(processor: ComposeStreamProcessor) -> list[dict[str, Any]]:
     return [dict(call.kwargs) for call in cast(AsyncMock, processor.service.add_message).call_args_list]
 
 
-def _routed(agent: str) -> dict[str, Any]:
-    return {"type": "routed", "routing": TurnRouting(agent=agent)}
-
-
 async def _stopping_between_steps(
     executed: list[str],
     messages: list[dict[str, Any]],
@@ -256,11 +260,11 @@ async def _stopping_between_steps(
     **planner: Any,
 ) -> AsyncGenerator[dict[str, Any], None]:
     """Two steps, with Stop pressed after the first one's reply and before the second starts."""
-    yield _routed(STUB_AGENT.name)
+    yield routed(STUB_AGENT.name)
     executed.append(STUB_AGENT.name)
     yield {"type": "token", "content": "Here is the lesson."}
     request_stop("turn-8", 1)
-    yield _routed(OTHER_AGENT.name)
+    yield routed(OTHER_AGENT.name)
     executed.append(OTHER_AGENT.name)
     yield {"type": "token", "content": "Here is the activity."}
 
@@ -269,9 +273,9 @@ async def _failing_after_a_step(
     messages: list[dict[str, Any]], tools: Sequence[Any], provider: Any, max_tool_executions: int, **planner: Any
 ) -> AsyncGenerator[dict[str, Any], None]:
     """A first step that answers, then a second step whose model provider fails."""
-    yield _routed(STUB_AGENT.name)
+    yield routed(STUB_AGENT.name)
     yield {"type": "token", "content": "Here is the lesson."}
-    yield _routed(OTHER_AGENT.name)
+    yield routed(OTHER_AGENT.name)
     raise httpx.RemoteProtocolError("connection reset by peer")
 
 
@@ -279,7 +283,7 @@ async def _failing_mid_reply(
     messages: list[dict[str, Any]], tools: Sequence[Any], provider: Any, max_tool_executions: int, **planner: Any
 ) -> AsyncGenerator[dict[str, Any], None]:
     """A single step whose model provider fails partway through its reply."""
-    yield _routed(STUB_AGENT.name)
+    yield routed(STUB_AGENT.name)
     yield {"type": "token", "content": "Here is the le"}
     raise httpx.RemoteProtocolError("connection reset by peer")
 
@@ -609,14 +613,121 @@ class TestCollectStreamResponse:
         assert result is None
 
 
+# A plan of two steps, as a turn makes it and as an earlier message left it with its first step in progress.
+TWO_STEPS = (PlannedStep(STUB_AGENT.name, "Write the lesson"), PlannedStep(OTHER_AGENT.name, "Build the activity"))
+FIRST_IN_PROGRESS = ExistingPlan(TWO_STEPS, current_step=1)
+
+
+class TestAPlannedTurn:
+    @pytest.mark.asyncio
+    async def test_the_reply_keeps_a_plan_the_turn_left_unfinished(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        events: list[dict[str, Any]] = [
+            shown_plan(TWO_STEPS),
+            plan_step(1, ran=False),
+            routed(STUB_AGENT.name),
+            {"type": "token", "content": "Who are your learners?"},
+            plan_step(1, ran=True),
+        ]
+        monkeypatch.setattr(STREAM_TURN, partial(replay_turn, events))
+        processor = _make_processor()
+
+        async for _ in processor.stream():
+            pass
+
+        assert _stored_replies(processor)[-1]["metadata"]["plan"] == asdict(FIRST_IN_PROGRESS)
+
+    @pytest.mark.asyncio
+    async def test_the_reply_keeps_no_plan_once_its_last_step_ran(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        events: list[dict[str, Any]] = [
+            plan_step(2, ran=False),
+            routed(OTHER_AGENT.name),
+            {"type": "token", "content": "Done."},
+            plan_step(2, ran=True),
+        ]
+        monkeypatch.setattr(STREAM_TURN, partial(replay_turn, events))
+        processor = _make_processor(existing_plan=FIRST_IN_PROGRESS)
+
+        async for _ in processor.stream():
+            pass
+
+        assert "plan" not in _stored_replies(processor)[-1]["metadata"]
+
+    @pytest.mark.asyncio
+    async def test_the_reply_keeps_an_earlier_plan_the_turn_did_not_carry_on(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        events = [routed(STUB_AGENT.name), {"type": "token", "content": "Here is a quiz instead."}]
+        monkeypatch.setattr(STREAM_TURN, partial(replay_turn, events))
+        processor = _make_processor(existing_plan=FIRST_IN_PROGRESS)
+
+        async for _ in processor.stream():
+            pass
+
+        assert _stored_replies(processor)[-1]["metadata"]["plan"] == asdict(FIRST_IN_PROGRESS)
+
+    @pytest.mark.asyncio
+    async def test_a_failed_turn_keeps_the_plan_with_what_was_written(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        async def failing(
+            messages: list[dict[str, Any]],
+            tools: Sequence[Any],
+            provider: Any,
+            max_tool_executions: int,
+            **planner: Any,
+        ) -> AsyncGenerator[dict[str, Any], None]:
+            yield plan_step(2, ran=False)
+            yield routed(OTHER_AGENT.name)
+            yield {"type": "token", "content": "Here is the act"}
+            raise httpx.RemoteProtocolError("connection reset by peer")
+
+        monkeypatch.setattr(STREAM_TURN, failing)
+        processor = _make_processor(existing_plan=FIRST_IN_PROGRESS)
+
+        async for _ in processor.stream():
+            pass
+
+        assert _stored_replies(processor)[0]["metadata"]["plan"] == asdict(
+            ExistingPlan(TWO_STEPS, current_step=2, has_current_step_run=False)
+        )
+
+    @pytest.mark.asyncio
+    async def test_a_turn_stopped_before_the_model_keeps_the_plan_it_was_given(self) -> None:
+        """The turn never looked at the plan, so it is still the author's to carry on."""
+        processor = _make_processor(existing_plan=FIRST_IN_PROGRESS)
+        processor.stop_requested = asyncio.Event()
+        processor.stop_requested.set()
+
+        await processor._run(MagicMock())
+
+        assert _stored_replies(processor)[-1]["metadata"]["plan"] == asdict(FIRST_IN_PROGRESS)
+
+    @pytest.mark.asyncio
+    async def test_a_reply_that_found_nothing_in_the_documents_keeps_the_plan_it_was_given(self) -> None:
+        processor = _make_processor(
+            messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
+            existing_plan=FIRST_IN_PROGRESS,
+        )
+        processor.rag_search_required = True
+        processor.user_id = 1
+        processor.llm = MagicMock()
+        processor.unresolved_messages = [ChatMessage(role="user", content=[{"type": "drive_file", "file_id": 1}])]
+        with patch(
+            "sparkth.plugins.compose.routes.utils.stream_processor.agentic_retrieve_context",
+            new_callable=AsyncMock,
+        ) as mock_retrieve:
+            mock_retrieve.return_value = []
+            await processor._run_rag_phase(MagicMock())
+
+        assert _stored_replies(processor)[-1]["metadata"]["plan"] == asdict(FIRST_IN_PROGRESS)
+
+
 class TestASteppedTurn:
     @pytest.mark.asyncio
     async def test_the_reply_records_every_step_in_order(self, monkeypatch: pytest.MonkeyPatch) -> None:
         events = [
-            _routed(STUB_AGENT.name),
+            routed(STUB_AGENT.name),
             {"type": "token", "content": "Here is the lesson."},
-            _routed(OPERATOR_AGENT_NAME),
-            _routed(OTHER_AGENT.name),
+            routed(OPERATOR_AGENT_NAME),
+            routed(OTHER_AGENT.name),
             {"type": "token", "content": "Here is the activity."},
         ]
         monkeypatch.setattr(STREAM_TURN, partial(replay_turn, events))
@@ -625,7 +736,7 @@ class TestASteppedTurn:
         async for _ in processor.stream():
             pass
 
-        assert _stored_replies(processor)[-1]["metadata"]["steps"] == [
+        assert _stored_replies(processor)[-1]["metadata"]["agents"] == [
             STUB_AGENT.name,
             OPERATOR_AGENT_NAME,
             OTHER_AGENT.name,
@@ -634,7 +745,7 @@ class TestASteppedTurn:
     @pytest.mark.asyncio
     async def test_a_refusal_is_no_step(self, monkeypatch: pytest.MonkeyPatch) -> None:
         events: list[dict[str, Any]] = [
-            {"type": "routed", "routing": TurnRouting(refused=True)},
+            routed(None),
             {"type": "token", "content": "No."},
         ]
         monkeypatch.setattr(STREAM_TURN, partial(replay_turn, events))
@@ -657,7 +768,7 @@ class TestASteppedTurn:
         done = payloads[-1]
         assert done["stopped"] is True
         assert done["message"]["content"] == "Here is the lesson."
-        assert _stored_replies(processor)[-1]["metadata"] == {"steps": [STUB_AGENT.name], "stopped": True}
+        assert _stored_replies(processor)[-1]["metadata"] == {"agents": [STUB_AGENT.name], "stopped": True}
 
     @pytest.mark.asyncio
     async def test_a_failed_step_keeps_what_the_earlier_steps_wrote(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -670,7 +781,7 @@ class TestASteppedTurn:
         written, error = _stored_replies(processor)
         assert (written["content"], written["metadata"]) == (
             "Here is the lesson.",
-            {"steps": [STUB_AGENT.name, OTHER_AGENT.name], "interrupted": True},
+            {"agents": [STUB_AGENT.name, OTHER_AGENT.name], "interrupted": True},
         )
         assert (error["content"], error["is_error"]) == (CONNECTION_LOST, True)
 
@@ -687,7 +798,7 @@ class TestASteppedTurn:
         written, error = _stored_replies(processor)
         assert (written["content"], written["metadata"]) == (
             "Here is the le",
-            {"steps": [STUB_AGENT.name], "interrupted": True},
+            {"agents": [STUB_AGENT.name], "interrupted": True},
         )
         assert error["is_error"] is True
 
@@ -723,7 +834,7 @@ class TestPersistAndEmitDone:
     async def test_calls_add_message_with_rag_sections_in_metadata(self) -> None:
         processor = _make_processor()
         sections: list[dict[str, str | None]] = [{"type": "section", "name": "Intro", "source": "doc.pdf"}]
-        await processor._persist_and_emit_done("response", sections, [], MagicMock())
+        await processor._persist_and_emit_done("response", sections, [], MagicMock(), plan=None)
         call_kwargs = processor.service.add_message.call_args.kwargs  # type: ignore[attr-defined]
         assert call_kwargs["metadata"]["rag_sections"] == sections
 
@@ -731,14 +842,14 @@ class TestPersistAndEmitDone:
     async def test_calls_add_message_with_tool_calls_in_metadata(self) -> None:
         processor = _make_processor()
         tool_calls = [{"name": "search_web"}]
-        await processor._persist_and_emit_done("response", [], tool_calls, MagicMock())
+        await processor._persist_and_emit_done("response", [], tool_calls, MagicMock(), plan=None)
         call_kwargs = processor.service.add_message.call_args.kwargs  # type: ignore[attr-defined]
         assert call_kwargs["metadata"]["tool_calls"] == tool_calls
 
     @pytest.mark.asyncio
     async def test_calls_add_message_without_metadata_when_none(self) -> None:
         processor = _make_processor()
-        await processor._persist_and_emit_done("response", [], [], MagicMock())
+        await processor._persist_and_emit_done("response", [], [], MagicMock(), plan=None)
         call_kwargs = processor.service.add_message.call_args.kwargs  # type: ignore[attr-defined]
         assert call_kwargs.get("metadata") is None
 
@@ -747,7 +858,7 @@ class TestPersistAndEmitDone:
         import json
 
         processor = _make_processor()
-        await processor._persist_and_emit_done("Hello", [], [], MagicMock())
+        await processor._persist_and_emit_done("Hello", [], [], MagicMock(), plan=None)
         payload = await processor.queue.get()
         assert payload is not None
         data = json.loads(payload)

@@ -2,7 +2,7 @@ import asyncio
 import json
 from collections.abc import AsyncGenerator, AsyncIterator, Sequence
 from contextlib import aclosing
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from typing import Any, cast
 
@@ -49,7 +49,8 @@ from sparkth.plugins.compose.enums import TurnEventType
 from sparkth.plugins.compose.llm import stream_turn
 from sparkth.plugins.compose.messages import get_last_user_text
 from sparkth.plugins.compose.models import Conversation
-from sparkth.plugins.compose.planner import TurnRouting
+from sparkth.plugins.compose.planner import ExistingPlan, TurnRouting
+from sparkth.plugins.compose.planner.turn_activity import TurnActivity
 from sparkth.plugins.compose.routes.utils.live_turns import register_turn, release_conversation, release_turn
 from sparkth.plugins.compose.routes.utils.rag_search import collect_document_ids
 from sparkth.plugins.compose.schemas import ChatMessage
@@ -77,20 +78,24 @@ class StreamedCompletion:
 def _agent_reply_metadata(
     rag_sections: list[dict[str, str | None]],
     tool_calls: list[dict[str, str]],
-    steps: Sequence[str],
+    agents: Sequence[str],
+    plan: ExistingPlan | None,
     *,
     stopped: bool,
     interrupted: bool,
 ) -> dict[str, Any]:
-    """What an agent's stored reply notes besides its text, leaving out what it doesn't have: the sections it drew on,
-    its tool calls, its steps, and whether the author stopped it or a failure cut it off."""
+    """What an agent's stored reply notes besides its text, leaving out what it doesn't have: the sections
+    it drew on, its tool calls, the agents its steps went to, the plan still in progress, and whether the
+    author stopped it or a failure cut it off."""
     metadata: dict[str, Any] = {}
     if rag_sections:
         metadata["rag_sections"] = rag_sections
     if tool_calls:
         metadata["tool_calls"] = tool_calls
-    if steps:
-        metadata["steps"] = list(steps)
+    if agents:
+        metadata["agents"] = list(agents)
+    if plan is not None:
+        metadata["plan"] = asdict(plan)
     if stopped:
         metadata["stopped"] = True
     if interrupted:
@@ -107,13 +112,14 @@ def _tool_call_names(tool_calls: list[dict[str, Any]]) -> list[dict[str, str]]:
 @dataclass(frozen=True)
 class CollectedReply:
     """What a turn streamed: its text, its tool calls, whether the author stopped it, who answered last,
-    and the agents and operator that ran its steps, in order."""
+    the agents and operator that ran its steps, in order, and the plan still in progress, if any."""
 
     text: str
     tool_calls: list[dict[str, Any]]
     stopped: bool
     routing: TurnRouting
-    steps: list[str]
+    agents: list[str]
+    plan: ExistingPlan | None
 
 
 @dataclass(frozen=True)
@@ -249,8 +255,10 @@ class ComposeStreamProcessor:
         *,
         agents: Sequence[Agent],
         planner_llm: BaseChatModel,
+        existing_plan: ExistingPlan | None,
     ) -> None:
         self.provider = provider
+        self.existing_plan = existing_plan
         # The turn's planner hands the message to one of ``agents``, running on ``planner_llm``.
         self.agents = agents
         self.planner_llm = planner_llm
@@ -421,7 +429,8 @@ class ComposeStreamProcessor:
             return None
 
     async def _emit_no_rag_results_response(self, bg_session: AsyncSession) -> None:
-        """Persists the message to DB before emitting SSE so it is saved even if the connection drops."""
+        """Persists the message to DB before emitting SSE so it is saved even if the connection drops.
+        It saves the existing plan unchanged, so the next message can still carry it on."""
         no_chunks_msg = (
             "I searched your documents but couldn't find content closely "
             "matching your query.\n\n"
@@ -434,6 +443,7 @@ class ComposeStreamProcessor:
             role="assistant",
             content=no_chunks_msg,
             message_type="text",
+            metadata=_agent_reply_metadata([], [], [], self.existing_plan, stopped=False, interrupted=False) or None,
         )
         await self._emit({"done": True, "content": no_chunks_msg, "conversation_id": self.conversation_uuid})
 
@@ -508,9 +518,7 @@ class ComposeStreamProcessor:
         completed_tool_calls: list[dict[str, Any]] = []
         stopped = False
         tool_running = False
-        # A turn stopped before a hand-off returned has no agent.
-        routing = TurnRouting()
-        steps: list[str] = []
+        turn_activity = TurnActivity(self.existing_plan)
         max_tool_executions = self.max_tool_executions
         if max_tool_executions is None:
             max_tool_executions = get_compose_settings().max_tool_executions
@@ -522,6 +530,7 @@ class ComposeStreamProcessor:
                 max_tool_executions,
                 agents=self.agents,
                 planner_llm=self.planner_llm,
+                existing_plan=self.existing_plan,
             )
             # Closing the turn ends whatever part of it is still running.
             async with aclosing(turn):
@@ -530,11 +539,8 @@ class ComposeStreamProcessor:
                     if stopping and event["type"] in (TurnEventType.TOOL_START, TurnEventType.ROUTED):
                         stopped = True
                         break
-                    if event["type"] == TurnEventType.ROUTED:
-                        routing = event["routing"]
-                        if routing.agent is not None:
-                            steps.append(routing.agent)
-                    elif event["type"] == TurnEventType.TOKEN:
+                    turn_activity.record(event)
+                    if event["type"] == TurnEventType.TOKEN:
                         token = event["content"]
                         full_response += token
                         await self._emit({"token": token, "done": False})
@@ -555,12 +561,22 @@ class ComposeStreamProcessor:
                 else:
                     stopped = self._stop_is_requested()
             return CollectedReply(
-                text=full_response, tool_calls=completed_tool_calls, stopped=stopped, routing=routing, steps=steps
+                text=full_response,
+                tool_calls=completed_tool_calls,
+                stopped=stopped,
+                routing=turn_activity.routing,
+                agents=turn_activity.agents,
+                plan=turn_activity.get_plan_in_progress(),
             )
         except LLM_PROVIDER_API_ERRORS as e:
             logger.error("Streaming failed: %s", e)
             await self._persist_partial_reply(
-                full_response, confirmed_rag_sections, completed_tool_calls, steps, bg_session
+                full_response,
+                confirmed_rag_sections,
+                completed_tool_calls,
+                turn_activity.agents,
+                turn_activity.get_plan_in_progress(),
+                bg_session,
             )
             await self._persist_and_emit_error(
                 streaming_error_message(e), bg_session, TurnFailureCause.PROVIDER_API_ERROR
@@ -569,7 +585,12 @@ class ComposeStreamProcessor:
         except (OSError, LangChainException) as e:
             logger.exception("Unexpected streaming error: %s", e)
             await self._persist_partial_reply(
-                full_response, confirmed_rag_sections, completed_tool_calls, steps, bg_session
+                full_response,
+                confirmed_rag_sections,
+                completed_tool_calls,
+                turn_activity.agents,
+                turn_activity.get_plan_in_progress(),
+                bg_session,
             )
             await self._persist_and_emit_error(
                 "An error occurred while generating a response. Please try again.", bg_session
@@ -581,7 +602,8 @@ class ComposeStreamProcessor:
         text: str,
         confirmed_rag_sections: list[dict[str, str | None]],
         tool_calls: list[dict[str, Any]],
-        steps: list[str],
+        agents: list[str],
+        plan: ExistingPlan | None,
         bg_session: AsyncSession,
     ) -> None:
         """Store what a failed turn wrote before it failed, if anything, as a reply of its own, with the
@@ -594,7 +616,7 @@ class ComposeStreamProcessor:
             role="assistant",
             content=text,
             metadata=_agent_reply_metadata(
-                confirmed_rag_sections, _tool_call_names(tool_calls), steps, stopped=False, interrupted=True
+                confirmed_rag_sections, _tool_call_names(tool_calls), agents, plan, stopped=False, interrupted=True
             ),
         )
 
@@ -604,9 +626,10 @@ class ComposeStreamProcessor:
         confirmed_rag_sections: list[dict[str, str | None]],
         completed_tool_calls: list[dict[str, Any]],
         bg_session: AsyncSession,
+        plan: ExistingPlan | None,
         stopped_at: StopPoint | None = None,
         routing: TurnRouting = TurnRouting(),
-        steps: Sequence[str] = (),
+        agents: Sequence[str] = (),
     ) -> StreamedCompletion:
         """Persist the assistant message, emit the done SSE, and return what it completed.
 
@@ -614,8 +637,9 @@ class ComposeStreamProcessor:
         state without a separate fetch after the stream closes. ``stopped_at`` marks a turn
         that ended early because the author asked it to, so a boolean ``stopped`` is written
         into the message metadata (for a page reload to still show it) and onto the done
-        payload itself. ``routing`` is who answered the turn last, and ``steps`` the agents and
-        operator that ran, in order; nobody has before the model runs.
+        payload itself. ``routing`` is who answered the turn last and ``agents`` the agents and
+        operator that ran, in order; before the model runs there is neither. ``plan`` is the plan
+        still in progress, which before the model runs is the one the turn was given.
 
         Returns:
             The tools this completion executed and when the reply was stored, for the
@@ -624,7 +648,9 @@ class ComposeStreamProcessor:
         """
         tool_calls = _tool_call_names(completed_tool_calls)
         stopped = stopped_at is not None
-        metadata = _agent_reply_metadata(confirmed_rag_sections, tool_calls, steps, stopped=stopped, interrupted=False)
+        metadata = _agent_reply_metadata(
+            confirmed_rag_sections, tool_calls, agents, plan, stopped=stopped, interrupted=False
+        )
         assistant_message = await self.service.add_message(
             session=bg_session,
             conversation_id=self.conversation_id,
@@ -681,9 +707,10 @@ class ComposeStreamProcessor:
             confirmed_rag_sections,
             reply.tool_calls,
             bg_session,
-            stopped_at=StopPoint.STREAMING if reply.stopped else None,
-            routing=reply.routing,
-            steps=reply.steps,
+            reply.plan,
+            StopPoint.STREAMING if reply.stopped else None,
+            reply.routing,
+            reply.agents,
         )
 
     async def _run(self, bg_session: AsyncSession) -> StreamedCompletion | None:
@@ -695,12 +722,14 @@ class ComposeStreamProcessor:
         persists a turn, just an empty one carrying the ``stopped`` marker.
         """
         if self._stop_is_requested():
-            return await self._persist_and_emit_done("", [], [], bg_session, StopPoint.BEFORE_MODEL)
+            return await self._persist_and_emit_done("", [], [], bg_session, self.existing_plan, StopPoint.BEFORE_MODEL)
         confirmed_rag_sections = await self._run_rag_phase(bg_session)
         if confirmed_rag_sections is None:
             return None
         if self._stop_is_requested():
-            return await self._persist_and_emit_done("", confirmed_rag_sections, [], bg_session, StopPoint.BEFORE_MODEL)
+            return await self._persist_and_emit_done(
+                "", confirmed_rag_sections, [], bg_session, self.existing_plan, StopPoint.BEFORE_MODEL
+            )
         self._strip_unresolved_document_blocks()
         return await self._run_llm_phase(confirmed_rag_sections, bg_session)
 
