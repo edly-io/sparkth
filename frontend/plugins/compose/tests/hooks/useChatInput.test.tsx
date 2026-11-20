@@ -5,6 +5,7 @@ import { afterEach, describe, it, expect, vi, beforeEach } from "vitest";
 import { useChatInput } from "@/plugins/compose/src/hooks/useChatInput";
 import { attachDocument, detachDocument } from "@/plugins/compose/src/client";
 import type { TextAttachment } from "@/plugins/compose/src/types";
+import { uploadFile, type UploadResponse } from "@/plugins/compose/src/upload";
 import type { AttachmentSource } from "@/plugins/compose/src/slots/attachments";
 
 vi.mock("@/plugins/compose/src/client", () => ({
@@ -184,8 +185,54 @@ describe("useChatInput — files uploaded from the computer", () => {
     });
 
     expect(result.current.attachments).toEqual([
-      { name: "notes.txt", size: 6, text: "Week 1", uploadId: expect.any(String) },
+      {
+        name: "notes.txt",
+        size: 6,
+        text: "Week 1",
+        uploadId: expect.any(String),
+        isUploading: false,
+      },
     ]);
+  });
+
+  it("lists a file as uploading until its upload finishes", async () => {
+    let finishUpload: (response: UploadResponse) => void = () => {};
+    vi.mocked(uploadFile).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishUpload = resolve;
+      }),
+    );
+    const { result } = setupWithAttachments(null);
+
+    let upload: Promise<void> = Promise.resolve();
+    act(() => {
+      upload = result.current.handleUploadAsText(new File(["Week 1"], "notes.txt"));
+    });
+
+    expect(result.current.attachments).toEqual([
+      { name: "notes.txt", size: 6, text: "", uploadId: expect.any(String), isUploading: true },
+    ]);
+
+    await act(async () => {
+      finishUpload({ filename: "notes.txt", length: 6, text: "Week 1" });
+      await upload;
+    });
+
+    expect(result.current.attachments[0]).toMatchObject({ text: "Week 1", isUploading: false });
+  });
+
+  it("removes a file whose upload fails and reports the error", async () => {
+    vi.mocked(uploadFile).mockRejectedValueOnce(
+      new Error("Only .txt and .pdf files are supported"),
+    );
+    const { result } = setupWithAttachments(null);
+
+    await act(async () => {
+      await result.current.handleUploadAsText(new File(["x"], "notes.docx"));
+    });
+
+    expect(result.current.attachments).toEqual([]);
+    expect(result.current.uploadError).toBe("Only .txt and .pdf files are supported");
   });
 
   it("removes only the uploaded file and leaves documents attached", async () => {
@@ -262,5 +309,62 @@ describe("useChatInput — sending computer uploads", () => {
     });
 
     expect(onSend).toHaveBeenLastCalledWith({ message: "Summarise this", attachments: [] });
+  });
+});
+
+describe("useChatInput — when a message can be sent", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function setupCanSend(message: string, attachments: TextAttachment[]) {
+    const onSend = vi.fn(() => Promise.resolve(true));
+    const { result } = renderHook(() =>
+      useChatInput({
+        message,
+        setMessage: vi.fn(),
+        token: "test-token",
+        conversationId: null,
+        attachments,
+        setAttachments: vi.fn(),
+        onSend,
+      }),
+    );
+    return { result, onSend };
+  }
+
+  const uploadedNotes: TextAttachment = {
+    name: "notes.txt",
+    size: 6,
+    text: "Week 1",
+    uploadId: "upload-1",
+  };
+
+  it("can send once a message is typed", () => {
+    const { result } = setupCanSend("Summarise this", [uploadedNotes]);
+
+    expect(result.current.canSend).toBe(true);
+  });
+
+  it("cannot send files without a typed message", async () => {
+    const { result, onSend } = setupCanSend("  ", [uploadedNotes]);
+
+    await act(async () => {
+      await result.current.handleSend();
+    });
+
+    expect(result.current.canSend).toBe(false);
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it("cannot send while a file is still uploading", async () => {
+    const { result, onSend } = setupCanSend("Summarise this", [
+      { ...uploadedNotes, text: "", isUploading: true },
+    ]);
+
+    await act(async () => {
+      await result.current.handleSend();
+    });
+
+    expect(result.current.canSend).toBe(false);
+    expect(onSend).not.toHaveBeenCalled();
   });
 });

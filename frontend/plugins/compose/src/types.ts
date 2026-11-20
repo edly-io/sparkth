@@ -24,6 +24,12 @@ export interface TextAttachment {
   documentId?: number; // Core Document ID used by chat/RAG.
   uploadId?: string; // Identifies a file uploaded from the computer, which has no document ID.
   isSent?: boolean; // An upload already sent, whose text is now part of the conversation.
+  isUploading?: boolean; // An upload still on its way to the server, with no text yet.
+}
+
+/** Whether an attachment is a file from the computer that will go with the next message. */
+export function isUnsentUpload(attachment: TextAttachment): boolean {
+  return attachment.documentId === undefined && !attachment.isSent;
 }
 
 export type ChatRole = "user" | "assistant";

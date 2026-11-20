@@ -52,6 +52,7 @@ export function ChatInput({
     handleUploadAsText,
     handleDocumentsSelected,
     handleRemoveAttachment,
+    canSend,
     handleSend,
   } = useChatInput({
     message,
@@ -160,11 +161,9 @@ export function ChatInput({
                 <Button
                   variant="primary"
                   size="icon"
+                  aria-label={t("sendMessage")}
                   onClick={handleSend}
-                  disabled={
-                    !message.trim() &&
-                    attachments.every((a) => a.documentId !== undefined || a.isSent)
-                  }
+                  disabled={!canSend}
                   className="rounded-full bg-foreground text-background"
                 >
                   <ArrowUp className="w-5 h-5" />

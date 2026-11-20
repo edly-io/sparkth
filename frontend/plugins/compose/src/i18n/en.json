@@ -12,6 +12,7 @@
     "optionsTypeElse": "Want something else? Type it in the message box below.",
     "optionsNoneSelected": "No option selected",
     "stopGenerating": "Stop generating",
+    "sendMessage": "Send message",
     "pickerFailed": "Couldn't open the file picker. Please try again.",
     "aiKeyMissing": "You have not added an AI key to Sparkth yet. Add one, then select it in Compose's configuration.",
     "aiKeyMissingAction": "Add an AI key",
@@ -29,6 +30,8 @@
     "historyYesterday": "Yesterday",
     "historyDaysAgo": "{count, plural, one {# day ago} other {# days ago}}",
     "attachedFileCount": "{count, plural, one {# file attached} other {# files attached}}",
-    "removeAttachedFile": "Remove file"
+    "removeAttachedFile": "Remove file",
+    "uploadingFile": "Uploading file",
+    "uploadingFileProgress": "Uploading file ({current} of {total})"
   }
 }
