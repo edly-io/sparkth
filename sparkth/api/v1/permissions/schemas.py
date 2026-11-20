@@ -21,10 +21,6 @@ class PermissionCheckResult(PermissionCheck):
     allowed: bool
 
 
-class PermissionCheckResponse(BaseModel):
-    allowed: bool
-
-
 class RoleCreate(BaseModel):
     name: str = Field(min_length=1, max_length=50)
     description: str | None = Field(default=None, max_length=255)
