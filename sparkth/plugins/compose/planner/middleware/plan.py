@@ -71,12 +71,21 @@ def get_plan(messages: list[AnyMessage], existing_plan: ExistingPlan | None, pen
     if step_results:
         return Plan(existing_plan.steps, (first + len(step_results),), from_earlier_message=True)
 
-    # The step it was at has started. Its agent may have finished or be waiting for the author, and
-    # only the planner can tell, so that step or the one after it may run first.
-    return Plan(existing_plan.steps, (existing_plan.current, existing_plan.current + 1), from_earlier_message=True)
+    # A step that never ran, because the turn stopped at its limit before it or while it ran, runs next.
+    current_step = existing_plan.current_step
+    if not existing_plan.has_current_step_run:
+        return Plan(existing_plan.steps, (current_step,), from_earlier_message=True)
+
+    # An operation that ran is finished: it never waits for the author.
+    if existing_plan.steps[current_step - 1].agent == OPERATOR_AGENT_NAME:
+        return Plan(existing_plan.steps, (current_step + 1,), from_earlier_message=True)
+
+    # An agent's step that ran may be finished or waiting for the author's answer, and only the planner
+    # can tell, so that step or the one after it may run first.
+    return Plan(existing_plan.steps, (current_step, current_step + 1), from_earlier_message=True)
 
 
-def _get_rejection_reason(tool_name: str, number: int, plan: Plan) -> str | None:
+def get_rejection_reason(tool_name: str, number: int, plan: Plan) -> str | None:
     """Why a call to ``tool_name`` for step ``number`` doesn't fit ``plan``, or None when it does:
     the step must be one that may run next, and the plan must have given it to this agent or the
     operator."""
@@ -156,7 +165,7 @@ def enforce_plan(existing_plan: ExistingPlan | None) -> AgentMiddleware[Any, Any
         # step to this agent or the operator.
         if step_number is None:
             return _rejected_call(request, REJECT_MISSING_STEP_NUMBER)
-        reason = _get_rejection_reason(tool_name, step_number, plan)
+        reason = get_rejection_reason(tool_name, step_number, plan)
         if reason is not None:
             return _rejected_call(request, reason)
 

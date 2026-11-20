@@ -9,7 +9,6 @@ import { ChatMessages } from "@/plugins/compose/src/components/ui/messages/ChatM
 import { ChatInput } from "@/plugins/compose/src/components/ui/input/ChatInput";
 import { appendLine, replaceLine } from "@/plugins/compose/src/components/ui/messages/optionsBlock";
 import { AiKeyProblem, TextAttachment } from "@/plugins/compose/src/types";
-import { Preview } from "@/plugins/compose/src/components/ui/attachment/Preview";
 import { useAuth } from "@/lib/auth/hooks";
 import { attachDocument } from "@/plugins/compose/src/client";
 import { fetchLLMConfigs } from "@/lib/llm/client";
@@ -42,8 +41,6 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
   const modelOverride =
     (composeConfig?.llm_model_override as string | null | undefined) ?? undefined;
   const router = useRouter();
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewAttachment, setPreviewAttachment] = useState<TextAttachment | null>(null);
   const [aiKeyProblem, setAiKeyProblem] = useState<AiKeyProblem | null>(null);
   const inFlightCheckRef = useRef<Promise<AiKeyProblem | null> | null>(null);
 
@@ -95,7 +92,7 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
     [skipNextLoadRef, router, inputAttachments, token, setError],
   );
 
-  const { handleSend, stopGeneration, isStopping } = useChatStream({
+  const { handleSend, stopGeneration, isStopping, isTurnLive } = useChatStream({
     token,
     llmConfigId,
     modelOverride,
@@ -105,6 +102,7 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
   });
 
   // Every send path runs through this, and it resolves false when it refuses the send.
+  // A refused send keeps the typed message, so a send while a reply is running loses nothing.
   const sendIfAiKeyReady = useCallback(
     async (dispatch: () => void): Promise<boolean> => {
       const problem = await checkAiKeyReady();
@@ -112,10 +110,11 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
         setAiKeyProblem(problem);
         return false;
       }
+      if (isTurnLive()) return false;
       dispatch();
       return true;
     },
-    [checkAiKeyReady],
+    [checkAiKeyReady, isTurnLive],
   );
 
   const handleGuardedSend = useCallback(
@@ -164,12 +163,7 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
           Loading conversation…
         </div>
       ) : (
-        <ChatMessages
-          messages={messages}
-          setPreviewOpen={setPreviewOpen}
-          setPreviewAttachment={setPreviewAttachment}
-          onOptionCheck={handleOptionCheck}
-        />
+        <ChatMessages messages={messages} onOptionCheck={handleOptionCheck} />
       )}
 
       <ChatInput
@@ -183,10 +177,6 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
         isStopping={isStopping}
         onStop={stopGeneration}
       />
-
-      {previewOpen && previewAttachment && (
-        <Preview attachment={previewAttachment} onClose={() => setPreviewOpen(false)} />
-      )}
     </div>
   );
 }

@@ -12,6 +12,7 @@
     "optionsTypeElse": "Want something else? Type it in the message box below.",
     "optionsNoneSelected": "No option selected",
     "stopGenerating": "Stop generating",
+    "sendMessage": "Send message",
     "pickerFailed": "Couldn't open the file picker. Please try again.",
     "aiKeyMissing": "You have not added an AI key to Sparkth yet. Add one, then select it in Compose's configuration.",
     "aiKeyMissingAction": "Add an AI key",
@@ -27,6 +28,16 @@
     "historyLoadError": "Failed to load conversations. Please try again.",
     "historyToday": "Today",
     "historyYesterday": "Yesterday",
-    "historyDaysAgo": "{count, plural, one {# day ago} other {# days ago}}"
+    "historyDaysAgo": "{count, plural, one {# day ago} other {# days ago}}",
+    "attachedFileCount": "{count, plural, one {# file attached} other {# files attached}}",
+    "removeAttachedFile": "Remove file",
+    "uploadingFile": "Uploading file",
+    "uploadingFileProgress": "Uploading file ({current} of {total})",
+    "selectFiles": "Select files",
+    "uploadLimitExceeded": "These files would take the conversation over its {limitMb} MB limit.",
+    "uploadSkippedDuplicates": "{count, plural, one {File already attached.} other {Files already attached.}}",
+    "uploadFailed": "Failed to upload \"{name}\": {reason}",
+    "attachFailed": "Failed to attach \"{name}\". Please try again.",
+    "detachFailed": "Failed to detach \"{name}\". Please try again."
   }
 }

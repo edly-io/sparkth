@@ -83,7 +83,7 @@ export default function AuditLogPage() {
   const { token } = useAuth();
   const t = useTranslations("audit");
   const format = useFormatter();
-  const access = usePermissionCheck(token, "audit.read");
+  const access = usePermissionCheck(token, "audit.read", { scope: "global" });
   const [form, setForm] = useState<FilterForm>(EMPTY_FORM);
   const [categories, setCategories] = useState<string[]>([]);
   const [filters, setFilters] = useState<AuditFilters>({});

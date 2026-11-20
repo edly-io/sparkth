@@ -600,7 +600,6 @@ export default function GoogleDrive() {
         type: "SET_TOTAL_RESOURCES",
         payload: results.reduce((sum, r) => sum + r.total, 0),
       });
-      dispatch({ type: "SET_ERROR", payload: null });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load file counts";
       dispatch({ type: "SET_ERROR", payload: message });
@@ -735,6 +734,7 @@ export default function GoogleDrive() {
       return;
 
     dispatch({ type: "SET_DELETING_ID", payload: resource.id });
+    dispatch({ type: "SET_ERROR", payload: null });
     try {
       await deleteFile(resource.id, token);
       // Refresh totals cache and adjust page
@@ -764,13 +764,14 @@ export default function GoogleDrive() {
         folders.map((folder) => refreshFolder(folder.id, token)),
       );
       const failures = results.filter((r) => r.status === "rejected");
+      handleReload();
+      // Set after the reload, which clears the error.
       if (failures.length > 0) {
         dispatch({
           type: "SET_ERROR",
           payload: `Re-sync failed for ${failures.length} of ${folders.length} folder(s)`,
         });
       }
-      handleReload();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to re-sync folders";
       dispatch({ type: "SET_ERROR", payload: message });

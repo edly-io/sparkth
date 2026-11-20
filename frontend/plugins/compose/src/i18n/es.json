@@ -12,6 +12,7 @@
     "optionsTypeElse": "¿Quieres algo más? Escríbelo en el cuadro de mensaje de abajo.",
     "optionsNoneSelected": "No se seleccionó ninguna opción",
     "stopGenerating": "Detener la generación",
+    "sendMessage": "Enviar mensaje",
     "pickerFailed": "No se pudo abrir el selector de archivos. Inténtalo de nuevo.",
     "aiKeyMissing": "Todavía no has añadido una clave de IA a Sparkth. Añade una y luego selecciónala en la configuración de Componer.",
     "aiKeyMissingAction": "Añadir una clave de IA",
@@ -27,6 +28,16 @@
     "historyLoadError": "No se pudieron cargar las conversaciones. Inténtalo de nuevo.",
     "historyToday": "Hoy",
     "historyYesterday": "Ayer",
-    "historyDaysAgo": "{count, plural, one {hace # día} other {hace # días}}"
+    "historyDaysAgo": "{count, plural, one {hace # día} other {hace # días}}",
+    "attachedFileCount": "{count, plural, one {# archivo adjunto} other {# archivos adjuntos}}",
+    "removeAttachedFile": "Quitar archivo",
+    "uploadingFile": "Subiendo archivo",
+    "uploadingFileProgress": "Subiendo archivo ({current} de {total})",
+    "selectFiles": "Seleccionar archivos",
+    "uploadLimitExceeded": "Estos archivos superarían el límite de {limitMb} MB de la conversación.",
+    "uploadSkippedDuplicates": "{count, plural, one {El archivo ya está adjunto.} other {Los archivos ya están adjuntos.}}",
+    "uploadFailed": "No se pudo subir \"{name}\": {reason}",
+    "attachFailed": "No se pudo adjuntar \"{name}\". Inténtalo de nuevo.",
+    "detachFailed": "No se pudo quitar \"{name}\". Inténtalo de nuevo."
   }
 }

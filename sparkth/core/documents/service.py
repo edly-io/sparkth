@@ -26,9 +26,13 @@ async def create_document(
     user_id: int,
     name: str,
     mime_type: Optional[str],
+    source: str,
 ) -> Document:
-    """Create a new Document row with QUEUED status and flush (no commit)."""
-    doc = Document(user_id=user_id, name=name, mime_type=mime_type)
+    """Create a new Document row with QUEUED status and flush (no commit).
+
+    ``source`` is the id of the source the document came from.
+    """
+    doc = Document(user_id=user_id, name=name, mime_type=mime_type, source=source)
     session.add(doc)
     await session.flush()
     logger.debug("Registered document id=%d user_id=%d name=%s", doc.id, user_id, name)

@@ -1,21 +1,26 @@
 """Middleware that trims a planner reply or ends the turn early: one call per reply, a limit on steps,
 a limit on rejected calls, no repeat hand-off and no step after an agent's choices."""
 
+from collections.abc import Sequence
 from typing import Any
 
 from langchain.agents.middleware import AgentMiddleware, AgentState, after_model, before_model
-from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.messages import AIMessage, AnyMessage, ToolMessage
 from langgraph.runtime import Runtime
 
 from sparkth.lib.audit.events import AuditModelInfo
 from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME
 from sparkth.lib.i18n import gettext
 from sparkth.lib.log import get_logger
-from sparkth.plugins.compose.constants import MAX_REJECTED_PLANNER_CALLS, MAX_STEPS_PER_TURN, STOPPED_EARLY_NOTICE
-from sparkth.plugins.compose.enums import OptionsFence
+from sparkth.plugins.compose.constants import (
+    MAX_REJECTED_PLANNER_CALLS,
+    MAX_STEPS_PER_TURN,
+    STOPPED_EARLY_NOTICE,
+)
+from sparkth.plugins.compose.enums import OptionsFence, TurnEventType
 from sparkth.plugins.compose.planner.middleware.messages import get_step_number, get_step_results, with_calls
-from sparkth.plugins.compose.planner.middleware.plan import get_plan
-from sparkth.plugins.compose.planner.types import ExistingPlan
+from sparkth.plugins.compose.planner.middleware.plan import get_plan, get_rejection_reason
+from sparkth.plugins.compose.planner.types import ExistingPlan, PlannedStep
 
 logger = get_logger(__name__)
 
@@ -33,49 +38,101 @@ def first_hand_off_only(state: AgentState[Any], runtime: Runtime[AuditModelInfo]
     return {"messages": [with_calls(reply, reply.tool_calls[:1])]}
 
 
-@after_model(can_jump_to=["end"], name="enforce_step_limit")
-def enforce_step_limit(state: AgentState[Any], runtime: Runtime[AuditModelInfo]) -> dict[str, Any] | None:
-    """End the turn with the limit notice when the planner asks for another call after the turn's
-    max number of steps has run."""
-    reply = state["messages"][-1]
-    if not (isinstance(reply, AIMessage) and reply.tool_calls):
-        return None
-    steps_run = len(get_step_results(state["messages"]))
-    if steps_run >= MAX_STEPS_PER_TURN:
+def _build_paused_plan_message(steps: Sequence[PlannedStep], done: int) -> str:
+    """What the author reads when a turn stops at its limit with steps of its plan left: the first
+    ``done`` tasks as done, the rest as left, and the choice to carry on or stop."""
+    tasks = [f"{number}. {step.task}" for number, step in enumerate(steps, start=1)]
+    choices = [f"```{OptionsFence.SINGLE}", gettext("Continue"), gettext("Stop here"), "```"]
+    return "\n\n".join(
+        [
+            gettext("I've paused here so you can check the work so far."),
+            gettext("Done:"),
+            "\n".join(tasks[:done]),
+            gettext("Still to do:"),
+            "\n".join(tasks[done:]),
+            "\n".join([gettext("Shall I continue with the rest?"), *choices]),
+        ]
+    )
+
+
+def _get_turn_ending_response(
+    messages: list[AnyMessage],
+    reply: AIMessage,
+    existing_plan: ExistingPlan | None,
+    runtime: Runtime[AuditModelInfo],
+    notice: str,
+) -> dict[str, Any]:
+    """What a limit hook returns to end the turn in place of the call ``reply`` asks for.
+
+    When that call is for the next step of the plan the turn follows, after at least one step ran,
+    the turn ends with what is done, what is left and the offer to continue, and the plan is
+    reported as waiting at that step: not run, which is where the next message continues from.
+    Otherwise the turn ends with ``notice``.
+    """
+    call = reply.tool_calls[0]
+    number = get_step_number(call)
+    plan = get_plan(messages, existing_plan, number)
+    if plan is not None and number is not None and get_step_results(messages):
+        if get_rejection_reason(call["name"], number, plan) is None:
+            runtime.stream_writer({"type": TurnEventType.PLAN_STEP, "number": number, "ran": False})
+            return {
+                "jump_to": "end",
+                "messages": [AIMessage(content=_build_paused_plan_message(plan.steps, number - 1))],
+            }
+    return {"jump_to": "end", "messages": [AIMessage(content=notice)]}
+
+
+def enforce_step_limit(existing_plan: ExistingPlan | None) -> AgentMiddleware[Any, Any, Any]:
+    """Middleware that ends the turn when the planner asks for another call after the turn's max
+    number of steps has run. ``existing_plan`` is a plan from an earlier message that isn't finished."""
+
+    @after_model(can_jump_to=["end"], name="enforce_step_limit")
+    def enforce_step_limit(state: AgentState[Any], runtime: Runtime[AuditModelInfo]) -> dict[str, Any] | None:
+        messages = state["messages"]
+        reply = messages[-1]
+        if not (isinstance(reply, AIMessage) and reply.tool_calls):
+            return None
+        steps_run = len(get_step_results(messages))
+        if steps_run < MAX_STEPS_PER_TURN:
+            return None
         logger.warning(
-            "Planner asked for another call after %d steps (limit %d); the turn ends with a notice",
+            "Planner asked for another call after %d steps (limit %d); the turn ends there",
             steps_run,
             MAX_STEPS_PER_TURN,
         )
-        return {"jump_to": "end", "messages": [AIMessage(content=gettext(STOPPED_EARLY_NOTICE))]}
-    return None
+        return _get_turn_ending_response(messages, reply, existing_plan, runtime, gettext(STOPPED_EARLY_NOTICE))
+
+    return enforce_step_limit
 
 
-@after_model(can_jump_to=["end"], name="enforce_rejected_call_limit")
-def enforce_rejected_call_limit(state: AgentState[Any], runtime: Runtime[AuditModelInfo]) -> dict[str, Any] | None:
-    """End the turn, telling the author it could not finish, when the planner asks for another call
-    after more of its calls were rejected than a turn allows. A call is rejected when it names no
-    tool the planner has, its arguments don't fit the tool, or it doesn't fit the plan. Nothing ran,
-    so it is not a step, and a planner that fixes its call still gets to finish the turn."""
-    reply = state["messages"][-1]
-    if not (isinstance(reply, AIMessage) and reply.tool_calls):
-        return None
-    rejected = sum(1 for message in state["messages"] if isinstance(message, ToolMessage) and message.status == "error")
-    if rejected > MAX_REJECTED_PLANNER_CALLS:
+def enforce_rejected_call_limit(existing_plan: ExistingPlan | None) -> AgentMiddleware[Any, Any, Any]:
+    """Middleware that ends the turn when the planner asks for another call after more of its calls
+    were rejected than a turn allows. ``existing_plan`` is a plan from an earlier message that isn't
+    finished.
+
+    A call is rejected when it names no tool the planner has, its arguments don't fit the tool, or
+    it doesn't fit the plan. Nothing ran, so it is not a step, and a planner that fixes its call
+    still gets to finish the turn.
+    """
+
+    @after_model(can_jump_to=["end"], name="enforce_rejected_call_limit")
+    def enforce_rejected_call_limit(state: AgentState[Any], runtime: Runtime[AuditModelInfo]) -> dict[str, Any] | None:
+        messages = state["messages"]
+        reply = messages[-1]
+        if not (isinstance(reply, AIMessage) and reply.tool_calls):
+            return None
+        rejected = sum(1 for message in messages if isinstance(message, ToolMessage) and message.status == "error")
+        if rejected <= MAX_REJECTED_PLANNER_CALLS:
+            return None
         logger.warning(
-            "Planner asked for another call after %d rejected calls (limit %d); the turn ends with a notice",
+            "Planner asked for another call after %d rejected calls (limit %d); the turn ends there",
             rejected,
             MAX_REJECTED_PLANNER_CALLS,
         )
-        return {
-            "jump_to": "end",
-            "messages": [
-                AIMessage(
-                    content=gettext("Something went wrong and I couldn't finish this. Please send your message again.")
-                )
-            ],
-        }
-    return None
+        could_not_finish = gettext("Something went wrong and I couldn't finish this. Please send your message again.")
+        return _get_turn_ending_response(messages, reply, existing_plan, runtime, could_not_finish)
+
+    return enforce_rejected_call_limit
 
 
 def end_at_repeat_hand_off(existing_plan: ExistingPlan | None) -> AgentMiddleware[Any, Any, Any]:

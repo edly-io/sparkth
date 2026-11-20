@@ -50,7 +50,7 @@ export function AnalyticsNav({ views }: { views: readonly AnalyticsNavView[] }) 
   const period = [...params].filter(([k]) => PERIOD_KEYS.includes(k));
   const query = new URLSearchParams(period).toString();
   const { token } = useAuth();
-  const canExplore = usePermissionCheck(token, "user.read") === "allowed";
+  const canExplore = usePermissionCheck(token, "user.read", { scope: "global" }) === "allowed";
   const [saved, setSaved] = useState<AnalyticsView[]>([]);
   const shown = views.filter(
     (v) => (!v.plugin || isInstalled(v.plugin)) && (v.href !== EXPLORE || canExplore),

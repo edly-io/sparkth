@@ -11,8 +11,8 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(nav.search),
   useRouter: () => ({ replace: vi.fn() }),
 }));
-const checkPermission = vi.hoisted(() => vi.fn());
-vi.mock("@/core/permissions/client", () => ({ checkPermission }));
+const checkPermissions = vi.hoisted(() => vi.fn());
+vi.mock("@/core/permissions/client", () => ({ checkPermissions }));
 // The plugins registered with core, which is what counts as installed.
 const plugins = vi.hoisted(() => ({ installed: ["compose"] }));
 vi.mock("@/core/plugins/registry", async (importOriginal) => ({
@@ -31,7 +31,7 @@ beforeEach(() => {
 
 describe("AnalyticsLayout", () => {
   it("checks analytics.read and renders the rail and the view when allowed", async () => {
-    checkPermission.mockResolvedValue(true);
+    checkPermissions.mockResolvedValue([true]);
     renderWithIntl(
       <AnalyticsLayout>
         <p>view body</p>
@@ -39,11 +39,13 @@ describe("AnalyticsLayout", () => {
     );
     expect(await screen.findByText("view body")).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Analytics views" })).toBeInTheDocument();
-    expect(checkPermission).toHaveBeenCalledWith("test-token", "analytics.read", {});
+    expect(checkPermissions).toHaveBeenCalledWith("test-token", [
+      { permission: "analytics.read", scope: "global" },
+    ]);
   });
 
   it("lists Course authoring on the rail while Compose is installed", async () => {
-    checkPermission.mockResolvedValue(true);
+    checkPermissions.mockResolvedValue([true]);
     renderWithIntl(
       <AnalyticsLayout>
         <p>view body</p>
@@ -57,7 +59,7 @@ describe("AnalyticsLayout", () => {
 
   it("leaves Course authoring off the rail when Compose is not installed", async () => {
     plugins.installed = [];
-    checkPermission.mockResolvedValue(true);
+    checkPermissions.mockResolvedValue([true]);
     renderWithIntl(
       <AnalyticsLayout>
         <p>view body</p>
@@ -68,7 +70,7 @@ describe("AnalyticsLayout", () => {
   });
 
   it("renders no view content while the check is pending", () => {
-    checkPermission.mockReturnValue(new Promise(() => {}));
+    checkPermissions.mockReturnValue(new Promise(() => {}));
     renderWithIntl(
       <AnalyticsLayout>
         <p>view body</p>
@@ -78,7 +80,7 @@ describe("AnalyticsLayout", () => {
   });
 
   it("shows the 403 view instead of the rail and the view when denied", async () => {
-    checkPermission.mockResolvedValue(false);
+    checkPermissions.mockResolvedValue([false]);
     renderWithIntl(
       <AnalyticsLayout>
         <p>view body</p>
@@ -96,7 +98,7 @@ describe("AnalyticsLayout", () => {
   });
 
   it("fails closed when the check itself errors", async () => {
-    checkPermission.mockRejectedValue(new Error("network down"));
+    checkPermissions.mockRejectedValue(new Error("network down"));
     renderWithIntl(
       <AnalyticsLayout>
         <p>view body</p>
@@ -109,7 +111,7 @@ describe("AnalyticsLayout", () => {
   });
 
   it("resets the period selector when the URL's period changes", async () => {
-    checkPermission.mockResolvedValue(true);
+    checkPermissions.mockResolvedValue([true]);
     const day = (ago: number) => new Date(Date.now() - ago * 86_400_000).toISOString().slice(0, 10);
     nav.search = `from=${day(20)}&to=${day(10)}`;
     const ui = () => (

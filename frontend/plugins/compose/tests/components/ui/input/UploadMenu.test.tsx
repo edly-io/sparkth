@@ -1,9 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { UploadMenu } from "@/plugins/compose/src/components/ui/input/UploadMenu";
 import { ATTACHMENT_SOURCES, type AttachmentSource } from "@/plugins/compose/lib";
+import composeEn from "@/plugins/compose/src/i18n/en.json";
+import { renderWithIntl } from "@/lib/testing/intl";
 
 // usePlugin is mocked to read this directly, so a test sets it before rendering.
 let enabledPlugins = new Set<string>();
@@ -23,11 +25,21 @@ function FilesIcon({ className }: { className?: string }) {
 function renderMenu() {
   const onClose = vi.fn();
   const onPickSource = vi.fn();
-  render(<UploadMenu onClose={onClose} onUploadText={vi.fn()} onPickSource={onPickSource} />);
-  return { onClose, onPickSource };
+  const onUploadFromComputer = vi.fn();
+  const { container } = renderWithIntl(
+    <UploadMenu
+      onClose={onClose}
+      onUploadFromComputer={onUploadFromComputer}
+      onPickSource={onPickSource}
+    />,
+    composeEn,
+  );
+  const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+  return { onClose, onPickSource, onUploadFromComputer, fileInput };
 }
 
 const filesSource: AttachmentSource = {
+  id: "files-source",
   label: "Pick from Files",
   icon: FilesIcon,
   loadPicker: () => Promise.resolve({ default: () => null }),
@@ -52,7 +64,7 @@ describe("UploadMenu", () => {
     renderMenu();
 
     expect(screen.queryByRole("button", { name: "Pick from Files" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Select File" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Select files" })).toBeInTheDocument();
   });
 
   it("opens the chosen source and closes the menu", async () => {
@@ -61,6 +73,16 @@ describe("UploadMenu", () => {
     await userEvent.click(screen.getByRole("button", { name: "Pick from Files" }));
 
     expect(onPickSource).toHaveBeenCalledWith(filesSource);
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("uploads every file picked from the computer and closes the menu", async () => {
+    const { onClose, onUploadFromComputer, fileInput } = renderMenu();
+    const files = [new File(["Week 1"], "notes.txt"), new File(["Week 2"], "outline.pdf")];
+
+    await userEvent.upload(fileInput, files);
+
+    expect(onUploadFromComputer).toHaveBeenCalledWith(files);
     expect(onClose).toHaveBeenCalledOnce();
   });
 });

@@ -1,8 +1,9 @@
 """Audit event types owned by the Google Drive plugin.
 
-The Drive OAuth credential lifecycle: a user granting Sparkth access to their
-Drive, and revoking it. Snapshots carry the granted scopes only, never token
-material.
+The Drive OAuth credential lifecycle (a user granting Sparkth access to their
+Drive, and revoking it) and the removal of a synced file. Connection snapshots
+carry the granted scopes only, never token material; a removal snapshot
+identifies the file and its owner, never its content.
 """
 
 from dataclasses import dataclass
@@ -12,6 +13,7 @@ from sparkth.lib.audit.events import MutationAuditEvent
 from sparkth.lib.audit.hooks import AUDIT_EVENTS
 
 GOOGLE_DRIVE_CONNECTION_TARGET = "googledrive_connection"
+GOOGLE_DRIVE_FILE_TARGET = "googledrive_file"
 
 
 @AUDIT_EVENTS.register
@@ -36,3 +38,16 @@ class GoogleDriveDisconnectedAuditEvent(MutationAuditEvent):
     """
 
     event_type: ClassVar[str] = "googledrive.disconnected"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
+class GoogleDriveFileRemovedAuditEvent(MutationAuditEvent):
+    """A user removed a synced Drive file from Sparkth (soft delete).
+
+    The actor is the caller, who may hold the delete permission at the owner's
+    scope without being the owner. ``change.old`` carries the file ``name``,
+    its ``drive_file_id`` and its ``owner_id``.
+    """
+
+    event_type: ClassVar[str] = "googledrive.file_removed"

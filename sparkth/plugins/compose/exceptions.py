@@ -5,6 +5,10 @@ class ConversationNotFound(Exception):
     """Raised when no conversation has the given UUID."""
 
 
+class ConversationBusy(Exception):
+    """Raised when a turn is sent to a conversation that is still running another turn."""
+
+
 class DocumentNotFound(Exception):
     """Raised when a document does not exist, is deleted, or belongs to another user.
 
