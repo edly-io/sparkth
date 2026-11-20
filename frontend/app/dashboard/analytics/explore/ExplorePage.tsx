@@ -57,7 +57,7 @@ export default function ExplorePage() {
   const params = useSearchParams();
   const { period } = usePeriod();
   const replaceQuery = useReplaceQuery();
-  const access = usePermissionCheck(token, "user.read");
+  const access = usePermissionCheck(token, "user.read", { scope: "global" });
   const [catalog, setCatalog] = useState<EventCatalogEntry[] | "forbidden" | "error" | null>(null);
   const saved = useSavedView();
 

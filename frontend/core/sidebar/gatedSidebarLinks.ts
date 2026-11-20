@@ -11,7 +11,7 @@ export interface GatedSidebarLink {
   route: string; // href suffix: `${basePath}/${route}`
   activeKey?: string; // isActiveRoute() key; defaults to `route`
   permission: PermissionName;
-  scope?: string; // omit for the global scope
+  scope?: string;
 }
 
 /** The permission-gated sidebar links, in the order the sidebar shows them. */
@@ -22,6 +22,7 @@ export const GATED_SIDEBAR_LINKS: GatedSidebarLink[] = [
     icon: ChartColumn,
     route: "analytics",
     permission: "analytics.read",
+    scope: "global",
   },
   {
     key: "admin",
@@ -38,6 +39,7 @@ export const GATED_SIDEBAR_LINKS: GatedSidebarLink[] = [
     icon: ScrollText,
     route: "audit",
     permission: "audit.read",
+    scope: "global",
   },
 ];
 
