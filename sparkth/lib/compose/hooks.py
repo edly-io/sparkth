@@ -6,7 +6,7 @@ The hook lives in ``sparkth.lib`` so a plugin can contribute an agent without im
 It is keyed by plugin, so an agent is offered only while its plugin is switched on for the user,
 by both switches. A plugin registers one agent from its ``__init__``::
 
-    register_agent(self, Agent(NAME, TITLE, DESCRIPTION, PROMPT, tools=(...)))
+    register_agent(self, Agent(NAME, TITLE, DESCRIPTION, PROMPT, STATUS, tools=(...)))
 """
 
 from dataclasses import dataclass, field
@@ -32,7 +32,8 @@ class Agent:
 
     ``name`` identifies the agent (``^[a-z][a-z0-9_]*$``), ``title`` heads its section of the system
     prompt, ``description`` is what Compose reads to decide a message is the agent's, ``prompt`` is
-    inserted as written, and ``tools`` are the tools the agent runs. A tool given only to the agent
+    inserted as written, ``status`` is what the author reads while the agent works, marked for
+    translation, and ``tools`` are the tools the agent runs. A tool given only to the agent
     is seen by no MCP client; one the plugin also gives the MCP server is seen by both.
 
     A frozen dataclass, so the copies registered by repeated plugin constructions compare equal.
@@ -43,6 +44,7 @@ class Agent:
     title: str
     description: str
     prompt: str
+    status: str
     tools: tuple[Tool, ...] = field(default=(), compare=False)
 
 

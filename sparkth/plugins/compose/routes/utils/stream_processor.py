@@ -19,7 +19,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.db import session_scope
-from sparkth.lib.i18n import _
+from sparkth.lib.i18n import _, gettext
 from sparkth.lib.llm import BaseChatProvider
 from sparkth.lib.log import get_logger
 from sparkth.lib.rag import (
@@ -540,7 +540,11 @@ class ComposeStreamProcessor:
                         stopped = True
                         break
                     turn_activity.record(event)
-                    if event["type"] == TurnEventType.TOKEN:
+                    if event["type"] == TurnEventType.ROUTED:
+                        label = event.get("label")
+                        if label:
+                            await self._emit({"status": "step", "label": gettext(label), "done": False})
+                    elif event["type"] == TurnEventType.TOKEN:
                         token = event["content"]
                         full_response += token
                         await self._emit({"token": token, "done": False})
