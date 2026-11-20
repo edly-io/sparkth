@@ -32,6 +32,12 @@
     "attachedFileCount": "{count, plural, one {# fichier joint} other {# fichiers joints}}",
     "removeAttachedFile": "Retirer le fichier",
     "uploadingFile": "Envoi du fichier",
-    "uploadingFileProgress": "Envoi du fichier ({current} sur {total})"
+    "uploadingFileProgress": "Envoi du fichier ({current} sur {total})",
+    "selectFiles": "Sélectionner des fichiers",
+    "uploadLimitExceeded": "Ces fichiers dépasseraient la limite de {limitMb} Mo de la conversation.",
+    "uploadSkippedDuplicates": "{count, plural, one {Fichier déjà joint.} other {Fichiers déjà joints.}}",
+    "uploadFailed": "Impossible d'envoyer « {name} » : {reason}",
+    "attachFailed": "Impossible de joindre « {name} ». Veuillez réessayer.",
+    "detachFailed": "Impossible de retirer « {name} ». Veuillez réessayer."
   }
 }

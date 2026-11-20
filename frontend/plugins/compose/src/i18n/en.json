@@ -32,6 +32,12 @@
     "attachedFileCount": "{count, plural, one {# file attached} other {# files attached}}",
     "removeAttachedFile": "Remove file",
     "uploadingFile": "Uploading file",
-    "uploadingFileProgress": "Uploading file ({current} of {total})"
+    "uploadingFileProgress": "Uploading file ({current} of {total})",
+    "selectFiles": "Select files",
+    "uploadLimitExceeded": "These files would take the conversation over its {limitMb} MB limit.",
+    "uploadSkippedDuplicates": "{count, plural, one {File already attached.} other {Files already attached.}}",
+    "uploadFailed": "Failed to upload \"{name}\": {reason}",
+    "attachFailed": "Failed to attach \"{name}\". Please try again.",
+    "detachFailed": "Failed to detach \"{name}\". Please try again."
   }
 }
