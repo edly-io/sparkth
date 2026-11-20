@@ -42,7 +42,7 @@ Attaching material is optional: the assistant can design a course from your desc
 To give it your own documents, open the attach menu next to the message box:
 
 - **Select files** uploads one or more `.txt` or `.pdf` files from your computer. The files you
-  attach can total up to 3 MB.
+  attach can total up to 3 MB. A file with no readable text, such as a scanned PDF, is refused.
 - The online drive option (for example **Pick from Google Drive**) uses a file you have
   imported into [Resources](resources.md).
 
