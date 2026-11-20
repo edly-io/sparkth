@@ -1,17 +1,16 @@
 import type { ComponentType } from "react";
-import { ChartColumn, ScrollText, Shield } from "lucide-react";
-import { checkPermissions } from "@/core/permissions/client";
-import type { PermissionName } from "@/lib/permissions/names";
+import { ChartColumn, KeyRound, ScrollText, Shield } from "lucide-react";
+import { checkPermissions, type PermissionCheckQuery } from "@/core/permissions/client";
+import { PERMISSIONS_SECTION_CHECKS } from "@/core/permissions/section";
 
-/** A sidebar link shown only to users who hold its permission. */
+/** A sidebar link shown only to users who pass every one of its permission checks. */
 export interface GatedSidebarLink {
   key: string; // stable id; also the sidebarPermissions map key
   label: string;
   icon: ComponentType<{ className?: string }>;
   route: string; // href suffix: `${basePath}/${route}`
   activeKey?: string; // isActiveRoute() key; defaults to `route`
-  permission: PermissionName;
-  scope: string; // e.g. "global"
+  checks: PermissionCheckQuery[];
 }
 
 /** The permission-gated sidebar links, in the order the sidebar shows them. */
@@ -21,8 +20,15 @@ export const GATED_SIDEBAR_LINKS: GatedSidebarLink[] = [
     label: "Analytics",
     icon: ChartColumn,
     route: "analytics",
-    permission: "analytics.read",
-    scope: "global",
+    checks: [{ permission: "analytics.read", scope: "global" }],
+  },
+  {
+    key: "permissions",
+    label: "Access & permissions",
+    icon: KeyRound,
+    route: "permissions/roles",
+    activeKey: "permissions",
+    checks: PERMISSIONS_SECTION_CHECKS,
   },
   {
     key: "admin",
@@ -30,22 +36,20 @@ export const GATED_SIDEBAR_LINKS: GatedSidebarLink[] = [
     icon: Shield,
     route: "admin/whitelist",
     activeKey: "admin",
-    permission: "email.whitelist.read",
-    scope: "whitelist",
+    checks: [{ permission: "email.whitelist.read", scope: "whitelist" }],
   },
   {
     key: "audit",
     label: "Audit log",
     icon: ScrollText,
     route: "audit",
-    permission: "audit.read",
-    scope: "global",
+    checks: [{ permission: "audit.read", scope: "global" }],
   },
 ];
 
 /**
- * Checks every gated link's permission in one request and maps each link's key to its answer.
- * The request fails as a whole, so a failure denies every link.
+ * Asks every gated link's checks in one request and maps each link's key to whether all of its
+ * checks passed. The request fails as a whole, so a failure denies every link.
  */
 export async function resolveSidebarPermissions(
   token: string,
@@ -55,11 +59,19 @@ export async function resolveSidebarPermissions(
   try {
     grants = await checkPermissions(
       token,
-      links.map(({ permission, scope }) => ({ permission, scope })),
+      links.flatMap(({ checks }) => checks),
     );
   } catch (error) {
     console.error("Sidebar permission checks failed:", error);
-    grants = links.map(() => false);
+    return Object.fromEntries(links.map(({ key }) => [key, false]));
   }
-  return Object.fromEntries(links.map((link, index) => [link.key, grants[index]]));
+  // The answers come back in the order asked: each link's run of checks, link after link.
+  let start = 0;
+  return Object.fromEntries(
+    links.map(({ key, checks }) => {
+      const answers = grants.slice(start, start + checks.length);
+      start += checks.length;
+      return [key, answers.every(Boolean)];
+    }),
+  );
 }
