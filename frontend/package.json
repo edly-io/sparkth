@@ -51,6 +51,7 @@
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "@vitest/coverage-v8": "4.1.4",
     "dotenv": "^17.4.2",
     "jsdom": "^29.0.2",
     "openapi-typescript": "^7.13.0",

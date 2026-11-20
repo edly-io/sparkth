@@ -246,6 +246,8 @@ opening a pull request, or committing LLM-generated code. Conventional Commits a
 
 Before creating a pull request, review the branch's changes with the
 [`sparkth-code-review`](.claude/skills/sparkth-code-review/SKILL.md) skill and address its findings first.
+Then run `make test with-coverage=1` and record the backend and frontend line coverage in the PR's
+Test Coverage section (see the [test coverage guide](docs/guides/test-coverage.md)).
 
 ## Additional Documentation
 
@@ -257,6 +259,7 @@ Before creating a pull request, review the branch's changes with the
 | Permissions guide | [docs/guides/permissions.md](docs/guides/permissions.md) |
 | Permissions: proposing them (agent workflow) | [.claude/skills/permissions/SKILL.md](.claude/skills/permissions/SKILL.md) |
 | Translations guide (backend gettext, frontend next-intl, marking, catalogs) | [docs/guides/translations.md](docs/guides/translations.md) |
+| Test coverage (measuring it, current figures) | [docs/guides/test-coverage.md](docs/guides/test-coverage.md) |
 | Configuration guide (setup) | [docs/guides/configuration.md](docs/guides/configuration.md) |
 | Configuration reference (variables) | [docs/reference/configuration.md](docs/reference/configuration.md) |
 | User management guide | [docs/guides/user-management.md](docs/guides/user-management.md) |

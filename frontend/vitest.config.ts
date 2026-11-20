@@ -22,6 +22,19 @@ export default defineConfig({
     // plugins/<name>/tests/; nothing else. The explicit include keeps the suite from picking
     // up the Playwright e2e specs (*.spec.ts), which run via `make test.e2e`.
     include: ["tests/**/*.test.{ts,tsx}", "plugins/*/tests/**/*.test.{ts,tsx}"],
+    // Measures every source file, loaded by a test or not, so untested files count as uncovered.
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "html", "json-summary"],
+      include: ["{app,core,lib,plugins}/**/*.{ts,tsx}"],
+      exclude: [
+        "**/*.d.ts",
+        "tests/**",
+        "plugins/*/tests/**",
+        "lib/testing/**",
+        "lib/api/generated.ts",
+      ],
+    },
   },
   resolve: {
     alias: [
