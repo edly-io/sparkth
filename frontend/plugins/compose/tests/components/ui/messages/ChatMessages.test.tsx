@@ -13,15 +13,9 @@ function assistant(id: string, question: string, option: string): ChatMessage {
 }
 
 function renderMessages(messages: ChatMessage[]) {
-  return renderWithIntl(
-    <ChatMessages
-      messages={messages}
-      setPreviewOpen={vi.fn()}
-      setPreviewAttachment={vi.fn()}
-      onOptionCheck={vi.fn()}
-    />,
-    { compose: composeEn.compose },
-  );
+  return renderWithIntl(<ChatMessages messages={messages} onOptionCheck={vi.fn()} />, {
+    compose: composeEn.compose,
+  });
 }
 
 describe("ChatMessages — options widget", () => {
@@ -66,5 +60,24 @@ describe("ChatMessages — options widget", () => {
   it("keeps each line of a multi-line user reply", () => {
     renderMessages([{ id: "u1", role: "user", content: "Beginners\nRetirees" }]);
     expect(screen.getByText("Beginners Retirees")).toHaveClass("whitespace-pre-wrap");
+  });
+});
+
+describe("ChatMessages — user message attachments", () => {
+  it("shows only the typed text of a message sent with files", () => {
+    renderMessages([
+      {
+        id: "u1",
+        role: "user",
+        content: "Summarise these",
+        attachments: [
+          { name: "syllabus.pdf", text: "Week 1", size: 1024 },
+          { name: "notes.txt", text: "Week 2", size: 512 },
+        ],
+      },
+    ]);
+    expect(screen.getByText("Summarise these")).toBeInTheDocument();
+    expect(screen.queryByText("syllabus.pdf")).not.toBeInTheDocument();
+    expect(screen.queryByText("notes.txt")).not.toBeInTheDocument();
   });
 });

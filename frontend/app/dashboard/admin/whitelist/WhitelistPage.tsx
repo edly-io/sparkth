@@ -4,7 +4,8 @@ import { useReducer, useEffect, useCallback, type SubmitEvent } from "react";
 import { redirect } from "next/navigation";
 import { Plus, Trash2, Mail, Globe } from "lucide-react";
 import { useAuth } from "@/core/auth/hooks";
-import { usePermissionCheck } from "@/core/permissions/hooks";
+import type { PermissionCheckQuery } from "@/core/permissions/client";
+import { usePermissionChecks } from "@/core/permissions/hooks";
 import { ApiRequestError } from "@/lib/api";
 import {
   getWhitelist,
@@ -56,6 +57,16 @@ function reducer(state: WhitelistState, action: WhitelistAction): WhitelistState
   }
 }
 
+/**
+ * The whitelist permissions the page gates on, asked in one request. The order matters: the page
+ * reads the answers by position as read, create, delete.
+ */
+const WHITELIST_PERMISSION_CHECKS: PermissionCheckQuery[] = [
+  { permission: "email.whitelist.read", scope: "whitelist" },
+  { permission: "email.whitelist.create", scope: "whitelist" },
+  { permission: "email.whitelist.delete", scope: "whitelist" },
+];
+
 const initialState: WhitelistState = {
   entries: [],
   loading: true,
@@ -70,13 +81,14 @@ export default function WhitelistPage() {
   const { token } = useAuth();
   const [state, dispatch] = useReducer(reducer, initialState);
 
-  const access = usePermissionCheck(token, "email.whitelist.read", { scope: "whitelist" });
-  const canAdd =
-    usePermissionCheck(token, "email.whitelist.create", { scope: "whitelist" }) === "allowed";
-  const canRemove =
-    usePermissionCheck(token, "email.whitelist.delete", { scope: "whitelist" }) === "allowed";
+  const [readAccess, addAccess, removeAccess] = usePermissionChecks(
+    token,
+    WHITELIST_PERMISSION_CHECKS,
+  );
+  const canAdd = addAccess === "allowed";
+  const canRemove = removeAccess === "allowed";
 
-  if (access === "denied") {
+  if (readAccess === "denied") {
     redirect("/dashboard");
   }
 
@@ -96,8 +108,8 @@ export default function WhitelistPage() {
   }, [token]);
 
   useEffect(() => {
-    if (access === "allowed") fetchEntries();
-  }, [access, fetchEntries]);
+    if (readAccess === "allowed") fetchEntries();
+  }, [readAccess, fetchEntries]);
 
   const handleAdd = async (e: SubmitEvent) => {
     e.preventDefault();
@@ -127,7 +139,7 @@ export default function WhitelistPage() {
     await fetchEntries();
   };
 
-  if (access === "checking") {
+  if (readAccess === "checking") {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="text-center">

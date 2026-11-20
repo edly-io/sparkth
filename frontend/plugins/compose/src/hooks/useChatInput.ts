@@ -1,12 +1,15 @@
 "use client";
 
-import { Dispatch, SetStateAction, useState } from "react";
-import { TextAttachment } from "@/plugins/compose/src/types";
+import { Dispatch, SetStateAction, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
+import { isUnsentUpload, TextAttachment } from "@/plugins/compose/src/types";
 import { attachDocument, detachDocument } from "@/plugins/compose/src/client";
 import { uploadFile, UploadResponse } from "@/plugins/compose/src/upload";
 import type { AttachedDocument, AttachmentSource } from "@/plugins/compose/src/slots/attachments";
 
-const MAX_FILE_SIZE = 30 * 1024 * 1024; // 30MB
+/** How many megabytes of computer files one conversation can carry; documents don't count. */
+const MAX_COMBINED_UPLOAD_MB = 3;
+const MAX_COMBINED_UPLOAD_BYTES = MAX_COMBINED_UPLOAD_MB * 1024 * 1024;
 
 interface UseChatInputProps {
   message: string;
@@ -34,35 +37,68 @@ export function useChatInput({
   const [showUploadMenu, setShowUploadMenu] = useState(false);
   const [pickingFrom, setPickingFrom] = useState<AttachmentSource | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const t = useTranslations("compose");
+  // Each upload in progress, by upload ID, so removing its file can cancel it.
+  const uploadsInProgress = useRef(new Map<string, AbortController>());
 
-  const handleUploadAsText = async (file: File) => {
-    setUploadError(null);
+  const uploadComputerFile = async (file: File) => {
+    // Listed straight away, so the user sees the file while it uploads.
+    const uploadId = crypto.randomUUID();
+    setAttachments((prev) => [
+      ...prev,
+      { name: file.name, size: file.size, text: "", uploadId, isUploading: true },
+    ]);
 
-    if (file.size > MAX_FILE_SIZE) {
-      setUploadError("File size exceeds 30MB limit");
-      return;
-    }
-
+    const cancelUpload = new AbortController();
+    uploadsInProgress.current.set(uploadId, cancelUpload);
     try {
       const formData = new FormData();
       formData.append("file", file);
 
-      const data: UploadResponse = await uploadFile(formData, token ?? undefined);
+      const data: UploadResponse = await uploadFile(
+        formData,
+        token ?? undefined,
+        cancelUpload.signal,
+      );
 
-      setAttachments((prev) => [
-        ...prev,
-        {
-          name: file.name,
-          size: file.size,
-          text: data.text,
-        },
-      ]);
-
-      setShowUploadMenu(false);
+      setAttachments((prev) =>
+        prev.map((a) =>
+          a.uploadId === uploadId ? { ...a, text: data.text, isUploading: false } : a,
+        ),
+      );
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to upload file";
-      setUploadError(message);
+      // A cancelled upload's file was already removed by the user.
+      if (cancelUpload.signal.aborted) return;
+      setAttachments((prev) => prev.filter((a) => a.uploadId !== uploadId));
+      const reason = error instanceof Error ? error.message : String(error);
+      setUploadError(t("uploadFailed", { name: file.name, reason }));
+    } finally {
+      uploadsInProgress.current.delete(uploadId);
     }
+  };
+
+  const handleUploadFromComputer = async (files: File[]) => {
+    setUploadError(null);
+
+    // A file with the same name and size as a listed upload, sent or not, is taken as the same file.
+    const listedUploads = attachments.filter((a) => a.documentId === undefined);
+    const isListed = (file: File) =>
+      listedUploads.some((a) => a.name === file.name && a.size === file.size);
+    const duplicateFiles = files.filter(isListed);
+    const newFiles = files.filter((file) => !isListed(file));
+
+    if (duplicateFiles.length > 0) {
+      setUploadError(t("uploadSkippedDuplicates", { count: duplicateFiles.length }));
+    }
+
+    const listedBytes = listedUploads.reduce((total, a) => total + a.size, 0);
+    const newBytes = newFiles.reduce((total, file) => total + file.size, 0);
+    if (listedBytes + newBytes > MAX_COMBINED_UPLOAD_BYTES) {
+      setUploadError(t("uploadLimitExceeded", { limitMb: MAX_COMBINED_UPLOAD_MB }));
+      return;
+    }
+
+    await Promise.all(newFiles.map(uploadComputerFile));
   };
 
   const handleDocumentsSelected = (documents: AttachedDocument[]) => {
@@ -73,12 +109,20 @@ export function useChatInput({
     // update so both diff computations read a consistent pre-update view.
     const prevDocumentAttachments = attachments.filter((a) => a.documentId !== undefined);
 
-    const newDocumentAttachments = documents.map((document) => ({
-      name: document.name,
-      size: document.size ?? 0,
-      text: `[File: ${document.name}]`,
-      documentId: document.documentId,
-    }));
+    // A newly picked document comes from the open picker's source; one picked again keeps the
+    // source it had.
+    const newDocumentAttachments = documents.map((document) => {
+      const source =
+        prevDocumentAttachments.find((a) => a.documentId === document.documentId)?.source ??
+        pickingFrom?.id;
+      return {
+        name: document.name,
+        size: document.size ?? 0,
+        text: `[File: ${document.name}]`,
+        documentId: document.documentId,
+        source,
+      };
+    });
     setAttachments((prev) => {
       const nonDocument = prev.filter((a) => a.documentId === undefined);
       return [...nonDocument, ...newDocumentAttachments];
@@ -90,7 +134,7 @@ export function useChatInput({
       for (const document of addedDocuments) {
         attachDocument(token, conversationId, document.documentId).catch((err) => {
           console.warn("Failed to persist document attachment:", err);
-          setUploadError(`Failed to attach "${document.name}". Please try again.`);
+          setUploadError(t("attachFailed", { name: document.name }));
           setAttachments((prev) => prev.filter((a) => a.documentId !== document.documentId));
         });
       }
@@ -100,50 +144,48 @@ export function useChatInput({
       for (const att of removedAttachments) {
         detachDocument(token, conversationId, att.documentId!).catch((err) => {
           console.warn("Failed to detach document:", err);
-          setUploadError(`Failed to detach "${att.name}". Please try again.`);
+          setUploadError(t("detachFailed", { name: att.name }));
           setAttachments((prev) => [...prev, att]);
         });
       }
     }
   };
 
-  const handleRemoveAttachment = (documentId?: number) => {
-    if (documentId !== undefined) {
-      const removed = attachments.find((a) => a.documentId === documentId);
-      setAttachments((prev) => prev.filter((a) => a.documentId !== documentId));
-      if (conversationId && removed) {
-        detachDocument(token, conversationId, documentId).catch((err) => {
-          console.warn("Failed to detach drive file:", err);
-          setUploadError(`Failed to detach "${removed.name}". Please try again.`);
-          setAttachments((prev) => [...prev, removed]);
-        });
-      }
-    } else {
-      const driveAtts = attachments.filter((a) => a.documentId !== undefined);
-      setAttachments([]);
-      if (conversationId) {
-        for (const att of driveAtts) {
-          detachDocument(token, conversationId, att.documentId!).catch((err) => {
-            console.warn("Failed to detach drive file:", err);
-            setUploadError("Some files could not be detached. Please try again.");
-            setAttachments((prev) => [...prev, att]);
-          });
-        }
-      }
+  // Removing a file that is still uploading also cancels its upload.
+  const handleRemoveAttachment = (removed: TextAttachment) => {
+    const { documentId, uploadId } = removed;
+    if (documentId === undefined) {
+      if (uploadId !== undefined) uploadsInProgress.current.get(uploadId)?.abort();
+      setAttachments((prev) => prev.filter((a) => a.uploadId !== uploadId));
+      return;
+    }
+
+    setAttachments((prev) => prev.filter((a) => a.documentId !== documentId));
+    if (conversationId) {
+      detachDocument(token, conversationId, documentId).catch((err) => {
+        console.warn("Failed to detach document:", err);
+        setUploadError(t("detachFailed", { name: removed.name }));
+        setAttachments((prev) => [...prev, removed]);
+      });
     }
   };
 
-  const handleSend = async () => {
-    const sendableAttachments = attachments.filter((a) => a.documentId === undefined);
-    if (!message.trim() && sendableAttachments.length === 0) return;
+  // A message must be typed, with or without files, and every upload must have finished.
+  const canSend = message.trim() !== "" && !attachments.some((a) => a.isUploading);
 
-    const documentAttachments = attachments.filter((a) => a.documentId !== undefined);
-    const documentIds = documentAttachments.map((a) => a.documentId!);
+  const handleSend = async () => {
+    if (!canSend) return;
+
+    const unsentUploads = attachments.filter(isUnsentUpload);
+
+    const documentIds = attachments.flatMap((a) =>
+      a.documentId === undefined ? [] : [a.documentId],
+    );
 
     // Cleared only once accepted, so a refused send keeps what the author typed.
     const accepted = await onSend({
       message: message.trim(),
-      attachments: sendableAttachments,
+      attachments: unsentUploads,
       // Always send document IDs so the backend can attach them before processing
       // (critical for new conversations where they haven't been persisted yet)
       ...(documentIds.length > 0 && { documentIds }),
@@ -151,8 +193,14 @@ export function useChatInput({
     if (!accepted) return;
 
     setMessage("");
-    // Keep document attachments in state — they remain attached to the conversation
-    setAttachments(documentAttachments);
+    // Every file stays listed: documents remain attached, and a sent upload's text is now part of
+    // the conversation.
+    const sentUploadIds = new Set(unsentUploads.map((a) => a.uploadId));
+    setAttachments((prev) =>
+      prev.map((a) =>
+        a.uploadId !== undefined && sentUploadIds.has(a.uploadId) ? { ...a, isSent: true } : a,
+      ),
+    );
   };
 
   return {
@@ -162,9 +210,10 @@ export function useChatInput({
     setPickingFrom,
     uploadError,
     setUploadError,
-    handleUploadAsText,
+    handleUploadFromComputer,
     handleDocumentsSelected,
     handleRemoveAttachment,
+    canSend,
     handleSend,
   };
 }

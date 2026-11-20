@@ -29,9 +29,10 @@ async def _seed_document(
     user_id: int = 1,
     name: str = "test.pdf",
     status: DocumentStatus = DocumentStatus.READY,
+    source: str | None = None,
 ) -> tuple[Document, int]:
     """Create a core Document for attachment tests."""
-    document = Document(user_id=user_id, name=name, status=status)
+    document = Document(user_id=user_id, name=name, status=status, source=source)
     session.add(document)
     await session.flush()
     document_id = cast(int, document.id)
@@ -275,6 +276,7 @@ class TestAttachmentEndpoints:
             user_id=cast(int, current_user.id),
             name="doc.pdf",
             status=DocumentStatus.READY,
+            source="googledrive",
         )
         await ComposeService().attach_document(session, conversation_id, document_id)
 
@@ -282,7 +284,7 @@ class TestAttachmentEndpoints:
 
         assert response.status_code == 200
         data = response.json()
-        assert data == [{"id": document_id, "name": "doc.pdf", "size": None}]
+        assert data == [{"id": document_id, "name": "doc.pdf", "size": None, "source": "googledrive"}]
 
     @pytest.mark.asyncio
     async def test_get_attachments_excludes_non_ready(
@@ -302,7 +304,7 @@ class TestAttachmentEndpoints:
 
         assert response.status_code == 200
         data = response.json()
-        assert data == [{"id": ready_id, "name": "ready.pdf", "size": None}]
+        assert data == [{"id": ready_id, "name": "ready.pdf", "size": None, "source": None}]
 
     @pytest.mark.asyncio
     async def test_get_attachments_missing_conversation_returns_404(

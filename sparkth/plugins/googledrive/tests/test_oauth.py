@@ -8,6 +8,7 @@ import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.models import User
+from sparkth.plugins.googledrive.exceptions import GoogleDriveNotConnected
 from sparkth.plugins.googledrive.models import DriveOAuthToken
 from sparkth.plugins.googledrive.oauth import (
     decode_state,
@@ -217,8 +218,8 @@ class TestGetValidAccessToken:
 
     @pytest.mark.asyncio
     async def test_raises_when_not_connected(self, session: AsyncSession, test_user: User) -> None:
-        """Should raise ValueError when user has no token."""
-        with pytest.raises(ValueError, match="not connected"):
+        """Should raise the not-connected error when user has no token."""
+        with pytest.raises(GoogleDriveNotConnected):
             await get_valid_access_token(session, cast(int, test_user.id), "client_id", "client_secret")
 
 

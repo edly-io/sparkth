@@ -91,9 +91,11 @@ async def test_permission_probe_records_nothing(
 ) -> None:
     user = await _user(session, "probe-dave")
 
-    response = await client.get("/api/v1/permissions/can", params={"permission": "analytics.read"}, headers=_auth(user))
+    response = await client.post(
+        "/api/v1/permissions/can/batch", json=[{"permission": "analytics.read", "scope": "global"}], headers=_auth(user)
+    )
     assert response.status_code == 200
-    assert response.json() == {"allowed": False}
+    assert response.json()[0]["allowed"] is False
 
     assert await audit_events() == []
 

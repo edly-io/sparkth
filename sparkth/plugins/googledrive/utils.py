@@ -33,6 +33,7 @@ from sparkth.lib.rag import (
 from sparkth.plugins.googledrive.analytics.events import DocumentOutcome, GoogleDriveDocumentProcessed
 from sparkth.plugins.googledrive.client import GoogleDriveClient
 from sparkth.plugins.googledrive.config import get_googledrive_settings
+from sparkth.plugins.googledrive.constants import GOOGLE_DRIVE_PLUGIN_NAME
 from sparkth.plugins.googledrive.exceptions import GoogleDriveAPIError
 from sparkth.plugins.googledrive.models import DriveFile, DriveFolder
 
@@ -144,15 +145,15 @@ async def _ingest_drive_file(
     """Download, guard, dedup-check, and ingest one Drive file (the happy path).
 
     Sets PROCESSING/READY status on the Document and may early-return after a
-    size guard or a duplicate match. Returns how it ended; raises on failures
-    ``_process_single_file`` maps to FAILED.
+    size guard or a duplicate match. Commits before the download and before the
+    ingest, so ``session`` holds no database connection during either. Returns how
+    it ended; raises on failures ``_process_single_file`` maps to FAILED.
     """
     settings = get_googledrive_settings()
     limit_mb = settings.INGESTION_MAX_FILE_SIZE_MB
 
     await update_document_status(session, document_id, DocumentStatus.PROCESSING)
     await session.commit()
-    await session.refresh(drive_file)
 
     if drive_file.size is not None and await _reject_if_oversized(
         session, document_id, drive_file.size, filename, limit_mb
@@ -180,6 +181,8 @@ async def _ingest_drive_file(
         )
         return IngestOutcome(DocumentOutcome.DUPLICATE, len(file_bytes))
 
+    # Persist the hash and end the transaction before the slow ingest.
+    await session.commit()
     result = await ingest_document(filename, file_bytes, document_id)
     await update_document_status(session, document_id, DocumentStatus.READY)
     await session.commit()
@@ -217,7 +220,7 @@ async def _process_single_file(
         return
 
     if drive_file.document_id is None:
-        doc = await create_document(session, user_id, filename, drive_file.mime_type)
+        doc = await create_document(session, user_id, filename, drive_file.mime_type, GOOGLE_DRIVE_PLUGIN_NAME)
         drive_file.document_id = doc.id
         session.add(drive_file)
         await session.flush()

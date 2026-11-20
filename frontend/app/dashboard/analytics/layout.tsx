@@ -14,7 +14,7 @@ import { ANALYTICS_VIEWS } from "./views";
 export default function AnalyticsLayout({ children }: { children: React.ReactNode }) {
   const { token } = useAuth();
   const t = useTranslations("analytics");
-  const access = usePermissionCheck(token, "analytics.read");
+  const access = usePermissionCheck(token, "analytics.read", { scope: "global" });
 
   return (
     <div className="min-h-screen bg-background transition-colors">
