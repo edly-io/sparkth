@@ -25,9 +25,8 @@ vi.mock("@/core/analytics", async (importOriginal) => {
 });
 
 const access = vi.hoisted(() => ({ userRead: "allowed" }));
-vi.mock("@/core/permissions/hooks", () => ({
-  usePermissionCheck: () => access.userRead,
-}));
+const usePermissionCheck = vi.hoisted(() => vi.fn(() => access.userRead));
+vi.mock("@/core/permissions/hooks", () => ({ usePermissionCheck }));
 
 const nav = vi.hoisted(() => ({ search: "", replace: vi.fn() }));
 vi.mock("next/navigation", () => ({
@@ -97,6 +96,12 @@ afterEach(() => {
 });
 
 describe("ExplorePage", () => {
+  it("checks user.read at the global scope", async () => {
+    renderWithIntl(<ExplorePage />);
+    await screen.findByText(/choose an event to build a chart/i);
+    expect(usePermissionCheck).toHaveBeenCalledWith("test-token", "user.read", { scope: "global" });
+  });
+
   it("asks for an event before querying anything", async () => {
     renderWithIntl(<ExplorePage />);
     expect(await screen.findByText(/choose an event to build a chart/i)).toBeInTheDocument();

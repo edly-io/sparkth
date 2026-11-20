@@ -18,9 +18,8 @@ vi.mock("@/core/plugins/registry", async (importOriginal) => ({
 
 vi.mock("@/core/auth/hooks", () => ({ useAuth: () => ({ token: "test-token" }) }));
 const access = vi.hoisted(() => ({ userRead: "allowed" }));
-vi.mock("@/core/permissions/hooks", () => ({
-  usePermissionCheck: () => access.userRead,
-}));
+const usePermissionCheck = vi.hoisted(() => vi.fn(() => access.userRead));
+vi.mock("@/core/permissions/hooks", () => ({ usePermissionCheck }));
 vi.mock("@/core/analytics", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/core/analytics")>();
   return { ...actual, listViews: vi.fn() };
@@ -61,6 +60,11 @@ describe("AnalyticsNav", () => {
     access.userRead = "allowed";
     vi.clearAllMocks();
     vi.mocked(listViews).mockResolvedValue([]);
+  });
+
+  it("checks user.read at the global scope", () => {
+    renderWithIntl(<AnalyticsNav views={VIEWS} />);
+    expect(usePermissionCheck).toHaveBeenCalledWith("test-token", "user.read", { scope: "global" });
   });
 
   it("lists only the views it is given", () => {
