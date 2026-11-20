@@ -240,7 +240,7 @@ async def compose_completion(
                 continue
             turn_analytics.schedule_message_sent(
                 message_length=len(stored.content),
-                has_attachment=stored.message_type == "attachment",
+                has_attachment=stored.message_type == "attachment" or bool(request.files),
                 occurred_at=stored.created_at,
             )
 
