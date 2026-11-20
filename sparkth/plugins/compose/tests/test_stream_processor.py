@@ -12,6 +12,7 @@ import pytest
 from langchain_core.messages import AIMessage
 from pydantic import Field
 
+from sparkth.core.i18n import locale_context
 from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME
 from sparkth.lib.llm import get_provider
 from sparkth.lib.mcp.hooks import Tool
@@ -21,7 +22,7 @@ from sparkth.lib.rag import (
     RAGRetrievalError,
     RetrievedChunk,
 )
-from sparkth.lib.testing import ScriptedChatModel
+from sparkth.lib.testing import AddTranslation, ScriptedChatModel
 from sparkth.plugins.compose.analytics import StopPoint
 from sparkth.plugins.compose.constants import SSE_HEARTBEAT
 from sparkth.plugins.compose.planner import ExistingPlan, PlannedStep
@@ -616,6 +617,38 @@ class TestCollectStreamResponse:
 # A plan of two steps, as a turn makes it and as an earlier message left it with its first step in progress.
 TWO_STEPS = (PlannedStep(STUB_AGENT.name, "Write the lesson"), PlannedStep(OTHER_AGENT.name, "Build the activity"))
 FIRST_IN_PROGRESS = ExistingPlan(TWO_STEPS, current_step=1)
+
+
+class TestAStepsStatus:
+    @pytest.mark.asyncio
+    async def test_the_author_is_told_what_each_step_is_doing_in_their_language(
+        self, monkeypatch: pytest.MonkeyPatch, translation_catalog: AddTranslation
+    ) -> None:
+        translation_catalog(STUB_AGENT.status, "Preparando…")
+        events = [
+            {**routed(STUB_AGENT.name), "label": STUB_AGENT.status},
+            {"type": "token", "content": "Here is the lesson."},
+        ]
+        monkeypatch.setattr(STREAM_TURN, partial(replay_turn, events))
+        processor = _make_processor()
+
+        with locale_context("es"):
+            payloads = [json.loads(chunk.removeprefix("data: ")) async for chunk in processor.stream()]
+
+        assert {"status": "step", "label": "Preparando…", "done": False} in payloads
+
+    @pytest.mark.asyncio
+    async def test_a_refusal_announces_no_step(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        events: list[dict[str, Any]] = [
+            routed(None),
+            {"type": "token", "content": "I can only help with courses."},
+        ]
+        monkeypatch.setattr(STREAM_TURN, partial(replay_turn, events))
+        processor = _make_processor()
+
+        payloads = [json.loads(chunk.removeprefix("data: ")) async for chunk in processor.stream()]
+
+        assert not any(payload.get("status") == "step" for payload in payloads)
 
 
 class TestAPlannedTurn:
