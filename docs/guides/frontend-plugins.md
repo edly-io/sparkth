@@ -214,8 +214,10 @@ the plugin even when the id names nothing. `isNotFoundError` from `@/lib/api/err
 means the item is missing (a 404, or a 422 for a malformed id). When it does, render `NotFound` from
 `@/lib/components/layout/NotFound` where the item would have been. The plugin's own navigation stays on screen, and
 nothing the user could type into is left showing. The panel has no text of its own: pass the plugin's translated
-title, an optional message and an optional action that leads somewhere that exists. Any other failure is an error,
-not a missing item, so show it as one.
+title, an optional message and an optional action that leads somewhere that exists. For a 403, render `Forbidden`
+from `@/lib/components/layout/Forbidden` instead, unless the item's existence is private: compose treats a 403 on
+another user's chat as not found, so it does not reveal that the chat exists. Any other failure is an error, not a
+missing item, so show it as one.
 
 ```tsx
 import Link from "next/link";
