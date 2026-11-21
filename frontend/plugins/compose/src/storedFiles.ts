@@ -52,12 +52,16 @@ function removeOldestEntry(keptKey: string): boolean {
 }
 
 /**
- * Adds files to the ones this browser keeps for a conversation.
+ * Adds files to the ones this browser keeps for a conversation, and returns whether they were kept.
  *
  * When storage is full, other conversations give up their files, those added longest ago first.
  * When the files still don't fit, or storage is blocked, they aren't kept.
  */
-export function addStoredFiles(userId: number, conversationId: string, files: StoredFile[]): void {
+export function addStoredFiles(
+  userId: number,
+  conversationId: string,
+  files: StoredFile[],
+): boolean {
   const key = getKey(userId, conversationId);
   const entry: StoredEntry = {
     updatedAt: Date.now(),
@@ -67,12 +71,12 @@ export function addStoredFiles(userId: number, conversationId: string, files: St
   for (;;) {
     try {
       localStorage.setItem(key, value);
-      return;
+      return true;
     } catch (error) {
       const isFull = error instanceof DOMException && error.name === "QuotaExceededError";
       if (!isFull || !removeOldestEntry(key)) {
         console.warn("Could not keep the conversation's files in this browser:", error);
-        return;
+        return false;
       }
     }
   }

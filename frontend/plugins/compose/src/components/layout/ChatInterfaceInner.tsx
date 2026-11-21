@@ -128,15 +128,16 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
     [skipNextLoadRef, router, inputAttachments, token, setError],
   );
 
-  const { handleSend, stopGeneration, isStopping, isTurnLive } = useChatStream({
-    token,
-    userId: user?.id,
-    llmConfigId,
-    modelOverride,
-    conversationId,
-    setMessages,
-    onNewConversation,
-  });
+  const { handleSend, stopGeneration, isStopping, isTurnLive, filesNotKept, dismissFilesNotKept } =
+    useChatStream({
+      token,
+      userId: user?.id,
+      llmConfigId,
+      modelOverride,
+      conversationId,
+      setMessages,
+      onNewConversation,
+    });
 
   // Every send path runs through this, and it resolves false when it refuses the send.
   // A refused send keeps the typed message, so a send while a reply is running loses nothing.
@@ -200,6 +201,14 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
             >
               {aiKeyProblem === "no-key" ? t("aiKeyMissingAction") : t("aiKeyNotSelectedAction")}
             </Link>
+          </Alert>
+        </div>
+      )}
+
+      {filesNotKept && (
+        <div className="px-4 pt-4">
+          <Alert severity="warning" onClose={dismissFilesNotKept}>
+            {t("filesNotKept")}
           </Alert>
         </div>
       )}

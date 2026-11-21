@@ -52,12 +52,16 @@ vi.mock("@/plugins/compose/src/hooks/useConversation", async () => {
 const mockHandleSend = vi.fn();
 // Whether the mocked stream reports a turn still running in the open conversation.
 let turnLive = false;
+// Whether the mocked stream reports that this browser couldn't keep the files just sent.
+let filesNotKept = false;
 vi.mock("@/plugins/compose/src/hooks/useChatStream", () => ({
   useChatStream: () => ({
     handleSend: mockHandleSend,
     stopGeneration: vi.fn(),
     isStopping: false,
     isTurnLive: () => turnLive,
+    filesNotKept,
+    dismissFilesNotKept: vi.fn(),
   }),
 }));
 
@@ -240,5 +244,17 @@ describe("ChatInterfaceInner — a chat that fails to load", () => {
     expect(screen.queryByPlaceholderText(composeEn.compose.inputPlaceholder)).toBeNull();
     // A chat that may still exist is not shown as missing.
     expect(screen.queryByRole("heading", { name: composeEn.compose.chatNotFoundTitle })).toBeNull();
+  });
+});
+
+describe("ChatInterfaceInner — files this browser couldn't keep", () => {
+  it("warns that the assistant won't see them in later messages", () => {
+    loadError = null;
+    filesNotKept = true;
+
+    renderChat();
+
+    expect(screen.getByText(composeEn.compose.filesNotKept)).toBeInTheDocument();
+    filesNotKept = false;
   });
 });

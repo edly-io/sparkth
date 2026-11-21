@@ -40,6 +40,7 @@
     "selectFiles": "Seleccionar archivos",
     "uploadLimitExceeded": "Estos archivos superarían el límite de {limitMb} MB de la conversación.",
     "uploadSkippedDuplicates": "{count, plural, one {El archivo ya está adjunto.} other {Los archivos ya están adjuntos.}}",
+    "filesNotKept": "Este navegador no pudo guardar los archivos que acabas de enviar, así que el asistente no los verá en los siguientes mensajes.",
     "uploadFailed": "No se pudo subir \"{name}\": {reason}",
     "attachFailed": "No se pudo adjuntar \"{name}\". Inténtalo de nuevo.",
     "detachFailed": "No se pudo quitar \"{name}\". Inténtalo de nuevo."

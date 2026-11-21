@@ -17,7 +17,9 @@ describe("storedFiles", () => {
 
   it("adds files to the ones already kept", () => {
     addStoredFiles(7, "conv-1", [notes]);
-    addStoredFiles(7, "conv-1", [syllabus]);
+    const kept = addStoredFiles(7, "conv-1", [syllabus]);
+
+    expect(kept).toBe(true);
 
     expect(getStoredFiles(7, "conv-1")).toEqual([notes, syllabus]);
   });
@@ -48,7 +50,7 @@ describe("storedFiles", () => {
       throw quotaExceeded();
     });
 
-    expect(() => addStoredFiles(7, "conv-1", [syllabus])).not.toThrow();
+    expect(addStoredFiles(7, "conv-1", [syllabus])).toBe(false);
     expect(getStoredFiles(7, "conv-1")).toEqual([]);
   });
 
@@ -66,7 +68,7 @@ describe("storedFiles", () => {
       throw new DOMException("Blocked.", "SecurityError");
     });
 
-    expect(() => addStoredFiles(7, "conv-1", [syllabus])).not.toThrow();
+    expect(addStoredFiles(7, "conv-1", [syllabus])).toBe(false);
     expect(getStoredFiles(7, "conv-1")).toEqual([]);
   });
 });

@@ -283,6 +283,8 @@ export function useChatStream({
 }: UseChatStreamOptions) {
   // The backend only notices a stop between provider events, so the button has to say it heard.
   const [isStopping, setIsStopping] = useState(false);
+  // The assistant won't see files this browser couldn't keep in later messages, so the author is told.
+  const [filesNotKept, setFilesNotKept] = useState(false);
   // A ref, not state: sends fired before the next render must all see the turn that just started.
   const liveTurnRef = useRef<{ turnId: string; conversationId: string | null } | null>(null);
 
@@ -384,7 +386,7 @@ export function useChatStream({
         // The typed turn was stored even when the reply failed, so its files are kept with it.
         const sentConversationId = conversationId ?? newConversationId;
         if (userId !== undefined && sentConversationId && newFiles.length > 0) {
-          addStoredFiles(userId, sentConversationId, newFiles);
+          setFilesNotKept(!addStoredFiles(userId, sentConversationId, newFiles));
         }
 
         if (!hasError) {
@@ -452,5 +454,14 @@ export function useChatStream({
     );
   }, [token]);
 
-  return { handleSend, stopGeneration, isStopping, isTurnLive };
+  const dismissFilesNotKept = useCallback(() => setFilesNotKept(false), []);
+
+  return {
+    handleSend,
+    stopGeneration,
+    isStopping,
+    isTurnLive,
+    filesNotKept,
+    dismissFilesNotKept,
+  };
 }
