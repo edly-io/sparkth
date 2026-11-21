@@ -67,7 +67,7 @@ function ConversationLoadFailed({ loadError }: { loadError: ConversationLoadErro
 }
 
 export default function ChatInterfaceInner({ conversationId }: { conversationId: string | null }) {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { config: composeConfig } = usePlugin(COMPOSE_PLUGIN_NAME);
   const t = useTranslations("compose");
 
@@ -107,7 +107,7 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
     setMessages,
     clearError,
     skipNextLoadRef,
-  } = useConversation(conversationId, token);
+  } = useConversation(conversationId, token, user?.id);
 
   const onNewConversation = useCallback(
     (id: string) => {
@@ -130,6 +130,7 @@ export default function ChatInterfaceInner({ conversationId }: { conversationId:
 
   const { handleSend, stopGeneration, isStopping, isTurnLive } = useChatStream({
     token,
+    userId: user?.id,
     llmConfigId,
     modelOverride,
     conversationId,

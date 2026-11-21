@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { useChatStream } from "@/plugins/compose/src/hooks/useChatStream";
+import { addStoredFiles, getStoredFiles } from "@/plugins/compose/src/storedFiles";
 import type { ChatMessage } from "@/plugins/compose/src/types";
 
 const requestChatCompletionStream = vi.fn();
@@ -47,6 +48,7 @@ function runStream(payloads: Record<string, unknown>[]) {
   const { result } = renderHook(() =>
     useChatStream({
       token: "test-token",
+      userId: 7,
       llmConfigId: 1,
       conversationId: "conv-1",
       setMessages,
@@ -69,6 +71,7 @@ function renderConversationHook(conversationId: string) {
     (props: { conversationId: string }) =>
       useChatStream({
         token: "test-token",
+        userId: 7,
         llmConfigId: 1,
         conversationId: props.conversationId,
         setMessages: vi.fn(),
@@ -270,5 +273,70 @@ describe("useChatStream — one turn at a time", () => {
       await stream.send();
     });
     expect(requestChatCompletionStream).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("useChatStream — uploaded files", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+  });
+
+  const syllabus = { name: "syllabus.txt", size: 12, text: "Week 1: cells" };
+
+  function sendWithFiles(conversationId: string | null, attachments = [syllabus]) {
+    const { result } = renderHook(() =>
+      useChatStream({
+        token: "test-token",
+        userId: 7,
+        llmConfigId: 1,
+        conversationId,
+        setMessages: vi.fn(),
+        onNewConversation: vi.fn(),
+      }),
+    );
+    return act(async () => {
+      await result.current.handleSend({ message: "Build a quiz", attachments });
+    });
+  }
+
+  it("sends the typed text as the turn and the file's text beside it", async () => {
+    requestChatCompletionStream.mockResolvedValue({ body: sseBody([DONE]) });
+
+    await sendWithFiles("conv-1");
+
+    const body = requestChatCompletionStream.mock.calls[0][1];
+    expect(body.messages).toEqual([{ role: "user", content: "Build a quiz" }]);
+    expect(body.files).toEqual([{ name: "syllabus.txt", text: "Week 1: cells" }]);
+  });
+
+  it("sends the files kept from earlier turns with each turn", async () => {
+    addStoredFiles(7, "conv-1", [{ name: "notes.txt", size: 5, text: "mitochondria" }]);
+    requestChatCompletionStream.mockResolvedValue({ body: sseBody([DONE]) });
+
+    await sendWithFiles("conv-1", []);
+
+    const body = requestChatCompletionStream.mock.calls[0][1];
+    expect(body.files).toEqual([{ name: "notes.txt", text: "mitochondria" }]);
+  });
+
+  it("keeps a new conversation's files under the id its reply names", async () => {
+    requestChatCompletionStream.mockResolvedValue({
+      body: sseBody([{ token: "", done: true, conversation_id: "conv-new" }]),
+    });
+
+    await sendWithFiles(null);
+
+    expect(getStoredFiles(7, "conv-new")).toEqual([syllabus]);
+  });
+
+  it("keeps the files when the reply fails, since the turn was stored", async () => {
+    requestChatCompletionStream.mockResolvedValue({
+      body: sseBody([{ error: "The model is overloaded.", done: true }]),
+    });
+
+    await sendWithFiles("conv-1");
+
+    expect(getStoredFiles(7, "conv-1")).toEqual([syllabus]);
   });
 });

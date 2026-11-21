@@ -17,6 +17,7 @@ import {
   getRestoredStreamData,
   RECOVERY_PLACEHOLDER_IDS,
 } from "@/plugins/compose/src/hooks/useChatStream";
+import { getStoredFiles } from "@/plugins/compose/src/storedFiles";
 
 function mergeConsecutiveAttachmentMessages(messages: ChatMessage[]): ChatMessage[] {
   const result: ChatMessage[] = [];
@@ -78,6 +79,7 @@ interface UseConversationResult {
 export function useConversation(
   conversationId: string | null,
   token: string | null,
+  userId: number | undefined,
 ): UseConversationResult {
   const [error, setError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<ConversationLoadError | null>(null);
@@ -215,6 +217,7 @@ export function useConversation(
           messages: loaded.length ? loaded : [WELCOME_MESSAGE],
         });
 
+        // Older conversations stored each upload as a message; newer ones keep them in this browser.
         const sentUploads: TextAttachment[] = transcript.flatMap((m) =>
           m.message_type === "attachment" && m.attachment_name
             ? [
@@ -229,6 +232,17 @@ export function useConversation(
               ]
             : [],
         );
+        const storedUploads: TextAttachment[] =
+          userId === undefined
+            ? []
+            : getStoredFiles(userId, conversationId).map((file, index) => ({
+                name: file.name,
+                size: file.size,
+                // Sent from the store, so the line doesn't need the text.
+                text: "",
+                uploadId: `stored-${index}`,
+                isSent: true,
+              }));
         setInputAttachments([
           ...persistedFiles.map((f) => ({
             name: f.name,
@@ -238,6 +252,7 @@ export function useConversation(
             source: f.source ?? undefined,
           })),
           ...sentUploads,
+          ...storedUploads,
         ]);
       } catch (err) {
         // A failure from a load already superseded by another chat says nothing about that chat.
@@ -247,7 +262,7 @@ export function useConversation(
         setHistoryState({ loading: false, messages: [WELCOME_MESSAGE] });
       }
     },
-    [conversationId, token],
+    [conversationId, token, userId],
   );
 
   useEffect(() => {
