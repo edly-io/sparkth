@@ -46,7 +46,11 @@ from sparkth.plugins.compose.messages import get_last_user_text
 from sparkth.plugins.compose.models import Conversation
 from sparkth.plugins.compose.permissions import CONVERSATION, CONVERSATION_WRITE
 from sparkth.plugins.compose.routes.dependencies import get_attachable_document_ids, get_turn_conversation
-from sparkth.plugins.compose.routes.utils import get_existing_plan_or_none, resolve_tools
+from sparkth.plugins.compose.routes.utils import (
+    get_existing_plan_or_none,
+    record_named_tool_denials,
+    resolve_tools,
+)
 from sparkth.plugins.compose.routes.utils.live_turns import (
     claim_conversation,
     release_conversation,
@@ -159,8 +163,10 @@ async def compose_completion(
         actor_id=str(user_id),
     )
     allowed_plugins = await get_accessible_scope_object_ids(current_user, PLUGIN_USE, PLUGIN, session)
-    # The tool filter and the agent list share one set of switched-off plugins.
+    # The tool filter and the agent list share the switched-off plugins and the allowed ones.
     agents = enabled_agents(disabled_plugins, allowed_plugins)
+    tool_registry = get_tool_registry()
+    await record_named_tool_denials(request, tool_registry, disabled_plugins, allowed_plugins)
 
     conversation, conversation_was_created = await service.get_or_create_conversation(
         session,
@@ -297,7 +303,7 @@ async def compose_completion(
             analytics=turn_analytics,
         )
 
-        tools = await resolve_tools(request, get_tool_registry(), disabled_plugins)
+        tools = await resolve_tools(request, tool_registry, disabled_plugins, allowed_plugins)
         existing_plan = get_existing_plan_or_none(conversation_messages)
 
         if request.stream:
