@@ -70,6 +70,7 @@ nav:
           - Audit events: guides/audit-events.md
           - Permissions: guides/permissions.md
           - Translations: guides/translations.md
+          - Test coverage: guides/test-coverage.md
       - Reference:
           - Configuration: reference/configuration.md
           - Python API:

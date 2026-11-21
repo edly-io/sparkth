@@ -160,6 +160,8 @@ It auto-populates on GitHub; fill in every section:
   removes, one line each (format below). The PR's `.env` and `docker-compose*.yml`
   diffs list them. Leave the list empty when the PR changes no variable. The list
   tracks every variable change between DEV and PROD releases.
+- **Test Coverage** — the branch's backend and frontend line coverage, from
+  `make test with-coverage=1`.
 - **Notes** — migrations, breaking changes, dependency bumps (or "none").
 
 ```markdown
