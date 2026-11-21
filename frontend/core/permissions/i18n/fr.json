@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "title": "Accès et autorisations",
+    "subtitle": "Consultez et gérez qui peut faire quoi dans Sparkth.",
+    "nav": {
+      "label": "Sections d'accès",
+      "roles": "Rôles",
+      "groups": "Groupes"
+    }
+  }
+}
