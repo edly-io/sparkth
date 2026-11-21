@@ -607,12 +607,15 @@ is `None` only for a contributor that offers no options: a publishing plugin ref
 for a contributor that offers options until one is chosen, so nothing is placed by default.
 
 The hook is keyed by the registering plugin, one contributor per plugin. A publishing tool offers
-and builds a contributor only while that plugin is on for the caller; a switched-off contributor
-is neither listed nor built. Read the switched-on contributors with
-`enabled_content_contributors()` from `sparkth.lib.content.hooks`, or one by name with
-`enabled_content_contributor(name)`. It raises `UnknownContentContributorError` for a name nobody
-registered and `ContentContributorUnavailableError` when the plugin is switched off, both from
-`sparkth.lib.content.exceptions`. With no authenticated caller, only the system-wide switch applies.
+and builds a contributor only while that plugin is on for the caller and the caller holds
+`plugin.use` at it; any other contributor is neither listed nor built. Read the contributors a
+caller may use with `enabled_content_contributors()` from `sparkth.lib.content.hooks`, or one by
+name with `enabled_content_contributor(name)`. It raises `UnknownContentContributorError` for a name
+nobody registered, `ContentContributorUnavailableError` when the plugin is switched off and
+`ContentContributorNotPermittedError` when the caller may not use the plugin, all from
+`sparkth.lib.content.exceptions`. Resolving by name a contributor the caller may not use records
+one `permission.denied` audit event; listing records none. With no authenticated caller, only the
+system-wide switch applies.
 
 `builders` is keyed by the publishing plugin's registered name, so its keys are the LMSes a
 contributor targets. `openedx` is the one shipped publisher. Register one builder per LMS you

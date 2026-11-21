@@ -166,6 +166,10 @@ no agent. Assign `plugin_user` at `course-design` too, and at each plugin whose 
 get in Compose. A request that names a tool of a plugin left out this way records a `permission.denied` event
 for that plugin; a request for every tool records none.
 
+An LMS publishing tool lists and places the content of a plugin only for a caller who holds `plugin.use` at that
+plugin. Asking by name for the content of another plugin is refused and records a `permission.denied` event;
+listing records none.
+
 When the account that connected a Slack workspace lacks `plugin.use` at `plugin:slack`, the bot replies in that
 workspace that it is disabled instead of answering.
 
