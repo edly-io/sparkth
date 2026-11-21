@@ -295,6 +295,38 @@ async def test_attachment_turn_emits_message_sent_with_has_attachment(
     assert sent[0]["has_attachment"] is True
 
 
+async def test_a_turn_with_uploaded_files_emits_message_sent_with_has_attachment(
+    client: AsyncClient,
+    current_user: User,
+    session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
+) -> None:
+    config_id = await _seed_llm_config(session, current_user.id or 1)
+    conversation_uuid = await _seed_conversation(session, current_user.id or 1, config_id)
+
+    with (
+        patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_non_streaming_provider()),
+    ):
+        response = await client.post(
+            COMPLETIONS_URL,
+            json={
+                "llm_config_id": config_id,
+                "conversation_id": conversation_uuid,
+                "messages": [{"role": "user", "content": "Build a quiz from this syllabus"}],
+                "files": [{"name": "syllabus.txt", "text": "Week 1: cells"}],
+                "stream": False,
+                "tools": "none",
+            },
+        )
+
+    assert response.status_code == 200
+
+    await join_live_tasks()  # compose.message_sent lands on a detached task
+    sent = await _events(analytics_session, "compose.message_sent")
+    assert len(sent) == 1
+    assert sent[0]["has_attachment"] is True
+
+
 async def test_message_sent_payload_carries_no_message_text(
     client: AsyncClient,
     current_user: User,

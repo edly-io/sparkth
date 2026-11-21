@@ -1990,6 +1990,11 @@ export interface components {
              */
             document_ids?: number[] | null;
             /**
+             * Files
+             * @description Every file uploaded from the computer in this conversation. Sent with each turn, never stored.
+             */
+            files?: components["schemas"]["UploadedFile"][];
+            /**
              * Llm Config Id
              * @description ID of the LLMConfig to use for this completion
              */
@@ -2955,6 +2960,16 @@ export interface components {
             filename: string | null;
             /** Length */
             length: number;
+            /** Text */
+            text: string;
+        };
+        /**
+         * UploadedFile
+         * @description A file uploaded from the computer, as the text read from it.
+         */
+        UploadedFile: {
+            /** Name */
+            name: string;
             /** Text */
             text: string;
         };

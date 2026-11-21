@@ -15,7 +15,7 @@ import pytest
 from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.plugins.compose.models import Message
 from sparkth.plugins.compose.routes.utils.message_assembly import assemble_provider_messages
-from sparkth.plugins.compose.schemas import ChatCompletionRequest, ChatMessage
+from sparkth.plugins.compose.schemas import ChatCompletionRequest, ChatMessage, UploadedFile
 
 _RESOLVE = "sparkth.plugins.compose.routes.utils.message_assembly.resolve_document_blocks"
 
@@ -78,6 +78,24 @@ class TestHistoryAndCurrentTurns:
 
         assert [m["content"] for m in messages] == ["first message"]
 
+    @pytest.mark.asyncio
+    async def test_uploaded_files_come_between_the_history_and_the_current_turn(self) -> None:
+        request = _request("summarise them")
+        request.files = [UploadedFile(name="a.txt", text="alpha"), UploadedFile(name="b.txt", text="beta")]
+        db_messages = [_stored("user", "hello"), _stored("assistant", "hi"), _stored("user", "summarise them")]
+
+        messages, _unresolved = await assemble_provider_messages(
+            request, db_messages, [], "", False, MagicMock(), analytics=MagicMock()
+        )
+
+        assert [m["content"] for m in messages] == [
+            "hello",
+            "hi",
+            "[File: a.txt]\n\nalpha",
+            "[File: b.txt]\n\nbeta",
+            "summarise them",
+        ]
+
 
 class TestWhenRetrievalWillRun:
     """A synthetic turn carries the document references retrieval resolves."""
@@ -139,6 +157,18 @@ class TestWhenRetrievalWillRun:
 
         blocks = messages[-1]["content"]
         assert blocks == [{"type": "drive_file", "file_id": 3}]
+
+    @pytest.mark.asyncio
+    async def test_uploaded_files_still_reach_the_model(self) -> None:
+        """Retrieval replaces the request's turns, but not the files sent alongside them."""
+        request = _request("what powers a cell?", stream=True)
+        request.files = [UploadedFile(name="notes.txt", text="mitochondria")]
+
+        messages, _unresolved = await assemble_provider_messages(
+            request, [], [_document(7)], "what powers a cell?", True, MagicMock(), analytics=MagicMock()
+        )
+
+        assert messages[0]["content"] == "[File: notes.txt]\n\nmitochondria"
 
 
 class TestWhenRetrievalWillNotRun:

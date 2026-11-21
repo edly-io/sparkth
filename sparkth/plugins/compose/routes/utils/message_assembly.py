@@ -1,8 +1,9 @@
 """Building the message list a completion request sends to the provider.
 
-Three sources feed it: the conversation's stored history, the turns the request itself carried, and
-a synthetic turn of document references when retrieval is going to run. The request's turns replace
-their stored copies because storage flattens content blocks to text and retrieval needs the blocks.
+Four sources feed it: the conversation's stored history, the files uploaded from the computer, the
+turns the request itself carried, and a synthetic turn of document references when retrieval is going
+to run. The request's turns replace their stored copies because storage flattens content blocks to text
+and retrieval needs the blocks. The files are never stored, so the request brings them every turn.
 """
 
 from typing import Any
@@ -69,4 +70,5 @@ async def assemble_provider_messages(
             await resolve_document_blocks(messages=retrieval_turn, llm=provider.create_llm(), analytics=analytics)
         )
 
-    return history + current, retrieval_turn
+    file_turns = [{"role": "user", "content": f"[File: {file.name}]\n\n{file.text}"} for file in request.files]
+    return history + file_turns + current, retrieval_turn

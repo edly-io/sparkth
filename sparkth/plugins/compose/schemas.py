@@ -56,6 +56,13 @@ class ChatMessage(BaseModel):
         return v
 
 
+class UploadedFile(BaseModel):
+    """A file uploaded from the computer, as the text read from it."""
+
+    name: str
+    text: str
+
+
 class ToolCall(BaseModel):
     id: str
     name: str
@@ -92,6 +99,10 @@ class ChatCompletionRequest(BaseModel):
     turn_id: UUID | None = Field(
         default=None,
         description="Client-generated id for this turn, used to stop it while it streams.",
+    )
+    files: list[UploadedFile] = Field(
+        default_factory=list,
+        description="Every file uploaded from the computer in this conversation. Sent with each turn, never stored.",
     )
 
     @field_validator("messages")
