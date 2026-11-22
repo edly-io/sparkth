@@ -26,7 +26,7 @@ function sseBody(payloads: Record<string, unknown>[]): ReadableStream<Uint8Array
   });
 }
 
-type AssistantSnapshot = Pick<ChatMessage, "statusPhase" | "streamedContent">;
+type AssistantSnapshot = Pick<ChatMessage, "statusPhase" | "streamedContent" | "stepLabel">;
 
 function runStream(payloads: Record<string, unknown>[]) {
   requestChatCompletionStream.mockResolvedValue({ body: sseBody(payloads) });
@@ -41,6 +41,7 @@ function runStream(payloads: Record<string, unknown>[]) {
       snapshots.push({
         statusPhase: assistant.statusPhase,
         streamedContent: assistant.streamedContent,
+        stepLabel: assistant.stepLabel,
       });
     }
   };
@@ -60,6 +61,7 @@ function runStream(payloads: Record<string, unknown>[]) {
     phases: () => snapshots.map((s) => s.statusPhase),
     snapshots: () => snapshots,
     assistant: () => messages.find((m) => m.role === "assistant"),
+    replies: () => messages.filter((m) => m.role === "assistant"),
   };
 }
 
@@ -114,6 +116,137 @@ describe("useChatStream — status phases", () => {
       await stream.send();
     });
     expect(stream.phases().filter(Boolean)).toEqual([]);
+  });
+});
+
+describe("useChatStream — document sections", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const SECTION = { type: "heading", name: "Light reactions", source: "biology.pdf" };
+
+  it("shows a section the backend is scanning", async () => {
+    const stream = runStream([{ status: "scanning_section", section: SECTION, done: false }]);
+    await act(async () => {
+      await stream.send();
+    });
+    expect(stream.assistant()?.ragSections).toEqual([{ ...SECTION, state: "scanning" }]);
+  });
+
+  it("marks a scanned section confirmed", async () => {
+    const stream = runStream([
+      { status: "scanning_section", section: SECTION, done: false },
+      { status: "section_confirmed", section: SECTION, done: false },
+    ]);
+    await act(async () => {
+      await stream.send();
+    });
+    expect(stream.assistant()?.ragSections).toEqual([{ ...SECTION, state: "confirmed" }]);
+  });
+});
+
+describe("useChatStream — the running step", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const STEP = {
+    status: "step",
+    label: "Building your activity…",
+    done: false,
+  };
+
+  it("keeps the step's label while its text streams in", async () => {
+    const stream = runStream([STEP, { token: "Here", done: false }, DONE]);
+    await act(async () => {
+      await stream.send();
+    });
+    const firstToken = stream.snapshots().find((s) => s.streamedContent === "Here");
+    expect(firstToken?.stepLabel).toBe("Building your activity…");
+  });
+
+  it("shows the latest step's label when another step starts", async () => {
+    const next = {
+      status: "step",
+      label: "Working with your LMS…",
+      done: false,
+    };
+    const stream = runStream([STEP, { token: "Here", done: false }, next, DONE]);
+    await act(async () => {
+      await stream.send();
+    });
+    const labels = stream.snapshots().map((s) => s.stepLabel);
+    expect(labels).toContain("Working with your LMS…");
+  });
+
+  it("drops the label once the reply is done", async () => {
+    const stream = runStream([STEP, { token: "Here", done: false }, DONE]);
+    await act(async () => {
+      await stream.send();
+    });
+    expect(stream.assistant()?.stepLabel).toBeUndefined();
+  });
+});
+
+describe("useChatStream — a failure partway through", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const FAILURE = { error: "Canvas could not be reached.", done: true };
+
+  it("keeps what was written and shows the error after it", async () => {
+    const step = { status: "step", label: "Building your activity…", done: false };
+    const stream = runStream([step, { token: "Here is the lesson.", done: false }, FAILURE]);
+    await act(async () => {
+      await stream.send();
+    });
+    const [written, failed] = stream.replies();
+    expect(written).toMatchObject({
+      content: "Here is the lesson.",
+      isTyping: false,
+    });
+    expect(written.isError).toBeFalsy();
+    expect(written.stepLabel).toBeUndefined();
+    expect(failed).toMatchObject({
+      content: "Canvas could not be reached.",
+      isError: true,
+    });
+  });
+
+  it("keeps what was written when the connection drops", async () => {
+    const encoder = new TextEncoder();
+    const payloads = [
+      { status: "step", label: "Building your activity…", done: false },
+      { token: "Here is the lesson.", done: false },
+    ];
+    // Erroring from pull lets each queued payload be read before the connection is lost.
+    const queued = payloads.map((payload) =>
+      encoder.encode(`data: ${JSON.stringify(payload)}\n\n`),
+    );
+    const dropping = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        const next = queued.shift();
+        if (next) controller.enqueue(next);
+        else controller.error(new Error("The connection was lost."));
+      },
+    });
+    const stream = runStream([]);
+    requestChatCompletionStream.mockResolvedValue({ body: dropping });
+    await act(async () => {
+      await stream.send();
+    });
+    const [written, failed] = stream.replies();
+    expect(written).toMatchObject({ content: "Here is the lesson.", isTyping: false });
+    expect(written.stepLabel).toBeUndefined();
+    expect(failed).toMatchObject({ content: "The connection was lost.", isError: true });
+  });
+
+  it("shows only the error when nothing was written", async () => {
+    const stream = runStream([FAILURE]);
+    await act(async () => {
+      await stream.send();
+    });
+    expect(stream.replies()).toHaveLength(1);
+    expect(stream.replies()[0]).toMatchObject({
+      content: "Canvas could not be reached.",
+      isError: true,
+    });
   });
 });
 

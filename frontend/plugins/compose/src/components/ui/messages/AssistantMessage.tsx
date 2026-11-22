@@ -53,10 +53,10 @@ export function AssistantMessage({
   // The dots stay up for every waiting state, tools running or not, so nothing flickers as a
   // turn moves between calls; the count line above the card says what has run.
   const isThinking = message.isTyping && !displayText;
-  // The sentence belongs to the start of a turn: once any tool call exists the count
-  // line above the card carries the state, so the card falls back to the dots.
+  // The sentence belongs to the start of a turn: once any tool call exists, or a running
+  // step is named above the card, that line carries the state, so the card falls back to the dots.
   const statusLine =
-    toolCalls.length > 0
+    toolCalls.length > 0 || message.stepLabel
       ? null
       : message.statusPhase
         ? statusTexts[message.statusPhase]
@@ -178,6 +178,17 @@ export function AssistantMessage({
           </div>
         )}
 
+        {/* A running step says what it is doing above the reply, not in it, and goes once the reply is done. */}
+        {message.isTyping && message.stepLabel && (
+          <div
+            role="status"
+            className="px-1 flex items-center gap-1.5 text-xs text-neutral-400 dark:text-neutral-500"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0 animate-pulse" />
+            {message.stepLabel}
+          </div>
+        )}
+
         {message.isError ? (
           <Card variant="outlined" className="p-4 border-error bg-error-50">
             <div className="flex items-start gap-2 text-error-500">
@@ -186,10 +197,10 @@ export function AssistantMessage({
             </div>
           </Card>
         ) : (
-          <Card variant="outlined" className="p-4">
+          <Card variant="outlined" className="p-4" data-testid="assistant-reply">
             {isThinking ? (
               statusLine ? (
-                <div className="flex items-center gap-2 py-1">
+                <div role="status" className="flex items-center gap-2 py-1">
                   <span className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-pulse" />
                   <p className="text-sm text-muted-foreground">{statusLine}</p>
                 </div>
