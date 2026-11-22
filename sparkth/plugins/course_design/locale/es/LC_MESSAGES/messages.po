@@ -28,3 +28,7 @@ msgstr "Diseño de cursos"
 msgid "Design courses, lessons and written assessments"
 msgstr "Diseña cursos, lecciones y evaluaciones escritas"
 
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/course_design/agent.py:12
+msgid "Working on your course design…"
+msgstr "Trabajando en el diseño de tu curso…"
