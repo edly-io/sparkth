@@ -17,6 +17,27 @@ class OptionsFence(StrEnum):
     SINGLE = "options single"
 
 
+class StreamStatus(StrEnum):
+    """What a status event of a streamed reply reports: an action in progress, named verb first, or an event
+    that has happened, named after what it happened to."""
+
+    SCANNING_ATTACHMENTS = "scanning_attachments"
+    SEARCHING_DOCUMENTS = "searching_documents"
+    SKIPPING_RAG = "skipping_rag"
+    SCANNING_SECTION = "scanning_section"
+    SECTION_CONFIRMED = "section_confirmed"
+    GENERATING = "generating"
+    STEP = "step"
+    TOOL_CALL = "tool_call"
+
+
+class ToolCallStatus(StrEnum):
+    """Where a tool call reported on a streamed reply stands."""
+
+    RUNNING = "running"
+    DONE = "done"
+
+
 class TurnEventType(StrEnum):
     """What one event of a running turn reports."""
 

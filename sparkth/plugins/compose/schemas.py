@@ -1,11 +1,12 @@
 import base64
 import binascii
 from datetime import datetime
-from typing import Any, TypedDict
+from typing import Any, Literal, TypedDict
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from sparkth.plugins.compose.enums import StreamStatus, ToolCallStatus
 from sparkth.plugins.compose.models import MessageRole, MessageType
 
 MAX_FILE_SIZE = 30 * 1024 * 1024  # 30MB
@@ -124,6 +125,22 @@ class RagSection(BaseModel):
     type: str
     name: str
     source: str | None = None
+
+
+class StreamStatusEvent(BaseModel):
+    """One status event of a streamed reply: what Compose is doing before or between the reply's text.
+
+    ``file_count`` is for the two document statuses, ``section`` for the two section statuses,
+    ``label`` for a step's, and ``tool_name`` and ``tool_status`` for a tool call's.
+    """
+
+    status: StreamStatus
+    done: Literal[False] = False
+    file_count: int | None = None
+    section: RagSection | None = None
+    label: str | None = None
+    tool_name: str | None = None
+    tool_status: ToolCallStatus | None = None
 
 
 class PersistedToolCall(BaseModel):
