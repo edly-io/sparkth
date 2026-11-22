@@ -1,11 +1,17 @@
 import base64
 import binascii
 from datetime import datetime
-from typing import Any, TypedDict
+from typing import Any, Literal, TypedDict
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from sparkth.plugins.compose.enums import (
+    DocumentProcessingStatus,
+    DocumentSectionProcessingStatus,
+    ResponseGenerationStatus,
+    ToolExecutionStatus,
+)
 from sparkth.plugins.compose.models import MessageRole, MessageType
 
 MAX_FILE_SIZE = 30 * 1024 * 1024  # 30MB
@@ -124,6 +130,47 @@ class RagSection(BaseModel):
     type: str
     name: str
     source: str | None = None
+
+
+class StreamStatusEvent(BaseModel):
+    """A status event of a streamed reply: what Compose is doing before or between the reply's text."""
+
+    done: Literal[False] = False
+
+
+class ResponseGenerationEvent(StreamStatusEvent):
+    """Compose starts writing the reply, or answers without searching documents."""
+
+    status: ResponseGenerationStatus
+
+
+class DocumentProcessingEvent(StreamStatusEvent):
+    """Compose searches the author's documents or scans their attachments, ``file_count`` files."""
+
+    status: DocumentProcessingStatus
+    file_count: int
+
+
+class DocumentSectionProcessingEvent(StreamStatusEvent):
+    """Compose scans a document section, or confirms it for the reply."""
+
+    status: DocumentSectionProcessingStatus
+    section: RagSection
+
+
+class StepEvent(StreamStatusEvent):
+    """A step starts; ``step_status`` is what the author reads while it works."""
+
+    status: Literal["step"] = "step"
+    step_status: str
+
+
+class ToolExecutionEvent(StreamStatusEvent):
+    """A tool call starts or ends."""
+
+    status: Literal["tool_call"] = "tool_call"
+    tool_name: str
+    tool_status: ToolExecutionStatus
 
 
 class PersistedToolCall(BaseModel):
