@@ -1167,6 +1167,139 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/plugins/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Plugins
+         * @description List the plugins the current user may use, with their enabled status.
+         *
+         *     Returns each usable plugin and whether it is enabled or disabled,
+         *     and pre-populates the config with keys from the plugin's schema.
+         */
+        get: operations["list_plugins_api_v1_plugins__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plugins/{plugin_name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Plugin
+         * @description Get the status and configuration of a specific plugin for the current user.
+         */
+        get: operations["get_plugin_api_v1_plugins__plugin_name__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Plugin
+         * @description Enable or disable a plugin for the current user.
+         */
+        patch: operations["update_plugin_api_v1_plugins__plugin_name__patch"];
+        trace?: never;
+    };
+    "/api/v1/plugins/{plugin_name}/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Plugin Config
+         * @description Update configuration for a plugin for the current user.
+         *
+         *     This allows users to customize plugin-specific settings.
+         */
+        put: operations["update_plugin_config_api_v1_plugins__plugin_name__config_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plugins/{plugin_name}/configure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Configure Plugin
+         * @description Save the calling user's first configuration for a plugin, after validating it.
+         */
+        post: operations["configure_plugin_api_v1_plugins__plugin_name__configure_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plugins/{plugin_name}/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Disable Plugin
+         * @description Disable a plugin for the current user.
+         *
+         *     Convenience endpoint for disabling a plugin.
+         */
+        patch: operations["disable_plugin_api_v1_plugins__plugin_name__disable_patch"];
+        trace?: never;
+    };
+    "/api/v1/plugins/{plugin_name}/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Enable Plugin
+         * @description Enable a plugin for the current user.
+         *
+         *     Convenience endpoint for enabling a plugin.
+         */
+        patch: operations["enable_plugin_api_v1_plugins__plugin_name__enable_patch"];
+        trace?: never;
+    };
     "/api/v1/pxc/actions/{action_name}": {
         parameters: {
             query?: never;
@@ -1490,139 +1623,6 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
-        trace?: never;
-    };
-    "/api/v1/user-plugins/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Plugins
-         * @description List the plugins the current user may use, with their enabled status.
-         *
-         *     Returns each usable plugin and whether it is enabled or disabled,
-         *     and pre-populates the config with keys from the plugin's schema.
-         */
-        get: operations["list_plugins_api_v1_user_plugins__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/user-plugins/{plugin_name}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Plugin
-         * @description Get the status and configuration of a specific plugin for the current user.
-         */
-        get: operations["get_plugin_api_v1_user_plugins__plugin_name__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * Update Plugin
-         * @description Enable or disable a plugin for the current user.
-         */
-        patch: operations["update_plugin_api_v1_user_plugins__plugin_name__patch"];
-        trace?: never;
-    };
-    "/api/v1/user-plugins/{plugin_name}/config": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * Update Plugin Config
-         * @description Update configuration for a plugin for the current user.
-         *
-         *     This allows users to customize plugin-specific settings.
-         */
-        put: operations["update_plugin_config_api_v1_user_plugins__plugin_name__config_put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/user-plugins/{plugin_name}/configure": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Configure Plugin
-         * @description Save the calling user's first configuration for a plugin, after validating it.
-         */
-        post: operations["configure_plugin_api_v1_user_plugins__plugin_name__configure_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/user-plugins/{plugin_name}/disable": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * Disable Plugin
-         * @description Disable a plugin for the current user.
-         *
-         *     Convenience endpoint for disabling a plugin.
-         */
-        patch: operations["disable_plugin_api_v1_user_plugins__plugin_name__disable_patch"];
-        trace?: never;
-    };
-    "/api/v1/user-plugins/{plugin_name}/enable": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * Enable Plugin
-         * @description Enable a plugin for the current user.
-         *
-         *     Convenience endpoint for enabling a plugin.
-         */
-        patch: operations["enable_plugin_api_v1_user_plugins__plugin_name__enable_patch"];
         trace?: never;
     };
     "/api/v1/user/me": {
@@ -5239,6 +5239,226 @@ export interface operations {
             };
         };
     };
+    list_plugins_api_v1_plugins__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PluginResponse"][];
+                };
+            };
+        };
+    };
+    get_plugin_api_v1_plugins__plugin_name__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plugin_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PluginResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_plugin_api_v1_plugins__plugin_name__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plugin_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePluginRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PluginResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_plugin_config_api_v1_plugins__plugin_name__config_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plugin_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PluginConfigRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PluginResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    configure_plugin_api_v1_plugins__plugin_name__configure_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plugin_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PluginResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    disable_plugin_api_v1_plugins__plugin_name__disable_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plugin_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PluginResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    enable_plugin_api_v1_plugins__plugin_name__enable_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plugin_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PluginResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     submit_action_api_v1_pxc_actions__action_name__post: {
         parameters: {
             query: {
@@ -5612,226 +5832,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RagSourcesResponse"];
-                };
-            };
-        };
-    };
-    list_plugins_api_v1_user_plugins__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PluginResponse"][];
-                };
-            };
-        };
-    };
-    get_plugin_api_v1_user_plugins__plugin_name__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                plugin_name: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PluginResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_plugin_api_v1_user_plugins__plugin_name__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                plugin_name: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdatePluginRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PluginResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_plugin_config_api_v1_user_plugins__plugin_name__config_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                plugin_name: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PluginConfigRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PluginResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    configure_plugin_api_v1_user_plugins__plugin_name__configure_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                plugin_name: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PluginResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    disable_plugin_api_v1_user_plugins__plugin_name__disable_patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                plugin_name: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PluginResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    enable_plugin_api_v1_user_plugins__plugin_name__enable_patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                plugin_name: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PluginResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

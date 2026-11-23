@@ -10,9 +10,9 @@ from sparkth.core.plugins.service import ConfigValidationError
 async def test_update_plugin_not_configured_success(client: AsyncClient, user_plugins: User) -> None:
     payload = {"config": {"some_config": 123}}
 
-    mock_user_plugin = MagicMock()
-    mock_user_plugin.config = payload["config"]
-    mock_user_plugin.enabled = True
+    mock_preference = MagicMock()
+    mock_preference.config = payload["config"]
+    mock_preference.enabled = True
 
     with (
         patch(
@@ -29,12 +29,12 @@ async def test_update_plugin_not_configured_success(client: AsyncClient, user_pl
         ),
         patch(
             "sparkth.core.plugins.service.PluginService.update_preference_config",
-            new=AsyncMock(return_value=mock_user_plugin),
+            new=AsyncMock(return_value=mock_preference),
         ),
         patch("sqlalchemy.ext.asyncio.AsyncSession.commit", new=AsyncMock()),
         patch("sqlalchemy.ext.asyncio.AsyncSession.refresh", new=AsyncMock()),
     ):
-        response = await client.put("/api/v1/user-plugins/plugin_a/config", json=payload)
+        response = await client.put("/api/v1/plugins/plugin_a/config", json=payload)
 
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -47,9 +47,9 @@ async def test_update_plugin_not_configured_success(client: AsyncClient, user_pl
 async def test_update_plugin_success(client: AsyncClient, user_plugins: User) -> None:
     payload = {"config": {"some_config": 123}}
 
-    mock_user_plugin = MagicMock()
-    mock_user_plugin.config = payload["config"]
-    mock_user_plugin.enabled = True
+    mock_preference = MagicMock()
+    mock_preference.config = payload["config"]
+    mock_preference.enabled = True
 
     with (
         patch(
@@ -66,13 +66,13 @@ async def test_update_plugin_success(client: AsyncClient, user_plugins: User) ->
         ),
         patch(
             "sparkth.core.plugins.service.PluginService.update_preference_config",
-            new=AsyncMock(return_value=mock_user_plugin),
+            new=AsyncMock(return_value=mock_preference),
         ),
         patch("sqlalchemy.ext.asyncio.AsyncSession.commit", new=AsyncMock()),
         patch("sqlalchemy.ext.asyncio.AsyncSession.refresh", new=AsyncMock()),
         patch("sparkth.core.plugins.service.PluginService.validate_user_config", return_value=payload),
     ):
-        response = await client.put("/api/v1/user-plugins/plugin_b/config", json=payload)
+        response = await client.put("/api/v1/plugins/plugin_b/config", json=payload)
 
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -85,7 +85,7 @@ async def test_update_plugin_success(client: AsyncClient, user_plugins: User) ->
 async def test_update_plugin_not_found(client: AsyncClient, user_plugins: User) -> None:
     payload = {"config": {"some_config": 123}}
 
-    response = await client.put("/api/v1/user-plugins/plugin_not_found/config", json=payload)
+    response = await client.put("/api/v1/plugins/plugin_not_found/config", json=payload)
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
 
@@ -93,7 +93,7 @@ async def test_update_plugin_not_found(client: AsyncClient, user_plugins: User) 
 async def test_update_admin_disabled_plugin(client: AsyncClient, user_plugins: User) -> None:
     payload = {"config": {"some_config": 123}}
 
-    response = await client.put("/api/v1/user-plugins/disabled_plugin/config", json=payload)
+    response = await client.put("/api/v1/plugins/disabled_plugin/config", json=payload)
 
     assert response.status_code == status.HTTP_403_FORBIDDEN
 
@@ -101,18 +101,18 @@ async def test_update_admin_disabled_plugin(client: AsyncClient, user_plugins: U
 async def test_update_user_disabled_plugin(client: AsyncClient, user_plugins: User) -> None:
     payload = {"config": {"some_config": 123}}
 
-    response = await client.put("/api/v1/user-plugins/configured_plugin_disabled/config", json=payload)
+    response = await client.put("/api/v1/plugins/configured_plugin_disabled/config", json=payload)
 
     assert response.status_code == status.HTTP_409_CONFLICT
 
 
-async def test_update_user_plugin_invalid_config(client: AsyncClient, user_plugins: User) -> None:
+async def test_update_plugin_invalid_config(client: AsyncClient, user_plugins: User) -> None:
     with patch(
         "sparkth.core.plugins.service.PluginService.validate_user_config",
         side_effect=ConfigValidationError("Invalid config"),
     ):
         response = await client.put(
-            "/api/v1/user-plugins/plugin_a/config",
+            "/api/v1/plugins/plugin_a/config",
             json={"config": {"bad": "data"}},
         )
 

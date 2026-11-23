@@ -55,7 +55,7 @@ function toError(prefix: string | null, error: unknown): never {
 
 async function fetchUserPlugins(token: string): Promise<UserPluginState[]> {
   try {
-    const { data } = await api.GET("/api/v1/user-plugins/", { headers: bearer(token) });
+    const { data } = await api.GET("/api/v1/plugins/", { headers: bearer(token) });
     return data as UserPluginState[];
   } catch (error) {
     toError("Failed to fetch plugins", error);
@@ -68,7 +68,7 @@ async function updatePluginConfigApi(
   token: string,
 ): Promise<UserPluginState> {
   try {
-    const { data } = await api.PUT("/api/v1/user-plugins/{plugin_name}/config", {
+    const { data } = await api.PUT("/api/v1/plugins/{plugin_name}/config", {
       params: { path: { plugin_name: pluginName } },
       body: { config },
       headers: bearer(token),
@@ -91,8 +91,8 @@ async function togglePluginApi(
     };
     const { data } =
       action === "enable"
-        ? await api.PATCH("/api/v1/user-plugins/{plugin_name}/enable", options)
-        : await api.PATCH("/api/v1/user-plugins/{plugin_name}/disable", options);
+        ? await api.PATCH("/api/v1/plugins/{plugin_name}/enable", options)
+        : await api.PATCH("/api/v1/plugins/{plugin_name}/disable", options);
     return data as UserPluginState;
   } catch (error) {
     toError(`Failed to ${action} plugin`, error);
