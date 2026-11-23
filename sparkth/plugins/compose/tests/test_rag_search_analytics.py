@@ -227,6 +227,7 @@ async def test_assemble_passes_analytics_to_non_streamed_search(analytics_sessio
             "Create a course",
             True,
             MagicMock(),
+            uploaded_files=[],
             analytics=analytics,
         )
     await tasks()

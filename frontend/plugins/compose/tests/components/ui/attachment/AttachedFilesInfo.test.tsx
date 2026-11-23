@@ -114,11 +114,23 @@ describe("AttachedFilesInfo", () => {
     expect(onRemoveFile).toHaveBeenCalledWith(computerFile);
   });
 
-  it("shows no remove button for a file already sent", async () => {
+  it("shows a remove button for a file already sent", async () => {
     const user = userEvent.setup();
     renderInfo([
       makeDocument(1, "drive.pdf"),
       { ...makeComputerFile("upload-1", "notes.txt"), isSent: true },
+    ]);
+
+    await user.click(screen.getByText("2 files attached"));
+
+    expect(screen.getAllByTitle(composeEn.compose.removeAttachedFile)).toHaveLength(2);
+  });
+
+  it("shows no remove button for a file whose text is stored in a message", async () => {
+    const user = userEvent.setup();
+    renderInfo([
+      makeDocument(1, "drive.pdf"),
+      { ...makeComputerFile("message-5", "notes.txt"), isSent: true, isStoredInMessage: true },
     ]);
 
     await user.click(screen.getByText("2 files attached"));
@@ -181,5 +193,29 @@ describe("AttachedFilesInfo", () => {
     const row = screen.getByRole("listitem");
     expect(row.firstElementChild?.firstElementChild).toHaveAttribute("role", "status");
     expect(row.querySelector(".lucide-file-text")).not.toBeInTheDocument();
+  });
+
+  it("shows each file's size after its name", async () => {
+    const user = userEvent.setup();
+    renderInfo([
+      makeComputerFile("upload-1", "notes.txt"),
+      { ...makeComputerFile("upload-2", "outline.txt"), size: 1536 },
+      { ...makeComputerFile("upload-3", "book.pdf"), size: 2 * 1024 * 1024 },
+    ]);
+
+    await user.click(screen.getByText("3 files attached"));
+
+    expect(screen.getByText("512B")).toBeInTheDocument();
+    expect(screen.getByText("1.5kB")).toBeInTheDocument();
+    expect(screen.getByText("2MB")).toBeInTheDocument();
+  });
+
+  it("shows no size for a file whose size isn't known", async () => {
+    const user = userEvent.setup();
+    renderInfo([{ ...makeDocument(1, "drive.pdf"), size: 0 }]);
+
+    await user.click(screen.getByText("1 file attached"));
+
+    expect(screen.queryByText("0B")).toBeNull();
   });
 });

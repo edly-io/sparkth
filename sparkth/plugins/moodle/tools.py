@@ -5,7 +5,7 @@ from typing import Any
 
 from sparkth.lib.assets import read_asset
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
-from sparkth.lib.plugins import load_user_plugin_config
+from sparkth.lib.plugins import load_plugin_config
 from sparkth.plugins.moodle.client import MoodleClient
 from sparkth.plugins.moodle.config import MoodleConfig
 from sparkth.plugins.moodle.constants import MOODLE_MALFORMED_RESPONSE_STATUS_CODE, MOODLE_PLUGIN_NAME
@@ -41,7 +41,7 @@ async def _single_call(wsfunction: str, params: dict[str, Any]) -> dict[str, Any
     calls keep their own bodies, because the operation an error is reported under changes
     partway through.
     """
-    config = await load_user_plugin_config(MOODLE_PLUGIN_NAME, MoodleConfig)
+    config = await load_plugin_config(MOODLE_PLUGIN_NAME, MoodleConfig)
     try:
         async with MoodleClient(config) as client:
             return await client.call_dict(wsfunction, params)
@@ -59,7 +59,7 @@ async def moodle_check_settings() -> dict[str, Any]:
     username and ``userid``.
     """
     wsfunction = "core_webservice_get_site_info"
-    config = await load_user_plugin_config(MOODLE_PLUGIN_NAME, MoodleConfig)
+    config = await load_plugin_config(MOODLE_PLUGIN_NAME, MoodleConfig)
     try:
         async with MoodleClient(config) as client:
             info = await client.call_dict(wsfunction)
@@ -83,7 +83,7 @@ async def moodle_list_courses() -> dict[str, Any]:
     looking it up with this tool.
     """
     wsfunction = "core_webservice_get_site_info"
-    config = await load_user_plugin_config(MOODLE_PLUGIN_NAME, MoodleConfig)
+    config = await load_plugin_config(MOODLE_PLUGIN_NAME, MoodleConfig)
     try:
         async with MoodleClient(config) as client:
             info = await client.call_dict(wsfunction)
@@ -135,7 +135,7 @@ async def moodle_create_course(payload: CoursePayload) -> dict[str, Any]:
         "format": "topics",
         "lang": payload.lang or None,
     }
-    config = await load_user_plugin_config(MOODLE_PLUGIN_NAME, MoodleConfig)
+    config = await load_plugin_config(MOODLE_PLUGIN_NAME, MoodleConfig)
     try:
         async with MoodleClient(config) as client:
             created = await client.call_list(wsfunction, {"courses": [course]})

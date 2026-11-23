@@ -282,3 +282,9 @@ msgstr "No se pudo buscar en el documento adjunto. Inténtalo de nuevo."
 #: sparkth/plugins/compose/constants.py:45
 msgid "Working on your request…"
 msgstr "Trabajando en tu solicitud…"
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/compose/uploaded_files.py:56
+#, python-brace-format
+msgid "The files in this conversation can total at most {limit_mb} MB."
+msgstr "Los archivos de esta conversación pueden sumar como máximo {limit_mb} MB."

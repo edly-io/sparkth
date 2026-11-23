@@ -1,4 +1,4 @@
-import type { UserPluginState } from "@/core/plugins/types";
+import type { PluginState } from "@/core/plugins/types";
 
 /** A sidebar navigation item derived from a backend-declared sidebar entry. */
 export interface SidebarItem {
@@ -8,14 +8,14 @@ export interface SidebarItem {
   description?: string | null;
 }
 
-type SidebarPlugin = UserPluginState & { sidebar: NonNullable<UserPluginState["sidebar"]> };
+type SidebarPlugin = PluginState & { sidebar: NonNullable<PluginState["sidebar"]> };
 
 /**
  * Sidebar items for the enabled plugins that have a frontend registration and
  * declared a sidebar entry, sorted by their declared order.
  */
-export function sidebarItemsFrom(userPlugins: UserPluginState[]): SidebarItem[] {
-  return userPlugins
+export function sidebarItemsFrom(plugins: PluginState[]): SidebarItem[] {
+  return plugins
     .filter(
       (plugin): plugin is SidebarPlugin =>
         plugin.enabled && plugin.has_frontend && plugin.sidebar != null,

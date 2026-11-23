@@ -20,12 +20,12 @@ if TYPE_CHECKING:
         ConfigValidationError,
         InternalServerError,
         PluginDisabledError,
+        PluginResponse,
         PluginService,
-        UserPluginResponse,
         disabled_plugin_names,
         get_disabled_plugins,
         get_plugin_service,
-        load_user_plugin_config,
+        load_plugin_config,
     )
 
 __all__ = [
@@ -41,10 +41,10 @@ __all__ = [
     "ConfigValidationError",
     "InternalServerError",
     "PluginDisabledError",
-    "UserPluginResponse",
+    "PluginResponse",
     "disabled_plugin_names",
     "get_disabled_plugins",
-    "load_user_plugin_config",
+    "load_plugin_config",
     "PluginNotConfiguredError",
     "PluginConfigInvalidError",
 ]
@@ -61,10 +61,10 @@ _SERVICE_EXPORTS = {
     "ConfigValidationError",
     "InternalServerError",
     "PluginDisabledError",
-    "UserPluginResponse",
+    "PluginResponse",
     "disabled_plugin_names",
     "get_disabled_plugins",
-    "load_user_plugin_config",
+    "load_plugin_config",
 }
 
 

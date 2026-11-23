@@ -49,7 +49,7 @@ class SlackSettings(BaseSettings):
 
 
 class SlackConfig(PluginConfig):
-    """Per-user Slack TA Bot configuration stored in the user-plugins table."""
+    """Per-user Slack TA Bot configuration, stored as the user's plugin preference."""
 
     bot_name: str = Field(
         default="TA Bot",

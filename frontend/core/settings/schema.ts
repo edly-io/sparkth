@@ -2,7 +2,7 @@
  * The settings form, derived from a plugin's declared JSON schema.
  *
  * A backend plugin registers a Pydantic config class (`CONFIG_SCHEMAS`); the
- * user-plugins API ships its `model_json_schema()` as `config_schema`. These readers
+ * plugins API ships its `model_json_schema()` as `config_schema`. These readers
  * turn that schema into the field descriptors the generic settings modal renders, so
  * a plugin becomes configurable by declaring its config — no frontend code required.
  *

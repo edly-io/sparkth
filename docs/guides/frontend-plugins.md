@@ -150,12 +150,12 @@ A `PluginDefinition` holds only what the frontend alone can own:
 The display name, description, icon, and sidebar entry are **declared by the
 backend plugin** through the frontend metadata hooks (`DISPLAY_INFO`,
 `SIDEBAR_ENTRIES`, `FRONTEND_APPS`, see the backend guide) and arrive on the
-user-plugins API response (`display`, `sidebar`, `has_frontend` on
-`UserPluginState`). The frontend renders what the backend declares; there is no
+plugins API response (`display`, `sidebar`, `has_frontend` on
+`PluginState`). The frontend renders what the backend declares; there is no
 frontend-side copy to keep in sync.
 
-`UserPluginState` is the generated `UserPluginResponse` schema
-(`Schema<"UserPluginResponse">`), not a hand-written mirror of it, so the shape
+`PluginState` is the generated `PluginResponse` schema
+(`Schema<"PluginResponse">`), not a hand-written mirror of it, so the shape
 cannot drift from the API. One consequence for settings UIs: `config` values are
 typed `unknown`, because the backend stores config as JSONB and a field declared
 as a string can still arrive as an array or a number. Narrow at the read site.
@@ -206,7 +206,7 @@ A name no plugin registered has no page. The export serves `app/not-found.tsx` f
 with no page, and that page says no plugin has that name, on the dev server too.
 
 The display name, description, icon and sidebar entry stay **declared by the backend plugin** and arrive on the
-user-plugins API. A plugin must set a component for every icon name its backend declares (see above); the e2e suite
+plugins API. A plugin must set a component for every icon name its backend declares (see above); the e2e suite
 reads the declared icons from that API and checks each one shows on the plugin's dashboard card and sidebar link,
 and that every plugin's page opens (`e2e-tests/dashboard.spec.ts`).
 
@@ -514,7 +514,7 @@ Removing the plugin's directory removes its names with it.
 ## Settings
 
 The **Settings** page lists the one row each plugin sets in the `SETTINGS_ITEMS` slot
-(`@/lib/settings/slots`), in plugin-name order, for every plugin the user-plugins API returns. The page passes each row
+(`@/lib/settings/slots`), in plugin-name order, for every plugin the plugins API returns. The page passes each row
 its plugin's state and the actions to turn it on or off, and knows nothing about any plugin. A backend plugin whose
 frontend part sets no row does not appear on the page.
 

@@ -6,6 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from sparkth.plugins.compose.constants import MAX_COMBINED_UPLOAD_MB
 from sparkth.plugins.compose.enums import (
     DocumentProcessingStatus,
     DocumentSectionProcessingStatus,
@@ -18,15 +19,9 @@ from sparkth.plugins.compose.planner.types import PlanSnapshot
 MAX_FILE_SIZE = 30 * 1024 * 1024  # 30MB
 
 
-class AttachmentMeta(BaseModel):
-    name: str
-    size: int
-
-
 class ChatMessage(BaseModel):
     role: str = Field(..., examples=["user"])
     content: str | list[dict[str, Any]] = Field(...)
-    attachment: AttachmentMeta | None = None
 
     @field_validator("role")
     @classmethod
@@ -61,6 +56,14 @@ class ChatMessage(BaseModel):
                     if not isinstance(document_id, int) or document_id <= 0:
                         raise ValueError("legacy document content block must have a positive integer 'file_id'")
         return v
+
+
+class UploadedFile(BaseModel):
+    """A file uploaded from the computer, as the text read from it."""
+
+    name: str = Field(max_length=255)
+    # A file with more text than a conversation may keep can never be accepted.
+    text: str = Field(max_length=MAX_COMBINED_UPLOAD_MB * 1024 * 1024)
 
 
 class ToolCall(BaseModel):
@@ -99,6 +102,10 @@ class ChatCompletionRequest(BaseModel):
     turn_id: UUID | None = Field(
         default=None,
         description="Client-generated id for this turn, used to stop it while it streams.",
+    )
+    files: list[UploadedFile] = Field(
+        default_factory=list,
+        description="The files uploaded from the computer with this turn. Kept for later turns, never in the database.",
     )
 
     @field_validator("messages")
@@ -323,6 +330,14 @@ class AttachedDocumentResponse(BaseModel):
     size: int | None
     # The id of the source the document came from, or None when that isn't recorded.
     source: str | None
+
+
+class UploadedFileResponse(BaseModel):
+    """A file uploaded from the computer that a conversation still has, without its text."""
+
+    name: str
+    # The length of the file's text, which is what counts toward the conversation's upload limit.
+    size: int
 
 
 class ConversationListResponse(BaseModel):

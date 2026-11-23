@@ -5,13 +5,13 @@ import { useTranslations } from "next-intl";
 
 import { PluginErrorBoundary } from "@/core/plugins/components/layout/PluginErrorBoundary";
 import { usePluginContext } from "@/core/plugins/context";
-import type { UserPluginState } from "@/core/plugins/types";
+import type { PluginState } from "@/core/plugins/types";
 import { SETTINGS_ITEMS, type SettingsItem } from "@/lib/settings/slots";
 import { configFieldsOf } from "@/core/settings/schema";
 import { SettingsList } from "@/core/settings/components/layout/SettingsPage";
 
 interface PluginSettingsRowProps {
-  plugin: UserPluginState;
+  plugin: PluginState;
   item: SettingsItem;
 }
 
@@ -76,11 +76,11 @@ function PluginSettingsRow({ plugin, item }: PluginSettingsRowProps) {
  */
 export function PluginSettingsList() {
   const t = useTranslations("plugins");
-  const { userPlugins } = usePluginContext();
+  const { plugins } = usePluginContext();
   const rows = [...SETTINGS_ITEMS]
     .sort(([a], [b]) => a.localeCompare(b))
     .flatMap(([name, item]) => {
-      const plugin = userPlugins.find((candidate) => candidate.plugin_name === name);
+      const plugin = plugins.find((candidate) => candidate.plugin_name === name);
       return plugin ? [{ plugin, item }] : [];
     });
 

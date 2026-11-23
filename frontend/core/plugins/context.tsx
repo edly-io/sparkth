@@ -10,14 +10,14 @@ import {
   ReactNode,
 } from "react";
 import { api, ApiRequestError, bearer } from "@/lib/api";
-import { PluginConfig, PluginContext as IPluginContext, UserPluginState } from "./types";
+import { PluginConfig, PluginContext as IPluginContext, PluginState } from "./types";
 
 // ============================================================================
 // Plugin Context Types
 // ============================================================================
 
 interface PluginProviderState {
-  userPlugins: UserPluginState[];
+  plugins: PluginState[];
   loading: boolean;
   error: string | null;
 }
@@ -53,10 +53,10 @@ function toError(prefix: string | null, error: unknown): never {
   throw error;
 }
 
-async function fetchUserPlugins(token: string): Promise<UserPluginState[]> {
+async function fetchPlugins(token: string): Promise<PluginState[]> {
   try {
-    const { data } = await api.GET("/api/v1/user-plugins/", { headers: bearer(token) });
-    return data as UserPluginState[];
+    const { data } = await api.GET("/api/v1/plugins/", { headers: bearer(token) });
+    return data as PluginState[];
   } catch (error) {
     toError("Failed to fetch plugins", error);
   }
@@ -66,14 +66,14 @@ async function updatePluginConfigApi(
   pluginName: string,
   config: Record<string, unknown>,
   token: string,
-): Promise<UserPluginState> {
+): Promise<PluginState> {
   try {
-    const { data } = await api.PUT("/api/v1/user-plugins/{plugin_name}/config", {
+    const { data } = await api.PUT("/api/v1/plugins/{plugin_name}/config", {
       params: { path: { plugin_name: pluginName } },
       body: { config },
       headers: bearer(token),
     });
-    return data as UserPluginState;
+    return data as PluginState;
   } catch (error) {
     toError(null, error);
   }
@@ -83,7 +83,7 @@ async function togglePluginApi(
   pluginName: string,
   action: "enable" | "disable",
   token: string,
-): Promise<UserPluginState> {
+): Promise<PluginState> {
   try {
     const options = {
       params: { path: { plugin_name: pluginName } },
@@ -91,9 +91,9 @@ async function togglePluginApi(
     };
     const { data } =
       action === "enable"
-        ? await api.PATCH("/api/v1/user-plugins/{plugin_name}/enable", options)
-        : await api.PATCH("/api/v1/user-plugins/{plugin_name}/disable", options);
-    return data as UserPluginState;
+        ? await api.PATCH("/api/v1/plugins/{plugin_name}/enable", options)
+        : await api.PATCH("/api/v1/plugins/{plugin_name}/disable", options);
+    return data as PluginState;
   } catch (error) {
     toError(`Failed to ${action} plugin`, error);
   }
@@ -110,7 +110,7 @@ interface PluginProviderProps {
 
 export function PluginProvider({ children, token }: PluginProviderProps) {
   const [state, setState] = useState<PluginProviderState>({
-    userPlugins: [],
+    plugins: [],
     loading: true,
     error: null,
   });
@@ -120,7 +120,7 @@ export function PluginProvider({ children, token }: PluginProviderProps) {
       setState((prev) => ({
         ...prev,
         loading: false,
-        userPlugins: [],
+        plugins: [],
       }));
       return;
     }
@@ -128,10 +128,10 @@ export function PluginProvider({ children, token }: PluginProviderProps) {
     setState((prev) => ({ ...prev, loading: true, error: null }));
 
     try {
-      const userPlugins = await fetchUserPlugins(token);
+      const plugins = await fetchPlugins(token);
 
       setState({
-        userPlugins,
+        plugins,
         loading: false,
         error: null,
       });
@@ -151,10 +151,10 @@ export function PluginProvider({ children, token }: PluginProviderProps) {
 
   const getPluginConfig = useCallback(
     (pluginName: string): PluginConfig => {
-      const plugin = state.userPlugins.find((p) => p.plugin_name === pluginName);
+      const plugin = state.plugins.find((p) => p.plugin_name === pluginName);
       return plugin?.config || {};
     },
-    [state.userPlugins],
+    [state.plugins],
   );
 
   const updatePluginConfig = useCallback(
@@ -192,9 +192,9 @@ export function PluginProvider({ children, token }: PluginProviderProps) {
 
   const isPluginEnabled = useCallback(
     (pluginName: string): boolean => {
-      return state.userPlugins.some((p) => p.plugin_name === pluginName && p.enabled);
+      return state.plugins.some((p) => p.plugin_name === pluginName && p.enabled);
     },
-    [state.userPlugins],
+    [state.plugins],
   );
 
   const createPluginContext = useCallback(

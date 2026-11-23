@@ -6,6 +6,7 @@ import type { ApiMessage } from "@/plugins/compose/src/types";
 import {
   getConversation,
   getConversationAttachments,
+  getConversationUploadedFiles,
   getLastMessage,
 } from "@/plugins/compose/src/client";
 import { useConversation } from "@/plugins/compose/src/hooks/useConversation";
@@ -36,6 +37,7 @@ vi.mock("@/plugins/compose/src/client", () => ({
     }),
   ),
   getConversationAttachments: vi.fn(() => Promise.resolve([])),
+  getConversationUploadedFiles: vi.fn(() => Promise.resolve([])),
   getLastMessage: vi.fn(),
 }));
 
@@ -235,11 +237,30 @@ describe("useConversation — attached files line", () => {
       {
         name: "drive.pdf",
         size: 1024,
-        text: "[File: drive.pdf]",
         documentId: 7,
         source: "googledrive",
       },
-      { name: "notes.txt", size: 6, text: "", uploadId: "message-5", isSent: true },
+      {
+        name: "notes.txt",
+        size: 6,
+        uploadId: "message-5",
+        isSent: true,
+        isStoredInMessage: true,
+      },
+    ]);
+  });
+
+  it("lists the files the conversation still has as sent", async () => {
+    vi.mocked(getConversationUploadedFiles).mockResolvedValueOnce([
+      { name: "syllabus.txt", size: 13 },
+    ]);
+
+    const { result } = renderHook(() => useConversation("conv-1", "test-token"));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.inputAttachments).toEqual([
+      { name: "syllabus.txt", size: 13, uploadId: "uploaded-syllabus.txt", isSent: true },
     ]);
   });
 });

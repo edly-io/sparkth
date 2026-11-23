@@ -18,10 +18,10 @@ export default function PluginPageClient() {
   const pluginName = String(params?.pluginName ?? "");
 
   const { isEnabled } = usePlugin(pluginName);
-  const { userPlugins, loading: pluginsLoading } = usePluginContext();
+  const { plugins, loading: pluginsLoading } = usePluginContext();
 
-  const userPlugin = userPlugins.find((p) => p.plugin_name === pluginName);
-  const displayName = userPlugin ? displayNameOf(userPlugin) : pluginName;
+  const plugin = plugins.find((p) => p.plugin_name === pluginName);
+  const displayName = plugin ? displayNameOf(plugin) : pluginName;
 
   if (!authLoading && !isAuthenticated) {
     redirect(`/login?redirect=${pluginPath(pluginName)}`);

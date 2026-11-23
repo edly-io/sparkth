@@ -7,7 +7,7 @@ import "@/plugins/googledrive/src/slots/icons";
 import "@/plugins/googledrive/src/slots/settings";
 
 // Display name and description are declared by the backend GoogleDrivePlugin
-// and arrive via the user-plugins API.
+// and arrive via the plugins API.
 export const googledrive: PluginDefinition = {
   name: GOOGLEDRIVE_PLUGIN_NAME,
   loadComponent: () => import("@/plugins/googledrive/src/pages/GoogleDrive"),
