@@ -27,9 +27,6 @@ if TYPE_CHECKING:
         get_plugin_service,
         load_plugin_config,
     )
-    from sparkth.core.plugins.service import (
-        load_user_plugin_config as load_user_plugin_config,
-    )
 
 __all__ = [
     "get_plugin_loader",
@@ -68,8 +65,6 @@ _SERVICE_EXPORTS = {
     "disabled_plugin_names",
     "get_disabled_plugins",
     "load_plugin_config",
-    # The old name, kept until every plugin calls load_plugin_config.
-    "load_user_plugin_config",
 }
 
 
