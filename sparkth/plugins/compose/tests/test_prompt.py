@@ -30,7 +30,7 @@ class TestRenderSystemPrompt:
 
     def test_a_section_is_inserted_without_formatting(self) -> None:
         """A section may carry JSON or code examples; its braces reach the model as written."""
-        braced = Agent("braced", "Braced", "Scope.", 'Return {"id": 1} and {unknown}.')
+        braced = Agent("braced", "Braced", "Scope.", 'Return {"id": 1} and {unknown}.', "Bracing…")
 
         assert 'Return {"id": 1} and {unknown}.' in render_system_prompt([braced])
 

@@ -24,7 +24,7 @@ from sparkth.lib.settings import get_settings
 from sparkth.lib.testing import ScriptedChatModel
 from sparkth.plugins.compose.enums import TurnEventType
 from sparkth.plugins.compose.models import Conversation, Message
-from sparkth.plugins.compose.planner import ExistingPlan, PlannedStep, TurnRouting
+from sparkth.plugins.compose.planner import PlannedStep, PlannerSetup, TurnRouting
 
 GOOGLE_INVALID_KEY = "Invalid API key. Please check your Google API key in AI Keys."
 GOOGLE_UNREACHABLE = "Could not reach Google. Please check your network connection."
@@ -50,9 +50,7 @@ async def replay_turn(
     provider: Any,
     max_tool_executions: int,
     *,
-    agents: Sequence[Agent],
-    planner_llm: Any,
-    existing_plan: ExistingPlan | None,
+    planner_setup: PlannerSetup,
 ) -> AsyncGenerator[dict[str, Any], None]:
     """Stand in for ``stream_turn`` with a turn that streams ``events``.
 
@@ -119,15 +117,14 @@ def refusal() -> AIMessage:
     return AIMessage("", tool_calls=[{"name": REFUSAL_TOOL_NAME, "args": {}, "id": "refuse"}])
 
 
-def planner_answering(reply: AIMessage, agent: Agent) -> dict[str, Any]:
-    """The ``agents``, ``planner_llm`` and absent ``existing_plan`` of a turn offering ``agent``, whose planner
-    answers every message with ``reply``."""
-    return {"agents": [agent], "planner_llm": planner_model(reply), "existing_plan": None}
+def planner_answering(reply: AIMessage, agent: Agent) -> PlannerSetup:
+    """The planner of a turn offering ``agent`` with no existing plan, whose planner answers every message with
+    ``reply``."""
+    return PlannerSetup([agent], planner_model(reply), None)
 
 
-def handing_off_to(agent: Agent) -> dict[str, Any]:
-    """The ``agents``, ``planner_llm`` and absent ``existing_plan`` of a turn whose planner hands every message to
-    ``agent``."""
+def handing_off_to(agent: Agent) -> PlannerSetup:
+    """The planner of a turn with no existing plan, whose planner hands every message to ``agent``."""
     return planner_answering(hand_off(agent), agent)
 
 

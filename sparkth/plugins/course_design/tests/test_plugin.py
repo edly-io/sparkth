@@ -34,4 +34,4 @@ def test_the_agent_is_offered_once_after_a_second_construction() -> None:
     """The loader builds the plugin, and tests build it again; the agent is offered once."""
     plugin = CourseDesignPlugin()  # noqa: F841 - keeps the weakly-keyed hook entry alive
 
-    assert enabled_agents(set()).count(COURSE_DESIGN) == 1
+    assert enabled_agents(set(), None).count(COURSE_DESIGN) == 1
