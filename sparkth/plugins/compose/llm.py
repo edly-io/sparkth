@@ -317,7 +317,13 @@ class _TurnText:
 
 
 def build_turn_agent(
-    llm: BaseChatModel, tools: Sequence[BaseTool], system_prompt: str, max_tool_executions: int, *, name: str
+    llm: BaseChatModel,
+    tools: Sequence[BaseTool],
+    system_prompt: str,
+    max_tool_executions: int,
+    *,
+    name: str,
+    structured_reply_schema: type[BaseModel] | None = None,
 ) -> CompiledStateGraph[Any, AuditModelInfo, Any, Any]:
     """Build the agent ``name`` that runs a turn's tool calls, led by ``system_prompt``.
 
@@ -325,7 +331,8 @@ def build_turn_agent(
     end on the agent's stream (see :func:`_chat_tool_call`). Calls past ``max_tool_executions``
     are blocked and the model is told to answer instead; a model that asks for tools again after
     that ends the turn with a notice instead of an answer (see :func:`_end_after_a_block`). The
-    run's context is the :class:`AuditModelInfo` of the model the turn runs on.
+    run's context is the :class:`AuditModelInfo` of the model the turn runs on. With
+    ``structured_reply_schema``, the agent ends with a structured reply of that shape.
     """
     limiter = ToolCallLimitMiddleware(run_limit=max_tool_executions, exit_behavior="continue")
     # The hook is listed after the limiter so that it runs first for each reply.
@@ -335,7 +342,13 @@ def build_turn_agent(
     # The run context carries the audit identity; the library middlewares never read it.
     middleware: list[AgentMiddleware[Any, Any, Any]] = [_chat_tool_call, limiter, ender]
     return create_agent(
-        llm, tools, system_prompt=system_prompt, middleware=middleware, context_schema=AuditModelInfo, name=name
+        llm,
+        tools,
+        system_prompt=system_prompt,
+        middleware=middleware,
+        response_format=structured_reply_schema,
+        context_schema=AuditModelInfo,
+        name=name,
     )
 
 
@@ -366,6 +379,7 @@ def _planner_for_turn(
                     render_system_prompt(agent),
                     max_tool_executions,
                     name=agent.name,
+                    structured_reply_schema=agent.structured_reply.schema if agent.structured_reply else None,
                 ),
             )
             for agent in planner_setup.agents
@@ -417,17 +431,23 @@ async def _turn_events(
     refuses it. Yields ``routed`` with a :class:`TurnRouting` when a step (a hand-off or an
     operation) starts or the refusal returns (a call its tool rejected never does either),
     ``token`` for the text the author sees (the agents' replies, the planner's own when
-    no agent wrote last, and a notice that ends the turn; the operator's text never shows, only its
-    tool calls, and neither does what an agent writes before trying again after a failed tool call),
-    ``tool_start`` and ``tool_end`` for each tool call, ``limit_reached`` when an agent's calls were
-    blocked, ``usage`` with the tokens of each model reply, the planner's, the agents'
-    and the operator's, and ``final`` with each closing model reply. A step or a call reported as
+    no agent wrote last, and a notice that ends the turn; the text of the operator and of an agent
+    with a ``structured_reply`` never shows, only their tool calls, and neither does what an agent
+    writes before trying again after a failed tool call), ``tool_start`` and ``tool_end`` for each
+    tool call, ``limit_reached`` when an agent's calls were blocked, ``usage`` with the tokens of
+    each model reply, the planner's, the agents' and the operator's, and ``final`` with each closing
+    model reply. A step or a call reported as
     started runs only once this generator is asked for its next event. A refusal arrives as the
     refusal sentence. Yields ``plan`` with the steps of a plan the turn makes, and ``plan_step``
     with the number of each step of that plan or of ``planner_setup``'s existing plan, when the step
     starts, once it has run, or when the plan waits at it.
     """
     planner = _planner_for_turn(planner_setup, tools, provider, max_tool_executions)
+    # A structured reply is data for later steps, so the author never sees it.
+    agents_with_hidden_output = {
+        OPERATOR_AGENT_NAME,
+        *(agent.name for agent in planner_setup.agents if agent.structured_reply),
+    }
     stream = _stream_planner(planner, messages, provider)
     turn_text = _TurnText()
     async with aclosing(stream):
@@ -445,7 +465,10 @@ async def _turn_events(
             elif mode == "updates":
                 for node, update in chunk.items():
                     if namespace and node == "model":
+                        # A structured reply's update also holds the tool message that returns it.
                         for reply in (update or {}).get("messages", []):
+                            if not isinstance(reply, AIMessage):
+                                continue
                             for token in turn_text.agent_message_ended(reply):
                                 yield {"type": TurnEventType.TOKEN, "content": token}
                     for event in _update_events(node, update, max_tool_executions):
@@ -453,8 +476,8 @@ async def _turn_events(
             else:
                 message, metadata = chunk
                 if namespace:
-                    # The operator's text never shows, only its tool calls.
-                    if metadata.get("lc_agent_name") == OPERATOR_AGENT_NAME:
+                    # The operator's text never shows, nor a structured reply, only their tool calls.
+                    if metadata.get("lc_agent_name") in agents_with_hidden_output:
                         continue
                     for token in turn_text.agent_text(message):
                         yield {"type": TurnEventType.TOKEN, "content": token}

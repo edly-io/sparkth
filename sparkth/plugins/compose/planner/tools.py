@@ -94,12 +94,18 @@ def agent_input(messages: Sequence[AnyMessage], request: str) -> list[AnyMessage
 
 
 def _graph_runner(
-    graph: CompiledStateGraph[Any, AuditModelInfo, Any, Any], name: str, status: str, *, tail_chars: int | None
+    graph: CompiledStateGraph[Any, AuditModelInfo, Any, Any],
+    name: str,
+    status: str,
+    *,
+    tail_chars: int | None,
+    build_context: Callable[[Any], Awaitable[str]] | None = None,
 ) -> Callable[[str, ToolRuntime[AuditModelInfo, AgentState[Any]], int | None], Awaitable[tuple[str, str]]]:
     """A tool coroutine that runs ``graph`` as the step ``name`` on the planner's conversation.
 
     It returns what the planner reads, the reply marked as data and cut to its last ``tail_chars``
-    characters when there is a limit, and the whole reply, which later steps read. It reports
+    characters when there is a limit, and the whole reply, which later steps read. With ``build_context``,
+    the reply is the context it builds from the graph's structured response, and nothing when there is none. It reports
     ``name`` as answering the turn before the graph runs, so a turn stopped mid-reply still records
     who was answering it, with ``status``, what the author reads while the step works. The graph
     runs only once the reader of the stream asks for the next event, so a reader that stops there keeps
@@ -118,7 +124,11 @@ def _graph_runner(
         result = await graph.ainvoke(
             {"messages": agent_input(runtime.state["messages"], request)}, context=runtime.context
         )
-        reply: str = result["messages"][-1].text
+        if build_context is None:
+            reply: str = result["messages"][-1].text
+        else:
+            structured = result.get("structured_response")
+            reply = await build_context(structured) if structured is not None else ""
         if not reply:
             return "", ""
         if tail_chars is not None and len(reply) > tail_chars:
@@ -130,9 +140,17 @@ def _graph_runner(
 
 def build_handoff_tool(agent: AgentGraph) -> BaseTool:
     """The planner's tool for ``agent``: it runs the agent, whose reply the author reads as it is written, and
-    returns the end of that reply to the planner."""
+    returns the end of that reply to the planner. The reply of an agent with a ``structured_reply`` is
+    the context built from its structured response, which the author never reads."""
+    structured_reply = agent.spec.structured_reply
     return StructuredTool.from_function(
-        coroutine=_graph_runner(agent.graph, agent.spec.name, agent.spec.status, tail_chars=STEP_RESULT_TAIL_CHARS),
+        coroutine=_graph_runner(
+            agent.graph,
+            agent.spec.name,
+            agent.spec.status,
+            tail_chars=STEP_RESULT_TAIL_CHARS,
+            build_context=structured_reply.build_context if structured_reply else None,
+        ),
         name=agent.spec.name,
         description=agent.spec.description,
         args_schema=HandOff,
