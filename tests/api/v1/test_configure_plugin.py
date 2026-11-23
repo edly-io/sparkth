@@ -9,7 +9,7 @@ from sparkth.core.plugins.service import ConfigValidationError, InternalServerEr
 from sparkth.lib.testing import AuditEventsFetcher
 
 
-async def test_configure_plugin_success(client: AsyncClient, user_plugins: User) -> None:
+async def test_configure_plugin_success(client: AsyncClient, plugin_preferences: User) -> None:
     payload = {"some_config": 123}
 
     mock_plugin = SimpleNamespace(
@@ -64,25 +64,25 @@ async def test_configure_plugin_unauthenticated(client: AsyncClient, audit_event
     assert [event for event in await audit_events() if event.category == "permission"] == []
 
 
-async def test_configure_plugin_not_found(client: AsyncClient, user_plugins: User) -> None:
+async def test_configure_plugin_not_found(client: AsyncClient, plugin_preferences: User) -> None:
     response = await client.post("/api/v1/plugins/missing_plugin/configure", json={})
     assert response.status_code == status.HTTP_404_NOT_FOUND
     assert "not found" in response.json()["detail"]
 
 
-async def test_configure_plugin_admin_disabled(client: AsyncClient, user_plugins: User) -> None:
+async def test_configure_plugin_admin_disabled(client: AsyncClient, plugin_preferences: User) -> None:
     response = await client.post("/api/v1/plugins/disabled_plugin/configure", json={})
     assert response.status_code == status.HTTP_403_FORBIDDEN
     assert "not enabled" in response.json()["detail"]
 
 
-async def test_configure_plugin_already_configured(client: AsyncClient, user_plugins: User) -> None:
+async def test_configure_plugin_already_configured(client: AsyncClient, plugin_preferences: User) -> None:
     response = await client.post("/api/v1/plugins/plugin_b/configure", json={})
     assert response.status_code == status.HTTP_409_CONFLICT
     assert "already configured" in response.json()["detail"]
 
 
-async def test_configure_plugin_invalid_config(client: AsyncClient, user_plugins: User) -> None:
+async def test_configure_plugin_invalid_config(client: AsyncClient, plugin_preferences: User) -> None:
     with patch(
         "sparkth.core.plugins.service.PluginService.validate_user_config",
         side_effect=ConfigValidationError("Invalid config"),
@@ -96,7 +96,7 @@ async def test_configure_plugin_invalid_config(client: AsyncClient, user_plugins
     assert response.json()["detail"] == "Invalid config"
 
 
-async def test_configure_plugin_internal_error(client: AsyncClient, user_plugins: User) -> None:
+async def test_configure_plugin_internal_error(client: AsyncClient, plugin_preferences: User) -> None:
     valid_config = {
         "api_url": "https://canvas.instructure.com",
         "api_key": "abc123",

@@ -19,11 +19,11 @@ from sparkth.lib.frontend.hooks import (
 from sparkth.lib.plugins import SparkthPlugin, secret
 from sparkth.lib.testing import AddTranslation, AuditEventsFetcher, restrict_plugin_use
 
-from .conftest import SCHEMA_PLUGIN_CONFIG_SCHEMA, add_user_plugin
+from .conftest import SCHEMA_PLUGIN_CONFIG_SCHEMA, add_preference
 
 
 async def test_list_shows_only_the_plugins_granted(
-    client: AsyncClient, session: AsyncSession, user_plugins: User
+    client: AsyncClient, session: AsyncSession, plugin_preferences: User
 ) -> None:
     await restrict_plugin_use(session, "plugin_a")
 
@@ -34,7 +34,7 @@ async def test_list_shows_only_the_plugins_granted(
 
 
 async def test_list_is_empty_without_a_grant(
-    client: AsyncClient, session: AsyncSession, user_plugins: User, audit_events: AuditEventsFetcher
+    client: AsyncClient, session: AsyncSession, plugin_preferences: User, audit_events: AuditEventsFetcher
 ) -> None:
     await restrict_plugin_use(session, None)
 
@@ -61,7 +61,7 @@ def _plugin_entry(plugin_name: str, enabled: bool, config: dict[str, str], is_co
     }
 
 
-async def test_list_plugins_basic(client: AsyncClient, user_plugins: User) -> None:
+async def test_list_plugins_basic(client: AsyncClient, plugin_preferences: User) -> None:
     response = await client.get("/api/v1/plugins/")
     assert response.status_code == 200
 
@@ -158,7 +158,7 @@ async def test_list_plugins_fills_schema_keys_for_empty_config(
     The settings UI renders one field per key it receives, so dropping them leaves the
     user with no way to configure the plugin.
     """
-    await add_user_plugin(session, current_user, schema_plugin, config={})
+    await add_preference(session, current_user, schema_plugin, config={})
 
     response = await client.get("/api/v1/plugins/")
     assert response.status_code == 200
@@ -170,7 +170,7 @@ async def test_list_plugins_fills_schema_keys_for_empty_config(
 async def test_list_plugins_fills_schema_keys_missing_from_config(
     client: AsyncClient, current_user: User, session: AsyncSession, schema_plugin: Plugin
 ) -> None:
-    await add_user_plugin(session, current_user, schema_plugin, config={"api_url": "https://lms.example.com"})
+    await add_preference(session, current_user, schema_plugin, config={"api_url": "https://lms.example.com"})
 
     response = await client.get("/api/v1/plugins/")
     assert response.status_code == 200
@@ -195,7 +195,7 @@ async def test_list_plugins_carries_the_declared_config_schema(
 
 
 async def test_list_plugins_reports_an_empty_schema_for_a_plugin_without_one(
-    client: AsyncClient, user_plugins: User
+    client: AsyncClient, plugin_preferences: User
 ) -> None:
     response = await client.get("/api/v1/plugins/")
     assert response.status_code == 200
@@ -211,7 +211,7 @@ async def test_list_plugins_never_returns_secrets(
     plugin = Plugin(name="secret_plugin", is_core=True, enabled=True, config_schema=schema)
     session.add(plugin)
     await session.flush()
-    await add_user_plugin(session, current_user, plugin, {"api_url": "https://lms.example.com", "api_key": "s3cret"})
+    await add_preference(session, current_user, plugin, {"api_url": "https://lms.example.com", "api_key": "s3cret"})
 
     response = await client.get("/api/v1/plugins/")
 

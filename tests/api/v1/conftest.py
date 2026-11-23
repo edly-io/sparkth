@@ -14,7 +14,7 @@ def _seed_default_role(default_user_roles: Role) -> None:
 
 
 @pytest.fixture
-async def user_plugins(current_user: User, session: AsyncSession) -> User:
+async def plugin_preferences(current_user: User, session: AsyncSession) -> User:
     plugin_a = Plugin(name="plugin_a", is_core=True, enabled=True)
     plugin_b = Plugin(name="plugin_b", is_core=True, enabled=True)
     configured_plugin_disabled = Plugin(name="configured_plugin_disabled", is_core=True, enabled=True)
@@ -65,7 +65,7 @@ async def schema_plugin(session: AsyncSession) -> Plugin:
     return plugin
 
 
-async def add_user_plugin(
+async def add_preference(
     session: AsyncSession, user: User, plugin: Plugin, config: dict[str, Any], enabled: bool = True
 ) -> UserPluginPreference:
     """Attach ``plugin`` to ``user`` with the given stored config."""
