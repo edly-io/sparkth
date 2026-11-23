@@ -114,11 +114,23 @@ describe("AttachedFilesInfo", () => {
     expect(onRemoveFile).toHaveBeenCalledWith(computerFile);
   });
 
-  it("shows no remove button for a file already sent", async () => {
+  it("shows a remove button for a file already sent", async () => {
     const user = userEvent.setup();
     renderInfo([
       makeDocument(1, "drive.pdf"),
       { ...makeComputerFile("upload-1", "notes.txt"), isSent: true },
+    ]);
+
+    await user.click(screen.getByText("2 files attached"));
+
+    expect(screen.getAllByTitle(composeEn.compose.removeAttachedFile)).toHaveLength(2);
+  });
+
+  it("shows no remove button for a file whose text is stored in a message", async () => {
+    const user = userEvent.setup();
+    renderInfo([
+      makeDocument(1, "drive.pdf"),
+      { ...makeComputerFile("message-5", "notes.txt"), isSent: true, isStoredInMessage: true },
     ]);
 
     await user.click(screen.getByText("2 files attached"));

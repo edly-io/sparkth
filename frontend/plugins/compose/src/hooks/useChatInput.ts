@@ -3,7 +3,11 @@
 import { Dispatch, SetStateAction, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { isUnsentUpload, TextAttachment } from "@/plugins/compose/src/types";
-import { attachDocument, detachDocument } from "@/plugins/compose/src/client";
+import {
+  attachDocument,
+  detachDocument,
+  removeConversationUploadedFile,
+} from "@/plugins/compose/src/client";
 import { uploadFile, UploadResponse } from "@/plugins/compose/src/upload";
 import type { AttachedDocument, AttachmentSource } from "@/plugins/compose/src/slots/attachments";
 
@@ -46,7 +50,7 @@ export function useChatInput({
     const uploadId = crypto.randomUUID();
     setAttachments((prev) => [
       ...prev,
-      { name: file.name, size: file.size, text: "", uploadId, isUploading: true },
+      { name: file.name, size: file.size, uploadId, isUploading: true },
     ]);
 
     const cancelUpload = new AbortController();
@@ -80,10 +84,9 @@ export function useChatInput({
   const handleUploadFromComputer = async (files: File[]) => {
     setUploadError(null);
 
-    // A file with the same name and size as a listed upload, sent or not, is taken as the same file.
+    // A file with the name of a listed upload, sent or not, is taken as the same file.
     const listedUploads = attachments.filter((a) => a.documentId === undefined);
-    const isListed = (file: File) =>
-      listedUploads.some((a) => a.name === file.name && a.size === file.size);
+    const isListed = (file: File) => listedUploads.some((a) => a.name === file.name);
     const duplicateFiles = files.filter(isListed);
     const newFiles = files.filter((file) => !isListed(file));
 
@@ -118,7 +121,6 @@ export function useChatInput({
       return {
         name: document.name,
         size: document.size ?? 0,
-        text: `[File: ${document.name}]`,
         documentId: document.documentId,
         source,
       };
@@ -151,12 +153,21 @@ export function useChatInput({
     }
   };
 
-  // Removing a file that is still uploading also cancels its upload.
+  // Removing a file that is still uploading also cancels its upload, and removing a sent one also
+  // takes it out of the conversation on the server.
   const handleRemoveAttachment = (removed: TextAttachment) => {
     const { documentId, uploadId } = removed;
     if (documentId === undefined) {
       if (uploadId !== undefined) uploadsInProgress.current.get(uploadId)?.abort();
       setAttachments((prev) => prev.filter((a) => a.uploadId !== uploadId));
+      // The server keeps a sent upload for the conversation, so it has to forget it too.
+      if (removed.isSent && conversationId) {
+        removeConversationUploadedFile(token, conversationId, removed.name).catch((err) => {
+          console.warn("Failed to remove uploaded file:", err);
+          setUploadError(t("detachFailed", { name: removed.name }));
+          setAttachments((prev) => [...prev, removed]);
+        });
+      }
       return;
     }
 
@@ -193,8 +204,8 @@ export function useChatInput({
     if (!accepted) return;
 
     setMessage("");
-    // Every file stays listed: documents remain attached, and a sent upload's text is now part of
-    // the conversation.
+    // Every file stays listed: documents remain attached, and the server keeps a sent upload for the
+    // conversation.
     const sentUploadIds = new Set(unsentUploads.map((a) => a.uploadId));
     setAttachments((prev) =>
       prev.map((a) =>

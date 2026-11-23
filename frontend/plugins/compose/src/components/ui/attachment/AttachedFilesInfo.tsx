@@ -26,9 +26,9 @@ function fileIcon(file: TextAttachment) {
 
 /**
  * The line above the message box counting the attached files. Opening it lists every file's name,
- * after an icon showing where it came from, each with a button that removes it, except a file
- * already sent, whose text the conversation keeps. While files upload, the line says which of the
- * files waiting to be sent is uploading, and a spinner takes the uploading file's icon's place.
+ * after an icon showing where it came from, each with a button that removes it, except an older
+ * upload whose text is stored in a message. While files upload, the line says which of the files
+ * waiting to be sent is uploading, and a spinner takes the uploading file's icon's place.
  */
 export function AttachedFilesInfo({ attachments, onRemoveFile }: AttachedFilesInfoProps) {
   const t = useTranslations("compose");
@@ -77,7 +77,7 @@ export function AttachedFilesInfo({ attachments, onRemoveFile }: AttachedFilesIn
                       {truncate(file.name, DOCUMENT_DISPLAY_NAME_MAX_CHARS)}
                     </span>
                   </span>
-                  {!file.isSent && (
+                  {!file.isStoredInMessage && (
                     <Button
                       variant="ghost"
                       size="sm"

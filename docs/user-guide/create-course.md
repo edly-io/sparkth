@@ -52,8 +52,13 @@ it reads **Ready**.
 
 The files you attach are counted above the message box, for example **2 files attached**. Click
 the count to list them and to remove one. Files are sent with your next message, so type one to
-send them. A file from your computer stays listed once it is sent and can no longer be removed,
-because its text is now part of the conversation.
+send them. A file from your computer stays listed once it is sent. Remove it from the list to take
+it out of the conversation: the assistant stops using it from your next message.
+
+The assistant keeps a file from your computer for 24 hours after the conversation's last message.
+After that the file is no longer listed, and you attach it again to keep using it. A file with the
+same name as one already listed is taken as the same file and isn't attached twice. In an older
+conversation, a file whose text is part of a message can't be removed.
 
 ## While it works
 

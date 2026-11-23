@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { useChatStream } from "@/plugins/compose/src/hooks/useChatStream";
-import type { ChatMessage } from "@/plugins/compose/src/types";
+import type { ChatMessage, TextAttachment } from "@/plugins/compose/src/types";
 
 const requestChatCompletionStream = vi.fn();
 const stopChatTurn = vi.fn().mockResolvedValue(undefined);
@@ -402,5 +402,40 @@ describe("useChatStream — one turn at a time", () => {
       await stream.send();
     });
     expect(requestChatCompletionStream).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("useChatStream — files uploaded from the computer", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  async function sendWith(attachments: TextAttachment[]) {
+    requestChatCompletionStream.mockResolvedValue({ body: sseBody([DONE]) });
+    const { result } = renderHook(() =>
+      useChatStream({
+        token: "test-token",
+        llmConfigId: 1,
+        conversationId: "conv-1",
+        setMessages: vi.fn(),
+        onNewConversation: vi.fn(),
+      }),
+    );
+    await act(async () => {
+      await result.current.handleSend({ message: "Build a quiz", attachments });
+    });
+    return requestChatCompletionStream.mock.calls[0][1];
+  }
+
+  it("sends the typed text as the message and the files beside it", async () => {
+    const body = await sendWith([{ name: "syllabus.txt", size: 13, text: "Week 1: cells" }]);
+
+    expect(body.messages).toEqual([{ role: "user", content: "Build a quiz" }]);
+    expect(body.files).toEqual([{ name: "syllabus.txt", text: "Week 1: cells" }]);
+  });
+
+  it("sends no files with a message that has none", async () => {
+    const body = await sendWith([]);
+
+    expect(body.messages).toEqual([{ role: "user", content: "Build a quiz" }]);
+    expect(body).not.toHaveProperty("files");
   });
 });
