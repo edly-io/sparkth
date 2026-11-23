@@ -367,6 +367,11 @@ MCP is not the only tool door. Compose applies both switches for the requesting 
 turn: a plugin switched off system-wide or by that user has none of its tools bound, no
 agent offered. Only `/ai/mcp` stays system-wide.
 
+Compose also leaves out the tools and the agent of a plugin the requesting user does not hold
+`plugin.use` at (a `global` grant covers every plugin). Your plugin checks nothing for this. A
+request that names a tool of a plugin left out this way records one `permission.denied` audit
+event for that plugin. A request for every tool records none.
+
 Because `/ai/mcp` has no per-user switch, a tool that must not run for a particular caller
 over MCP has to enforce that inside the tool.
 
@@ -602,12 +607,15 @@ is `None` only for a contributor that offers no options: a publishing plugin ref
 for a contributor that offers options until one is chosen, so nothing is placed by default.
 
 The hook is keyed by the registering plugin, one contributor per plugin. A publishing tool offers
-and builds a contributor only while that plugin is on for the caller; a switched-off contributor
-is neither listed nor built. Read the switched-on contributors with
-`enabled_content_contributors()` from `sparkth.lib.content.hooks`, or one by name with
-`enabled_content_contributor(name)`. It raises `UnknownContentContributorError` for a name nobody
-registered and `ContentContributorUnavailableError` when the plugin is switched off, both from
-`sparkth.lib.content.exceptions`. With no authenticated caller, only the system-wide switch applies.
+and builds a contributor only while that plugin is on for the caller and the caller holds
+`plugin.use` at it; any other contributor is neither listed nor built. Read the contributors a
+caller may use with `enabled_content_contributors()` from `sparkth.lib.content.hooks`, or one by
+name with `enabled_content_contributor(name)`. It raises `UnknownContentContributorError` for a name
+nobody registered, `ContentContributorUnavailableError` when the plugin is switched off and
+`ContentContributorNotPermittedError` when the caller may not use the plugin, all from
+`sparkth.lib.content.exceptions`. Resolving by name a contributor the caller may not use records
+one `permission.denied` audit event; listing records none. With no authenticated caller, only the
+system-wide switch applies.
 
 `builders` is keyed by the publishing plugin's registered name, so its keys are the LMSes a
 contributor targets. `openedx` is the one shipped publisher. Register one builder per LMS you
@@ -684,7 +692,7 @@ without importing compose, by registering an `Agent` with `register_agent` from
 `sparkth.lib.compose.hooks`. A plugin registers one agent, from its `__init__`, keyed by the plugin
 instance.
 
-An `Agent` has five fields:
+An `Agent` has six fields:
 
 - `name` identifies the agent: lowercase letters, digits and underscores, starting with a letter.
   `compose`, `operator`, `show_plan` and `refuse` are reserved.
@@ -694,6 +702,9 @@ An `Agent` has five fields:
 - `prompt` is plain text inserted into the system prompt as written, so a brace in it needs no
   escaping. Keep it in the plugin's `assets/` and load it with `read_asset(__file__, "<name>.txt")`
   from `sparkth.lib.assets`.
+- `status` is the short line the author reads while the agent works, such as "Building your
+  activity…". Mark it with `gettext_noop` and translate it in the plugin's catalogs; Compose shows
+  it in the author's language.
 - `tools` are the `Tool`s the agent runs, built like the ones for `MCP_TOOLS`. A tool given only
   to the agent is private to it: no MCP client sees it. To offer a tool on the MCP server as well,
   add the same `Tool` to `MCP_TOOLS`. Agents compare without their tools, so a plugin may build
@@ -704,6 +715,7 @@ Define the agent in the plugin's `agent.py` and register it from `plugin.py`. Fo
 ```python
 # sparkth/plugins/myappplugin/agent.py
 from sparkth.lib.compose.hooks import Agent
+from sparkth.lib.i18n import gettext_noop
 from sparkth.lib.mcp.hooks import Tool
 
 
@@ -719,6 +731,7 @@ MY_AGENT = Agent(
     "My App builder",
     "Requests to build or change things in My App.",
     "Ask which My App item the author wants, then build it with the My App tools.",
+    gettext_noop("Building your My App item…"),
     tools=(MY_APP_BUILD,),
 )
 ```
@@ -754,7 +767,8 @@ The loader logs the failed construction and skips that plugin.
 
 On every request Compose reads the agents of the plugins enabled for the requesting user, in
 plugin-name order. Course design comes from the course design plugin. A plugin switched off
-system-wide or by the user contributes no agent and no tools.
+system-wide or by the user contributes no agent and no tools, and neither does a plugin the user
+does not hold `plugin.use` at (a `global` grant covers every plugin).
 
 - **Planner.** A planner reads each message and hands it to the one agent whose description fits.
   It runs on the small model of the user's provider, or on the reply's own model when
@@ -776,7 +790,7 @@ system-wide or by the user contributes no agent and no tools.
 - **Steps.** A step is one piece of work the planner gives to one agent or to its operator. It
   counts as one step however many tools that agent or the operator calls while doing it. A request
   can need several steps, such as writing a lesson, building an activity for it and publishing both.
-  The planner shows the author its plan, a numbered list of its tasks, each one short line, before
+  The planner shows the author its plan, a list of its tasks, each one short line, before
   the first step. When the work begins with an agent gathering the author's requirements, such as a
   course's audience and goals, that agent asks first and the plan comes once the author has
   answered. What each step returns goes back to the planner, which runs the next part the author
@@ -790,6 +804,9 @@ system-wide or by the user contributes no agent and no tools.
   follows another step is asked for its task as the plan states it, not for what the planner wrote
   afterwards. So text a step brought in, from an agent's reply or from the LMS, can't start an
   operation the author wasn't shown, or change what a planned one does.
+  The plan isn't part of the reply's text: the author's browser gets it as data, its tasks and the
+  step it is at, when the plan is made and as each step starts and runs, and shows it above the
+  reply. Each reply that showed the plan keeps it as it stood when the reply ended.
 - **Unfinished plans.** A plan a turn leaves unfinished, because an agent asked the author
   something or the turn was stopped or failed, is kept with the reply until its last step has run.
   A later message carries it on from the step it is at: that step again or the one after it when it

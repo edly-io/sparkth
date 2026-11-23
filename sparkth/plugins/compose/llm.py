@@ -32,7 +32,6 @@ from sparkth.lib.audit.context import AuditSource, ai_audit_context
 from sparkth.lib.audit.events import AuditModelInfo
 from sparkth.lib.audit.exceptions import AuditCaptureError
 from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME, REFUSAL_TOOL_NAME, SHOW_PLAN_TOOL_NAME
-from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.i18n import gettext
 from sparkth.lib.llm import BaseChatProvider, to_langchain_messages
 from sparkth.lib.log import get_logger
@@ -42,7 +41,7 @@ from sparkth.plugins.compose.constants import OPERATOR_PROMPT, STOPPED_EARLY_NOT
 from sparkth.plugins.compose.enums import TurnEventType
 from sparkth.plugins.compose.planner import (
     AgentGraph,
-    ExistingPlan,
+    PlannerSetup,
     TurnRouting,
     build_planner,
 )
@@ -242,7 +241,7 @@ def _update_events(node: str, update: dict[str, Any] | None, max_tool_executions
 class _TurnText:
     """The text a turn shows the author, sorted from the planner's and the agents' messages.
 
-    The plan and an agent's text show as they are written, with a blank line between messages. The
+    An agent's text shows as it is written, with a blank line between messages. The
     planner's own text is held until the turn ends and shows only when no agent wrote last: when no
     step ran, the last step was an operation, whose own text never shows, or the last agent wrote
     nothing. So an agent's reply, a question or choices included, is the last thing the author
@@ -265,10 +264,6 @@ class _TurnText:
         texts = self._show(message.id, [] if isinstance(message, ToolMessage) else _text_blocks(message.content))
         self._agent_wrote_last = self._agent_wrote_last or bool(texts)
         return texts
-
-    def plan_text(self, plan: ToolMessage) -> list[str]:
-        """The text of the planner's ``plan`` to show."""
-        return self._show(plan.id, [plan.text] if plan.text else [])
 
     def notice_text(self, message: BaseMessage) -> list[str]:
         """The text of a notice that ends the turn, to show now whoever wrote last."""
@@ -320,26 +315,23 @@ def build_turn_agent(
 
 
 def _planner_for_turn(
-    agents: Sequence[Agent],
+    planner_setup: PlannerSetup,
     tools: Sequence[BaseTool],
     provider: BaseChatProvider,
-    planner_llm: BaseChatModel,
     max_tool_executions: int,
-    existing_plan: ExistingPlan | None,
 ) -> CompiledStateGraph[Any, AuditModelInfo, Any, Any]:
-    """The turn's planner on ``planner_llm``, handing off to ``agents`` that each run on the
-    provider's model with their own prompt and their own tools.
+    """The turn's planner on ``planner_setup``'s model, handing off to its agents, which each run on the
+    provider's model with their own prompt and their own tools, and carrying on its existing plan.
 
     Its operator runs on the provider's model with the turn's ``tools`` of plugins that give
-    Compose no agent, and exists only when there are some. ``existing_plan`` is the plan saved with the
-    latest reply, for this turn to carry on.
+    Compose no agent, and exists only when there are some.
     """
     # Made to stream, so a reply reaches the author as it is written: a model made with streaming off
     # writes the whole reply first.
     agent_llm = provider.create_llm(streaming=True)
     operations = get_tool_registry().operation_tools(tools)
     return build_planner(
-        planner_llm,
+        planner_setup.planner_llm,
         [
             AgentGraph(
                 agent,
@@ -351,14 +343,14 @@ def _planner_for_turn(
                     name=agent.name,
                 ),
             )
-            for agent in agents
+            for agent in planner_setup.agents
         ],
         operator=(
             build_turn_agent(agent_llm, operations, OPERATOR_PROMPT, max_tool_executions, name=OPERATOR_AGENT_NAME)
             if operations
             else None
         ),
-        existing_plan=existing_plan,
+        existing_plan=planner_setup.existing_plan,
     )
 
 
@@ -390,28 +382,26 @@ async def _turn_events(
     tools: Sequence[BaseTool],
     provider: BaseChatProvider,
     max_tool_executions: int,
-    agents: Sequence[Agent],
-    planner_llm: BaseChatModel,
-    existing_plan: ExistingPlan | None,
+    planner_setup: PlannerSetup,
 ) -> AsyncGenerator[dict[str, Any], None]:
     """Run one turn on the planner, yielding what happens as it happens.
 
-    The planner hands the message to one of ``agents``, each running on the provider's model with
+    The planner hands the message to one of ``planner_setup``'s agents, each running on the provider's model with
     its own prompt and its own tools, runs operations on the operator with the turn's ``tools``,
     one step after another when the author asked for several, answers the message itself, or
     refuses it. Yields ``routed`` with a :class:`TurnRouting` when a step (a hand-off or an
     operation) starts or the refusal returns (a call its tool rejected never does either),
-    ``token`` for the text the author sees (the plan, the agents' replies, the planner's own when
+    ``token`` for the text the author sees (the agents' replies, the planner's own when
     no agent wrote last, and a notice that ends the turn; the operator's text never shows, only its
     tool calls), ``tool_start`` and ``tool_end`` for each tool call, ``limit_reached`` when an agent's
     calls were blocked, ``usage`` with the tokens of each model reply, the planner's, the agents'
     and the operator's, and ``final`` with each closing model reply. A step or a call reported as
     started runs only once this generator is asked for its next event. A refusal arrives as the
     refusal sentence. Yields ``plan`` with the steps of a plan the turn makes, and ``plan_step``
-    with the number of each step of that plan or of ``existing_plan``, the plan saved with the latest
-    reply for this turn to carry on, when the step starts, once it has run, or when the plan waits at it.
+    with the number of each step of that plan or of ``planner_setup``'s existing plan, when the step
+    starts, once it has run, or when the plan waits at it.
     """
-    planner = _planner_for_turn(agents, tools, provider, planner_llm, max_tool_executions, existing_plan)
+    planner = _planner_for_turn(planner_setup, tools, provider, max_tool_executions)
     stream = _stream_planner(planner, messages, provider)
     turn_text = _TurnText()
     async with aclosing(stream):
@@ -437,11 +427,10 @@ async def _turn_events(
                     for token in turn_text.agent_text(message):
                         yield {"type": TurnEventType.TOKEN, "content": token}
                 elif isinstance(message, ToolMessage):
-                    # An agent's reply has already streamed; only a plan or a refusal is new text.
+                    # An agent's reply has already streamed; a plan is shown apart from the text, and only
+                    # a refusal is new text.
                     if message.name == SHOW_PLAN_TOOL_NAME and message.status != "error":
                         yield {"type": TurnEventType.PLAN, "steps": message.artifact}
-                        for token in turn_text.plan_text(message):
-                            yield {"type": TurnEventType.TOKEN, "content": token}
                     elif message.name == REFUSAL_TOOL_NAME and message.status != "error":
                         yield {"type": TurnEventType.ROUTED, "routing": TurnRouting(refused=True)}
                         for token in turn_text.notice_text(message):
@@ -462,9 +451,7 @@ async def complete_turn(
     provider: BaseChatProvider,
     max_tool_executions: int,
     *,
-    agents: Sequence[Agent],
-    planner_llm: BaseChatModel,
-    existing_plan: ExistingPlan | None,
+    planner_setup: PlannerSetup,
 ) -> dict[str, Any]:
     """Run one non-streamed turn on the planner and return its answer.
 
@@ -478,8 +465,8 @@ async def complete_turn(
     limit_reached = False
     usage: UsageMetadata | None = None
     final: AIMessage | None = None
-    turn_activity = TurnActivity(existing_plan)
-    events = _turn_events(messages, tools, provider, max_tool_executions, agents, planner_llm, existing_plan)
+    turn_activity = TurnActivity(planner_setup.existing_plan)
+    events = _turn_events(messages, tools, provider, max_tool_executions, planner_setup)
     async with aclosing(events):
         async for event in events:
             turn_activity.record(event)
@@ -527,23 +514,21 @@ async def stream_turn(
     provider: BaseChatProvider,
     max_tool_executions: int,
     *,
-    agents: Sequence[Agent],
-    planner_llm: BaseChatModel,
-    existing_plan: ExistingPlan | None,
+    planner_setup: PlannerSetup,
 ) -> AsyncGenerator[dict[str, Any], None]:
     """Stream one turn on the planner as typed event dicts.
 
     Yields:
-      {"type": "routed",    "routing": TurnRouting}
+      {"type": "routed",    "routing": TurnRouting, "status": str}
                                                — who answers next, when a step (a hand-off or the
-                                                 operator) starts or the refusal returns; never sent
-                                                 when the planner answers
+                                                 operator) starts, with what the author reads while
+                                                 it works, or the refusal returns, without a
+                                                 status; never sent when the planner answers
       {"type": "plan",      "steps": list[PlannedStep]}
                                                — the plan the turn made
       {"type": "plan_step", "number": int, "ran": bool}
-                                               — a step of that plan, or of ``existing_plan``, the
-                                                 plan saved with the latest reply for this turn to
-                                                 carry on, starting, or having run
+                                               — a step of that plan, or of ``planner_setup``'s
+                                                 existing plan, starting, or having run
       {"type": "token",     "content": str}   — text to display
       {"type": "tool_start","name": str}       — tool execution beginning
       {"type": "tool_end",  "name": str, "failure": ToolFailureKind | None}
@@ -552,7 +537,7 @@ async def stream_turn(
     A call reported by ``tool_start``, or a step reported by ``routed``, runs only once the reader
     asks for the next event, so a reader that stops there keeps it from running.
     """
-    events = _turn_events(messages, tools, provider, max_tool_executions, agents, planner_llm, existing_plan)
+    events = _turn_events(messages, tools, provider, max_tool_executions, planner_setup)
     async with aclosing(events):
         async for event in events:
             match event["type"]:

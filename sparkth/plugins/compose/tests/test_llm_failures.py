@@ -71,7 +71,7 @@ async def _first_execution(
         [],
         provider,
         50,
-        **handing_off_to(replace(STUB_AGENT, tools=(Tool(handler),))),
+        planner_setup=handing_off_to(replace(STUB_AGENT, tools=(Tool(handler),))),
     )
 
     execution: dict[str, Any] = response["metadata"]["tool_executions"][0]
