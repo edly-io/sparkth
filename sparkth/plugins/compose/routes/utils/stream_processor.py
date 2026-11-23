@@ -57,12 +57,14 @@ from sparkth.plugins.compose.messages import get_last_user_text
 from sparkth.plugins.compose.models import Conversation
 from sparkth.plugins.compose.planner import ExistingPlan, TurnRouting
 from sparkth.plugins.compose.planner.turn_activity import TurnActivity
+from sparkth.plugins.compose.planner.types import PlanSnapshot
 from sparkth.plugins.compose.routes.utils.live_turns import register_turn, release_conversation, release_turn
 from sparkth.plugins.compose.routes.utils.rag_search import collect_document_ids
 from sparkth.plugins.compose.schemas import (
     ChatMessage,
     DocumentProcessingEvent,
     DocumentSectionProcessingEvent,
+    PlanEvent,
     RagSection,
     ResponseGenerationEvent,
     StepEvent,
@@ -98,12 +100,13 @@ def _agent_reply_metadata(
     agents: Sequence[str],
     plan: ExistingPlan | None,
     *,
+    plan_snapshot: PlanSnapshot | None,
     stopped: bool,
     interrupted: bool,
 ) -> dict[str, Any]:
     """What an agent's stored reply notes besides its text, leaving out what it doesn't have: the sections
-    it drew on, its tool calls, the agents its steps went to, the plan still in progress, and whether the
-    author stopped it or a failure cut it off."""
+    it drew on, its tool calls, the agents its steps went to, the plan still in progress, the plan it showed,
+    and whether the author stopped it or a failure cut it off."""
     metadata: dict[str, Any] = {}
     if rag_sections:
         metadata["rag_sections"] = rag_sections
@@ -113,6 +116,8 @@ def _agent_reply_metadata(
         metadata["agents"] = list(agents)
     if plan is not None:
         metadata["plan"] = asdict(plan)
+    if plan_snapshot is not None:
+        metadata["plan_snapshot"] = asdict(plan_snapshot)
     if stopped:
         metadata["stopped"] = True
     if interrupted:
@@ -129,7 +134,8 @@ def _tool_call_names(tool_calls: list[dict[str, Any]]) -> list[dict[str, str]]:
 @dataclass(frozen=True)
 class CollectedReply:
     """What a turn streamed: its text, its tool calls, whether the author stopped it, who answered last,
-    the agents and operator that ran its steps, in order, and the plan still in progress, if any."""
+    the agents and operator that ran its steps, in order, the plan still in progress, if any, and the plan
+    it showed, if any."""
 
     text: str
     tool_calls: list[dict[str, Any]]
@@ -137,6 +143,7 @@ class CollectedReply:
     routing: TurnRouting
     agents: list[str]
     plan: ExistingPlan | None
+    plan_snapshot: PlanSnapshot | None
 
 
 @dataclass(frozen=True)
@@ -466,7 +473,10 @@ class ComposeStreamProcessor:
             role="assistant",
             content=no_chunks_msg,
             message_type="text",
-            metadata=_agent_reply_metadata([], [], [], self.existing_plan, stopped=False, interrupted=False) or None,
+            metadata=_agent_reply_metadata(
+                [], [], [], self.existing_plan, plan_snapshot=None, stopped=False, interrupted=False
+            )
+            or None,
         )
         await self._emit({"done": True, "content": no_chunks_msg, "conversation_id": self.conversation_uuid})
 
@@ -576,6 +586,10 @@ class ComposeStreamProcessor:
                         status = event.get("status")
                         if status:
                             await self._emit_status(StepEvent(step_status=gettext(status)))
+                    elif event["type"] in (TurnEventType.PLAN, TurnEventType.PLAN_STEP):
+                        plan = turn_activity.get_plan_snapshot()
+                        if plan:
+                            await self._emit_status(PlanEvent(plan=plan))
                     elif event["type"] == TurnEventType.TOKEN:
                         token = event["content"]
                         full_response += token
@@ -609,6 +623,7 @@ class ComposeStreamProcessor:
                 routing=turn_activity.routing,
                 agents=turn_activity.agents,
                 plan=turn_activity.get_plan_in_progress(),
+                plan_snapshot=turn_activity.get_plan_snapshot(),
             )
         except LLM_PROVIDER_API_ERRORS as e:
             logger.error("Streaming failed: %s", e)
@@ -618,6 +633,7 @@ class ComposeStreamProcessor:
                 completed_tool_calls,
                 turn_activity.agents,
                 turn_activity.get_plan_in_progress(),
+                turn_activity.get_plan_snapshot(),
                 bg_session,
             )
             await self._persist_and_emit_error(
@@ -632,6 +648,7 @@ class ComposeStreamProcessor:
                 completed_tool_calls,
                 turn_activity.agents,
                 turn_activity.get_plan_in_progress(),
+                turn_activity.get_plan_snapshot(),
                 bg_session,
             )
             await self._persist_and_emit_error(
@@ -646,10 +663,12 @@ class ComposeStreamProcessor:
         tool_calls: list[dict[str, Any]],
         agents: list[str],
         plan: ExistingPlan | None,
+        plan_snapshot: PlanSnapshot | None,
         bg_session: AsyncSession,
     ) -> None:
         """Store what a failed turn wrote before it failed, if anything, as a reply of its own, with the
-        sections it drew on, marked as interrupted: its last step may have been cut off mid-sentence."""
+        sections it drew on and the plan it showed, marked as interrupted: its last step may have been cut
+        off mid-sentence."""
         if not text:
             return
         await self.service.add_message(
@@ -658,7 +677,13 @@ class ComposeStreamProcessor:
             role="assistant",
             content=text,
             metadata=_agent_reply_metadata(
-                confirmed_rag_sections, _tool_call_names(tool_calls), agents, plan, stopped=False, interrupted=True
+                confirmed_rag_sections,
+                _tool_call_names(tool_calls),
+                agents,
+                plan,
+                plan_snapshot=plan_snapshot,
+                stopped=False,
+                interrupted=True,
             ),
         )
 
@@ -672,6 +697,7 @@ class ComposeStreamProcessor:
         stopped_at: StopPoint | None = None,
         routing: TurnRouting = TurnRouting(),
         agents: Sequence[str] = (),
+        plan_snapshot: PlanSnapshot | None = None,
     ) -> StreamedCompletion:
         """Persist the assistant message, emit the done SSE, and return what it completed.
 
@@ -681,7 +707,8 @@ class ComposeStreamProcessor:
         into the message metadata (for a page reload to still show it) and onto the done
         payload itself. ``routing`` is who answered the turn last and ``agents`` the agents and
         operator that ran, in order; before the model runs there is neither. ``plan`` is the plan
-        still in progress, which before the model runs is the one the turn was given.
+        still in progress, which before the model runs is the one the turn was given, and ``plan_snapshot``
+        the plan the turn showed.
 
         Returns:
             The tools this completion executed and when the reply was stored, for the
@@ -691,7 +718,13 @@ class ComposeStreamProcessor:
         tool_calls = _tool_call_names(completed_tool_calls)
         stopped = stopped_at is not None
         metadata = _agent_reply_metadata(
-            confirmed_rag_sections, tool_calls, agents, plan, stopped=stopped, interrupted=False
+            confirmed_rag_sections,
+            tool_calls,
+            agents,
+            plan,
+            plan_snapshot=plan_snapshot,
+            stopped=stopped,
+            interrupted=False,
         )
         assistant_message = await self.service.add_message(
             session=bg_session,
@@ -715,6 +748,7 @@ class ComposeStreamProcessor:
                     "attachment_size": None,
                     "rag_sections": confirmed_rag_sections or None,
                     "tool_calls": tool_calls or None,
+                    "plan": asdict(plan_snapshot) if plan_snapshot is not None else None,
                     "stopped": stopped,
                 },
             }
@@ -754,6 +788,7 @@ class ComposeStreamProcessor:
             StopPoint.STREAMING if reply.stopped else None,
             reply.routing,
             reply.agents,
+            reply.plan_snapshot,
         )
 
     async def _run(self, bg_session: AsyncSession) -> StreamedCompletion | None:

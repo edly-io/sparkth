@@ -2588,6 +2588,7 @@ export interface components {
              * @enum {string}
              */
             message_type: "text" | "attachment";
+            plan?: components["schemas"]["PlanSnapshot"] | null;
             /** Rag Sections */
             rag_sections?: components["schemas"]["RagSection"][] | null;
             /**
@@ -2736,6 +2737,19 @@ export interface components {
         PersistedToolCall: {
             /** Name */
             name: string;
+        };
+        /**
+         * PlanSnapshot
+         * @description A plan as the author sees it: its tasks, the number of the step it is at (0 before the first starts),
+         *     and whether that step has run.
+         */
+        PlanSnapshot: {
+            /** Current Step */
+            current_step: number;
+            /** Has Current Step Run */
+            has_current_step_run: boolean;
+            /** Tasks */
+            tasks: string[];
         };
         /**
          * PreviewPermission
