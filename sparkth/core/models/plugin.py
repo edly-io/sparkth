@@ -27,12 +27,14 @@ class Plugin(TimestampedModel, SoftDeleteModel, table=True):
     enabled: bool = Field(default=True)
     config_schema: dict[str, Any] = Field(default={}, sa_column=Column(JSON))
 
-    user_plugins: list["UserPlugin"] = Relationship(back_populates="plugin")
+    user_preferences: list["UserPluginPreference"] = Relationship(back_populates="plugin")
 
 
-class UserPlugin(TimestampedModel, SoftDeleteModel, table=True):
-    __tablename__ = "user_plugins"
-    __table_args__ = (UniqueConstraint("user_id", "plugin_id", name="uq_user_plugin"),)
+class UserPluginPreference(TimestampedModel, SoftDeleteModel, table=True):
+    """One user's preference for one plugin: whether they turned it on, and their saved configuration."""
+
+    __tablename__ = "user_plugin_preferences"
+    __table_args__ = (UniqueConstraint("user_id", "plugin_id", name="uq_user_plugin_preference"),)
 
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="user.id", index=True)
@@ -40,4 +42,8 @@ class UserPlugin(TimestampedModel, SoftDeleteModel, table=True):
     enabled: bool = Field(default=True)
     config: dict[str, Any] = Field(default_factory=dict, sa_column=Column(EncryptedJSON))
 
-    plugin: "Plugin" = Relationship(back_populates="user_plugins")
+    plugin: "Plugin" = Relationship(back_populates="user_preferences")
+
+
+# The old name, kept until every caller uses UserPluginPreference.
+UserPlugin = UserPluginPreference

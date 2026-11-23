@@ -4,7 +4,7 @@ import pytest
 from pydantic import HttpUrl
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.models.plugin import Plugin, UserPlugin
+from sparkth.core.models.plugin import Plugin, UserPluginPreference
 from sparkth.lib.auth import bind_current_user_id
 from sparkth.lib.exceptions.auth import NoAuthenticatedUser
 from sparkth.lib.models import User
@@ -26,7 +26,7 @@ async def _seed(session: AsyncSession, owner_id: int, config: dict[str, Any]) ->
     users = [User(id=i, name="U", username=f"u{i}", email=f"u{i}@example.com", hashed_password="x") for i in (1, 2)]
     session.add_all([plugin, *users])
     await session.commit()
-    session.add(UserPlugin(user_id=owner_id, plugin_id=cast(int, plugin.id), config=config))
+    session.add(UserPluginPreference(user_id=owner_id, plugin_id=cast(int, plugin.id), config=config))
     await session.commit()
 
 

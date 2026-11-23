@@ -49,7 +49,7 @@ import sparkth.lib.db as db
 from sparkth.core.audit.models import AuditEvent
 from sparkth.core.cache import get_cache_service
 from sparkth.core.db import dispose_engine, get_engine
-from sparkth.core.models.plugin import Plugin, UserPlugin
+from sparkth.core.models.plugin import Plugin, UserPluginPreference
 from sparkth.core.models.user import User
 from sparkth.core.permissions import PLUGIN_USE
 from sparkth.core.permissions.constants import PLUGIN_USER_ROLE, SPARKTH_USER_ROLE
@@ -496,7 +496,7 @@ async def seed_plugin_settings(
     session.add_all([plugin, user])
     await session.commit()
     if config is not None:
-        session.add(UserPlugin(user_id=user_id, plugin_id=cast(int, plugin.id), config=config))
+        session.add(UserPluginPreference(user_id=user_id, plugin_id=cast(int, plugin.id), config=config))
         await session.commit()
 
 

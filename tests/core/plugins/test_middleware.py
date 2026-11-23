@@ -22,7 +22,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.routing import BaseRoute
 
 from sparkth.core.db import get_engine
-from sparkth.core.models.plugin import Plugin, UserPlugin
+from sparkth.core.models.plugin import Plugin, UserPluginPreference
 from sparkth.core.models.user import User
 from sparkth.core.plugins.middleware import PluginAccessMiddleware
 from sparkth.core.routes import get_route_plugin_name
@@ -50,7 +50,7 @@ class _CountingFlattener:
         return iter_route_contexts(routes)
 
 
-# The user table, quoted or not, but never the user_plugins table beside it.
+# The user table, quoted or not, but never the user_plugin_preferences table beside it.
 _USER_SELECT = re.compile(r'^select\b.*\bfrom\s+"?user"?(\s|$)')
 
 
@@ -66,13 +66,13 @@ class _UserSelectCounter:
 
 
 class _SwitchReadCounter:
-    """Counts the reads of the plugin switches, the one query joining user_plugins onto plugins."""
+    """Counts the reads of the plugin switches, the one query joining user_plugin_preferences onto plugins."""
 
     def __init__(self) -> None:
         self.count = 0
 
     def __call__(self, conn: Any, cursor: Any, statement: str, *args: Any) -> None:
-        if "left outer join user_plugins" in " ".join(statement.split()).lower():
+        if "left outer join user_plugin_preferences" in " ".join(statement.split()).lower():
             self.count += 1
 
 
@@ -145,8 +145,8 @@ async def _raise_operational_error(username: str, session: AsyncSession) -> User
     raise OperationalError("SELECT 1", {}, Exception("connection lost"))
 
 
-async def _seed_user_plugin(session: AsyncSession, user: User, plugin: Plugin, enabled: bool) -> None:
-    session.add(UserPlugin(user_id=cast(int, user.id), plugin_id=cast(int, plugin.id), enabled=enabled))
+async def _seed_preference(session: AsyncSession, user: User, plugin: Plugin, enabled: bool) -> None:
+    session.add(UserPluginPreference(user_id=cast(int, user.id), plugin_id=cast(int, plugin.id), enabled=enabled))
     await session.commit()
 
 
@@ -219,7 +219,7 @@ class TestPluginAccessGate:
     async def test_blocks_a_plugin_the_user_disabled(self, client: AsyncClient, session: AsyncSession) -> None:
         user = await _seed_user(session, "disabled-chat-user")
         plugin = await _seed_plugin(session, "compose", True)
-        await _seed_user_plugin(session, user, plugin, False)
+        await _seed_preference(session, user, plugin, False)
 
         response = await client.post(
             COMPOSE_COMPLETIONS_PATH,
@@ -233,7 +233,7 @@ class TestPluginAccessGate:
     async def test_blocks_a_plugin_disabled_system_wide(self, client: AsyncClient, session: AsyncSession) -> None:
         user = await _seed_user(session, "system-disabled-user")
         plugin = await _seed_plugin(session, "compose", False)
-        await _seed_user_plugin(session, user, plugin, True)
+        await _seed_preference(session, user, plugin, True)
 
         response = await client.post(
             COMPOSE_COMPLETIONS_PATH,
@@ -260,7 +260,7 @@ class TestPluginAccessGate:
         # the plugin is off for them, or off for everyone, today.
         user = await _seed_user(session, "analytics-reader")
         plugin = await _seed_plugin(session, plugin_name, system_enabled)
-        await _seed_user_plugin(session, user, plugin, user_enabled)
+        await _seed_preference(session, user, plugin, user_enabled)
         await grant_global_permission(session, cast(int, user.id), "analytics.read")
         await session.commit()
 
@@ -292,7 +292,7 @@ class TestPluginAccessGate:
         user = await _seed_user(session, "enabled-chat-user")
         await _allow_plugin_use(session, user)
         plugin = await _seed_plugin(session, "compose", True)
-        await _seed_user_plugin(session, user, plugin, True)
+        await _seed_preference(session, user, plugin, True)
 
         response = await client.post(
             COMPOSE_COMPLETIONS_PATH,
@@ -320,7 +320,7 @@ class TestPluginAccessGate:
     async def test_does_not_gate_core_routes(self, client: AsyncClient, session: AsyncSession) -> None:
         user = await _seed_user(session, "core-route-user")
         plugin = await _seed_plugin(session, "compose", True)
-        await _seed_user_plugin(session, user, plugin, False)
+        await _seed_preference(session, user, plugin, False)
 
         response = await client.get("/api/v1/user/me", headers=_auth_headers(user.username))
 
@@ -332,7 +332,7 @@ class TestPluginAccessGate:
         # gate must fail open rather than block the callback.
         user = await _seed_user(session, "slack-callback-user")
         plugin = await _seed_plugin(session, "slack", True)
-        await _seed_user_plugin(session, user, plugin, False)
+        await _seed_preference(session, user, plugin, False)
 
         response = await client.get(SLACK_CALLBACK_PATH)
 
@@ -384,7 +384,7 @@ class TestPluginAccessGate:
         await _allow_plugin_use(session, caller)
         other = await _seed_user(session, "opted-out-user")
         plugin = await _seed_plugin(session, "compose", True)
-        await _seed_user_plugin(session, other, plugin, False)
+        await _seed_preference(session, other, plugin, False)
 
         response = await client.post(
             COMPOSE_COMPLETIONS_PATH,
@@ -416,7 +416,7 @@ class TestPluginAccessGate:
         # The gate fails closed: a lookup it could not complete is not permission to proceed.
         user = await _seed_user(session, "db-error-user")
         plugin = await _seed_plugin(session, "compose", True)
-        await _seed_user_plugin(session, user, plugin, True)
+        await _seed_preference(session, user, plugin, True)
         monkeypatch.setattr("sparkth.core.plugins.middleware.get_user_by_username", _raise_operational_error)
 
         response = await client.post(
@@ -435,7 +435,7 @@ class TestPluginAccessGate:
         # The route's own auth dependency still rejects the request.
         plugin = await _seed_plugin(session, "compose", True)
         user = await _seed_user(session, "invalid-token-user")
-        await _seed_user_plugin(session, user, plugin, False)
+        await _seed_preference(session, user, plugin, False)
 
         response = await client.post(
             COMPOSE_COMPLETIONS_PATH,
@@ -453,7 +453,7 @@ class TestCallerIsResolvedOnce:
     async def test_a_gated_route_reads_the_user_once(self, client: AsyncClient, session: AsyncSession) -> None:
         user = await _seed_user(session, "reuse-user")
         plugin = await _seed_plugin(session, "compose", True)
-        await _seed_user_plugin(session, user, plugin, True)
+        await _seed_preference(session, user, plugin, True)
 
         with _counting(_UserSelectCounter()) as counter:
             await client.post(
@@ -469,7 +469,7 @@ class TestCallerIsResolvedOnce:
     ) -> None:
         user = await _seed_user(session, "switch-reuse-user")
         plugin = await _seed_plugin(session, "compose", True)
-        await _seed_user_plugin(session, user, plugin, True)
+        await _seed_preference(session, user, plugin, True)
 
         with _counting(_SwitchReadCounter()) as counter:
             await client.post(
