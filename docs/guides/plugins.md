@@ -698,7 +698,7 @@ without importing compose, by registering an `Agent` with `register_agent` from
 `sparkth.lib.compose.hooks`. A plugin registers one agent, from its `__init__`, keyed by the plugin
 instance.
 
-An `Agent` has six fields:
+An `Agent` has seven fields:
 
 - `name` identifies the agent: lowercase letters, digits and underscores, starting with a letter.
   `compose`, `operator`, `show_plan` and `refuse` are reserved.
@@ -715,6 +715,12 @@ An `Agent` has six fields:
   to the agent is private to it: no MCP client sees it. To offer a tool on the MCP server as well,
   add the same `Tool` to `MCP_TOOLS`. Agents compare without their tools, so a plugin may build
   them in its `__init__`.
+- `structured_reply`, optional, makes the agent reply with data for later steps instead of text
+  for the author. It's an `AgentStructuredReply(schema, build_context)`: `schema` is the pydantic
+  model the agent's reply must fit, and `build_context` is an async function that builds, from a
+  reply of that shape, the text the planner and later steps read. The author never sees the agent's
+  own text, only its tool calls, the same as for the operator. When the agent ends without a reply
+  of that shape, the step returns nothing.
 
 Define the agent in the plugin's `agent.py` and register it from `plugin.py`. For example:
 

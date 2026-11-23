@@ -21,6 +21,7 @@ from sparkth.core.i18n import locale_context
 from sparkth.lib.audit import ToolFailureKind
 from sparkth.lib.audit.callbacks import AUDIT_AT_HANDLER_TAG
 from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME, REFUSAL_TOOL_NAME, SHOW_PLAN_TOOL_NAME
+from sparkth.lib.compose.hooks import AgentStructuredReply
 from sparkth.lib.llm import BaseChatProvider, get_provider
 from sparkth.lib.mcp.hooks import Tool
 from sparkth.lib.testing import AddTranslation, ScriptedChatModel
@@ -28,6 +29,7 @@ from sparkth.plugins.compose.constants import (
     MAX_REJECTED_PLANNER_CALLS,
     MAX_STEPS_PER_TURN,
     REFUSAL_MESSAGE,
+    STEP_RESULT_HEADING,
 )
 from sparkth.plugins.compose.llm import complete_turn, stream_turn
 from sparkth.plugins.compose.planner import ExistingPlan, PlannedStep, PlannerSetup, TurnRouting
@@ -508,6 +510,60 @@ async def test_an_operations_tool_cards_show_and_the_operators_text_does_not(mon
 
     assert events == [TOOL_START, TOOL_END, {"type": "token", "content": "Step 1 is recorded."}]
     assert runs == ["start 1", "end 1"]
+
+
+class _Picked(BaseModel):
+    """The sections an agent picked."""
+
+    sections: list[str]
+
+
+async def _build_picked_context(picked: _Picked) -> str:
+    return "Picked " + ", ".join(picked.sections)
+
+
+# An agent whose reply is the sections it picked, built into context for later steps.
+PICKING_AGENT = replace(STUB_AGENT, structured_reply=AgentStructuredReply(_Picked, _build_picked_context))
+
+
+def _picked(*sections: str, text: str = "") -> AIMessage:
+    """An agent reply giving its structured response, the ``sections`` it picked."""
+    return AIMessage(text, tool_calls=[{"name": "_Picked", "args": {"sections": list(sections)}, "id": "picked"}])
+
+
+@pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
+async def test_a_structured_reply_never_shows_and_the_planner_reads_its_context(
+    stream: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    provider = _provider(ScriptedChatModel(messages=iter([_picked("1.2", "3.1", text="Looking.")])), monkeypatch)
+    planner_model = RecordingChatModel(
+        messages=iter([_calling(PICKING_AGENT.name, {"request": "Find it"}), AIMessage("Found two sections.")]),
+        disable_streaming=True,
+    )
+    planner = PlannerSetup([PICKING_AGENT], planner_model, None)
+
+    if stream:
+        turn = stream_turn(TURN, [], provider, 50, planner_setup=planner)
+        shown = "".join([event["content"] async for event in turn if event["type"] == "token"])
+    else:
+        shown = (await complete_turn(TURN, [], provider, 50, planner_setup=planner))["content"]
+
+    assert shown == "Found two sections."
+    assert planner_model.seen[1][-1].text == f"{STEP_RESULT_HEADING}\nPicked 1.2, 3.1"
+
+
+async def test_a_structured_agent_that_answers_in_text_returns_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = _provider(ScriptedChatModel(messages=iter([AIMessage("I found nothing.")])), monkeypatch)
+    planner_model = RecordingChatModel(
+        messages=iter([_calling(PICKING_AGENT.name, {"request": "Find it"}), AIMessage("")]), disable_streaming=True
+    )
+
+    response = await complete_turn(
+        TURN, [], provider, 50, planner_setup=PlannerSetup([PICKING_AGENT], planner_model, None)
+    )
+
+    assert response["content"] == ""
+    assert planner_model.seen[1][-1].text == ""
 
 
 async def test_an_agent_gets_none_of_the_tools_the_turn_enables(monkeypatch: pytest.MonkeyPatch) -> None:
