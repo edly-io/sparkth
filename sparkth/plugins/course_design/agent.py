@@ -2,10 +2,12 @@
 
 from sparkth.lib.assets import read_asset
 from sparkth.lib.compose.hooks import Agent
+from sparkth.lib.i18n import gettext_noop
 
 COURSE_DESIGN = Agent(
     "course_design",
     title="Course design",
     description=read_asset(__file__, "course_design_description.txt"),
     prompt=read_asset(__file__, "course_design_prompt.txt"),
+    status=gettext_noop("Working on your course design…"),
 )
