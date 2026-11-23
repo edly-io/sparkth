@@ -3,7 +3,11 @@ import { describe, it, expect, vi } from "vitest";
 
 import { ApiRequestError } from "@/lib/api";
 import type { ApiMessage } from "@/plugins/compose/src/types";
-import { getConversation, getConversationAttachments } from "@/plugins/compose/src/client";
+import {
+  getConversation,
+  getConversationAttachments,
+  getLastMessage,
+} from "@/plugins/compose/src/client";
 import { useConversation } from "@/plugins/compose/src/hooks/useConversation";
 
 const turn = (id: number, role: ApiMessage["role"], content: string): ApiMessage => ({
@@ -45,6 +49,54 @@ describe("useConversation — loading history", () => {
       ["user", "hello"],
       ["assistant", "hi"],
     ]);
+  });
+});
+
+describe("useConversation — a reply's plan", () => {
+  const shown = {
+    tasks: ["Write the lesson", "Build the activity"],
+    current_step: 1,
+    has_current_step_run: true,
+  };
+
+  it("keeps the plan a reply showed", async () => {
+    vi.mocked(getConversation).mockResolvedValueOnce({
+      messages: [
+        turn(1, "user", "hello"),
+        { ...turn(2, "assistant", "Here is the lesson."), plan: shown },
+      ],
+    } as Awaited<ReturnType<typeof getConversation>>);
+
+    const { result } = renderHook(() => useConversation("conv-plan", "test-token"));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.messages[1].plan).toEqual(shown);
+  });
+
+  it("keeps the plan of a reply that lands after a reload", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(getConversation).mockResolvedValueOnce({
+        messages: [turn(1, "user", "hello")],
+      } as Awaited<ReturnType<typeof getConversation>>);
+      vi.mocked(getLastMessage).mockResolvedValue({
+        ...turn(2, "assistant", "Here is the lesson."),
+        plan: shown,
+      });
+
+      const { result } = renderHook(() => useConversation("conv-plan-reload", "test-token"));
+      // The poll starts once the load has settled; its first round finds the reply.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3_000);
+      });
+
+      expect(result.current.messages.at(-1)?.plan).toEqual(shown);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

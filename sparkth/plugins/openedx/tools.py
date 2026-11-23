@@ -9,6 +9,7 @@ from sparkth.lib.assets import read_asset
 from sparkth.lib.auth import current_user_id
 from sparkth.lib.content.exceptions import (
     ContentBuildError,
+    ContentContributorNotPermittedError,
     ContentContributorUnavailableError,
     ContentPlacementError,
     UnknownContentContributorError,
@@ -762,7 +763,7 @@ async def openedx_list_content_contributors() -> dict[str, dict[str, list[dict[s
     A contributor is a named producer of one course content block, contributed by another
     plugin. Only contributors that build a block for Open edX are listed; one targeting
     another LMS is not offered here, and neither is one whose plugin is switched off for the
-    caller. Pass a name from this list as the `contributor` argument of
+    caller or that the caller may not use. Pass a name from this list as the `contributor` argument of
     `openedx_add_plugin_content`.
 
     A contributor that offers choices lists them as `options`, for example the activities the
@@ -835,7 +836,7 @@ async def openedx_add_plugin_content(payload: AddPluginContentArgs) -> dict[str,
     Returns:
         dict[str, Any]: `{"response": {"locator": <str>, "category": <str>}}`, or
             `{"error": {...}}` when the contributor is unknown, is unavailable because its plugin is
-            switched off for the caller, does not target Open edX, is given an
+            switched off for the caller or the caller may not use it, does not target Open edX, is given an
             `option_id` it offers no options for, is given none when it offers options, or fails
             to build its block, or Studio rejects the request. An error carries `locator` when
             the block was created and only the attribute patch failed: that block exists, is
@@ -848,8 +849,8 @@ async def openedx_add_plugin_content(payload: AddPluginContentArgs) -> dict[str,
             contributor = await enabled_content_contributor(payload.contributor)
         except UnknownContentContributorError as err:
             return {"error": {"message": str(err)}}
-        except ContentContributorUnavailableError as err:
-            logger.info("Refused content contributor %r: its plugin is switched off", payload.contributor)
+        except (ContentContributorUnavailableError, ContentContributorNotPermittedError) as err:
+            logger.info("Refused content contributor %r: %s", payload.contributor, type(err).__name__)
             return {"error": {"message": str(err)}}
 
         builder = contributor.builders.get(OPENEDX_PLUGIN_NAME)

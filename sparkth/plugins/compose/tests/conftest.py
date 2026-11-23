@@ -11,8 +11,8 @@ from sparkth.lib.plugins import SparkthPlugin
 from sparkth.plugins.compose.detached import join_live_tasks
 from sparkth.plugins.compose.tools import get_tool_registry
 
-STUB_AGENT = Agent("stub", "Stub agent", "Stub scope text.", "STUB SECTION")
-OTHER_AGENT = Agent("other", "Other agent", "Other scope text.", "OTHER SECTION")
+STUB_AGENT = Agent("stub", "Stub agent", "Stub scope text.", "STUB SECTION", "Stubbing…")
+OTHER_AGENT = Agent("other", "Other agent", "Other scope text.", "OTHER SECTION", "Othering…")
 
 
 @pytest.fixture(autouse=True)

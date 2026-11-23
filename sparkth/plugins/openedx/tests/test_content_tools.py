@@ -450,3 +450,34 @@ async def test_a_contributor_whose_plugin_the_user_switched_off_is_refused_and_c
     create.assert_not_awaited()
     cast(AsyncMock, user_switched_off_contributor.builders["openedx"]).assert_not_awaited()
     cast(AsyncMock, user_switched_off_contributor.callback).assert_not_awaited()
+
+
+@pytest.fixture
+async def unpermitted_contributor(session: AsyncSession, owners: list[SparkthPlugin]) -> ContentContributor:
+    """A contributor of a plugin the bound user holds no ``plugin.use`` grant at."""
+    contributor = ContentContributor(
+        "unpermitted",
+        "A contributor whose plugin the user may not use",
+        {"openedx": AsyncMock(wraps=build_fake)},
+        AsyncMock(wraps=list_fake_options),
+        AsyncMock(wraps=record_off_placement),
+    )
+    _register(owners, contributor, "unpermitted-owner")
+    session.add(User(id=1, name="U", username="u", email="u@example.com", hashed_password="x"))
+    await session.commit()
+    bind_current_user_id(1)
+    return contributor
+
+
+async def test_a_contributor_whose_plugin_the_user_may_not_use_is_refused_and_creates_nothing(
+    unpermitted_contributor: ContentContributor,
+) -> None:
+    with patch("sparkth.plugins.openedx.tools.create_basic_component", new=AsyncMock()) as create:
+        result = await openedx_add_plugin_content(add_args("unpermitted", "first"))
+
+    assert result == {
+        "error": {"message": "Content contributor 'unpermitted' is unavailable: you may not use its plugin"}
+    }
+    create.assert_not_awaited()
+    cast(AsyncMock, unpermitted_contributor.builders["openedx"]).assert_not_awaited()
+    cast(AsyncMock, unpermitted_contributor.callback).assert_not_awaited()
