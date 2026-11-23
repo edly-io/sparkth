@@ -1500,13 +1500,13 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List User Plugins
+         * List Plugins
          * @description List the plugins the current user may use, with their enabled status.
          *
          *     Returns each usable plugin and whether it is enabled or disabled,
          *     and pre-populates the config with keys from the plugin's schema.
          */
-        get: operations["list_user_plugins_api_v1_user_plugins__get"];
+        get: operations["list_plugins_api_v1_user_plugins__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1523,20 +1523,20 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get User Plugin
+         * Get Plugin
          * @description Get the status and configuration of a specific plugin for the current user.
          */
-        get: operations["get_user_plugin_api_v1_user_plugins__plugin_name__get"];
+        get: operations["get_plugin_api_v1_user_plugins__plugin_name__get"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
         /**
-         * Update User Plugin
+         * Update Plugin
          * @description Enable or disable a plugin for the current user.
          */
-        patch: operations["update_user_plugin_api_v1_user_plugins__plugin_name__patch"];
+        patch: operations["update_plugin_api_v1_user_plugins__plugin_name__patch"];
         trace?: never;
     };
     "/api/v1/user-plugins/{plugin_name}/config": {
@@ -1548,12 +1548,12 @@ export interface paths {
         };
         get?: never;
         /**
-         * Update User Plugin Config
+         * Update Plugin Config
          * @description Update configuration for a plugin for the current user.
          *
          *     This allows users to customize plugin-specific settings.
          */
-        put: operations["update_user_plugin_config_api_v1_user_plugins__plugin_name__config_put"];
+        put: operations["update_plugin_config_api_v1_user_plugins__plugin_name__config_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1571,10 +1571,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Create User Plugin
-         * @description Create a user plugin with validated configuration.
+         * Configure Plugin
+         * @description Save the calling user's first configuration for a plugin, after validating it.
          */
-        post: operations["create_user_plugin_api_v1_user_plugins__plugin_name__configure_post"];
+        post: operations["configure_plugin_api_v1_user_plugins__plugin_name__configure_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1595,12 +1595,12 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Disable User Plugin
+         * Disable Plugin
          * @description Disable a plugin for the current user.
          *
          *     Convenience endpoint for disabling a plugin.
          */
-        patch: operations["disable_user_plugin_api_v1_user_plugins__plugin_name__disable_patch"];
+        patch: operations["disable_plugin_api_v1_user_plugins__plugin_name__disable_patch"];
         trace?: never;
     };
     "/api/v1/user-plugins/{plugin_name}/enable": {
@@ -1617,12 +1617,12 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Enable User Plugin
+         * Enable Plugin
          * @description Enable a plugin for the current user.
          *
          *     Convenience endpoint for enabling a plugin.
          */
-        patch: operations["enable_user_plugin_api_v1_user_plugins__plugin_name__enable_patch"];
+        patch: operations["enable_plugin_api_v1_user_plugins__plugin_name__enable_patch"];
         trace?: never;
     };
     "/api/v1/user/me": {
@@ -2738,6 +2738,16 @@ export interface components {
             name: string;
         };
         /**
+         * PluginConfigRequest
+         * @description Request model for updating the calling user's plugin configuration.
+         */
+        PluginConfigRequest: {
+            /** Config */
+            config: {
+                [key: string]: unknown;
+            };
+        };
+        /**
          * PluginResponse
          * @description Response model for one plugin as the calling user sees it.
          *
@@ -2994,10 +3004,10 @@ export interface components {
             name: string;
         };
         /**
-         * UpdateUserPluginRequest
-         * @description Request model for updating user plugin state.
+         * UpdatePluginRequest
+         * @description Request model for turning a plugin on or off for the calling user.
          */
-        UpdateUserPluginRequest: {
+        UpdatePluginRequest: {
             /** Enabled */
             enabled: boolean;
         };
@@ -3053,16 +3063,6 @@ export interface components {
             password: string;
             /** Username */
             username: string;
-        };
-        /**
-         * UserPluginConfigRequest
-         * @description Request model for updating user plugin configuration.
-         */
-        UserPluginConfigRequest: {
-            /** Config */
-            config: {
-                [key: string]: unknown;
-            };
         };
         /**
          * UserUpdate
@@ -5616,7 +5616,7 @@ export interface operations {
             };
         };
     };
-    list_user_plugins_api_v1_user_plugins__get: {
+    list_plugins_api_v1_user_plugins__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -5636,7 +5636,7 @@ export interface operations {
             };
         };
     };
-    get_user_plugin_api_v1_user_plugins__plugin_name__get: {
+    get_plugin_api_v1_user_plugins__plugin_name__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -5667,7 +5667,7 @@ export interface operations {
             };
         };
     };
-    update_user_plugin_api_v1_user_plugins__plugin_name__patch: {
+    update_plugin_api_v1_user_plugins__plugin_name__patch: {
         parameters: {
             query?: never;
             header?: never;
@@ -5678,7 +5678,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["UpdateUserPluginRequest"];
+                "application/json": components["schemas"]["UpdatePluginRequest"];
             };
         };
         responses: {
@@ -5702,7 +5702,7 @@ export interface operations {
             };
         };
     };
-    update_user_plugin_config_api_v1_user_plugins__plugin_name__config_put: {
+    update_plugin_config_api_v1_user_plugins__plugin_name__config_put: {
         parameters: {
             query?: never;
             header?: never;
@@ -5713,7 +5713,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["UserPluginConfigRequest"];
+                "application/json": components["schemas"]["PluginConfigRequest"];
             };
         };
         responses: {
@@ -5737,7 +5737,7 @@ export interface operations {
             };
         };
     };
-    create_user_plugin_api_v1_user_plugins__plugin_name__configure_post: {
+    configure_plugin_api_v1_user_plugins__plugin_name__configure_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -5774,7 +5774,7 @@ export interface operations {
             };
         };
     };
-    disable_user_plugin_api_v1_user_plugins__plugin_name__disable_patch: {
+    disable_plugin_api_v1_user_plugins__plugin_name__disable_patch: {
         parameters: {
             query?: never;
             header?: never;
@@ -5805,7 +5805,7 @@ export interface operations {
             };
         };
     };
-    enable_user_plugin_api_v1_user_plugins__plugin_name__enable_patch: {
+    enable_plugin_api_v1_user_plugins__plugin_name__enable_patch: {
         parameters: {
             query?: never;
             header?: never;
