@@ -21,7 +21,7 @@ const nextConfig: NextConfig = {
     : {
         // `trailingSlash: true` would otherwise force/normalize trailing slashes on
         // proxied /api calls, but the backend has mixed conventions (collection
-        // routes need the trailing slash, e.g. /api/v1/user-plugins/, while
+        // routes need the trailing slash, e.g. /api/v1/plugins/, while
         // sub-resource routes must NOT have one). Skip the redirect in dev so the
         // rewrite forwards each /api path to the backend exactly as the client sent it.
         skipTrailingSlashRedirect: true,

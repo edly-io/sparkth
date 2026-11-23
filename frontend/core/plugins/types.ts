@@ -96,6 +96,3 @@ export interface PluginDefinition {
  * backend plugin declared through the frontend hooks.
  */
 export type PluginState = Schema<"PluginResponse">;
-
-/** The old name, kept until every caller uses PluginState. */
-export type UserPluginState = PluginState;

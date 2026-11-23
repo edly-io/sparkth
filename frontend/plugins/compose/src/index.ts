@@ -14,7 +14,7 @@ const messageCatalogs: Record<Locale, () => Promise<{ default: Record<string, un
 };
 
 // Display name, description, icon, and sidebar entry are declared by the
-// backend ComposePlugin and arrive via the user-plugins API.
+// backend ComposePlugin and arrive via the plugins API.
 export const compose: PluginDefinition = {
   name: COMPOSE_PLUGIN_NAME,
   loadComponent: () => import("@/plugins/compose/src/pages/Compose"),

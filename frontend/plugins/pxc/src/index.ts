@@ -14,7 +14,7 @@ const messageCatalogs: Record<Locale, () => Promise<{ default: Record<string, un
 };
 
 // Display name, description, icon, and sidebar entry are declared by the
-// backend PxcPlugin and arrive via the user-plugins API.
+// backend PxcPlugin and arrive via the plugins API.
 export const pxc: PluginDefinition = {
   name: PXC_PLUGIN_NAME,
   loadComponent: () => import("@/plugins/pxc/src/pages/PxcActivities"),
