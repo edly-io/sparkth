@@ -10,7 +10,7 @@ const nav = vi.hoisted(() => ({ pathname: "/dashboard" }));
 // component renders in isolation.
 vi.mock("next/navigation", () => ({ usePathname: () => nav.pathname }));
 vi.mock("@/core/plugins/context", () => ({
-  usePluginContext: () => ({ userPlugins: [], loading: false }),
+  usePluginContext: () => ({ plugins: [], loading: false }),
 }));
 
 describe("AppSidebar permission-gated links", () => {

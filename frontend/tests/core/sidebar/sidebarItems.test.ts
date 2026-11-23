@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 
 import { sidebarItemsFrom } from "@/core/sidebar/sidebarItems";
-import type { UserPluginState } from "@/core/plugins/types";
+import type { PluginState } from "@/core/plugins/types";
 
-function state(overrides: Partial<UserPluginState> & { plugin_name: string }): UserPluginState {
+function state(overrides: Partial<PluginState> & { plugin_name: string }): PluginState {
   return {
     enabled: true,
     config: {},

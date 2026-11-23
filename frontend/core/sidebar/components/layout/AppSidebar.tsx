@@ -54,8 +54,8 @@ export default function AppSidebar({
   onToggleCollapse,
 }: AppSidebarProps) {
   const pathname = usePathname();
-  const { userPlugins, loading } = usePluginContext();
-  const sidebarItems = sidebarItemsFrom(userPlugins);
+  const { plugins, loading } = usePluginContext();
+  const sidebarItems = sidebarItemsFrom(plugins);
 
   const isCollapsedDesktop = isCollapsed && variant === "desktop";
 
