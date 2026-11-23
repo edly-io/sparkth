@@ -23,8 +23,8 @@ positionally::
 Icons cross the wire as `lucide <https://lucide.dev/icons/>`_ icon names, never
 as components; the frontend resolves names to components.
 
-The declarations are exposed read-only on the user-plugins API (``display``,
-``sidebar``, and ``has_frontend`` on ``UserPluginResponse``), so the frontend
+The declarations are exposed read-only on the plugins API (``display``,
+``sidebar``, and ``has_frontend`` on ``PluginResponse``), so the frontend
 renders what the backend declares instead of keeping its own copy.
 """
 

@@ -155,8 +155,8 @@ class PluginDisabledError(Exception):
     pass
 
 
-class UserPluginResponse(pydantic.BaseModel):
-    """Response model for user plugin information.
+class PluginResponse(pydantic.BaseModel):
+    """Response model for one plugin as the calling user sees it.
 
     ``display``, ``sidebar``, and ``has_frontend`` carry the read-only
     frontend-facing metadata the plugin declared through the
@@ -191,7 +191,7 @@ class UserPluginResponse(pydantic.BaseModel):
         config: dict[str, Any],
         is_core: bool,
         config_schema: dict[str, Any] | None = None,
-    ) -> "UserPluginResponse":
+    ) -> "PluginResponse":
         """Build a response carrying the frontend metadata declared for ``plugin_name``.
 
         The declared display and sidebar strings are ``gettext_noop``-marked
@@ -529,7 +529,7 @@ class PluginService:
         user_config: dict[str, Any],
     ) -> UserPluginPreference:
         if plugin.id is None:
-            raise InternalServerError("Plugin must be persisted before creating user plugin")
+            raise InternalServerError("Plugin must be persisted before saving a preference for it")
 
         preference = await self.get_preference(
             session,

@@ -2752,6 +2752,61 @@ export interface components {
             tasks: string[];
         };
         /**
+         * PluginResponse
+         * @description Response model for one plugin as the calling user sees it.
+         *
+         *     ``display``, ``sidebar``, and ``has_frontend`` carry the read-only
+         *     frontend-facing metadata the plugin declared through the
+         *     ``sparkth.lib.frontend`` hooks; build responses with :meth:`for_plugin`
+         *     so they are always populated.
+         *
+         *     ``config_schema`` is the plugin's declared JSON schema, which the settings
+         *     UI renders its form from -- field types, labels, defaults, and the widget
+         *     hints a plugin sets through ``json_schema_extra``. It is empty for a plugin
+         *     that registered no config class.
+         *
+         *     ``config`` never carries a field marked ``secret()``; ``secrets_set`` names the ones stored,
+         *     and ``masked_secrets`` maps each stored ``secret(masked=True)`` field to its masked value.
+         */
+        PluginResponse: {
+            /** Config */
+            config: {
+                [key: string]: unknown;
+            };
+            /**
+             * Config Schema
+             * @default {}
+             */
+            config_schema: {
+                [key: string]: unknown;
+            };
+            display?: components["schemas"]["DisplayInfo"] | null;
+            /** Enabled */
+            enabled: boolean;
+            /**
+             * Has Frontend
+             * @default false
+             */
+            has_frontend: boolean;
+            /** Is Core */
+            is_core: boolean;
+            /**
+             * Masked Secrets
+             * @default {}
+             */
+            masked_secrets: {
+                [key: string]: string;
+            };
+            /** Plugin Name */
+            plugin_name: string;
+            /**
+             * Secrets Set
+             * @default []
+             */
+            secrets_set: string[];
+            sidebar?: components["schemas"]["SidebarEntry"] | null;
+        };
+        /**
          * PreviewPermission
          * @description The permissions an author may preview their own activity under.
          * @enum {string}
@@ -3022,61 +3077,6 @@ export interface components {
             config: {
                 [key: string]: unknown;
             };
-        };
-        /**
-         * UserPluginResponse
-         * @description Response model for user plugin information.
-         *
-         *     ``display``, ``sidebar``, and ``has_frontend`` carry the read-only
-         *     frontend-facing metadata the plugin declared through the
-         *     ``sparkth.lib.frontend`` hooks; build responses with :meth:`for_plugin`
-         *     so they are always populated.
-         *
-         *     ``config_schema`` is the plugin's declared JSON schema, which the settings
-         *     UI renders its form from -- field types, labels, defaults, and the widget
-         *     hints a plugin sets through ``json_schema_extra``. It is empty for a plugin
-         *     that registered no config class.
-         *
-         *     ``config`` never carries a field marked ``secret()``; ``secrets_set`` names the ones stored,
-         *     and ``masked_secrets`` maps each stored ``secret(masked=True)`` field to its masked value.
-         */
-        UserPluginResponse: {
-            /** Config */
-            config: {
-                [key: string]: unknown;
-            };
-            /**
-             * Config Schema
-             * @default {}
-             */
-            config_schema: {
-                [key: string]: unknown;
-            };
-            display?: components["schemas"]["DisplayInfo"] | null;
-            /** Enabled */
-            enabled: boolean;
-            /**
-             * Has Frontend
-             * @default false
-             */
-            has_frontend: boolean;
-            /** Is Core */
-            is_core: boolean;
-            /**
-             * Masked Secrets
-             * @default {}
-             */
-            masked_secrets: {
-                [key: string]: string;
-            };
-            /** Plugin Name */
-            plugin_name: string;
-            /**
-             * Secrets Set
-             * @default []
-             */
-            secrets_set: string[];
-            sidebar?: components["schemas"]["SidebarEntry"] | null;
         };
         /**
          * UserUpdate
@@ -5645,7 +5645,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserPluginResponse"][];
+                    "application/json": components["schemas"]["PluginResponse"][];
                 };
             };
         };
@@ -5667,7 +5667,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserPluginResponse"];
+                    "application/json": components["schemas"]["PluginResponse"];
                 };
             };
             /** @description Validation Error */
@@ -5702,7 +5702,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserPluginResponse"];
+                    "application/json": components["schemas"]["PluginResponse"];
                 };
             };
             /** @description Validation Error */
@@ -5737,7 +5737,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserPluginResponse"];
+                    "application/json": components["schemas"]["PluginResponse"];
                 };
             };
             /** @description Validation Error */
@@ -5774,7 +5774,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserPluginResponse"];
+                    "application/json": components["schemas"]["PluginResponse"];
                 };
             };
             /** @description Validation Error */
@@ -5805,7 +5805,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserPluginResponse"];
+                    "application/json": components["schemas"]["PluginResponse"];
                 };
             };
             /** @description Validation Error */
@@ -5836,7 +5836,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserPluginResponse"];
+                    "application/json": components["schemas"]["PluginResponse"];
                 };
             };
             /** @description Validation Error */

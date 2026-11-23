@@ -13,8 +13,8 @@ from sparkth.core.plugins.service import (
     ConfigValidationError,
     InternalServerError,
     PluginDisabledError,
+    PluginResponse,
     PluginService,
-    UserPluginResponse,
     get_plugin_service,
 )
 from sparkth.lib.auth import get_current_user
@@ -45,13 +45,13 @@ def validate_plugin(plugin: Plugin) -> None:
         )
 
 
-@router.get("/", response_model=list[UserPluginResponse])
+@router.get("/", response_model=list[PluginResponse])
 async def list_user_plugins(
     usable_plugin_names: set[str] | None = Depends(get_usable_plugin_names),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
     plugin_service: PluginService = Depends(get_plugin_service),
-) -> list[UserPluginResponse]:
+) -> list[PluginResponse]:
     """
     List the plugins the current user may use, with their enabled status.
 
@@ -66,7 +66,7 @@ async def list_user_plugins(
 
     all_plugins = await plugin_service.get_all(session)
     preference_map = await plugin_service.get_preference_map(session, current_user.id)
-    result: list[UserPluginResponse] = []
+    result: list[PluginResponse] = []
 
     for plugin in all_plugins:
         if usable_plugin_names is not None and plugin.name not in usable_plugin_names:
@@ -84,7 +84,7 @@ async def list_user_plugins(
         )
 
         result.append(
-            UserPluginResponse.for_plugin(
+            PluginResponse.for_plugin(
                 plugin_name=plugin.name,
                 enabled=preference.enabled if preference else True,
                 config=safe_config,
@@ -97,7 +97,7 @@ async def list_user_plugins(
 
 @router.post(
     "/{plugin_name}/configure",
-    response_model=UserPluginResponse,
+    response_model=PluginResponse,
     dependencies=[Depends(require_plugin_use)],
     status_code=status.HTTP_201_CREATED,
 )
@@ -107,7 +107,7 @@ async def create_user_plugin(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
     plugin_service: PluginService = Depends(get_plugin_service),
-) -> UserPluginResponse:
+) -> PluginResponse:
     """Create a user plugin with validated configuration."""
     if not current_user.id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=_("User not authenticated."))
@@ -137,7 +137,7 @@ async def create_user_plugin(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(err)) from err
 
     safe_config = await PluginService.apply_postprocess(plugin_name, session, current_user.id, preference.config)
-    return UserPluginResponse.for_plugin(
+    return PluginResponse.for_plugin(
         plugin_name=plugin.name,
         enabled=preference.enabled,
         config=safe_config,
@@ -146,13 +146,13 @@ async def create_user_plugin(
     )
 
 
-@router.get("/{plugin_name}", response_model=UserPluginResponse, dependencies=[Depends(require_plugin_use)])
+@router.get("/{plugin_name}", response_model=PluginResponse, dependencies=[Depends(require_plugin_use)])
 async def get_user_plugin(
     plugin_name: str,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
     plugin_service: PluginService = Depends(get_plugin_service),
-) -> UserPluginResponse:
+) -> PluginResponse:
     """
     Get the status and configuration of a specific plugin for the current user.
     """
@@ -168,7 +168,7 @@ async def get_user_plugin(
             current_user.id,  # type: ignore[arg-type]
             config,
         )
-        return UserPluginResponse.for_plugin(
+        return PluginResponse.for_plugin(
             plugin_name=plugin_name,
             enabled=preference.enabled,
             config=safe_config,
@@ -176,7 +176,7 @@ async def get_user_plugin(
             config_schema=plugin.config_schema,
         )
     else:
-        return UserPluginResponse.for_plugin(
+        return PluginResponse.for_plugin(
             plugin_name=plugin_name,
             enabled=True,
             config=config,
@@ -185,14 +185,14 @@ async def get_user_plugin(
         )
 
 
-@router.patch("/{plugin_name}", response_model=UserPluginResponse, dependencies=[Depends(require_plugin_use)])
+@router.patch("/{plugin_name}", response_model=PluginResponse, dependencies=[Depends(require_plugin_use)])
 async def update_user_plugin(
     plugin_name: str,
     request: UpdateUserPluginRequest,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
     plugin_service: PluginService = Depends(get_plugin_service),
-) -> UserPluginResponse:
+) -> PluginResponse:
     """
     Enable or disable a plugin for the current user.
     """
@@ -208,7 +208,7 @@ async def update_user_plugin(
         plugin.id,  # type: ignore[arg-type]
         request.enabled,
     )
-    return UserPluginResponse.for_plugin(
+    return PluginResponse.for_plugin(
         plugin_name=plugin_name,
         enabled=preference.enabled,
         config=PluginService.config_with_schema_keys(plugin.config_schema, preference.config),
@@ -217,14 +217,14 @@ async def update_user_plugin(
     )
 
 
-@router.put("/{plugin_name}/config", response_model=UserPluginResponse, dependencies=[Depends(require_plugin_use)])
+@router.put("/{plugin_name}/config", response_model=PluginResponse, dependencies=[Depends(require_plugin_use)])
 async def update_user_plugin_config(
     plugin_name: str,
     request: UserPluginConfigRequest,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
     plugin_service: PluginService = Depends(get_plugin_service),
-) -> UserPluginResponse:
+) -> PluginResponse:
     """
     Update configuration for a plugin for the current user.
 
@@ -251,7 +251,7 @@ async def update_user_plugin_config(
     await PluginService.apply_cache_sync(plugin_name, session, current_user.id, preference.config)
 
     safe_config = await PluginService.apply_postprocess(plugin_name, session, current_user.id, preference.config)
-    return UserPluginResponse.for_plugin(
+    return PluginResponse.for_plugin(
         plugin_name=plugin_name,
         enabled=preference.enabled,
         config=safe_config,
@@ -260,13 +260,13 @@ async def update_user_plugin_config(
     )
 
 
-@router.patch("/{plugin_name}/enable", response_model=UserPluginResponse, dependencies=[Depends(require_plugin_use)])
+@router.patch("/{plugin_name}/enable", response_model=PluginResponse, dependencies=[Depends(require_plugin_use)])
 async def enable_user_plugin(
     plugin_name: str,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
     plugin_service: PluginService = Depends(get_plugin_service),
-) -> UserPluginResponse:
+) -> PluginResponse:
     """
     Enable a plugin for the current user.
 
@@ -281,13 +281,13 @@ async def enable_user_plugin(
     )
 
 
-@router.patch("/{plugin_name}/disable", response_model=UserPluginResponse, dependencies=[Depends(require_plugin_use)])
+@router.patch("/{plugin_name}/disable", response_model=PluginResponse, dependencies=[Depends(require_plugin_use)])
 async def disable_user_plugin(
     plugin_name: str,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
     plugin_service: PluginService = Depends(get_plugin_service),
-) -> UserPluginResponse:
+) -> PluginResponse:
     """
     Disable a plugin for the current user.
 

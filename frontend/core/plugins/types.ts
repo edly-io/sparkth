@@ -95,4 +95,4 @@ export interface PluginDefinition {
  * `display`, `sidebar`, and `has_frontend` carry the read-only metadata the
  * backend plugin declared through the frontend hooks.
  */
-export type UserPluginState = Schema<"UserPluginResponse">;
+export type UserPluginState = Schema<"PluginResponse">;

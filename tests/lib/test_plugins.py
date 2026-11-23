@@ -32,7 +32,7 @@ class TestPluginsPublicApi:
             "ConfigValidationError",
             "InternalServerError",
             "PluginDisabledError",
-            "UserPluginResponse",
+            "PluginResponse",
             "disabled_plugin_names",
             "get_disabled_plugins",
             "load_plugin_config",
