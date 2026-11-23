@@ -12,6 +12,7 @@ import pytest
 from langchain_core.messages import AIMessage
 from pydantic import Field
 
+from sparkth.core.i18n import locale_context
 from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME
 from sparkth.lib.llm import get_provider
 from sparkth.lib.mcp.hooks import Tool
@@ -21,10 +22,11 @@ from sparkth.lib.rag import (
     RAGRetrievalError,
     RetrievedChunk,
 )
-from sparkth.lib.testing import ScriptedChatModel
+from sparkth.lib.testing import AddTranslation, ScriptedChatModel
 from sparkth.plugins.compose.analytics import StopPoint
 from sparkth.plugins.compose.constants import SSE_HEARTBEAT
 from sparkth.plugins.compose.planner import ExistingPlan, PlannedStep
+from sparkth.plugins.compose.planner.types import PlanSnapshot
 from sparkth.plugins.compose.routes.utils.live_turns import claim_conversation, release_conversation, request_stop
 from sparkth.plugins.compose.routes.utils.stream_processor import ComposeStreamProcessor
 from sparkth.plugins.compose.schemas import ChatMessage
@@ -106,7 +108,7 @@ def _make_processor(
         tools=None,
         user_id=user_id,
         turn_id=turn_id,
-        **{**handing_off_to(replace(STUB_AGENT, tools=agent_tools)), "existing_plan": existing_plan},
+        planner_setup=replace(handing_off_to(replace(STUB_AGENT, tools=agent_tools)), existing_plan=existing_plan),
     )
 
 
@@ -276,6 +278,17 @@ async def _failing_after_a_step(
     yield routed(STUB_AGENT.name)
     yield {"type": "token", "content": "Here is the lesson."}
     yield routed(OTHER_AGENT.name)
+    raise httpx.RemoteProtocolError("connection reset by peer")
+
+
+async def _failing_in_a_planned_step(
+    messages: list[dict[str, Any]], tools: Sequence[Any], provider: Any, max_tool_executions: int, **planner: Any
+) -> AsyncGenerator[dict[str, Any], None]:
+    """The first step of a plan, whose model provider fails after it has written some of its reply."""
+    yield shown_plan(TWO_STEPS)
+    yield plan_step(1, ran=False)
+    yield routed(STUB_AGENT.name)
+    yield {"type": "token", "content": "Here is the lesson."}
     raise httpx.RemoteProtocolError("connection reset by peer")
 
 
@@ -616,9 +629,103 @@ class TestCollectStreamResponse:
 # A plan of two steps, as a turn makes it and as an earlier message left it with its first step in progress.
 TWO_STEPS = (PlannedStep(STUB_AGENT.name, "Write the lesson"), PlannedStep(OTHER_AGENT.name, "Build the activity"))
 FIRST_IN_PROGRESS = ExistingPlan(TWO_STEPS, current_step=1)
+TWO_TASKS = [step.task for step in TWO_STEPS]
+
+
+class TestAStepsStatus:
+    @pytest.mark.asyncio
+    async def test_the_author_is_told_what_each_step_is_doing_in_their_language(
+        self, monkeypatch: pytest.MonkeyPatch, translation_catalog: AddTranslation
+    ) -> None:
+        translation_catalog(STUB_AGENT.status, "Preparando…")
+        events = [
+            {**routed(STUB_AGENT.name), "status": STUB_AGENT.status},
+            {"type": "token", "content": "Here is the lesson."},
+        ]
+        monkeypatch.setattr(STREAM_TURN, partial(replay_turn, events))
+        processor = _make_processor()
+
+        with locale_context("es"):
+            payloads = [json.loads(chunk.removeprefix("data: ")) async for chunk in processor.stream()]
+
+        assert {"status": "step", "step_status": "Preparando…", "done": False} in payloads
+
+    @pytest.mark.asyncio
+    async def test_a_refusal_announces_no_step(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        events: list[dict[str, Any]] = [
+            routed(None),
+            {"type": "token", "content": "I can only help with courses."},
+        ]
+        monkeypatch.setattr(STREAM_TURN, partial(replay_turn, events))
+        processor = _make_processor()
+
+        payloads = [json.loads(chunk.removeprefix("data: ")) async for chunk in processor.stream()]
+
+        assert not any(payload.get("status") == "step" for payload in payloads)
 
 
 class TestAPlannedTurn:
+    @pytest.mark.asyncio
+    async def test_the_author_is_sent_the_plan_as_it_moves(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        events: list[dict[str, Any]] = [
+            shown_plan(TWO_STEPS),
+            plan_step(1, ran=False),
+            routed(STUB_AGENT.name),
+            {"type": "token", "content": "Who are your learners?"},
+            plan_step(1, ran=True),
+        ]
+        monkeypatch.setattr(STREAM_TURN, partial(replay_turn, events))
+        processor = _make_processor()
+
+        payloads = [json.loads(chunk.removeprefix("data: ")) async for chunk in processor.stream()]
+
+        assert [payload["plan"] for payload in payloads if payload.get("status") == "plan"] == [
+            {"tasks": TWO_TASKS, "current_step": 0, "has_current_step_run": False},
+            {"tasks": TWO_TASKS, "current_step": 1, "has_current_step_run": False},
+            {"tasks": TWO_TASKS, "current_step": 1, "has_current_step_run": True},
+        ]
+
+    @pytest.mark.asyncio
+    async def test_the_reply_keeps_the_plan_it_showed_once_finished(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        events: list[dict[str, Any]] = [
+            plan_step(2, ran=False),
+            routed(OTHER_AGENT.name),
+            {"type": "token", "content": "Done."},
+            plan_step(2, ran=True),
+        ]
+        monkeypatch.setattr(STREAM_TURN, partial(replay_turn, events))
+        processor = _make_processor(existing_plan=FIRST_IN_PROGRESS)
+
+        payloads = [json.loads(chunk.removeprefix("data: ")) async for chunk in processor.stream()]
+
+        finished = PlanSnapshot(tuple(TWO_TASKS), current_step=2, has_current_step_run=True)
+        metadata = _stored_replies(processor)[-1]["metadata"]
+        assert (metadata["plan_snapshot"], "plan" in metadata) == (asdict(finished), False)
+        assert payloads[-1]["message"]["plan"] == {"tasks": TWO_TASKS, "current_step": 2, "has_current_step_run": True}
+
+    @pytest.mark.asyncio
+    async def test_a_reply_that_did_not_carry_on_the_plan_shows_no_plan(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        events = [routed(STUB_AGENT.name), {"type": "token", "content": "Here is a quiz instead."}]
+        monkeypatch.setattr(STREAM_TURN, partial(replay_turn, events))
+        processor = _make_processor(existing_plan=FIRST_IN_PROGRESS)
+
+        payloads = [json.loads(chunk.removeprefix("data: ")) async for chunk in processor.stream()]
+
+        assert "plan_snapshot" not in _stored_replies(processor)[-1]["metadata"]
+        assert payloads[-1]["message"]["plan"] is None
+
+    @pytest.mark.asyncio
+    async def test_a_failed_turn_keeps_the_plan_its_partial_reply_showed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(STREAM_TURN, _failing_in_a_planned_step)
+        processor = _make_processor()
+
+        async for _ in processor.stream():
+            pass
+
+        written, _error = _stored_replies(processor)
+        expected = PlanSnapshot(tuple(TWO_TASKS), current_step=1, has_current_step_run=False)
+        assert written["metadata"]["plan_snapshot"] == asdict(expected)
+
     @pytest.mark.asyncio
     async def test_the_reply_keeps_a_plan_the_turn_left_unfinished(self, monkeypatch: pytest.MonkeyPatch) -> None:
         events: list[dict[str, Any]] = [

@@ -1,4 +1,5 @@
-"""What a turn starts with: every enabled agent, and every requested tool whose plugin is on.
+"""What a turn starts with: every enabled agent, and every requested tool whose plugin is on,
+of the plugins the caller may use.
 
 Each agent then runs with only the tools it names.
 """
@@ -20,7 +21,10 @@ from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.llm import small_model_for
 from sparkth.lib.models import LLMConfig, User
+from sparkth.lib.permissions import PLUGIN_USE, PLUGIN_USER_ROLE, assign_role, revoke_role
+from sparkth.lib.permissions.scopes import GLOBAL, PLUGIN
 from sparkth.lib.settings import get_settings
+from sparkth.lib.testing import AuditEventsFetcher
 from sparkth.main import app
 from sparkth.plugins.compose.config import ComposeSettings, get_compose_settings
 from sparkth.plugins.compose.constants import REFUSAL_MESSAGE
@@ -93,6 +97,9 @@ def _lms_registry() -> MagicMock:
         _tool("canvas_create_course"),
         _tool("stub_build"),
     ]
+    registry.get_tools_by_names.side_effect = lambda names: [
+        tool for tool in registry.get_all_tools.return_value if tool.name in names
+    ]
     return registry
 
 
@@ -119,7 +126,7 @@ async def _turn(
     client: AsyncClient,
     config_id: int,
     conversation_uuid: str | None = None,
-    tools: str = "none",
+    tools: str | list[str] = "none",
     stream: bool = False,
 ) -> Any:
     body: dict[str, Any] = {
@@ -182,7 +189,7 @@ class TestAnUnfinishedPlan:
             await _turn(client, config_id, conversation_uuid)
             await _turn(client, config_id, conversation_uuid)
 
-        assert [call.kwargs["existing_plan"] for call in turn.await_args_list] == [None, plan]
+        assert [call.kwargs["planner_setup"].existing_plan for call in turn.await_args_list] == [None, plan]
 
 
 class TestOneAssistantPerTurn:
@@ -470,7 +477,7 @@ class TestPluginSwitches:
         complete_turn, get_provider = await self._lms_turn(client, session, current_user.id or 1, True, True)
 
         assert _bound_tool_names(complete_turn) == ["openedx_create_xblock", "canvas_create_course", "stub_build"]
-        assert stub_agent in complete_turn.await_args_list[-1].kwargs["agents"]
+        assert stub_agent in complete_turn.await_args_list[-1].kwargs["planner_setup"].agents
 
     async def test_no_turn_sends_lms_settings_to_the_model(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
@@ -478,7 +485,7 @@ class TestPluginSwitches:
         complete_turn, _ = await self._lms_turn(client, session, current_user.id or 1, True, True)
 
         call = complete_turn.await_args_list[-1]
-        agents = call.kwargs["agents"]
+        agents = call.kwargs["planner_setup"].agents
         prompts = [
             render_planner_prompt(agents, operations=True, existing_plan=None),
             *(render_system_prompt([agent]) for agent in agents),
@@ -486,3 +493,127 @@ class TestPluginSwitches:
         sent = [str(call.args[0]), *prompts]
         for value in (*OPENEDX_CONFIG.values(), *CANVAS_CONFIG.values()):
             assert not any(value in text for text in sent)
+
+
+async def _limit_plugin_use(session: AsyncSession, user_id: int, *plugin_names: str) -> None:
+    """Let the user use Compose and the named plugins only."""
+    await revoke_role(user_id, PLUGIN_USER_ROLE, GLOBAL, None, session)
+    for plugin_name in ("compose", *plugin_names):
+        await assign_role(user_id, PLUGIN_USER_ROLE, PLUGIN, plugin_name, session)
+    await session.commit()
+
+
+async def _plugin_use_denials(audit_events: AuditEventsFetcher) -> list[tuple[str | None, str | None]]:
+    """The actor id and scope of each ``plugin.use`` denial recorded so far."""
+    return [
+        (event.actor_id, event.error_detail)
+        for event in await audit_events()
+        if (event.category, event.action, event.target_id) == ("permission", "denied", PLUGIN_USE.name)
+    ]
+
+
+class TestPluginUsePermission:
+    """A turn leaves out the tools and the agent of a plugin its caller may not use."""
+
+    async def _lms_turn(
+        self, client: AsyncClient, session: AsyncSession, user_id: int, tools: str | list[str] = "*"
+    ) -> AsyncMock:
+        config_id = await _seed_llm_config(session, user_id)
+        conversation_uuid = await _seed_conversation(session, user_id)
+        registry = _lms_registry()
+        with (
+            patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()),
+            patch("sparkth.plugins.compose.routes.completions.get_tool_registry", return_value=registry),
+            patch("sparkth.plugins.compose.routes.completions.complete_turn", new=_turn_answer()) as complete_turn,
+        ):
+            await _turn(client, config_id, conversation_uuid, tools)
+        return complete_turn
+
+    async def test_a_plugin_the_caller_may_not_use_binds_none_of_its_tools(
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
+    ) -> None:
+        await _limit_plugin_use(session, current_user.id or 1, "openedx")
+
+        complete_turn = await self._lms_turn(client, session, current_user.id or 1)
+
+        assert _bound_tool_names(complete_turn) == ["openedx_create_xblock"]
+
+    async def test_a_plugin_the_caller_may_not_use_offers_no_agent(
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent, other_agent: Agent
+    ) -> None:
+        await _limit_plugin_use(session, current_user.id or 1, "other")
+
+        complete_turn = await self._lms_turn(client, session, current_user.id or 1)
+
+        agents = complete_turn.await_args_list[-1].kwargs["planner_setup"].agents
+        assert other_agent in agents
+        assert stub_agent not in agents
+
+    async def test_a_caller_who_may_use_every_plugin_is_offered_every_agent(
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent, other_agent: Agent
+    ) -> None:
+        complete_turn = await self._lms_turn(client, session, current_user.id or 1)
+
+        agents = complete_turn.await_args_list[-1].kwargs["planner_setup"].agents
+        assert other_agent in agents
+        assert stub_agent in agents
+
+    async def test_a_turn_asking_for_every_tool_records_no_denial(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+        stub_agent: Agent,
+        audit_events: AuditEventsFetcher,
+    ) -> None:
+        await _limit_plugin_use(session, current_user.id or 1, "openedx")
+
+        await self._lms_turn(client, session, current_user.id or 1)
+
+        assert await _plugin_use_denials(audit_events) == []
+
+    async def test_a_tool_named_from_a_plugin_the_caller_may_not_use_is_recorded_by_the_caller(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+        stub_agent: Agent,
+        audit_events: AuditEventsFetcher,
+    ) -> None:
+        await _limit_plugin_use(session, current_user.id or 1, "openedx")
+
+        complete_turn = await self._lms_turn(
+            client, session, current_user.id or 1, ["canvas_create_course", "openedx_create_xblock"]
+        )
+
+        assert _bound_tool_names(complete_turn) == ["openedx_create_xblock"]
+        assert await _plugin_use_denials(audit_events) == [(str(current_user.id), "scope=plugin:canvas")]
+
+    async def test_a_tool_named_from_a_switched_off_plugin_records_no_denial(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+        stub_agent: Agent,
+        audit_events: AuditEventsFetcher,
+    ) -> None:
+        await _switch_stub(session, current_user.id or 1, True, False)
+        await _limit_plugin_use(session, current_user.id or 1, "openedx")
+
+        complete_turn = await self._lms_turn(client, session, current_user.id or 1, ["stub_build"])
+
+        assert _bound_tool_names(complete_turn) == []
+        assert await _plugin_use_denials(audit_events) == []
+
+    async def test_a_caller_who_may_use_every_plugin_records_no_denial(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+        stub_agent: Agent,
+        audit_events: AuditEventsFetcher,
+    ) -> None:
+        complete_turn = await self._lms_turn(client, session, current_user.id or 1, ["canvas_create_course"])
+
+        assert _bound_tool_names(complete_turn) == ["canvas_create_course"]
+        assert await _plugin_use_denials(audit_events) == []
