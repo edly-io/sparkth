@@ -1383,7 +1383,7 @@ class TestPlannerPrompt:
 
     def test_it_offers_choices_exactly_as_the_agents_do(self) -> None:
         """The client parses the options block, so the planner and the agents must ask for it alike."""
-        section = render_system_prompt([STUB_AGENT]).split("OFFERING CHOICES")[1].split("CAPABILITIES")[0].strip()
+        section = render_system_prompt(STUB_AGENT).split("OFFERING CHOICES")[1].split("YOUR WORK")[0].strip()
 
         assert section in render_planner_prompt([STUB_AGENT], operations=False, existing_plan=None)
 

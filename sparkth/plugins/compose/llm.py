@@ -363,7 +363,7 @@ def _planner_for_turn(
                 build_turn_agent(
                     agent_llm,
                     [convert_mcp_to_langchain_tool(tool) for tool in agent.tools],
-                    render_system_prompt([agent]),
+                    render_system_prompt(agent),
                     max_tool_executions,
                     name=agent.name,
                 ),

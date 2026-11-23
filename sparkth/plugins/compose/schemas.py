@@ -88,9 +88,6 @@ class ChatCompletionRequest(BaseModel):
         description="Includes every tool of the plugins the requesting user has switched on and has permission to use. "
         "Use 'none' or empty list to disable.",
     )
-    tool_choice: str | None = Field(
-        default="auto", description="How to use tools: 'auto', 'none', or specific tool name"
-    )
     document_ids: list[int] | None = Field(
         default=None,
         max_length=20,
