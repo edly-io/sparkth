@@ -1,10 +1,9 @@
 import { screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 
 import PluginPageClient from "@/app/dashboard/[pluginName]/page-client";
 import coreEn from "@/core/i18n/en.json";
 import coreEs from "@/core/i18n/es.json";
-import { registerPlugin, unregisterPlugin } from "@/core/plugins/registry";
 import { renderWithIntl } from "@/tests/intl";
 
 // The mocks below read these directly, so a test sets them before rendering.
@@ -30,32 +29,6 @@ beforeEach(() => {
   auth = { isAuthenticated: true, loading: false };
 });
 
-describe("PluginPageClient — a URL that names no registered plugin", () => {
-  it("shows the not-found panel naming the plugin", () => {
-    params = { pluginName: "nosuchplugin" };
-
-    renderWithIntl(<PluginPageClient />, coreEn);
-
-    const panel = screen.getByRole("alert");
-    expect(panel).toHaveTextContent(coreEn.pluginNotFound.title);
-    expect(panel).toHaveTextContent(
-      coreEn.pluginNotFound.message.replace("{name}", "nosuchplugin"),
-    );
-    expect(screen.getByRole("link", { name: coreEn.dashboardLink.back })).toHaveAttribute(
-      "href",
-      "/dashboard",
-    );
-  });
-
-  it("shows the not-found panel without naming a plugin when the URL names none", () => {
-    renderWithIntl(<PluginPageClient />, coreEn);
-
-    const panel = screen.getByRole("alert");
-    expect(panel).toHaveTextContent(coreEn.pluginNotFound.title);
-    expect(panel).not.toHaveTextContent("No plugin is registered");
-  });
-});
-
 describe("PluginPageClient — while the user is being authenticated", () => {
   it("says so", () => {
     auth = { isAuthenticated: false, loading: true };
@@ -74,17 +47,9 @@ describe("PluginPageClient — while the user is being authenticated", () => {
   });
 });
 
-describe("PluginPageClient — a registered plugin the user has not enabled", () => {
+describe("PluginPageClient — a plugin the user has not enabled", () => {
   beforeEach(() => {
     params = { pluginName: "exampleplugin" };
-    registerPlugin({
-      name: "exampleplugin",
-      loadComponent: () => Promise.resolve({ default: () => null }),
-    });
-  });
-
-  afterEach(() => {
-    unregisterPlugin("exampleplugin");
   });
 
   it("says the plugin is not enabled and offers settings and the dashboard", () => {

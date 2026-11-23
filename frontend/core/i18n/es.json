@@ -14,6 +14,10 @@
     "title": "Plugin no encontrado",
     "message": "No hay ningún plugin registrado con el nombre {name}."
   },
+  "pageNotFound": {
+    "title": "Página no encontrada",
+    "message": "No existe nada en esta dirección."
+  },
   "pluginPage": {
     "authenticating": "Autenticando...",
     "notEnabledTitle": "Plugin no habilitado",
