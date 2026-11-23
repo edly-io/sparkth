@@ -338,6 +338,14 @@ class AttachedDocumentResponse(BaseModel):
     source: str | None
 
 
+class UploadedFileResponse(BaseModel):
+    """A file uploaded from the computer that a conversation still has, without its text."""
+
+    name: str
+    # The length of the file's text, which is what counts toward the conversation's upload limit.
+    size: int
+
+
 class ConversationListResponse(BaseModel):
     conversations: list[ConversationResponse]
     total: int

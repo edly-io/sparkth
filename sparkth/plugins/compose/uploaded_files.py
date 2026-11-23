@@ -60,3 +60,16 @@ async def add_uploaded_files(conversation_uuid: UUID, new_files: list[UploadedFi
             _get_cache_key(conversation_uuid), [file.model_dump() for file in files], UPLOADED_FILES_TTL_SECONDS
         )
     return files
+
+
+async def remove_uploaded_file(conversation_uuid: UUID, file_name: str) -> None:
+    """Remove the file called ``file_name`` from the conversation's uploaded files.
+
+    Nothing happens when the conversation has no file of that name.
+    """
+    cache, key = _get_cache(), _get_cache_key(conversation_uuid)
+    remaining_files = [file for file in await get_uploaded_files(conversation_uuid) if file.name != file_name]
+    if remaining_files:
+        await cache.set_json(key, [file.model_dump() for file in remaining_files], UPLOADED_FILES_TTL_SECONDS)
+    else:
+        await cache.delete(key)
