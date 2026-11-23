@@ -11,7 +11,7 @@ from sparkth.lib.frontend.hooks import DISPLAY_INFO, DisplayInfo
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.lib.testing import AuditEventsFetcher, assert_plugin_use_denied, restrict_plugin_use
 
-from .conftest import SCHEMA_PLUGIN_CONFIG_SCHEMA, add_user_plugin
+from .conftest import SCHEMA_PLUGIN_CONFIG_SCHEMA, add_preference
 
 # Every by-name route as (method, path suffix, JSON body) for the plugin named in the URL.
 BY_NAME_ROUTES: list[tuple[str, str, dict[str, Any] | None]] = [
@@ -37,7 +37,7 @@ async def test_by_name_routes_refuse_without_a_grant(
 ) -> None:
     await restrict_plugin_use(session, None)
 
-    response = await client.request(method, f"/api/v1/user-plugins/schema_plugin{suffix}", json=body)
+    response = await client.request(method, f"/api/v1/plugins/schema_plugin{suffix}", json=body)
 
     assert response.status_code == status.HTTP_403_FORBIDDEN
     await assert_plugin_use_denied(audit_events, "schema_plugin")
@@ -56,7 +56,7 @@ async def test_by_name_routes_allow_a_grant_at_that_plugin(
 ) -> None:
     await restrict_plugin_use(session, "schema_plugin")
 
-    response = await client.request(method, f"/api/v1/user-plugins/schema_plugin{suffix}", json=body)
+    response = await client.request(method, f"/api/v1/plugins/schema_plugin{suffix}", json=body)
 
     assert response.status_code != status.HTTP_403_FORBIDDEN
     assert [event for event in await audit_events() if event.category == "permission"] == []
@@ -74,23 +74,23 @@ async def test_by_name_routes_refuse_a_grant_at_another_plugin(
 ) -> None:
     await restrict_plugin_use(session, "other_plugin")
 
-    response = await client.request(method, f"/api/v1/user-plugins/schema_plugin{suffix}", json=body)
+    response = await client.request(method, f"/api/v1/plugins/schema_plugin{suffix}", json=body)
 
     assert response.status_code == status.HTTP_403_FORBIDDEN
 
 
 async def test_unknown_plugin_is_refused_without_a_grant(
-    client: AsyncClient, session: AsyncSession, user_plugins: User
+    client: AsyncClient, session: AsyncSession, plugin_preferences: User
 ) -> None:
     await restrict_plugin_use(session, None)
 
-    response = await client.get("/api/v1/user-plugins/does-not-exist")
+    response = await client.get("/api/v1/plugins/does-not-exist")
 
     assert response.status_code == status.HTTP_403_FORBIDDEN
 
 
-async def test_get_user_plugin_success(client: AsyncClient, user_plugins: User) -> None:
-    response = await client.get("/api/v1/user-plugins/plugin_a")
+async def test_get_plugin_success(client: AsyncClient, plugin_preferences: User) -> None:
+    response = await client.get("/api/v1/plugins/plugin_a")
     assert response.status_code == status.HTTP_200_OK
 
     data = response.json()
@@ -102,7 +102,7 @@ async def test_get_user_plugin_success(client: AsyncClient, user_plugins: User) 
     assert data["has_frontend"] is False
 
 
-async def test_get_user_plugin_carries_declared_display_info(
+async def test_get_plugin_carries_declared_display_info(
     client: AsyncClient, current_user: User, session: AsyncSession
 ) -> None:
     session.add(Plugin(name="displayed", is_core=True, enabled=True))
@@ -112,7 +112,7 @@ async def test_get_user_plugin_carries_declared_display_info(
     plugin = SparkthPlugin("displayed")
     DISPLAY_INFO.add_item(plugin, DisplayInfo("Displayed", "Shows up in settings", icon="eye"))
 
-    response = await client.get("/api/v1/user-plugins/displayed")
+    response = await client.get("/api/v1/plugins/displayed")
     assert response.status_code == status.HTTP_200_OK
 
     data = response.json()
@@ -121,42 +121,42 @@ async def test_get_user_plugin_carries_declared_display_info(
     assert data["has_frontend"] is False
 
 
-async def test_get_user_plugin_not_found(client: AsyncClient, user_plugins: User) -> None:
-    response = await client.get("/api/v1/user-plugins/plugin_abc")
+async def test_get_plugin_not_found(client: AsyncClient, plugin_preferences: User) -> None:
+    response = await client.get("/api/v1/plugins/plugin_abc")
     assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
-async def test_get_user_plugin_fills_schema_keys_for_empty_config(
+async def test_get_plugin_fills_schema_keys_for_empty_config(
     client: AsyncClient, current_user: User, session: AsyncSession, schema_plugin: Plugin
 ) -> None:
-    await add_user_plugin(session, current_user, schema_plugin, config={})
+    await add_preference(session, current_user, schema_plugin, config={})
 
-    response = await client.get("/api/v1/user-plugins/schema_plugin")
+    response = await client.get("/api/v1/plugins/schema_plugin")
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["config"] == {"api_url": None, "api_key": None}
 
 
-async def test_get_user_plugin_fills_schema_keys_missing_from_config(
+async def test_get_plugin_fills_schema_keys_missing_from_config(
     client: AsyncClient, current_user: User, session: AsyncSession, schema_plugin: Plugin
 ) -> None:
-    await add_user_plugin(session, current_user, schema_plugin, config={"api_key": "secret"})
+    await add_preference(session, current_user, schema_plugin, config={"api_key": "secret"})
 
-    response = await client.get("/api/v1/user-plugins/schema_plugin")
+    response = await client.get("/api/v1/plugins/schema_plugin")
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["config"] == {"api_url": None, "api_key": "secret"}
 
 
-async def test_get_user_plugin_reports_schema_keys_without_a_user_plugin_row(
+async def test_get_plugin_reports_schema_keys_without_a_preference_row(
     client: AsyncClient, current_user: User, schema_plugin: Plugin
 ) -> None:
-    response = await client.get("/api/v1/user-plugins/schema_plugin")
+    response = await client.get("/api/v1/plugins/schema_plugin")
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["config"] == {"api_url": None, "api_key": None}
 
 
-async def test_get_user_plugin_carries_the_declared_config_schema(
+async def test_get_plugin_carries_the_declared_config_schema(
     client: AsyncClient, current_user: User, schema_plugin: Plugin
 ) -> None:
-    response = await client.get("/api/v1/user-plugins/schema_plugin")
+    response = await client.get("/api/v1/plugins/schema_plugin")
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["config_schema"] == SCHEMA_PLUGIN_CONFIG_SCHEMA

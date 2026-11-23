@@ -7,19 +7,20 @@ from sqlalchemy import or_
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.models.plugin import Plugin, UserPlugin
+from sparkth.core.models.plugin import Plugin, UserPluginPreference
 from sparkth.core.models.user import User
 from sparkth.core.plugins import get_plugin_loader
 from sparkth.core.plugins.config_base import PluginConfig
+from sparkth.core.plugins.constants import USER_PLUGIN_PREFERENCE_TARGET_TYPE
 from sparkth.core.plugins.exceptions import PluginConfigInvalidError, PluginNotConfiguredError
 from sparkth.lib.audit import record_event
 from sparkth.lib.audit.events import (
     AuditChange,
     AuditOutcome,
     AuditTarget,
-    UserPluginConfigCreatedAuditEvent,
-    UserPluginConfigUpdatedAuditEvent,
-    UserPluginEnabledChangedAuditEvent,
+    PluginConfigCreatedAuditEvent,
+    PluginConfigUpdatedAuditEvent,
+    PluginEnabledChangedAuditEvent,
 )
 from sparkth.lib.auth import current_user_id, get_current_user
 from sparkth.lib.config import get_plugin_adapter, get_plugin_config_schema
@@ -41,7 +42,7 @@ async def disabled_plugin_names(user_id: int | None, session: AsyncSession) -> s
     """Names of the plugins switched off for this user, by either switch that can turn one off.
 
     A plugin is disabled when an administrator turned it off system-wide
-    (``Plugin.enabled``) or the user turned it off for themselves (``UserPlugin.enabled``).
+    (``Plugin.enabled``) or the user turned it off for themselves (``UserPluginPreference.enabled``).
     The join is a LEFT OUTER one keyed on the user as well as the plugin, so a plugin the
     user has no preference on stays in play and another user's preference never answers
     for this one. With no user, the join matches no preference and only the system-wide
@@ -66,18 +67,20 @@ async def disabled_plugin_names(user_id: int | None, session: AsyncSession) -> s
     # satisfy outerjoin's signature without it.
     on_clause = cast(
         Any,
-        (UserPlugin.plugin_id == Plugin.id) & (UserPlugin.user_id == user_id) & (UserPlugin.deleted_at == None),
+        (UserPluginPreference.plugin_id == Plugin.id)
+        & (UserPluginPreference.user_id == user_id)
+        & (UserPluginPreference.deleted_at == None),
     )
     statement = (
         select(Plugin.name)
-        .outerjoin(UserPlugin, on_clause)
-        .where(Plugin.deleted_at == None, or_(col(Plugin.enabled) == False, col(UserPlugin.enabled) == False))
+        .outerjoin(UserPluginPreference, on_clause)
+        .where(Plugin.deleted_at == None, or_(col(Plugin.enabled) == False, col(UserPluginPreference.enabled) == False))
     )
     result = await session.exec(statement)
     return set(result.all())
 
 
-async def load_user_plugin_config[ConfigT: PluginConfig](plugin_name: str, config_class: type[ConfigT]) -> ConfigT:
+async def load_plugin_config[ConfigT: PluginConfig](plugin_name: str, config_class: type[ConfigT]) -> ConfigT:
     """Load the calling user's stored settings for a plugin as ``config_class``.
 
     The caller is the user bound to this request (``current_user_id``), never an argument,
@@ -98,12 +101,12 @@ async def load_user_plugin_config[ConfigT: PluginConfig](plugin_name: str, confi
     """
     user_id = current_user_id()
     statement = (
-        select(UserPlugin)
+        select(UserPluginPreference)
         .join(Plugin)
         .where(
             Plugin.name == plugin_name,
-            UserPlugin.user_id == user_id,
-            UserPlugin.deleted_at == None,
+            UserPluginPreference.user_id == user_id,
+            UserPluginPreference.deleted_at == None,
             Plugin.deleted_at == None,
         )
     )
@@ -152,8 +155,8 @@ class PluginDisabledError(Exception):
     pass
 
 
-class UserPluginResponse(pydantic.BaseModel):
-    """Response model for user plugin information.
+class PluginResponse(pydantic.BaseModel):
+    """Response model for one plugin as the calling user sees it.
 
     ``display``, ``sidebar``, and ``has_frontend`` carry the read-only
     frontend-facing metadata the plugin declared through the
@@ -188,7 +191,7 @@ class UserPluginResponse(pydantic.BaseModel):
         config: dict[str, Any],
         is_core: bool,
         config_schema: dict[str, Any] | None = None,
-    ) -> "UserPluginResponse":
+    ) -> "PluginResponse":
         """Build a response carrying the frontend metadata declared for ``plugin_name``.
 
         The declared display and sidebar strings are ``gettext_noop``-marked
@@ -384,71 +387,71 @@ class PluginService:
         result = await session.exec(statement)
         return result.all()
 
-    async def get_user_plugin_map(
+    async def get_preference_map(
         self,
         session: AsyncSession,
         user_id: int | None,
-    ) -> dict[str, UserPlugin]:
+    ) -> dict[str, UserPluginPreference]:
         statement = (
-            select(UserPlugin, Plugin)
+            select(UserPluginPreference, Plugin)
             .join(Plugin)
             .where(
-                UserPlugin.user_id == user_id,
-                UserPlugin.deleted_at == None,
+                UserPluginPreference.user_id == user_id,
+                UserPluginPreference.deleted_at == None,
                 Plugin.deleted_at == None,
             )
         )
         result = await session.exec(statement)
         results = result.all()
 
-        return {plugin.name: user_plugin for user_plugin, plugin in results}
+        return {plugin.name: preference for preference, plugin in results}
 
-    async def get_user_plugin(
+    async def get_preference(
         self,
         session: AsyncSession,
         user_id: int | None,
         plugin_id: int | None,
-    ) -> UserPlugin | None:
-        statement = select(UserPlugin).where(
-            UserPlugin.user_id == user_id,
-            UserPlugin.plugin_id == plugin_id,
-            UserPlugin.deleted_at == None,
+    ) -> UserPluginPreference | None:
+        statement = select(UserPluginPreference).where(
+            UserPluginPreference.user_id == user_id,
+            UserPluginPreference.plugin_id == plugin_id,
+            UserPluginPreference.deleted_at == None,
         )
         result = await session.exec(statement)
         return result.one_or_none()
 
-    async def update_user_plugin_enabled(
+    async def update_preference_enabled(
         self,
         session: AsyncSession,
         user_id: int,
         plugin_id: int,
         enabled: bool,
-    ) -> UserPlugin:
-        user_plugin = await self.get_user_plugin(
+    ) -> UserPluginPreference:
+        preference = await self.get_preference(
             session,
             user_id,
             plugin_id,
         )
 
         # A missing row means the plugin was enabled by default.
-        previously_enabled = user_plugin.enabled if user_plugin else True
-        if user_plugin:
-            user_plugin.enabled = enabled
+        previously_enabled = preference.enabled if preference else True
+        if preference:
+            preference.enabled = enabled
         else:
-            user_plugin = UserPlugin(
+            preference = UserPluginPreference(
                 user_id=user_id,
                 plugin_id=plugin_id,
                 enabled=enabled,
                 config={},
             )
-            session.add(user_plugin)
+            session.add(preference)
         await session.flush()
         plugin_name = await self._plugin_name(session, plugin_id)
         await record_event(
             session,
-            UserPluginEnabledChangedAuditEvent(
+            PluginEnabledChangedAuditEvent(
                 outcome=AuditOutcome.SUCCESS,
-                target=AuditTarget(type="user_plugin", id=str(user_plugin.id)),
+                target=AuditTarget(type=USER_PLUGIN_PREFERENCE_TARGET_TYPE, id=str(preference.id)),
                 change=AuditChange(
                     old=self._create_enabled_audit_snapshot(plugin_name, previously_enabled),
                     new=self._create_enabled_audit_snapshot(plugin_name, enabled),
@@ -457,9 +460,9 @@ class PluginService:
         )
 
         await session.commit()
-        await session.refresh(user_plugin)
+        await session.refresh(preference)
 
-        return user_plugin
+        return preference
 
     @staticmethod
     async def _plugin_name(session: AsyncSession, plugin_id: int) -> str | None:
@@ -498,46 +501,46 @@ class PluginService:
             "secret_changed": any(name in secret_names for name in changed),
         }
 
-    async def create_user_plugin(
+    async def create_preference(
         self, session: AsyncSession, user_id: int, plugin_id: int, user_config: dict[str, Any]
-    ) -> UserPlugin:
-        user_plugin = UserPlugin(user_id=user_id, plugin_id=plugin_id, enabled=True, config=user_config)
+    ) -> UserPluginPreference:
+        preference = UserPluginPreference(user_id=user_id, plugin_id=plugin_id, enabled=True, config=user_config)
 
-        session.add(user_plugin)
+        session.add(preference)
         await session.flush()
         plugin_name = await self._plugin_name(session, plugin_id)
         await record_event(
             session,
-            UserPluginConfigCreatedAuditEvent(
+            PluginConfigCreatedAuditEvent(
                 outcome=AuditOutcome.SUCCESS,
-                target=AuditTarget(type="user_plugin", id=str(user_plugin.id)),
+                target=AuditTarget(type=USER_PLUGIN_PREFERENCE_TARGET_TYPE, id=str(preference.id)),
                 change=AuditChange(new=self._create_config_audit_snapshot(plugin_name, user_config)),
             ),
         )
         await session.commit()
-        await session.refresh(user_plugin)
-        return user_plugin
+        await session.refresh(preference)
+        return preference
 
-    async def update_user_plugin_config(
+    async def update_preference_config(
         self,
         session: AsyncSession,
         user_id: int,
         plugin: Plugin,
         user_config: dict[str, Any],
-    ) -> UserPlugin:
+    ) -> UserPluginPreference:
         if plugin.id is None:
-            raise InternalServerError("Plugin must be persisted before creating user plugin")
+            raise InternalServerError("Plugin must be persisted before saving a preference for it")
 
-        user_plugin = await self.get_user_plugin(
+        preference = await self.get_preference(
             session,
             user_id,
             plugin.id,
         )
 
-        if user_plugin:
-            if not user_plugin.enabled:
+        if preference:
+            if not preference.enabled:
                 raise PluginDisabledError(_("Cannot update plugin configuration while the plugin is disabled"))
-            merged_config = {**user_plugin.config, **user_config}
+            merged_config = {**preference.config, **user_config}
         else:
             merged_config = user_config
 
@@ -552,24 +555,24 @@ class PluginService:
 
         validated_config = self.validate_user_config(plugin, merged_config)
 
-        previous_config = user_plugin.config if user_plugin else {}
-        if user_plugin:
-            user_plugin.config = validated_config
+        previous_config = preference.config if preference else {}
+        if preference:
+            preference.config = validated_config
         else:
-            user_plugin = UserPlugin(
+            preference = UserPluginPreference(
                 user_id=user_id,
                 plugin_id=plugin.id,
                 enabled=True,
                 config=validated_config,
             )
-            session.add(user_plugin)
+            session.add(preference)
 
         await session.flush()
         await record_event(
             session,
-            UserPluginConfigUpdatedAuditEvent(
+            PluginConfigUpdatedAuditEvent(
                 outcome=AuditOutcome.SUCCESS,
-                target=AuditTarget(type="user_plugin", id=str(user_plugin.id)),
+                target=AuditTarget(type=USER_PLUGIN_PREFERENCE_TARGET_TYPE, id=str(preference.id)),
                 change=AuditChange(
                     old=self._create_config_audit_snapshot(plugin.name, previous_config),
                     new=self._create_config_update_audit_snapshot(
@@ -578,6 +581,6 @@ class PluginService:
                 ),
             ),
         )
-        await session.refresh(user_plugin)
+        await session.refresh(preference)
 
-        return user_plugin
+        return preference

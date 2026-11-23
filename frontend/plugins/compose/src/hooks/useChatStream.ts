@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from "react";
 import { requestChatCompletionStream, stopChatTurn } from "@/plugins/compose/src/client";
 import {
   ChatMessage,
+  PlanSnapshot,
   STREAM_STATUS_PHASES,
   StreamStatusPhase,
   TextAttachment,
@@ -22,59 +23,12 @@ interface UseChatStreamOptions {
   onNewConversation: (id: string) => void;
 }
 
-function buildUserMessages(message: string, attachments: TextAttachment[]) {
-  const out: Array<{
-    role: string;
-    content: string | Record<string, unknown>[];
-    attachment?: { name: string; size: number };
-  }> = [];
-
-  for (let i = 0; i < attachments.length; i++) {
-    const attachment = attachments[i];
-    const isLast = i === attachments.length - 1;
-    if (attachment.base64Data) {
-      const contentBlocks: Record<string, unknown>[] = [
-        {
-          type: "document",
-          source: {
-            type: "base64",
-            media_type: attachment.mediaType || "application/pdf",
-            data: attachment.base64Data,
-          },
-        },
-      ];
-      if (isLast && message.trim()) contentBlocks.push({ type: "text", text: message });
-      out.push({
-        role: "user",
-        content: contentBlocks,
-        attachment: { name: attachment.name, size: attachment.size },
-      });
-    } else {
-      if (attachment.text) {
-        const content =
-          isLast && message.trim() ? `${message}\n\n---\n\n${attachment.text}` : attachment.text;
-        out.push({
-          role: "user",
-          content,
-          attachment: { name: attachment.name, size: attachment.size },
-        });
-      }
-    }
-  }
-
-  if (message.trim() && out.length === 0) {
-    out.push({ role: "user", content: message });
-  }
-
-  return out;
-}
-
 function applyStatusEvent(
   parsed: Record<string, unknown>,
   assistantId: string,
   setMessages: UseChatStreamOptions["setMessages"],
 ) {
-  if (parsed.status === "section_scanning" && parsed.section) {
+  if (parsed.status === "scanning_section" && parsed.section) {
     const section = parsed.section as {
       type: string;
       name: string;
@@ -110,6 +64,14 @@ function applyStatusEvent(
     setMessages((prev) =>
       prev.map((msg) => (msg.id === assistantId ? { ...msg, statusPhase: phase } : msg)),
     );
+  } else if (parsed.status === "step" && typeof parsed.step_status === "string") {
+    const stepLabel = parsed.step_status;
+    setMessages((prev) =>
+      prev.map((msg) => (msg.id === assistantId ? { ...msg, stepLabel } : msg)),
+    );
+  } else if (parsed.status === "plan" && parsed.plan) {
+    const plan = parsed.plan as PlanSnapshot;
+    setMessages((prev) => prev.map((msg) => (msg.id === assistantId ? { ...msg, plan } : msg)));
   } else if (parsed.status === "tool_call" && parsed.tool_name) {
     const toolName = parsed.tool_name as string;
     const toolStatus = parsed.tool_status as "running" | "done";
@@ -214,6 +176,7 @@ async function readStream(
   let doneRagSections: { type: string; name: string; source?: string }[] | null = null;
   let doneToolCalls: { name: string }[] | null = null;
   let doneStopped = false;
+  let finalPlan: PlanSnapshot | null = null;
   let lastSaveTime = 0;
   const SAVE_INTERVAL_MS = 500;
 
@@ -286,6 +249,8 @@ async function readStream(
           if (Array.isArray(toolCallsFromDone) && toolCallsFromDone.length > 0) {
             doneToolCalls = toolCallsFromDone as { name: string }[];
           }
+          finalPlan = ((parsed.message as Record<string, unknown> | undefined)?.plan ??
+            null) as PlanSnapshot | null;
           doneStopped = parsed.stopped === true;
           break outer;
         }
@@ -307,6 +272,7 @@ async function readStream(
     doneRagSections,
     doneToolCalls,
     doneStopped,
+    finalPlan,
   };
 }
 
@@ -335,21 +301,28 @@ export function useChatStream({
     [conversationId],
   );
 
+  // A failure after text was written keeps that text as a reply of its own and shows the error
+  // after it, as the server stores them.
   const failAssistantMessage = useCallback(
     (id: string, errorText: string) => {
       setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === id
-            ? {
-                ...msg,
-                content: errorText,
-                streamedContent: undefined,
-                isTyping: false,
-                isError: true,
-                isPending: false,
-              }
-            : msg,
-        ),
+        prev.flatMap((msg) => {
+          if (msg.id !== id) return [msg];
+          const ended = {
+            ...msg,
+            streamedContent: undefined,
+            isTyping: false,
+            isPending: false,
+            statusPhase: undefined,
+            stepLabel: undefined,
+            toolCalls: msg.toolCalls?.map((tool) => ({ ...tool, status: "done" as const })),
+          };
+          if (!msg.streamedContent) return [{ ...ended, content: errorText, isError: true }];
+          return [
+            { ...ended, content: msg.streamedContent },
+            { id: `${id}-error`, role: "assistant" as const, content: errorText, isError: true },
+          ];
+        }),
       );
     },
     [setMessages],
@@ -369,12 +342,15 @@ export function useChatStream({
       const userMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "user",
-        content: message || (attachments.length > 0 ? "Uploaded a document" : ""),
+        content: message,
         attachments,
       };
       setMessages((prev) => [...prev, userMessage]);
 
-      const newUserMessages = buildUserMessages(message, attachments);
+      // A file goes to the server once, with this message; the server keeps it for the later ones.
+      const files = attachments.flatMap(({ name, text }) =>
+        text === undefined ? [] : [{ name, text }],
+      );
       const assistantId = crypto.randomUUID();
 
       setMessages((prev) => [
@@ -394,7 +370,8 @@ export function useChatStream({
           // the catch below surfaces its message.
           llm_config_id: llmConfigId as number,
           ...(modelOverride && { model_override: modelOverride }),
-          messages: newUserMessages,
+          messages: [{ role: "user", content: message }],
+          ...(files.length > 0 && { files }),
           stream: true,
           temperature: 0.7,
           tools: "*",
@@ -416,6 +393,7 @@ export function useChatStream({
           doneRagSections,
           doneToolCalls,
           doneStopped,
+          finalPlan,
         } = await readStream(res.body, assistantId, conversationId, setMessages, (text) =>
           failAssistantMessage(assistantId, text),
         );
@@ -430,6 +408,8 @@ export function useChatStream({
                     streamedContent: undefined,
                     isTyping: false,
                     statusPhase: undefined,
+                    stepLabel: undefined,
+                    ...(finalPlan && { plan: finalPlan }),
                     ...(doneRagSections && {
                       ragSections: doneRagSections.map((s) => ({
                         ...s,

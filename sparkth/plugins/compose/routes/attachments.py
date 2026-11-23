@@ -16,8 +16,10 @@ from sparkth.plugins.compose.schemas import (
     AttachedDocumentResponse,
     ConversationAttachmentCreate,
     ConversationAttachmentResponse,
+    UploadedFileResponse,
 )
 from sparkth.plugins.compose.service import ComposeService, get_compose_service
+from sparkth.plugins.compose.uploaded_files import get_uploaded_files, remove_uploaded_file
 
 router = APIRouter()
 
@@ -46,6 +48,30 @@ async def list_conversation_attachments(
         )
         for document in attachments.ready
     ]
+
+
+@router.get(
+    "/conversations/{conversation_id}/uploaded-files",
+    response_model=list[UploadedFileResponse],
+    dependencies=[Depends(CONVERSATION_READ.require_for_object(CONVERSATION, get_conversation))],
+)
+async def list_conversation_uploaded_files(
+    conversation: Conversation = Depends(get_conversation),
+) -> list[UploadedFileResponse]:
+    uploaded_files = await get_uploaded_files(conversation.uuid)
+    return [UploadedFileResponse(name=file.name, size=len(file.text)) for file in uploaded_files]
+
+
+@router.delete(
+    "/conversations/{conversation_id}/uploaded-files/{file_name}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(CONVERSATION_WRITE.require_for_object(CONVERSATION, get_conversation))],
+)
+async def remove_conversation_uploaded_file(
+    file_name: str,
+    conversation: Conversation = Depends(get_conversation),
+) -> None:
+    await remove_uploaded_file(conversation.uuid, file_name)
 
 
 @router.post(

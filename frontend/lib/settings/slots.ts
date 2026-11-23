@@ -9,7 +9,7 @@
 
 import type { ComponentType } from "react";
 
-import type { UserPluginState } from "@/core/plugins/types";
+import type { PluginState } from "@/core/plugins/types";
 
 export type ConfigFieldType = "string" | "integer" | "number" | "boolean" | "array";
 
@@ -45,7 +45,7 @@ export interface ConfigWidgetProps {
 
 /** What the settings page passes to a plugin's row. */
 export interface SettingsListItemProps {
-  plugin: UserPluginState;
+  plugin: PluginState;
   onEnable: () => Promise<void>;
   onDisable: () => Promise<void>;
   /**
@@ -59,7 +59,7 @@ export interface SettingsListItemProps {
 
 /** What the settings page passes to a plugin's config modal. */
 export interface ConfigModalProps {
-  plugin: UserPluginState;
+  plugin: PluginState;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (config: Record<string, unknown>) => Promise<void>;

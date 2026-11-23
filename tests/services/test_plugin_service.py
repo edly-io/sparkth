@@ -7,7 +7,7 @@ import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.models.plugin import Plugin, UserPlugin
+from sparkth.core.models.plugin import Plugin, UserPluginPreference
 from sparkth.core.plugins.service import PluginService
 
 
@@ -17,10 +17,10 @@ def _make_plugin(name: str = "compose", plugin_id: int = 1) -> Plugin:
     return plugin
 
 
-def _make_session(user_plugin: UserPlugin | None = None) -> AsyncMock:
+def _make_session(preference: UserPluginPreference | None = None) -> AsyncMock:
     session = AsyncMock()
     result = MagicMock()
-    result.one_or_none.return_value = user_plugin
+    result.one_or_none.return_value = preference
     session.exec.return_value = result
     session.flush = AsyncMock()
     session.refresh = AsyncMock()
@@ -29,7 +29,7 @@ def _make_session(user_plugin: UserPlugin | None = None) -> AsyncMock:
 
 
 @pytest.mark.asyncio
-async def test_update_user_plugin_config_strips_legacy_fields() -> None:
+async def test_update_preference_config_strips_legacy_fields() -> None:
     """Merging new config onto legacy stored config must not fail with extra_forbidden."""
     legacy_config = {
         "provider": "anthropic",
@@ -39,13 +39,13 @@ async def test_update_user_plugin_config_strips_legacy_fields() -> None:
         "llm_provider": None,
         "llm_model": None,
     }
-    old_user_plugin = UserPlugin(user_id=1, plugin_id=1, enabled=True, config=legacy_config)
-    session = _make_session(old_user_plugin)
+    old_preference = UserPluginPreference(user_id=1, plugin_id=1, enabled=True, config=legacy_config)
+    session = _make_session(old_preference)
 
     plugin = _make_plugin()
     service = PluginService()
 
-    result = await service.update_user_plugin_config(
+    result = await service.update_preference_config(
         session=session,
         user_id=1,
         plugin=plugin,
@@ -59,13 +59,13 @@ async def test_update_user_plugin_config_strips_legacy_fields() -> None:
 
 
 @pytest.mark.asyncio
-async def test_update_user_plugin_config_valid_config_succeeds() -> None:
+async def test_update_preference_config_valid_config_succeeds() -> None:
     """Updating with a valid config when no prior config exists works."""
     session = _make_session(None)
     plugin = _make_plugin()
     service = PluginService()
 
-    result = await service.update_user_plugin_config(
+    result = await service.update_preference_config(
         session=session,
         user_id=1,
         plugin=plugin,
@@ -83,7 +83,7 @@ async def test_update_config_revalidates_stored_model_override_against_new_provi
     from sparkth.core.models.llm import LLMConfig
 
     stored = {"llm_config_id": 1, "llm_model_override": "gpt-4o"}
-    old_user_plugin = UserPlugin(user_id=1, plugin_id=1, enabled=True, config=stored)
+    old_preference = UserPluginPreference(user_id=1, plugin_id=1, enabled=True, config=stored)
 
     anthropic_llm = LLMConfig(
         id=2,
@@ -96,7 +96,7 @@ async def test_update_config_revalidates_stored_model_override_against_new_provi
     )
 
     up_result = MagicMock()
-    up_result.one_or_none.return_value = old_user_plugin
+    up_result.one_or_none.return_value = old_preference
 
     llm_result = MagicMock()
     llm_result.first.return_value = anthropic_llm
@@ -111,7 +111,7 @@ async def test_update_config_revalidates_stored_model_override_against_new_provi
     service = PluginService()
 
     with pytest.raises(ValueError, match="not available for provider"):
-        await service.update_user_plugin_config(
+        await service.update_preference_config(
             session=session,
             user_id=1,
             plugin=plugin,

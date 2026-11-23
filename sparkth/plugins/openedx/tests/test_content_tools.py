@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.models.plugin import Plugin, UserPlugin
+from sparkth.core.models.plugin import Plugin, UserPluginPreference
 from sparkth.lib.auth import bind_current_user_id
 from sparkth.lib.content.exceptions import ContentBuildError, ContentPlacementError
 from sparkth.lib.content.hooks import (
@@ -108,7 +108,7 @@ async def test_creates_the_block_the_contributor_declares(fake_contributor: Cont
 
 async def test_an_unconfigured_user_places_no_plugin_content(fake_contributor: ContentContributor) -> None:
     unconfigured = AsyncMock(side_effect=PluginNotConfiguredError("Open edX"))
-    with patch("sparkth.plugins.openedx.tools.load_user_plugin_config", unconfigured):
+    with patch("sparkth.plugins.openedx.tools.load_plugin_config", unconfigured):
         with pytest.raises(PluginNotConfiguredError):
             await openedx_add_plugin_content(add_args())
 
@@ -426,7 +426,7 @@ async def user_switched_off_contributor(session: AsyncSession, owners: list[Spar
     user = User(id=1, name="U", username="u", email="u@example.com", hashed_password="x")
     session.add_all([plugin, user])
     await session.commit()
-    session.add(UserPlugin(user_id=cast(int, user.id), plugin_id=cast(int, plugin.id), enabled=False))
+    session.add(UserPluginPreference(user_id=cast(int, user.id), plugin_id=cast(int, plugin.id), enabled=False))
     await session.commit()
     bind_current_user_id(1)
     return contributor

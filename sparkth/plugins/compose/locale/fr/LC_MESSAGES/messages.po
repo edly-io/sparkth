@@ -284,3 +284,13 @@ msgstr ""
 msgid "Failed to search the attached document. Please try again."
 msgstr "La recherche dans le document joint a échoué. Veuillez réessayer."
 
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/compose/constants.py:45
+msgid "Working on your request…"
+msgstr "Traitement de votre demande…"
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/compose/uploaded_files.py:56
+#, python-brace-format
+msgid "The files in this conversation can total at most {limit_mb} MB."
+msgstr "Les fichiers de cette conversation peuvent totaliser au maximum {limit_mb} Mo."

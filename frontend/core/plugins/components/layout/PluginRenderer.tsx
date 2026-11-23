@@ -29,11 +29,11 @@ export default function PluginRenderer({
   pluginDef: overridePluginDef,
 }: PluginRendererProps) {
   const { isEnabled, config, context } = usePlugin(pluginName);
-  const { userPlugins, loading: pluginsLoading } = usePluginContext();
+  const { plugins, loading: pluginsLoading } = usePluginContext();
   const [pluginDef, setPluginDef] = useState<PluginDefinition | null>(overridePluginDef || null);
 
-  const userPlugin = userPlugins.find((p) => p.plugin_name === pluginName);
-  const displayName = userPlugin ? displayNameOf(userPlugin) : pluginName;
+  const plugin = plugins.find((p) => p.plugin_name === pluginName);
+  const displayName = plugin ? displayNameOf(plugin) : pluginName;
 
   useEffect(() => {
     if (overridePluginDef) {

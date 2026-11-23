@@ -64,7 +64,7 @@ describe("UploadMenu", () => {
     renderMenu();
 
     expect(screen.queryByRole("button", { name: "Pick from Files" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Select files" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Select files/ })).toBeInTheDocument();
   });
 
   it("opens the chosen source and closes the menu", async () => {
@@ -84,5 +84,11 @@ describe("UploadMenu", () => {
 
     expect(onUploadFromComputer).toHaveBeenCalledWith(files);
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("says which files can be picked from the computer, and how much in total", () => {
+    renderMenu();
+
+    expect(screen.getByText(".txt or .pdf, up to 3 MB in total")).toBeInTheDocument();
   });
 });

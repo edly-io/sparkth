@@ -3,7 +3,11 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, it, expect, vi, beforeEach } from "vitest";
 
 import { useChatInput } from "@/plugins/compose/src/hooks/useChatInput";
-import { attachDocument, detachDocument } from "@/plugins/compose/src/client";
+import {
+  attachDocument,
+  detachDocument,
+  removeConversationUploadedFile,
+} from "@/plugins/compose/src/client";
 import type { TextAttachment } from "@/plugins/compose/src/types";
 import { uploadFile, type UploadResponse } from "@/plugins/compose/src/upload";
 import { ATTACHMENT_SOURCES, type AttachmentSource } from "@/plugins/compose/src/slots/attachments";
@@ -13,6 +17,7 @@ import { IntlTestProvider } from "@/lib/testing/intl";
 vi.mock("@/plugins/compose/src/client", () => ({
   attachDocument: vi.fn(() => Promise.resolve()),
   detachDocument: vi.fn(() => Promise.resolve()),
+  removeConversationUploadedFile: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock("@/plugins/compose/src/upload", () => ({
@@ -133,7 +138,6 @@ describe("useChatInput — documents picked from a source", () => {
       {
         name: "notes.pdf",
         size: 1024,
-        text: "[File: notes.pdf]",
         documentId: 7,
         source: "files-source",
       },
@@ -154,7 +158,6 @@ describe("useChatInput — documents picked from a source", () => {
   const attachedNotes: TextAttachment = {
     name: "notes.pdf",
     size: 1024,
-    text: "[File: notes.pdf]",
     documentId: 7,
   };
 
@@ -207,7 +210,6 @@ describe("useChatInput — files uploaded from the computer", () => {
   const attachedDocument: TextAttachment = {
     name: "drive.pdf",
     size: 1024,
-    text: "[File: drive.pdf]",
     documentId: 7,
   };
 
@@ -244,7 +246,7 @@ describe("useChatInput — files uploaded from the computer", () => {
     });
 
     expect(result.current.attachments).toEqual([
-      { name: "notes.txt", size: 6, text: "", uploadId: expect.any(String), isUploading: true },
+      { name: "notes.txt", size: 6, uploadId: expect.any(String), isUploading: true },
     ]);
 
     await act(async () => {
@@ -296,6 +298,41 @@ describe("useChatInput — files uploaded from the computer", () => {
     );
   });
 
+  it("removes a sent file from the conversation on the server too", () => {
+    const sentFile: TextAttachment = {
+      name: "notes.txt",
+      size: 6,
+      uploadId: "uploaded-notes.txt",
+      isSent: true,
+    };
+    const { result } = setupWithAttachments("conversation-1", [sentFile]);
+
+    act(() => result.current.handleRemoveAttachment(sentFile));
+
+    expect(removeConversationUploadedFile).toHaveBeenCalledWith(
+      "test-token",
+      "conversation-1",
+      "notes.txt",
+    );
+    expect(result.current.attachments).toEqual([]);
+  });
+
+  it("lists a sent file again and reports it when removing it fails", async () => {
+    vi.mocked(removeConversationUploadedFile).mockRejectedValueOnce(new Error("server down"));
+    const sentFile: TextAttachment = {
+      name: "notes.txt",
+      size: 6,
+      uploadId: "uploaded-notes.txt",
+      isSent: true,
+    };
+    const { result } = setupWithAttachments("conversation-1", [sentFile]);
+
+    act(() => result.current.handleRemoveAttachment(sentFile));
+
+    await waitFor(() => expect(result.current.attachments).toEqual([sentFile]));
+    expect(result.current.uploadError).toBe('Failed to detach "notes.txt". Please try again.');
+  });
+
   it("removes only the uploaded file and leaves documents attached", async () => {
     const { result } = setupWithAttachments("conversation-1", [attachedDocument]);
     await act(async () => {
@@ -307,6 +344,7 @@ describe("useChatInput — files uploaded from the computer", () => {
 
     expect(result.current.attachments).toEqual([attachedDocument]);
     expect(detachDocument).not.toHaveBeenCalled();
+    expect(removeConversationUploadedFile).not.toHaveBeenCalled();
   });
 
   it("detaches a removed document from the conversation", () => {
@@ -382,7 +420,7 @@ describe("useChatInput — picking several files from the computer", () => {
 
   it("does not count documents toward the limit", async () => {
     const { result } = setupWithAttachments(null, [
-      { name: "drive.pdf", size: 5 * MB, text: "[File: drive.pdf]", documentId: 7 },
+      { name: "drive.pdf", size: 5 * MB, documentId: 7 },
     ]);
 
     await act(async () => {
@@ -391,6 +429,19 @@ describe("useChatInput — picking several files from the computer", () => {
 
     expect(uploadFile).toHaveBeenCalledOnce();
     expect(result.current.uploadError).toBeNull();
+  });
+
+  it("skips a file with a listed file's name, whatever its size", async () => {
+    const { result } = setupWithAttachments(null, [
+      { ...listedFile("notes.txt", 999), isSent: true },
+    ]);
+
+    await act(async () => {
+      await result.current.handleUploadFromComputer([new File(["Week 1"], "notes.txt")]);
+    });
+
+    expect(uploadFile).not.toHaveBeenCalled();
+    expect(result.current.uploadError).toBe("File already attached.");
   });
 
   it("skips a file already listed, even one already sent, and says so", async () => {
@@ -515,7 +566,7 @@ describe("useChatInput — when a message can be sent", () => {
 
   it("cannot send while a file is still uploading", async () => {
     const { result, onSend } = setupCanSend("Summarise this", [
-      { ...uploadedNotes, text: "", isUploading: true },
+      { ...uploadedNotes, isUploading: true },
     ]);
 
     await act(async () => {

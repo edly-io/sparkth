@@ -3,6 +3,7 @@ import { ApiRequestError, isNotFoundError } from "@/lib/api/errors";
 import {
   getConversation,
   getConversationAttachments,
+  getConversationUploadedFiles,
   getLastMessage,
 } from "@/plugins/compose/src/client";
 import {
@@ -128,9 +129,10 @@ export function useConversation(
       try {
         // Fetch messages and attachments in parallel; we need both before
         // picking the right placeholder text for a pending response.
-        const [data, persistedFiles] = await Promise.all([
+        const [data, persistedFiles, uploadedFiles] = await Promise.all([
           getConversation(token, conversationId, signal),
           getConversationAttachments(token, conversationId, signal),
+          getConversationUploadedFiles(token, conversationId, signal),
         ]);
 
         const transcript = data.messages.filter(
@@ -165,6 +167,7 @@ export function useConversation(
             toolCalls: m.tool_calls
               ? m.tool_calls.map((t) => ({ ...t, status: "done" as const }))
               : undefined,
+            plan: m.plan ?? undefined,
             isError: m.is_error ?? false,
             stopped: m.stopped ?? false,
           })),
@@ -215,29 +218,35 @@ export function useConversation(
           messages: loaded.length ? loaded : [WELCOME_MESSAGE],
         });
 
+        // Older conversations stored each upload as a message; newer ones list theirs from the server.
         const sentUploads: TextAttachment[] = transcript.flatMap((m) =>
           m.message_type === "attachment" && m.attachment_name
             ? [
                 {
                   name: m.attachment_name,
                   size: m.attachment_size ?? 0,
-                  // Never sent again, so its text isn't kept.
-                  text: "",
                   uploadId: `message-${m.id}`,
                   isSent: true,
+                  isStoredInMessage: true,
                 },
               ]
             : [],
         );
+        const uploadedFileAttachments: TextAttachment[] = uploadedFiles.map((file) => ({
+          name: file.name,
+          size: file.size,
+          uploadId: `uploaded-${file.name}`,
+          isSent: true,
+        }));
         setInputAttachments([
           ...persistedFiles.map((f) => ({
             name: f.name,
             size: f.size ?? 0,
-            text: `[File: ${f.name}]`,
             documentId: f.id,
             source: f.source ?? undefined,
           })),
           ...sentUploads,
+          ...uploadedFileAttachments,
         ]);
       } catch (err) {
         // A failure from a load already superseded by another chat says nothing about that chat.
@@ -312,6 +321,7 @@ export function useConversation(
               toolCalls: lastApiMsg.tool_calls
                 ? lastApiMsg.tool_calls.map((t) => ({ ...t, status: "done" as const }))
                 : undefined,
+              plan: lastApiMsg.plan ?? undefined,
               isError: lastApiMsg.is_error ?? false,
               stopped: lastApiMsg.stopped ?? false,
             },

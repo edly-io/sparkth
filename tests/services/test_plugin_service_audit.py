@@ -37,34 +37,34 @@ def passthrough_validation() -> Iterator[None]:
         yield
 
 
-async def test_create_user_plugin_records_config_keys_only(
+async def test_create_preference_records_config_keys_only(
     session: AsyncSession, plugin: Plugin, audit_events: AuditEventsFetcher
 ) -> None:
     assert plugin.id is not None
-    user_plugin = await PluginService().create_user_plugin(
+    preference = await PluginService().create_preference(
         session, 1, plugin.id, {"url": "https://x", "lms_password": SECRET}
     )
 
     (event,) = await audit_events()
-    assert (event.category, event.action) == ("user_plugin", "config_created")
+    assert (event.category, event.action) == ("plugin", "config_created")
     assert event.outcome == "success"
-    assert event.target_type == "user_plugin"
-    assert event.target_id == str(user_plugin.id)
+    assert event.target_type == "user_plugin_preference"
+    assert event.target_id == str(preference.id)
     assert event.new_values == {"plugin": PLUGIN_NAME, "keys": ["lms_password", "url"]}
     assert SECRET not in event.canonical_bytes.decode()
 
 
-async def test_update_user_plugin_config_records_old_and_new_keys(
+async def test_update_preference_config_records_old_and_new_keys(
     session: AsyncSession, plugin: Plugin, audit_events: AuditEventsFetcher, passthrough_validation: None
 ) -> None:
     assert plugin.id is not None
     service = PluginService()
-    await service.create_user_plugin(session, 1, plugin.id, {"url": "https://x"})
-    await service.update_user_plugin_config(session, 1, plugin, {"lms_password": SECRET})
+    await service.create_preference(session, 1, plugin.id, {"url": "https://x"})
+    await service.update_preference_config(session, 1, plugin, {"lms_password": SECRET})
     await session.commit()
 
     _, event = await audit_events()
-    assert (event.category, event.action) == ("user_plugin", "config_updated")
+    assert (event.category, event.action) == ("plugin", "config_updated")
     assert event.old_values == {"plugin": PLUGIN_NAME, "keys": ["url"]}
     assert event.new_values == {
         "plugin": PLUGIN_NAME,
@@ -89,7 +89,7 @@ async def test_update_user_plugin_config_records_old_and_new_keys(
         pytest.param({"url": URL}, {"url": URL}, [], False, id="nothing-changed"),
     ],
 )
-async def test_update_user_plugin_config_records_changed_fields(
+async def test_update_preference_config_records_changed_fields(
     session: AsyncSession,
     plugin: Plugin,
     audit_events: AuditEventsFetcher,
@@ -101,8 +101,8 @@ async def test_update_user_plugin_config_records_changed_fields(
 ) -> None:
     assert plugin.id is not None
     service = PluginService()
-    await service.create_user_plugin(session, 1, plugin.id, stored)
-    await service.update_user_plugin_config(session, 1, plugin, update)
+    await service.create_preference(session, 1, plugin.id, stored)
+    await service.update_preference_config(session, 1, plugin, update)
     await session.commit()
 
     _, event = await audit_events()
@@ -119,7 +119,7 @@ async def test_update_user_plugin_config_records_changed_fields(
         assert value not in sealed
 
 
-async def test_update_user_plugin_config_without_secret_fields_flags_no_secret(
+async def test_update_preference_config_without_secret_fields_flags_no_secret(
     session: AsyncSession, audit_events: AuditEventsFetcher, passthrough_validation: None
 ) -> None:
     plugin = Plugin(name=PLUGIN_NAME, is_core=True, enabled=True, config_schema={})
@@ -127,8 +127,8 @@ async def test_update_user_plugin_config_without_secret_fields_flags_no_secret(
     await session.flush()
     assert plugin.id is not None
     service = PluginService()
-    await service.create_user_plugin(session, 1, plugin.id, {"url": URL})
-    await service.update_user_plugin_config(session, 1, plugin, {"url": NEW_URL})
+    await service.create_preference(session, 1, plugin.id, {"url": URL})
+    await service.update_preference_config(session, 1, plugin, {"url": NEW_URL})
     await session.commit()
 
     _, event = await audit_events()
@@ -141,10 +141,10 @@ async def test_update_enabled_records_transition(
     session: AsyncSession, plugin: Plugin, audit_events: AuditEventsFetcher
 ) -> None:
     assert plugin.id is not None
-    user_plugin = await PluginService().update_user_plugin_enabled(session, 1, plugin.id, False)
+    preference = await PluginService().update_preference_enabled(session, 1, plugin.id, False)
 
     (event,) = await audit_events()
-    assert (event.category, event.action) == ("user_plugin", "enabled_changed")
-    assert event.target_id == str(user_plugin.id)
+    assert (event.category, event.action) == ("plugin", "enabled_changed")
+    assert event.target_id == str(preference.id)
     assert event.old_values == {"plugin": PLUGIN_NAME, "enabled": True}
     assert event.new_values == {"plugin": PLUGIN_NAME, "enabled": False}

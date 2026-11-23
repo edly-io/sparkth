@@ -11,7 +11,7 @@ from sparkth.lib.permissions.scopes import USER
 from sparkth.plugins.compose.models import Conversation, Message
 from sparkth.plugins.compose.permissions import CONVERSATION, CONVERSATION_READ
 from sparkth.plugins.compose.routes.dependencies import get_conversation as get_conversation_record
-from sparkth.plugins.compose.routes.utils import parse_metadata_flag, parse_metadata_list
+from sparkth.plugins.compose.routes.utils import parse_metadata_flag, parse_metadata_list, parse_metadata_value
 from sparkth.plugins.compose.schemas import (
     ConversationDetailResponse,
     ConversationListResponse,
@@ -40,6 +40,7 @@ def _message_response(msg: Message) -> MessageResponse:
             "attachment_size": msg.attachment_size,
             "rag_sections": parse_metadata_list(msg.model_metadata, "rag_sections"),
             "tool_calls": parse_metadata_list(msg.model_metadata, "tool_calls"),
+            "plan": parse_metadata_value(msg.model_metadata, "plan_snapshot"),
             "is_error": msg.is_error,
             "stopped": parse_metadata_flag(msg.model_metadata, "stopped"),
         }

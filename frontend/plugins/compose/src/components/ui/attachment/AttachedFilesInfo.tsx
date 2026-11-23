@@ -1,7 +1,7 @@
 "use client";
 
 import { FileText, X } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { isUnsentUpload, TextAttachment } from "@/plugins/compose/src/types";
 import { Button } from "@/lib/components/ui/Button";
 import { Popover, PopoverTrigger, PopoverContent } from "@/lib/components/ui/Popover";
@@ -25,15 +25,32 @@ function fileIcon(file: TextAttachment) {
 }
 
 /**
- * The line above the message box counting the attached files. Opening it lists every file's name,
- * after an icon showing where it came from, each with a button that removes it, except a file
- * already sent, whose text the conversation keeps. While files upload, the line says which of the
- * files waiting to be sent is uploading, and a spinner takes the uploading file's icon's place.
+ * The line above the message box counting the attached files. Opening it lists every file's name
+ * and size, after an icon showing where it came from, each with a button that removes it, except
+ * an older upload whose text is stored in a message. While files upload, the line says which of
+ * the files waiting to be sent is uploading, and a spinner takes the uploading file's icon's place.
  */
 export function AttachedFilesInfo({ attachments, onRemoveFile }: AttachedFilesInfoProps) {
   const t = useTranslations("compose");
+  const format = useFormatter();
 
   if (attachments.length === 0) return null;
+
+  // A file's size in bytes, kilobytes or megabytes, whichever is the largest that fits.
+  const formatSize = (bytes: number) => {
+    const [value, unit] =
+      bytes < 1024
+        ? [bytes, "byte"]
+        : bytes < 1024 * 1024
+          ? [bytes / 1024, "kilobyte"]
+          : [bytes / 1024 / 1024, "megabyte"];
+    return format.number(value, {
+      style: "unit",
+      unit,
+      unitDisplay: "narrow",
+      maximumFractionDigits: 1,
+    });
+  };
 
   // The computer files waiting to go with the next message, which the upload progress counts.
   const unsentUploads = attachments.filter(isUnsentUpload);
@@ -76,8 +93,11 @@ export function AttachedFilesInfo({ attachments, onRemoveFile }: AttachedFilesIn
                     <span className="truncate">
                       {truncate(file.name, DOCUMENT_DISPLAY_NAME_MAX_CHARS)}
                     </span>
+                    {file.size > 0 && (
+                      <span className="shrink-0 text-xs">{formatSize(file.size)}</span>
+                    )}
                   </span>
-                  {!file.isSent && (
+                  {!file.isStoredInMessage && (
                     <Button
                       variant="ghost"
                       size="sm"

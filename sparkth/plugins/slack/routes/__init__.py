@@ -227,20 +227,20 @@ async def _get_slack_config_or_refusal(session: AsyncSession, user_id: int) -> S
         logger.info("User %d may not use the Slack plugin", user_id)
         return _Reply(str(PLUGIN_DISABLED_MESSAGE), ResponseType.PLUGIN_DISABLED)
 
-    plugin_map = await PluginService().get_user_plugin_map(session, user_id)
-    user_plugin = plugin_map.get(SLACK_PLUGIN_NAME)
-    if not user_plugin:
+    preference_map = await PluginService().get_preference_map(session, user_id)
+    preference = preference_map.get(SLACK_PLUGIN_NAME)
+    if not preference:
         logger.info("Slack plugin not configured for user %d", user_id)
         return _Reply(
             "The TA Bot hasn't been set up by your instructor yet. Please check back later.",
             ResponseType.PLUGIN_DISABLED,
         )
 
-    if not user_plugin.enabled:
+    if not preference.enabled:
         logger.info("Slack plugin disabled for user %d", user_id)
         return _Reply(str(PLUGIN_DISABLED_MESSAGE), ResponseType.PLUGIN_DISABLED)
 
-    if not user_plugin.config:
+    if not preference.config:
         logger.warning("Slack plugin config empty for user %d", user_id)
         return _Reply(
             "The TA Bot configuration is incomplete. Please contact your instructor.",
@@ -248,7 +248,7 @@ async def _get_slack_config_or_refusal(session: AsyncSession, user_id: int) -> S
         )
 
     try:
-        return SlackConfig(**user_plugin.config)
+        return SlackConfig(**preference.config)
     except ValidationError as exc:
         logger.warning("Invalid SlackConfig for user %d: %s", user_id, exc)
         return _Reply(

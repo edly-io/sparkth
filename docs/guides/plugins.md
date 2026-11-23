@@ -46,7 +46,7 @@ Valid `llm_model_override` values must be a legal model for the linked `LLMConfi
 
 ### LMS Plugins: Tools Without Credentials
 
-An LMS tool reads the caller's saved settings itself with `load_user_plugin_config`, described in
+An LMS tool reads the caller's saved settings itself with `load_plugin_config`, described in
 [Reading the caller's stored settings](#reading-the-callers-stored-settings), and raises
 `PluginNotConfiguredError` when there are none.
 
@@ -67,7 +67,7 @@ no publish step), so the chat LLM reads this before acting. See `canvas_about`, 
 ### Secret fields
 
 Mark a credential with `json_schema_extra=secret()`, or `secret(ConfigWidget.TEXTAREA)` for a multi-line one.
-Sparkth stores every user's plugin config encrypted, and the `user-plugins` API never returns a secret field: it
+Sparkth stores every user's plugin config encrypted, and the `plugins` API never returns a secret field: it
 lists the stored ones in `secrets_set` instead. The settings form shows a stored secret as dots with a **Replace**
 action, and a save that leaves it out keeps the stored value.
 
@@ -78,7 +78,7 @@ Mark an API key or token with `secret(masked=True)`: the API also returns it mas
 
 Register a Pydantic configuration class when your plugin has user-configurable settings that the system
 should validate and normalize, and always for LMS plugins, whose tools load it with
-`load_user_plugin_config`. Plugins with no user-facing configuration can skip this entirely.
+`load_plugin_config`. Plugins with no user-facing configuration can skip this entirely.
 
 When you do register one, contribute your config class to the `CONFIG_SCHEMAS` hook from your plugin's `__init__`, right after calling `super().__init__(...)`. The system resolves config classes by the plugin's _declared_ name (the value you pass to `super().__init__()`, see [Plugin Names](#plugin-names) below), so no name string is needed at the call site.
 
@@ -576,11 +576,11 @@ and the tools they run. On `/ai/mcp` nothing is bound, so the call raises
 
 ### Reading the caller's stored settings
 
-A tool that needs the caller's stored plugin settings calls `load_user_plugin_config` from
+A tool that needs the caller's stored plugin settings calls `load_plugin_config` from
 `sparkth.lib.plugins` with its plugin name and config class:
 
 ```python
-config = await load_user_plugin_config("canvas", CanvasConfig)
+config = await load_plugin_config("canvas", CanvasConfig)
 ```
 
 It never takes those settings as arguments, because the model writes tool arguments and could
@@ -692,7 +692,7 @@ without importing compose, by registering an `Agent` with `register_agent` from
 `sparkth.lib.compose.hooks`. A plugin registers one agent, from its `__init__`, keyed by the plugin
 instance.
 
-An `Agent` has five fields:
+An `Agent` has six fields:
 
 - `name` identifies the agent: lowercase letters, digits and underscores, starting with a letter.
   `compose`, `operator`, `show_plan` and `refuse` are reserved.
@@ -702,6 +702,9 @@ An `Agent` has five fields:
 - `prompt` is plain text inserted into the system prompt as written, so a brace in it needs no
   escaping. Keep it in the plugin's `assets/` and load it with `read_asset(__file__, "<name>.txt")`
   from `sparkth.lib.assets`.
+- `status` is the short line the author reads while the agent works, such as "Building your
+  activity…". Mark it with `gettext_noop` and translate it in the plugin's catalogs; Compose shows
+  it in the author's language.
 - `tools` are the `Tool`s the agent runs, built like the ones for `MCP_TOOLS`. A tool given only
   to the agent is private to it: no MCP client sees it. To offer a tool on the MCP server as well,
   add the same `Tool` to `MCP_TOOLS`. Agents compare without their tools, so a plugin may build
@@ -712,6 +715,7 @@ Define the agent in the plugin's `agent.py` and register it from `plugin.py`. Fo
 ```python
 # sparkth/plugins/myappplugin/agent.py
 from sparkth.lib.compose.hooks import Agent
+from sparkth.lib.i18n import gettext_noop
 from sparkth.lib.mcp.hooks import Tool
 
 
@@ -727,6 +731,7 @@ MY_AGENT = Agent(
     "My App builder",
     "Requests to build or change things in My App.",
     "Ask which My App item the author wants, then build it with the My App tools.",
+    gettext_noop("Building your My App item…"),
     tools=(MY_APP_BUILD,),
 )
 ```
@@ -785,7 +790,7 @@ does not hold `plugin.use` at (a `global` grant covers every plugin).
 - **Steps.** A step is one piece of work the planner gives to one agent or to its operator. It
   counts as one step however many tools that agent or the operator calls while doing it. A request
   can need several steps, such as writing a lesson, building an activity for it and publishing both.
-  The planner shows the author its plan, a numbered list of its tasks, each one short line, before
+  The planner shows the author its plan, a list of its tasks, each one short line, before
   the first step. When the work begins with an agent gathering the author's requirements, such as a
   course's audience and goals, that agent asks first and the plan comes once the author has
   answered. What each step returns goes back to the planner, which runs the next part the author
@@ -799,6 +804,9 @@ does not hold `plugin.use` at (a `global` grant covers every plugin).
   follows another step is asked for its task as the plan states it, not for what the planner wrote
   afterwards. So text a step brought in, from an agent's reply or from the LMS, can't start an
   operation the author wasn't shown, or change what a planned one does.
+  The plan isn't part of the reply's text: the author's browser gets it as data, its tasks and the
+  step it is at, when the plan is made and as each step starts and runs, and shows it above the
+  reply. Each reply that showed the plan keeps it as it stood when the reply ended.
 - **Unfinished plans.** A plan a turn leaves unfinished, because an agent asked the author
   something or the turn was stopped or failed, is kept with the reply until its last step has run.
   A later message carries it on from the step it is at: that step again or the one after it when it

@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from sparkth.main import assemble_app
-from sparkth.plugins.compose.schemas import AttachmentMeta, ChatCompletionRequest, ChatMessage
+from sparkth.plugins.compose.schemas import ChatCompletionRequest, ChatMessage
 
 COMPLETIONS_PATH = "/api/v1/compose/completions"
 
@@ -51,7 +51,7 @@ class TestTheRequestMustCarryAUserTurn:
 
         assert len(request.messages) == 2
 
-    def test_an_attachment_only_user_turn_is_still_a_user_turn(self) -> None:
+    def test_a_user_turn_with_no_text_is_still_a_user_turn(self) -> None:
         """Sending a document with no words is a real request; only the text is absent."""
         request = ChatCompletionRequest(
             llm_config_id=1,
@@ -59,9 +59,8 @@ class TestTheRequestMustCarryAUserTurn:
                 ChatMessage(
                     role="user",
                     content=[{"type": "document", "source": {"type": "base64", "data": ""}}],
-                    attachment=AttachmentMeta(name="syllabus.pdf", size=1024),
                 )
             ],
         )
 
-        assert request.messages[0].attachment is not None
+        assert len(request.messages) == 1
