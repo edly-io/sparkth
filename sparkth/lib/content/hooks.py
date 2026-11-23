@@ -8,10 +8,9 @@ A contributor may also offer *options*, the choices an author picks between, suc
 activity to place. The publisher lists them and hands the chosen option's id back to the
 builder.
 
-The hook is keyed by plugin, so a plugin switched off for a user stops contributing: a
-publishing plugin resolves contributors through :func:`enabled_content_contributors`, which
-leaves out those of a disabled plugin. A plugin registers one contributor from its
-``SparkthPlugin.__init__``::
+The hook is keyed by plugin, so a plugin switched off for a user stops contributing, and so does
+one the user may not use: a publishing plugin reads only the contributors the caller may use.
+A plugin registers one contributor from its ``SparkthPlugin.__init__``::
 
     register_content_contributor(
         self, ContentContributor("pxc", "...", {"openedx": build_pxc_block}, list_pxc_options)
@@ -26,6 +25,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.auth import current_user_id
 from sparkth.lib.content.exceptions import (
+    ContentContributorNotPermittedError,
     ContentContributorUnavailableError,
     DuplicateContentContributorError,
     UnknownContentContributorError,
@@ -34,6 +34,9 @@ from sparkth.lib.db import session_scope
 from sparkth.lib.exceptions.auth import NoAuthenticatedUser
 from sparkth.lib.hooks import PluginHook
 from sparkth.lib.log import get_logger
+from sparkth.lib.models import User
+from sparkth.lib.permissions import PLUGIN_USE, get_accessible_scope_object_ids
+from sparkth.lib.permissions.scopes import PLUGIN, build_scope_path
 from sparkth.lib.plugins import SparkthPlugin, disabled_plugin_names
 
 logger = get_logger(__name__)
@@ -149,32 +152,65 @@ async def _caller_disabled_plugins(session: AsyncSession) -> set[str]:
     return await disabled_plugin_names(user_id, session)
 
 
+async def _get_caller_allowed_plugins(session: AsyncSession) -> set[str] | None:
+    """Return the names of the plugins the current caller may use, or ``None`` when they may use
+    every plugin.
+
+    With no authenticated user bound there is nobody to check, so every plugin is allowed.
+    """
+    try:
+        user_id = current_user_id()
+    except NoAuthenticatedUser:
+        return None
+    user = await session.get(User, user_id)
+    if user is None:
+        logger.warning("User %s no longer exists; allowing no plugin's content", user_id)
+        return set()
+    return await get_accessible_scope_object_ids(user, PLUGIN_USE, PLUGIN, session)
+
+
 async def enabled_content_contributors() -> dict[str, ContentContributor]:
     """The registered contributors the current caller may use, by name.
 
     Leaves out every contributor whose owning plugin is switched off for the caller, system-wide
-    or by their own preference. A database error propagates.
+    or by their own preference, and every one whose plugin the caller may not use. A database
+    error propagates.
     """
     async with session_scope() as session:
-        disabled = await _caller_disabled_plugins(session)
-    return {c.name: c for owner, c in LMS_CONTENT_CONTRIBUTORS.iter_items() if owner.name not in disabled}
+        disabled_plugins = await _caller_disabled_plugins(session)
+        allowed_plugins = await _get_caller_allowed_plugins(session)
+    contributors: dict[str, ContentContributor] = {}
+    for owner, contributor in LMS_CONTENT_CONTRIBUTORS.iter_items():
+        if owner.name in disabled_plugins:
+            continue
+        # allowed_plugins is None if the grant is global
+        if allowed_plugins is None or owner.name in allowed_plugins:
+            contributors[contributor.name] = contributor
+    return contributors
 
 
 async def enabled_content_contributor(name: str) -> ContentContributor:
-    """The contributor registered as ``name``, if its plugin is switched on for the current caller.
+    """The contributor registered as ``name``, if the current caller may use its plugin and has it
+    switched on.
 
-    The switches are read only once the name is found. A database error propagates.
+    The switches and the permission are read only once the name is found. A database error propagates.
 
     Raises:
         UnknownContentContributorError: No contributor is registered as ``name``.
         ContentContributorUnavailableError: Its plugin is switched off for the caller.
+        ContentContributorNotPermittedError: The caller may not use its plugin. The refusal is
+            recorded as a denial.
     """
     owned = next(((owner, c) for owner, c in LMS_CONTENT_CONTRIBUTORS.iter_items() if c.name == name), None)
     if owned is None:
         raise UnknownContentContributorError(name)
     owner, contributor = owned
     async with session_scope() as session:
-        disabled = await _caller_disabled_plugins(session)
-    if owner.name in disabled:
-        raise ContentContributorUnavailableError(name)
-    return contributor
+        if owner.name in await _caller_disabled_plugins(session):
+            raise ContentContributorUnavailableError(name)
+        allowed_plugins = await _get_caller_allowed_plugins(session)
+    # allowed_plugins is None if the grant is global
+    if allowed_plugins is None or owner.name in allowed_plugins:
+        return contributor
+    await PLUGIN_USE.record_denial(PLUGIN, build_scope_path(PLUGIN, owner.name))
+    raise ContentContributorNotPermittedError(name)

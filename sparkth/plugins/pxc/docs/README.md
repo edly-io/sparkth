@@ -70,6 +70,9 @@ contract: the author describes an activity in plain words, and the agent builds 
 replies with a preview link that opens the activity on the Sparkth
 `/dashboard/pxc` page.
 
+Compose offers the agent only to an author who holds `plugin.use` at `plugin:pxc`, and an LMS
+tool lists and places PXC activities only for such an author.
+
 | Tool | Returns |
 |---|---|
 | `pxc_about` | The contract: file rules and the manifest JSON schema |
