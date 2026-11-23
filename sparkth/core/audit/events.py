@@ -304,7 +304,7 @@ class LLMConfigKeyReadAuditEvent(BaseAuditEvent):
 
 @AUDIT_EVENTS.register
 @dataclass(frozen=True, slots=True, kw_only=True)
-class UserPluginConfigCreatedAuditEvent(MutationAuditEvent):
+class PluginConfigCreatedAuditEvent(MutationAuditEvent):
     """A user configured a plugin for the first time.
 
     Plugin configs are mostly credentials under plugin-specific key names
@@ -312,27 +312,27 @@ class UserPluginConfigCreatedAuditEvent(MutationAuditEvent):
     name and the sorted config *keys*, never a value.
     """
 
-    event_type: ClassVar[str] = "user_plugin.config_created"
+    event_type: ClassVar[str] = "plugin.config_created"
 
 
 @AUDIT_EVENTS.register
 @dataclass(frozen=True, slots=True, kw_only=True)
-class UserPluginConfigUpdatedAuditEvent(MutationAuditEvent):
+class PluginConfigUpdatedAuditEvent(MutationAuditEvent):
     """A user's plugin configuration changed.
 
     The snapshots carry the config key names; ``change.new`` also names the
     fields that changed and whether any is a secret. Never a value.
     """
 
-    event_type: ClassVar[str] = "user_plugin.config_updated"
+    event_type: ClassVar[str] = "plugin.config_updated"
 
 
 @AUDIT_EVENTS.register
 @dataclass(frozen=True, slots=True, kw_only=True)
-class UserPluginEnabledChangedAuditEvent(MutationAuditEvent):
+class PluginEnabledChangedAuditEvent(MutationAuditEvent):
     """A user enabled or disabled a plugin for themselves."""
 
-    event_type: ClassVar[str] = "user_plugin.enabled_changed"
+    event_type: ClassVar[str] = "plugin.enabled_changed"
 
 
 @AUDIT_EVENTS.register

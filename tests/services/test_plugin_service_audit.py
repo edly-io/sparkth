@@ -46,9 +46,9 @@ async def test_create_preference_records_config_keys_only(
     )
 
     (event,) = await audit_events()
-    assert (event.category, event.action) == ("user_plugin", "config_created")
+    assert (event.category, event.action) == ("plugin", "config_created")
     assert event.outcome == "success"
-    assert event.target_type == "user_plugin"
+    assert event.target_type == "user_plugin_preference"
     assert event.target_id == str(preference.id)
     assert event.new_values == {"plugin": PLUGIN_NAME, "keys": ["lms_password", "url"]}
     assert SECRET not in event.canonical_bytes.decode()
@@ -64,7 +64,7 @@ async def test_update_preference_config_records_old_and_new_keys(
     await session.commit()
 
     _, event = await audit_events()
-    assert (event.category, event.action) == ("user_plugin", "config_updated")
+    assert (event.category, event.action) == ("plugin", "config_updated")
     assert event.old_values == {"plugin": PLUGIN_NAME, "keys": ["url"]}
     assert event.new_values == {
         "plugin": PLUGIN_NAME,
@@ -144,7 +144,7 @@ async def test_update_enabled_records_transition(
     preference = await PluginService().update_preference_enabled(session, 1, plugin.id, False)
 
     (event,) = await audit_events()
-    assert (event.category, event.action) == ("user_plugin", "enabled_changed")
+    assert (event.category, event.action) == ("plugin", "enabled_changed")
     assert event.target_id == str(preference.id)
     assert event.old_values == {"plugin": PLUGIN_NAME, "enabled": True}
     assert event.new_values == {"plugin": PLUGIN_NAME, "enabled": False}
