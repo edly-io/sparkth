@@ -1,4 +1,4 @@
-"""User plugin preference endpoints."""
+"""Endpoints for the calling user's plugin preferences."""
 
 from typing import Any
 
@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.api.v1.plugins.dependencies import get_usable_plugin_names, require_plugin_use
-from sparkth.api.v1.plugins.schemas import UpdateUserPluginRequest, UserPluginConfigRequest
+from sparkth.api.v1.plugins.schemas import PluginConfigRequest, UpdatePluginRequest
 from sparkth.core.models.plugin import Plugin
 from sparkth.core.models.user import User
 from sparkth.core.plugins.service import (
@@ -46,7 +46,7 @@ def validate_plugin(plugin: Plugin) -> None:
 
 
 @router.get("/", response_model=list[PluginResponse])
-async def list_user_plugins(
+async def list_plugins(
     usable_plugin_names: set[str] | None = Depends(get_usable_plugin_names),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
@@ -101,14 +101,14 @@ async def list_user_plugins(
     dependencies=[Depends(require_plugin_use)],
     status_code=status.HTTP_201_CREATED,
 )
-async def create_user_plugin(
+async def configure_plugin(
     plugin_name: str,
     user_config: dict[str, Any],
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
     plugin_service: PluginService = Depends(get_plugin_service),
 ) -> PluginResponse:
-    """Create a user plugin with validated configuration."""
+    """Save the calling user's first configuration for a plugin, after validating it."""
     if not current_user.id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=_("User not authenticated."))
 
@@ -147,7 +147,7 @@ async def create_user_plugin(
 
 
 @router.get("/{plugin_name}", response_model=PluginResponse, dependencies=[Depends(require_plugin_use)])
-async def get_user_plugin(
+async def get_plugin(
     plugin_name: str,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
@@ -186,9 +186,9 @@ async def get_user_plugin(
 
 
 @router.patch("/{plugin_name}", response_model=PluginResponse, dependencies=[Depends(require_plugin_use)])
-async def update_user_plugin(
+async def update_plugin(
     plugin_name: str,
-    request: UpdateUserPluginRequest,
+    request: UpdatePluginRequest,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
     plugin_service: PluginService = Depends(get_plugin_service),
@@ -218,9 +218,9 @@ async def update_user_plugin(
 
 
 @router.put("/{plugin_name}/config", response_model=PluginResponse, dependencies=[Depends(require_plugin_use)])
-async def update_user_plugin_config(
+async def update_plugin_config(
     plugin_name: str,
-    request: UserPluginConfigRequest,
+    request: PluginConfigRequest,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
     plugin_service: PluginService = Depends(get_plugin_service),
@@ -261,7 +261,7 @@ async def update_user_plugin_config(
 
 
 @router.patch("/{plugin_name}/enable", response_model=PluginResponse, dependencies=[Depends(require_plugin_use)])
-async def enable_user_plugin(
+async def enable_plugin(
     plugin_name: str,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
@@ -272,9 +272,9 @@ async def enable_user_plugin(
 
     Convenience endpoint for enabling a plugin.
     """
-    return await update_user_plugin(
+    return await update_plugin(
         plugin_name=plugin_name,
-        request=UpdateUserPluginRequest(enabled=True),
+        request=UpdatePluginRequest(enabled=True),
         current_user=current_user,
         session=session,
         plugin_service=plugin_service,
@@ -282,7 +282,7 @@ async def enable_user_plugin(
 
 
 @router.patch("/{plugin_name}/disable", response_model=PluginResponse, dependencies=[Depends(require_plugin_use)])
-async def disable_user_plugin(
+async def disable_plugin(
     plugin_name: str,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
@@ -293,9 +293,9 @@ async def disable_user_plugin(
 
     Convenience endpoint for disabling a plugin.
     """
-    return await update_user_plugin(
+    return await update_plugin(
         plugin_name=plugin_name,
-        request=UpdateUserPluginRequest(enabled=False),
+        request=UpdatePluginRequest(enabled=False),
         current_user=current_user,
         session=session,
         plugin_service=plugin_service,
