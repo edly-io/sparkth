@@ -29,7 +29,7 @@ def _make_session(preference: UserPluginPreference | None = None) -> AsyncMock:
 
 
 @pytest.mark.asyncio
-async def test_update_user_plugin_config_strips_legacy_fields() -> None:
+async def test_update_preference_config_strips_legacy_fields() -> None:
     """Merging new config onto legacy stored config must not fail with extra_forbidden."""
     legacy_config = {
         "provider": "anthropic",
@@ -45,7 +45,7 @@ async def test_update_user_plugin_config_strips_legacy_fields() -> None:
     plugin = _make_plugin()
     service = PluginService()
 
-    result = await service.update_user_plugin_config(
+    result = await service.update_preference_config(
         session=session,
         user_id=1,
         plugin=plugin,
@@ -59,13 +59,13 @@ async def test_update_user_plugin_config_strips_legacy_fields() -> None:
 
 
 @pytest.mark.asyncio
-async def test_update_user_plugin_config_valid_config_succeeds() -> None:
+async def test_update_preference_config_valid_config_succeeds() -> None:
     """Updating with a valid config when no prior config exists works."""
     session = _make_session(None)
     plugin = _make_plugin()
     service = PluginService()
 
-    result = await service.update_user_plugin_config(
+    result = await service.update_preference_config(
         session=session,
         user_id=1,
         plugin=plugin,
@@ -111,7 +111,7 @@ async def test_update_config_revalidates_stored_model_override_against_new_provi
     service = PluginService()
 
     with pytest.raises(ValueError, match="not available for provider"):
-        await service.update_user_plugin_config(
+        await service.update_preference_config(
             session=session,
             user_id=1,
             plugin=plugin,

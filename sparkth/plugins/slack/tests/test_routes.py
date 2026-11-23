@@ -670,10 +670,10 @@ class TestGetLogs:
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 
-def _make_plugin_svc(user_plugin: MagicMock | None) -> AsyncMock:
-    """Return a PluginService mock whose get_user_plugin_map returns the given plugin (or {})."""
+def _make_plugin_svc(preference: MagicMock | None) -> AsyncMock:
+    """Return a PluginService mock whose get_preference_map returns the given plugin (or {})."""
     instance = AsyncMock()
-    instance.get_user_plugin_map.return_value = {SLACK_PLUGIN_NAME: user_plugin} if user_plugin else {}
+    instance.get_preference_map.return_value = {SLACK_PLUGIN_NAME: preference} if preference else {}
     return instance
 
 
@@ -700,7 +700,7 @@ class TestDispatchEvent:
 
     @pytest.mark.asyncio
     async def test_posts_not_configured_message_when_plugin_missing(self) -> None:
-        """No UserPlugin row → post informative Slack message, do not process."""
+        """No preference row → post informative Slack message, do not process."""
         event = {"type": "app_mention", "text": "<@BOT> hi", "channel": "C1", "user": "U1", "ts": "1.0"}
         slack_client = _make_slack_client_mock()
         mock_plugin_svc = _make_plugin_svc(None)
@@ -720,11 +720,11 @@ class TestDispatchEvent:
     async def test_posts_disabled_message_when_plugin_disabled(self) -> None:
         """Plugin exists but enabled=False → post informative Slack message, do not process."""
         event = {"type": "app_mention", "text": "<@BOT> hi", "channel": "C1", "user": "U1", "ts": "1.0"}
-        user_plugin = MagicMock()
-        user_plugin.enabled = False
-        user_plugin.config = {"bot_name": "TA Bot"}
+        preference = MagicMock()
+        preference.enabled = False
+        preference.config = {"bot_name": "TA Bot"}
         slack_client = _make_slack_client_mock()
-        mock_plugin_svc = _make_plugin_svc(user_plugin)
+        mock_plugin_svc = _make_plugin_svc(preference)
 
         with (
             patch("sparkth.plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
@@ -741,11 +741,11 @@ class TestDispatchEvent:
     async def test_posts_incomplete_config_message_when_config_empty(self) -> None:
         """Plugin enabled but config is empty → post informative message, do not process."""
         event = {"type": "app_mention", "text": "<@BOT> hi", "channel": "C1", "user": "U1", "ts": "1.0"}
-        user_plugin = MagicMock()
-        user_plugin.enabled = True
-        user_plugin.config = {}
+        preference = MagicMock()
+        preference.enabled = True
+        preference.config = {}
         slack_client = _make_slack_client_mock()
-        mock_plugin_svc = _make_plugin_svc(user_plugin)
+        mock_plugin_svc = _make_plugin_svc(preference)
 
         with (
             patch("sparkth.plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
@@ -762,11 +762,11 @@ class TestDispatchEvent:
     async def test_greeting_posts_greeting_message(self) -> None:
         """is_greeting=True → posts greeting_message from config, rag_matched=False."""
         event = {"type": "app_mention", "text": "<@BOT> hello", "channel": "C1", "user": "U1", "ts": "1.0"}
-        user_plugin = MagicMock()
-        user_plugin.enabled = True
-        user_plugin.config = {"greeting_message": "Hey there, student!"}
+        preference = MagicMock()
+        preference.enabled = True
+        preference.config = {"greeting_message": "Hey there, student!"}
         slack_client = _make_slack_client_mock()
-        mock_plugin_svc = _make_plugin_svc(user_plugin)
+        mock_plugin_svc = _make_plugin_svc(preference)
 
         with (
             patch("sparkth.plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
@@ -789,11 +789,11 @@ class TestDispatchEvent:
             "user": "U1",
             "ts": "1.0",
         }
-        user_plugin = MagicMock()
-        user_plugin.enabled = True
-        user_plugin.config = {"fallback_message": "No answer found.", "llm_config_id": 1}
+        preference = MagicMock()
+        preference.enabled = True
+        preference.config = {"fallback_message": "No answer found.", "llm_config_id": 1}
         slack_client = _make_slack_client_mock()
-        mock_plugin_svc = _make_plugin_svc(user_plugin)
+        mock_plugin_svc = _make_plugin_svc(preference)
         mock_llm_provider = MagicMock()
         mock_llm_provider.create_llm = MagicMock(return_value=MagicMock())
 
@@ -828,11 +828,11 @@ class TestDispatchEvent:
             "user": "U1",
             "ts": "1.0",
         }
-        user_plugin = MagicMock()
-        user_plugin.enabled = True
-        user_plugin.config = {"fallback_message": "Bot temporarily unavailable."}
+        preference = MagicMock()
+        preference.enabled = True
+        preference.config = {"fallback_message": "Bot temporarily unavailable."}
         slack_client = _make_slack_client_mock()
-        mock_plugin_svc = _make_plugin_svc(user_plugin)
+        mock_plugin_svc = _make_plugin_svc(preference)
 
         with (
             patch("sparkth.plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
@@ -860,11 +860,11 @@ class TestDispatchEvent:
             "user": "U1",
             "ts": "1.0",
         }
-        user_plugin = MagicMock()
-        user_plugin.enabled = True
-        user_plugin.config = {"fallback_message": "Bot misconfigured.", "llm_config_id": 99}
+        preference = MagicMock()
+        preference.enabled = True
+        preference.config = {"fallback_message": "Bot misconfigured.", "llm_config_id": 99}
         slack_client = _make_slack_client_mock()
-        mock_plugin_svc = _make_plugin_svc(user_plugin)
+        mock_plugin_svc = _make_plugin_svc(preference)
 
         with (
             patch("sparkth.plugins.slack.routes.PluginService", return_value=mock_plugin_svc),
@@ -977,7 +977,7 @@ async def test_dispatch_event_passes_llm_provider_when_configured() -> None:
         mock_user_plugin = MagicMock()
         mock_user_plugin.enabled = True
         mock_user_plugin.config = config.model_dump()
-        mock_plugin_instance.get_user_plugin_map.return_value = {SLACK_PLUGIN_NAME: mock_user_plugin}
+        mock_plugin_instance.get_preference_map.return_value = {SLACK_PLUGIN_NAME: mock_user_plugin}
         mock_plugin_svc.return_value = mock_plugin_instance
 
         # Simulate get_llm_service returning a service that resolves config + decrypted key
@@ -1048,7 +1048,7 @@ async def test_dispatch_event_uses_model_override_when_configured() -> None:
         mock_user_plugin = MagicMock()
         mock_user_plugin.enabled = True
         mock_user_plugin.config = config.model_dump()
-        mock_plugin_instance.get_user_plugin_map.return_value = {SLACK_PLUGIN_NAME: mock_user_plugin}
+        mock_plugin_instance.get_preference_map.return_value = {SLACK_PLUGIN_NAME: mock_user_plugin}
         mock_plugin_svc.return_value = mock_plugin_instance
 
         mock_llm_svc = AsyncMock()
@@ -1084,7 +1084,7 @@ class TestDispatchEventLogging:
         with (
             patch(
                 "sparkth.plugins.slack.routes.PluginService",
-                return_value=MagicMock(get_user_plugin_map=AsyncMock(return_value={})),
+                return_value=MagicMock(get_preference_map=AsyncMock(return_value={})),
             ),
             patch(
                 "sparkth.plugins.slack.routes._post_slack_message",
@@ -1118,7 +1118,7 @@ class TestDispatchEventLogging:
         with (
             patch(
                 "sparkth.plugins.slack.routes.PluginService",
-                return_value=MagicMock(get_user_plugin_map=AsyncMock(return_value={SLACK_PLUGIN_NAME: plugin})),
+                return_value=MagicMock(get_preference_map=AsyncMock(return_value={SLACK_PLUGIN_NAME: plugin})),
             ),
             patch(
                 "sparkth.plugins.slack.routes._post_slack_message",
@@ -1152,7 +1152,7 @@ class TestDispatchEventLogging:
         with (
             patch(
                 "sparkth.plugins.slack.routes.PluginService",
-                return_value=MagicMock(get_user_plugin_map=AsyncMock(return_value={SLACK_PLUGIN_NAME: plugin})),
+                return_value=MagicMock(get_preference_map=AsyncMock(return_value={SLACK_PLUGIN_NAME: plugin})),
             ),
             patch(
                 "sparkth.plugins.slack.routes._post_slack_message",
@@ -1189,7 +1189,7 @@ class TestDispatchEventLogging:
         with (
             patch(
                 "sparkth.plugins.slack.routes.PluginService",
-                return_value=MagicMock(get_user_plugin_map=AsyncMock(return_value={SLACK_PLUGIN_NAME: plugin})),
+                return_value=MagicMock(get_preference_map=AsyncMock(return_value={SLACK_PLUGIN_NAME: plugin})),
             ),
             patch(
                 "sparkth.plugins.slack.routes._post_slack_message",
@@ -1223,7 +1223,7 @@ class TestDispatchEventLogging:
         with (
             patch(
                 "sparkth.plugins.slack.routes.PluginService",
-                return_value=MagicMock(get_user_plugin_map=AsyncMock(return_value={})),
+                return_value=MagicMock(get_preference_map=AsyncMock(return_value={})),
             ),
             patch(
                 "sparkth.plugins.slack.routes._post_slack_message",
@@ -1256,7 +1256,7 @@ class TestDispatchEventLogging:
         with (
             patch(
                 "sparkth.plugins.slack.routes.PluginService",
-                return_value=MagicMock(get_user_plugin_map=AsyncMock(return_value={SLACK_PLUGIN_NAME: plugin})),
+                return_value=MagicMock(get_preference_map=AsyncMock(return_value={SLACK_PLUGIN_NAME: plugin})),
             ),
             patch(
                 "sparkth.plugins.slack.routes._post_slack_message", new_callable=AsyncMock, return_value="1.1"
@@ -1282,7 +1282,7 @@ class TestDispatchEventLogging:
         with (
             patch(
                 "sparkth.plugins.slack.routes.PluginService",
-                return_value=MagicMock(get_user_plugin_map=AsyncMock(return_value={SLACK_PLUGIN_NAME: plugin})),
+                return_value=MagicMock(get_preference_map=AsyncMock(return_value={SLACK_PLUGIN_NAME: plugin})),
             ),
             patch("sparkth.plugins.slack.routes._post_slack_message", new_callable=AsyncMock, return_value="1.1"),
             patch("sparkth.plugins.slack.routes._resolve_names", new_callable=AsyncMock, return_value=(None, None)),
@@ -1311,7 +1311,7 @@ async def test_dispatch_refuses_when_the_connecting_user_does_not_exist(session:
     with (
         patch(
             "sparkth.plugins.slack.routes.PluginService",
-            return_value=MagicMock(get_user_plugin_map=AsyncMock(return_value={SLACK_PLUGIN_NAME: plugin})),
+            return_value=MagicMock(get_preference_map=AsyncMock(return_value={SLACK_PLUGIN_NAME: plugin})),
         ),
         patch("sparkth.plugins.slack.routes._post_slack_message", new_callable=AsyncMock, return_value="1.1") as post,
         patch("sparkth.plugins.slack.routes._resolve_names", new_callable=AsyncMock, return_value=(None, None)),
