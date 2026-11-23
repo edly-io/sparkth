@@ -17,6 +17,7 @@ from sparkth.plugins.compose.constants import (
     MAX_PLAN_STEPS,
     MAX_STEPS_PER_TURN,
     OPERATION_RESULT_HEADING,
+    OPERATOR_STATUS,
     PLAN_TASK_MAX_CHARS,
     PLANNER_OPERATIONS,
     PLANNER_STEP_REQUEST,
@@ -45,6 +46,7 @@ from sparkth.plugins.compose.planner import (
     render_planner_prompt,
 )
 from sparkth.plugins.compose.planner.turn_activity import TurnActivity
+from sparkth.plugins.compose.planner.types import PlanSnapshot
 from sparkth.plugins.compose.prompt import render_system_prompt
 from sparkth.plugins.compose.tests.conftest import OTHER_AGENT, STUB_AGENT
 from sparkth.plugins.compose.tests.helpers import RecordingChatModel, plan_step, routed, shown_plan
@@ -463,6 +465,25 @@ class TestSeveralSteps:
 
         assert len(operator_model.seen) == 2
         assert messages[-1].text == "Both are published."
+
+
+class TestAStepsStatus:
+    async def test_each_step_is_announced_with_what_its_doer_says_it_is_doing(self) -> None:
+        planner_model = _planner_model(
+            AIMessage("", tool_calls=[_operation("Retrieve the course")]),
+            AIMessage("", tool_calls=[_hand_off(STUB_AGENT.name, "Redesign it")]),
+        )
+        reported: list[dict[str, Any]] = []
+
+        await _run(
+            planner_model,
+            _agent_graph(STUB_AGENT, ScriptedChatModel(messages=iter([AIMessage("Here is the redesign.")]))),
+            operator=_operator(ScriptedChatModel(messages=iter([AIMessage("Biology 101.")]))),
+            reported=reported,
+        )
+
+        announced = [event["status"] for event in reported if event["type"] == TurnEventType.ROUTED]
+        assert announced == [OPERATOR_STATUS, STUB_AGENT.status]
 
 
 class TestThePlan:
@@ -1164,6 +1185,7 @@ class TestAPlanFromAnEarlierMessage:
 
 class TestTurnActivity:
     STEPS = WRITE_THEN_PUBLISH.steps
+    TASKS = tuple(step.task for step in STEPS)
 
     def _recorded(self, existing_plan: ExistingPlan | None, *events: dict[str, Any]) -> TurnActivity:
         turn_activity = TurnActivity(existing_plan)
@@ -1227,6 +1249,44 @@ class TestTurnActivity:
         turn_activity = self._recorded(longer, plan_step(2, ran=False), plan_step(2, ran=True))
 
         assert turn_activity.get_plan_in_progress() == ExistingPlan(longer.steps, current_step=2)
+
+    def test_a_plan_the_turn_made_is_shown_before_any_step_starts(self) -> None:
+        turn_activity = self._recorded(None, shown_plan(self.STEPS))
+
+        expected = PlanSnapshot(tasks=self.TASKS, current_step=0, has_current_step_run=False)
+
+        assert turn_activity.get_plan_snapshot() == expected
+
+    def test_a_shown_plan_follows_its_steps(self) -> None:
+        turn_activity = self._recorded(None, shown_plan(self.STEPS), plan_step(1, ran=True), plan_step(2, ran=False))
+
+        expected = PlanSnapshot(tasks=self.TASKS, current_step=2, has_current_step_run=False)
+
+        assert turn_activity.get_plan_snapshot() == expected
+
+    def test_a_finished_plan_is_still_shown(self) -> None:
+        turn_activity = self._recorded(
+            None, shown_plan(self.STEPS), plan_step(1, ran=True), plan_step(2, ran=False), plan_step(2, ran=True)
+        )
+
+        expected = PlanSnapshot(tasks=self.TASKS, current_step=2, has_current_step_run=True)
+
+        assert turn_activity.get_plan_snapshot() == expected
+
+    def test_an_existing_plan_is_shown_once_the_turn_carries_it_on(self) -> None:
+        turn_activity = self._recorded(WRITE_THEN_PUBLISH, plan_step(2, ran=False))
+
+        expected = PlanSnapshot(tasks=self.TASKS, current_step=2, has_current_step_run=False)
+
+        assert turn_activity.get_plan_snapshot() == expected
+
+    def test_an_existing_plan_the_turn_did_not_carry_on_is_not_shown(self) -> None:
+        turn_activity = self._recorded(WRITE_THEN_PUBLISH, routed(STUB_AGENT.name))
+
+        assert turn_activity.get_plan_snapshot() is None
+
+    def test_a_turn_without_a_plan_shows_none(self) -> None:
+        assert self._recorded(None, routed(STUB_AGENT.name)).get_plan_snapshot() is None
 
 
 class TestThePlannersOwnReplies:
