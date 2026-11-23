@@ -10,7 +10,7 @@ import type { Locale } from "@/lib/i18n/config";
  * A plugin's stored configuration values.
  *
  * The fields themselves are declared by the backend config class and reach the
- * frontend as the JSON schema on {@link UserPluginState}; `core/settings/schema.ts`
+ * frontend as the JSON schema on {@link PluginState}; `core/settings/schema.ts`
  * turns that into the settings form.
  */
 export interface PluginConfig {
@@ -48,8 +48,8 @@ export interface PluginComponentProps {
  *
  * Holds only what the frontend alone can own: the plugin name and the
  * component loaders. Display name, description, icon, and sidebar config are
- * declared by the backend plugin and arrive on {@link UserPluginState} via
- * the user-plugins API (`display`, `sidebar`, `has_frontend`).
+ * declared by the backend plugin and arrive on {@link PluginState} via
+ * the plugins API (`display`, `sidebar`, `has_frontend`).
  */
 export interface PluginDefinition {
   /** Plugin name, must match the backend plugin's declared name */
@@ -85,7 +85,7 @@ export interface PluginDefinition {
 }
 
 // ============================================================================
-// User Plugin State Types
+// Plugin State Types
 // ============================================================================
 
 /**
@@ -95,4 +95,7 @@ export interface PluginDefinition {
  * `display`, `sidebar`, and `has_frontend` carry the read-only metadata the
  * backend plugin declared through the frontend hooks.
  */
-export type UserPluginState = Schema<"PluginResponse">;
+export type PluginState = Schema<"PluginResponse">;
+
+/** The old name, kept until every caller uses PluginState. */
+export type UserPluginState = PluginState;
