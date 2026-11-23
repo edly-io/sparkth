@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
+import en from "@/core/i18n/catalogs/en";
 import { renderWithIntl } from "@/tests/intl";
 
 const auth = vi.hoisted(() => ({ token: "test-token" as string | null }));
@@ -15,10 +17,13 @@ beforeEach(() => {
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
+// A new element each call, so a re-render reaches the list and it reads the token again.
+const list = () => (
+  <NamedEntryList label="Roles" load={load} empty="No roles yet." loadFailed="Couldn't load." />
+);
+
 function renderList() {
-  renderWithIntl(
-    <NamedEntryList label="Roles" load={load} empty="No roles yet." loadFailed="Couldn't load." />,
-  );
+  return renderWithIntl(list());
 }
 
 describe("NamedEntryList", () => {
@@ -59,5 +64,21 @@ describe("NamedEntryList", () => {
     renderList();
 
     expect(load).not.toHaveBeenCalled();
+  });
+
+  it("stops showing the entries when the token goes away", async () => {
+    load.mockResolvedValue([{ id: 1, name: "admin", description: null }]);
+    const { rerender } = renderList();
+    await screen.findByRole("list", { name: "Roles" });
+
+    auth.token = null;
+    // A bare provider, as renderWithIntl renders, so the list stays mounted.
+    rerender(
+      <NextIntlClientProvider locale="en" timeZone="UTC" messages={en}>
+        {list()}
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.queryByRole("list", { name: "Roles" })).not.toBeInTheDocument();
   });
 });

@@ -2,11 +2,12 @@
 
 import { useAuth } from "@/core/auth/hooks";
 import { usePermissionChecks } from "@/core/permissions/hooks";
-import { PERMISSIONS_SECTION_CHECKS, PERMISSIONS_TABS } from "@/core/permissions/section";
+import { PERMISSIONS_SECTION_CHECKS } from "@/core/permissions/section";
 import { PermissionsShell } from "@/core/permissions/components/layout/PermissionsShell";
 import { PermissionsNav } from "@/core/permissions/components/ui/PermissionsNav";
 import { Forbidden } from "@/core/components/layout/Forbidden";
 import { Spinner } from "@/core/components/ui/Spinner";
+import { PERMISSIONS_TABS } from "./tabs";
 
 /**
  * The Access & permissions section's frame. It opens only when every section check passes, and

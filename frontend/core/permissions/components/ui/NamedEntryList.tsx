@@ -37,9 +37,9 @@ export function NamedEntryList({
   const [state, setState] = useState<ListState>({ status: "loading" });
 
   useEffect(() => {
+    setState({ status: "loading" });
     if (!token) return;
     let active = true;
-    setState({ status: "loading" });
     load(token)
       .then((entries) => {
         if (active) setState({ status: "loaded", entries });
