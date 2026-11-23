@@ -31,11 +31,11 @@ async def test_configure_user_plugin_success(client: AsyncClient, user_plugins: 
             new=AsyncMock(return_value=mock_plugin),
         ),
         patch(
-            "sparkth.core.plugins.service.PluginService.get_user_plugin",
+            "sparkth.core.plugins.service.PluginService.get_preference",
             new=AsyncMock(return_value=None),
         ),
         patch(
-            "sparkth.core.plugins.service.PluginService.create_user_plugin",
+            "sparkth.core.plugins.service.PluginService.create_preference",
             new=AsyncMock(return_value=mock_user_plugin),
         ),
         patch(
@@ -110,7 +110,7 @@ async def test_configure_user_plugin_internal_error(client: AsyncClient, user_pl
         ),
         patch.object(
             PluginService,
-            "create_user_plugin",
+            "create_preference",
             side_effect=InternalServerError("Plugin cannot be configured"),
         ),
     ):

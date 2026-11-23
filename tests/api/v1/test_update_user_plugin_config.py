@@ -28,7 +28,7 @@ async def test_update_plugin_not_configured_success(client: AsyncClient, user_pl
             new=AsyncMock(),
         ),
         patch(
-            "sparkth.core.plugins.service.PluginService.update_user_plugin_config",
+            "sparkth.core.plugins.service.PluginService.update_preference_config",
             new=AsyncMock(return_value=mock_user_plugin),
         ),
         patch("sqlalchemy.ext.asyncio.AsyncSession.commit", new=AsyncMock()),
@@ -65,7 +65,7 @@ async def test_update_plugin_success(client: AsyncClient, user_plugins: User) ->
             new=AsyncMock(),
         ),
         patch(
-            "sparkth.core.plugins.service.PluginService.update_user_plugin_config",
+            "sparkth.core.plugins.service.PluginService.update_preference_config",
             new=AsyncMock(return_value=mock_user_plugin),
         ),
         patch("sqlalchemy.ext.asyncio.AsyncSession.commit", new=AsyncMock()),

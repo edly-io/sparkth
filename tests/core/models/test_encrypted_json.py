@@ -70,7 +70,7 @@ async def test_one_unreadable_config_leaves_the_others_listed(session: AsyncSess
     )
     session.expunge_all()
 
-    plugins = await PluginService().get_user_plugin_map(session, current_user.id)
+    plugins = await PluginService().get_preference_map(session, current_user.id)
 
     assert plugins["encrypted_plugin"].config == {"api_key": "s3cret"}
     assert plugins["unreadable_plugin"].config == {}

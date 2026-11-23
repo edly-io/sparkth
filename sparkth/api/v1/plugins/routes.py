@@ -65,15 +65,15 @@ async def list_user_plugins(
         )
 
     all_plugins = await plugin_service.get_all(session)
-    user_plugin_map = await plugin_service.get_user_plugin_map(session, current_user.id)
+    preference_map = await plugin_service.get_preference_map(session, current_user.id)
     result: list[UserPluginResponse] = []
 
     for plugin in all_plugins:
         if usable_plugin_names is not None and plugin.name not in usable_plugin_names:
             continue
-        user_plugin = user_plugin_map.get(plugin.name)
+        preference = preference_map.get(plugin.name)
         base_config = PluginService.config_with_schema_keys(
-            plugin.config_schema, user_plugin.config if user_plugin else None
+            plugin.config_schema, preference.config if preference else None
         )
 
         safe_config = await PluginService.apply_postprocess(
@@ -86,7 +86,7 @@ async def list_user_plugins(
         result.append(
             UserPluginResponse.for_plugin(
                 plugin_name=plugin.name,
-                enabled=user_plugin.enabled if user_plugin else True,
+                enabled=preference.enabled if preference else True,
                 config=safe_config,
                 is_core=plugin.is_core,
                 config_schema=plugin.config_schema,
@@ -115,8 +115,8 @@ async def create_user_plugin(
     plugin = await get_plugin_or_404(plugin_service, session, plugin_name)
     validate_plugin(plugin)
 
-    user_plugin = await plugin_service.get_user_plugin(session, current_user.id, plugin.id)
-    if user_plugin and len(user_plugin.config) > 0:
+    preference = await plugin_service.get_preference(session, current_user.id, plugin.id)
+    if preference and len(preference.config) > 0:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=_("Plugin '{name}' is already configured").format(name=plugin_name),
@@ -125,7 +125,7 @@ async def create_user_plugin(
     try:
         preprocessed = await PluginService.apply_preprocess(plugin_name, session, current_user.id, user_config)
         validated_config = PluginService.validate_user_config(plugin, preprocessed)
-        user_plugin = await plugin_service.create_user_plugin(
+        preference = await plugin_service.create_preference(
             session,
             current_user.id,
             plugin.id,  # type: ignore[arg-type]
@@ -136,10 +136,10 @@ async def create_user_plugin(
     except InternalServerError as err:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(err)) from err
 
-    safe_config = await PluginService.apply_postprocess(plugin_name, session, current_user.id, user_plugin.config)
+    safe_config = await PluginService.apply_postprocess(plugin_name, session, current_user.id, preference.config)
     return UserPluginResponse.for_plugin(
         plugin_name=plugin.name,
-        enabled=user_plugin.enabled,
+        enabled=preference.enabled,
         config=safe_config,
         is_core=plugin.is_core,
         config_schema=plugin.config_schema,
@@ -158,10 +158,10 @@ async def get_user_plugin(
     """
     plugin = await get_plugin_or_404(plugin_service, session, plugin_name)
 
-    user_plugin = await plugin_service.get_user_plugin(session, current_user.id, plugin.id)
-    config = PluginService.config_with_schema_keys(plugin.config_schema, user_plugin.config if user_plugin else None)
+    preference = await plugin_service.get_preference(session, current_user.id, plugin.id)
+    config = PluginService.config_with_schema_keys(plugin.config_schema, preference.config if preference else None)
 
-    if user_plugin:
+    if preference:
         safe_config = await PluginService.apply_postprocess(
             plugin_name,
             session,
@@ -170,7 +170,7 @@ async def get_user_plugin(
         )
         return UserPluginResponse.for_plugin(
             plugin_name=plugin_name,
-            enabled=user_plugin.enabled,
+            enabled=preference.enabled,
             config=safe_config,
             is_core=plugin.is_core,
             config_schema=plugin.config_schema,
@@ -202,7 +202,7 @@ async def update_user_plugin(
     plugin = await get_plugin_or_404(plugin_service, session, plugin_name)
     validate_plugin(plugin)
 
-    user_plugin = await plugin_service.update_user_plugin_enabled(
+    preference = await plugin_service.update_preference_enabled(
         session,
         current_user.id,
         plugin.id,  # type: ignore[arg-type]
@@ -210,8 +210,8 @@ async def update_user_plugin(
     )
     return UserPluginResponse.for_plugin(
         plugin_name=plugin_name,
-        enabled=user_plugin.enabled,
-        config=PluginService.config_with_schema_keys(plugin.config_schema, user_plugin.config),
+        enabled=preference.enabled,
+        config=PluginService.config_with_schema_keys(plugin.config_schema, preference.config),
         is_core=plugin.is_core,
         config_schema=plugin.config_schema,
     )
@@ -237,7 +237,7 @@ async def update_user_plugin_config(
     validate_plugin(plugin)
 
     try:
-        user_plugin = await plugin_service.update_user_plugin_config(session, current_user.id, plugin, request.config)
+        preference = await plugin_service.update_preference_config(session, current_user.id, plugin, request.config)
     except PluginDisabledError as err:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(err)) from err
     except (ConfigValidationError, ValueError) as err:
@@ -248,12 +248,12 @@ async def update_user_plugin_config(
     await session.commit()
     await session.refresh(plugin)
 
-    await PluginService.apply_cache_sync(plugin_name, session, current_user.id, user_plugin.config)
+    await PluginService.apply_cache_sync(plugin_name, session, current_user.id, preference.config)
 
-    safe_config = await PluginService.apply_postprocess(plugin_name, session, current_user.id, user_plugin.config)
+    safe_config = await PluginService.apply_postprocess(plugin_name, session, current_user.id, preference.config)
     return UserPluginResponse.for_plugin(
         plugin_name=plugin_name,
-        enabled=user_plugin.enabled,
+        enabled=preference.enabled,
         config=safe_config,
         is_core=plugin.is_core,
         config_schema=plugin.config_schema,

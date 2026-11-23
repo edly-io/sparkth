@@ -386,7 +386,7 @@ class PluginService:
         result = await session.exec(statement)
         return result.all()
 
-    async def get_user_plugin_map(
+    async def get_preference_map(
         self,
         session: AsyncSession,
         user_id: int | None,
@@ -405,7 +405,7 @@ class PluginService:
 
         return {plugin.name: preference for preference, plugin in results}
 
-    async def get_user_plugin(
+    async def get_preference(
         self,
         session: AsyncSession,
         user_id: int | None,
@@ -419,14 +419,14 @@ class PluginService:
         result = await session.exec(statement)
         return result.one_or_none()
 
-    async def update_user_plugin_enabled(
+    async def update_preference_enabled(
         self,
         session: AsyncSession,
         user_id: int,
         plugin_id: int,
         enabled: bool,
     ) -> UserPluginPreference:
-        preference = await self.get_user_plugin(
+        preference = await self.get_preference(
             session,
             user_id,
             plugin_id,
@@ -500,7 +500,7 @@ class PluginService:
             "secret_changed": any(name in secret_names for name in changed),
         }
 
-    async def create_user_plugin(
+    async def create_preference(
         self, session: AsyncSession, user_id: int, plugin_id: int, user_config: dict[str, Any]
     ) -> UserPluginPreference:
         preference = UserPluginPreference(user_id=user_id, plugin_id=plugin_id, enabled=True, config=user_config)
@@ -520,7 +520,7 @@ class PluginService:
         await session.refresh(preference)
         return preference
 
-    async def update_user_plugin_config(
+    async def update_preference_config(
         self,
         session: AsyncSession,
         user_id: int,
@@ -530,7 +530,7 @@ class PluginService:
         if plugin.id is None:
             raise InternalServerError("Plugin must be persisted before creating user plugin")
 
-        preference = await self.get_user_plugin(
+        preference = await self.get_preference(
             session,
             user_id,
             plugin.id,
