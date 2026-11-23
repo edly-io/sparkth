@@ -1,8 +1,9 @@
 """Building the message list a completion request sends to the provider.
 
-Three sources feed it: the conversation's stored history, the turns the request itself carried, and
-a synthetic turn of document references when retrieval is going to run. The request's turns replace
-their stored copies because storage flattens content blocks to text and retrieval needs the blocks.
+Four sources feed it: the conversation's stored history, the files uploaded from the computer, the
+turns the request itself carried, and a synthetic turn of document references when retrieval is going
+to run. The request's turns replace their stored copies because storage flattens content blocks to text
+and retrieval needs the blocks. The files are never stored with the history, so they are added every turn.
 """
 
 from typing import Any
@@ -12,7 +13,7 @@ from sparkth.lib.llm import BaseChatProvider
 from sparkth.plugins.compose.analytics import ComposeTurnAnalytics
 from sparkth.plugins.compose.models import Message
 from sparkth.plugins.compose.routes.utils.rag_search import resolve_document_blocks
-from sparkth.plugins.compose.schemas import ChatCompletionRequest, ChatMessage
+from sparkth.plugins.compose.schemas import ChatCompletionRequest, ChatMessage, UploadedFile
 
 
 def _retrieval_turn(documents: list[Document], query_text: str) -> ChatMessage:
@@ -39,6 +40,7 @@ async def assemble_provider_messages(
     rag_search_required: bool,
     provider: BaseChatProvider,
     *,
+    uploaded_files: list[UploadedFile],
     analytics: ComposeTurnAnalytics,
 ) -> tuple[list[dict[str, Any]], list[ChatMessage] | None]:
     """Return the provider's messages, and the turn left for the stream to resolve.
@@ -69,4 +71,7 @@ async def assemble_provider_messages(
             await resolve_document_blocks(messages=retrieval_turn, llm=provider.create_llm(), analytics=analytics)
         )
 
-    return history + current, retrieval_turn
+    uploaded_file_messages = [
+        {"role": "user", "content": f"[File: {file.name}]\n\n{file.text}"} for file in uploaded_files
+    ]
+    return history + uploaded_file_messages + current, retrieval_turn

@@ -14,6 +14,13 @@ from sparkth.plugins.compose.exceptions import ClassifierError
 # The name the plugin registers under.
 COMPOSE_PLUGIN_NAME = "compose"
 
+# How many megabytes of uploaded files' text one conversation can keep. The frontend limits the files' sizes to
+# the same number.
+MAX_COMBINED_UPLOAD_MB = 3
+
+# How long a conversation's uploaded files are kept after its last turn.
+UPLOADED_FILES_TTL_SECONDS = 24 * 60 * 60
+
 # An SSE comment line: clients ignore it, and it keeps an idle stream from looking dead to a proxy.
 SSE_HEARTBEAT = ": keepalive\n\n"
 
