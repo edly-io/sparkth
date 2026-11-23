@@ -14,6 +14,13 @@ from sparkth.plugins.compose.exceptions import ClassifierError
 # The name the plugin registers under.
 COMPOSE_PLUGIN_NAME = "compose"
 
+# How many megabytes of uploaded files' text one conversation can keep. The frontend limits the files' sizes to
+# the same number.
+MAX_COMBINED_UPLOAD_MB = 3
+
+# How long a conversation's uploaded files are kept after its last turn.
+UPLOADED_FILES_TTL_SECONDS = 24 * 60 * 60
+
 # An SSE comment line: clients ignore it, and it keeps an idle stream from looking dead to a proxy.
 SSE_HEARTBEAT = ": keepalive\n\n"
 
@@ -42,6 +49,9 @@ STEP_RESULT_TAIL_CHARS = 600
 
 # How many steps, each an agent's or the operator's work, Compose's planner may run in one turn.
 MAX_STEPS_PER_TURN = 5
+
+# What the author reads while the operator works.
+OPERATOR_STATUS: str = gettext_noop("Working on your request…")
 
 # How many steps a plan may have. Steps past a message's limit run in a later message, once the author asks to continue.
 MAX_PLAN_STEPS = 10

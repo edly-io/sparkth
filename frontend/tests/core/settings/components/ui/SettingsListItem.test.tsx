@@ -2,12 +2,12 @@ import { describe, it, expect, vi } from "vitest";
 import { fireEvent, screen } from "@testing-library/react";
 
 import { SettingsListItem } from "@/core/settings/components/ui/SettingsListItem";
-import type { UserPluginState } from "@/core/plugins/types";
+import type { PluginState } from "@/core/plugins/types";
 import { renderWithIntl } from "@/tests/intl";
 
 const noop = async () => {};
 
-function renderItem(plugin: UserPluginState, onConfigure?: () => void, configuring?: boolean) {
+function renderItem(plugin: PluginState, onConfigure?: () => void, configuring?: boolean) {
   return renderWithIntl(
     <SettingsListItem
       plugin={plugin}
@@ -19,7 +19,7 @@ function renderItem(plugin: UserPluginState, onConfigure?: () => void, configuri
   );
 }
 
-const CANVAS: UserPluginState = {
+const CANVAS: PluginState = {
   plugin_name: "canvas",
   enabled: true,
   config: {},

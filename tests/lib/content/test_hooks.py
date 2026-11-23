@@ -5,7 +5,7 @@ from typing import cast
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.models.plugin import Plugin, UserPlugin
+from sparkth.core.models.plugin import Plugin, UserPluginPreference
 from sparkth.core.models.user import User
 from sparkth.lib.auth import bind_current_user_id, current_user_id
 from sparkth.lib.content.exceptions import (
@@ -182,7 +182,7 @@ async def test_a_contributor_whose_plugin_the_user_switched_off_is_withheld(
 ) -> None:
     plugin = await _seed_owner(session)
     user = await _seed_user(session)
-    session.add(UserPlugin(user_id=cast(int, user.id), plugin_id=cast(int, plugin.id), enabled=False))
+    session.add(UserPluginPreference(user_id=cast(int, user.id), plugin_id=cast(int, plugin.id), enabled=False))
     await session.commit()
     bind_current_user_id(1)
 
@@ -216,7 +216,7 @@ async def test_with_no_bound_user_a_users_preference_has_no_effect(
         current_user_id()
     plugin = await _seed_owner(session)
     user = await _seed_user(session)
-    session.add(UserPlugin(user_id=cast(int, user.id), plugin_id=cast(int, plugin.id), enabled=False))
+    session.add(UserPluginPreference(user_id=cast(int, user.id), plugin_id=cast(int, plugin.id), enabled=False))
     await session.commit()
 
     assert "stub" in await enabled_content_contributors()
@@ -236,7 +236,7 @@ async def test_a_named_contributor_whose_plugin_the_user_switched_off_is_unavail
 ) -> None:
     plugin = await _seed_owner(session)
     user = await _seed_user(session)
-    session.add(UserPlugin(user_id=cast(int, user.id), plugin_id=cast(int, plugin.id), enabled=False))
+    session.add(UserPluginPreference(user_id=cast(int, user.id), plugin_id=cast(int, plugin.id), enabled=False))
     await session.commit()
     bind_current_user_id(1)
 

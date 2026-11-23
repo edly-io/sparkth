@@ -8,7 +8,7 @@ import PluginsSettings from "@/app/dashboard/settings/page";
 import { renderWithIntl } from "@/tests/intl";
 
 const base = {
-  userPlugins: [],
+  plugins: [],
   loading: false,
   error: null,
   refreshPlugins: vi.fn(),

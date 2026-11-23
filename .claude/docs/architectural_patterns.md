@@ -214,7 +214,7 @@ Plugin code raises typed exceptions; FastAPI translates them to `HTTPException` 
   is in scope for any enabled Compose agent (`MessageScopeClassifier`) and whether answering it needs
   the attached documents (`RAGSearchClassifier`). Both are one structured-output call on the
   cheapest model of the user's provider, sharing `BaseClassifier` for everything but the judgement
-- Stored LLM API keys and user plugin configs are encrypted at rest with Fernet via `EncryptionService`
+- Stored LLM API keys and each user's plugin config are encrypted at rest with Fernet via `EncryptionService`
   (`sparkth/core/encryption.py`, `EncryptedJSON` in `sparkth/core/models/types.py`); key from
   `ENCRYPTION_KEY`, which may list several comma-separated keys for rotation (the first encrypts, any
   decrypts). A plugin config that won't decrypt loads as `{}`. Conversation contents themselves are not encrypted

@@ -5,6 +5,7 @@ import type {
   ChatCompletionRequestBody,
   ConversationSummary,
   PersistedAttachment,
+  UploadedFile,
 } from "@/plugins/compose/src/types";
 
 // Most calls here turn an API error into a plain `Error` carrying only its message; the ones whose
@@ -92,6 +93,29 @@ export async function getConversationAttachments(
   }
 }
 
+/** The files uploaded from the computer that a conversation still has; none when they can't be listed. */
+export async function getConversationUploadedFiles(
+  token: string | null,
+  conversationId: string,
+  signal?: AbortSignal,
+): Promise<UploadedFile[]> {
+  try {
+    const { data } = await api.GET(
+      "/api/v1/compose/conversations/{conversation_id}/uploaded-files",
+      {
+        params: { path: { conversation_id: conversationId } },
+        headers: authHeader(token),
+        signal,
+      },
+    );
+    return data as UploadedFile[];
+  } catch (error) {
+    // Like the documents list, a failure here is non-fatal: the conversation still renders.
+    if (error instanceof ApiRequestError) return [];
+    passOrWrapNetworkError(error);
+  }
+}
+
 export async function getLastMessage(
   token: string | null,
   conversationId: string,
@@ -153,6 +177,23 @@ export async function detachDocument(
   try {
     await api.DELETE("/api/v1/compose/conversations/{conversation_id}/attachments/{document_id}", {
       params: { path: { conversation_id: conversationId, document_id: documentId } },
+      headers: authHeader(token),
+    });
+  } catch (error) {
+    if (error instanceof ApiRequestError) throw new Error(`HTTP ${error.status}`);
+    passOrWrapNetworkError(error);
+  }
+}
+
+/** Removes a file uploaded from the computer from a conversation, so the assistant stops using it. */
+export async function removeConversationUploadedFile(
+  token: string | null,
+  conversationId: string,
+  fileName: string,
+): Promise<void> {
+  try {
+    await api.DELETE("/api/v1/compose/conversations/{conversation_id}/uploaded-files/{file_name}", {
+      params: { path: { conversation_id: conversationId, file_name: fileName } },
       headers: authHeader(token),
     });
   } catch (error) {

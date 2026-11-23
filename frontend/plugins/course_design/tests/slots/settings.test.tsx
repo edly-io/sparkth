@@ -1,13 +1,13 @@
 import { fireEvent, screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 
-import type { UserPluginState } from "@/lib/plugins/types";
+import type { PluginState } from "@/lib/plugins/types";
 import { SETTINGS_ITEMS } from "@/lib/settings/slots";
 import { renderWithIntl } from "@/lib/testing/intl";
 import { COURSE_DESIGN_PLUGIN_NAME } from "@/plugins/course_design/src/constants";
 import "@/plugins/course_design/src/slots/settings";
 
-const COURSE_DESIGN: UserPluginState = {
+const COURSE_DESIGN: PluginState = {
   plugin_name: COURSE_DESIGN_PLUGIN_NAME,
   enabled: true,
   config: {},

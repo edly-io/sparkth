@@ -52,7 +52,7 @@ def provider(monkeypatch: pytest.MonkeyPatch) -> BaseChatProvider:
 async def test_a_completed_turn_records_its_tool_calls_with_compose_source_and_model_identity(
     audit_events: AuditEventsFetcher, provider: BaseChatProvider
 ) -> None:
-    response = await complete_turn(TURN, [], provider, 50, **handing_off_to(LOOKER))
+    response = await complete_turn(TURN, [], provider, 50, planner_setup=handing_off_to(LOOKER))
 
     assert response["content"] == "done"
     invoked, completed = await audit_events()
@@ -68,7 +68,7 @@ async def test_a_completed_turn_records_its_tool_calls_with_compose_source_and_m
 async def test_a_streamed_turn_records_its_tool_calls(
     audit_events: AuditEventsFetcher, provider: BaseChatProvider
 ) -> None:
-    events = [event async for event in stream_turn(TURN, [], provider, 50, **handing_off_to(LOOKER))]
+    events = [event async for event in stream_turn(TURN, [], provider, 50, planner_setup=handing_off_to(LOOKER))]
 
     assert {"type": "tool_start", "name": "lookup_course"} in events
     invoked, completed = await audit_events()
@@ -87,7 +87,7 @@ async def test_audit_capture_outage_is_a_hard_failure_not_a_tool_error_string(
     monkeypatch.setattr("sparkth.core.audit.execution.record_event_now", broken_write)
 
     with pytest.raises(AuditCaptureError):
-        await complete_turn(TURN, [], provider, 50, **handing_off_to(LOOKER))
+        await complete_turn(TURN, [], provider, 50, planner_setup=handing_off_to(LOOKER))
 
 
 def test_deeply_nested_json_result_is_not_classified_as_a_failure() -> None:

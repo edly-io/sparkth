@@ -41,7 +41,7 @@ neither is derived from the other.
 - **Who is the actor?** A user, the system, or an anonymous caller. If you cannot say, the seam is
   wrong.
 - **What is the target?** The entity acted on, as `AuditTarget(type, id)`. Pick a `type` that is
-  stable and already used where one exists (`document`, `llm_config`, `user_plugin`, `username`).
+  stable and already used where one exists (`document`, `llm_config`, `user_plugin_preference`, `username`).
 - **Which outcomes exist?** `success`, `failure`, `denied`. A refusal the system decided on is
   `denied`, an error is `failure`. Record the negative paths, not only the happy one: a trail
   with only successes cannot answer "who tried".

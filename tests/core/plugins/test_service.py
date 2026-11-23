@@ -8,7 +8,7 @@ import pytest
 from fastapi import Request
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.models.plugin import Plugin, UserPlugin
+from sparkth.core.models.plugin import Plugin, UserPluginPreference
 from sparkth.core.models.user import User
 from sparkth.core.plugins.config_base import PluginConfig
 from sparkth.core.plugins.service import (
@@ -31,7 +31,7 @@ async def _seed_preference(
     session: AsyncSession, user_id: int, plugin: Plugin, enabled: bool, deleted: bool = False
 ) -> None:
     session.add(
-        UserPlugin(
+        UserPluginPreference(
             user_id=user_id,
             plugin_id=cast(int, plugin.id),
             enabled=enabled,

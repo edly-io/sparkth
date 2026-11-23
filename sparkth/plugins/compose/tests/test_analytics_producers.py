@@ -32,7 +32,7 @@ from sparkth.lib.llm import get_provider
 from sparkth.lib.mcp.hooks import Tool
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
-from sparkth.lib.testing import ScriptedChatModel
+from sparkth.lib.testing import FakeRedis, ScriptedChatModel
 from sparkth.plugins.compose.detached import join_live_tasks
 from sparkth.plugins.compose.models import Conversation, Message
 from sparkth.plugins.compose.planner import TurnRouting
@@ -257,42 +257,41 @@ async def test_instructor_turn_emits_message_sent(
     assert sent[0]["conversation_id"] == str(response.json()["conversation_id"])
 
 
-async def test_attachment_turn_emits_message_sent_with_has_attachment(
+async def test_only_the_turn_a_file_is_sent_with_emits_message_sent_with_has_attachment(
     client: AsyncClient,
     current_user: User,
     session: AsyncSession,
     analytics_session: SQLAlchemyAsyncSession,
+    fake_redis: FakeRedis,
 ) -> None:
-    """An inline upload on the turn sets ``has_attachment`` on the landed row."""
+    """The file stays with the conversation, but a later turn that brings no file has no attachment."""
     config_id = await _seed_llm_config(session, current_user.id or 1)
     conversation_uuid = await _seed_conversation(session, current_user.id or 1, config_id)
+    turns = [
+        ("Build a quiz from this syllabus", [{"name": "syllabus.txt", "text": "Week 1: cells"}]),
+        ("Make it shorter", []),
+    ]
 
     with (
         patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_non_streaming_provider()),
     ):
-        response = await client.post(
-            COMPLETIONS_URL,
-            json={
-                "llm_config_id": config_id,
-                "conversation_id": conversation_uuid,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": "Build a quiz from this syllabus",
-                        "attachment": {"name": "syllabus.pdf", "size": 2048},
-                    }
-                ],
-                "stream": False,
-                "tools": "none",
-            },
-        )
+        for text, files in turns:
+            response = await client.post(
+                COMPLETIONS_URL,
+                json={
+                    "llm_config_id": config_id,
+                    "conversation_id": conversation_uuid,
+                    "messages": [{"role": "user", "content": text}],
+                    "files": files,
+                    "stream": False,
+                    "tools": "none",
+                },
+            )
+            assert response.status_code == 200
+            await join_live_tasks()  # compose.message_sent lands on a detached task
 
-    assert response.status_code == 200
-
-    await join_live_tasks()  # compose.message_sent lands on a detached task
     sent = await _events(analytics_session, "compose.message_sent")
-    assert len(sent) == 1
-    assert sent[0]["has_attachment"] is True
+    assert [event["has_attachment"] for event in sent] == [True, False]
 
 
 async def test_message_sent_payload_carries_no_message_text(

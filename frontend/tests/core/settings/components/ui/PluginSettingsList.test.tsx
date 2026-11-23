@@ -3,7 +3,7 @@ import { afterEach, describe, it, expect, vi } from "vitest";
 import { fireEvent, screen } from "@testing-library/react";
 
 import { PluginSettingsList } from "@/core/settings/components/ui/PluginSettingsList";
-import type { UserPluginState } from "@/core/plugins/types";
+import type { PluginState } from "@/core/plugins/types";
 import {
   SETTINGS_ITEMS,
   type ConfigModalProps,
@@ -12,7 +12,7 @@ import {
 import { renderWithIntl } from "@/tests/intl";
 
 const context = vi.hoisted(() => ({
-  userPlugins: [] as UserPluginState[],
+  plugins: [] as PluginState[],
   enablePlugin: vi.fn(async () => {}),
   disablePlugin: vi.fn(async () => {}),
   updatePluginConfig: vi.fn(async () => {}),
@@ -23,7 +23,7 @@ vi.mock("@/core/plugins/context", () => ({
   usePluginContext: () => context,
 }));
 
-function state(pluginName: string): UserPluginState {
+function state(pluginName: string): PluginState {
   return {
     plugin_name: pluginName,
     enabled: true,
@@ -39,7 +39,7 @@ function state(pluginName: string): UserPluginState {
 }
 
 // A plugin whose backend config declares one field.
-function configurable(pluginName: string): UserPluginState {
+function configurable(pluginName: string): PluginState {
   return {
     ...state(pluginName),
     config_schema: { type: "object", properties: { limit: { title: "Limit", type: "integer" } } },
@@ -64,13 +64,13 @@ function ExampleModal({ plugin, open }: ConfigModalProps) {
 describe("PluginSettingsList", () => {
   afterEach(() => {
     SETTINGS_ITEMS.clear();
-    context.userPlugins = [];
+    context.plugins = [];
     vi.clearAllMocks();
   });
 
   it("renders the row each plugin set, for the plugins the API returned", () => {
     SETTINGS_ITEMS.set("example", { listItem: ExampleRow });
-    context.userPlugins = [state("example")];
+    context.plugins = [state("example")];
 
     renderWithIntl(<PluginSettingsList />);
 
@@ -80,7 +80,7 @@ describe("PluginSettingsList", () => {
   it("lists the rows in plugin-name order", () => {
     SETTINGS_ITEMS.set("zeta", { listItem: ExampleRow });
     SETTINGS_ITEMS.set("alpha", { listItem: ExampleRow });
-    context.userPlugins = [state("zeta"), state("alpha")];
+    context.plugins = [state("zeta"), state("alpha")];
 
     renderWithIntl(<PluginSettingsList />);
 
@@ -99,7 +99,7 @@ describe("PluginSettingsList", () => {
 
   it("turns on the plugin whose row asks for it", () => {
     SETTINGS_ITEMS.set("example", { listItem: ExampleRow });
-    context.userPlugins = [state("example")];
+    context.plugins = [state("example")];
 
     renderWithIntl(<PluginSettingsList />);
     fireEvent.click(screen.getByRole("button", { name: "Enable" }));
@@ -109,7 +109,7 @@ describe("PluginSettingsList", () => {
 
   it("gives a row no configure action when its plugin supplied no config modal", () => {
     SETTINGS_ITEMS.set("example", { listItem: ExampleRow });
-    context.userPlugins = [state("example")];
+    context.plugins = [state("example")];
 
     renderWithIntl(<PluginSettingsList />);
 
@@ -121,7 +121,7 @@ describe("PluginSettingsList", () => {
       listItem: ExampleRow,
       loadConfigModal: async () => ({ default: ExampleModal }),
     });
-    context.userPlugins = [state("example")];
+    context.plugins = [state("example")];
 
     renderWithIntl(<PluginSettingsList />);
 
@@ -133,7 +133,7 @@ describe("PluginSettingsList", () => {
       listItem: ExampleRow,
       loadConfigModal: async () => ({ default: ExampleModal }),
     });
-    context.userPlugins = [configurable("example")];
+    context.plugins = [configurable("example")];
 
     renderWithIntl(<PluginSettingsList />);
     fireEvent.click(screen.getByRole("button", { name: "Configure" }));
@@ -147,7 +147,7 @@ describe("PluginSettingsList", () => {
       listItem: ExampleRow,
       loadConfigModal: () => new Promise((resolve) => (load = resolve)),
     });
-    context.userPlugins = [configurable("example")];
+    context.plugins = [configurable("example")];
 
     renderWithIntl(<PluginSettingsList />);
     fireEvent.click(screen.getByRole("button", { name: "Configure" }));
@@ -167,7 +167,7 @@ describe("PluginSettingsList", () => {
       listItem: ExampleRow,
       loadConfigModal: () => Promise.reject(new Error("chunk failed")),
     });
-    context.userPlugins = [configurable("example")];
+    context.plugins = [configurable("example")];
 
     renderWithIntl(<PluginSettingsList />);
     fireEvent.click(screen.getByRole("button", { name: "Configure" }));

@@ -27,14 +27,14 @@ beforeEach(() => {
 });
 
 describe("PluginProvider api calls", () => {
-  it("GETs /api/v1/user-plugins/ with the bearer token on mount", async () => {
+  it("GETs /api/v1/plugins/ with the bearer token on mount", async () => {
     const spy = mockFetch([]);
 
     const { result } = renderHook(() => usePluginContext(), { wrapper });
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     const request = sentRequests(spy)[0];
-    expect(new URL(request.url).pathname).toBe("/api/v1/user-plugins/");
+    expect(new URL(request.url).pathname).toBe("/api/v1/plugins/");
     expect(request.headers.get("authorization")).toBe("Bearer test-token");
   });
 
@@ -49,7 +49,7 @@ describe("PluginProvider api calls", () => {
       new URL(r.url).pathname.endsWith("/compose/enable"),
     );
     expect(request).toBeDefined();
-    expect(new URL(request!.url).pathname).toBe("/api/v1/user-plugins/compose/enable");
+    expect(new URL(request!.url).pathname).toBe("/api/v1/plugins/compose/enable");
     expect(request!.method).toBe("PATCH");
     expect(request!.headers.get("authorization")).toBe("Bearer test-token");
   });
@@ -79,7 +79,7 @@ describe("PluginProvider api calls", () => {
       new URL(r.url).pathname.endsWith("/compose/config"),
     );
     expect(request).toBeDefined();
-    expect(new URL(request!.url).pathname).toBe("/api/v1/user-plugins/compose/config");
+    expect(new URL(request!.url).pathname).toBe("/api/v1/plugins/compose/config");
     expect(request!.method).toBe("PUT");
     await expect(request!.clone().json()).resolves.toEqual({ config: { key: "v" } });
   });

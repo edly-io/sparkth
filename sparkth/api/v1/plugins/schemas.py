@@ -1,17 +1,17 @@
-"""Request models for the user plugin endpoints."""
+"""Request models for the plugin preference endpoints."""
 
 from typing import Any
 
 from pydantic import BaseModel
 
 
-class UpdateUserPluginRequest(BaseModel):
-    """Request model for updating user plugin state."""
+class UpdatePluginRequest(BaseModel):
+    """Request model for turning a plugin on or off for the calling user."""
 
     enabled: bool
 
 
-class UserPluginConfigRequest(BaseModel):
-    """Request model for updating user plugin configuration."""
+class PluginConfigRequest(BaseModel):
+    """Request model for updating the calling user's plugin configuration."""
 
     config: dict[str, Any]

@@ -7,27 +7,29 @@ from sqlalchemy.dialects import sqlite
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.encryption import EncryptionService
-from sparkth.core.models.plugin import Plugin, UserPlugin
+from sparkth.core.models.plugin import Plugin, UserPluginPreference
 from sparkth.core.models.types import EncryptedJSON
 from sparkth.core.models.user import User
 from sparkth.core.plugins.service import PluginService
 
 
-async def _stored(session: AsyncSession, user: User, config: dict[str, str]) -> UserPlugin:
+async def _stored(session: AsyncSession, user: User, config: dict[str, str]) -> UserPluginPreference:
     plugin = Plugin(name="encrypted_plugin")
     session.add(plugin)
     await session.flush()
-    user_plugin = UserPlugin(user_id=cast(int, user.id), plugin_id=cast(int, plugin.id), config=config)
-    session.add(user_plugin)
+    preference = UserPluginPreference(user_id=cast(int, user.id), plugin_id=cast(int, plugin.id), config=config)
+    session.add(preference)
     await session.flush()
-    return user_plugin
+    return preference
 
 
 async def test_config_is_not_stored_readable(session: AsyncSession, current_user: User) -> None:
-    user_plugin = await _stored(session, current_user, {"api_key": "s3cret"})
+    preference = await _stored(session, current_user, {"api_key": "s3cret"})
 
     connection = await session.connection()
-    result = await connection.execute(text("SELECT config FROM user_plugins WHERE id = :id"), {"id": user_plugin.id})
+    result = await connection.execute(
+        text("SELECT config FROM user_plugin_preferences WHERE id = :id"), {"id": preference.id}
+    )
     raw = result.scalar_one()
 
     assert "s3cret" not in raw
@@ -35,10 +37,10 @@ async def test_config_is_not_stored_readable(session: AsyncSession, current_user
 
 
 async def test_config_loads_back_as_saved(session: AsyncSession, current_user: User) -> None:
-    user_plugin = await _stored(session, current_user, {"api_key": "s3cret", "api_url": "https://lms.example.com"})
+    preference = await _stored(session, current_user, {"api_key": "s3cret", "api_url": "https://lms.example.com"})
     session.expunge_all()
 
-    loaded = await session.get(UserPlugin, user_plugin.id)
+    loaded = await session.get(UserPluginPreference, preference.id)
 
     assert loaded is not None
     assert loaded.config == {"api_key": "s3cret", "api_url": "https://lms.example.com"}
@@ -57,17 +59,18 @@ async def test_one_unreadable_config_leaves_the_others_listed(session: AsyncSess
     unreadable_plugin = Plugin(name="unreadable_plugin")
     session.add(unreadable_plugin)
     await session.flush()
-    unreadable = UserPlugin(user_id=cast(int, current_user.id), plugin_id=cast(int, unreadable_plugin.id))
+    unreadable = UserPluginPreference(user_id=cast(int, current_user.id), plugin_id=cast(int, unreadable_plugin.id))
     session.add(unreadable)
     await session.flush()
     token = EncryptionService(EncryptionService.generate_key()).encrypt('{"api_key": "lost"}')
     connection = await session.connection()
     await connection.execute(
-        text("UPDATE user_plugins SET config = :config WHERE id = :id"), {"config": token, "id": unreadable.id}
+        text("UPDATE user_plugin_preferences SET config = :config WHERE id = :id"),
+        {"config": token, "id": unreadable.id},
     )
     session.expunge_all()
 
-    plugins = await PluginService().get_user_plugin_map(session, current_user.id)
+    plugins = await PluginService().get_preference_map(session, current_user.id)
 
     assert plugins["encrypted_plugin"].config == {"api_key": "s3cret"}
     assert plugins["unreadable_plugin"].config == {}

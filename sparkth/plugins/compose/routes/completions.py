@@ -45,6 +45,7 @@ from sparkth.plugins.compose.llm import complete_turn
 from sparkth.plugins.compose.messages import get_last_user_text
 from sparkth.plugins.compose.models import Conversation
 from sparkth.plugins.compose.permissions import CONVERSATION, CONVERSATION_WRITE
+from sparkth.plugins.compose.planner import PlannerSetup
 from sparkth.plugins.compose.routes.dependencies import get_attachable_document_ids, get_turn_conversation
 from sparkth.plugins.compose.routes.utils import (
     get_existing_plan_or_none,
@@ -68,6 +69,7 @@ from sparkth.plugins.compose.schemas import (
 )
 from sparkth.plugins.compose.service import ComposeService, get_compose_service
 from sparkth.plugins.compose.tools import get_tool_registry
+from sparkth.plugins.compose.uploaded_files import add_uploaded_files
 
 logger = get_logger(__name__)
 
@@ -241,6 +243,8 @@ async def compose_completion(
                     skipped_count=attached.skipped_count,
                     occurred_at=datetime.now(timezone.utc),
                 )
+        # Before the turn is stored, so the typed turn of a request refused for its files isn't saved.
+        uploaded_files = await add_uploaded_files(conversation.uuid, request.files)
         incoming_messages = await service.add_incoming_messages(session, conversation_id, request.messages)
         for stored in incoming_messages:
             # Instructor turns only: an assistant turn in the request is history the client
@@ -249,7 +253,7 @@ async def compose_completion(
                 continue
             turn_analytics.schedule_message_sent(
                 message_length=len(stored.content),
-                has_attachment=stored.message_type == "attachment",
+                has_attachment=bool(request.files),
                 occurred_at=stored.created_at,
             )
 
@@ -300,11 +304,12 @@ async def compose_completion(
             query_text,
             rag_search_required,
             provider,
+            uploaded_files=uploaded_files,
             analytics=turn_analytics,
         )
 
         tools = await resolve_tools(request, tool_registry, disabled_plugins, allowed_plugins)
-        existing_plan = get_existing_plan_or_none(conversation_messages)
+        planner_setup = PlannerSetup(agents, planner_llm, get_existing_plan_or_none(conversation_messages))
 
         if request.stream:
             # Gated together so no LLM is built for a turn that will not retrieve.
@@ -328,9 +333,7 @@ async def compose_completion(
                 analytics=turn_analytics.attribution,
                 turn_id=turn_key,
                 max_tool_executions=config.max_tool_executions,
-                agents=agents,
-                planner_llm=planner_llm,
-                existing_plan=existing_plan,
+                planner_setup=planner_setup,
             )
             stream_owns_claim = True
             return StreamingResponse(
@@ -345,9 +348,7 @@ async def compose_completion(
                 tools or [],
                 provider,
                 config.max_tool_executions,
-                agents=agents,
-                planner_llm=planner_llm,
-                existing_plan=existing_plan,
+                planner_setup=planner_setup,
             )
 
             tokens_used = response.get("metadata", {}).get("usage_metadata", {}).get("total_tokens")
@@ -360,7 +361,6 @@ async def compose_completion(
                 content=response["content"],
                 tokens_used=tokens_used,
                 metadata=response.get("metadata"),
-                message_type="text",
             )
 
             # Executions live under metadata: response["tool_calls"] is always None, so reading

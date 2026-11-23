@@ -15,7 +15,7 @@ from httpx import AsyncClient
 from sqlalchemy.exc import OperationalError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.models.plugin import Plugin, UserPlugin
+from sparkth.core.models.plugin import Plugin, UserPluginPreference
 from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME
 from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.encryption import get_encryption_service
@@ -189,7 +189,7 @@ class TestAnUnfinishedPlan:
             await _turn(client, config_id, conversation_uuid)
             await _turn(client, config_id, conversation_uuid)
 
-        assert [call.kwargs["existing_plan"] for call in turn.await_args_list] == [None, plan]
+        assert [call.kwargs["planner_setup"].existing_plan for call in turn.await_args_list] == [None, plan]
 
 
 class TestOneAssistantPerTurn:
@@ -295,7 +295,7 @@ async def _switch_stub(session: AsyncSession, user_id: int, system_on: bool, use
     session.add(plugin)
     await session.flush()
     if user_on is not None:
-        session.add(UserPlugin(user_id=user_id, plugin_id=cast(int, plugin.id), enabled=user_on))
+        session.add(UserPluginPreference(user_id=user_id, plugin_id=cast(int, plugin.id), enabled=user_on))
     await session.commit()
 
 
@@ -309,7 +309,7 @@ async def _seed_lms_plugins(
     session.add_all([stub, openedx, canvas])
     await session.flush()
     session.add(
-        UserPlugin(
+        UserPluginPreference(
             user_id=user_id,
             plugin_id=cast(int, openedx.id),
             enabled=openedx_on,
@@ -317,7 +317,7 @@ async def _seed_lms_plugins(
         )
     )
     session.add(
-        UserPlugin(
+        UserPluginPreference(
             user_id=user_id,
             plugin_id=cast(int, canvas.id),
             enabled=canvas_on,
@@ -477,7 +477,7 @@ class TestPluginSwitches:
         complete_turn, get_provider = await self._lms_turn(client, session, current_user.id or 1, True, True)
 
         assert _bound_tool_names(complete_turn) == ["openedx_create_xblock", "canvas_create_course", "stub_build"]
-        assert stub_agent in complete_turn.await_args_list[-1].kwargs["agents"]
+        assert stub_agent in complete_turn.await_args_list[-1].kwargs["planner_setup"].agents
 
     async def test_no_turn_sends_lms_settings_to_the_model(
         self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent
@@ -485,7 +485,7 @@ class TestPluginSwitches:
         complete_turn, _ = await self._lms_turn(client, session, current_user.id or 1, True, True)
 
         call = complete_turn.await_args_list[-1]
-        agents = call.kwargs["agents"]
+        agents = call.kwargs["planner_setup"].agents
         prompts = [
             render_planner_prompt(agents, operations=True, existing_plan=None),
             *(render_system_prompt([agent]) for agent in agents),
@@ -545,7 +545,7 @@ class TestPluginUsePermission:
 
         complete_turn = await self._lms_turn(client, session, current_user.id or 1)
 
-        agents = complete_turn.await_args_list[-1].kwargs["agents"]
+        agents = complete_turn.await_args_list[-1].kwargs["planner_setup"].agents
         assert other_agent in agents
         assert stub_agent not in agents
 
@@ -554,7 +554,7 @@ class TestPluginUsePermission:
     ) -> None:
         complete_turn = await self._lms_turn(client, session, current_user.id or 1)
 
-        agents = complete_turn.await_args_list[-1].kwargs["agents"]
+        agents = complete_turn.await_args_list[-1].kwargs["planner_setup"].agents
         assert other_agent in agents
         assert stub_agent in agents
 

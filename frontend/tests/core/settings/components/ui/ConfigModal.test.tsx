@@ -3,7 +3,7 @@ import { screen, fireEvent, waitFor } from "@testing-library/react";
 
 import { renderWithIntl } from "@/tests/intl";
 import { PluginConfigModal } from "@/core/settings/components/ui/ConfigModal";
-import type { UserPluginState } from "@/core/plugins/types";
+import type { PluginState } from "@/core/plugins/types";
 import type { ConfigWidgetProps } from "@/lib/settings/slots";
 import type { ComponentType } from "react";
 
@@ -19,14 +19,14 @@ const OPENEDX_SCHEMA = {
   required: ["lms_url", "lms_username", "lms_password"],
 };
 
-const STORED_PASSWORD: Partial<UserPluginState> = {
+const STORED_PASSWORD: Partial<PluginState> = {
   config: { lms_url: "https://l.example.com", lms_username: "s" },
   secrets_set: ["lms_password"],
   masked_secrets: {},
 };
 
 function renderModal(
-  plugin: Partial<UserPluginState>,
+  plugin: Partial<PluginState>,
   onSave = vi.fn(async () => {}),
   controls?: Record<string, ComponentType<ConfigWidgetProps>>,
 ) {
