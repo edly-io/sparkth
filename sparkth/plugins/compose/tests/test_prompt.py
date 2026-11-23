@@ -2,7 +2,7 @@ from datetime import datetime
 
 from sparkth.lib.compose.hooks import Agent
 from sparkth.plugins.compose.constants import REFUSAL_MESSAGE
-from sparkth.plugins.compose.prompt import render_scope_classifier_prompt, render_system_prompt
+from sparkth.plugins.compose.prompt import render_system_prompt
 from sparkth.plugins.compose.tests.conftest import OTHER_AGENT, STUB_AGENT
 
 LMS_HEADING = "Publishing and managing courses on your LMS"
@@ -55,8 +55,3 @@ class TestWhatTheAuthorIsNeverShown:
 class TestLmsOperations:
     def test_no_agent_is_told_it_runs_lms_operations(self) -> None:
         assert LMS_HEADING not in render_system_prompt([STUB_AGENT])
-
-    def test_the_scope_gate_takes_lms_requests_without_any_agent(self) -> None:
-        prompt = render_scope_classifier_prompt([])
-
-        assert f'CAPABILITY "{LMS_HEADING}":\n- Publishing, managing, or retrieving courses on an LMS' in prompt

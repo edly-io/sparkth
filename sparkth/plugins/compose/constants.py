@@ -5,11 +5,9 @@ import openai
 from google.api_core import exceptions as google_exceptions
 from google.genai import errors as google_genai_errors
 from langchain_google_genai.chat_models import ChatGoogleGenerativeAIError
-from langchain_openai.chat_models.base import OpenAIRefusalError
 
 from sparkth.lib.assets import read_asset
 from sparkth.lib.i18n import gettext_noop
-from sparkth.plugins.compose.exceptions import ClassifierError
 
 # The name the plugin registers under.
 COMPOSE_PLUGIN_NAME = "compose"
@@ -26,7 +24,6 @@ SSE_HEARTBEAT = ": keepalive\n\n"
 
 SYSTEM_PROMPT_SKELETON = read_asset(__file__, "system_prompt_skeleton.txt")
 RAG_CONTEXT_PROMPT = read_asset(__file__, "rag_context_replacement_prompt.txt")
-MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT = read_asset(__file__, "message_scope_classifier_system_prompt.txt")
 RAG_SEARCH_CLASSIFIER_SYSTEM_PROMPT = read_asset(__file__, "rag_search_classifier_system_prompt.txt")
 PLANNER_PROMPT = read_asset(__file__, "planner/prompt.txt")
 PLANNER_OPERATIONS = read_asset(__file__, "planner/operations.txt")
@@ -91,9 +88,6 @@ REJECT_UNPLANNED_OPERATION = (
 # How many of the planner's calls may be rejected in one turn before it is stopped.
 MAX_REJECTED_PLANNER_CALLS = 2
 
-# How many prior turns reach the scope classifier.
-MESSAGE_SCOPE_CLASSIFIER_CONVERSATION_HISTORY = 6
-
 # What an agent is told when a tool failed in a way its author never planned for. The cause is logged, never
 # handed over: whatever the agent reads, it may repeat to the author.
 TOOL_FAILED_UNEXPECTEDLY = (
@@ -139,10 +133,6 @@ LLM_PROVIDER_API_ERRORS = (
     google_genai_errors.APIError,
     aiohttp.ClientError,
 )
-
-# What the scope classifier wraps in ScopeCheckError when it cannot judge a turn: a classifier
-# failure, OpenAI refusing the structured answer, or a provider error.
-SCOPE_CHECK_ERRORS = (ClassifierError, OpenAIRefusalError, *LLM_PROVIDER_API_ERRORS)
 
 # Category reported for a tool the registry never discovered. A missing category
 # degrades one analytics dimension; it must never break emission.
