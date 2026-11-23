@@ -13,6 +13,7 @@ from sparkth.plugins.compose.enums import (
     ToolExecutionStatus,
 )
 from sparkth.plugins.compose.models import MessageRole, MessageType
+from sparkth.plugins.compose.planner.types import PlanSnapshot
 
 MAX_FILE_SIZE = 30 * 1024 * 1024  # 30MB
 
@@ -165,6 +166,13 @@ class StepEvent(StreamStatusEvent):
     step_status: str
 
 
+class PlanEvent(StreamStatusEvent):
+    """The plan is shown, or its running step moves."""
+
+    status: Literal["plan"] = "plan"
+    plan: PlanSnapshot
+
+
 class ToolExecutionEvent(StreamStatusEvent):
     """A tool call starts or ends."""
 
@@ -189,6 +197,7 @@ class MessageResponse(BaseModel):
     attachment_size: int | None
     rag_sections: list[RagSection] | None = None
     tool_calls: list[PersistedToolCall] | None = None
+    plan: PlanSnapshot | None = None
     is_error: bool = False
     stopped: bool = False
 

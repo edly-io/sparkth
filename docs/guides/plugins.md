@@ -804,6 +804,9 @@ does not hold `plugin.use` at (a `global` grant covers every plugin).
   follows another step is asked for its task as the plan states it, not for what the planner wrote
   afterwards. So text a step brought in, from an agent's reply or from the LMS, can't start an
   operation the author wasn't shown, or change what a planned one does.
+  The author's browser gets the plan as data, not only as text: its tasks and the step it is at,
+  when the plan is made and as each step starts and runs. Each reply that showed the plan keeps it
+  as it stood when the reply ended.
 - **Unfinished plans.** A plan a turn leaves unfinished, because an agent asked the author
   something or the turn was stopped or failed, is kept with the reply until its last step has run.
   A later message carries it on from the step it is at: that step again or the one after it when it
