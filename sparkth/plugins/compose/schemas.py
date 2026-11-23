@@ -1,12 +1,19 @@
 import base64
 import binascii
 from datetime import datetime
-from typing import Any, TypedDict
+from typing import Any, Literal, TypedDict
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from sparkth.plugins.compose.enums import (
+    DocumentProcessingStatus,
+    DocumentSectionProcessingStatus,
+    ResponseGenerationStatus,
+    ToolExecutionStatus,
+)
 from sparkth.plugins.compose.models import MessageRole, MessageType
+from sparkth.plugins.compose.planner.types import PlanSnapshot
 
 MAX_FILE_SIZE = 30 * 1024 * 1024  # 30MB
 
@@ -75,7 +82,7 @@ class ChatCompletionRequest(BaseModel):
     stream: bool = Field(default=False)
     tools: list[str] | str | None = Field(
         default="*",
-        description="Includes every tool of the plugins switched on for the requesting user. "
+        description="Includes every tool of the plugins the requesting user has switched on and has permission to use. "
         "Use 'none' or empty list to disable.",
     )
     tool_choice: str | None = Field(
@@ -126,6 +133,54 @@ class RagSection(BaseModel):
     source: str | None = None
 
 
+class StreamStatusEvent(BaseModel):
+    """A status event of a streamed reply: what Compose is doing before or between the reply's text."""
+
+    done: Literal[False] = False
+
+
+class ResponseGenerationEvent(StreamStatusEvent):
+    """Compose starts writing the reply, or answers without searching documents."""
+
+    status: ResponseGenerationStatus
+
+
+class DocumentProcessingEvent(StreamStatusEvent):
+    """Compose searches the author's documents or scans their attachments, ``file_count`` files."""
+
+    status: DocumentProcessingStatus
+    file_count: int
+
+
+class DocumentSectionProcessingEvent(StreamStatusEvent):
+    """Compose scans a document section, or confirms it for the reply."""
+
+    status: DocumentSectionProcessingStatus
+    section: RagSection
+
+
+class StepEvent(StreamStatusEvent):
+    """A step starts; ``step_status`` is what the author reads while it works."""
+
+    status: Literal["step"] = "step"
+    step_status: str
+
+
+class PlanEvent(StreamStatusEvent):
+    """The plan is shown, or its running step moves."""
+
+    status: Literal["plan"] = "plan"
+    plan: PlanSnapshot
+
+
+class ToolExecutionEvent(StreamStatusEvent):
+    """A tool call starts or ends."""
+
+    status: Literal["tool_call"] = "tool_call"
+    tool_name: str
+    tool_status: ToolExecutionStatus
+
+
 class PersistedToolCall(BaseModel):
     name: str
 
@@ -142,6 +197,7 @@ class MessageResponse(BaseModel):
     attachment_size: int | None
     rag_sections: list[RagSection] | None = None
     tool_calls: list[PersistedToolCall] | None = None
+    plan: PlanSnapshot | None = None
     is_error: bool = False
     stopped: bool = False
 
