@@ -9,6 +9,7 @@ from sparkth.core.models.plugin import Plugin, UserPlugin
 from sparkth.core.models.user import User
 from sparkth.lib.auth import bind_current_user_id, current_user_id
 from sparkth.lib.content.exceptions import (
+    ContentContributorNotPermittedError,
     ContentContributorUnavailableError,
     DuplicateContentContributorError,
     UnknownContentContributorError,
@@ -22,7 +23,12 @@ from sparkth.lib.content.hooks import (
     register_content_contributor,
 )
 from sparkth.lib.exceptions.auth import NoAuthenticatedUser
+from sparkth.lib.permissions import PLUGIN_USE
 from sparkth.lib.plugins import SparkthPlugin
+from sparkth.lib.testing import AuditEventsFetcher, restrict_plugin_use
+
+# Every bound user holds the default roles, so a test that withholds a contributor says why.
+pytestmark = pytest.mark.usefixtures("default_user_roles")
 
 
 async def build_openedx_stub(course_id: str, option_id: str | None) -> ContentBlock:
@@ -235,4 +241,84 @@ async def test_a_named_contributor_whose_plugin_the_user_switched_off_is_unavail
     bind_current_user_id(1)
 
     with pytest.raises(ContentContributorUnavailableError, match="stub"):
+        await enabled_content_contributor("stub")
+
+
+async def _denied_scopes(audit_events: AuditEventsFetcher) -> list[str | None]:
+    """The scope of each ``plugin.use`` denial recorded so far, in order."""
+    return [
+        event.error_detail
+        for event in await audit_events()
+        if (event.category, event.action, event.target_id) == ("permission", "denied", PLUGIN_USE.name)
+    ]
+
+
+async def test_a_contributor_whose_plugin_the_user_may_not_use_is_withheld_without_a_denial(
+    registered: ContentContributor, session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    await _seed_user(session)
+    await restrict_plugin_use(session, None)
+    bind_current_user_id(1)
+
+    assert "stub" not in await enabled_content_contributors()
+    assert await _denied_scopes(audit_events) == []
+
+
+async def test_a_contributor_whose_plugin_alone_the_user_may_use_is_offered(
+    registered: ContentContributor, session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    await _seed_user(session)
+    await restrict_plugin_use(session, "stub-owner")
+    bind_current_user_id(1)
+
+    assert (await enabled_content_contributors())["stub"] is registered
+    assert await _denied_scopes(audit_events) == []
+
+
+async def test_a_named_contributor_whose_plugin_the_user_may_not_use_is_not_permitted_and_recorded(
+    registered: ContentContributor, session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    await _seed_user(session)
+    await restrict_plugin_use(session, None)
+    bind_current_user_id(1)
+
+    with pytest.raises(ContentContributorNotPermittedError) as caught:
+        await enabled_content_contributor("stub")
+
+    assert caught.value.name == "stub"
+    assert await _denied_scopes(audit_events) == ["scope=plugin:stub-owner"]
+
+
+async def test_a_named_contributor_the_user_may_use_is_resolved(
+    registered: ContentContributor, session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    await _seed_user(session)
+    await restrict_plugin_use(session, "stub-owner")
+    bind_current_user_id(1)
+
+    assert await enabled_content_contributor("stub") is registered
+    assert await _denied_scopes(audit_events) == []
+
+
+async def test_a_switched_off_plugin_the_user_may_not_use_is_reported_as_switched_off(
+    registered: ContentContributor, session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    await _seed_owner(session, False)
+    await _seed_user(session)
+    await restrict_plugin_use(session, None)
+    bind_current_user_id(1)
+
+    with pytest.raises(ContentContributorUnavailableError):
+        await enabled_content_contributor("stub")
+
+    assert await _denied_scopes(audit_events) == []
+
+
+async def test_a_bound_user_who_no_longer_exists_is_offered_no_contributor(
+    registered: ContentContributor, session: AsyncSession
+) -> None:
+    bind_current_user_id(99)
+
+    assert "stub" not in await enabled_content_contributors()
+    with pytest.raises(ContentContributorNotPermittedError):
         await enabled_content_contributor("stub")
