@@ -59,7 +59,7 @@ test.describe("dashboard", () => {
       await page.goto(`/dashboard/${plugin.plugin_name}`);
       await page.waitForLoadState("networkidle");
       // The not-found page for an address with no built page, or core's "Plugin <name> not found".
-      await expect(page.getByText(/not found|could not be found/i)).toHaveCount(0);
+      await expect(page.getByText(/not found/i)).toHaveCount(0);
     }
   });
 

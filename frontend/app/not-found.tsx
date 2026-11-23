@@ -5,11 +5,11 @@ import { useTranslations } from "next-intl";
 import { BackToDashboardLink } from "@/core/components/layout/BackToDashboardLink";
 import { NotFound } from "@/core/components/layout/NotFound";
 
-// The address does not change while this page shows, so there is nothing to listen for.
-function stopListening(): void {}
+// The address does not change while this page shows, so there is nothing to subscribe to.
+function unsubscribeFromNothing(): void {}
 
-function listenForAddressChange(): () => void {
-  return stopListening;
+function subscribeToNothing(): () => void {
+  return unsubscribeFromNothing;
 }
 
 function getPathname(): string {
@@ -17,7 +17,7 @@ function getPathname(): string {
 }
 
 // One exported file answers every unknown address, so it is built without knowing any of them.
-function getBuildTimePathname(): null {
+function getUnknownPathname(): null {
   return null;
 }
 
@@ -37,7 +37,7 @@ function getPluginNameOrNull(pathname: string): string | null {
 export default function NotFoundPage(): React.JSX.Element | null {
   const tPage = useTranslations("pageNotFound");
   const tPlugin = useTranslations("pluginNotFound");
-  const pathname = useSyncExternalStore(listenForAddressChange, getPathname, getBuildTimePathname);
+  const pathname = useSyncExternalStore(subscribeToNothing, getPathname, getUnknownPathname);
   if (pathname === null) return null;
 
   const pluginName = getPluginNameOrNull(pathname);
