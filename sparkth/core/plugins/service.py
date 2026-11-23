@@ -11,15 +11,16 @@ from sparkth.core.models.plugin import Plugin, UserPluginPreference
 from sparkth.core.models.user import User
 from sparkth.core.plugins import get_plugin_loader
 from sparkth.core.plugins.config_base import PluginConfig
+from sparkth.core.plugins.constants import USER_PLUGIN_PREFERENCE_TARGET_TYPE
 from sparkth.core.plugins.exceptions import PluginConfigInvalidError, PluginNotConfiguredError
 from sparkth.lib.audit import record_event
 from sparkth.lib.audit.events import (
     AuditChange,
     AuditOutcome,
     AuditTarget,
-    UserPluginConfigCreatedAuditEvent,
-    UserPluginConfigUpdatedAuditEvent,
-    UserPluginEnabledChangedAuditEvent,
+    PluginConfigCreatedAuditEvent,
+    PluginConfigUpdatedAuditEvent,
+    PluginEnabledChangedAuditEvent,
 )
 from sparkth.lib.auth import current_user_id, get_current_user
 from sparkth.lib.config import get_plugin_adapter, get_plugin_config_schema
@@ -448,9 +449,9 @@ class PluginService:
         plugin_name = await self._plugin_name(session, plugin_id)
         await record_event(
             session,
-            UserPluginEnabledChangedAuditEvent(
+            PluginEnabledChangedAuditEvent(
                 outcome=AuditOutcome.SUCCESS,
-                target=AuditTarget(type="user_plugin", id=str(preference.id)),
+                target=AuditTarget(type=USER_PLUGIN_PREFERENCE_TARGET_TYPE, id=str(preference.id)),
                 change=AuditChange(
                     old=self._create_enabled_audit_snapshot(plugin_name, previously_enabled),
                     new=self._create_enabled_audit_snapshot(plugin_name, enabled),
@@ -510,9 +511,9 @@ class PluginService:
         plugin_name = await self._plugin_name(session, plugin_id)
         await record_event(
             session,
-            UserPluginConfigCreatedAuditEvent(
+            PluginConfigCreatedAuditEvent(
                 outcome=AuditOutcome.SUCCESS,
-                target=AuditTarget(type="user_plugin", id=str(preference.id)),
+                target=AuditTarget(type=USER_PLUGIN_PREFERENCE_TARGET_TYPE, id=str(preference.id)),
                 change=AuditChange(new=self._create_config_audit_snapshot(plugin_name, user_config)),
             ),
         )
@@ -569,9 +570,9 @@ class PluginService:
         await session.flush()
         await record_event(
             session,
-            UserPluginConfigUpdatedAuditEvent(
+            PluginConfigUpdatedAuditEvent(
                 outcome=AuditOutcome.SUCCESS,
-                target=AuditTarget(type="user_plugin", id=str(preference.id)),
+                target=AuditTarget(type=USER_PLUGIN_PREFERENCE_TARGET_TYPE, id=str(preference.id)),
                 change=AuditChange(
                     old=self._create_config_audit_snapshot(plugin.name, previous_config),
                     new=self._create_config_update_audit_snapshot(
