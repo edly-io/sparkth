@@ -10,6 +10,8 @@ export type ConversationSummary = Schema<"ConversationResponse">;
 export type PlanSnapshot = Schema<"PlanSnapshot">;
 /** A document attached to a conversation. */
 export type PersistedAttachment = Schema<"AttachedDocumentResponse">;
+/** A file uploaded from the computer that a conversation still has, without its text. */
+export type UploadedFile = Schema<"UploadedFileResponse">;
 /** The request body of the chat completions endpoint. */
 export type ChatCompletionRequestBody = Schema<"ChatCompletionRequest">;
 
@@ -22,14 +24,13 @@ export type ConversationLoadError = "notFound" | "failed";
 
 export interface TextAttachment {
   name: string;
-  text: string;
+  text?: string; // The text read from an upload waiting to be sent; no other file holds it here.
   size: number;
-  base64Data?: string;
-  mediaType?: string;
   documentId?: number; // Core Document ID used by chat/RAG.
   source?: string; // The id of the attachment source a document came from, which gives its icon.
   uploadId?: string; // Identifies a file uploaded from the computer, which has no document ID.
-  isSent?: boolean; // An upload already sent, whose text is now part of the conversation.
+  isSent?: boolean; // An upload already sent, which the server keeps for the conversation.
+  isStoredInMessage?: boolean; // An older upload whose text is inside a stored message, so it can't be removed.
   isUploading?: boolean; // An upload still on its way to the server, with no text yet.
 }
 

@@ -23,53 +23,6 @@ interface UseChatStreamOptions {
   onNewConversation: (id: string) => void;
 }
 
-function buildUserMessages(message: string, attachments: TextAttachment[]) {
-  const out: Array<{
-    role: string;
-    content: string | Record<string, unknown>[];
-    attachment?: { name: string; size: number };
-  }> = [];
-
-  for (let i = 0; i < attachments.length; i++) {
-    const attachment = attachments[i];
-    const isLast = i === attachments.length - 1;
-    if (attachment.base64Data) {
-      const contentBlocks: Record<string, unknown>[] = [
-        {
-          type: "document",
-          source: {
-            type: "base64",
-            media_type: attachment.mediaType || "application/pdf",
-            data: attachment.base64Data,
-          },
-        },
-      ];
-      if (isLast && message.trim()) contentBlocks.push({ type: "text", text: message });
-      out.push({
-        role: "user",
-        content: contentBlocks,
-        attachment: { name: attachment.name, size: attachment.size },
-      });
-    } else {
-      if (attachment.text) {
-        const content =
-          isLast && message.trim() ? `${message}\n\n---\n\n${attachment.text}` : attachment.text;
-        out.push({
-          role: "user",
-          content,
-          attachment: { name: attachment.name, size: attachment.size },
-        });
-      }
-    }
-  }
-
-  if (message.trim() && out.length === 0) {
-    out.push({ role: "user", content: message });
-  }
-
-  return out;
-}
-
 function applyStatusEvent(
   parsed: Record<string, unknown>,
   assistantId: string,
@@ -389,12 +342,15 @@ export function useChatStream({
       const userMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "user",
-        content: message || (attachments.length > 0 ? "Uploaded a document" : ""),
+        content: message,
         attachments,
       };
       setMessages((prev) => [...prev, userMessage]);
 
-      const newUserMessages = buildUserMessages(message, attachments);
+      // A file goes to the server once, with this message; the server keeps it for the later ones.
+      const files = attachments.flatMap(({ name, text }) =>
+        text === undefined ? [] : [{ name, text }],
+      );
       const assistantId = crypto.randomUUID();
 
       setMessages((prev) => [
@@ -414,7 +370,8 @@ export function useChatStream({
           // the catch below surfaces its message.
           llm_config_id: llmConfigId as number,
           ...(modelOverride && { model_override: modelOverride }),
-          messages: newUserMessages,
+          messages: [{ role: "user", content: message }],
+          ...(files.length > 0 && { files }),
           stream: true,
           temperature: 0.7,
           tools: "*",

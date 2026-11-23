@@ -6,8 +6,10 @@ import {
   detachDocument,
   getConversation,
   getConversationAttachments,
+  getConversationUploadedFiles,
   getLastMessage,
   listConversations,
+  removeConversationUploadedFile,
   requestChatCompletionStream,
 } from "@/plugins/compose/src/client";
 import type { ChatCompletionRequestBody } from "@/plugins/compose/src/types";
@@ -123,6 +125,49 @@ describe("getConversationAttachments", () => {
     mockFetch({ detail: "boom" }, 500);
 
     await expect(getConversationAttachments(TOKEN, "abc")).resolves.toEqual([]);
+  });
+});
+
+describe("getConversationUploadedFiles", () => {
+  it("GETs the files uploaded from the computer", async () => {
+    const files = [{ name: "notes.txt", size: 6 }];
+    const spy = mockFetch(files);
+    const controller = new AbortController();
+
+    const result = await getConversationUploadedFiles(TOKEN, "abc", controller.signal);
+
+    const request = sentRequest(spy);
+    expect(new URL(request.url).pathname).toBe("/api/v1/compose/conversations/abc/uploaded-files");
+    expect(request.headers.get("authorization")).toBe("Bearer test-token");
+    expect(result).toEqual(files);
+  });
+
+  it("returns an empty list on non-ok response (non-fatal)", async () => {
+    mockFetch({ detail: "boom" }, 500);
+
+    await expect(getConversationUploadedFiles(TOKEN, "abc")).resolves.toEqual([]);
+  });
+});
+
+describe("removeConversationUploadedFile", () => {
+  it("DELETEs the uploaded file by its name", async () => {
+    const spy = mockFetch(null, 204);
+
+    await removeConversationUploadedFile(TOKEN, "abc", "week 1.txt");
+
+    const request = sentRequest(spy);
+    expect(new URL(request.url).pathname).toBe(
+      "/api/v1/compose/conversations/abc/uploaded-files/week%201.txt",
+    );
+    expect(request.method).toBe("DELETE");
+  });
+
+  it("throws on non-ok response", async () => {
+    mockFetch({ detail: "boom" }, 500);
+
+    await expect(removeConversationUploadedFile(TOKEN, "abc", "notes.txt")).rejects.toThrow(
+      "HTTP 500",
+    );
   });
 });
 
