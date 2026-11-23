@@ -6,6 +6,8 @@ from langchain_core.tools import BaseTool
 from pydantic import TypeAdapter, ValidationError
 
 from sparkth.lib.log import get_logger
+from sparkth.lib.permissions import PLUGIN_USE
+from sparkth.lib.permissions.scopes import PLUGIN, build_scope_path
 from sparkth.plugins.compose.models import Message
 from sparkth.plugins.compose.planner import ExistingPlan
 from sparkth.plugins.compose.schemas import ChatCompletionRequest
@@ -15,11 +17,15 @@ logger = get_logger(__name__)
 
 
 async def resolve_tools(
-    request: ChatCompletionRequest, tool_registry: ToolRegistry, disabled_plugins: set[str]
+    request: ChatCompletionRequest,
+    tool_registry: ToolRegistry,
+    disabled_plugins: set[str],
+    allowed_plugins: set[str] | None,
 ) -> list[BaseTool] | None:
     """Resolve the tools the request asks for: every tool for ``"*"`` or ``"all"``, the named ones
     for a list, and none for ``"none"`` or an empty list. A tool whose plugin is in
-    ``disabled_plugins`` is never returned, however it was asked for."""
+    ``disabled_plugins``, or is missing from ``allowed_plugins``, is never returned, however it was
+    asked for. An ``allowed_plugins`` of ``None`` allows every plugin."""
     if request.tools == "none" or request.tools == []:
         logger.info("Tools explicitly disabled")
         return None
@@ -31,7 +37,37 @@ async def resolve_tools(
             logger.warning("No tools found for: %s", request.tools)
     else:
         return None
-    return [tool for tool in tools if tool_registry.plugin_for(tool.name) not in disabled_plugins]
+    resolved: list[BaseTool] = []
+    for tool in tools:
+        plugin_name = tool_registry.plugin_for(tool.name)
+        if plugin_name in disabled_plugins:
+            continue
+        # allowed_plugins is None if the grant is global
+        if allowed_plugins is None or plugin_name in allowed_plugins:
+            resolved.append(tool)
+    return resolved
+
+
+async def record_named_tool_denials(
+    request: ChatCompletionRequest,
+    tool_registry: ToolRegistry,
+    disabled_plugins: set[str],
+    allowed_plugins: set[str] | None,
+) -> None:
+    """Record a denial for each plugin missing from ``allowed_plugins`` whose tool the request asks
+    for by name.
+
+    A request for every tool names none, so it records nothing. Neither does a named tool of a
+    plugin in ``disabled_plugins``.
+    """
+    # allowed_plugins is None if the grant is global
+    if allowed_plugins is None or not isinstance(request.tools, list):
+        return
+    named_plugins = {
+        plugin_name for tool_name in request.tools if (plugin_name := tool_registry.plugin_for(tool_name)) is not None
+    }
+    for plugin_name in sorted(named_plugins - allowed_plugins - disabled_plugins):
+        await PLUGIN_USE.record_denial(PLUGIN, build_scope_path(PLUGIN, plugin_name))
 
 
 def get_existing_plan_or_none(conversation_messages: Sequence[Message]) -> ExistingPlan | None:
