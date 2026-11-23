@@ -79,7 +79,7 @@ async def disabled_plugin_names(user_id: int | None, session: AsyncSession) -> s
     return set(result.all())
 
 
-async def load_user_plugin_config[ConfigT: PluginConfig](plugin_name: str, config_class: type[ConfigT]) -> ConfigT:
+async def load_plugin_config[ConfigT: PluginConfig](plugin_name: str, config_class: type[ConfigT]) -> ConfigT:
     """Load the calling user's stored settings for a plugin as ``config_class``.
 
     The caller is the user bound to this request (``current_user_id``), never an argument,
@@ -121,6 +121,10 @@ async def load_user_plugin_config[ConfigT: PluginConfig](plugin_name: str, confi
         fields = [".".join(str(part) for part in error["loc"]) for error in exc.errors()]
         logger.warning("Stored %s settings for user %s are invalid: fields %s", plugin_name, user_id, fields)
         raise PluginConfigInvalidError(display_name) from None
+
+
+# The old name, kept until every plugin calls load_plugin_config.
+load_user_plugin_config = load_plugin_config
 
 
 async def get_disabled_plugins(

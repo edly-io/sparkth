@@ -68,7 +68,7 @@ class TestCanvasCheckSettingsTool:
     @pytest.mark.asyncio
     async def test_success_returns_the_status(self) -> None:
         with (
-            patch("sparkth.plugins.canvas.tools.load_user_plugin_config", AsyncMock(return_value=self.CONFIG)),
+            patch("sparkth.plugins.canvas.tools.load_plugin_config", AsyncMock(return_value=self.CONFIG)),
             patch.object(CanvasClient, "authenticate", AsyncMock(return_value=200)),
         ):
             assert await canvas_check_settings() == {"status": 200}
@@ -77,7 +77,7 @@ class TestCanvasCheckSettingsTool:
     async def test_failure_returns_the_standard_error_shape(self) -> None:
         error = AuthenticationError(401, "Invalid access token")
         with (
-            patch("sparkth.plugins.canvas.tools.load_user_plugin_config", AsyncMock(return_value=self.CONFIG)),
+            patch("sparkth.plugins.canvas.tools.load_plugin_config", AsyncMock(return_value=self.CONFIG)),
             patch.object(CanvasClient, "authenticate", AsyncMock(side_effect=error)),
         ):
             result = await canvas_check_settings()
