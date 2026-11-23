@@ -42,6 +42,7 @@
     "uploadingFile": "Uploading file",
     "uploadingFileProgress": "Uploading file ({current} of {total})",
     "selectFiles": "Select files",
+    "selectFilesLimit": ".txt or .pdf, up to {limitMb} MB in total",
     "uploadLimitExceeded": "These files would take the conversation over its {limitMb} MB limit.",
     "uploadSkippedDuplicates": "{count, plural, one {File already attached.} other {Files already attached.}}",
     "uploadFailed": "Failed to upload \"{name}\": {reason}",
