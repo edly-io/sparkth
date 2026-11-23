@@ -2,7 +2,6 @@ from datetime import datetime
 
 from sparkth.lib.compose.hooks import Agent
 from sparkth.plugins.compose.constants import (
-    MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT,
     REFUSAL_MESSAGE,
     SYSTEM_PROMPT_SKELETON,
 )
@@ -29,15 +28,3 @@ def render_system_prompt(agents: list[Agent]) -> str:
         options_tag=OptionsFence.MULTIPLE,
         single_options_tag=OptionsFence.SINGLE,
     )
-
-
-def render_scope_classifier_prompt(agents: list[Agent]) -> str:
-    """Render the scope classifier's system prompt, listing each of ``agents`` by its title and
-    its description, which is what the classifier judges a message against, after Compose's own
-    LMS operations.
-
-    Rendered per request from the enabled agents, so nothing depends on which plugin was
-    imported first.
-    """
-    sections = "\n\n".join(f'CAPABILITY "{agent.title}":\n{agent.description}' for agent in agents)
-    return MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT.format(capabilities=sections)
