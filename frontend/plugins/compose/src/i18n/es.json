@@ -42,6 +42,7 @@
     "uploadingFile": "Subiendo archivo",
     "uploadingFileProgress": "Subiendo archivo ({current} de {total})",
     "selectFiles": "Seleccionar archivos",
+    "selectFilesLimit": ".txt o .pdf, hasta {limitMb} MB en total",
     "uploadLimitExceeded": "Estos archivos superarían el límite de {limitMb} MB de la conversación.",
     "uploadSkippedDuplicates": "{count, plural, one {El archivo ya está adjunto.} other {Los archivos ya están adjuntos.}}",
     "uploadFailed": "No se pudo subir \"{name}\": {reason}",

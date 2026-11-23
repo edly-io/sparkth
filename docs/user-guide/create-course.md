@@ -51,9 +51,9 @@ indexing can't be picked yet. Hover over the dot next to it in the picker: it ca
 it reads **Ready**.
 
 The files you attach are counted above the message box, for example **2 files attached**. Click
-the count to list them and to remove one. Files are sent with your next message, so type one to
-send them. A file from your computer stays listed once it is sent. Remove it from the list to take
-it out of the conversation: the assistant stops using it from your next message.
+the count to list them with their sizes, and to remove one. Files are sent with your next message,
+so type one to send them. A file from your computer stays listed once it is sent. Remove it from
+the list to take it out of the conversation: the assistant stops using it from your next message.
 
 The assistant keeps a file from your computer for 24 hours after the conversation's last message.
 After that the file is no longer listed, and you attach it again to keep using it. A file with the

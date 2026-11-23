@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { ATTACHMENT_SOURCES, type AttachmentSource } from "@/plugins/compose/src/slots/attachments";
 import { Button } from "@/lib/components/ui/Button";
 import { usePlugin } from "@/lib/plugins/context";
+import { MAX_COMBINED_UPLOAD_MB } from "@/plugins/compose/src/constants";
 import { slotItems } from "@/lib/slots";
 
 interface UploadMenuProps {
@@ -41,8 +42,8 @@ function SourceItem({
 }
 
 /**
- * Compose's attach menu: files from the user's computer, then one entry for each attachment source
- * whose plugin is enabled.
+ * Compose's attach menu: files from the user's computer, with the file types and total size it
+ * takes, then one entry for each attachment source whose plugin is enabled.
  */
 export function UploadMenu({ onClose, onUploadFromComputer, onPickSource }: UploadMenuProps) {
   const t = useTranslations("compose");
@@ -66,7 +67,7 @@ export function UploadMenu({ onClose, onUploadFromComputer, onPickSource }: Uplo
         }}
       />
 
-      <div className="absolute left-0 bottom-full mb-2 bg-input border border-border rounded-xl shadow-lg py-2 min-w-[200px] z-10">
+      <div className="absolute left-0 bottom-full mb-2 bg-input border border-border rounded-xl shadow-lg py-2 flex flex-col w-max min-w-[200px] z-10">
         <Button
           variant="ghost"
           size="sm"
@@ -74,7 +75,12 @@ export function UploadMenu({ onClose, onUploadFromComputer, onPickSource }: Uplo
           className="w-full !justify-start gap-3 rounded-none"
         >
           <FileText className="w-5 h-5" />
-          <span className="text-left">{t("selectFiles")}</span>
+          <span className="flex flex-col text-left">
+            {t("selectFiles")}
+            <span className="text-xs font-normal text-muted-foreground">
+              {t("selectFilesLimit", { limitMb: MAX_COMBINED_UPLOAD_MB })}
+            </span>
+          </span>
         </Button>
         {slotItems(ATTACHMENT_SOURCES).map(([plugin, source], index) => (
           <SourceItem

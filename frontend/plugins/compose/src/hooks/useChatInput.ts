@@ -9,11 +9,8 @@ import {
   removeConversationUploadedFile,
 } from "@/plugins/compose/src/client";
 import { uploadFile, UploadResponse } from "@/plugins/compose/src/upload";
+import { MAX_COMBINED_UPLOAD_BYTES, MAX_COMBINED_UPLOAD_MB } from "@/plugins/compose/src/constants";
 import type { AttachedDocument, AttachmentSource } from "@/plugins/compose/src/slots/attachments";
-
-/** How many megabytes of computer files one conversation can carry; documents don't count. */
-const MAX_COMBINED_UPLOAD_MB = 3;
-const MAX_COMBINED_UPLOAD_BYTES = MAX_COMBINED_UPLOAD_MB * 1024 * 1024;
 
 interface UseChatInputProps {
   message: string;
