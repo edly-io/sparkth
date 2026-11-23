@@ -257,44 +257,6 @@ async def test_instructor_turn_emits_message_sent(
     assert sent[0]["conversation_id"] == str(response.json()["conversation_id"])
 
 
-async def test_attachment_turn_emits_message_sent_with_has_attachment(
-    client: AsyncClient,
-    current_user: User,
-    session: AsyncSession,
-    analytics_session: SQLAlchemyAsyncSession,
-) -> None:
-    """An inline upload on the turn sets ``has_attachment`` on the landed row."""
-    config_id = await _seed_llm_config(session, current_user.id or 1)
-    conversation_uuid = await _seed_conversation(session, current_user.id or 1, config_id)
-
-    with (
-        patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_non_streaming_provider()),
-    ):
-        response = await client.post(
-            COMPLETIONS_URL,
-            json={
-                "llm_config_id": config_id,
-                "conversation_id": conversation_uuid,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": "Build a quiz from this syllabus",
-                        "attachment": {"name": "syllabus.pdf", "size": 2048},
-                    }
-                ],
-                "stream": False,
-                "tools": "none",
-            },
-        )
-
-    assert response.status_code == 200
-
-    await join_live_tasks()  # compose.message_sent lands on a detached task
-    sent = await _events(analytics_session, "compose.message_sent")
-    assert len(sent) == 1
-    assert sent[0]["has_attachment"] is True
-
-
 async def test_only_the_turn_a_file_is_sent_with_emits_message_sent_with_has_attachment(
     client: AsyncClient,
     current_user: User,
