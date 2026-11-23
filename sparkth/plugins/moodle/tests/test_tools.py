@@ -45,7 +45,7 @@ MOODLE_CONFIG = MoodleConfig.model_validate({"api_url": "https://moodle.example.
 @pytest.fixture
 def stored_config() -> Iterator[None]:
     """Make the tools load ``MOODLE_CONFIG`` as the caller's stored settings."""
-    with patch("sparkth.plugins.moodle.tools.load_user_plugin_config", AsyncMock(return_value=MOODLE_CONFIG)):
+    with patch("sparkth.plugins.moodle.tools.load_plugin_config", AsyncMock(return_value=MOODLE_CONFIG)):
         yield
 
 

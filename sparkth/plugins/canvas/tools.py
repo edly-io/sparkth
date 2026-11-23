@@ -14,7 +14,7 @@ from typing import Any
 from sparkth.lib.assets import read_asset
 from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
-from sparkth.lib.plugins import load_user_plugin_config
+from sparkth.lib.plugins import load_plugin_config
 from sparkth.plugins.canvas.client import CanvasClient
 from sparkth.plugins.canvas.config import CanvasConfig
 from sparkth.plugins.canvas.constants import CANVAS_PLUGIN_NAME
@@ -52,7 +52,7 @@ async def _canvas_call(method: Method, path: str, payload: dict[str, Any] | None
     Every tool that is a single request goes through here, so the settings load and the error
     shape live in one place. A failed request returns the tool error dict; missing settings raise.
     """
-    config = await load_user_plugin_config(CANVAS_PLUGIN_NAME, CanvasConfig)
+    config = await load_plugin_config(CANVAS_PLUGIN_NAME, CanvasConfig)
     try:
         async with CanvasClient(config) as client:
             return await client.request(method, path, payload)
@@ -65,7 +65,7 @@ async def _canvas_list(path: str, key: str) -> dict[str, Any]:
 
     The list counterpart of ``_canvas_call``: a failed request returns the tool error dict.
     """
-    config = await load_user_plugin_config(CANVAS_PLUGIN_NAME, CanvasConfig)
+    config = await load_plugin_config(CANVAS_PLUGIN_NAME, CanvasConfig)
     try:
         async with CanvasClient(config) as client:
             return {key: await client.get_all(path)}
@@ -79,7 +79,7 @@ async def canvas_check_settings() -> dict[str, Any]:
     Call this to learn whether Canvas is set up for the user. Never ask the user for their Canvas
     credentials, and never accept them in the chat.
     """
-    config = await load_user_plugin_config(CANVAS_PLUGIN_NAME, CanvasConfig)
+    config = await load_plugin_config(CANVAS_PLUGIN_NAME, CanvasConfig)
     try:
         async with CanvasClient(config) as client:
             res = await client.authenticate()

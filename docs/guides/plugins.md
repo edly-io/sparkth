@@ -46,7 +46,7 @@ Valid `llm_model_override` values must be a legal model for the linked `LLMConfi
 
 ### LMS Plugins: Tools Without Credentials
 
-An LMS tool reads the caller's saved settings itself with `load_user_plugin_config`, described in
+An LMS tool reads the caller's saved settings itself with `load_plugin_config`, described in
 [Reading the caller's stored settings](#reading-the-callers-stored-settings), and raises
 `PluginNotConfiguredError` when there are none.
 
@@ -78,7 +78,7 @@ Mark an API key or token with `secret(masked=True)`: the API also returns it mas
 
 Register a Pydantic configuration class when your plugin has user-configurable settings that the system
 should validate and normalize, and always for LMS plugins, whose tools load it with
-`load_user_plugin_config`. Plugins with no user-facing configuration can skip this entirely.
+`load_plugin_config`. Plugins with no user-facing configuration can skip this entirely.
 
 When you do register one, contribute your config class to the `CONFIG_SCHEMAS` hook from your plugin's `__init__`, right after calling `super().__init__(...)`. The system resolves config classes by the plugin's _declared_ name (the value you pass to `super().__init__()`, see [Plugin Names](#plugin-names) below), so no name string is needed at the call site.
 
@@ -576,11 +576,11 @@ and the tools they run. On `/ai/mcp` nothing is bound, so the call raises
 
 ### Reading the caller's stored settings
 
-A tool that needs the caller's stored plugin settings calls `load_user_plugin_config` from
+A tool that needs the caller's stored plugin settings calls `load_plugin_config` from
 `sparkth.lib.plugins` with its plugin name and config class:
 
 ```python
-config = await load_user_plugin_config("canvas", CanvasConfig)
+config = await load_plugin_config("canvas", CanvasConfig)
 ```
 
 It never takes those settings as arguments, because the model writes tool arguments and could
