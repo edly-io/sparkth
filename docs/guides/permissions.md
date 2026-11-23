@@ -498,6 +498,11 @@ the 403 is raised, so it survives the request's rollback; if the write fails, th
 fails rather than returning 403. Calling `can()` or `batched_can()` directly, or the
 `/permissions/can/batch` probe below, records nothing.
 
+Code that turns down one thing a caller asked for by name, without refusing the whole request, records
+the same event with `await PERMISSION.record_denial(SCOPE, scope_path)`. It writes the row the same way
+and does not refuse the request; a failed write still fails the caller. A list that only leaves out what
+the caller may not use records nothing.
+
 **Check the current user's permissions** — a client (e.g. the web UI) can ask whether the
 authenticated user holds permissions via `POST /api/v1/permissions/can/batch`. The body is a list of
 checks, at most `MAX_PERMISSION_CHECKS` (50), each with `permission`, `scope` (required, e.g.
