@@ -108,7 +108,7 @@ async def test_creates_the_block_the_contributor_declares(fake_contributor: Cont
 
 async def test_an_unconfigured_user_places_no_plugin_content(fake_contributor: ContentContributor) -> None:
     unconfigured = AsyncMock(side_effect=PluginNotConfiguredError("Open edX"))
-    with patch("sparkth.plugins.openedx.tools.load_user_plugin_config", unconfigured):
+    with patch("sparkth.plugins.openedx.tools.load_plugin_config", unconfigured):
         with pytest.raises(PluginNotConfiguredError):
             await openedx_add_plugin_content(add_args())
 

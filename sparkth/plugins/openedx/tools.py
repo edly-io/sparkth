@@ -23,7 +23,7 @@ from sparkth.lib.content.hooks import (
 from sparkth.lib.enums import Method
 from sparkth.lib.exceptions import AuthenticationError, LMSRequestError
 from sparkth.lib.log import get_logger
-from sparkth.lib.plugins import load_user_plugin_config
+from sparkth.lib.plugins import load_plugin_config
 from sparkth.plugins.openedx.client import OpenEdxClient
 from sparkth.plugins.openedx.config import OpenEdxConfig
 from sparkth.plugins.openedx.constants import OPENEDX_PLUGIN_NAME
@@ -67,7 +67,7 @@ async def _open_client() -> OpenEdxClient:
 
     The one place the tools read the caller: the settings and the cached access token are theirs.
     """
-    config = await load_user_plugin_config(OPENEDX_PLUGIN_NAME, OpenEdxConfig)
+    config = await load_plugin_config(OPENEDX_PLUGIN_NAME, OpenEdxConfig)
     return OpenEdxClient(config, current_user_id())
 
 

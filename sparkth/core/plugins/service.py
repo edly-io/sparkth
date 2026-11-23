@@ -123,10 +123,6 @@ async def load_plugin_config[ConfigT: PluginConfig](plugin_name: str, config_cla
         raise PluginConfigInvalidError(display_name) from None
 
 
-# The old name, kept until every plugin calls load_plugin_config.
-load_user_plugin_config = load_plugin_config
-
-
 async def get_disabled_plugins(
     request: Request,
     current_user: User = Depends(get_current_user),
