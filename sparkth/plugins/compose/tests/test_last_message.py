@@ -1,5 +1,6 @@
 """Tests for GET /conversations/{conversation_id}/last-message endpoint."""
 
+import json
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 from uuid import uuid4
@@ -66,6 +67,30 @@ class TestGetLastMessage:
         assert body["role"] == "assistant"
         assert body["content"] == "world"
         assert body["id"] == msg2_id
+
+    async def test_returns_the_plan_a_reply_showed(
+        self, client: httpx.AsyncClient, current_user: MagicMock, session: AsyncSession
+    ) -> None:
+        shown = {"tasks": ["Write the lesson", "Build the activity"], "current_step": 1, "has_current_step_run": True}
+        conv = Conversation(user_id=current_user.id, provider="openai", model="gpt-4o")
+        session.add(conv)
+        await session.commit()
+        await session.refresh(conv)
+        assert conv.id is not None
+        conv_uuid = conv.uuid
+        session.add(
+            Message(
+                conversation_id=conv.id,
+                role="assistant",
+                content="Here is the lesson.",
+                model_metadata=json.dumps({"plan_snapshot": shown}),
+            )
+        )
+        await session.commit()
+
+        response = await client.get(f"/api/v1/compose/conversations/{conv_uuid}/last-message")
+
+        assert response.json()["plan"] == shown
 
     async def test_returns_last_message_by_created_at_order(
         self, client: httpx.AsyncClient, current_user: MagicMock, session: AsyncSession

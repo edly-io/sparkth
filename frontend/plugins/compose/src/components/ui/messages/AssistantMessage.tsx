@@ -1,7 +1,8 @@
 import { AlertCircle, Bot } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useId } from "react";
 import { Card } from "@/lib/components/ui/Card";
-import { ChatMessage, StreamStatusPhase } from "@/plugins/compose/src/types";
+import { ChatMessage, PlanSnapshot, StreamStatusPhase } from "@/plugins/compose/src/types";
 import { OptionsPrompt } from "@/plugins/compose/src/components/ui/messages/OptionsPrompt";
 import {
   answeredOptions,
@@ -17,6 +18,57 @@ function ThinkingDots() {
       <span className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-thinking-dot [animation-delay:0ms]" />
       <span className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-thinking-dot [animation-delay:150ms]" />
       <span className="w-2 h-2 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-thinking-dot [animation-delay:300ms]" />
+    </div>
+  );
+}
+
+type StepState = "done" | "running" | "toDo";
+
+/** Where the plan's step `number` stands; a step the plan waits at once the reply has ended is to do. */
+function getStepState(number: number, plan: PlanSnapshot, isTyping?: boolean): StepState {
+  if (number < plan.current_step || (number === plan.current_step && plan.has_current_step_run)) {
+    return "done";
+  }
+  return number === plan.current_step && isTyping ? "running" : "toDo";
+}
+
+/** The plan a reply showed, one muted row per task, marked done, running or to do. */
+function PlanList({ plan, isTyping }: { plan: PlanSnapshot; isTyping?: boolean }) {
+  const t = useTranslations("compose");
+  const titleId = useId();
+  // Keys must stay literal t("...") calls — i18n-check only traces literal calls, not computed keys.
+  const stateTexts: Record<StepState, string> = {
+    done: t("planStepDone"),
+    running: t("planStepRunning"),
+    toDo: t("planStepToDo"),
+  };
+  return (
+    <div className="px-1 space-y-0.5">
+      <p id={titleId} className="text-xs text-neutral-400 dark:text-neutral-500">
+        {t("planTitle")}
+      </p>
+      <ul aria-labelledby={titleId} className="space-y-0.5">
+        {plan.tasks.map((task, index) => {
+          const state = getStepState(index + 1, plan, isTyping);
+          return (
+            // Relative, so the hidden state text stays inside its row instead of stretching the page.
+            <li
+              key={`${index}-${task}`}
+              className="relative text-xs text-neutral-400 dark:text-neutral-500 flex items-baseline gap-1.5"
+            >
+              <span className="sr-only">{stateTexts[state]}</span>
+              {state === "running" ? (
+                <span className="w-1.5 h-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 flex-shrink-0 mt-0.5 animate-pulse" />
+              ) : state === "done" ? (
+                <span className="w-1.5 h-1.5 rounded-full bg-neutral-300 dark:bg-neutral-600 flex-shrink-0 mt-0.5" />
+              ) : (
+                <span className="w-1.5 h-1.5 rounded-full border border-neutral-300 dark:border-neutral-600 flex-shrink-0 mt-0.5" />
+              )}
+              <span className={state === "toDo" ? "opacity-60" : ""}>{task}</span>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
@@ -53,10 +105,10 @@ export function AssistantMessage({
   // The dots stay up for every waiting state, tools running or not, so nothing flickers as a
   // turn moves between calls; the count line above the card says what has run.
   const isThinking = message.isTyping && !displayText;
-  // The sentence belongs to the start of a turn: once any tool call exists the count
-  // line above the card carries the state, so the card falls back to the dots.
+  // The sentence belongs to the start of a turn: once any tool call exists, a plan is shown or a
+  // running step is named above the card, that carries the state, so the card falls back to the dots.
   const statusLine =
-    toolCalls.length > 0
+    toolCalls.length > 0 || message.plan || message.stepLabel
       ? null
       : message.statusPhase
         ? statusTexts[message.statusPhase]
@@ -69,6 +121,18 @@ export function AssistantMessage({
       </div>
 
       <div className="max-w-[75%] w-fit space-y-2">
+        {message.plan ? (
+          <PlanList plan={message.plan} isTyping={message.isTyping} />
+        ) : (
+          message.isTyping &&
+          message.stepLabel && (
+            <div role="status" className="px-1 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 flex-shrink-0 animate-pulse" />
+              <p className="text-xs text-neutral-400 dark:text-neutral-500">{message.stepLabel}</p>
+            </div>
+          )
+        )}
+
         {/* RAG context indicator — outside bubble, persistent */}
         {message.ragSections && message.ragSections.length > 0 && (
           <div className="px-1 space-y-0.5">

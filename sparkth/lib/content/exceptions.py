@@ -39,6 +39,18 @@ class ContentContributorUnavailableError(Exception):
         super().__init__(f"Content contributor {name!r} is unavailable: its plugin is switched off")
 
 
+class ContentContributorNotPermittedError(Exception):
+    """Raised when the caller may not use the plugin of the requested contributor.
+
+    The contributor is registered, so the caller is told it may not be used rather than that it
+    does not exist.
+    """
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        super().__init__(f"Content contributor {name!r} is unavailable: you may not use its plugin")
+
+
 class DuplicateContentContributorError(Exception):
     """Raised when a contributor claims a name that a different value or plugin already holds.
 
