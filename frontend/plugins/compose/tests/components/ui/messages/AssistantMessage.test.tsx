@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AssistantMessage } from "@/plugins/compose/src/components/ui/messages/AssistantMessage";
@@ -311,5 +311,81 @@ describe("AssistantMessage — options widget", () => {
     );
     expect(screen.getByLabelText("Beginners")).toBeDisabled();
     expect(screen.queryByText(composeEn.compose.optionsTypeElse)).not.toBeInTheDocument();
+  });
+});
+
+const TASKS = ["Write the lesson", "Build the activity", "Publish both"];
+const plan = (currentStep: number, hasCurrentStepRun: boolean) => ({
+  tasks: TASKS,
+  current_step: currentStep,
+  has_current_step_run: hasCurrentStepRun,
+});
+const { planStepDone, planStepRunning, planStepToDo } = composeEn.compose;
+
+/** The state each step of the shown plan reads as, in order. */
+function stepStates(): string[] {
+  const list = screen.getByRole("list", { name: composeEn.compose.planTitle });
+  return within(list)
+    .getAllByRole("listitem")
+    .map((item) => item.textContent ?? "");
+}
+
+describe("AssistantMessage — the plan", () => {
+  it("lists the plan's tasks above the reply", () => {
+    renderMessage({ content: "Here is the lesson.", plan: plan(1, true) });
+    const list = screen.getByRole("list", { name: composeEn.compose.planTitle });
+    const reply = screen.getByText("Here is the lesson.");
+    expect(within(list).getAllByRole("listitem")).toHaveLength(TASKS.length);
+    expect(list.compareDocumentPosition(reply) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("marks the steps that ran, the one running and the ones to do", () => {
+    renderMessage({ content: "", isTyping: true, plan: plan(2, false) });
+    expect(stepStates()).toEqual([
+      `${planStepDone}${TASKS[0]}`,
+      `${planStepRunning}${TASKS[1]}`,
+      `${planStepToDo}${TASKS[2]}`,
+    ]);
+  });
+
+  it("shows a step the plan waits at, once the reply has ended, as to do", () => {
+    renderMessage({ content: "I've done as much as I can.", plan: plan(2, false) });
+    expect(stepStates()[1]).toBe(`${planStepToDo}${TASKS[1]}`);
+  });
+
+  it("marks every step done once the last has run", () => {
+    renderMessage({ content: "Done.", plan: plan(3, true) });
+    expect(stepStates()).toEqual(TASKS.map((task) => `${planStepDone}${task}`));
+  });
+
+  it("shows a plan made before its first step as all to do", () => {
+    renderMessage({ content: "", isTyping: true, plan: plan(0, false) });
+    expect(stepStates()).toEqual(TASKS.map((task) => `${planStepToDo}${task}`));
+  });
+
+  it("leaves the running step's status to the plan", () => {
+    renderMessage({
+      content: "",
+      isTyping: true,
+      plan: plan(1, false),
+      stepLabel: "Working on your course design…",
+    });
+    expect(screen.queryByText("Working on your course design…")).not.toBeInTheDocument();
+    expect(screen.queryByText(composeEn.compose.working)).not.toBeInTheDocument();
+  });
+});
+
+describe("AssistantMessage — the running step without a plan", () => {
+  it("says what the running step is doing while the reply is written", () => {
+    renderMessage({ content: "", isTyping: true, stepLabel: "Working on your course design…" });
+    expect(screen.getByRole("status")).toHaveTextContent("Working on your course design…");
+    expect(screen.queryByText(composeEn.compose.working)).not.toBeInTheDocument();
+  });
+
+  it("shows no plan for a reply without one", () => {
+    renderMessage({ content: "Here is the lesson." });
+    expect(
+      screen.queryByRole("list", { name: composeEn.compose.planTitle }),
+    ).not.toBeInTheDocument();
   });
 });
