@@ -7,7 +7,7 @@ import { logInViaApi } from "./utils/user";
 /** The enabled plugins with a frontend, as the user-plugins API declares them. */
 async function frontendPlugins(request: APIRequestContext): Promise<UserPluginState[]> {
   const { access_token } = await logInViaApi(request, firstSuperuser, firstSuperuserPassword);
-  const response = await request.get(`${apiBaseUrl}/api/v1/user-plugins/`, {
+  const response = await request.get(`${apiBaseUrl}/api/v1/plugins/`, {
     headers: { Authorization: `Bearer ${access_token}` },
   });
   const plugins = ((await response.json()) as UserPluginState[]).filter(

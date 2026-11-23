@@ -27,7 +27,7 @@ async def test_list_shows_only_the_plugins_granted(
 ) -> None:
     await restrict_plugin_use(session, "plugin_a")
 
-    response = await client.get("/api/v1/user-plugins/")
+    response = await client.get("/api/v1/plugins/")
 
     assert response.status_code == 200
     assert [entry["plugin_name"] for entry in response.json()] == ["plugin_a"]
@@ -38,7 +38,7 @@ async def test_list_is_empty_without_a_grant(
 ) -> None:
     await restrict_plugin_use(session, None)
 
-    response = await client.get("/api/v1/user-plugins/")
+    response = await client.get("/api/v1/plugins/")
 
     assert response.status_code == 200
     assert response.json() == []
@@ -61,8 +61,8 @@ def _plugin_entry(plugin_name: str, enabled: bool, config: dict[str, str], is_co
     }
 
 
-async def test_list_user_plugins_basic(client: AsyncClient, user_plugins: User) -> None:
-    response = await client.get("/api/v1/user-plugins/")
+async def test_list_plugins_basic(client: AsyncClient, user_plugins: User) -> None:
+    response = await client.get("/api/v1/plugins/")
     assert response.status_code == 200
 
     data = response.json()
@@ -75,7 +75,7 @@ async def test_list_user_plugins_basic(client: AsyncClient, user_plugins: User) 
     assert data == expected
 
 
-async def test_list_user_plugins_carries_declared_frontend_metadata(
+async def test_list_plugins_carries_declared_frontend_metadata(
     client: AsyncClient, current_user: User, session: AsyncSession
 ) -> None:
     session.add(Plugin(name="with-frontend", is_core=True, enabled=True))
@@ -88,7 +88,7 @@ async def test_list_user_plugins_carries_declared_frontend_metadata(
     SIDEBAR_ENTRIES.add_item(plugin, SidebarEntry("With Frontend", icon="sparkles", order=2))
     FRONTEND_APPS.add_item(plugin, FrontendApp())
 
-    response = await client.get("/api/v1/user-plugins/")
+    response = await client.get("/api/v1/plugins/")
     assert response.status_code == 200
 
     entry = next(item for item in response.json() if item["plugin_name"] == "with-frontend")
@@ -101,7 +101,7 @@ async def test_list_user_plugins_carries_declared_frontend_metadata(
     assert entry["has_frontend"] is True
 
 
-async def test_list_user_plugins_translates_frontend_metadata(
+async def test_list_plugins_translates_frontend_metadata(
     client: AsyncClient, current_user: User, session: AsyncSession, translation_catalog: AddTranslation
 ) -> None:
     session.add(Plugin(name="translated", is_core=True, enabled=True))
@@ -114,7 +114,7 @@ async def test_list_user_plugins_translates_frontend_metadata(
     translation_catalog("With Frontend", "Con interfaz")
     translation_catalog("A plugin that ships a page", "Un plugin que incluye una página")
 
-    response = await client.get("/api/v1/user-plugins/", headers={"Accept-Language": "es"})
+    response = await client.get("/api/v1/plugins/", headers={"Accept-Language": "es"})
     assert response.status_code == 200
 
     entry = next(item for item in response.json() if item["plugin_name"] == "translated")
@@ -126,7 +126,7 @@ async def test_list_user_plugins_translates_frontend_metadata(
     assert entry["sidebar"] == {"label": "Con interfaz", "icon": "sparkles", "order": 2}
 
 
-async def test_list_user_plugins_empty(client: AsyncClient, session: AsyncSession) -> None:
+async def test_list_plugins_empty(client: AsyncClient, session: AsyncSession) -> None:
     user = User(name="Test User", username="noplugins", email="empty@example.com", hashed_password="fakehashedpassword")
     session.add(user)
     await session.commit()
@@ -143,14 +143,14 @@ async def test_list_user_plugins_empty(client: AsyncClient, session: AsyncSessio
     app.dependency_overrides[get_current_user] = get_user_override
     app.dependency_overrides[get_plugin_service] = get_plugin_service_override
 
-    response = await client.get("/api/v1/user-plugins/")
+    response = await client.get("/api/v1/plugins/")
     assert response.status_code == 200
     assert response.json() == []
 
     app.dependency_overrides.clear()
 
 
-async def test_list_user_plugins_fills_schema_keys_for_empty_config(
+async def test_list_plugins_fills_schema_keys_for_empty_config(
     client: AsyncClient, current_user: User, session: AsyncSession, schema_plugin: Plugin
 ) -> None:
     """Enabling a plugin stores an empty config; the schema keys must still be reported.
@@ -160,26 +160,26 @@ async def test_list_user_plugins_fills_schema_keys_for_empty_config(
     """
     await add_user_plugin(session, current_user, schema_plugin, config={})
 
-    response = await client.get("/api/v1/user-plugins/")
+    response = await client.get("/api/v1/plugins/")
     assert response.status_code == 200
 
     entry = next(item for item in response.json() if item["plugin_name"] == "schema_plugin")
     assert entry["config"] == {"api_url": None, "api_key": None}
 
 
-async def test_list_user_plugins_fills_schema_keys_missing_from_config(
+async def test_list_plugins_fills_schema_keys_missing_from_config(
     client: AsyncClient, current_user: User, session: AsyncSession, schema_plugin: Plugin
 ) -> None:
     await add_user_plugin(session, current_user, schema_plugin, config={"api_url": "https://lms.example.com"})
 
-    response = await client.get("/api/v1/user-plugins/")
+    response = await client.get("/api/v1/plugins/")
     assert response.status_code == 200
 
     entry = next(item for item in response.json() if item["plugin_name"] == "schema_plugin")
     assert entry["config"] == {"api_url": "https://lms.example.com", "api_key": None}
 
 
-async def test_list_user_plugins_carries_the_declared_config_schema(
+async def test_list_plugins_carries_the_declared_config_schema(
     client: AsyncClient, current_user: User, schema_plugin: Plugin
 ) -> None:
     """The settings form is rendered from the schema, so the API must ship it.
@@ -187,24 +187,24 @@ async def test_list_user_plugins_carries_the_declared_config_schema(
     Without it the frontend knows key names only -- no types, labels, defaults or
     widgets -- and can render nothing but untyped text inputs.
     """
-    response = await client.get("/api/v1/user-plugins/")
+    response = await client.get("/api/v1/plugins/")
     assert response.status_code == 200
 
     entry = next(item for item in response.json() if item["plugin_name"] == "schema_plugin")
     assert entry["config_schema"] == SCHEMA_PLUGIN_CONFIG_SCHEMA
 
 
-async def test_list_user_plugins_reports_an_empty_schema_for_a_plugin_without_one(
+async def test_list_plugins_reports_an_empty_schema_for_a_plugin_without_one(
     client: AsyncClient, user_plugins: User
 ) -> None:
-    response = await client.get("/api/v1/user-plugins/")
+    response = await client.get("/api/v1/plugins/")
     assert response.status_code == 200
 
     entry = next(item for item in response.json() if item["plugin_name"] == "plugin_a")
     assert entry["config_schema"] == {}
 
 
-async def test_list_user_plugins_never_returns_secrets(
+async def test_list_plugins_never_returns_secrets(
     client: AsyncClient, current_user: User, session: AsyncSession
 ) -> None:
     schema = {"properties": {"api_url": {"type": "string"}, "api_key": {"type": "string", **secret()}}}
@@ -213,7 +213,7 @@ async def test_list_user_plugins_never_returns_secrets(
     await session.flush()
     await add_user_plugin(session, current_user, plugin, {"api_url": "https://lms.example.com", "api_key": "s3cret"})
 
-    response = await client.get("/api/v1/user-plugins/")
+    response = await client.get("/api/v1/plugins/")
 
     entry = next(p for p in response.json() if p["plugin_name"] == "secret_plugin")
     assert "s3cret" not in response.text
