@@ -477,6 +477,24 @@ export default function AttachmentPicker({ selected, onSelect, onClose }: Attach
 }
 ```
 
+### Clearing on logout
+
+A plugin that keeps the user's data in the browser, for example in `localStorage`, clears it when the user logs
+out by setting a handler in the `LOGOUT_HANDLERS` slot (`@/lib/auth/slots`). Logging out runs every handler,
+whatever page is open. A handler catches its own errors, because one that threw would stop the logout. Compose
+clears the text of uploaded files this way, from its `src/slots/logout.ts`:
+
+```ts
+// plugins/exampleplugin/src/slots/logout.ts
+import { LOGOUT_HANDLERS } from "@/lib/auth/slots";
+import { EXAMPLEPLUGIN_PLUGIN_NAME } from "@/plugins/exampleplugin/src/constants";
+import { clearDrafts } from "@/plugins/exampleplugin/src/drafts";
+
+LOGOUT_HANDLERS.set(EXAMPLEPLUGIN_PLUGIN_NAME, [clearDrafts]);
+```
+
+The plugin's `src/index.ts` imports that file, as it does its other slot files.
+
 ## Analytics (Optional)
 
 A plugin that records analytics events keeps their frontend code in `plugins/<pluginname>/src/analytics.ts`: the

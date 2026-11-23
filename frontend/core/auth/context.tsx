@@ -4,6 +4,8 @@ import { createContext, useState, useEffect, useMemo, ReactNode, useCallback } f
 import { setAuthTokens, clearAuthTokens, getStoredToken } from "@/core/auth/tokens";
 import { ApiRequestError } from "@/lib/api";
 import { getCurrentUser, type CurrentUser } from "@/core/auth/client";
+import { LOGOUT_HANDLERS } from "@/lib/auth/slots";
+import { slotItems } from "@/lib/slots";
 
 export interface AuthContextType {
   token: string | null;
@@ -25,6 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const logout = useCallback(() => {
+    for (const [, clear] of slotItems(LOGOUT_HANDLERS)) clear();
     clearAuthTokens();
     setToken(null);
     setUser(null);

@@ -57,7 +57,8 @@ send them. A file from your computer stays listed once it is sent and can no lon
 Sparkth doesn't store the text of files from your computer. Your browser keeps it and sends it with
 each message, so the assistant doesn't see those files when you open the conversation in another
 browser, on another device or in a private window. A file your browser has no room to keep, for
-example because its storage is full, can't be attached.
+example because its storage is full, can't be attached. Logging out clears these files from the
+browser.
 
 ## While it works
 

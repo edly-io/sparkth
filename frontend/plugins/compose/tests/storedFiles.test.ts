@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   addStoredFiles,
+  clearStoredFiles,
   getStoredFiles,
   isWithinStorageLimit,
 } from "@/plugins/compose/src/storedFiles";
@@ -85,5 +86,17 @@ describe("storedFiles", () => {
     });
 
     expect(isWithinStorageLimit("Week 1: cells")).toBe(false);
+  });
+
+  it("clears every user's files, and nothing else, from this browser", () => {
+    addStoredFiles(7, "conv-1", [notes]);
+    addStoredFiles(8, "conv-2", [syllabus]);
+    localStorage.setItem("access_token", "token");
+
+    clearStoredFiles();
+
+    expect(getStoredFiles(7, "conv-1")).toEqual([]);
+    expect(getStoredFiles(8, "conv-2")).toEqual([]);
+    expect(localStorage.getItem("access_token")).toBe("token");
   });
 });

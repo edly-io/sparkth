@@ -93,3 +93,13 @@ export function isWithinStorageLimit(text: string): boolean {
   if (isWithin) localStorage.removeItem(LIMIT_CHECK_KEY);
   return isWithin;
 }
+
+/** Clears every user's files from this browser. */
+export function clearStoredFiles(): void {
+  try {
+    const keys = Object.keys(localStorage).filter((key) => key.startsWith(KEY_PREFIX));
+    for (const key of keys) localStorage.removeItem(key);
+  } catch (error) {
+    console.warn("Could not clear the conversations' files from this browser:", error);
+  }
+}

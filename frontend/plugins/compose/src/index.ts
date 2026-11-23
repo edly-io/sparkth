@@ -4,6 +4,7 @@ import type { Locale } from "@/lib/i18n/config";
 import { COMPOSE_PLUGIN_NAME } from "@/plugins/compose/src/constants";
 // This plugin's contributions to core's slots.
 import "@/plugins/compose/src/slots/icons";
+import "@/plugins/compose/src/slots/logout";
 import "@/plugins/compose/src/slots/settings";
 
 // Dynamic imports so each locale becomes its own chunk and only the active one is fetched.
