@@ -23,8 +23,6 @@ interface PluginProviderState {
 }
 
 interface PluginContextValue extends PluginProviderState {
-  /** The old name of `plugins`, kept until every caller reads `plugins`. */
-  userPlugins: PluginState[];
   refreshPlugins: () => Promise<void>;
   getPluginConfig: (pluginName: string) => PluginConfig;
   updatePluginConfig: (pluginName: string, config: Partial<PluginConfig>) => Promise<void>;
@@ -240,7 +238,6 @@ export function PluginProvider({ children, token }: PluginProviderProps) {
   const contextValue = useMemo<PluginContextValue>(
     () => ({
       ...state,
-      userPlugins: state.plugins,
       refreshPlugins,
       getPluginConfig,
       updatePluginConfig,

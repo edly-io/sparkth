@@ -1,1 +1,1 @@
-export type { PluginDefinition, UserPluginState } from "@/core/plugins/types";
+export type { PluginDefinition, PluginState } from "@/core/plugins/types";

@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { screen } from "@testing-library/react";
 
 import SlackConfigModal from "@/plugins/slack/src/components/ui/SlackConfigModal";
-import type { UserPluginState } from "@/lib/plugins/types";
+import type { PluginState } from "@/lib/plugins/types";
 import { renderWithIntl } from "@/lib/testing/intl";
 
 vi.mock("@/lib/auth/hooks", () => ({
@@ -13,7 +13,7 @@ vi.mock("@/plugins/slack/src/client", () => ({
   fetchRagSources: vi.fn(async () => ({ sources: ["handbook.pdf"] })),
 }));
 
-const SLACK: UserPluginState = {
+const SLACK: PluginState = {
   plugin_name: "slack",
   enabled: true,
   config: {},
