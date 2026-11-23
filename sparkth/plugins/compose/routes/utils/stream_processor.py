@@ -465,7 +465,6 @@ class ComposeStreamProcessor:
             conversation_id=self.conversation_id,
             role="assistant",
             content=no_chunks_msg,
-            message_type="text",
             metadata=_agent_reply_metadata(
                 [], [], [], self.planner_setup.existing_plan, plan_snapshot=None, stopped=False, interrupted=False
             )

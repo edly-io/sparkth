@@ -29,9 +29,8 @@ class ComposeMessageSent(AnalyticsEventSchema):
 
     ``message_length`` counts the stored row, so a text-less turn records the length of
     the ``"[Document attachment]"`` placeholder rather than zero.
-    ``has_attachment`` is true when the turn had files uploaded from the computer with it:
-    an inline upload, or the request's ``files``. Documents attached by ``document_ids``
-    don't count.
+    ``has_attachment`` is true when the request carried ``files``, the files uploaded from the
+    computer with this turn. Documents attached by ``document_ids`` don't count.
     """
 
     event_type = "compose.message_sent"

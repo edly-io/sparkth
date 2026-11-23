@@ -111,7 +111,7 @@ async def resolve_document_blocks(
             )
         else:
             new_blocks = non_document_blocks
-        resolved.append(ChatMessage(role=msg.role, content=new_blocks, attachment=msg.attachment))
+        resolved.append(ChatMessage(role=msg.role, content=new_blocks))
 
     return resolved
 

@@ -95,6 +95,7 @@ class Message(TimestampedModel, SQLModel, table=True):
     cost: float | None = Field(default=None)
     is_error: bool = Field(default=False)
     model_metadata: str | None = Field(default=None, sa_column=Column(Text))
+    # Only older messages are "attachment" ones, holding an upload's name, size and text; new messages are text.
     message_type: str = Field(default="text", max_length=20)
     attachment_name: str | None = Field(default=None, max_length=255)
     attachment_size: int | None = Field(default=None)

@@ -19,15 +19,9 @@ from sparkth.plugins.compose.planner.types import PlanSnapshot
 MAX_FILE_SIZE = 30 * 1024 * 1024  # 30MB
 
 
-class AttachmentMeta(BaseModel):
-    name: str
-    size: int
-
-
 class ChatMessage(BaseModel):
     role: str = Field(..., examples=["user"])
     content: str | list[dict[str, Any]] = Field(...)
-    attachment: AttachmentMeta | None = None
 
     @field_validator("role")
     @classmethod
