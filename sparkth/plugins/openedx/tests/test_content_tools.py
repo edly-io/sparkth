@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.models.plugin import Plugin, UserPlugin
+from sparkth.core.models.plugin import Plugin, UserPluginPreference
 from sparkth.lib.auth import bind_current_user_id
 from sparkth.lib.content.exceptions import ContentBuildError, ContentPlacementError
 from sparkth.lib.content.hooks import (
@@ -426,7 +426,7 @@ async def user_switched_off_contributor(session: AsyncSession, owners: list[Spar
     user = User(id=1, name="U", username="u", email="u@example.com", hashed_password="x")
     session.add_all([plugin, user])
     await session.commit()
-    session.add(UserPlugin(user_id=cast(int, user.id), plugin_id=cast(int, plugin.id), enabled=False))
+    session.add(UserPluginPreference(user_id=cast(int, user.id), plugin_id=cast(int, plugin.id), enabled=False))
     await session.commit()
     bind_current_user_id(1)
     return contributor

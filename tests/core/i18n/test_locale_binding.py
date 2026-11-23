@@ -16,7 +16,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.i18n.context import _locale, get_locale, locale_context
 from sparkth.core.models import LLMConfig
-from sparkth.core.models.plugin import Plugin, UserPlugin
+from sparkth.core.models.plugin import Plugin, UserPluginPreference
 from sparkth.core.security import create_access_token
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.i18n import bind_locale
@@ -231,7 +231,7 @@ class TestGateRejectionFollowsTheStoredPreference:
         session.add(plugin)
         await session.commit()
         await session.refresh(plugin)
-        session.add(UserPlugin(user_id=cast(int, user.id), plugin_id=cast(int, plugin.id), enabled=False))
+        session.add(UserPluginPreference(user_id=cast(int, user.id), plugin_id=cast(int, plugin.id), enabled=False))
         await session.commit()
 
         response = await client.post(

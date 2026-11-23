@@ -14,7 +14,7 @@ from httpx import AsyncClient
 from sqlalchemy.exc import OperationalError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.models.plugin import Plugin, UserPlugin
+from sparkth.core.models.plugin import Plugin, UserPluginPreference
 from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME
 from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.encryption import get_encryption_service
@@ -288,7 +288,7 @@ async def _switch_stub(session: AsyncSession, user_id: int, system_on: bool, use
     session.add(plugin)
     await session.flush()
     if user_on is not None:
-        session.add(UserPlugin(user_id=user_id, plugin_id=cast(int, plugin.id), enabled=user_on))
+        session.add(UserPluginPreference(user_id=user_id, plugin_id=cast(int, plugin.id), enabled=user_on))
     await session.commit()
 
 
@@ -302,7 +302,7 @@ async def _seed_lms_plugins(
     session.add_all([stub, openedx, canvas])
     await session.flush()
     session.add(
-        UserPlugin(
+        UserPluginPreference(
             user_id=user_id,
             plugin_id=cast(int, openedx.id),
             enabled=openedx_on,
@@ -310,7 +310,7 @@ async def _seed_lms_plugins(
         )
     )
     session.add(
-        UserPlugin(
+        UserPluginPreference(
             user_id=user_id,
             plugin_id=cast(int, canvas.id),
             enabled=canvas_on,

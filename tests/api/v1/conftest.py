@@ -3,7 +3,7 @@ from typing import Any, cast
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.models.plugin import Plugin, UserPlugin
+from sparkth.core.models.plugin import Plugin, UserPluginPreference
 from sparkth.core.models.user import User
 from sparkth.core.permissions.models import Role
 
@@ -22,22 +22,22 @@ async def user_plugins(current_user: User, session: AsyncSession) -> User:
     session.add_all([plugin_a, plugin_b, configured_plugin_disabled, disabled_plugin])
     await session.flush()
 
-    user_plugin_b = UserPlugin(
+    preference_b = UserPluginPreference(
         user_id=cast(int, current_user.id),
         plugin_id=cast(int, plugin_b.id),
         enabled=True,
         config={"some config": "abc"},
     )
-    session.add(user_plugin_b)
+    session.add(preference_b)
     await session.flush()
 
-    user_plugin_c = UserPlugin(
+    preference_c = UserPluginPreference(
         user_id=cast(int, current_user.id),
         plugin_id=cast(int, configured_plugin_disabled.id),
         enabled=False,
         config={"some config": "abc"},
     )
-    session.add(user_plugin_c)
+    session.add(preference_c)
     await session.flush()
 
     return current_user
@@ -67,14 +67,14 @@ async def schema_plugin(session: AsyncSession) -> Plugin:
 
 async def add_user_plugin(
     session: AsyncSession, user: User, plugin: Plugin, config: dict[str, Any], enabled: bool = True
-) -> UserPlugin:
+) -> UserPluginPreference:
     """Attach ``plugin`` to ``user`` with the given stored config."""
-    user_plugin = UserPlugin(
+    preference = UserPluginPreference(
         user_id=cast(int, user.id),
         plugin_id=cast(int, plugin.id),
         enabled=enabled,
         config=config,
     )
-    session.add(user_plugin)
+    session.add(preference)
     await session.flush()
-    return user_plugin
+    return preference
