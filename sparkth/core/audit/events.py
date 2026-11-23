@@ -145,11 +145,10 @@ class LoginAuditEvent(BaseAuditEvent):
 @AUDIT_EVENTS.register
 @dataclass(frozen=True, slots=True, kw_only=True)
 class PermissionDeniedAuditEvent(BaseAuditEvent):
-    """A ``Permission.require*`` dependency refused a request with 403.
+    """A caller was refused a request, or one thing they asked for by name, for lacking a permission.
 
     ``target`` is the permission checked; ``error_detail`` names the scope
-    (and the scope object id from the route's path, when the scope has one).
-    The actor is the authenticated caller bound by ``get_current_user``.
+    (and the scope object id, when the scope has one). The actor is the authenticated caller.
     """
 
     event_type: ClassVar[str] = "permission.denied"

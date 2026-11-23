@@ -83,25 +83,32 @@ class Permission:
             ),
         ) -> User:
             if not await can(current_user, self, permission_scope, scope_path, session):
-                await self._deny(_describe_checked_scope(permission_scope, scope_path))
+                await self._deny(permission_scope, scope_path)
             return current_user
 
         return dependency
 
-    async def _deny(self, scope_detail: str) -> NoReturn:
-        """Record the refusal as a ``permission.denied`` audit event, then raise 403.
+    async def record_denial(self, permission_scope: PermissionScope, scope_path: str | None) -> None:
+        """Record a ``permission.denied`` audit event for this permission at the checked scope.
 
-        The event is written in its own transaction, so it survives the request's rollback. The
-        write is fail-closed: if it fails, the error propagates and the request fails instead of
-        returning 403.
+        The event is written in its own transaction, so it survives the caller's rollback. The
+        write is fail-closed: if it fails, the error propagates.
         """
         await record_event_now(
             PermissionDeniedAuditEvent(
                 outcome=AuditOutcome.DENIED,
                 target=AuditTarget(type="permission", id=self.name),
-                error_detail=scope_detail,
+                error_detail=_describe_checked_scope(permission_scope, scope_path),
             )
         )
+
+    async def _deny(self, permission_scope: PermissionScope, scope_path: str | None) -> NoReturn:
+        """Record the refusal as a ``permission.denied`` audit event, then raise 403.
+
+        The write is fail-closed: if it fails, the error propagates and the request fails instead
+        of returning 403.
+        """
+        await self.record_denial(permission_scope, scope_path)
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_("Permission denied"))
 
     def require_for_any_object(self, permission_scope: PermissionScope) -> Callable[..., Awaitable[set[str] | None]]:
@@ -128,7 +135,7 @@ class Permission:
         ) -> set[str] | None:
             accessible_ids = await get_accessible_scope_object_ids(current_user, self, permission_scope, session)
             if accessible_ids is not None and not accessible_ids:
-                await self._deny(_describe_checked_scope(permission_scope, None))
+                await self._deny(permission_scope, None)
             return accessible_ids
 
         return dependency
