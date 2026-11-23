@@ -13,7 +13,7 @@ from sparkth.lib.log import get_logger
 from sparkth.plugins.compose.analytics import as_utc, emit_documents_detached
 from sparkth.plugins.compose.exceptions import ConversationNotFound, DocumentNotFound
 from sparkth.plugins.compose.messages import text_of
-from sparkth.plugins.compose.models import Conversation, ConversationAttachment, Message, MessageType
+from sparkth.plugins.compose.models import Conversation, ConversationAttachment, Message
 from sparkth.plugins.compose.schemas import ChatMessage
 from sparkth.plugins.compose.types import AttachOutcome, ConversationDocuments
 
@@ -134,9 +134,6 @@ class ComposeService:
         cost: float | None = None,
         metadata: dict[str, Any] | None = None,
         is_error: bool = False,
-        message_type: MessageType = "text",
-        attachment_name: str | None = None,
-        attachment_size: int | None = None,
     ) -> Message:
         metadata_json = json.dumps(metadata) if metadata else None
 
@@ -148,9 +145,6 @@ class ComposeService:
             cost=cost,
             model_metadata=metadata_json,
             is_error=is_error,
-            message_type=message_type,
-            attachment_name=attachment_name,
-            attachment_size=attachment_size,
         )
 
         session.add(message)
@@ -411,9 +405,6 @@ class ComposeService:
                     role=message.role,
                     # A turn of attachments alone still needs a body, or the transcript shows a blank.
                     content=text_of(message) or "[Document attachment]",
-                    message_type="attachment" if message.attachment else "text",
-                    attachment_name=message.attachment.name if message.attachment else None,
-                    attachment_size=message.attachment.size if message.attachment else None,
                 )
             )
         return stored

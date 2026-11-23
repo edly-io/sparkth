@@ -1806,13 +1806,6 @@ export interface components {
             /** Source */
             source: string | null;
         };
-        /** AttachmentMeta */
-        AttachmentMeta: {
-            /** Name */
-            name: string;
-            /** Size */
-            size: number;
-        };
         /**
          * AuditEventPage
          * @description A page of events, most recently recorded first.
@@ -2058,7 +2051,6 @@ export interface components {
         };
         /** ChatMessage */
         ChatMessage: {
-            attachment?: components["schemas"]["AttachmentMeta"] | null;
             /** Content */
             content: string | {
                 [key: string]: unknown;

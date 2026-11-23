@@ -19,7 +19,7 @@ from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.lib.models import User
 from sparkth.plugins.compose.exceptions import ConversationNotFound
 from sparkth.plugins.compose.models import Conversation, ConversationAttachment, Message
-from sparkth.plugins.compose.schemas import AttachmentMeta, ChatMessage
+from sparkth.plugins.compose.schemas import ChatMessage
 from sparkth.plugins.compose.service import ComposeService
 
 
@@ -207,14 +207,13 @@ class TestStoringTheIncomingTurns:
         assert stored[0].content == "first second"
 
     @pytest.mark.asyncio
-    async def test_an_attachment_with_no_text_gets_a_stand_in(self, session: AsyncSession, current_user: User) -> None:
+    async def test_a_turn_with_no_text_gets_a_stand_in(self, session: AsyncSession, current_user: User) -> None:
         """A document sent with no words still has to show as a turn in the transcript."""
         conversation = await _seed_conversation(session, current_user.id or 1)
         messages = [
             ChatMessage(
                 role="user",
                 content=[{"type": "document", "source": {"type": "base64", "data": ""}}],
-                attachment=AttachmentMeta(name="syllabus.pdf", size=2048),
             )
         ]
 
@@ -222,8 +221,6 @@ class TestStoringTheIncomingTurns:
 
         stored = await _stored_messages(session, conversation.id or 0)
         assert stored[0].content == "[Document attachment]"
-        assert stored[0].attachment_name == "syllabus.pdf"
-        assert stored[0].attachment_size == 2048
 
 
 class TestRecordingAPreStreamError:

@@ -442,7 +442,6 @@ class ComposeStreamProcessor:
             conversation_id=self.conversation_id,
             role="assistant",
             content=no_chunks_msg,
-            message_type="text",
             metadata=_agent_reply_metadata([], [], [], self.existing_plan, stopped=False, interrupted=False) or None,
         )
         await self._emit({"done": True, "content": no_chunks_msg, "conversation_id": self.conversation_uuid})

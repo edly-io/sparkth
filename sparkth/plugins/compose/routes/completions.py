@@ -240,7 +240,7 @@ async def compose_completion(
                 continue
             turn_analytics.schedule_message_sent(
                 message_length=len(stored.content),
-                has_attachment=stored.message_type == "attachment" or bool(request.files),
+                has_attachment=bool(request.files),
                 occurred_at=stored.created_at,
             )
 
@@ -351,7 +351,6 @@ async def compose_completion(
                 content=response["content"],
                 tokens_used=tokens_used,
                 metadata=response.get("metadata"),
-                message_type="text",
             )
 
             # Executions live under metadata: response["tool_calls"] is always None, so reading
