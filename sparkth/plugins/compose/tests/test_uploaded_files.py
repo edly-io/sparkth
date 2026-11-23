@@ -204,3 +204,79 @@ async def test_a_turn_taking_the_conversations_files_over_the_limit_is_refused_a
 
     # The refused turn gave the conversation back, so the next one runs.
     await _complete_turn(client, config_id, conversation_uuid, "Never mind the second file", [])
+
+
+async def test_a_conversations_uploaded_files_are_listed_without_their_text(
+    client: AsyncClient, current_user: User, session: AsyncSession, fake_redis: FakeRedis
+) -> None:
+    config_id = await seed_llm_config(session, current_user.id or 1)
+    conversation_uuid = await seed_conversation(session, current_user.id or 1)
+    await _complete_turn(client, config_id, conversation_uuid, "Outline a course from this", [WEEK1])
+
+    response = await client.get(f"/api/v1/compose/conversations/{conversation_uuid}/uploaded-files")
+
+    assert response.status_code == 200
+    assert response.json() == [{"name": "week1.txt", "size": len("Photosynthesis basics")}]
+
+
+async def test_a_conversation_with_no_uploaded_files_lists_none(
+    client: AsyncClient, current_user: User, session: AsyncSession, fake_redis: FakeRedis
+) -> None:
+    conversation_uuid = await seed_conversation(session, current_user.id or 1)
+
+    response = await client.get(f"/api/v1/compose/conversations/{conversation_uuid}/uploaded-files")
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+async def test_another_users_uploaded_files_are_not_listed(
+    client: AsyncClient, current_user: User, session: AsyncSession, fake_redis: FakeRedis
+) -> None:
+    someone_elses_conversation_uuid = await seed_conversation(session, (current_user.id or 1) + 1)
+
+    response = await client.get(f"/api/v1/compose/conversations/{someone_elses_conversation_uuid}/uploaded-files")
+
+    assert response.status_code == 403
+
+
+async def test_a_removed_file_is_no_longer_listed_or_given_to_the_model(
+    client: AsyncClient, current_user: User, session: AsyncSession, fake_redis: FakeRedis
+) -> None:
+    config_id = await seed_llm_config(session, current_user.id or 1)
+    conversation_uuid = await seed_conversation(session, current_user.id or 1)
+    notes = {"name": "notes.txt", "text": "Cell division"}
+    await _complete_turn(client, config_id, conversation_uuid, "Outline a course from these", [WEEK1, notes])
+
+    response = await client.delete(f"/api/v1/compose/conversations/{conversation_uuid}/uploaded-files/week1.txt")
+
+    assert response.status_code == 204
+    listed = await client.get(f"/api/v1/compose/conversations/{conversation_uuid}/uploaded-files")
+    assert listed.json() == [{"name": "notes.txt", "size": len("Cell division")}]
+    model_input = await _complete_turn(client, config_id, conversation_uuid, "Add a quiz", [])
+    assert FILE_TURN not in model_input
+
+
+async def test_removing_a_conversations_last_file_leaves_none_in_the_cache(
+    client: AsyncClient, current_user: User, session: AsyncSession, fake_redis: FakeRedis
+) -> None:
+    config_id = await seed_llm_config(session, current_user.id or 1)
+    conversation_uuid = await seed_conversation(session, current_user.id or 1)
+    await _complete_turn(client, config_id, conversation_uuid, "Outline a course from this", [WEEK1])
+
+    response = await client.delete(f"/api/v1/compose/conversations/{conversation_uuid}/uploaded-files/week1.txt")
+
+    assert response.status_code == 204
+    assert not any(key.startswith("compose:files:") for key in fake_redis.store)
+
+
+async def test_another_users_uploaded_file_cannot_be_removed(
+    client: AsyncClient, current_user: User, session: AsyncSession, fake_redis: FakeRedis
+) -> None:
+    someone_elses_conversation_uuid = await seed_conversation(session, (current_user.id or 1) + 1)
+
+    response = await client.delete(
+        f"/api/v1/compose/conversations/{someone_elses_conversation_uuid}/uploaded-files/week1.txt"
+    )
+
+    assert response.status_code == 403

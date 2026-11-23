@@ -525,6 +525,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/compose/conversations/{conversation_id}/uploaded-files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Conversation Uploaded Files */
+        get: operations["list_conversation_uploaded_files_api_v1_compose_conversations__conversation_id__uploaded_files_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/compose/conversations/{conversation_id}/uploaded-files/{file_name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Conversation Uploaded File */
+        delete: operations["remove_conversation_uploaded_file_api_v1_compose_conversations__conversation_id__uploaded_files__file_name__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/compose/turns/{turn_id}/stop": {
         parameters: {
             query?: never;
@@ -3052,6 +3086,16 @@ export interface components {
             /** Text */
             text: string;
         };
+        /**
+         * UploadedFileResponse
+         * @description A file uploaded from the computer that a conversation still has, without its text.
+         */
+        UploadedFileResponse: {
+            /** Name */
+            name: string;
+            /** Size */
+            size: number;
+        };
         /** User */
         User: {
             /**
@@ -4088,6 +4132,67 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["MessageResponse"] | null;
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_conversation_uploaded_files_api_v1_compose_conversations__conversation_id__uploaded_files_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadedFileResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_conversation_uploaded_file_api_v1_compose_conversations__conversation_id__uploaded_files__file_name__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                file_name: string;
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
