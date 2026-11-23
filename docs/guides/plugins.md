@@ -790,7 +790,7 @@ does not hold `plugin.use` at (a `global` grant covers every plugin).
 - **Steps.** A step is one piece of work the planner gives to one agent or to its operator. It
   counts as one step however many tools that agent or the operator calls while doing it. A request
   can need several steps, such as writing a lesson, building an activity for it and publishing both.
-  The planner shows the author its plan, a numbered list of its tasks, each one short line, before
+  The planner shows the author its plan, a list of its tasks, each one short line, before
   the first step. When the work begins with an agent gathering the author's requirements, such as a
   course's audience and goals, that agent asks first and the plan comes once the author has
   answered. What each step returns goes back to the planner, which runs the next part the author
@@ -804,9 +804,9 @@ does not hold `plugin.use` at (a `global` grant covers every plugin).
   follows another step is asked for its task as the plan states it, not for what the planner wrote
   afterwards. So text a step brought in, from an agent's reply or from the LMS, can't start an
   operation the author wasn't shown, or change what a planned one does.
-  The author's browser gets the plan as data, not only as text: its tasks and the step it is at,
-  when the plan is made and as each step starts and runs. Each reply that showed the plan keeps it
-  as it stood when the reply ended.
+  The plan isn't part of the reply's text: the author's browser gets it as data, its tasks and the
+  step it is at, when the plan is made and as each step starts and runs, and shows it above the
+  reply. Each reply that showed the plan keeps it as it stood when the reply ended.
 - **Unfinished plans.** A plan a turn leaves unfinished, because an agent asked the author
   something or the turn was stopped or failed, is kept with the reply until its last step has run.
   A later message carries it on from the step it is at: that step again or the one after it when it
