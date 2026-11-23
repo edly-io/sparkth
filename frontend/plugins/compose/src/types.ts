@@ -6,6 +6,8 @@ export type ApiMessage = Schema<"MessageResponse">;
 export type ApiConversation = Schema<"ConversationDetailResponse">;
 /** A conversation's history-list entry, without its messages. */
 export type ConversationSummary = Schema<"ConversationResponse">;
+/** A plan as the author sees it: its tasks, the step it is at (0 before the first starts) and whether that step has run. */
+export type PlanSnapshot = Schema<"PlanSnapshot">;
 /** A document attached to a conversation. */
 export type PersistedAttachment = Schema<"AttachedDocumentResponse">;
 /** The request body of the chat completions endpoint. */
@@ -58,6 +60,8 @@ export interface ChatMessage {
   isError?: boolean;
   isPending?: boolean;
   statusPhase?: StreamStatusPhase;
+  stepLabel?: string;
+  plan?: PlanSnapshot;
   ragSections?: {
     type: string;
     name: string;
