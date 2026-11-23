@@ -3,8 +3,8 @@
 An *agent* does one kind of work for Compose, such as designing a course.
 
 The hook lives in ``sparkth.lib`` so a plugin can contribute an agent without importing compose.
-It is keyed by plugin, so an agent is offered only while its plugin is switched on for the user,
-by both switches. A plugin registers one agent from its ``__init__``::
+It is keyed by plugin, so Compose can leave out the agent of a plugin that is switched off for a
+user or that the user may not use. A plugin registers one agent from its ``__init__``::
 
     register_agent(self, Agent(NAME, TITLE, DESCRIPTION, PROMPT, tools=(...)))
 """
@@ -84,12 +84,18 @@ def register_agent(plugin: SparkthPlugin, agent: Agent) -> None:
     COMPOSE_AGENTS.add_item(plugin, agent)
 
 
-def enabled_agents(disabled_plugins: set[str]) -> list[Agent]:
+def enabled_agents(disabled_plugins: set[str], allowed_plugins: set[str] | None) -> list[Agent]:
     """Return the agents Compose offers, in plugin-name order.
 
-    Leaves out the agent of every plugin named in ``disabled_plugins``, the plugins switched off
-    for the requesting user by either switch. Equal copies from repeated constructions of one
-    plugin fold into one.
+    Leaves out the agent of every plugin named in ``disabled_plugins``, and of every plugin missing
+    from ``allowed_plugins``. An ``allowed_plugins`` of ``None`` allows every plugin. Equal copies
+    from repeated constructions of one plugin fold into one.
     """
-    offered = (agent for plugin, agent in COMPOSE_AGENTS.iter_items() if plugin.name not in disabled_plugins)
+    offered: list[Agent] = []
+    for plugin, agent in COMPOSE_AGENTS.iter_items():
+        if plugin.name in disabled_plugins:
+            continue
+        # allowed_plugins is None if the grant is global
+        if allowed_plugins is None or plugin.name in allowed_plugins:
+            offered.append(agent)
     return list(dict.fromkeys(offered))

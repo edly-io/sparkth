@@ -75,7 +75,7 @@ class ChatCompletionRequest(BaseModel):
     stream: bool = Field(default=False)
     tools: list[str] | str | None = Field(
         default="*",
-        description="Includes every tool of the plugins switched on for the requesting user. "
+        description="Includes every tool of the plugins the requesting user has switched on and has permission to use. "
         "Use 'none' or empty list to disable.",
     )
     tool_choice: str | None = Field(
