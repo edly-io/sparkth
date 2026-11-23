@@ -123,7 +123,7 @@ There are four cases:
   embeds, where a `LazyString` cannot go, e.g. the `DisplayInfo` /
   `SidebarEntry` frontend metadata): mark the literal with `gettext_noop()`,
   which returns it unchanged, and translate the stored value by passing it
-  through `gettext()` at the rendering boundary (`UserPluginResponse.for_plugin`
+  through `gettext()` at the rendering boundary (`PluginResponse.for_plugin`
   does this for the frontend metadata):
 
   ```python

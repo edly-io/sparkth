@@ -154,8 +154,8 @@ user-plugins API response (`display`, `sidebar`, `has_frontend` on
 `UserPluginState`). The frontend renders what the backend declares; there is no
 frontend-side copy to keep in sync.
 
-`UserPluginState` is the generated `UserPluginResponse` schema
-(`Schema<"UserPluginResponse">`), not a hand-written mirror of it, so the shape
+`UserPluginState` is the generated `PluginResponse` schema
+(`Schema<"PluginResponse">`), not a hand-written mirror of it, so the shape
 cannot drift from the API. One consequence for settings UIs: `config` values are
 typed `unknown`, because the backend stores config as JSONB and a field declared
 as a string can still arrive as an array or a number. Narrow at the read site.
