@@ -43,7 +43,3 @@ class UserPluginPreference(TimestampedModel, SoftDeleteModel, table=True):
     config: dict[str, Any] = Field(default_factory=dict, sa_column=Column(EncryptedJSON))
 
     plugin: "Plugin" = Relationship(back_populates="user_preferences")
-
-
-# The old name, kept until every caller uses UserPluginPreference.
-UserPlugin = UserPluginPreference
