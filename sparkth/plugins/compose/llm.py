@@ -242,7 +242,7 @@ def _update_events(node: str, update: dict[str, Any] | None, max_tool_executions
 class _TurnText:
     """The text a turn shows the author, sorted from the planner's and the agents' messages.
 
-    The plan and an agent's text show as they are written, with a blank line between messages. The
+    An agent's text shows as it is written, with a blank line between messages. The
     planner's own text is held until the turn ends and shows only when no agent wrote last: when no
     step ran, the last step was an operation, whose own text never shows, or the last agent wrote
     nothing. So an agent's reply, a question or choices included, is the last thing the author
@@ -265,10 +265,6 @@ class _TurnText:
         texts = self._show(message.id, [] if isinstance(message, ToolMessage) else _text_blocks(message.content))
         self._agent_wrote_last = self._agent_wrote_last or bool(texts)
         return texts
-
-    def plan_text(self, plan: ToolMessage) -> list[str]:
-        """The text of the planner's ``plan`` to show."""
-        return self._show(plan.id, [plan.text] if plan.text else [])
 
     def notice_text(self, message: BaseMessage) -> list[str]:
         """The text of a notice that ends the turn, to show now whoever wrote last."""
@@ -401,7 +397,7 @@ async def _turn_events(
     one step after another when the author asked for several, answers the message itself, or
     refuses it. Yields ``routed`` with a :class:`TurnRouting` when a step (a hand-off or an
     operation) starts or the refusal returns (a call its tool rejected never does either),
-    ``token`` for the text the author sees (the plan, the agents' replies, the planner's own when
+    ``token`` for the text the author sees (the agents' replies, the planner's own when
     no agent wrote last, and a notice that ends the turn; the operator's text never shows, only its
     tool calls), ``tool_start`` and ``tool_end`` for each tool call, ``limit_reached`` when an agent's
     calls were blocked, ``usage`` with the tokens of each model reply, the planner's, the agents'
@@ -437,11 +433,10 @@ async def _turn_events(
                     for token in turn_text.agent_text(message):
                         yield {"type": TurnEventType.TOKEN, "content": token}
                 elif isinstance(message, ToolMessage):
-                    # An agent's reply has already streamed; only a plan or a refusal is new text.
+                    # An agent's reply has already streamed; a plan is shown apart from the text, and only
+                    # a refusal is new text.
                     if message.name == SHOW_PLAN_TOOL_NAME and message.status != "error":
                         yield {"type": TurnEventType.PLAN, "steps": message.artifact}
-                        for token in turn_text.plan_text(message):
-                            yield {"type": TurnEventType.TOKEN, "content": token}
                     elif message.name == REFUSAL_TOOL_NAME and message.status != "error":
                         yield {"type": TurnEventType.ROUTED, "routing": TurnRouting(refused=True)}
                         for token in turn_text.notice_text(message):

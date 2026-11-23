@@ -637,7 +637,7 @@ async def test_the_planner_tells_the_author_what_an_operation_after_an_agent_did
 
     reply = await _reply(planner, provider, stream, [_record_tool([])])
 
-    assert reply == "1. Write\n2. Record\n\nHere is the lesson.\n\nStep 1 is recorded."
+    assert reply == "Here is the lesson.\n\nStep 1 is recorded."
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
@@ -656,8 +656,7 @@ async def test_the_limit_notice_shows_even_after_an_agent_wrote(stream: bool, mo
 
     reply = await _reply(planner, provider, stream, [_record_tool([])])
 
-    listed = "\n".join(f"{number}. {step['task']}" for number, step in enumerate(plan, start=1))
-    assert reply == f"{listed}\n\nHere is the lesson.\n\n{LIMIT_NOTICE}"
+    assert reply == f"Here is the lesson.\n\n{LIMIT_NOTICE}"
 
 
 async def test_a_step_never_starts_for_a_reader_that_stops_when_it_is_announced(
@@ -747,7 +746,7 @@ async def test_an_agent_may_answer_again_after_another_step(monkeypatch: pytest.
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
-async def test_the_plan_shows_first_then_each_steps_reply(stream: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_the_plan_is_left_out_of_the_reply(stream: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     plan = {"steps": [_step(STUB_AGENT.name, "Write the lesson"), _step(OTHER_AGENT.name, "Build the activity")]}
     replies = [
         _calling(SHOW_PLAN_TOOL_NAME, plan, "plan"),
@@ -763,7 +762,7 @@ async def test_the_plan_shows_first_then_each_steps_reply(stream: bool, monkeypa
 
     reply = await _reply(turn, _two_replies(monkeypatch), stream)
 
-    assert reply == "1. Write the lesson\n2. Build the activity\n\nHere is the lesson.\n\nHere is the activity."
+    assert reply == "Here is the lesson.\n\nHere is the activity."
 
 
 @pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
