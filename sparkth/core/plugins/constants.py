@@ -14,6 +14,9 @@ PLUGIN_NAME_PATTERN = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
 # The name of the page where users manage their plugin settings, as the plugin errors name it.
 PLUGIN_SETTINGS_PAGE_NAME = "Settings"
 
+# The audit target type of a user's plugin preference, so the three events that record one name it alike.
+USER_PLUGIN_PREFERENCE_TARGET_TYPE = "user_plugin_preference"
+
 # The Authorization scheme the plugin access gate reads the caller's token from, compared
 # against the header's scheme lowercased (RFC 7235 makes it case-insensitive).
 BEARER_SCHEME = "bearer"
