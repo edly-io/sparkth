@@ -67,7 +67,7 @@ no publish step), so the chat LLM reads this before acting. See `canvas_about`, 
 ### Secret fields
 
 Mark a credential with `json_schema_extra=secret()`, or `secret(ConfigWidget.TEXTAREA)` for a multi-line one.
-Sparkth stores every user's plugin config encrypted, and the `user-plugins` API never returns a secret field: it
+Sparkth stores every user's plugin config encrypted, and the `plugins` API never returns a secret field: it
 lists the stored ones in `secrets_set` instead. The settings form shows a stored secret as dots with a **Replace**
 action, and a save that leaves it out keeps the stored value.
 
