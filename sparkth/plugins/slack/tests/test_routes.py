@@ -974,10 +974,10 @@ async def test_dispatch_event_passes_llm_provider_when_configured() -> None:
 
         # Simulate plugin config returning LLM-enabled config
         mock_plugin_instance = AsyncMock()
-        mock_user_plugin = MagicMock()
-        mock_user_plugin.enabled = True
-        mock_user_plugin.config = config.model_dump()
-        mock_plugin_instance.get_preference_map.return_value = {SLACK_PLUGIN_NAME: mock_user_plugin}
+        mock_preference = MagicMock()
+        mock_preference.enabled = True
+        mock_preference.config = config.model_dump()
+        mock_plugin_instance.get_preference_map.return_value = {SLACK_PLUGIN_NAME: mock_preference}
         mock_plugin_svc.return_value = mock_plugin_instance
 
         # Simulate get_llm_service returning a service that resolves config + decrypted key
@@ -1045,10 +1045,10 @@ async def test_dispatch_event_uses_model_override_when_configured() -> None:
         mock_aq.return_value = ("Synthesized answer", ResponseType.RAG_MATCH)
 
         mock_plugin_instance = AsyncMock()
-        mock_user_plugin = MagicMock()
-        mock_user_plugin.enabled = True
-        mock_user_plugin.config = config.model_dump()
-        mock_plugin_instance.get_preference_map.return_value = {SLACK_PLUGIN_NAME: mock_user_plugin}
+        mock_preference = MagicMock()
+        mock_preference.enabled = True
+        mock_preference.config = config.model_dump()
+        mock_plugin_instance.get_preference_map.return_value = {SLACK_PLUGIN_NAME: mock_preference}
         mock_plugin_svc.return_value = mock_plugin_instance
 
         mock_llm_svc = AsyncMock()
