@@ -23,7 +23,7 @@
     "loadMore": "Cargar más",
     "empty": "Ningún evento de auditoría coincide con estos filtros.",
     "errors": {
-      "actorIdInvalid": "El ID de usuario del actor debe ser un número.",
+      "actorIdInvalid": "El ID de usuario del actor debe ser un número entero positivo.",
       "rangeReversed": "La hora de inicio debe ser anterior o igual a la hora de fin."
     },
     "outcomes": {

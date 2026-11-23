@@ -216,14 +216,14 @@ describe("AuditLogPage", () => {
     expect(screen.queryByRole("button", { name: "Load more" })).not.toBeInTheDocument();
   });
 
-  it("flags an actor id that isn't a number and won't apply it", async () => {
+  it.each(["abc", "0"])("flags the actor id %j and won't apply it", async (actorId) => {
     audit.fetchAuditEvents.mockResolvedValue({ items: [], next_before_id: null });
     renderWithIntl(<AuditLogPage />);
     await screen.findByText("No audit events match these filters.");
 
-    fireEvent.change(screen.getByLabelText("Actor user ID"), { target: { value: "abc" } });
+    fireEvent.change(screen.getByLabelText("Actor user ID"), { target: { value: actorId } });
 
-    expect(screen.getByText("Actor user ID must be a number.")).toBeInTheDocument();
+    expect(screen.getByText("Actor user ID must be a positive whole number.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
     // Enter in a field submits the form without clicking Apply.
     fireEvent.submit(screen.getByLabelText("Actor user ID"));
