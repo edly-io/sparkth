@@ -24,6 +24,8 @@ from sparkth.lib.llm import (
 )
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
+from sparkth.lib.permissions import PLUGIN_USE, get_accessible_scope_object_ids
+from sparkth.lib.permissions.scopes import PLUGIN
 from sparkth.lib.plugins import get_disabled_plugins
 from sparkth.plugins.compose.analytics import (
     ComposeAttachmentAnalytics,
@@ -156,8 +158,9 @@ async def compose_completion(
         provider=provider_name,
         actor_id=str(user_id),
     )
+    allowed_plugins = await get_accessible_scope_object_ids(current_user, PLUGIN_USE, PLUGIN, session)
     # The tool filter and the agent list share one set of switched-off plugins.
-    agents = enabled_agents(disabled_plugins)
+    agents = enabled_agents(disabled_plugins, allowed_plugins)
 
     conversation, conversation_was_created = await service.get_or_create_conversation(
         session,

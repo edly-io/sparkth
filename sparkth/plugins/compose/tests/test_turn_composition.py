@@ -1,4 +1,5 @@
-"""What a turn starts with: every enabled agent, and every requested tool whose plugin is on.
+"""What a turn starts with: every enabled agent, and every requested tool whose plugin is on,
+of the plugins the caller may use.
 
 Each agent then runs with only the tools it names.
 """
@@ -20,6 +21,8 @@ from sparkth.lib.compose.hooks import Agent
 from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.llm import small_model_for
 from sparkth.lib.models import LLMConfig, User
+from sparkth.lib.permissions import PLUGIN_USER_ROLE, assign_role, revoke_role
+from sparkth.lib.permissions.scopes import GLOBAL, PLUGIN
 from sparkth.lib.settings import get_settings
 from sparkth.main import app
 from sparkth.plugins.compose.config import ComposeSettings, get_compose_settings
@@ -486,3 +489,46 @@ class TestPluginSwitches:
         sent = [str(call.args[0]), *prompts]
         for value in (*OPENEDX_CONFIG.values(), *CANVAS_CONFIG.values()):
             assert not any(value in text for text in sent)
+
+
+async def _limit_plugin_use(session: AsyncSession, user_id: int, *plugin_names: str) -> None:
+    """Let the user use Compose and the named plugins only."""
+    await revoke_role(user_id, PLUGIN_USER_ROLE, GLOBAL, None, session)
+    for plugin_name in ("compose", *plugin_names):
+        await assign_role(user_id, PLUGIN_USER_ROLE, PLUGIN, plugin_name, session)
+    await session.commit()
+
+
+class TestPluginUsePermission:
+    """A turn leaves out the agent of a plugin its caller may not use."""
+
+    async def _lms_turn(self, client: AsyncClient, session: AsyncSession, user_id: int) -> AsyncMock:
+        config_id = await _seed_llm_config(session, user_id)
+        conversation_uuid = await _seed_conversation(session, user_id)
+        with (
+            patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()),
+            patch("sparkth.plugins.compose.routes.completions.get_tool_registry", return_value=_lms_registry()),
+            patch("sparkth.plugins.compose.routes.completions.complete_turn", new=_turn_answer()) as complete_turn,
+        ):
+            await _turn(client, config_id, conversation_uuid, "*")
+        return complete_turn
+
+    async def test_a_plugin_the_caller_may_not_use_offers_no_agent(
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent, other_agent: Agent
+    ) -> None:
+        await _limit_plugin_use(session, current_user.id or 1, "other")
+
+        complete_turn = await self._lms_turn(client, session, current_user.id or 1)
+
+        agents = complete_turn.await_args_list[-1].kwargs["agents"]
+        assert other_agent in agents
+        assert stub_agent not in agents
+
+    async def test_a_caller_who_may_use_every_plugin_is_offered_every_agent(
+        self, client: AsyncClient, current_user: User, session: AsyncSession, stub_agent: Agent, other_agent: Agent
+    ) -> None:
+        complete_turn = await self._lms_turn(client, session, current_user.id or 1)
+
+        agents = complete_turn.await_args_list[-1].kwargs["agents"]
+        assert other_agent in agents
+        assert stub_agent in agents
