@@ -92,7 +92,7 @@ class PxcPlugin(SparkthPlugin):
             ContentContributor(
                 "pxc",
                 "A portable, sandboxed PXC learning activity hosted by Sparkth: a bundled sample "
-                "or one of the author's own activities",
+                "or an activity the author may place",
                 # Each key is an LMS publishing plugin's registered name, written as a literal so
                 # this plugin imports no LMS plugin. These keys are the only place it names an LMS.
                 {"openedx": build_pxc_block},

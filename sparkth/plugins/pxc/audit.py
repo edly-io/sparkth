@@ -1,6 +1,6 @@
 """Audit event types owned by the PXC plugin.
 
-An author permanently deleting one of their generated activities. Snapshots carry the activity's
+A user permanently deleting a generated activity. Snapshots carry the activity's
 title and whether it was placed, never its content.
 """
 
@@ -16,7 +16,7 @@ PXC_ACTIVITY_TARGET = "pxc_activity"
 @AUDIT_EVENTS.register
 @dataclass(frozen=True, slots=True, kw_only=True)
 class PxcActivityDeletedAuditEvent(MutationAuditEvent):
-    """An author deleted an activity and its row was removed.
+    """A user deleted an activity and its row was removed.
 
     ``change.old`` carries the activity's ``title`` and whether it was ``placed``.
     """

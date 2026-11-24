@@ -243,7 +243,7 @@ saved before it failed, since each write is stored on its own:
   The client drops the action from its queue, so the actions behind it still go. A 502 or other
   5xx, which a proxy sends while the app redeploys, leaves the action queued.
 
-Only an author's preview records a failure. It is stored in `pxc_action_failures`, with its kind
+Only a preview inside Sparkth records a failure. It is stored in `pxc_action_failures`, with its kind
 (`failed` or `rejected`), the action, the permission, the value and the error, and the newest
 `PXC_ACTION_FAILURE_LIMIT` failures per activity are kept. A learner's failure in a course is never
 stored. Every failure and refusal is logged, over the socket and on the POST alike.
@@ -357,9 +357,9 @@ bounded number of retries.
 - The smoke test's sample values do not reach every code path, so a build that passes can still
   fail on a value the activity's UI sends.
 - Course staff who edit an LMS block's activity reference directly can point it at any activity
-  id, and the LMS signs it. Ownership is checked only when the agent places content. Such a block
-  can point at a draft, which is never marked placed, so a later update that changes one of its
-  fields clears the learner state that block has saved.
+  id, and the LMS signs it. The place permission, `pxc.activity.place`, is checked only when the
+  agent places content. Such a block can point at a draft, which is never marked placed, so a later
+  update that changes one of its fields clears the learner state that block has saved.
 - A placement that lands in the milliseconds between an update's placement check and its link
   swap is not seen by that update. Likewise, two updates of one activity in separate processes can
   swap the link in the opposite order to their revision ids, so a later update's prune can remove
@@ -378,8 +378,8 @@ bounded number of retries.
 - "Placed" means placed at least once. Every activity built before placement was recorded shows as
   placed. A block that course staff pointed at a draft by editing it in the LMS shows as not
   placed, yet deleting the draft breaks that block.
-- A delete that lands between `pxc_update_activity`'s last permission check and its link swap
-  leaves the update republishing files for an id with no row. Those files are orphaned: nothing
+- A delete that lands between `pxc_update_activity`'s last lookup of the activity's row and its link
+  swap leaves the update republishing files for an id with no row. Those files are orphaned: nothing
   lists or places them, but embeds would load again.
 - A learner request already past its activity check when a delete runs can recreate an empty state
   file. The file is orphaned and harmless.
