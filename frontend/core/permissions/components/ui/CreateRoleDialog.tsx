@@ -33,7 +33,7 @@ export function CreateRoleDialog({
   const t = useTranslations("permissions.roles.create");
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{t("title")}</DialogTitle>
           <DialogDescription>{t("intro")}</DialogDescription>
