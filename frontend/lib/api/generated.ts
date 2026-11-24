@@ -2869,13 +2869,13 @@ export interface components {
         };
         /**
          * PluginSystemStateResponse
-         * @description Response model for a plugin's system-wide switch.
+         * @description Response model for a plugin's system-wide switch, which applies to every user.
          */
         PluginSystemStateResponse: {
-            /** Enabled */
-            enabled: boolean;
             /** Plugin Name */
             plugin_name: string;
+            /** System Enabled */
+            system_enabled: boolean;
         };
         /**
          * PreviewPermission
