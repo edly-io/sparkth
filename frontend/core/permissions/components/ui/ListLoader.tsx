@@ -12,18 +12,21 @@ type LoadState<T> =
 
 /**
  * Loads entries with the signed-in user's token and hands them to `children` to show. Shows a
- * spinner while loading, `loadFailed` when loading fails and `empty` when there are none. Goes back
- * to loading when the token changes or goes away.
+ * spinner while loading, `loadFailed` when loading fails and `empty` when there are none. Loads again
+ * when the token or `reloadKey` changes, and goes back to loading when the token goes away.
  */
 export function ListLoader<T>({
   load,
   empty,
   loadFailed,
+  reloadKey,
   children,
 }: {
   load: (token: string) => Promise<T[]>;
   empty: string;
   loadFailed: string;
+  /** Changing it loads the entries again, after the caller has changed them. */
+  reloadKey?: number;
   children: (entries: T[]) => ReactNode;
 }) {
   const { token } = useAuth();
@@ -44,7 +47,7 @@ export function ListLoader<T>({
     return () => {
       active = false;
     };
-  }, [token, load]);
+  }, [token, load, reloadKey]);
 
   if (state.status === "loading") {
     return (
