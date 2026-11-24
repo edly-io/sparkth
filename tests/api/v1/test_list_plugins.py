@@ -70,10 +70,16 @@ async def test_list_plugins_basic(client: AsyncClient, plugin_preferences: User)
 
     data = response.json()
     expected = [
-        _plugin_entry("plugin_a", True, True, {}, True),
-        _plugin_entry("plugin_b", True, True, {"some config": "abc"}, True),
-        _plugin_entry("configured_plugin_disabled", False, True, {"some config": "abc"}, True),
-        _plugin_entry("disabled_plugin", True, False, {}, True),
+        _plugin_entry("plugin_a", enabled=True, system_enabled=True, config={}, is_core=True),
+        _plugin_entry("plugin_b", enabled=True, system_enabled=True, config={"some config": "abc"}, is_core=True),
+        _plugin_entry(
+            "configured_plugin_disabled",
+            enabled=False,
+            system_enabled=True,
+            config={"some config": "abc"},
+            is_core=True,
+        ),
+        _plugin_entry("disabled_plugin", enabled=True, system_enabled=False, config={}, is_core=True),
     ]
     assert data == expected
 
