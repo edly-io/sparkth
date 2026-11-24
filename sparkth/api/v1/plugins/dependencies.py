@@ -1,4 +1,4 @@
-"""FastAPI dependencies gating and scoping the plugin preference endpoints."""
+"""FastAPI dependencies gating and scoping the plugin endpoints."""
 
 from fastapi import Depends
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -6,10 +6,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.core.models.user import User
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
-from sparkth.lib.permissions import PLUGIN_USE, get_accessible_scope_object_ids
+from sparkth.lib.permissions import PLUGIN_MANAGE, PLUGIN_USE, get_accessible_scope_object_ids
 from sparkth.lib.permissions.scopes import PLUGIN
 
 require_plugin_use = PLUGIN_USE.require(PLUGIN, "plugin_name")
+require_plugin_manage = PLUGIN_MANAGE.require(PLUGIN, "plugin_name")
 
 
 async def get_usable_plugin_names(

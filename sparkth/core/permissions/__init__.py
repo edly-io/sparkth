@@ -247,5 +247,8 @@ LLM_CONFIG_DELETE = Permission.create("llm.config.delete")
 # Using a plugin's feature routes, checked at the plugin scope of the plugin's name.
 PLUGIN_USE = Permission.create("plugin.use")
 
+# Switching a plugin on or off for everyone, checked at the plugin scope of the plugin's name.
+PLUGIN_MANAGE = Permission.create("plugin.manage")
+
 # Uploading files, checked at the user scope of the uploader.
 FILE_UPLOAD = Permission.create("file.upload")

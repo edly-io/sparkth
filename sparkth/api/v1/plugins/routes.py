@@ -1,12 +1,12 @@
-"""Endpoints for the calling user's plugin preferences."""
+"""Endpoints for the calling user's plugin preferences and the system-wide plugin switch."""
 
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.api.v1.plugins.dependencies import get_usable_plugin_names, require_plugin_use
-from sparkth.api.v1.plugins.schemas import PluginConfigRequest, UpdatePluginRequest
+from sparkth.api.v1.plugins.dependencies import get_usable_plugin_names, require_plugin_manage, require_plugin_use
+from sparkth.api.v1.plugins.schemas import PluginConfigRequest, PluginSystemStateResponse, UpdatePluginRequest
 from sparkth.core.models.plugin import Plugin
 from sparkth.core.models.user import User
 from sparkth.core.plugins.service import (
@@ -215,6 +215,23 @@ async def update_plugin(
         is_core=plugin.is_core,
         config_schema=plugin.config_schema,
     )
+
+
+@router.patch(
+    "/{plugin_name}/system", response_model=PluginSystemStateResponse, dependencies=[Depends(require_plugin_manage)]
+)
+async def update_plugin_system_state(
+    plugin_name: str,
+    request: UpdatePluginRequest,
+    session: AsyncSession = Depends(get_async_session),
+    plugin_service: PluginService = Depends(get_plugin_service),
+) -> PluginSystemStateResponse:
+    """Switch a plugin on or off for every user, leaving each user's own preference untouched."""
+    plugin = await get_plugin_or_404(plugin_service, session, plugin_name)
+    name = plugin.name
+    await plugin_service.update_system_enabled(plugin, request.enabled, session)
+    await session.commit()
+    return PluginSystemStateResponse(plugin_name=name, enabled=request.enabled)
 
 
 @router.put("/{plugin_name}/config", response_model=PluginResponse, dependencies=[Depends(require_plugin_use)])

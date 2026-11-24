@@ -1334,6 +1334,26 @@ export interface paths {
         patch: operations["enable_plugin_api_v1_plugins__plugin_name__enable_patch"];
         trace?: never;
     };
+    "/api/v1/plugins/{plugin_name}/system": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Plugin System State
+         * @description Switch a plugin on or off for every user, leaving each user's own preference untouched.
+         */
+        patch: operations["update_plugin_system_state_api_v1_plugins__plugin_name__system_patch"];
+        trace?: never;
+    };
     "/api/v1/pxc/actions/{action_name}": {
         parameters: {
             query?: never;
@@ -2848,6 +2868,16 @@ export interface components {
             sidebar?: components["schemas"]["SidebarEntry"] | null;
         };
         /**
+         * PluginSystemStateResponse
+         * @description Response model for a plugin's system-wide switch.
+         */
+        PluginSystemStateResponse: {
+            /** Enabled */
+            enabled: boolean;
+            /** Plugin Name */
+            plugin_name: string;
+        };
+        /**
          * PreviewPermission
          * @description The permissions an author may preview their own activity under.
          * @enum {string}
@@ -3050,7 +3080,7 @@ export interface components {
         };
         /**
          * UpdatePluginRequest
-         * @description Request model for turning a plugin on or off for the calling user.
+         * @description Request model for turning a plugin on or off, for the calling user or for everyone.
          */
         UpdatePluginRequest: {
             /** Enabled */
@@ -5572,6 +5602,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PluginResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_plugin_system_state_api_v1_plugins__plugin_name__system_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plugin_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePluginRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PluginSystemStateResponse"];
                 };
             };
             /** @description Validation Error */
