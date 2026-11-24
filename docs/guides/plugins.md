@@ -818,11 +818,13 @@ does not hold `plugin.use` at (a `global` grant covers every plugin).
   next step ends with a note Compose writes, not the planner: the tasks done, the tasks left, and the
   choices to continue or to stop here. The plan then waits at that step.
 - **Replies.** Each agent's reply streams as it is written, and a later step reads what earlier steps
-  returned. An agent's question or choices are the last thing the author reads, and their answer
-  continues that work: a reply that ends with choices ends the turn, whatever was left to run. After
-  an operation the planner says briefly what was done. All of a turn's replies are stored as one
-  reply, which lists the agents its steps went to; when a step fails, what was written before it is
-  kept as a reply marked as interrupted, followed by the error.
+  returned. Once a tool call of a step has failed, what its agent writes before calling a tool again
+  never shows, and the rest of its reply shows a message at a time. An agent's question or choices
+  are the last thing the author reads, and their answer continues that work: a reply that ends with
+  choices ends the turn, whatever was left to run. After an operation the planner says briefly what
+  was done. All of a turn's replies are stored as one reply, which lists the agents its steps went
+  to; when a step fails, what was written before it is kept as a reply marked as interrupted,
+  followed by the error.
 
 Plugin-specific knowledge belongs in a `<prefix>about` tool, not in an agent's `prompt`;
 see the LMS `about` tool [above](#lms-plugins-tools-without-credentials) for the convention.
