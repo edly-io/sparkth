@@ -15,7 +15,7 @@ PLUGIN_NAME_PATTERN = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
 PLUGIN_SETTINGS_PAGE_NAME = "Settings"
 
 # The audit target type of a plugin, as the system-wide switch event names it.
-PLUGIN_TARGET_TYPE = "plugin"
+PLUGIN_AUDIT_TARGET_TYPE = "plugin"
 
 # The audit target type of a user's plugin preference, so the three events that record one name it alike.
 USER_PLUGIN_PREFERENCE_TARGET_TYPE = "user_plugin_preference"
