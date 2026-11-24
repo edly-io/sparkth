@@ -187,9 +187,11 @@ async def test_rollback_discards_the_system_switch_and_its_record(
 async def test_the_system_switch_leaves_a_users_preference_alone(session: AsyncSession, plugin: Plugin) -> None:
     assert plugin.id is not None
     service = PluginService()
-    preference = await service.update_preference_enabled(session, 1, plugin.id, True)
-    await service.update_system_enabled(plugin, False, session)
+    preference = await service.update_preference_enabled(session, 1, plugin.id, False)
 
-    await session.refresh(preference)
-    assert preference.enabled is True
-    assert await disabled_plugin_names(1, session) == {PLUGIN_NAME}
+    for system_enabled in (False, True):
+        await service.update_system_enabled(plugin, system_enabled, session)
+
+        await session.refresh(preference)
+        assert preference.enabled is False
+        assert await disabled_plugin_names(1, session) == {PLUGIN_NAME}
