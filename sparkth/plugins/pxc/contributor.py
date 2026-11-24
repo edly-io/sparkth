@@ -65,7 +65,8 @@ async def build_pxc_block(course_id: str, activity_id: str | None) -> ContentBlo
     """Mint an activity instance in ``course_id`` for the chosen activity, and describe its block.
 
     The block is titled after the activity: a generated one's title, or a bundled one's name.
-    Nothing is recorded here: the LMS may still refuse the block (see ``record_pxc_placement``).
+    Nothing is recorded here: the LMS may still refuse the block, so the placement callback records it
+    once the block exists.
 
     ``activity_id`` is the hook's ``option_id``: a bundled activity's name or the id of a
     generated activity the caller may place. There is no default activity, so ``None`` places nothing.
@@ -96,7 +97,7 @@ async def record_pxc_placement(activity_id: str | None) -> None:
     """Record that a generated activity sits in a course, unless an earlier placement already did.
 
     The publishing plugin awaits this once the LMS has created the block. ``activity_id`` is the
-    option id ``build_pxc_block`` accepted. A bundled activity has nothing to record.
+    option id the block was built from. A bundled activity has nothing to record.
 
     Raises:
         ContentPlacementError: if the database cannot record the placement.

@@ -46,7 +46,7 @@ An author places an activity by asking for it by its title in a chat:
 
 Anyone can place a bundled sample. A generated activity can be placed by a user who holds
 `pxc.activity.place` at the `user` scope of its owner (or at `global`), which every author holds
-for their own activities. Sparkth checks this again when it places the activity. An id that names
+for their own activities by default. Sparkth checks this again when it places the activity. An id that names
 no activity, a malformed one, one the user may not place, and one whose files are gone all get the
 same refusal, which does not reveal whether the activity exists. A refusal for lack of the
 permission is recorded as a `permission.denied` event; an unknown id records nothing. Listing the

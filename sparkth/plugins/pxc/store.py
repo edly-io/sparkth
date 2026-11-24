@@ -1,6 +1,6 @@
 """Reads, writes and deletes of ``pxc_activities`` and ``pxc_action_failures``.
 
-Listing takes the owner's id and returns only that user's activities. Loading one activity by id does
+Listing activities takes the owner's id and returns only that user's. Loading one activity by id does
 not look at who owns it: the caller checks what the user may do with it.
 """
 

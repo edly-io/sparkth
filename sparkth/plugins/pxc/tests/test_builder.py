@@ -389,7 +389,8 @@ async def test_a_built_activity_is_stored_and_launches(session: AsyncSession) ->
     activity_id = str(activity.id)
     assert activity_dir(activity_id) == generated_activity_dir(activity_id).resolve()
     assert json.loads((generated_activity_dir(activity_id) / "manifest.json").read_text())["name"] == activity_id
-    assert (await get_activity(session, activity.id)).title == "Two plus two"
+    stored = await get_activity(session, activity.id)
+    assert (stored.title, stored.owner_user_id) == ("Two plus two", OWNER)
     runtime = build_runtime(LaunchClaims(activity_id, "instance-1", "course-1", "learner-7", Permission.play))
     assert read_state(runtime)["question"] == "What is 2 + 2?"
 
@@ -465,7 +466,8 @@ async def test_non_ascii_content_survives_the_build(session: AsyncSession) -> No
 
     claims = LaunchClaims(str(activity.id), "instance-1", "course-1", "learner-7", Permission.play)
     assert read_state(build_runtime(claims))["question"] == question
-    assert (await get_activity(session, activity.id)).title == "Capitales — été"
+    stored = await get_activity(session, activity.id)
+    assert (stored.title, stored.owner_user_id) == ("Capitales — été", OWNER)
 
 
 async def _failing_insert(session: AsyncSession, activity: PxcActivity) -> None:
