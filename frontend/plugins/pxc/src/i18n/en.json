@@ -18,6 +18,7 @@
     "notFound": "Activity not found",
     "notFoundMessage": "This activity doesn't exist or was deleted.",
     "notConfigured": "Previews aren't set up on this server.",
+    "notPermitted": "You don't have permission to open this view.",
     "launchFailed": "Could not load the activity.",
     "frameTitle": "Activity preview",
     "loadingActivity": "Loading activity",

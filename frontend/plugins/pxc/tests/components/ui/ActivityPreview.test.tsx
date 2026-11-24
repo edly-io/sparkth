@@ -125,6 +125,20 @@ describe("ActivityPreview", () => {
     expect(screen.queryByTitle("Activity preview")).not.toBeInTheDocument();
   });
 
+  it("says the view is not permitted on a 403, with no retry", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(getActivityEmbedUrl).mockRejectedValue(
+      new ApiRequestError({ message: "Permission denied", fieldErrors: {} }, 403),
+    );
+
+    renderWithIntl(<ActivityPreview activityId={ACTIVITY_ID} permission="edit" />, pxcEn);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(pxcEn.pxc.notPermitted);
+    expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Activity preview")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Student" })).toBeInTheDocument();
+  });
+
   it("reports a generic failure for any other error", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(getActivityEmbedUrl).mockRejectedValue(new Error("boom"));
