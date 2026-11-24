@@ -4,7 +4,7 @@ Every route here needs a signed-in author who holds ``plugin.use`` at ``plugin:p
 routes carry a launch token instead and declare no such dependency, so they are unaffected.
 
 An activity is checked at the ``user`` scope of its owner. A route that names one activity answers
-404 for an unknown id before it checks anything, and 403 for a caller without the permission.
+404 for an unknown id before it checks the permission, and 403 for a caller without the permission.
 Listing takes the owner from the ``owner_id`` query parameter and defaults to the caller.
 """
 
@@ -106,7 +106,7 @@ async def launch_activity(
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(PXC_ACTIVITY_DELETE.require_for_object(USER, get_activity_owner_id))],
 )
-async def delete_owned_activity(
+async def remove_activity(
     activity_id: UUID,
     activity: PxcActivity = Depends(get_activity_record),
     session: AsyncSession = Depends(get_async_session),

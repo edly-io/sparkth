@@ -1394,7 +1394,7 @@ export interface paths {
         put?: never;
         post?: never;
         /**
-         * Delete Owned Activity
+         * Remove Activity
          * @description Delete an activity: its row, failure rows, files and learner data.
          *
          *     Needs ``pxc.activity.delete`` at the activity owner's scope. Deletes the row and its
@@ -1405,7 +1405,7 @@ export interface paths {
          *         PxcActivityNotFound: if the activity does not exist.
          *         SQLAlchemyError: if the delete or its audit record cannot be committed; nothing is removed.
          */
-        delete: operations["delete_owned_activity_api_v1_pxc_activities__activity_id__delete"];
+        delete: operations["remove_activity_api_v1_pxc_activities__activity_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -5652,7 +5652,7 @@ export interface operations {
             };
         };
     };
-    delete_owned_activity_api_v1_pxc_activities__activity_id__delete: {
+    remove_activity_api_v1_pxc_activities__activity_id__delete: {
         parameters: {
             query?: never;
             header?: never;
