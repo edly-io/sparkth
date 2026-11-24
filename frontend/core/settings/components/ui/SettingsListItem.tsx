@@ -26,8 +26,8 @@ export function SettingsListItem({
   const t = useTranslations("plugins");
   const name = displayNameOf(plugin);
   const masked = Object.entries(plugin.masked_secrets);
-  const usable = plugin.system_enabled;
-  const statusLabel = !usable
+  const systemEnabled = plugin.system_enabled;
+  const statusLabel = !systemEnabled
     ? t("disabledByAdmin")
     : plugin.enabled
       ? t("enabled")
@@ -36,7 +36,7 @@ export function SettingsListItem({
   return (
     <SettingsRow
       name={name}
-      active={usable && plugin.enabled}
+      active={systemEnabled && plugin.enabled}
       statusLabel={statusLabel}
       description={plugin.display?.description}
       details={
@@ -49,7 +49,7 @@ export function SettingsListItem({
       }
       toggleLabel={t("toggle", { name })}
       toggleChecked={plugin.enabled}
-      toggleDisabled={!usable}
+      toggleDisabled={!systemEnabled}
       onToggle={(checked) => (checked ? onEnable() : onDisable())}
       toggleErrorMessage={(_, checked) => (checked ? t("enableError") : t("disableError"))}
       actions={
@@ -58,7 +58,7 @@ export function SettingsListItem({
             variant="ghost"
             size="sm"
             onClick={onConfigure}
-            disabled={!usable || !plugin.enabled || configuring}
+            disabled={!systemEnabled || !plugin.enabled || configuring}
             aria-busy={configuring}
             aria-label={t("configure", { name })}
           >
