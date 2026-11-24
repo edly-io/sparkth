@@ -169,7 +169,7 @@ async def test_deleting_an_activity_removes_its_row_and_records_it(
     assert (event.category, event.action) == ("pxc", "activity_deleted")
     assert event.outcome == "success"
     assert (event.target_type, event.target_id) == ("pxc_activity", str(activity.id))
-    assert event.old_values == {"title": "Fractions", "placed": True}
+    assert event.old_values == {"title": "Fractions", "placed": True, "owner_user_id": OWNER}
     assert event.new_values is None
 
 

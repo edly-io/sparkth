@@ -45,8 +45,12 @@ async def update_activity_details(session: AsyncSession, activity_id: UUID, titl
     await session.commit()
 
 
-def _create_audit_snapshot(activity: PxcActivity) -> dict[str, str | bool]:
-    return {"title": activity.title, "placed": activity.placed_at is not None}
+def _create_audit_snapshot(activity: PxcActivity) -> dict[str, str | bool | int]:
+    return {
+        "title": activity.title,
+        "placed": activity.placed_at is not None,
+        "owner_user_id": activity.owner_user_id,
+    }
 
 
 async def delete_activity(session: AsyncSession, activity: PxcActivity) -> None:
