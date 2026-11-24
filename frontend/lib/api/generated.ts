@@ -1110,15 +1110,16 @@ export interface paths {
          * List Roles
          * @description List the roles the caller may read.
          *
-         *     Returns a list of RoleResponse (id, name, description, permissions, is_builtin).
+         *     Returns a list of RoleResponse (id, name, description, permissions, is_builtin, is_default,
+         *     user_count, group_count).
          *
-         *     Grants are fetched for every listed role in a single batched query.
+         *     Grants and assignee counts are fetched for every listed role in batched queries.
          */
         get: operations["list_roles_api_v1_permissions_roles_get"];
         put?: never;
         /**
          * Create Role
-         * @description Create a role. Returns the created RoleResponse (id, name, description, permissions, is_builtin).
+         * @description Create a role. Returns the created RoleResponse, which nobody holds yet.
          */
         post: operations["create_role_api_v1_permissions_roles_post"];
         delete?: never;
@@ -1136,7 +1137,7 @@ export interface paths {
         };
         /**
          * Get Role
-         * @description Fetch a role by id. Returns its RoleResponse (id, name, description, permissions, is_builtin).
+         * @description Fetch a role by id. Returns its RoleResponse, with its permissions and how many people and groups hold it.
          */
         get: operations["get_role_api_v1_permissions_roles__role_id__get"];
         put?: never;
@@ -2909,14 +2910,29 @@ export interface components {
         RoleResponse: {
             /** Description */
             description: string | null;
+            /**
+             * Group Count
+             * @description How many groups hold this role, at any scope.
+             */
+            group_count: number;
             /** Id */
             id: number;
             /** Is Builtin */
             is_builtin: boolean;
+            /**
+             * Is Default
+             * @description Whether every account is given this role when it is created.
+             */
+            is_default: boolean;
             /** Name */
             name: string;
             /** Permissions */
             permissions: string[];
+            /**
+             * User Count
+             * @description How many people hold this role directly, at any scope.
+             */
+            user_count: number;
         };
         /** RoleUpdate */
         RoleUpdate: {

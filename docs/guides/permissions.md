@@ -144,6 +144,12 @@ assignment of it (active and revoked), recording `role.unassigned` per active us
 every grant scoped to the role (`role:<id>`) too, so a later role that reuses the id never inherits
 them.
 
+Every role response also says who holds the role. `is_default` is true for the roles every account is given
+when it is created (`sparkth_user` and `plugin_user`). `user_count` is how many people hold the role directly
+and `group_count` how many groups hold it. Both count active assignments, each person or group once however
+many scopes they hold it at. Someone who holds a role only through a group adds to its `group_count`, not its
+`user_count`.
+
 A user who holds `plugin_user` at `plugin:<name>` instead of at `global` can use only those plugins.
 Every account holds `plugin_user` at `global`, so an assignment at a plugin changes nothing until the `global`
 assignment is revoked. To limit a user to some plugins, assign `plugin_user` at each allowed plugin and revoke

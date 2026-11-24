@@ -5,10 +5,13 @@ role-management API (``sparkth/api/v1/permissions``) imports them from here dire
 Every change is recorded as a ``role.*`` audit event in the same transaction as the
 change itself (``delete_role`` also records ``group.role_revoked`` for the group assignments it
 removes); an idempotent call that changes nothing records nothing. A role shipped with Sparkth
-cannot be changed or deleted; assigning and revoking it is unaffected.
+cannot be changed or deleted; assigning and revoking it is unaffected. Each role's assignees are
+counted for the role-management API: the people who hold it directly and the groups that hold it.
 """
 
-from sqlalchemy import delete
+from dataclasses import dataclass
+
+from sqlalchemy import delete, func
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -222,6 +225,41 @@ async def remove_role_permission(role_id: int, permission: str, session: AsyncSe
             ),
         )
         await session.commit()
+
+
+@dataclass(frozen=True)
+class RoleAssigneeCounts:
+    """How many people hold a role directly, and how many groups hold it, through active assignments."""
+
+    user_count: int
+    group_count: int
+
+
+async def get_role_assignee_counts(role_ids: list[int], session: AsyncSession) -> dict[int, RoleAssigneeCounts]:
+    """Return how many people and groups hold each role, every requested role_id present.
+
+    Counts active assignments only, each person or group once however many scopes they hold the role
+    at. People who hold a role only through a group count towards its groups, not its people. Runs one
+    query for the people and one for the groups, however many roles are asked about.
+    """
+    if not role_ids:
+        return {}
+    user_counts = await session.exec(
+        select(RoleAssignment.role_id, func.count(func.distinct(RoleAssignment.user_id)))
+        .where(col(RoleAssignment.role_id).in_(role_ids), col(RoleAssignment.is_deleted) == False)
+        .group_by(col(RoleAssignment.role_id))
+    )
+    users_by_role = dict(user_counts.all())
+    group_counts = await session.exec(
+        select(GroupRoleAssignment.role_id, func.count(func.distinct(GroupRoleAssignment.group_id)))
+        .where(col(GroupRoleAssignment.role_id).in_(role_ids), col(GroupRoleAssignment.is_deleted) == False)
+        .group_by(col(GroupRoleAssignment.role_id))
+    )
+    groups_by_role = dict(group_counts.all())
+    return {
+        role_id: RoleAssigneeCounts(users_by_role.get(role_id, 0), groups_by_role.get(role_id, 0))
+        for role_id in role_ids
+    }
 
 
 async def get_role_permissions(role_id: int, session: AsyncSession) -> list[str]:

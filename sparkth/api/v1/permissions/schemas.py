@@ -45,6 +45,9 @@ class RoleResponse(BaseModel):
     description: str | None
     permissions: list[str]
     is_builtin: bool
+    is_default: bool = Field(description="Whether every account is given this role when it is created.")
+    user_count: int = Field(description="How many people hold this role directly, at any scope.")
+    group_count: int = Field(description="How many groups hold this role, at any scope.")
 
 
 class RolePermissionAdd(BaseModel):

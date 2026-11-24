@@ -7,7 +7,8 @@ address one role by ``{role_id}`` (get/update/delete and its permission grants) 
 global grant still satisfies them via the scope cascade. Listing returns the roles the caller holds
 ``role.read`` at (every role for a global grant); creating a role stays global. Permissions and
 scopes themselves are NOT manageable through this API — they are declared in code (platform
-defaults or plugin hooks); this API only assigns the already-registered permissions to roles.
+defaults or plugin hooks); this API only assigns the already-registered permissions to roles. Every
+role response says whether every account is given the role, and how many people and groups hold it.
 """
 
 from fastapi import APIRouter, Depends, status
@@ -16,6 +17,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.api.v1.permissions.schemas import RoleCreate, RolePermissionAdd, RoleResponse, RoleUpdate
 from sparkth.core.permissions import roles as role_engine
 from sparkth.core.permissions.models import Role
+from sparkth.core.permissions.roles import RoleAssigneeCounts
 from sparkth.lib.db import get_async_session
 from sparkth.lib.permissions import ROLE_CREATE, ROLE_DELETE, ROLE_READ, ROLE_UPDATE, object_id_str_to_int
 from sparkth.lib.permissions.scopes import ROLE
@@ -34,21 +36,26 @@ def _role_id(role: Role) -> int:
     return role.id
 
 
-def _build_role_response(role: Role, permissions: list[str]) -> RoleResponse:
-    """Assemble a RoleResponse from a role and its already-fetched permission grants."""
+def _build_role_response(role: Role, permissions: list[str], assignees: RoleAssigneeCounts) -> RoleResponse:
+    """Assemble a RoleResponse from a role and its already-fetched permission grants and assignee counts."""
     return RoleResponse(
         id=_role_id(role),
         name=role.name,
         description=role.description,
         permissions=permissions,
         is_builtin=role.is_builtin,
+        is_default=role.is_default,
+        user_count=assignees.user_count,
+        group_count=assignees.group_count,
     )
 
 
 async def _role_to_response(role: Role, session: AsyncSession) -> RoleResponse:
-    """Build a RoleResponse for one persisted role, fetching its permission grants."""
-    permissions = await role_engine.get_role_permissions(_role_id(role), session)
-    return _build_role_response(role, permissions)
+    """Build a RoleResponse for one persisted role, fetching its permission grants and assignee counts."""
+    role_id = _role_id(role)
+    permissions = await role_engine.get_role_permissions(role_id, session)
+    assignees = await role_engine.get_role_assignee_counts([role_id], session)
+    return _build_role_response(role, permissions, assignees[role_id])
 
 
 @router.get("", response_model=list[RoleResponse])
@@ -58,15 +65,19 @@ async def list_roles(
 ) -> list[RoleResponse]:
     """List the roles the caller may read.
 
-    Returns a list of RoleResponse (id, name, description, permissions, is_builtin).
+    Returns a list of RoleResponse (id, name, description, permissions, is_builtin, is_default,
+    user_count, group_count).
 
-    Grants are fetched for every listed role in a single batched query.
+    Grants and assignee counts are fetched for every listed role in batched queries.
     """
     listed_roles = await role_engine.list_roles(object_id_str_to_int(accessible_ids), session)
-    permissions_by_role = await role_engine.get_permissions_for_roles(
-        [_role_id(role) for role in listed_roles], session
-    )
-    return [_build_role_response(role, permissions_by_role.get(_role_id(role), [])) for role in listed_roles]
+    role_ids = [_role_id(role) for role in listed_roles]
+    permissions_by_role = await role_engine.get_permissions_for_roles(role_ids, session)
+    assignees_by_role = await role_engine.get_role_assignee_counts(role_ids, session)
+    return [
+        _build_role_response(role, permissions_by_role.get(_role_id(role), []), assignees_by_role[_role_id(role)])
+        for role in listed_roles
+    ]
 
 
 @router.post(
@@ -76,7 +87,7 @@ async def list_roles(
     dependencies=[Depends(ROLE_CREATE.require_in_global_scope())],
 )
 async def create_role(payload: RoleCreate, session: AsyncSession = Depends(get_async_session)) -> RoleResponse:
-    """Create a role. Returns the created RoleResponse (id, name, description, permissions, is_builtin)."""
+    """Create a role. Returns the created RoleResponse, which nobody holds yet."""
     role = await role_engine.create_role(payload.name, payload.description, session)
     return await _role_to_response(role, session)
 
@@ -87,7 +98,7 @@ async def create_role(payload: RoleCreate, session: AsyncSession = Depends(get_a
     dependencies=[Depends(ROLE_READ.require(ROLE, "role_id"))],
 )
 async def get_role(role_id: int, session: AsyncSession = Depends(get_async_session)) -> RoleResponse:
-    """Fetch a role by id. Returns its RoleResponse (id, name, description, permissions, is_builtin)."""
+    """Fetch a role by id. Returns its RoleResponse, with its permissions and how many people and groups hold it."""
     role = await role_engine.get_role(role_id, session)
     return await _role_to_response(role, session)
 
