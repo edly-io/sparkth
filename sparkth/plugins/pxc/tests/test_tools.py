@@ -576,6 +576,8 @@ async def test_an_updater_updates_another_authors_activity(
     )
 
     assert result["activity_id"] == str(authored_activity.id)
+    await session.refresh(authored_activity)
+    assert authored_activity.title == "Poll"
 
 
 async def test_a_grant_held_through_a_group_reads_the_source(
@@ -599,5 +601,16 @@ async def test_a_malformed_activity_id_records_no_denial(
 
     with pytest.raises(PxcActivityNotFound):
         await pxc_get_activity_source("not-a-uuid")
+
+    assert await audit_events() == []
+
+
+async def test_an_unknown_activity_id_is_not_found_and_records_no_denial(
+    authors: tuple[User, User], audit_events: AuditEventsFetcher
+) -> None:
+    act_as(authors[1])
+
+    with pytest.raises(PxcActivityNotFound):
+        await pxc_get_activity_source(str(uuid7()))
 
     assert await audit_events() == []

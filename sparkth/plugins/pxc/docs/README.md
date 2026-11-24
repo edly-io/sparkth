@@ -74,9 +74,9 @@ Each author-facing route checks an activity at the `user` scope of its owner:
 
 Every account holds all four `pxc.activity.*` names at its own `user` scope through the default
 `sparkth_user` role, so an author keeps full access to their own activities. A grant at another
-user's `user` scope reaches that user's activities, and a grant at `global` reaches every user's. A
-caller without the permission gets 403 and the refusal is recorded as a `permission.denied` event; an id that names no activity
-gets 404, and records no denial.
+user's `user` scope reaches that user's activities, and a grant at `global` reaches every user's.
+A caller without the permission gets 403 and the refusal is recorded as a `permission.denied`
+event; an id that names no activity gets 404, and records no denial.
 
 ## Building an activity from chat
 

@@ -137,9 +137,9 @@ async def pxc_get_activity_source(activity_id: str) -> dict[str, object]:
     """Return one activity as the files it was built from.
 
     Use this before changing an activity: edit the files it returns and pass them to
-    `pxc_update_activity`. `placed` says whether the
-    activity has ever been placed in a course (this is never cleared); once it has, its fields may
-    not be removed or change their type, scope or schema.
+    `pxc_update_activity`. `placed` says whether the activity has ever been placed in a course
+    (this is never cleared); once it has, its fields may not be removed or change their type,
+    scope or schema.
     """
     activity = await _get_permitted_activity(activity_id, PXC_ACTIVITY_READ)
     directory = activity_dir(str(activity.id))
@@ -228,6 +228,7 @@ async def pxc_update_activity(
         sandbox_js=sandbox_js,
     )
     await update_activity(activity.id, source)
+    logger.info("User %s updated PXC activity %s", current_user_id(), activity.id)
     return {"activity_id": activity_id, "preview_url": preview_url(activity.id)}
 
 

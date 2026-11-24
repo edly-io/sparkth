@@ -19,7 +19,7 @@ from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.revisions import remove_activity_files, revisions_dir
 from sparkth.plugins.pxc.runtime import build_runtime, read_state
 from sparkth.plugins.pxc.schemas import ActivitySource
-from sparkth.plugins.pxc.store import get_owned_activity, mark_placed
+from sparkth.plugins.pxc.store import get_activity, mark_placed
 from sparkth.plugins.pxc.tests.conftest import AUTHORED_SANDBOX_JS, stage_without_compiling
 from sparkth.plugins.pxc.tokens import LaunchClaims
 
@@ -107,22 +107,20 @@ async def placed(draft: PxcActivity) -> PxcActivity:
     return draft
 
 
-async def test_an_update_replaces_the_live_files_under_the_same_id(draft: PxcActivity, owner_id: int) -> None:
+async def test_an_update_replaces_the_live_files_under_the_same_id(draft: PxcActivity) -> None:
     await update_activity(draft.id, _source({"question": QUESTION}, "// v2\n"))
 
     assert _live_ui(draft) == "// v2\n"
 
 
-async def test_an_update_saves_the_title_and_description(
-    session: AsyncSession, draft: PxcActivity, owner_id: int
-) -> None:
+async def test_an_update_saves_the_title_and_description(session: AsyncSession, draft: PxcActivity) -> None:
     await update_activity(draft.id, _source({"question": QUESTION}, UI_JS, "Capitals of Europe"))
 
-    assert (await get_owned_activity(session, draft.id, owner_id)).title == "Capitals of Europe"
+    assert (await get_activity(session, draft.id)).title == "Capitals of Europe"
 
 
 async def test_an_activity_whose_files_are_gone_cannot_be_updated(
-    draft: PxcActivity, owner_id: int, monkeypatch: pytest.MonkeyPatch
+    draft: PxcActivity, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr("sparkth.plugins.pxc.builder.stage_activity", _failing_stage)
     remove_activity_files(draft.id)
@@ -132,7 +130,7 @@ async def test_an_activity_whose_files_are_gone_cannot_be_updated(
 
 
 async def test_a_failed_build_leaves_the_live_activity_unchanged(
-    draft: PxcActivity, owner_id: int, monkeypatch: pytest.MonkeyPatch
+    draft: PxcActivity, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr("sparkth.plugins.pxc.builder.stage_activity", _failing_stage)
 
@@ -143,7 +141,7 @@ async def test_a_failed_build_leaves_the_live_activity_unchanged(
     assert len(list(revisions_dir(str(draft.id)).iterdir())) == 1
 
 
-async def test_a_placed_activity_refuses_a_field_change(placed: PxcActivity, owner_id: int) -> None:
+async def test_a_placed_activity_refuses_a_field_change(placed: PxcActivity) -> None:
     with pytest.raises(PxcFieldsFrozen) as refused:
         await update_activity(placed.id, _source(RETYPED, "// v2\n"))
 
@@ -152,9 +150,7 @@ async def test_a_placed_activity_refuses_a_field_change(placed: PxcActivity, own
     assert _live_ui(placed) == UI_JS
 
 
-async def test_a_placed_activity_accepts_code_action_default_and_new_field_changes(
-    placed: PxcActivity, owner_id: int
-) -> None:
+async def test_a_placed_activity_accepts_code_action_default_and_new_field_changes(placed: PxcActivity) -> None:
     fields: dict[str, object] = {
         "question": {**QUESTION, "default": "What is 3 + 3?"},
         "hints_used": {"type": "integer", "scope": "user,activity"},
@@ -170,7 +166,7 @@ async def test_a_placed_activity_accepts_code_action_default_and_new_field_chang
     assert _live_ui(placed) == "// v2\n"
 
 
-async def test_a_draft_accepts_a_field_change_and_loses_its_preview_state(draft: PxcActivity, owner_id: int) -> None:
+async def test_a_draft_accepts_a_field_change_and_loses_its_preview_state(draft: PxcActivity) -> None:
     _save_preview_question(draft, "What is the capital of France?")
 
     await update_activity(draft.id, _source(RETYPED))
@@ -179,7 +175,7 @@ async def test_a_draft_accepts_a_field_change_and_loses_its_preview_state(draft:
     assert _preview_question(draft) is None
 
 
-async def test_a_drafts_default_change_keeps_its_preview_state(draft: PxcActivity, owner_id: int) -> None:
+async def test_a_drafts_default_change_keeps_its_preview_state(draft: PxcActivity) -> None:
     _save_preview_question(draft, "What is the capital of France?")
 
     await update_activity(draft.id, _source({"question": {**QUESTION, "default": "What is 3 + 3?"}}))
@@ -187,9 +183,7 @@ async def test_a_drafts_default_change_keeps_its_preview_state(draft: PxcActivit
     assert _preview_question(draft) == "What is the capital of France?"
 
 
-async def test_a_placement_made_during_the_build_is_seen(
-    draft: PxcActivity, owner_id: int, monkeypatch: pytest.MonkeyPatch
-) -> None:
+async def test_a_placement_made_during_the_build_is_seen(draft: PxcActivity, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(f"{__name__}.PLACED_DURING_BUILD", [draft.id])
     monkeypatch.setattr("sparkth.plugins.pxc.builder.stage_activity", _stage_while_placing)
 
