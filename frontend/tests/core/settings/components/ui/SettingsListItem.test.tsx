@@ -73,6 +73,32 @@ describe("SettingsListItem", () => {
     expect(screen.getByText(label)).toBeDefined();
   });
 
+  it("shows a plugin switched off by an administrator as such", () => {
+    renderItem({ ...CANVAS, enabled: true, system_enabled: false }, vi.fn());
+
+    expect(screen.getByText("Switched off by an administrator")).toBeDefined();
+    expect(screen.queryByText("Enabled")).toBeNull();
+    const toggle = screen.getByRole("switch", { name: "Turn Canvas on or off" });
+    expect(toggle).toBeChecked();
+    expect(toggle).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Configure Canvas" })).toBeDisabled();
+  });
+
+  it("keeps the user's own off preference visible when an administrator switched it off", () => {
+    renderItem({ ...CANVAS, enabled: false, system_enabled: false });
+
+    const toggle = screen.getByRole("switch", { name: "Turn Canvas on or off" });
+    expect(toggle).not.toBeChecked();
+    expect(toggle).toBeDisabled();
+  });
+
+  it("leaves the switch usable for a plugin that is on system-wide", () => {
+    renderItem(CANVAS, vi.fn());
+
+    expect(screen.getByRole("switch", { name: "Turn Canvas on or off" })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "Configure Canvas" })).not.toBeDisabled();
+  });
+
   it("offers no configure button when the plugin has no config modal", () => {
     renderItem(CANVAS);
 
