@@ -1,7 +1,7 @@
 "use client";
 
 import { usePluginContext } from "@/core/plugins/context";
-import { displayNameOf } from "@/core/plugins/metadata";
+import { displayNameOf, isPluginUsable } from "@/core/plugins/metadata";
 import { pluginPath } from "@/core/plugins/routes";
 import { resolvePluginIcon } from "@/core/components/ui/icons";
 import Link from "next/link";
@@ -10,7 +10,7 @@ import { Spinner } from "@/core/components/ui/Spinner";
 
 export default function DashboardPage() {
   const { plugins, loading } = usePluginContext();
-  const enabledPlugins = plugins.filter((plugin) => plugin.enabled && plugin.has_frontend);
+  const enabledPlugins = plugins.filter((plugin) => isPluginUsable(plugin) && plugin.has_frontend);
 
   if (loading) {
     return (

@@ -1,3 +1,4 @@
+import { isPluginUsable } from "@/core/plugins/metadata";
 import type { PluginState } from "@/core/plugins/types";
 
 /** A sidebar navigation item derived from a backend-declared sidebar entry. */
@@ -11,14 +12,14 @@ export interface SidebarItem {
 type SidebarPlugin = PluginState & { sidebar: NonNullable<PluginState["sidebar"]> };
 
 /**
- * Sidebar items for the enabled plugins that have a frontend registration and
+ * Sidebar items for the usable plugins that have a frontend registration and
  * declared a sidebar entry, sorted by their declared order.
  */
 export function sidebarItemsFrom(plugins: PluginState[]): SidebarItem[] {
   return plugins
     .filter(
       (plugin): plugin is SidebarPlugin =>
-        plugin.enabled && plugin.has_frontend && plugin.sidebar != null,
+        isPluginUsable(plugin) && plugin.has_frontend && plugin.sidebar != null,
     )
     .sort((a, b) => a.sidebar.order - b.sidebar.order)
     .map((plugin) => ({

@@ -71,4 +71,9 @@ describe("sidebarItemsFrom", () => {
     const disabled = { ...chat, enabled: false };
     expect(sidebarItemsFrom([disabled, slack])).toHaveLength(1);
   });
+
+  it("excludes plugins switched off system-wide", () => {
+    const systemOff = { ...chat, system_enabled: false };
+    expect(sidebarItemsFrom([systemOff, slack]).map((item) => item.name)).toEqual(["slack"]);
+  });
 });

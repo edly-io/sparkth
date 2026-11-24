@@ -8,6 +8,11 @@
 
 import type { PluginState } from "./types";
 
+/** Whether the plugin is usable: on for the user and on system-wide. */
+export function isPluginUsable(plugin: PluginState): boolean {
+  return plugin.enabled && plugin.system_enabled;
+}
+
 /** The backend-declared display name, falling back to the plugin name. */
 export function displayNameOf(plugin: PluginState): string {
   return plugin.display?.display_name ?? plugin.plugin_name;

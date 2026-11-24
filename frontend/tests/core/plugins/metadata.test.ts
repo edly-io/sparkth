@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 
-import { displayNameOf } from "@/core/plugins/metadata";
+import { displayNameOf, isPluginUsable } from "@/core/plugins/metadata";
 import type { PluginState } from "@/core/plugins/types";
 
 function state(overrides: Partial<PluginState> & { plugin_name: string }): PluginState {
@@ -34,5 +34,17 @@ describe("displayNameOf", () => {
 
   it("falls back to the plugin name when no display info is declared", () => {
     expect(displayNameOf(state({ plugin_name: "canvas" }))).toBe("canvas");
+  });
+});
+
+describe("isPluginUsable", () => {
+  it.each([
+    [true, true, true],
+    [true, false, false],
+    [false, true, false],
+    [false, false, false],
+  ])("enabled=%s system_enabled=%s is usable=%s", (enabled, system_enabled, usable) => {
+    const plugin = state({ plugin_name: "canvas", enabled, system_enabled });
+    expect(isPluginUsable(plugin)).toBe(usable);
   });
 });

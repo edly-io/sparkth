@@ -10,6 +10,7 @@ import {
   ReactNode,
 } from "react";
 import { api, ApiRequestError, bearer } from "@/lib/api";
+import { isPluginUsable } from "./metadata";
 import { PluginConfig, PluginContext as IPluginContext, PluginState } from "./types";
 
 // ============================================================================
@@ -192,7 +193,7 @@ export function PluginProvider({ children, token }: PluginProviderProps) {
 
   const isPluginEnabled = useCallback(
     (pluginName: string): boolean => {
-      return state.plugins.some((p) => p.plugin_name === pluginName && p.enabled);
+      return state.plugins.some((p) => p.plugin_name === pluginName && isPluginUsable(p));
     },
     [state.plugins],
   );
@@ -282,6 +283,7 @@ export function usePluginContext(): PluginContextValue {
  * @param pluginName - Name of the plugin
  */
 export function usePlugin(pluginName: string): {
+  /** The plugin is usable: on for the user and on system-wide. */
   isEnabled: boolean;
   /** The user's plugins are still loading, so `isEnabled` and `config` are not known yet. */
   loading: boolean;
