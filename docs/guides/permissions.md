@@ -144,6 +144,10 @@ assignment of it (active and revoked), recording `role.unassigned` per active us
 every grant scoped to the role (`role:<id>`) too, so a later role that reuses the id never inherits
 them.
 
+Every role response also gives `display_name`, the name people read. A built-in role is shown by a readable,
+translated name ("Admin", "Sparkth user", "Plugin user"), while its stored `name` stays the identifier. A role
+created through the API is shown by the name it was given. Every role's `description` is the one stored with it.
+
 Every role response also says who holds the role. `is_default` is true for the roles every account is given
 when it is created (`sparkth_user` and `plugin_user`). `user_count` is how many people hold the role directly
 and `group_count` how many groups hold it. Both count active assignments, each person or group once however

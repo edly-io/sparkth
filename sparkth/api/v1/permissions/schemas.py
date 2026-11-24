@@ -42,6 +42,7 @@ class RoleUpdate(BaseModel):
 class RoleResponse(BaseModel):
     id: int
     name: str
+    display_name: str = Field(description="The role's name as people read it, in the request's language.")
     description: str | None
     permissions: list[str]
     is_builtin: bool
