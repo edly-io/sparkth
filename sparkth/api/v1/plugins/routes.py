@@ -233,10 +233,9 @@ async def update_plugin_system_state(
 ) -> PluginSystemStateResponse:
     """Switch a plugin on or off for every user, leaving each user's own preference untouched."""
     plugin = await get_plugin_or_404(plugin_service, session, plugin_name)
-    name = plugin.name
     await plugin_service.update_system_enabled(plugin, request.enabled, session)
     await session.commit()
-    return PluginSystemStateResponse(plugin_name=name, enabled=request.enabled)
+    return PluginSystemStateResponse(plugin_name=plugin.name, system_enabled=plugin.enabled)
 
 
 @router.put("/{plugin_name}/config", response_model=PluginResponse, dependencies=[Depends(require_plugin_use)])
