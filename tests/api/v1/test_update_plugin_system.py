@@ -37,7 +37,7 @@ async def test_a_holder_switches_a_plugin_off_for_everyone(
     response = await client.patch(URL.format(name="plugin_a"), json={"enabled": False})
 
     assert response.status_code == status.HTTP_200_OK
-    assert response.json() == {"plugin_name": "plugin_a", "enabled": False}
+    assert response.json() == {"plugin_name": "plugin_a", "system_enabled": False}
     assert "plugin_a" in await disabled_plugin_names(None, session)
 
 
@@ -86,6 +86,16 @@ async def test_an_unknown_plugin_is_not_found_for_a_global_holder(
     assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
+async def test_an_unknown_plugin_is_refused_without_the_permission(
+    client: AsyncClient, plugin_preferences: User, session: AsyncSession
+) -> None:
+    await session.commit()
+
+    response = await client.patch(URL.format(name="nope"), json={"enabled": False})
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
 async def test_the_switch_is_recorded_against_the_caller(
     client: AsyncClient, plugin_preferences: User, session: AsyncSession, audit_events: AuditEventsFetcher
 ) -> None:
@@ -101,16 +111,18 @@ async def test_the_switch_is_recorded_against_the_caller(
 async def test_switching_off_and_on_keeps_the_callers_preference_and_config(
     client: AsyncClient, plugin_preferences: User, session: AsyncSession
 ) -> None:
-    await grant_manage(session, plugin_preferences, "plugin_b")
-    before = await client.get("/api/v1/plugins/plugin_b")
+    plugin_url = "/api/v1/plugins/configured_plugin_disabled"
+    await grant_manage(session, plugin_preferences, "configured_plugin_disabled")
+    before = await client.get(plugin_url)
     assert before.status_code == status.HTTP_200_OK
+    assert before.json()["enabled"] is False
 
-    off = await client.patch(URL.format(name="plugin_b"), json={"enabled": False})
-    on = await client.patch(URL.format(name="plugin_b"), json={"enabled": True})
-    after = await client.get("/api/v1/plugins/plugin_b")
+    off = await client.patch(URL.format(name="configured_plugin_disabled"), json={"enabled": False})
+    on = await client.patch(URL.format(name="configured_plugin_disabled"), json={"enabled": True})
+    after = await client.get(plugin_url)
 
     assert (off.status_code, on.status_code) == (status.HTTP_200_OK, status.HTTP_200_OK)
-    assert after.json()["enabled"] is True
+    assert after.json()["enabled"] is False
     assert after.json()["config"] == before.json()["config"]
 
 
