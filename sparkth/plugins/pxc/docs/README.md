@@ -38,14 +38,19 @@ does not repeat the list.
 An author places an activity by asking for it by its title in a chat:
 
 1. The agent lists the activities the author can place: the bundled samples, then the author's
-   own activities by title.
+   own activities by title, when the author holds `pxc.activity.place` at their own `user` scope.
 2. The author picks one. If they pick none, nothing is placed.
 3. Sparkth creates a new activity instance for it, with its own id and its own learner data.
 4. The LMS course gets a `pxc` block that holds only that id. The LMS integration shows the
    activity through it.
 
-An author can place only their own activities and the bundled samples. Sparkth checks this
-again when it places the activity, so an id from anywhere else is refused.
+Anyone can place a bundled sample. A generated activity can be placed by a user who holds
+`pxc.activity.place` at the `user` scope of its owner (or at `global`), which every author holds
+for their own activities. Sparkth checks this again when it places the activity. An id that names
+no activity, a malformed one, one the user may not place, and one whose files are gone all get the
+same refusal, which does not reveal whether the activity exists. A refusal for lack of the
+permission is recorded as a `permission.denied` event; an unknown id records nothing. Listing the
+options never records a denial: a user without the permission is offered the bundled samples only.
 
 Sparkth records the first time a generated activity is placed, once the LMS has created its block,
 so a placement the LMS refuses leaves the activity a draft. Until then the activity is a draft;
@@ -373,7 +378,7 @@ bounded number of retries.
 - "Placed" means placed at least once. Every activity built before placement was recorded shows as
   placed. A block that course staff pointed at a draft by editing it in the LMS shows as not
   placed, yet deleting the draft breaks that block.
-- A delete that lands between `pxc_update_activity`'s last ownership check and its link swap
+- A delete that lands between `pxc_update_activity`'s last permission check and its link swap
   leaves the update republishing files for an id with no row. Those files are orphaned: nothing
   lists or places them, but embeds would load again.
 - A learner request already past its activity check when a delete runs can recreate an empty state
