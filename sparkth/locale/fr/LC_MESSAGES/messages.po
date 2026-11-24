@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: sparkth 0.1.11\n"
 "Report-Msgid-Bugs-To: https://github.com/edly-io/sparkth/issues\n"
-"POT-Creation-Date: 2026-11-24 15:11+0500\n"
+"POT-Creation-Date: 2026-10-20 11:57+0800\n"
 "PO-Revision-Date: 2026-08-14 07:25+0500\n"
 "Last-Translator: Hamza Shafique <hamza.shafique1@arbisoft.com>\n"
 "Language: fr\n"
@@ -18,11 +18,11 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: sparkth/api/v1/auth.py:81
+#: sparkth/api/v1/auth.py:80
 msgid "Registration is currently disabled"
 msgstr "Les inscriptions sont actuellement désactivées"
 
-#: sparkth/api/v1/auth.py:87
+#: sparkth/api/v1/auth.py:86
 msgid ""
 "This email address is not authorized to register. Contact an "
 "administrator."
@@ -30,11 +30,11 @@ msgstr ""
 "Cette adresse e-mail n'est pas autorisée à s'inscrire. Contactez un "
 "administrateur."
 
-#: sparkth/api/v1/auth.py:92
+#: sparkth/api/v1/auth.py:91
 msgid "Username already registered"
 msgstr "Ce nom d'utilisateur est déjà enregistré"
 
-#: sparkth/api/v1/auth.py:97
+#: sparkth/api/v1/auth.py:96
 msgid "Email already registered"
 msgstr "Cette adresse e-mail est déjà enregistrée"
 
@@ -42,52 +42,51 @@ msgstr "Cette adresse e-mail est déjà enregistrée"
 msgid "Incorrect username or password"
 msgstr "Nom d'utilisateur ou mot de passe incorrect"
 
-#: sparkth/api/v1/llm.py:63 sparkth/api/v1/llm.py:229
-msgid "LLM config not found"
-msgstr "Configuration LLM introuvable"
-
-#: sparkth/api/v1/llm.py:136
-msgid "Empty body. Nothing to update."
-msgstr "Corps vide. Rien à mettre à jour."
+#: sparkth/api/v1/user_plugins.py:128
+#: sparkth/api/v1/user_plugins.py:215 sparkth/api/v1/user_plugins.py:249
+msgid "User not authenticated."
+msgstr "Utilisateur non authentifié."
 
 #: sparkth/api/v1/file_upload/routes.py:46
 msgid "Only .txt and .pdf files are supported"
 msgstr "Seuls les fichiers .txt et .pdf sont pris en charge"
 
 #: sparkth/api/v1/file_upload/routes.py:55
-#, python-brace-format
 msgid "File size exceeds {limit_mb}MB limit"
 msgstr "Le fichier dépasse la limite de {limit_mb} Mo"
-
-#: sparkth/api/v1/file_upload/routes.py:65
-msgid "Unsupported file type"
-msgstr "Type de fichier non pris en charge"
 
 #: sparkth/api/v1/file_upload/routes.py:69
 msgid "No text could be read from this file"
 msgstr "Aucun texte n'a pu être lu dans ce fichier"
 
-#: sparkth/api/v1/plugins/routes.py:31
+#: sparkth/api/v1/file_upload/routes.py:65
+msgid "Unsupported file type"
+msgstr "Type de fichier non pris en charge"
+
+#: sparkth/api/v1/llm.py:98
+msgid "Empty body. Nothing to update."
+msgstr "Corps vide. Rien à mettre à jour."
+
+#: sparkth/api/v1/llm.py:179
+msgid "LLM config not found"
+msgstr "Configuration LLM introuvable"
+
+#: sparkth/api/v1/user_plugins.py:50
 #, python-brace-format
 msgid "Plugin '{name}' not found"
 msgstr "Plugin '{name}' introuvable"
 
-#: sparkth/api/v1/plugins/routes.py:44
+#: sparkth/api/v1/user_plugins.py:63
 #, python-brace-format
 msgid "Plugin '{name}' is not enabled"
 msgstr "Le plugin '{name}' n'est pas activé"
 
-#: sparkth/api/v1/plugins/routes.py:114 sparkth/api/v1/plugins/routes.py:204
-#: sparkth/api/v1/plugins/routes.py:256
-msgid "User not authenticated."
-msgstr "Utilisateur non authentifié."
-
-#: sparkth/api/v1/plugins/routes.py:123
+#: sparkth/api/v1/user_plugins.py:137
 #, python-brace-format
 msgid "Plugin '{name}' is already configured"
 msgstr "Le plugin '{name}' est déjà configuré"
 
-#: sparkth/api/v1/user/routes.py:35 sparkth/lib/auth.py:180
+#: sparkth/api/v1/user/routes.py:50 sparkth/lib/auth.py:180
 msgid "User not found"
 msgstr "Utilisateur introuvable"
 
@@ -107,7 +106,7 @@ msgstr "Utilisateurs actifs"
 msgid "Signups"
 msgstr "Inscriptions"
 
-#: sparkth/core/permissions/__init__.py:112
+#: sparkth/core/permissions/__init__.py:117
 msgid "Permission denied"
 msgstr "Permission refusée"
 
@@ -134,9 +133,7 @@ msgstr "Le rôle existe déjà : {name}"
 #: sparkth/core/permissions/exceptions.py:41
 #, python-brace-format
 msgid "The {name} role comes with Sparkth and can't be changed or deleted."
-msgstr ""
-"Le rôle {name} est fourni avec Sparkth et ne peut être ni modifié ni "
-"supprimé."
+msgstr "Le rôle {name} est fourni avec Sparkth et ne peut être ni modifié ni supprimé."
 
 #: sparkth/core/permissions/exceptions.py:50
 #, python-brace-format
@@ -155,19 +152,19 @@ msgstr ""
 "Association portée/identifiant d'objet non valide pour la portée "
 "{scope!r} : {scope_object_id!r}"
 
-#: sparkth/core/plugins/middleware.py:107
+#: sparkth/core/plugins/middleware.py:106
 #, python-brace-format
 msgid "Plugin '{name}' is switched off, in your settings or by an administrator."
 msgstr ""
 "Le plugin « {name} » est désactivé, dans vos paramètres ou par un "
 "administrateur."
 
-#: sparkth/core/plugins/service.py:276 sparkth/core/plugins/service.py:282
+#: sparkth/core/plugins/service.py:159 sparkth/core/plugins/service.py:165
 #, python-brace-format
 msgid "Plugin '{name}' cannot be configured at this time."
 msgstr "Le plugin '{name}' ne peut pas être configuré pour le moment."
 
-#: sparkth/core/plugins/service.py:572
+#: sparkth/core/plugins/service.py:411
 msgid "Cannot update plugin configuration while the plugin is disabled"
 msgstr ""
 "Impossible de mettre à jour la configuration du plugin tant qu'il est "
@@ -185,7 +182,7 @@ msgstr ""
 "Cet enregistrement est désactivé. Réactivez-le dans AI Keys ou "
 "sélectionnez une autre configuration."
 
-#: sparkth/llm/adapter.py:76 sparkth/llm/service.py:161
+#: sparkth/llm/adapter.py:76 sparkth/llm/service.py:170
 #, python-brace-format
 msgid ""
 "Model '{model}' not available for provider '{provider}'. Allowed: "
@@ -293,7 +290,8 @@ msgstr "Réinitialisez votre mot de passe Sparkth"
 
 #: sparkth/services/account/service.py:38
 msgid "SSO based sign-ins cannot update passwords."
-msgstr "Les comptes connectés via SSO ne peuvent pas modifier leur mot de passe."
+msgstr ""
+"Les comptes connectés via SSO ne peuvent pas modifier leur mot de passe."
 
 #: sparkth/services/account/service.py:47
 msgid "Your current password is incorrect."
