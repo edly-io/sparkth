@@ -1,7 +1,7 @@
-"""Run one learner action and publish its events, recording a failure in the author's own preview.
+"""Run one learner action and publish its events, recording a failure in a preview inside Sparkth.
 
 The socket and the action POST route both run actions through ``perform_action``. A failure is
-recorded only for a preview launch, never for a learner in a course, and only so the author's
+recorded only for a preview inside Sparkth, never for a learner in a course, and only so the author's
 agent can read it. Recording is best-effort: a failed write is logged and the action's own error
 still reaches the caller.
 """

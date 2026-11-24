@@ -243,7 +243,7 @@ saved before it failed, since each write is stored on its own:
   The client drops the action from its queue, so the actions behind it still go. A 502 or other
   5xx, which a proxy sends while the app redeploys, leaves the action queued.
 
-Only an author's preview records a failure. It is stored in `pxc_action_failures`, with its kind
+Only a preview inside Sparkth records a failure. It is stored in `pxc_action_failures`, with its kind
 (`failed` or `rejected`), the action, the permission, the value and the error, and the newest
 `PXC_ACTION_FAILURE_LIMIT` failures per activity are kept. A learner's failure in a course is never
 stored. Every failure and refusal is logged, over the socket and on the POST alike.
