@@ -8,10 +8,11 @@ vi.mock("@/core/auth/hooks", () => ({ useAuth: () => ({ token: "test-token" }) }
 const client = vi.hoisted(() => ({
   listRoles: vi.fn(),
   createRole: vi.fn(),
+  deleteRole: vi.fn(),
   checkPermissions: vi.fn(),
 }));
 vi.mock("@/core/permissions/client", () => client);
-const { listRoles, createRole, checkPermissions } = client;
+const { listRoles, createRole, deleteRole, checkPermissions } = client;
 
 import RolesPage from "@/app/dashboard/permissions/roles/RolesPage";
 
@@ -32,12 +33,12 @@ function role(id: number, name: string, overrides: Partial<RoleResponse> = {}): 
 const ROLES = [
   role(1, "admin", { is_builtin: true }),
   role(2, "sparkth_user", { is_builtin: true, is_default: true }),
-  role(3, "Course author"),
+  role(3, "Course author", { user_count: 2, group_count: 1 }),
 ];
 
 beforeEach(() => {
   vi.clearAllMocks();
-  checkPermissions.mockResolvedValue([true]);
+  checkPermissions.mockResolvedValue([true, true]);
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -100,11 +101,12 @@ describe("RolesPage", () => {
     expect(await screen.findByRole("button", { name: "Create role" })).toBeInTheDocument();
     expect(checkPermissions).toHaveBeenCalledWith("test-token", [
       { permission: "role.create", scope: "global" },
+      { permission: "role.delete", scope: "role" },
     ]);
   });
 
   it("hides Create role from someone who may not create roles", async () => {
-    checkPermissions.mockResolvedValue([false]);
+    checkPermissions.mockResolvedValue([false, true]);
     listRoles.mockResolvedValue(ROLES);
     renderWithIntl(<RolesPage />);
     await findCardNames();
@@ -124,5 +126,45 @@ describe("RolesPage", () => {
 
     expect(createRole).toHaveBeenCalledWith("test-token", { name: "Grader", description: null });
     expect(await findCardNames()).toContain("Grader");
+  });
+
+  it("offers Delete on custom roles only, to someone who may delete roles", async () => {
+    listRoles.mockResolvedValue(ROLES);
+    renderWithIntl(<RolesPage />);
+    await findCardNames();
+
+    expect(
+      screen.getByRole("button", { name: "More actions for Course author" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "More actions for Admin" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers no Delete to someone who may not delete roles", async () => {
+    checkPermissions.mockResolvedValue([true, false]);
+    listRoles.mockResolvedValue(ROLES);
+    renderWithIntl(<RolesPage />);
+    await findCardNames();
+
+    expect(screen.queryByRole("button", { name: /More actions/ })).not.toBeInTheDocument();
+  });
+
+  it("asks before deleting, says who will lose the role, then removes it from the list", async () => {
+    listRoles.mockResolvedValueOnce(ROLES).mockResolvedValueOnce(ROLES.slice(0, 2));
+    deleteRole.mockResolvedValue(undefined);
+    renderWithIntl(<RolesPage />);
+    await findCardNames();
+
+    await userEvent.click(screen.getByRole("button", { name: "More actions for Course author" }));
+    await userEvent.click(screen.getByRole("button", { name: "Delete role" }));
+    const dialog = await screen.findByRole("dialog", { name: "Delete Course author?" });
+    expect(dialog).toHaveTextContent(
+      "1 group and 2 people will lose this role. This can't be undone.",
+    );
+    await userEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+    expect(deleteRole).toHaveBeenCalledWith("test-token", 3);
+    expect(await findCardNames()).toEqual(["Admin", "Sparkth user"]);
   });
 });

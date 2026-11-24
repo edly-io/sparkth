@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-import { checkPermissions, createRole, listGroups, listRoles } from "@/core/permissions/client";
+import {
+  checkPermissions,
+  createRole,
+  deleteRole,
+  listGroups,
+  listRoles,
+} from "@/core/permissions/client";
 import { ApiRequestError } from "@/lib/api";
 
 import { mockFetch, sentRequest } from "@/tests/lib/utils";
@@ -100,5 +106,18 @@ describe("createRole", () => {
     expect(await request.json()).toEqual({ name: "Grader", description: "Marks work." });
     expect(request.headers.get("authorization")).toBe("Bearer test-token");
     expect(result).toEqual(created);
+  });
+});
+
+describe("deleteRole", () => {
+  it("DELETEs /api/v1/permissions/roles/{id}", async () => {
+    const spy = mockFetch(null, 204);
+
+    await deleteRole("test-token", 5);
+
+    const request = sentRequest(spy);
+    expect(request.method).toBe("DELETE");
+    expect(new URL(request.url).pathname).toBe("/api/v1/permissions/roles/5");
+    expect(request.headers.get("authorization")).toBe("Bearer test-token");
   });
 });

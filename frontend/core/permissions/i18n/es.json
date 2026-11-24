@@ -37,6 +37,19 @@
         "submit": "Crear",
         "nameTaken": "Ya existe un rol con este nombre.",
         "failed": "No se pudo crear el rol. Inténtalo de nuevo."
+      },
+      "menu": {
+        "label": "Más acciones para {name}",
+        "delete": "Eliminar rol"
+      },
+      "delete": {
+        "title": "¿Eliminar {name}?",
+        "holders": "{holders} perderán este rol. No se puede deshacer.",
+        "nobody": "Nadie tiene este rol. No se puede deshacer.",
+        "confirm": "Eliminar",
+        "pending": "Eliminando…",
+        "cancel": "Cancelar",
+        "failed": "No se pudo eliminar el rol. Inténtalo de nuevo."
       }
     },
     "groups": {
