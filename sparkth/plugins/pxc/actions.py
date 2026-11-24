@@ -52,7 +52,7 @@ async def perform_action(
 async def _record_preview_failure(
     claims: LaunchClaims, kind: PxcFailureKind, action_name: str, action_value: FieldType, error: str
 ) -> None:
-    """Record a failed action of an author's preview; any other launch's failure is not stored."""
+    """Record a failed action of a preview launch; the failure of any other launch is not stored."""
     if claims.course_id != PXC_PREVIEW_COURSE_ID:
         return
     settings = get_pxc_settings()

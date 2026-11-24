@@ -35,7 +35,9 @@ async def has_activity_permission(
 async def require_activity_permission(
     session: AsyncSession, permission: Permission, owner_user_id: int, user_id: int
 ) -> None:
-    """Check the permission as ``has_activity_permission`` does, and record a refusal.
+    """Require the user to hold the permission at the activity owner's user scope, and record a refusal.
+
+    A grant at the owner's scope or at global counts.
 
     Raises:
         PxcActivityNotPermitted: if the user does not hold the permission.
@@ -46,4 +48,4 @@ async def require_activity_permission(
         "PXC permission %s denied for user %s on activities of user %s", permission.name, user_id, owner_user_id
     )
     await permission.record_denial(USER, build_scope_path(USER, str(owner_user_id)))
-    raise PxcActivityNotPermitted(f"You do not have permission to {permission.name} this activity.")
+    raise PxcActivityNotPermitted(f"You are not allowed to do this; it needs the {permission.name} permission.")

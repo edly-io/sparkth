@@ -94,13 +94,6 @@ def owner_id(authors: tuple[User, User]) -> int:
 
 
 @pytest.fixture
-def other_id(authors: tuple[User, User]) -> int:
-    """The id of an author who owns nothing."""
-    assert authors[1].id is not None
-    return authors[1].id
-
-
-@pytest.fixture
 async def draft(uncompiled_builds: None, owner_id: int) -> PxcActivity:
     """One activity the owner built and never placed."""
     return await build_activity(_source({"question": QUESTION}), owner_id)
@@ -115,7 +108,7 @@ async def placed(draft: PxcActivity) -> PxcActivity:
 
 
 async def test_an_update_replaces_the_live_files_under_the_same_id(draft: PxcActivity, owner_id: int) -> None:
-    await update_activity(draft.id, _source({"question": QUESTION}, "// v2\n"), owner_id)
+    await update_activity(draft.id, _source({"question": QUESTION}, "// v2\n"))
 
     assert _live_ui(draft) == "// v2\n"
 
@@ -123,20 +116,9 @@ async def test_an_update_replaces_the_live_files_under_the_same_id(draft: PxcAct
 async def test_an_update_saves_the_title_and_description(
     session: AsyncSession, draft: PxcActivity, owner_id: int
 ) -> None:
-    await update_activity(draft.id, _source({"question": QUESTION}, UI_JS, "Capitals of Europe"), owner_id)
+    await update_activity(draft.id, _source({"question": QUESTION}, UI_JS, "Capitals of Europe"))
 
     assert (await get_owned_activity(session, draft.id, owner_id)).title == "Capitals of Europe"
-
-
-async def test_another_author_cannot_update_an_activity(
-    draft: PxcActivity, other_id: int, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr("sparkth.plugins.pxc.builder.stage_activity", _failing_stage)
-
-    with pytest.raises(PxcActivityNotFound):
-        await update_activity(draft.id, _source({"question": QUESTION}, "// stolen\n"), other_id)
-
-    assert _live_ui(draft) == UI_JS
 
 
 async def test_an_activity_whose_files_are_gone_cannot_be_updated(
@@ -146,7 +128,7 @@ async def test_an_activity_whose_files_are_gone_cannot_be_updated(
     remove_activity_files(draft.id)
 
     with pytest.raises(PxcActivityNotFound):
-        await update_activity(draft.id, _source({"question": QUESTION}), owner_id)
+        await update_activity(draft.id, _source({"question": QUESTION}))
 
 
 async def test_a_failed_build_leaves_the_live_activity_unchanged(
@@ -155,7 +137,7 @@ async def test_a_failed_build_leaves_the_live_activity_unchanged(
     monkeypatch.setattr("sparkth.plugins.pxc.builder.stage_activity", _failing_stage)
 
     with pytest.raises(PxcCompileFailed):
-        await update_activity(draft.id, _source({"question": QUESTION}, "// v2\n"), owner_id)
+        await update_activity(draft.id, _source({"question": QUESTION}, "// v2\n"))
 
     assert _live_ui(draft) == UI_JS
     assert len(list(revisions_dir(str(draft.id)).iterdir())) == 1
@@ -163,7 +145,7 @@ async def test_a_failed_build_leaves_the_live_activity_unchanged(
 
 async def test_a_placed_activity_refuses_a_field_change(placed: PxcActivity, owner_id: int) -> None:
     with pytest.raises(PxcFieldsFrozen) as refused:
-        await update_activity(placed.id, _source(RETYPED, "// v2\n"), owner_id)
+        await update_activity(placed.id, _source(RETYPED, "// v2\n"))
 
     assert "'question'" in str(refused.value)
     assert _live_manifest(placed)["fields"] == {"question": QUESTION}
@@ -180,7 +162,7 @@ async def test_a_placed_activity_accepts_code_action_default_and_new_field_chang
     source = _source(fields, "// v2\n")
     source.manifest["actions"] = {"hint": {"type": "boolean"}}
 
-    await update_activity(placed.id, source, owner_id)
+    await update_activity(placed.id, source)
 
     live = _live_manifest(placed)
     assert live["fields"] == fields
@@ -191,7 +173,7 @@ async def test_a_placed_activity_accepts_code_action_default_and_new_field_chang
 async def test_a_draft_accepts_a_field_change_and_loses_its_preview_state(draft: PxcActivity, owner_id: int) -> None:
     _save_preview_question(draft, "What is the capital of France?")
 
-    await update_activity(draft.id, _source(RETYPED), owner_id)
+    await update_activity(draft.id, _source(RETYPED))
 
     assert _live_manifest(draft)["fields"] == RETYPED
     assert _preview_question(draft) is None
@@ -200,7 +182,7 @@ async def test_a_draft_accepts_a_field_change_and_loses_its_preview_state(draft:
 async def test_a_drafts_default_change_keeps_its_preview_state(draft: PxcActivity, owner_id: int) -> None:
     _save_preview_question(draft, "What is the capital of France?")
 
-    await update_activity(draft.id, _source({"question": {**QUESTION, "default": "What is 3 + 3?"}}), owner_id)
+    await update_activity(draft.id, _source({"question": {**QUESTION, "default": "What is 3 + 3?"}}))
 
     assert _preview_question(draft) == "What is the capital of France?"
 
@@ -212,7 +194,7 @@ async def test_a_placement_made_during_the_build_is_seen(
     monkeypatch.setattr("sparkth.plugins.pxc.builder.stage_activity", _stage_while_placing)
 
     with pytest.raises(PxcFieldsFrozen):
-        await update_activity(draft.id, _source(RETYPED), owner_id)
+        await update_activity(draft.id, _source(RETYPED))
 
 
 @pytest.mark.wasm
@@ -229,7 +211,7 @@ async def test_an_updated_activity_launches_with_its_new_content(owner_id: int) 
     activity = await build_activity(source, owner_id)
     manifest["fields"]["question"]["default"] = "What is 3 + 3?"
 
-    await update_activity(activity.id, source.model_copy(update={"manifest": manifest}), owner_id)
+    await update_activity(activity.id, source.model_copy(update={"manifest": manifest}))
 
     claims = LaunchClaims(str(activity.id), "instance-1", "course-1", "learner-7", Permission.play)
     assert read_state(build_runtime(claims))["question"] == "What is 3 + 3?"
@@ -254,6 +236,6 @@ async def test_an_update_whose_action_throws_is_refused_and_leaves_the_activity_
     throwing = source.model_copy(update={"sandbox_js": source.sandbox_js.replace(parsed, breaking)})
 
     with pytest.raises(PxcSmokeTestFailed):
-        await update_activity(activity.id, throwing, 1)
+        await update_activity(activity.id, throwing)
 
     assert "submit broke" not in (activity_dir(str(activity.id)) / "sandbox.js").read_text()
