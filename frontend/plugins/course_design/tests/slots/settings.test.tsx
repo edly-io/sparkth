@@ -10,6 +10,7 @@ import "@/plugins/course_design/src/slots/settings";
 const COURSE_DESIGN: PluginState = {
   plugin_name: COURSE_DESIGN_PLUGIN_NAME,
   enabled: true,
+  system_enabled: true,
   config: {},
   config_schema: {},
   is_core: false,

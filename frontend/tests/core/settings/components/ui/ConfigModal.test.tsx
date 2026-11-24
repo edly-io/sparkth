@@ -35,6 +35,7 @@ function renderModal(
       plugin={{
         plugin_name: "openedx",
         enabled: true,
+        system_enabled: true,
         config: {},
         config_schema: OPENEDX_SCHEMA,
         is_core: true,

@@ -16,6 +16,7 @@ vi.mock("@/plugins/slack/src/client", () => ({
 const SLACK: PluginState = {
   plugin_name: "slack",
   enabled: true,
+  system_enabled: true,
   config: {},
   config_schema: {
     type: "object",

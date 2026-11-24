@@ -22,6 +22,7 @@ function renderItem(plugin: PluginState, onConfigure?: () => void, configuring?:
 const CANVAS: PluginState = {
   plugin_name: "canvas",
   enabled: true,
+  system_enabled: true,
   config: {},
   config_schema: {},
   is_core: true,

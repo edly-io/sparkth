@@ -164,6 +164,9 @@ class PluginResponse(pydantic.BaseModel):
     ``sparkth.lib.frontend`` hooks; build responses with :meth:`for_plugin`
     so they are always populated.
 
+    ``enabled`` is the calling user's own preference for the plugin; ``system_enabled`` is the
+    system-wide switch, which applies to every user.
+
     ``config_schema`` is the plugin's declared JSON schema, which the settings
     UI renders its form from -- field types, labels, defaults, and the widget
     hints a plugin sets through ``json_schema_extra``. It is empty for a plugin
@@ -175,6 +178,7 @@ class PluginResponse(pydantic.BaseModel):
 
     plugin_name: str
     enabled: bool
+    system_enabled: bool
     config: dict[str, Any]
     secrets_set: list[str] = []
     masked_secrets: dict[str, str] = {}
@@ -189,6 +193,7 @@ class PluginResponse(pydantic.BaseModel):
         cls,
         plugin_name: str,
         enabled: bool,
+        system_enabled: bool,
         config: dict[str, Any],
         is_core: bool,
         config_schema: dict[str, Any] | None = None,
@@ -210,6 +215,7 @@ class PluginResponse(pydantic.BaseModel):
         return cls(
             plugin_name=plugin_name,
             enabled=enabled,
+            system_enabled=system_enabled,
             config={key: value for key, value in config.items() if key not in secrets},
             secrets_set=[name for name in secrets if config.get(name)],
             masked_secrets={
