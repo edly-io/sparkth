@@ -10,7 +10,23 @@
     "roles": {
       "label": "Roles",
       "empty": "Aún no hay roles.",
-      "loadFailed": "No se pudieron cargar los roles. Inténtalo más tarde."
+      "loadFailed": "No se pudieron cargar los roles. Inténtalo más tarde.",
+      "badges": {
+        "builtin": "Integrado",
+        "default": "Automático",
+        "custom": "Personalizado"
+      },
+      "permissionCount": "{count, plural, one {<strong>#</strong> permiso} other {<strong>#</strong> permisos}}",
+      "peopleCount": "{count, plural, one {# persona} other {# personas}}",
+      "groupCount": "{count, plural, one {# grupo} other {# grupos}}",
+      "everyone": "Todos",
+      "notAssigned": "Sin asignar",
+      "intro": "Un rol es un conjunto de permisos con nombre. Los permisos vienen de Sparkth y sus plugins; tú eliges cuáles tiene cada rol.",
+      "view": {
+        "label": "Vista",
+        "list": "Lista",
+        "compare": "Comparar permisos"
+      }
     },
     "groups": {
       "label": "Grupos",
