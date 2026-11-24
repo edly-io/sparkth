@@ -49,3 +49,15 @@ class PluginConfigInvalidError(PluginError):
             f"The saved {display_name} settings for this user are no longer valid. "
             f"Tell them to update their {display_name} settings on the {PLUGIN_SETTINGS_PAGE_NAME} page."
         )
+
+
+class ConfigValidationError(Exception):
+    """Raised when a plugin config a user submitted fails validation."""
+
+
+class InternalServerError(Exception):
+    """Raised when a plugin's config cannot be validated or saved because of a server-side fault."""
+
+
+class PluginDisabledError(Exception):
+    """Raised when a user changes the config of a plugin they have switched off."""

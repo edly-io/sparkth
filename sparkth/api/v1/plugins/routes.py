@@ -9,14 +9,9 @@ from sparkth.api.v1.plugins.dependencies import get_usable_plugin_names, require
 from sparkth.api.v1.plugins.schemas import PluginConfigRequest, PluginSystemStateResponse, UpdatePluginRequest
 from sparkth.core.models.plugin import Plugin
 from sparkth.core.models.user import User
-from sparkth.core.plugins.service import (
-    ConfigValidationError,
-    InternalServerError,
-    PluginDisabledError,
-    PluginResponse,
-    PluginService,
-    get_plugin_service,
-)
+from sparkth.core.plugins.exceptions import ConfigValidationError, InternalServerError, PluginDisabledError
+from sparkth.core.plugins.schemas import PluginResponse
+from sparkth.core.plugins.service import PluginService, get_plugin_service
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
 from sparkth.lib.i18n import _

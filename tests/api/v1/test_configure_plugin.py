@@ -5,7 +5,8 @@ from fastapi import status
 from httpx import AsyncClient
 
 from sparkth.core.models.user import User
-from sparkth.core.plugins.service import ConfigValidationError, InternalServerError, PluginService
+from sparkth.core.plugins.exceptions import ConfigValidationError, InternalServerError
+from sparkth.core.plugins.service import PluginService
 from sparkth.lib.testing import AuditEventsFetcher
 
 

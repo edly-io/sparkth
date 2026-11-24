@@ -11,12 +11,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.core.models.plugin import Plugin, UserPluginPreference
 from sparkth.core.models.user import User
 from sparkth.core.plugins.config_base import PluginConfig
-from sparkth.core.plugins.service import (
-    ConfigValidationError,
-    PluginService,
-    disabled_plugin_names,
-    get_disabled_plugins,
-)
+from sparkth.core.plugins.exceptions import ConfigValidationError
+from sparkth.core.plugins.service import PluginService, disabled_plugin_names, get_disabled_plugins
 
 
 async def _seed_plugin(session: AsyncSession, name: str, enabled: bool, deleted: bool = False) -> Plugin:
