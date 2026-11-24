@@ -11,8 +11,6 @@ A role shipped with Sparkth is shown by a readable name in the request's languag
 is shown by the name it was given.
 """
 
-from dataclasses import dataclass
-
 from sqlalchemy import delete, func
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -32,6 +30,7 @@ from sparkth.core.permissions.grants import (
 )
 from sparkth.core.permissions.models import GroupRoleAssignment, Role, RoleAssignment, RolePermission
 from sparkth.core.permissions.scopes import ROLE
+from sparkth.core.permissions.types import RoleAssigneeCounts
 from sparkth.lib.audit import record_event
 from sparkth.lib.audit.events import (
     AuditChange,
@@ -229,14 +228,6 @@ async def remove_role_permission(role_id: int, permission: str, session: AsyncSe
             ),
         )
         await session.commit()
-
-
-@dataclass(frozen=True)
-class RoleAssigneeCounts:
-    """How many people hold a role directly, and how many groups hold it, through active assignments."""
-
-    user_count: int
-    group_count: int
 
 
 async def get_role_assignee_counts(role_ids: list[int], session: AsyncSession) -> dict[int, RoleAssigneeCounts]:

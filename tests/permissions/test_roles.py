@@ -14,6 +14,7 @@ from sparkth.core.permissions.exceptions import (
     RoleNotFound,
 )
 from sparkth.core.permissions.models import Group, GroupRoleAssignment, Role, RoleAssignment, RolePermission
+from sparkth.core.permissions.types import RoleAssigneeCounts
 from sparkth.lib.permissions import (
     assign_role,
     assign_role_to_group,
@@ -394,7 +395,7 @@ async def test_get_role_assignee_counts_counts_each_person_and_group_once(sessio
 
     counts = await roles.get_role_assignee_counts([role.id], session)
 
-    assert counts == {role.id: roles.RoleAssigneeCounts(user_count=2, group_count=1)}
+    assert counts == {role.id: RoleAssigneeCounts(user_count=2, group_count=1)}
 
 
 async def test_get_role_assignee_counts_ignores_revoked_assignments(session: AsyncSession) -> None:
@@ -411,7 +412,7 @@ async def test_get_role_assignee_counts_ignores_revoked_assignments(session: Asy
 
     counts = await roles.get_role_assignee_counts([role.id], session)
 
-    assert counts == {role.id: roles.RoleAssigneeCounts(user_count=0, group_count=0)}
+    assert counts == {role.id: RoleAssigneeCounts(user_count=0, group_count=0)}
 
 
 async def test_get_role_assignee_counts_leaves_out_people_who_hold_it_only_through_a_group(
@@ -424,7 +425,7 @@ async def test_get_role_assignee_counts_leaves_out_people_who_hold_it_only_throu
 
     counts = await roles.get_role_assignee_counts([role.id], session)
 
-    assert counts == {role.id: roles.RoleAssigneeCounts(user_count=0, group_count=1)}
+    assert counts == {role.id: RoleAssigneeCounts(user_count=0, group_count=1)}
 
 
 async def test_get_role_assignee_counts_includes_roles_nobody_holds(session: AsyncSession) -> None:
@@ -437,8 +438,8 @@ async def test_get_role_assignee_counts_includes_roles_nobody_holds(session: Asy
     counts = await roles.get_role_assignee_counts([held.id, unheld.id], session)
 
     assert counts == {
-        held.id: roles.RoleAssigneeCounts(user_count=1, group_count=0),
-        unheld.id: roles.RoleAssigneeCounts(user_count=0, group_count=0),
+        held.id: RoleAssigneeCounts(user_count=1, group_count=0),
+        unheld.id: RoleAssigneeCounts(user_count=0, group_count=0),
     }
 
 
