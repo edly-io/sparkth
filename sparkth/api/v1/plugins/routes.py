@@ -5,7 +5,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.api.v1.plugins.dependencies import get_usable_plugin_names, require_plugin_manage, require_plugin_use
+from sparkth.api.v1.plugins.dependencies import get_usable_plugin_names, require_plugin_use
 from sparkth.api.v1.plugins.schemas import PluginConfigRequest, PluginSystemStateResponse, UpdatePluginRequest
 from sparkth.core.models.plugin import Plugin
 from sparkth.core.models.user import User
@@ -20,6 +20,8 @@ from sparkth.core.plugins.service import (
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
 from sparkth.lib.i18n import _
+from sparkth.lib.permissions import PLUGIN_MANAGE
+from sparkth.lib.permissions.scopes import PLUGIN
 
 router: APIRouter = APIRouter()
 
@@ -218,7 +220,9 @@ async def update_plugin(
 
 
 @router.patch(
-    "/{plugin_name}/system", response_model=PluginSystemStateResponse, dependencies=[Depends(require_plugin_manage)]
+    "/{plugin_name}/system",
+    response_model=PluginSystemStateResponse,
+    dependencies=[Depends(PLUGIN_MANAGE.require(PLUGIN, "plugin_name"))],
 )
 async def update_plugin_system_state(
     plugin_name: str,
