@@ -50,7 +50,10 @@ class PxcActivity(SQLModel, table=True):
 
 
 class PxcActionFailure(SQLModel, table=True):
-    """One action that failed or was refused in its author's preview, kept for the author's agent."""
+    """One action that failed or was refused in a preview of the activity, kept for its author's agent.
+
+    The previewer can be a user other than the author; the row records none.
+    """
 
     __tablename__ = "pxc_action_failures"
 

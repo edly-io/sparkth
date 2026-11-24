@@ -133,11 +133,11 @@ def mint_launch_token(
 
 
 def mint_preview_token(activity_id: UUID, user_id: int, permission: PreviewPermission) -> str:
-    """A launch token for an author previewing their own generated activity inside Sparkth.
+    """A launch token for a user previewing a generated activity inside Sparkth.
 
     The preview is the one launch Sparkth mints itself. It goes into a fixed preview course and
     activity instance, as a learner id namespaced away from any LMS's. The caller has already checked
-    that the user owns the activity; the token only carries that decision to the embed.
+    that the user may preview the activity in this view; the token only carries that decision to the embed.
 
     Raises:
         PxcLaunchNotConfigured: if ``PXC_LAUNCH_SECRET`` is empty, since PyJWT refuses an empty key.
