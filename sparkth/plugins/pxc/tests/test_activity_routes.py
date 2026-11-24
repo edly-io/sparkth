@@ -142,10 +142,8 @@ async def test_an_author_gets_an_embed_url_for_their_own_activity(
     response = await client.get(f"/api/v1/pxc/activities/{activity.id}/launch", params={"permission": "edit"})
 
     assert response.status_code == 200
-    embed_url = urlsplit(response.json()["embed_url"])
-    claims = read_launch_token(parse_qs(embed_url.query)["token"][0])
-    assert embed_url.path == "/api/v1/pxc/embed"
-    assert (claims.activity, claims.permission) == (str(activity.id), Permission.edit)
+    assert urlsplit(response.json()["embed_url"]).path == "/api/v1/pxc/embed"
+    assert _token_claims(response.json()) == (str(activity.id), Permission.edit)
 
 
 async def test_another_users_activity_cannot_be_launched(

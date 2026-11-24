@@ -3,10 +3,10 @@
 The LMS mints a short-lived HS256 JWT carrying its user id, course id and activity instance,
 signed with a secret shared between the two servers. This plugin verifies the signature and
 takes the learner's identity from the token, so it never looks up a learner itself. Sparkth
-mints only an author's preview of their own activity (``mint_preview_token``), and re-signs a
-verified token to pin its launch to one revision of a generated activity (``pin_launch_token``). The
-secret stays server-side at both ends and only the token travels through the browser, which is
-what makes the identity trustworthy rather than client-asserted.
+mints only a preview of an activity for a user permitted to preview it (``mint_preview_token``), and
+re-signs a verified token to pin its launch to one revision of a generated activity
+(``pin_launch_token``). The secret stays server-side at both ends and only the token travels
+through the browser, which is what makes the identity trustworthy rather than client-asserted.
 
 The claim names are the plugin's own — ``act``, ``ins``, ``cid``, ``uid``, and ``rev`` on a
 pinned token — since none of the registered JWT claims describe an activity instance or an
