@@ -11,7 +11,7 @@ from sparkth.core.models.plugin import Plugin, UserPluginPreference
 from sparkth.core.models.user import User
 from sparkth.core.plugins import get_plugin_loader
 from sparkth.core.plugins.config_base import PluginConfig
-from sparkth.core.plugins.constants import PLUGIN_TARGET_TYPE, USER_PLUGIN_PREFERENCE_TARGET_TYPE
+from sparkth.core.plugins.constants import PLUGIN_AUDIT_TARGET_TYPE, USER_PLUGIN_PREFERENCE_TARGET_TYPE
 from sparkth.core.plugins.exceptions import PluginConfigInvalidError, PluginNotConfiguredError
 from sparkth.lib.audit import record_event
 from sparkth.lib.audit.events import (
@@ -479,7 +479,7 @@ class PluginService:
             session,
             PluginSystemEnabledChangedAuditEvent(
                 outcome=AuditOutcome.SUCCESS,
-                target=AuditTarget(type=PLUGIN_TARGET_TYPE, id=str(plugin.id)),
+                target=AuditTarget(type=PLUGIN_AUDIT_TARGET_TYPE, id=str(plugin.id)),
                 change=AuditChange(
                     old=self._create_enabled_audit_snapshot(plugin.name, previously_enabled),
                     new=self._create_enabled_audit_snapshot(plugin.name, enabled),
