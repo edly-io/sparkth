@@ -86,6 +86,19 @@ async def list_owned_activities(
     return list(result.all())
 
 
+async def get_activity(session: AsyncSession, activity_id: UUID) -> PxcActivity:
+    """One activity, whoever owns it. The caller authorizes.
+
+    Raises:
+        PxcActivityNotFound: if no activity has this id.
+    """
+    result = await session.exec(select(PxcActivity).where(PxcActivity.id == activity_id))
+    activity = result.first()
+    if activity is None:
+        raise PxcActivityNotFound(f"Unknown activity: {activity_id}")
+    return activity
+
+
 async def get_owned_activity(session: AsyncSession, activity_id: UUID, owner_user_id: int) -> PxcActivity:
     """One activity, provided this user owns it.
 

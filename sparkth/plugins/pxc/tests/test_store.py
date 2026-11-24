@@ -21,6 +21,7 @@ from sparkth.plugins.pxc.exceptions import PxcActivityNotFound
 from sparkth.plugins.pxc.models import PxcActionFailure, PxcActivity
 from sparkth.plugins.pxc.store import (
     delete_activity,
+    get_activity,
     get_owned_activity,
     insert_action_failure,
     insert_activity,
@@ -41,6 +42,18 @@ async def test_an_inserted_activity_is_listed_for_its_owner(session: AsyncSessio
     await insert_activity(session, activity)
 
     assert [listed.id for listed in await list_owned_activities(session, OWNER)] == [activity.id]
+
+
+async def test_an_activity_is_found_by_its_id_whoever_owns_it(session: AsyncSession) -> None:
+    activity = _activity(OTHER_USER)
+    await insert_activity(session, activity)
+
+    assert (await get_activity(session, activity.id)).owner_user_id == OTHER_USER
+
+
+async def test_an_id_that_names_no_activity_is_not_found(session: AsyncSession) -> None:
+    with pytest.raises(PxcActivityNotFound):
+        await get_activity(session, uuid7())
 
 
 async def test_another_users_activities_are_not_listed(session: AsyncSession) -> None:
