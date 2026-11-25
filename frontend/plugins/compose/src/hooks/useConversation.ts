@@ -164,9 +164,7 @@ export function useConversation(
                   state: "confirmed" as const,
                 }))
               : undefined,
-            toolCalls: m.tool_calls
-              ? m.tool_calls.map((t) => ({ ...t, status: "done" as const }))
-              : undefined,
+            toolCalls: m.tool_calls ?? undefined,
             plan: m.plan ?? undefined,
             isError: m.is_error ?? false,
             stopped: m.stopped ?? false,
@@ -318,9 +316,7 @@ export function useConversation(
                     state: "confirmed" as const,
                   }))
                 : undefined,
-              toolCalls: lastApiMsg.tool_calls
-                ? lastApiMsg.tool_calls.map((t) => ({ ...t, status: "done" as const }))
-                : undefined,
+              toolCalls: lastApiMsg.tool_calls ?? undefined,
               plan: lastApiMsg.plan ?? undefined,
               isError: lastApiMsg.is_error ?? false,
               stopped: lastApiMsg.stopped ?? false,

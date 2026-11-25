@@ -6,6 +6,7 @@ import {
   STREAM_STATUS_PHASES,
   StreamStatusPhase,
   TextAttachment,
+  ToolCall,
 } from "@/plugins/compose/src/types";
 
 interface SendPayload {
@@ -74,7 +75,7 @@ function applyStatusEvent(
     setMessages((prev) => prev.map((msg) => (msg.id === assistantId ? { ...msg, plan } : msg)));
   } else if (parsed.status === "tool_call" && parsed.tool_name) {
     const toolName = parsed.tool_name as string;
-    const toolStatus = parsed.tool_status as "running" | "done";
+    const toolStatus = parsed.tool_status as ToolCall["status"];
     setMessages((prev) =>
       prev.map((msg) => {
         if (msg.id !== assistantId) return msg;
@@ -92,7 +93,7 @@ function applyStatusEvent(
         const updated = existing.map((t) => {
           if (!marked && t.name === toolName && t.status === "running") {
             marked = true;
-            return { ...t, status: "done" as const };
+            return { ...t, status: toolStatus };
           }
           return t;
         });
@@ -174,7 +175,7 @@ async function readStream(
   let newConversationId: string | null = null;
   let hasError = false;
   let doneRagSections: { type: string; name: string; source?: string }[] | null = null;
-  let doneToolCalls: { name: string }[] | null = null;
+  let doneToolCalls: ToolCall[] | null = null;
   let doneStopped = false;
   let finalPlan: PlanSnapshot | null = null;
   let lastSaveTime = 0;
@@ -247,7 +248,7 @@ async function readStream(
           const toolCallsFromDone = (parsed.message as Record<string, unknown> | undefined)
             ?.tool_calls;
           if (Array.isArray(toolCallsFromDone) && toolCallsFromDone.length > 0) {
-            doneToolCalls = toolCallsFromDone as { name: string }[];
+            doneToolCalls = toolCallsFromDone as ToolCall[];
           }
           finalPlan = ((parsed.message as Record<string, unknown> | undefined)?.plan ??
             null) as PlanSnapshot | null;
@@ -315,7 +316,9 @@ export function useChatStream({
             isPending: false,
             statusPhase: undefined,
             stepLabel: undefined,
-            toolCalls: msg.toolCalls?.map((tool) => ({ ...tool, status: "done" as const })),
+            toolCalls: msg.toolCalls?.map((tool) =>
+              tool.status === "running" ? { ...tool, status: "done" as const } : tool,
+            ),
           };
           if (!msg.streamedContent) return [{ ...ended, content: errorText, isError: true }];
           return [
@@ -415,9 +418,7 @@ export function useChatStream({
                         state: "confirmed" as const,
                       })),
                     }),
-                    ...(doneToolCalls && {
-                      toolCalls: doneToolCalls.map((t) => ({ ...t, status: "done" as const })),
-                    }),
+                    ...(doneToolCalls && { toolCalls: doneToolCalls }),
                     ...(doneStopped && { stopped: true }),
                   }
                 : msg,
