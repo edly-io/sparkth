@@ -237,6 +237,7 @@ from sparkth.plugins.myappplugin.config import MyAppPluginConfig
 from sparkth.lib.analytics import AnalyticsEventSchema, register_event_schema
 from sparkth.lib.config.hooks import CONFIG_SCHEMAS
 from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
+from sparkth.lib.i18n import gettext_noop
 from sparkth.lib.permissions import PLUGIN_USE, Permission
 from sparkth.lib.permissions.scopes import PLUGIN
 from sparkth.lib.routes import register_router
@@ -245,7 +246,12 @@ from sparkth.lib.plugins import SparkthPlugin
 # Create router outside the class; every route on it requires `plugin.use` for this plugin
 router = APIRouter(dependencies=[Depends(PLUGIN_USE.require_for_object(PLUGIN, "my-app"))])
 
-MYAPP_PROCESS = Permission.create("myapp.process")
+MYAPP_PROCESS = Permission.create(
+    "myapp.process",
+    gettext_noop("Process data"),
+    gettext_noop("Run My App on the data you give it."),
+    gettext_noop("My App"),
+)
 
 
 @router.get("/")

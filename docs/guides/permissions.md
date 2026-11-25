@@ -26,8 +26,8 @@ resolves exactly this — it is the single authorization check.
 The vocabulary the system draws on — which permission strings and which scope kinds exist —
 is declared in application code, not kept in a catalogue table.
 
-- **Permissions** are declared with `Permission.create("assignment.grade")`, which registers
-  the permission on the **`PERMISSIONS`** hook. Core permissions are declared this way in
+- **Permissions** are declared with `Permission.create("assignment.grade", ...)`, which
+  registers the permission on the **`PERMISSIONS`** hook. Core permissions are declared this way in
   `sparkth.core.permissions`; plugins declare their own at module level in their `plugin.py`, or in a module
   their routes import when the routes need the constant.
 - **A permission says what it is for** when it is created: `Permission.create` takes a label
@@ -317,10 +317,16 @@ plugin's own tests each construct the class, and a second declaration of a name 
 
 ```python
 # sparkth/plugins/grader/plugin.py
+from sparkth.lib.i18n import gettext_noop
 from sparkth.lib.permissions import Permission
 from sparkth.lib.permissions.scopes import GLOBAL, PermissionScope
 
-ASSIGNMENT_GRADE = Permission.create("assignment.grade")
+ASSIGNMENT_GRADE = Permission.create(
+    "assignment.grade",
+    gettext_noop("Grade assignments"),
+    gettext_noop("Mark submissions and give feedback."),
+    gettext_noop("Grader"),
+)
 # a scope kind's parent must already be registered (the global root always is)
 COURSE = PermissionScope.create("course", parent=GLOBAL)
 ```
