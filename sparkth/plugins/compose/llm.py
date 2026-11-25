@@ -244,11 +244,13 @@ class _TurnText:
     An agent's text shows as it is written, with a blank line between messages. Once a tool call of
     a step has failed, the text of each of that step's agent messages is held until the message
     ends, and shows only when the message calls no tool: what an agent writes before trying again
-    never shows. The planner's own text is held until the turn ends and shows only when no agent
-    wrote last: when no step ran, the last step was an operation, whose own text never shows, or the
-    last agent wrote nothing. So an agent's reply, a question or choices included, is the last thing
-    the author reads, and the planner never repeats it. A planner message that calls a tool never
-    shows.
+    never shows. What the planner writes after an operation, whose own text never shows, shows as it
+    is written too, even in a message that calls the next step: it is all the author reads of the
+    operation. The planner's other text is held until the turn ends and shows only when no agent
+    wrote last: when no step ran, the last agent wrote nothing, or an operation the planner asked
+    for was rejected. So an agent's reply, a question or choices included, is the last thing the
+    author reads, and the planner never repeats it. Held text of a planner message that calls a tool
+    never shows.
     """
 
     def __init__(self) -> None:
@@ -259,12 +261,18 @@ class _TurnText:
         self._agent_wrote_last = False
         self._tool_failed = False
         self._held_agent_text: list[str] = []
+        self._operation_ran_last = False
 
-    def step_started(self) -> None:
-        """Note that a new step is answering, which has written nothing yet and had no tool fail."""
+    def step_started(self, agent: str | None) -> None:
+        """Note that ``agent`` starts a new step, which has written nothing yet and had no tool fail."""
+        self._operation_ran_last = agent == OPERATOR_AGENT_NAME
         self._agent_wrote_last = False
         self._tool_failed = False
         self._held_agent_text = []
+
+    def operation_rejected(self) -> None:
+        """Note that an operation the planner asked for never ran, which the planner tells the author."""
+        self._agent_wrote_last = False
 
     def tool_failed(self) -> None:
         """Note that a tool call of the step that is answering failed."""
@@ -302,11 +310,15 @@ class _TurnText:
         self._last_shown_message, self._shown = message_id, True
         return [*gap, *texts]
 
-    def hold_planner_text(self, message: BaseMessage) -> None:
-        """Hold the text of the planner's ``message``, noting whether it calls a tool."""
+    def planner_text(self, message: BaseMessage) -> list[str]:
+        """The text of the planner's ``message`` to show now: all of it after an operation, and otherwise
+        none, the text being held with a note of whether the message calls a tool."""
+        if self._operation_ran_last:
+            return self._show(message.id, _text_blocks(message.content))
         if getattr(message, "tool_call_chunks", None) or getattr(message, "tool_calls", None):
             self._calling.add(message.id)
         self._held.setdefault(message.id, []).extend(_text_blocks(message.content))
+        return []
 
     def unsent(self) -> list[str]:
         """The planner's held text from its messages that called no tool, or nothing when an agent wrote last."""
@@ -430,13 +442,13 @@ async def _turn_events(
     one step after another when the author asked for several, answers the message itself, or
     refuses it. Yields ``routed`` with a :class:`TurnRouting` when a step (a hand-off or an
     operation) starts or the refusal returns (a call its tool rejected never does either),
-    ``token`` for the text the author sees (the agents' replies, the planner's own when
-    no agent wrote last, and a notice that ends the turn; the text of the operator and of an agent
-    with a ``structured_reply`` never shows, only their tool calls, and neither does what an agent
-    writes before trying again after a failed tool call), ``tool_start`` and ``tool_end`` for each
-    tool call, ``limit_reached`` when an agent's calls were blocked, ``usage`` with the tokens of
-    each model reply, the planner's, the agents' and the operator's, and ``final`` with each closing
-    model reply. A step or a call reported as
+    ``token`` for the text the author sees (the agents' replies, what the planner says after an
+    operation, the planner's other text when no agent wrote last, and a notice that ends the turn; the
+    text of the operator and of an agent with a ``structured_reply`` never shows, only their tool
+    calls, and neither does what an agent writes before trying again after a failed tool call),
+    ``tool_start`` and ``tool_end`` for each tool call, ``limit_reached`` when an agent's calls were
+    blocked, ``usage`` with the tokens of each model reply, the planner's, the agents' and the
+    operator's, and ``final`` with each closing model reply. A step or a call reported as
     started runs only once this generator is asked for its next event. A refusal arrives as the
     refusal sentence. Yields ``plan`` with the steps of a plan the turn makes, and ``plan_step``
     with the number of each step of that plan or of ``planner_setup``'s existing plan, when the step
@@ -455,7 +467,7 @@ async def _turn_events(
             if mode == "custom":
                 go = chunk.pop("go", None)
                 if chunk["type"] == TurnEventType.ROUTED:
-                    turn_text.step_started()
+                    turn_text.step_started(chunk["routing"].agent)
                 elif chunk["type"] == TurnEventType.TOOL_END and chunk["failure"] is not None:
                     turn_text.tool_failed()
                 yield chunk
@@ -483,15 +495,18 @@ async def _turn_events(
                         yield {"type": TurnEventType.TOKEN, "content": token}
                 elif isinstance(message, ToolMessage):
                     # An agent's reply has already streamed; a plan is shown apart from the text, and only
-                    # a refusal is new text.
+                    # a refusal is new text. A rejected operation leaves the planner to say it wasn't done.
                     if message.name == SHOW_PLAN_TOOL_NAME and message.status != "error":
                         yield {"type": TurnEventType.PLAN, "steps": message.artifact}
                     elif message.name == REFUSAL_TOOL_NAME and message.status != "error":
                         yield {"type": TurnEventType.ROUTED, "routing": TurnRouting(refused=True)}
                         for token in turn_text.notice_text(message):
                             yield {"type": TurnEventType.TOKEN, "content": token}
+                    elif message.name == OPERATOR_AGENT_NAME and message.status == "error":
+                        turn_text.operation_rejected()
                 elif metadata.get("langgraph_node") == "model":
-                    turn_text.hold_planner_text(message)
+                    for token in turn_text.planner_text(message):
+                        yield {"type": TurnEventType.TOKEN, "content": token}
                 else:
                     # What a planner hook wrote to end the turn, not the planner's model.
                     for token in turn_text.notice_text(message):
