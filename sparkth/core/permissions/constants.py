@@ -6,9 +6,6 @@ SCOPE_PATH_SEPARATOR = "/"
 # Joins a scope name and an object id inside one scope path segment (course:123).
 SCOPE_SEGMENT_SEPARATOR = ":"
 
-# The role that can do everything, shipped with Sparkth.
-ADMIN_ROLE = "admin"
-
 # The role every account holds at its own user scope.
 SPARKTH_USER_ROLE = "sparkth_user"
 

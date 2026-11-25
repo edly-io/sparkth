@@ -319,14 +319,3 @@ msgstr "L'entrée existe déjà : {value}"
 msgid "Whitelist entry not found: {entry_id}"
 msgstr "Entrée de la liste blanche introuvable : {entry_id}"
 
-#: sparkth/core/permissions/roles.py
-msgid "Admin"
-msgstr "Administrateur"
-
-#: sparkth/core/permissions/roles.py
-msgid "Sparkth user"
-msgstr "Utilisateur Sparkth"
-
-#: sparkth/core/permissions/roles.py
-msgid "Plugin user"
-msgstr "Utilisateur des plugins"

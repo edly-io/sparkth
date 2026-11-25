@@ -8,8 +8,7 @@ global grant still satisfies them via the scope cascade. Listing returns the rol
 ``role.read`` at (every role for a global grant); creating a role stays global. Permissions and
 scopes themselves are NOT manageable through this API — they are declared in code (platform
 defaults or plugin hooks); this API only assigns the already-registered permissions to roles. Every
-role response gives the role's readable name, says whether every account is given the role, and how many
-people and groups hold it.
+role response says whether every account is given the role, and how many people and groups hold it.
 """
 
 from fastapi import APIRouter, Depends, status
@@ -42,7 +41,6 @@ def _build_role_response(role: Role, permissions: list[str], assignees: RoleAssi
     return RoleResponse(
         id=_role_id(role),
         name=role.name,
-        display_name=role_engine.get_role_display_name(role),
         description=role.description,
         permissions=permissions,
         is_builtin=role.is_builtin,
@@ -67,8 +65,8 @@ async def list_roles(
 ) -> list[RoleResponse]:
     """List the roles the caller may read.
 
-    Returns a list of RoleResponse (id, name, display_name, description, permissions, is_builtin,
-    is_default, user_count, group_count).
+    Returns a list of RoleResponse (id, name, description, permissions, is_builtin, is_default,
+    user_count, group_count).
 
     Grants and assignee counts are fetched for every listed role in batched queries.
     """

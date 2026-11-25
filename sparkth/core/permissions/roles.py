@@ -7,17 +7,13 @@ change itself (``delete_role`` also records ``group.role_revoked`` for the group
 removes); an idempotent call that changes nothing records nothing. A role shipped with Sparkth
 cannot be changed or deleted; assigning and revoking it is unaffected. Each role's assignees are
 counted for the role-management API: the people who hold it directly and the groups that hold it.
-A role shipped with Sparkth is shown by a readable name in the request's language; any other role
-is shown by the name it was given.
 """
 
 from sqlalchemy import delete, func
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.i18n import gettext, gettext_noop
 from sparkth.core.permissions import PERMISSIONS, get_permission
-from sparkth.core.permissions.constants import ADMIN_ROLE, PLUGIN_USER_ROLE, SPARKTH_USER_ROLE
 from sparkth.core.permissions.exceptions import (
     RoleAlreadyExists,
     RoleIsBuiltin,
@@ -255,24 +251,6 @@ async def get_role_assignee_counts(role_ids: list[int], session: AsyncSession) -
         role_id: RoleAssigneeCounts(users_by_role.get(role_id, 0), groups_by_role.get(role_id, 0))
         for role_id in role_ids
     }
-
-
-# The readable name of each role shipped with Sparkth, translated per request.
-_BUILTIN_ROLE_DISPLAY_NAMES = {
-    ADMIN_ROLE: gettext_noop("Admin"),
-    SPARKTH_USER_ROLE: gettext_noop("Sparkth user"),
-    PLUGIN_USER_ROLE: gettext_noop("Plugin user"),
-}
-
-
-def get_role_display_name(role: Role) -> str:
-    """Return the name people read for ``role``, in the request's language.
-
-    A role shipped with Sparkth gets a readable name, since its stored name is an identifier. Any
-    other role is shown by the name it was given.
-    """
-    display_name = _BUILTIN_ROLE_DISPLAY_NAMES.get(role.name) if role.is_builtin else None
-    return gettext(display_name) if display_name else role.name
 
 
 async def get_role_permissions(role_id: int, session: AsyncSession) -> list[str]:

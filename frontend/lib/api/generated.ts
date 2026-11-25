@@ -1110,8 +1110,8 @@ export interface paths {
          * List Roles
          * @description List the roles the caller may read.
          *
-         *     Returns a list of RoleResponse (id, name, display_name, description, permissions, is_builtin,
-         *     is_default, user_count, group_count).
+         *     Returns a list of RoleResponse (id, name, description, permissions, is_builtin, is_default,
+         *     user_count, group_count).
          *
          *     Grants and assignee counts are fetched for every listed role in batched queries.
          */
@@ -2910,11 +2910,6 @@ export interface components {
         RoleResponse: {
             /** Description */
             description: string | null;
-            /**
-             * Display Name
-             * @description The role's name as people read it, in the request's language.
-             */
-            display_name: string;
             /**
              * Group Count
              * @description How many groups hold this role, at any scope.

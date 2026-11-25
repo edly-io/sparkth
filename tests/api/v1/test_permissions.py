@@ -16,13 +16,12 @@ from sparkth.api.v1.permissions.routes.roles import _build_role_response
 from sparkth.core.db import get_engine
 from sparkth.core.models.user import User
 from sparkth.core.permissions import PERMISSIONS, Permission
-from sparkth.core.permissions.constants import ADMIN_ROLE, PLUGIN_USER_ROLE, SPARKTH_USER_ROLE
+from sparkth.core.permissions.constants import PLUGIN_USER_ROLE, SPARKTH_USER_ROLE
 from sparkth.core.permissions.models import Role, RoleAssignment, RolePermission
 from sparkth.core.permissions.types import RoleAssigneeCounts
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.permissions.scopes import GLOBAL
 from sparkth.lib.testing import (
-    AddTranslation,
     add_role_assignment,
     assign_through_group,
     grant_permissions,
@@ -480,25 +479,14 @@ async def test_changing_a_builtin_role_returns_409(
     )
 
 
-async def _get_listed_role(client: AsyncClient, name: str, headers: dict[str, str] | None = None) -> dict[str, object]:
-    """Return the listed role named ``name``."""
-    response = await client.get("/api/v1/permissions/roles", headers=headers)
-    return cast(dict[str, object], next(role for role in response.json() if role["name"] == name))
-
-
-async def _add_builtin_role(session: AsyncSession, name: str) -> None:
-    """Add the built-in role ``name`` unless the test database already has it."""
-    if (await session.exec(select(Role).where(Role.name == name))).first() is None:
-        session.add(Role(name=name, description="Internal note", is_builtin=True))
-        await session.commit()
-
-
 async def test_role_response_says_whether_every_account_gets_the_role(
     client: AsyncClient, session: AsyncSession
 ) -> None:
     _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
-    for name in (SPARKTH_USER_ROLE, PLUGIN_USER_ROLE, ADMIN_ROLE):
-        await _add_builtin_role(session, name)
+    existing = set((await session.exec(select(Role.name))).all())
+    for name in {SPARKTH_USER_ROLE, PLUGIN_USER_ROLE, "admin"} - existing:
+        session.add(Role(name=name, is_builtin=True))
+    await session.commit()
     custom = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()
 
     listed = {role["name"]: role["is_default"] for role in (await client.get("/api/v1/permissions/roles")).json()}
@@ -506,7 +494,7 @@ async def test_role_response_says_whether_every_account_gets_the_role(
     assert custom["is_default"] is False
     assert listed[SPARKTH_USER_ROLE] is True
     assert listed[PLUGIN_USER_ROLE] is True
-    assert listed[ADMIN_ROLE] is False
+    assert listed["admin"] is False
     assert listed["grader"] is False
 
 
@@ -566,36 +554,3 @@ async def test_list_roles_runs_as_many_queries_for_many_held_roles_as_for_one(
         await add_held_role()
 
     assert await _count_list_roles_statements(client) == with_one
-
-
-async def test_a_builtin_role_is_shown_by_a_readable_name_with_its_stored_description(
-    client: AsyncClient, session: AsyncSession
-) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
-    await _add_builtin_role(session, SPARKTH_USER_ROLE)
-    stored = (await session.exec(select(Role).where(Role.name == SPARKTH_USER_ROLE))).one()
-
-    listed = await _get_listed_role(client, SPARKTH_USER_ROLE)
-
-    assert (listed["display_name"], listed["description"]) == ("Sparkth user", stored.description)
-
-
-async def test_a_custom_role_is_shown_as_it_was_typed(client: AsyncClient, session: AsyncSession) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
-    await client.post("/api/v1/permissions/roles", json={"name": "grader", "description": "Marks submissions."})
-
-    listed = await _get_listed_role(client, "grader")
-
-    assert (listed["display_name"], listed["description"]) == ("grader", "Marks submissions.")
-
-
-async def test_a_builtin_roles_display_name_follows_the_request_language(
-    client: AsyncClient, session: AsyncSession, translation_catalog: AddTranslation
-) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
-    await _add_builtin_role(session, ADMIN_ROLE)
-    translation_catalog("Admin", "Administrador")
-
-    listed = await _get_listed_role(client, ADMIN_ROLE, {"Accept-Language": "es"})
-
-    assert listed["display_name"] == "Administrador"
