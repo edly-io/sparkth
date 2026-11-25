@@ -33,6 +33,7 @@ from sparkth.lib.testing import AddTranslation
 from sparkth.plugins.compose.constants import REFUSAL_MESSAGE
 from sparkth.plugins.compose.models import Conversation
 from sparkth.plugins.compose.prompt import render_system_prompt
+from sparkth.plugins.compose.tests.conftest import STUB_AGENT
 from sparkth.plugins.compose.tests.helpers import (
     answering_model,
     planning,
@@ -155,7 +156,7 @@ class TestRefusalInTheSystemPrompt:
         source even under a non-default locale — not the locale-rendered string."""
         translation_catalog(REFUSAL_MESSAGE, SPANISH)
         with locale_context("es"):
-            prompt = render_system_prompt([])
+            prompt = render_system_prompt(STUB_AGENT)
         assert REFUSAL_MESSAGE in prompt
         assert SPANISH not in prompt
 
