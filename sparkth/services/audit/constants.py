@@ -3,6 +3,9 @@
 DEFAULT_PAGE_SIZE = 50
 MAX_PAGE_SIZE = 200
 
+# What an actor id filter must match: a user id, a positive whole number.
+ACTOR_ID_PATTERN = r"^[1-9][0-9]*$"
+
 # Rows fetched per round trip while streaming an export, so a multi-year export
 # never holds the whole trail in memory.
 EXPORT_BATCH_SIZE = 500
