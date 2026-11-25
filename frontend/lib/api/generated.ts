@@ -2799,10 +2799,15 @@ export interface components {
          * @enum {string}
          */
         PermissionRisk: "delegates_access" | "private_data" | "deletes";
-        /** PersistedToolCall */
+        /**
+         * PersistedToolCall
+         * @description A tool call a stored reply made: the tool's name, and whether the call was done or failed.
+         */
         PersistedToolCall: {
             /** Name */
             name: string;
+            /** @default done */
+            status: components["schemas"]["ToolExecutionStatus"];
         };
         /**
          * PlanSnapshot
@@ -3103,6 +3108,12 @@ export interface components {
             /** Name */
             name: string;
         };
+        /**
+         * ToolExecutionStatus
+         * @description Where a tool call stands, as reported on a streamed reply or kept with a stored one.
+         * @enum {string}
+         */
+        ToolExecutionStatus: "running" | "done" | "failed";
         /**
          * UpdatePluginRequest
          * @description Request model for turning a plugin on or off for the calling user.

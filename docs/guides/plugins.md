@@ -796,7 +796,8 @@ does not hold `plugin.use` at (a `global` grant covers every plugin).
   analytics under the tool's category, or under the agent's name when the tool has none.
 - **Operations.** The tools of plugins that register no agent, such as the LMS plugins', are
   Compose's operations. The planner runs them through its operator, on the user's model, and the
-  author sees each tool call but not the operator's text. What an operation returns goes back to
+  author sees each tool call, marked as failed when it failed, but not the operator's text. What an
+  operation returns goes back to
   the planner, which tells the author or hands the rest of the request to an agent, which reads
   it too. With no such plugin enabled there are no operations.
 - **Steps.** A step is one piece of work the planner gives to one agent or to its operator. It
