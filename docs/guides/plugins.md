@@ -823,12 +823,14 @@ does not hold `plugin.use` at (a `global` grant covers every plugin).
   something or the turn was stopped or failed, is kept with the reply until its last step has run.
   A later message carries it on from the step it is at: that step again or the one after it when it
   has run, since only the planner can tell whether its agent finished, and that step itself when it
-  hasn't. An operation that has run is never carried out again. A message that runs none of its
-  steps leaves the plan as it was, and no message carries it on while a step left is for an agent or
-  operator that is no longer enabled. An operation of a plan carried on this way is always asked for
-  its task as the plan states it. A message that reaches its limit as the planner asks for the plan's
-  next step ends with a note Compose writes, not the planner: the tasks done, the tasks left, and the
-  choices to continue or to stop here. The plan then waits at that step.
+  hasn't. An operation that has run is never carried out again. A message that runs to its end
+  without carrying the plan on, such as one about something else or one asking to stop, ends the
+  plan; one that was stopped or failed before it carried the plan on leaves it as it was. No message
+  carries the plan on while a step left is for an agent or operator that is no longer enabled. An
+  operation of a plan carried on this way is always asked for its task as the plan states it. A
+  message that reaches its limit as the planner asks for the plan's next step ends with a note
+  Compose writes, not the planner: the tasks done, the tasks left, and the choices to continue or to
+  stop here. The plan then waits at that step.
 - **Replies.** Each agent's reply streams as it is written, and a later step reads what earlier steps
   returned. Once a tool call of a step has failed, what its agent writes before calling a tool again
   never shows, and the rest of its reply shows a message at a time. An agent's question or choices

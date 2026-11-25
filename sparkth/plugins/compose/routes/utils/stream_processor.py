@@ -612,7 +612,9 @@ class ComposeStreamProcessor:
                 stopped=stopped,
                 routing=turn_activity.routing,
                 agents=turn_activity.agents,
-                plan=turn_activity.get_plan_in_progress(),
+                plan=(
+                    turn_activity.get_plan_left_when_cut_short() if stopped else turn_activity.get_plan_in_progress()
+                ),
                 plan_snapshot=turn_activity.get_plan_snapshot(),
             )
         except LLM_PROVIDER_API_ERRORS as e:
@@ -622,7 +624,7 @@ class ComposeStreamProcessor:
                 confirmed_rag_sections,
                 completed_tool_calls,
                 turn_activity.agents,
-                turn_activity.get_plan_in_progress(),
+                turn_activity.get_plan_left_when_cut_short(),
                 turn_activity.get_plan_snapshot(),
                 bg_session,
             )
@@ -637,7 +639,7 @@ class ComposeStreamProcessor:
                 confirmed_rag_sections,
                 completed_tool_calls,
                 turn_activity.agents,
-                turn_activity.get_plan_in_progress(),
+                turn_activity.get_plan_left_when_cut_short(),
                 turn_activity.get_plan_snapshot(),
                 bg_session,
             )
