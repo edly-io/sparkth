@@ -21,9 +21,13 @@ test.describe("access & permissions", () => {
       {
         id: 1,
         name: "Course editor",
+        display_name: "Course editor",
         description: "Edits courses",
         permissions: [],
         is_builtin: false,
+        is_default: false,
+        user_count: 0,
+        group_count: 0,
       },
     ]);
     await stubGroups(page, [{ id: 2, name: "Science faculty", description: null }]);
