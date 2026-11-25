@@ -702,6 +702,51 @@ async def test_the_planner_tells_the_author_what_an_operation_after_an_agent_did
 
 @pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
 @pytest.mark.usefixtures("lms_tools")
+async def test_the_planner_tells_the_author_what_an_operation_before_an_agent_did(
+    stream: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """What the planner says about an operation shows though the same reply calls the next step."""
+    provider = _provider(
+        ScriptedChatModel(messages=iter([_calls(1), AIMessage("Recorded."), AIMessage("Here is the lesson.")])),
+        monkeypatch,
+    )
+    planner = _planner_replying(
+        _calling(
+            SHOW_PLAN_TOOL_NAME, {"steps": [_step(OPERATOR_AGENT_NAME, "Record"), _step(STUB_AGENT.name, "Write")]}
+        ),
+        _calling(OPERATOR_AGENT_NAME, {"request": "Record step 1", "step": 1}, "op"),
+        AIMessage(
+            "Step 1 is recorded.",
+            tool_calls=[{"name": STUB_AGENT.name, "args": {"request": "Write the lesson", "step": 2}, "id": "c2"}],
+        ),
+    )
+
+    reply = await _reply(planner, provider, stream, [_record_tool([])])
+
+    assert reply == "Step 1 is recorded.\n\nHere is the lesson."
+
+
+@pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
+@pytest.mark.usefixtures("lms_tools")
+async def test_the_planner_tells_the_author_about_an_operation_that_was_rejected_after_an_agent_wrote(
+    stream: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An operation outside a plan never runs after another step, and the author is told it wasn't done."""
+    provider = _provider(ScriptedChatModel(messages=iter([AIMessage("Here is the lesson.")])), monkeypatch)
+    planner = _planner_replying(
+        _calling(STUB_AGENT.name, {"request": "Write the lesson"}),
+        _calling(OPERATOR_AGENT_NAME, {"request": "Record step 1"}, "op"),
+        AIMessage("I can record step 1 next. Just ask."),
+    )
+    runs: list[str] = []
+
+    reply = await _reply(planner, provider, stream, [_record_tool(runs)])
+
+    assert (reply, runs) == ("Here is the lesson.\n\nI can record step 1 next. Just ask.", [])
+
+
+@pytest.mark.parametrize("stream", [False, True], ids=["non_streaming", "streaming"])
+@pytest.mark.usefixtures("lms_tools")
 async def test_the_limit_notice_shows_even_after_an_agent_wrote(stream: bool, monkeypatch: pytest.MonkeyPatch) -> None:
     done = [AIMessage("Done.") for _ in range(MAX_STEPS_PER_TURN - 1)]
     provider = _provider(ScriptedChatModel(messages=iter([*done, AIMessage("Here is the lesson.")])), monkeypatch)
