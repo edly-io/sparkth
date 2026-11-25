@@ -37,6 +37,19 @@
         "submit": "Create",
         "nameTaken": "A role with this name already exists.",
         "failed": "Couldn't create the role. Try again."
+      },
+      "menu": {
+        "label": "More actions for {name}",
+        "delete": "Delete role"
+      },
+      "delete": {
+        "title": "Delete {name}?",
+        "holders": "{holders} will lose this role. This can't be undone.",
+        "nobody": "No one holds this role. This can't be undone.",
+        "confirm": "Delete",
+        "pending": "Deleting…",
+        "cancel": "Cancel",
+        "failed": "Couldn't delete the role. Try again."
       }
     },
     "groups": {

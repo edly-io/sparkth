@@ -55,3 +55,13 @@ export async function createRole(token: string, role: RoleCreate): Promise<RoleR
     api.POST("/api/v1/permissions/roles", { body: role, headers: bearer(token) }),
   );
 }
+
+/** Deletes a role, taking it away from everyone who holds it. */
+export async function deleteRole(token: string, roleId: number): Promise<void> {
+  await call(() =>
+    api.DELETE("/api/v1/permissions/roles/{role_id}", {
+      params: { path: { role_id: roleId } },
+      headers: bearer(token),
+    }),
+  );
+}

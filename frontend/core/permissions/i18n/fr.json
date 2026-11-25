@@ -37,6 +37,19 @@
         "submit": "Créer",
         "nameTaken": "Un rôle porte déjà ce nom.",
         "failed": "Impossible de créer le rôle. Réessayez."
+      },
+      "menu": {
+        "label": "Plus d'actions pour {name}",
+        "delete": "Supprimer le rôle"
+      },
+      "delete": {
+        "title": "Supprimer {name} ?",
+        "holders": "{holders} perdront ce rôle. Cette action est irréversible.",
+        "nobody": "Personne n'a ce rôle. Cette action est irréversible.",
+        "confirm": "Supprimer",
+        "pending": "Suppression…",
+        "cancel": "Annuler",
+        "failed": "Impossible de supprimer le rôle. Réessayez."
       }
     },
     "groups": {

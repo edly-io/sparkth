@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderWithIntl } from "@/tests/intl";
 import { RoleCard } from "@/core/permissions/components/ui/RoleCard";
 import type { RoleResponse } from "@/core/permissions/types";
@@ -80,5 +81,21 @@ describe("RoleCard", () => {
     renderWithIntl(<RoleCard role={role(counts)} />);
 
     expect(screen.getByText(text, { selector: "strong" })).toBeInTheDocument();
+  });
+
+  it("offers Delete in its menu when the role can be deleted", async () => {
+    const onDelete = vi.fn();
+    renderWithIntl(<RoleCard role={role({})} onDelete={onDelete} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "More actions for Grader" }));
+    await userEvent.click(screen.getByRole("button", { name: "Delete role" }));
+
+    expect(onDelete).toHaveBeenCalled();
+  });
+
+  it("has no menu when nothing can be done with the role", () => {
+    renderWithIntl(<RoleCard role={role({})} />);
+
+    expect(screen.queryByRole("button", { name: /More actions/ })).not.toBeInTheDocument();
   });
 });

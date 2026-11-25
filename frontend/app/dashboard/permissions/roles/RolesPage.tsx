@@ -6,28 +6,46 @@ import { Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/core/auth/hooks";
 import { Button } from "@/core/components/ui/Button";
-import { createRole, listRoles } from "@/core/permissions/client";
-import { usePermissionCheck } from "@/core/permissions/hooks";
+import { createRole, deleteRole, listRoles } from "@/core/permissions/client";
+import { usePermissionChecks } from "@/core/permissions/hooks";
+import type { PermissionCheckQuery } from "@/core/permissions/client";
 import { CreateRoleDialog } from "@/core/permissions/components/ui/CreateRoleDialog";
-import type { RoleCreate } from "@/core/permissions/types";
+import { DeleteRoleDialog } from "@/core/permissions/components/ui/DeleteRoleDialog";
+import type { RoleCreate, RoleResponse } from "@/core/permissions/types";
 import { ListLoader } from "@/core/permissions/components/ui/ListLoader";
 import { RoleCard } from "@/core/permissions/components/ui/RoleCard";
 
 /**
  * The Roles tab: a card for each role the signed-in user may read, under a switch between the list
- * and a permission comparison that is not available yet, and a Create role button for those who may
- * create roles.
+ * and a permission comparison that is not available yet. Those who may create roles get a Create
+ * role button, and those who may delete them a Delete action on each custom role.
  */
+/** What the page asks before showing its actions, read by position as create, delete. */
+const ROLE_ACTION_CHECKS: PermissionCheckQuery[] = [
+  { permission: "role.create", scope: "global" },
+  { permission: "role.delete", scope: "role" },
+];
+
 export default function RolesPage() {
   const t = useTranslations("permissions.roles");
   const { token } = useAuth();
-  const mayCreate = usePermissionCheck(token, "role.create", { scope: "global" }) === "allowed";
+  const [createAccess, deleteAccess] = usePermissionChecks(token, ROLE_ACTION_CHECKS);
+  const mayCreate = createAccess === "allowed";
+  const mayDelete = deleteAccess === "allowed";
   const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState<RoleResponse | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
   const create = async (role: RoleCreate) => {
     if (!token) throw new Error("not signed in");
     await createRole(token, role);
+    setReloadKey((key) => key + 1);
+  };
+
+  const confirmDelete = async (role: RoleResponse) => {
+    if (!token) throw new Error("not signed in");
+    await deleteRole(token, role.id);
+    setDeleting(null);
     setReloadKey((key) => key + 1);
   };
 
@@ -62,6 +80,13 @@ export default function RolesPage() {
         )}
       </div>
       <CreateRoleDialog open={creating} onCreate={create} onClose={() => setCreating(false)} />
+      {deleting && (
+        <DeleteRoleDialog
+          role={deleting}
+          onConfirm={() => confirmDelete(deleting)}
+          onClose={() => setDeleting(null)}
+        />
+      )}
       <ListLoader
         load={listRoles}
         empty={t("empty")}
@@ -74,7 +99,10 @@ export default function RolesPage() {
             <ul aria-label={t("label")} className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {roles.map((role) => (
                 <li key={role.id}>
-                  <RoleCard role={role} />
+                  <RoleCard
+                    role={role}
+                    onDelete={mayDelete && !role.is_builtin ? () => setDeleting(role) : undefined}
+                  />
                 </li>
               ))}
             </ul>
