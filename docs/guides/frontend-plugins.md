@@ -545,9 +545,10 @@ The app loads that `src/index.ts` like any other plugin's.
 
 **Field controls.** A backend field picks its control with a `widget` hint (`sparkth/core/plugins/widgets.py`), and a
 field with no hint gets a control from its type. Core ships controls for text, URLs, passwords, numbers, text areas,
-checkboxes and LLM configs. When a field needs a control core doesn't ship, the plugin ships its own config modal that
-passes the control to core's modal under the hint's name. The control receives `ConfigWidgetProps`
-(`@/lib/settings/slots`):
+checkboxes and LLM configs. The text, URL and password controls ask the browser and password managers not to fill
+them, so a saved Sparkth login is not offered for a plugin's credentials. When a field needs a control core doesn't
+ship, the plugin ships its own config modal that passes the control to core's modal under the hint's name. The
+control receives `ConfigWidgetProps` (`@/lib/settings/slots`):
 
 ```tsx
 import PluginConfigModal from "@/lib/components/settings/ConfigModal";
@@ -562,7 +563,8 @@ export default function ExampleConfigModal(props: ConfigModalProps) {
 ```
 
 The plugin's row then loads that modal from `src/components/ui/ExampleConfigModal.tsx`. Core's modal renders a
-field with the plugin's control for its hint, then with a built-in control, and falls back to a text input.
+field with the plugin's control for its hint, then with a built-in control, and falls back to a text input. A control
+the plugin ships is not covered by the autofill opt-out.
 
 ## Plugin Loading Flow (Summary)
 
