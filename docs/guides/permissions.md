@@ -259,7 +259,7 @@ CLI commands are attributed to the `cli` system actor.
 | Event | Recorded by | Target | Snapshot |
 |---|---|---|---|
 | `role.created`, `role.updated`, `role.deleted` | `create_role`, `update_role`, `delete_role` | `role` | name and description (before and after for an update) |
-| `role.permission_granted`, `role.permission_revoked` | `add_role_permission`, `remove_role_permission`, `set_role_permissions` (one per permission it adds or removes) | `role` | the permission |
+| `role.permission_granted`, `role.permission_revoked` | `add_role_permission`, `remove_role_permission`, `set_role_permissions` (one event for each permission granted or revoked) | `role` | the permission |
 | `role.assigned`, `role.unassigned` | `assign_role`, `revoke_role`, `delete_role`, `delete_group` | `user` | role, scope, and scope object id |
 | `group.created`, `group.updated`, `group.deleted` | `create_group`, `update_group`, `delete_group` | `group` | name and description (before and after for an update) |
 | `group.member_added`, `group.member_removed` | `add_group_member`, `remove_group_member`, `delete_group` | `group` | the member's user id |
