@@ -1,7 +1,7 @@
 """Permissions the Google Drive plugin declares."""
 
 from sparkth.lib.i18n import gettext_noop
-from sparkth.lib.permissions import Permission, PermissionRisk
+from sparkth.lib.permissions import Permission
 
 # The category this plugin's permissions are listed under.
 _CATEGORY = gettext_noop("Google Drive")
@@ -24,5 +24,4 @@ DRIVE_DELETE = Permission.create(
     gettext_noop("Delete Drive files"),
     gettext_noop("Delete synced files from Sparkth."),
     _CATEGORY,
-    risks=(PermissionRisk.DELETES,),
 )

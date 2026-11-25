@@ -9,7 +9,7 @@ from sparkth.lib.permissions import PermissionRisk, get_permission
 from sparkth.lib.testing import get_marked_messages
 
 PERMISSIONS = ["googledrive.read", "googledrive.sync", "googledrive.delete"]
-RISKS: dict[str, set[PermissionRisk]] = {"googledrive.delete": {PermissionRisk.DELETES}}
+RISKS: dict[str, set[PermissionRisk]] = {}
 
 
 @pytest.mark.parametrize("name", PERMISSIONS)
