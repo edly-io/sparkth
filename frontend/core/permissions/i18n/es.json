@@ -50,6 +50,12 @@
         "pending": "Eliminando…",
         "cancel": "Cancelar",
         "failed": "No se pudo eliminar el rol. Inténtalo de nuevo."
+      },
+      "risks": {
+        "label": "Riesgos",
+        "delegates_access": "Puede dar acceso a otros",
+        "private_data": "Ve datos privados",
+        "deletes": "Puede eliminar"
       }
     },
     "groups": {

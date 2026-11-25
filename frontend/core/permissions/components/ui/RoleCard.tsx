@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Ellipsis, Lock, Trash2, Zap } from "lucide-react";
+import { Ellipsis, Lock, Trash2, TriangleAlert, Zap } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Popover, PopoverContent, PopoverTrigger } from "@/core/components/ui/Popover";
 import { formatRoleName, getRoleHolders } from "@/core/permissions/roleDisplay";
@@ -11,8 +11,8 @@ const BADGE = "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs f
 
 /**
  * One role in the Roles list: its name and description, a badge saying whether it ships with
- * Sparkth, is given to everyone or was made here, how many permissions it holds and who holds it.
- * With `onDelete`, a menu on the card offers to delete the role.
+ * Sparkth, is given to everyone or was made here, the risks of its permissions, how many permissions
+ * it holds and who holds it. With `onDelete`, a menu on the card offers to delete the role.
  */
 export function RoleCard({ role, onDelete }: { role: RoleResponse; onDelete?: () => void }) {
   const t = useTranslations("permissions.roles");
@@ -49,6 +49,19 @@ export function RoleCard({ role, onDelete }: { role: RoleResponse; onDelete?: ()
       </div>
       {role.description && (
         <p className="flex-1 text-sm text-muted-foreground">{role.description}</p>
+      )}
+      {role.risks.length > 0 && (
+        <ul aria-label={t("risks.label")} className="flex flex-wrap gap-1.5">
+          {role.risks.map((risk) => (
+            <li
+              key={risk}
+              className="inline-flex items-center gap-1 rounded-md border border-warning-100 bg-warning-50 px-2 py-0.5 text-xs font-medium text-warning-700 dark:border-warning-700/40 dark:bg-warning-700/15 dark:text-warning-500"
+            >
+              <TriangleAlert className="h-3 w-3" aria-hidden="true" />
+              {t(`risks.${risk}`)}
+            </li>
+          ))}
+        </ul>
       )}
       <div className="mt-auto flex flex-wrap gap-x-6 gap-y-1 border-t border-border pt-3 text-[13px] text-muted-foreground">
         <span>{t.rich("permissionCount", { count: role.permissions.length, strong: bold })}</span>

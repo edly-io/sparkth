@@ -50,6 +50,12 @@
         "pending": "Suppression…",
         "cancel": "Annuler",
         "failed": "Impossible de supprimer le rôle. Réessayez."
+      },
+      "risks": {
+        "label": "Risques",
+        "delegates_access": "Peut donner des accès à d'autres",
+        "private_data": "Voit des données privées",
+        "deletes": "Peut supprimer"
       }
     },
     "groups": {
