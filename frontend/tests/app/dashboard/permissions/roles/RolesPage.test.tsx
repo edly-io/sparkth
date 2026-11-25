@@ -13,7 +13,6 @@ function role(id: number, name: string, overrides: Partial<RoleResponse> = {}): 
   return {
     id,
     name,
-    display_name: name,
     description: null,
     permissions: [],
     is_builtin: false,
@@ -25,8 +24,8 @@ function role(id: number, name: string, overrides: Partial<RoleResponse> = {}): 
 }
 
 const ROLES = [
-  role(1, "admin", { display_name: "Admin", is_builtin: true }),
-  role(2, "sparkth_user", { display_name: "Sparkth user", is_builtin: true, is_default: true }),
+  role(1, "admin", { is_builtin: true }),
+  role(2, "sparkth_user", { is_builtin: true, is_default: true }),
   role(3, "Course author"),
 ];
 

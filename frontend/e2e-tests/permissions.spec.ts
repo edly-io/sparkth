@@ -21,7 +21,6 @@ test.describe("access & permissions", () => {
       {
         id: 1,
         name: "Course editor",
-        display_name: "Course editor",
         description: "Edits courses",
         permissions: [],
         is_builtin: false,

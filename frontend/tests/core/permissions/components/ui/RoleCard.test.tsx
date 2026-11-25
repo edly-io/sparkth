@@ -8,7 +8,6 @@ function role(overrides: Partial<RoleResponse>): RoleResponse {
   return {
     id: 1,
     name: "grader",
-    display_name: "grader",
     description: "Marks submissions.",
     permissions: ["assignment.grade"],
     is_builtin: false,
@@ -20,21 +19,20 @@ function role(overrides: Partial<RoleResponse>): RoleResponse {
 }
 
 describe("RoleCard", () => {
-  it("shows a custom role's own name and description with a Custom badge", () => {
+  it("shows a custom role's name, formatted to read, and description with a Custom badge", () => {
     renderWithIntl(<RoleCard role={role({})} />);
 
-    expect(screen.getByRole("heading", { name: "grader" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Grader" })).toBeInTheDocument();
     expect(screen.getByText("Marks submissions.")).toBeInTheDocument();
     expect(screen.getByText("Custom")).toBeInTheDocument();
     expect(screen.queryByText("Built-in")).not.toBeInTheDocument();
   });
 
-  it("shows the name and description the API gives a built-in role, with a Built-in badge", () => {
+  it("shows a built-in role's name formatted to read, its description and a Built-in badge", () => {
     renderWithIntl(
       <RoleCard
         role={role({
           name: "admin",
-          display_name: "Admin",
           description: "Can do everything in Sparkth.",
           is_builtin: true,
         })}
@@ -52,7 +50,6 @@ describe("RoleCard", () => {
       <RoleCard
         role={role({
           name: "sparkth_user",
-          display_name: "Sparkth user",
           is_builtin: true,
           is_default: true,
           user_count: 40,

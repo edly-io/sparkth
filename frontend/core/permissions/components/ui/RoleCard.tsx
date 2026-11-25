@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { Lock, Zap } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { formatRoleName } from "@/core/permissions/roleName";
 import type { RoleResponse } from "@/core/permissions/types";
 
 const BADGE = "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium";
@@ -17,7 +18,7 @@ export function RoleCard({ role }: { role: RoleResponse }) {
   return (
     <article className="flex h-full flex-col gap-3 rounded-xl border border-border bg-card p-5 shadow-sm">
       <div>
-        <h2 className="text-base font-semibold text-foreground">{role.display_name}</h2>
+        <h2 className="text-base font-semibold text-foreground">{formatRoleName(role.name)}</h2>
         <div className="mt-1.5 flex flex-wrap gap-1.5">
           {role.is_builtin ? (
             <span
