@@ -68,21 +68,21 @@ function RoleMenu({ name, onDelete }: { name: string; onDelete: () => void }) {
         <button
           type="button"
           aria-label={t("label", { name })}
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-surface-variant"
+          className="-mr-1.5 -mt-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-surface-variant hover:text-foreground"
         >
-          <Ellipsis className="h-5 w-5" aria-hidden="true" />
+          <Ellipsis className="h-4 w-4" aria-hidden="true" />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-44">
+      <PopoverContent align="end" sideOffset={6} className="w-40 bg-surface-variant p-1 shadow-lg">
         <button
           type="button"
           onClick={() => {
             setOpen(false);
             onDelete();
           }}
-          className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-error-600 hover:bg-surface-variant"
+          className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-sm font-medium text-error-600 hover:bg-error-50 dark:text-error-400 dark:hover:bg-error-900/30"
         >
-          <Trash2 className="h-4 w-4" aria-hidden="true" />
+          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
           {t("delete")}
         </button>
       </PopoverContent>
