@@ -803,15 +803,15 @@ does not hold `plugin.use` at (a `global` grant covers every plugin).
   counts as one step however many tools that agent or the operator calls while doing it. A request
   can need several steps, such as writing a lesson, building an activity for it and publishing both.
   The planner shows the author its plan, a list of its tasks, each one short line, before
-  the first step. When the work begins with an agent gathering the author's requirements, such as a
-  course's audience and goals, that agent asks first and the plan comes once the author has
-  answered, unless the request also asks for an operation: that one is planned first, since an
-  operation that follows another step runs only as a step of a plan. What each step returns goes back to the planner, which runs the next part the author
-  asked for, up to a fixed limit of steps a message, without asking between them. A plan may hold
+  the first step, also when the first step's agent still has to gather the author's requirements,
+  such as a course's audience and goals: each agent asks its own questions when its step runs. What
+  each step returns goes back to the planner, which runs the next part the author asked for, up to a
+  fixed limit of steps a message, without asking between them. A plan may hold
   more steps than a message runs. The plan comes before the first step, and from then on every call
   names the step of the plan it carries out and is rejected if it doesn't fit; each step runs once,
   in order, and none is skipped. An agent carrying out a step is told which step it is and to do
-  only that one, so it leaves the plan's other steps to their agents. Outside a plan, a hand-off to
+  only that one, asking the author first what it needs to know as it would on its own, so it leaves
+  the plan's other steps to their agents. Outside a plan, a hand-off to
   the agent that has just answered ends the message instead of running, so a request is never handed
   over twice. Without a plan, an operation runs only as a message's first step. An operation that
   follows another step is asked for its task as the plan states it, not for what the planner wrote
