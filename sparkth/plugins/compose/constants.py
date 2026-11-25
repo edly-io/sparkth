@@ -105,7 +105,8 @@ TOOL_FAILED_UNEXPECTEDLY = (
 # json.dumps'd onto the SSE stream, and assigned to a pydantic field — none of which a
 # LazyString allows. It is rendered with gettext() at each of those boundaries.
 REFUSAL_MESSAGE: str = gettext_noop(
-    "I'm a course creation assistant and can only help with designing and building courses."
+    "I'm a course creation assistant and can only help with designing and building courses. "
+    "Tell me about the course you're working on and I can help you plan it, write it or improve it."
 )
 
 # The reply shown when a turn is stopped early, at any of its limits.
