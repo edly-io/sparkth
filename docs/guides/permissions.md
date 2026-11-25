@@ -40,6 +40,9 @@ is declared in application code, not kept in a catalogue table.
     grants;
   - `private_data`: the holder can see information about other people;
   - `deletes`: the holder can delete something for everyone.
+
+  `GET /api/v1/permissions` lists every permission with this information, translated into the request's language,
+  for anyone who holds `permission.read`.
 - **Scope kinds** are declared with `PermissionScope.create("course", parent=...)`, which
   registers the scope on the **`PERMISSION_SCOPES`** hook. The root `global` scope is declared
   this way in `sparkth.core.permissions.scopes`; plugins declare their own at module level in
@@ -158,7 +161,8 @@ Every role response also says who holds the role. `is_default` is true for the r
 when it is created (`sparkth_user` and `plugin_user`). `user_count` is how many people hold the role directly
 and `group_count` how many groups hold it. Both count active assignments, each person or group once however
 many scopes they hold it at. Someone who holds a role only through a group adds to its `group_count`, not its
-`user_count`.
+`user_count`. `risks` lists the risks of the role's permissions, each once, so a client can warn before granting
+the role.
 
 A user who holds `plugin_user` at `plugin:<name>` instead of at `global` can use only those plugins.
 Every account holds `plugin_user` at `global`, so an assignment at a plugin changes nothing until the `global`

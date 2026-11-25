@@ -17,11 +17,13 @@ from sparkth.core.db import get_engine
 from sparkth.core.models.user import User
 from sparkth.core.permissions import PERMISSIONS, Permission
 from sparkth.core.permissions.constants import PLUGIN_USER_ROLE, SPARKTH_USER_ROLE
+from sparkth.core.permissions.enums import PermissionRisk
 from sparkth.core.permissions.models import Role, RoleAssignment, RolePermission
 from sparkth.core.permissions.types import RoleAssigneeCounts
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.permissions.scopes import GLOBAL
 from sparkth.lib.testing import (
+    AddTranslation,
     add_role_assignment,
     assign_through_group,
     grant_permissions,
@@ -51,7 +53,17 @@ ROLE_PERMISSIONS = ["role.create", "role.read", "role.update", "role.delete", "p
 def _register_assignable_permission(monkeypatch: pytest.MonkeyPatch) -> None:
     # add_role_permission validates the permission against the registry; register it on the
     # PERMISSIONS hook for one test (monkeypatch restores the backing dict afterwards).
-    monkeypatch.setitem(PERMISSIONS._items, "assignment.grade", Permission("assignment.grade"))
+    monkeypatch.setitem(
+        PERMISSIONS._items,
+        "assignment.grade",
+        Permission(
+            "assignment.grade",
+            "Grade assignments",
+            "Mark submissions.",
+            "Courses",
+            risks=(PermissionRisk.DELETES,),
+        ),
+    )
 
 
 def _uniq(prefix: str) -> str:
@@ -213,11 +225,51 @@ async def test_remove_permission_returns_204(client: AsyncClient, session: Async
     assert got.json()["permissions"] == []
 
 
+async def _get_listed_permission(
+    client: AsyncClient, name: str, headers: dict[str, str] | None = None
+) -> dict[str, object]:
+    """Return the entry ``GET /api/v1/permissions`` lists for the permission named ``name``."""
+    response = await client.get("/api/v1/permissions", headers=headers)
+    assert response.status_code == 200
+    return cast(dict[str, object], next(entry for entry in response.json() if entry["name"] == name))
+
+
 async def test_available_permissions_lists_registered(client: AsyncClient, session: AsyncSession) -> None:
     _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
-    response = await client.get("/api/v1/permissions")
-    assert response.status_code == 200
-    assert "assignment.grade" in response.json()
+
+    assert await _get_listed_permission(client, "assignment.grade") == {
+        "name": "assignment.grade",
+        "label": "Grade assignments",
+        "description": "Mark submissions.",
+        "category": "Courses",
+        "risks": ["deletes"],
+        "requires": [],
+    }
+
+
+async def test_a_core_permission_is_listed_with_what_it_is_for(client: AsyncClient, session: AsyncSession) -> None:
+    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+
+    assert await _get_listed_permission(client, "role.update") == {
+        "name": "role.update",
+        "label": "Edit roles",
+        "description": "Rename roles and change their permissions.",
+        "category": "Users & access",
+        "risks": ["delegates_access"],
+        "requires": [],
+    }
+
+
+async def test_a_permission_is_listed_in_the_request_language(
+    client: AsyncClient, session: AsyncSession, translation_catalog: AddTranslation
+) -> None:
+    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    translation_catalog("Edit roles", "Editar roles")
+    translation_catalog("Users & access", "Usuarios y acceso")
+
+    listed = await _get_listed_permission(client, "role.update", {"Accept-Language": "es"})
+
+    assert (listed["label"], listed["category"]) == ("Editar roles", "Usuarios y acceso")
 
 
 async def test_available_requires_permission_read(client: AsyncClient, session: AsyncSession) -> None:
@@ -512,6 +564,32 @@ async def test_role_response_counts_the_people_and_groups_holding_it(
 
     assert (listed[grader.id]["user_count"], listed[grader.id]["group_count"]) == (1, 1)
     assert (fetched["user_count"], fetched["group_count"]) == (1, 1)
+
+
+async def test_a_role_response_tags_the_risks_of_its_permissions(client: AsyncClient, session: AsyncSession) -> None:
+    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    risky = await make_role(session, "risky", ["role.read", "role.delete", "role.update", "audit.read"])
+    harmless = await make_role(session, "harmless", ["role.read"])
+    await session.commit()
+
+    listed = {role["id"]: role["risks"] for role in (await client.get("/api/v1/permissions/roles")).json()}
+    fetched = (await client.get(f"/api/v1/permissions/roles/{risky.id}")).json()
+
+    assert listed[risky.id] == ["delegates_access", "private_data", "deletes"]
+    assert listed[harmless.id] == []
+    assert fetched["risks"] == ["delegates_access", "private_data", "deletes"]
+
+
+async def test_granting_a_permission_updates_the_roles_risks(client: AsyncClient, session: AsyncSession) -> None:
+    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    created = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()
+    assert created["risks"] == []
+
+    response = await client.post(
+        f"/api/v1/permissions/roles/{created['id']}/permissions", json={"permission": "assignment.grade"}
+    )
+
+    assert response.json()["risks"] == ["deletes"]
 
 
 async def test_a_new_role_is_held_by_nobody(client: AsyncClient, session: AsyncSession) -> None:
