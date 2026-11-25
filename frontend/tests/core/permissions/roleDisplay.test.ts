@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatRoleName } from "@/core/permissions/roleName";
+import { formatRoleName } from "@/core/permissions/roleDisplay";
 
 describe("formatRoleName", () => {
   it.each([

@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { Lock, Zap } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { formatRoleName } from "@/core/permissions/roleName";
+import { formatRoleName } from "@/core/permissions/roleDisplay";
 import type { RoleResponse } from "@/core/permissions/types";
 
 const BADGE = "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium";
