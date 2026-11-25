@@ -1,4 +1,4 @@
-"""How a chat turn classifies a tool call that failed."""
+"""How a chat turn classifies a tool call that failed, and what it shows of its agent's text afterwards."""
 
 import logging
 from collections.abc import Awaitable, Callable
@@ -160,3 +160,48 @@ async def test_a_failure_a_tool_reports_reaches_the_model_as_the_tool_wrote_it(
 
     assert REPORTED_FAILURE in execution["output"]
     assert execution["failure"] is ToolFailureKind.UNKNOWN
+
+
+# What an agent writes around its calls to a tool that keeps turning its work down.
+BEFORE_ANY_FAILURE = "Building your quiz now."
+BETWEEN_ATTEMPTS = "I need to fix the context handling in sandbox.js."
+CLOSING_REPLY = "I couldn't build the quiz. Shall I try a simpler one?"
+
+
+async def _reply_of_a_turn_whose_tool_fails(monkeypatch: pytest.MonkeyPatch) -> str:
+    """The reply of a non-streamed turn whose agent calls a failing tool twice, writing around each call, and
+    then answers."""
+    provider = get_provider("anthropic", "test-key", "claude-sonnet-5")
+    calls = [
+        AIMessage(text, tool_calls=[{"name": "rejecting_tool", "args": {}, "id": call_id}])
+        for text, call_id in ((BEFORE_ANY_FAILURE, "call_1"), (BETWEEN_ATTEMPTS, "call_2"))
+    ]
+    model = ScriptedChatModel(messages=iter([*calls, AIMessage(CLOSING_REPLY)]), disable_streaming=True)
+    monkeypatch.setattr(provider, "_create_llm", lambda streaming=False, callbacks=None: model)
+
+    response = await complete_turn(
+        [{"role": "user", "content": "go"}],
+        [],
+        provider,
+        50,
+        planner_setup=handing_off_to(replace(STUB_AGENT, tools=(Tool(rejecting_tool),))),
+    )
+
+    reply: str = response["content"]
+    return reply
+
+
+async def test_what_an_agent_writes_before_retrying_a_failed_tool_never_shows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """It is the agent working out its fix, which can name what the failure named."""
+
+    reply = await _reply_of_a_turn_whose_tool_fails(monkeypatch)
+
+    assert BETWEEN_ATTEMPTS not in reply
+
+
+async def test_an_agent_still_answers_after_its_tool_failed(monkeypatch: pytest.MonkeyPatch) -> None:
+    reply = await _reply_of_a_turn_whose_tool_fails(monkeypatch)
+
+    assert reply == f"{BEFORE_ANY_FAILURE}\n\n{CLOSING_REPLY}"
