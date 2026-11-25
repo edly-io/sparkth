@@ -10,7 +10,23 @@
     "roles": {
       "label": "Rôles",
       "empty": "Aucun rôle pour l'instant.",
-      "loadFailed": "Impossible de charger les rôles. Réessayez plus tard."
+      "loadFailed": "Impossible de charger les rôles. Réessayez plus tard.",
+      "badges": {
+        "builtin": "Intégré",
+        "default": "Automatique",
+        "custom": "Personnalisé"
+      },
+      "permissionCount": "{count, plural, one {<strong>#</strong> autorisation} other {<strong>#</strong> autorisations}}",
+      "peopleCount": "{count, plural, one {# personne} other {# personnes}}",
+      "groupCount": "{count, plural, one {# groupe} other {# groupes}}",
+      "everyone": "Tout le monde",
+      "notAssigned": "Non attribué",
+      "intro": "Un rôle est un ensemble nommé d'autorisations. Les autorisations viennent de Sparkth et de ses plugins ; vous choisissez celles que chaque rôle contient.",
+      "view": {
+        "label": "Affichage",
+        "list": "Liste",
+        "compare": "Comparer les autorisations"
+      }
     },
     "groups": {
       "label": "Groupes",

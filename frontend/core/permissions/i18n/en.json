@@ -10,7 +10,23 @@
     "roles": {
       "label": "Roles",
       "empty": "No roles yet.",
-      "loadFailed": "Couldn't load the roles. Try again later."
+      "loadFailed": "Couldn't load the roles. Try again later.",
+      "badges": {
+        "builtin": "Built-in",
+        "default": "Automatic",
+        "custom": "Custom"
+      },
+      "permissionCount": "{count, plural, one {<strong>#</strong> permission} other {<strong>#</strong> permissions}}",
+      "peopleCount": "{count, plural, one {# person} other {# people}}",
+      "groupCount": "{count, plural, one {# group} other {# groups}}",
+      "everyone": "Everyone",
+      "notAssigned": "Not assigned",
+      "intro": "A role is a named set of permissions. Permissions come from Sparkth and its plugins; you choose which ones each role holds.",
+      "view": {
+        "label": "View",
+        "list": "List",
+        "compare": "Compare permissions"
+      }
     },
     "groups": {
       "label": "Groups",
