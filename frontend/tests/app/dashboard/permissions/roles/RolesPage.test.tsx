@@ -168,4 +168,22 @@ describe("RolesPage", () => {
     expect(deleteRole).toHaveBeenCalledWith("test-token", 3);
     expect(await findCardNames()).toEqual(["Admin", "Sparkth user"]);
   });
+
+  it("tags each role's risks from the role itself", async () => {
+    listRoles.mockResolvedValue([
+      role(5, "Manager", { risks: ["delegates_access", "deletes"] }),
+      role(6, "Auditor", { risks: ["private_data"] }),
+    ]);
+    renderWithIntl(<RolesPage />);
+    await findCardNames();
+
+    const tags = screen.getAllByRole("list", { name: "Risks" });
+    expect(
+      tags.map((list) =>
+        within(list)
+          .getAllByRole("listitem")
+          .map((tag) => tag.textContent),
+      ),
+    ).toEqual([["Can give others access", "Can delete"], ["Sees private data"]]);
+  });
 });

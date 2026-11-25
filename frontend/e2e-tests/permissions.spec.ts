@@ -27,7 +27,7 @@ test.describe("access & permissions", () => {
         is_default: false,
         user_count: 0,
         group_count: 0,
-        risks: [],
+        risks: ["delegates_access"],
       },
     ]);
     await stubGroups(page, [{ id: 2, name: "Science faculty", description: null }]);

@@ -50,6 +50,12 @@
         "pending": "Deleting…",
         "cancel": "Cancel",
         "failed": "Couldn't delete the role. Try again."
+      },
+      "risks": {
+        "label": "Risks",
+        "delegates_access": "Can give others access",
+        "private_data": "Sees private data",
+        "deletes": "Can delete"
       }
     },
     "groups": {

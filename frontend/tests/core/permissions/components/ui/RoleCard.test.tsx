@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithIntl } from "@/tests/intl";
 import { RoleCard } from "@/core/permissions/components/ui/RoleCard";
@@ -98,5 +98,24 @@ describe("RoleCard", () => {
     renderWithIntl(<RoleCard role={role({})} />);
 
     expect(screen.queryByRole("button", { name: /More actions/ })).not.toBeInTheDocument();
+  });
+
+  it("tags the risks of its role, as the API gives them", () => {
+    renderWithIntl(
+      <RoleCard role={role({ risks: ["delegates_access", "private_data", "deletes"] })} />,
+    );
+
+    const tags = screen.getByRole("list", { name: "Risks" });
+    expect(
+      within(tags)
+        .getAllByRole("listitem")
+        .map((tag) => tag.textContent),
+    ).toEqual(["Can give others access", "Sees private data", "Can delete"]);
+  });
+
+  it("shows no risk tags for a role without any", () => {
+    renderWithIntl(<RoleCard role={role({})} />);
+
+    expect(screen.queryByRole("list", { name: "Risks" })).not.toBeInTheDocument();
   });
 });
