@@ -2066,12 +2066,6 @@ export interface components {
              */
             temperature: number;
             /**
-             * Tool Choice
-             * @description How to use tools: 'auto', 'none', or specific tool name
-             * @default auto
-             */
-            tool_choice: string | null;
-            /**
              * Tools
              * @description Includes every tool of the plugins the requesting user has switched on and has permission to use. Use 'none' or empty list to disable.
              * @default *

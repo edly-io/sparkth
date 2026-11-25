@@ -3,12 +3,9 @@
 import { useParams, redirect } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/core/auth/hooks";
-import { BackToDashboardLink } from "@/core/components/layout/BackToDashboardLink";
-import { NotFound } from "@/core/components/layout/NotFound";
 import { Spinner } from "@/core/components/ui/Spinner";
 import { usePlugin, usePluginContext } from "@/core/plugins/context";
 import { displayNameOf } from "@/core/plugins/metadata";
-import { getPlugin } from "@/core/plugins/registry";
 import { pluginPath } from "@/core/plugins/routes";
 import PluginRenderer from "@/core/plugins/components/layout/PluginRenderer";
 import Link from "next/link";
@@ -69,7 +66,6 @@ function PluginUnavailable({
 
 export default function PluginPageClient() {
   const params = useParams();
-  const t = useTranslations("pluginNotFound");
   const tPage = useTranslations("pluginPage");
   const { isAuthenticated, loading: authLoading } = useAuth();
 
@@ -77,7 +73,6 @@ export default function PluginPageClient() {
 
   const { isEnabled } = usePlugin(pluginName);
   const { plugins, loading: pluginsLoading } = usePluginContext();
-  const pluginDef = getPlugin(pluginName);
 
   const plugin = plugins.find((p) => p.plugin_name === pluginName);
   const displayName = plugin ? displayNameOf(plugin) : pluginName;
@@ -92,21 +87,6 @@ export default function PluginPageClient() {
         <div className="text-center">
           <Spinner className="mx-auto mb-4" />
           <p className="text-muted-foreground">{tPage("authenticating")}</p>
-        </div>
-      </div>
-    );
-  }
-
-  // A URL with no plugin name finds no plugin either.
-  if (!pluginDef) {
-    return (
-      <div className="flex items-center justify-center h-full min-h-screen bg-background p-4">
-        <div className="w-full max-w-md">
-          <NotFound
-            title={t("title")}
-            message={pluginName ? t("message", { name: pluginName }) : undefined}
-            action={<BackToDashboardLink />}
-          />
         </div>
       </div>
     );

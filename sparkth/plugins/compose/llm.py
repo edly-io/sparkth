@@ -241,11 +241,14 @@ def _update_events(node: str, update: dict[str, Any] | None, max_tool_executions
 class _TurnText:
     """The text a turn shows the author, sorted from the planner's and the agents' messages.
 
-    An agent's text shows as it is written, with a blank line between messages. The
-    planner's own text is held until the turn ends and shows only when no agent wrote last: when no
-    step ran, the last step was an operation, whose own text never shows, or the last agent wrote
-    nothing. So an agent's reply, a question or choices included, is the last thing the author
-    reads, and the planner never repeats it. A planner message that calls a tool never shows.
+    An agent's text shows as it is written, with a blank line between messages. Once a tool call of
+    a step has failed, the text of each of that step's agent messages is held until the message
+    ends, and shows only when the message calls no tool: what an agent writes before trying again
+    never shows. The planner's own text is held until the turn ends and shows only when no agent
+    wrote last: when no step ran, the last step was an operation, whose own text never shows, or the
+    last agent wrote nothing. So an agent's reply, a question or choices included, is the last thing
+    the author reads, and the planner never repeats it. A planner message that calls a tool never
+    shows.
     """
 
     def __init__(self) -> None:
@@ -254,16 +257,38 @@ class _TurnText:
         self._last_shown_message: str | None = None
         self._shown = False
         self._agent_wrote_last = False
+        self._tool_failed = False
+        self._held_agent_text: list[str] = []
 
     def step_started(self) -> None:
-        """Note that a new step is answering, which has written nothing yet."""
+        """Note that a new step is answering, which has written nothing yet and had no tool fail."""
         self._agent_wrote_last = False
+        self._tool_failed = False
+        self._held_agent_text = []
+
+    def tool_failed(self) -> None:
+        """Note that a tool call of the step that is answering failed."""
+        self._tool_failed = True
 
     def agent_text(self, message: BaseMessage) -> list[str]:
-        """The text of an agent's ``message`` to show now."""
-        texts = self._show(message.id, [] if isinstance(message, ToolMessage) else _text_blocks(message.content))
-        self._agent_wrote_last = self._agent_wrote_last or bool(texts)
-        return texts
+        """The text of an agent's ``message`` to show now, which is none once a tool of its step has failed."""
+        texts = [] if isinstance(message, ToolMessage) else _text_blocks(message.content)
+        if self._tool_failed:
+            self._held_agent_text.extend(texts)
+            return []
+        return self._show_agent_text(message.id, texts)
+
+    def agent_message_ended(self, message: AIMessage) -> list[str]:
+        """The held text of an agent's ``message`` to show now that it has ended: all of it, or none when
+        the message calls a tool."""
+        held, self._held_agent_text = self._held_agent_text, []
+        return [] if message.tool_calls else self._show_agent_text(message.id, held)
+
+    def _show_agent_text(self, message_id: str | None, texts: list[str]) -> list[str]:
+        """``texts`` of an agent's message to show, noting whether the agent wrote."""
+        shown = self._show(message_id, texts)
+        self._agent_wrote_last = self._agent_wrote_last or bool(shown)
+        return shown
 
     def notice_text(self, message: BaseMessage) -> list[str]:
         """The text of a notice that ends the turn, to show now whoever wrote last."""
@@ -338,7 +363,7 @@ def _planner_for_turn(
                 build_turn_agent(
                     agent_llm,
                     [convert_mcp_to_langchain_tool(tool) for tool in agent.tools],
-                    render_system_prompt([agent]),
+                    render_system_prompt(agent),
                     max_tool_executions,
                     name=agent.name,
                 ),
@@ -393,8 +418,9 @@ async def _turn_events(
     operation) starts or the refusal returns (a call its tool rejected never does either),
     ``token`` for the text the author sees (the agents' replies, the planner's own when
     no agent wrote last, and a notice that ends the turn; the operator's text never shows, only its
-    tool calls), ``tool_start`` and ``tool_end`` for each tool call, ``limit_reached`` when an agent's
-    calls were blocked, ``usage`` with the tokens of each model reply, the planner's, the agents'
+    tool calls, and neither does what an agent writes before trying again after a failed tool call),
+    ``tool_start`` and ``tool_end`` for each tool call, ``limit_reached`` when an agent's calls were
+    blocked, ``usage`` with the tokens of each model reply, the planner's, the agents'
     and the operator's, and ``final`` with each closing model reply. A step or a call reported as
     started runs only once this generator is asked for its next event. A refusal arrives as the
     refusal sentence. Yields ``plan`` with the steps of a plan the turn makes, and ``plan_step``
@@ -410,12 +436,18 @@ async def _turn_events(
                 go = chunk.pop("go", None)
                 if chunk["type"] == TurnEventType.ROUTED:
                     turn_text.step_started()
+                elif chunk["type"] == TurnEventType.TOOL_END and chunk["failure"] is not None:
+                    turn_text.tool_failed()
                 yield chunk
                 # The tool reported as started runs only now, once the next event is asked for.
                 if go is not None:
                     go.set()
             elif mode == "updates":
                 for node, update in chunk.items():
+                    if namespace and node == "model":
+                        for reply in (update or {}).get("messages", []):
+                            for token in turn_text.agent_message_ended(reply):
+                                yield {"type": TurnEventType.TOKEN, "content": token}
                     for event in _update_events(node, update, max_tool_executions):
                         yield event
             else:
