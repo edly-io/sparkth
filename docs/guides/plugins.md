@@ -805,7 +805,8 @@ does not hold `plugin.use` at (a `global` grant covers every plugin).
   The planner shows the author its plan, a list of its tasks, each one short line, before
   the first step. When the work begins with an agent gathering the author's requirements, such as a
   course's audience and goals, that agent asks first and the plan comes once the author has
-  answered. What each step returns goes back to the planner, which runs the next part the author
+  answered, unless the request also asks for an operation: that one is planned first, since an
+  operation that follows another step runs only as a step of a plan. What each step returns goes back to the planner, which runs the next part the author
   asked for, up to a fixed limit of steps a message, without asking between them. A plan may hold
   more steps than a message runs. The plan comes before the first step, and from then on every call
   names the step of the plan it carries out and is rejected if it doesn't fit; each step runs once,
