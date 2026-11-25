@@ -30,6 +30,16 @@ is declared in application code, not kept in a catalogue table.
   the permission on the **`PERMISSIONS`** hook. Core permissions are declared this way in
   `sparkth.core.permissions`; plugins declare their own at module level in their `plugin.py`, or in a module
   their routes import when the routes need the constant.
+- **A permission says what it is for** when it is created: `Permission.create` takes a label
+  ("Edit roles"), a one-line description and the category it is listed under, all marked with `gettext_noop` so
+  they can be translated. It also takes its risks, from `PermissionRisk`, and the other permissions a holder needs
+  for it to be of use (`requires`, as `Permission` objects, never names; none is declared today, as the
+  permission system has no hierarchy yet). A plugin's permission uses the plugin's name as its category. The
+  risks are:
+  - `delegates_access`: the holder can give others access, by creating roles or changing what a role or group
+    grants;
+  - `private_data`: the holder can see information about other people;
+  - `deletes`: the holder can delete something for everyone.
 - **Scope kinds** are declared with `PermissionScope.create("course", parent=...)`, which
   registers the scope on the **`PERMISSION_SCOPES`** hook. The root `global` scope is declared
   this way in `sparkth.core.permissions.scopes`; plugins declare their own at module level in

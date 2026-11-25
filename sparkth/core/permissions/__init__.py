@@ -19,6 +19,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.core.models.user import User
 from sparkth.core.permissions.dependencies import build_scope_path_dependency
 from sparkth.core.permissions.engine import can, get_accessible_scope_object_ids
+from sparkth.core.permissions.enums import PermissionRisk
 from sparkth.core.permissions.exceptions import PermissionNotFound
 from sparkth.core.permissions.scopes import GLOBAL, PermissionScope
 from sparkth.core.permissions.scopes.mixins import ScopeObjectMixin
@@ -37,17 +38,46 @@ def _describe_checked_scope(permission_scope: PermissionScope, scope_path: str |
 
 
 class Permission:
-    def __init__(self, name: str) -> None:
+    """A permission a role can hold, and what it is for as people read it.
+
+    ``label``, ``description`` and ``category`` are English marked for translation, translated when
+    shown, and ``category`` groups related permissions. ``risks`` are the reasons to think twice before
+    granting it, and ``requires`` holds the permissions a holder also needs for it to be of use; none
+    is declared today, as the permission system has no hierarchy yet.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        label: str = "",
+        description: str = "",
+        category: str = "",
+        risks: tuple[PermissionRisk, ...] = (),
+        requires: tuple["Permission", ...] = (),
+    ) -> None:
         self.name = name
+        self.label = label
+        self.description = description
+        self.category = category
+        self.risks = risks
+        self.requires = requires
 
     @classmethod
-    def create(cls, name: str) -> "Permission":
-        """Create a permission and register it on the PERMISSIONS hook.
+    def create(
+        cls,
+        name: str,
+        label: str = "",
+        description: str = "",
+        category: str = "",
+        risks: tuple[PermissionRisk, ...] = (),
+        requires: tuple["Permission", ...] = (),
+    ) -> "Permission":
+        """Create a permission, with what it is for, and register it on the PERMISSIONS hook.
 
         Use this, not the bare ``Permission(name)`` constructor — the constructor does not
         register (it is internal/test-only), and an unregistered permission authorizes nothing.
         """
-        permission = cls(name)
+        permission = cls(name, label, description, category, risks, requires)
         PERMISSIONS.add_item(permission)
         return permission
 
