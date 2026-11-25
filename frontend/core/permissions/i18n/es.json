@@ -6,6 +6,16 @@
       "label": "Secciones de acceso",
       "roles": "Roles",
       "groups": "Grupos"
+    },
+    "roles": {
+      "label": "Roles",
+      "empty": "Aún no hay roles.",
+      "loadFailed": "No se pudieron cargar los roles. Inténtalo más tarde."
+    },
+    "groups": {
+      "label": "Grupos",
+      "empty": "Aún no hay grupos.",
+      "loadFailed": "No se pudieron cargar los grupos. Inténtalo más tarde."
     }
   }
 }
