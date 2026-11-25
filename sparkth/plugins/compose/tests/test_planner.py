@@ -1208,7 +1208,11 @@ class TestTurnActivity:
     def test_events_that_say_nothing_about_routing_or_the_plan_are_ignored(self) -> None:
         turn_activity = self._recorded(None, {"type": TurnEventType.TOKEN, "content": "Hello"})
 
-        assert (turn_activity.routing, turn_activity.agents, turn_activity.get_plan_in_progress()) == (
+        assert (
+            turn_activity.routing,
+            turn_activity.agents,
+            turn_activity.get_plan_in_progress(),
+        ) == (
             TurnRouting(),
             [],
             None,
@@ -1241,8 +1245,15 @@ class TestTurnActivity:
     def test_a_plan_none_of_whose_steps_started_is_closed(self) -> None:
         assert self._recorded(None, shown_plan(self.STEPS)).get_plan_in_progress() is None
 
-    def test_an_existing_plan_the_turn_did_not_carry_on_is_kept_as_it_was(self) -> None:
-        assert TurnActivity(WRITE_THEN_PUBLISH).get_plan_in_progress() == WRITE_THEN_PUBLISH
+    def test_an_existing_plan_the_turn_did_not_carry_on_is_dropped(self) -> None:
+        """A message about something else, or one asking to stop, ends the plan."""
+        turn_activity = self._recorded(WRITE_THEN_PUBLISH, routed(STUB_AGENT.name))
+
+        assert turn_activity.get_plan_in_progress() is None
+
+    def test_an_existing_plan_is_kept_as_it_was_by_a_turn_cut_short_before_carrying_it_on(self) -> None:
+        """A turn the author stopped, or one that failed, never got to say whether it carries the plan on."""
+        assert TurnActivity(WRITE_THEN_PUBLISH).get_plan_left_when_cut_short() == WRITE_THEN_PUBLISH
 
     def test_an_existing_plan_the_turn_carried_on_is_kept(self) -> None:
         longer = ExistingPlan((*self.STEPS, PlannedStep(STUB_AGENT.name, "Summarise it")), current_step=1)

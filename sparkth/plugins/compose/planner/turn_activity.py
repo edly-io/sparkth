@@ -39,10 +39,16 @@ class TurnActivity:
                 self._is_plan_shown = True
 
     def get_plan_in_progress(self) -> ExistingPlan | None:
-        """The plan still in progress when the turn ends, or None if:
+        """The plan still in progress when the turn has run to its end, or None if:
         1. None of its steps has started
-        2. Its last step has run.
-        An existing plan the turn didn't touch is returned unchanged."""
+        2. Its last step has run
+        3. It is an existing plan the turn didn't carry on, which ends it."""
+        return self.get_plan_left_when_cut_short() if self._is_plan_shown else None
+
+    def get_plan_left_when_cut_short(self) -> ExistingPlan | None:
+        """The plan still in progress when the turn is cut short, stopped by the author or by a failure, or
+        None when none of its steps has started or its last step has run. An existing plan the turn hadn't
+        carried on yet is left unchanged."""
         finished = self._has_current_step_run and self._current_step >= len(self._plan_steps)
         if self._current_step == 0 or finished:
             return None

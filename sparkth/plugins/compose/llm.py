@@ -261,22 +261,14 @@ class _TurnText:
         self._agent_wrote_last = False
         self._tool_failed = False
         self._held_agent_text: list[str] = []
-        self._operation_ran_last = False
+        self._has_operation_run_last = False
 
-    def step_started(self, agent: str | None) -> None:
+    def note_step_started(self, agent: str | None) -> None:
         """Note that ``agent`` starts a new step, which has written nothing yet and had no tool fail."""
-        self._operation_ran_last = agent == OPERATOR_AGENT_NAME
+        self._has_operation_run_last = agent == OPERATOR_AGENT_NAME
         self._agent_wrote_last = False
         self._tool_failed = False
         self._held_agent_text = []
-
-    def operation_rejected(self) -> None:
-        """Note that an operation the planner asked for never ran, which the planner tells the author."""
-        self._agent_wrote_last = False
-
-    def tool_failed(self) -> None:
-        """Note that a tool call of the step that is answering failed."""
-        self._tool_failed = True
 
     def agent_text(self, message: BaseMessage) -> list[str]:
         """The text of an agent's ``message`` to show now, which is none once a tool of its step has failed."""
@@ -310,10 +302,10 @@ class _TurnText:
         self._last_shown_message, self._shown = message_id, True
         return [*gap, *texts]
 
-    def planner_text(self, message: BaseMessage) -> list[str]:
+    def get_planner_text_to_show(self, message: BaseMessage) -> list[str]:
         """The text of the planner's ``message`` to show now: all of it after an operation, and otherwise
         none, the text being held with a note of whether the message calls a tool."""
-        if self._operation_ran_last:
+        if self._has_operation_run_last:
             return self._show(message.id, _text_blocks(message.content))
         if getattr(message, "tool_call_chunks", None) or getattr(message, "tool_calls", None):
             self._calling.add(message.id)
@@ -467,9 +459,9 @@ async def _turn_events(
             if mode == "custom":
                 go = chunk.pop("go", None)
                 if chunk["type"] == TurnEventType.ROUTED:
-                    turn_text.step_started(chunk["routing"].agent)
+                    turn_text.note_step_started(chunk["routing"].agent)
                 elif chunk["type"] == TurnEventType.TOOL_END and chunk["failure"] is not None:
-                    turn_text.tool_failed()
+                    turn_text._tool_failed = True
                 yield chunk
                 # The tool reported as started runs only now, once the next event is asked for.
                 if go is not None:
@@ -503,9 +495,9 @@ async def _turn_events(
                         for token in turn_text.notice_text(message):
                             yield {"type": TurnEventType.TOKEN, "content": token}
                     elif message.name == OPERATOR_AGENT_NAME and message.status == "error":
-                        turn_text.operation_rejected()
+                        turn_text._agent_wrote_last = False
                 elif metadata.get("langgraph_node") == "model":
-                    for token in turn_text.planner_text(message):
+                    for token in turn_text.get_planner_text_to_show(message):
                         yield {"type": TurnEventType.TOKEN, "content": token}
                 else:
                     # What a planner hook wrote to end the turn, not the planner's model.

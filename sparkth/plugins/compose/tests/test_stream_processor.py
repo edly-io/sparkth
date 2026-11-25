@@ -760,9 +760,7 @@ class TestAPlannedTurn:
         assert "plan" not in _stored_replies(processor)[-1]["metadata"]
 
     @pytest.mark.asyncio
-    async def test_the_reply_keeps_an_earlier_plan_the_turn_did_not_carry_on(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_a_reply_that_did_not_carry_on_an_earlier_plan_ends_it(self, monkeypatch: pytest.MonkeyPatch) -> None:
         events = [routed(STUB_AGENT.name), {"type": "token", "content": "Here is a quiz instead."}]
         monkeypatch.setattr(STREAM_TURN, partial(replay_turn, events))
         processor = _make_processor(existing_plan=FIRST_IN_PROGRESS)
@@ -770,7 +768,7 @@ class TestAPlannedTurn:
         async for _ in processor.stream():
             pass
 
-        assert _stored_replies(processor)[-1]["metadata"]["plan"] == asdict(FIRST_IN_PROGRESS)
+        assert "plan" not in _stored_replies(processor)[-1]["metadata"]
 
     @pytest.mark.asyncio
     async def test_a_failed_turn_keeps_the_plan_with_what_was_written(self, monkeypatch: pytest.MonkeyPatch) -> None:
