@@ -1167,7 +1167,15 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
+        /**
+         * Set Role Permissions
+         * @description Make the role grant exactly the listed permissions, in one transaction.
+         *
+         *     Grants what is missing and revokes what is not listed. Refused with 422, changing nothing, when a
+         *     permission being added is not registered, and with 409 for a role shipped with Sparkth. Returns the
+         *     updated RoleResponse.
+         */
+        put: operations["set_role_permissions_api_v1_permissions_roles__role_id__permissions_put"];
         /**
          * Create Role Permission
          * @description Grant a registered permission to the role (idempotent). Refused with 409 for a role shipped with Sparkth.
@@ -2939,6 +2947,14 @@ export interface components {
         RolePermissionAdd: {
             /** Permission */
             permission: string;
+        };
+        /**
+         * RolePermissionsSet
+         * @description Every permission the role should grant once saved; anything else it grants is revoked.
+         */
+        RolePermissionsSet: {
+            /** Permissions */
+            permissions: string[];
         };
         /** RoleResponse */
         RoleResponse: {
@@ -5332,6 +5348,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["RoleUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_role_permissions_api_v1_permissions_roles__role_id__permissions_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                role_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RolePermissionsSet"];
             };
         };
         responses: {

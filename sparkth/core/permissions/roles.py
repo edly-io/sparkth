@@ -167,6 +167,26 @@ async def delete_role(role_id: int, session: AsyncSession) -> None:
     await session.commit()
 
 
+async def _record_permission_granted(role_id: int, permission: str, session: AsyncSession) -> None:
+    """Record ``role.permission_granted`` in the caller's transaction."""
+    await record_event(
+        session,
+        RolePermissionGrantedAuditEvent(
+            outcome=AuditOutcome.SUCCESS, target=_target(role_id), change=AuditChange(new={"permission": permission})
+        ),
+    )
+
+
+async def _record_permission_revoked(role_id: int, permission: str, session: AsyncSession) -> None:
+    """Record ``role.permission_revoked`` in the caller's transaction."""
+    await record_event(
+        session,
+        RolePermissionRevokedAuditEvent(
+            outcome=AuditOutcome.SUCCESS, target=_target(role_id), change=AuditChange(old={"permission": permission})
+        ),
+    )
+
+
 async def add_role_permission(role_id: int, permission: str, session: AsyncSession) -> Role:
     """Grant permission to the role (idempotent: a no-op if it's already granted) and return the role.
 
@@ -187,14 +207,7 @@ async def add_role_permission(role_id: int, permission: str, session: AsyncSessi
     ).first()
     if existing is None:
         session.add(RolePermission(role_id=role_id, permission=permission))
-        await record_event(
-            session,
-            RolePermissionGrantedAuditEvent(
-                outcome=AuditOutcome.SUCCESS,
-                target=_target(role_id),
-                change=AuditChange(new={"permission": permission}),
-            ),
-        )
+        await _record_permission_granted(role_id, permission, session)
         await session.commit()
     return role
 
@@ -216,14 +229,7 @@ async def remove_role_permission(role_id: int, permission: str, session: AsyncSe
     ).first()
     if grant is not None:
         await session.delete(grant)
-        await record_event(
-            session,
-            RolePermissionRevokedAuditEvent(
-                outcome=AuditOutcome.SUCCESS,
-                target=_target(role_id),
-                change=AuditChange(old={"permission": permission}),
-            ),
-        )
+        await _record_permission_revoked(role_id, permission, session)
         await session.commit()
 
 
@@ -252,6 +258,40 @@ async def get_role_assignee_counts(role_ids: list[int], session: AsyncSession) -
         role_id: RoleAssigneeCounts(users_by_role.get(role_id, 0), groups_by_role.get(role_id, 0))
         for role_id in role_ids
     }
+
+
+async def set_role_permissions(role_id: int, permissions: list[str], session: AsyncSession) -> Role:
+    """Make the role grant exactly ``permissions`` and return the role, in one transaction.
+
+    Grants what the role lacks and revokes what is not listed, recording ``role.permission_granted``
+    or ``role.permission_revoked`` for each change; a call that changes nothing records nothing.
+    Every permission being added must be registered, checked before anything changes; one the role
+    already holds may stay listed even if it is no longer registered. Raises RoleNotFound (no such
+    role), RoleIsBuiltin (the role ships with Sparkth) or PermissionNotFound (an added permission is
+    not registered). The role row is locked so concurrent saves apply one after the other.
+    """
+    role = await _get_changeable_role(role_id, session, for_update=True)
+    requested_permissions = set(permissions)
+    current_permissions = set(await get_role_permissions(role_id, session))
+    permissions_to_grant = sorted(requested_permissions - current_permissions)
+    permissions_to_revoke = sorted(current_permissions - requested_permissions)
+    if not permissions_to_grant and not permissions_to_revoke:
+        return role
+    for permission in permissions_to_grant:
+        get_permission(permission)
+    session.add_all(RolePermission(role_id=role_id, permission=permission) for permission in permissions_to_grant)
+    if permissions_to_revoke:
+        await session.exec(
+            delete(RolePermission).where(
+                col(RolePermission.role_id) == role_id, col(RolePermission.permission).in_(permissions_to_revoke)
+            )
+        )
+    for permission in permissions_to_grant:
+        await _record_permission_granted(role_id, permission, session)
+    for permission in permissions_to_revoke:
+        await _record_permission_revoked(role_id, permission, session)
+    await session.commit()
+    return role
 
 
 async def get_role_permissions(role_id: int, session: AsyncSession) -> list[str]:

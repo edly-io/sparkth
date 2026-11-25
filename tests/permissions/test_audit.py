@@ -257,6 +257,32 @@ class TestRoleEvents:
 
         assert [event.action for event in await audit_events()] == ["created"]
 
+    async def test_setting_permissions_records_each_grant_and_revoke(
+        self, session: AsyncSession, audit_events: AuditEventsFetcher
+    ) -> None:
+        role = await _role(session)
+        assert role.id is not None
+        await roles.add_role_permission(role.id, "assignment.grade", session)
+        await roles.set_role_permissions(role.id, ["role.read", "role.update"], session)
+
+        granted_read, granted_update, revoked_grade = (await audit_events())[2:]
+        _assert_envelope(granted_read, "role.permission_granted", "role", role.id)
+        assert granted_read.new_values == {"permission": "role.read"}
+        _assert_envelope(granted_update, "role.permission_granted", "role", role.id)
+        assert granted_update.new_values == {"permission": "role.update"}
+        _assert_envelope(revoked_grade, "role.permission_revoked", "role", role.id)
+        assert revoked_grade.old_values == {"permission": "assignment.grade"}
+
+    async def test_setting_the_same_permissions_records_nothing(
+        self, session: AsyncSession, audit_events: AuditEventsFetcher
+    ) -> None:
+        role = await _role(session)
+        assert role.id is not None
+        await roles.add_role_permission(role.id, "assignment.grade", session)
+        await roles.set_role_permissions(role.id, ["assignment.grade"], session)
+
+        assert [event.action for event in await audit_events()] == ["created", "permission_granted"]
+
 
 class TestRoleAssignmentEvents:
     async def test_assign_records_assigned(self, session: AsyncSession, audit_events: AuditEventsFetcher) -> None:

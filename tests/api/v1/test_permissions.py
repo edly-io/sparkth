@@ -225,6 +225,44 @@ async def test_remove_permission_returns_204(client: AsyncClient, session: Async
     assert got.json()["permissions"] == []
 
 
+async def test_set_permissions_replaces_the_roles_permissions(client: AsyncClient, session: AsyncSession) -> None:
+    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    created = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()
+    path = f"/api/v1/permissions/roles/{created['id']}/permissions"
+    await client.post(path, json={"permission": "assignment.grade"})
+
+    response = await client.put(path, json={"permissions": ["role.read", "role.update"]})
+
+    assert response.status_code == 200
+    assert sorted(response.json()["permissions"]) == ["role.read", "role.update"]
+
+
+async def test_set_unregistered_permission_returns_422_and_changes_nothing(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    created = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()
+    path = f"/api/v1/permissions/roles/{created['id']}/permissions"
+    await client.post(path, json={"permission": "assignment.grade"})
+
+    response = await client.put(path, json={"permissions": ["role.read", "bogus.unregistered"]})
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Permission not found: bogus.unregistered"
+    assert (await client.get(f"/api/v1/permissions/roles/{created['id']}")).json()["permissions"] == [
+        "assignment.grade"
+    ]
+
+
+async def test_set_permissions_needs_role_update(client: AsyncClient, session: AsyncSession) -> None:
+    role = await _add_role_with_permission(session, "assignment.grade")
+    _override_current_user(client, await make_user_with_permissions(session, ["role.read"]))
+
+    response = await client.put(f"/api/v1/permissions/roles/{role.id}/permissions", json={"permissions": []})
+
+    assert response.status_code == 403
+
+
 async def _get_listed_permission(
     client: AsyncClient, name: str, headers: dict[str, str] | None = None
 ) -> dict[str, object]:

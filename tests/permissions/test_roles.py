@@ -268,6 +268,71 @@ async def test_remove_role_permission_missing_role_raises(session: AsyncSession)
         await roles.remove_role_permission(999, "assignment.grade", session)
 
 
+async def test_set_role_permissions_adds_and_removes_to_match(session: AsyncSession) -> None:
+    role = await roles.create_role("grader", None, session)
+    assert role.id is not None
+    await roles.add_role_permission(role.id, "assignment.grade", session)
+
+    await roles.set_role_permissions(role.id, ["role.read", "role.update"], session)
+
+    assert sorted(await roles.get_role_permissions(role.id, session)) == ["role.read", "role.update"]
+
+
+async def test_set_role_permissions_to_nothing_removes_every_grant(session: AsyncSession) -> None:
+    role = await roles.create_role("grader", None, session)
+    assert role.id is not None
+    await roles.add_role_permission(role.id, "assignment.grade", session)
+
+    await roles.set_role_permissions(role.id, [], session)
+
+    assert await roles.get_role_permissions(role.id, session) == []
+
+
+async def test_set_role_permissions_returns_the_role(session: AsyncSession) -> None:
+    role = await roles.create_role("grader", None, session)
+    assert role.id is not None
+    returned = await roles.set_role_permissions(role.id, ["assignment.grade"], session)
+    assert (returned.id, returned.name) == (role.id, "grader")
+
+
+async def test_set_role_permissions_with_an_unknown_permission_changes_nothing(session: AsyncSession) -> None:
+    role = await roles.create_role("grader", None, session)
+    assert role.id is not None
+    await roles.add_role_permission(role.id, "assignment.grade", session)
+
+    with pytest.raises(PermissionNotFound):
+        await roles.set_role_permissions(role.id, ["role.read", "bogus.unregistered"], session)
+
+    assert await roles.get_role_permissions(role.id, session) == ["assignment.grade"]
+
+
+async def test_set_role_permissions_keeps_an_undeclared_permission_still_listed(session: AsyncSession) -> None:
+    role = await roles.create_role("grader", None, session)
+    assert role.id is not None
+    session.add(RolePermission(role_id=role.id, permission="retired.permission"))
+    await session.commit()
+
+    await roles.set_role_permissions(role.id, ["retired.permission", "role.read"], session)
+
+    assert sorted(await roles.get_role_permissions(role.id, session)) == ["retired.permission", "role.read"]
+
+
+async def test_set_role_permissions_removes_an_undeclared_permission_left_out(session: AsyncSession) -> None:
+    role = await roles.create_role("grader", None, session)
+    assert role.id is not None
+    session.add(RolePermission(role_id=role.id, permission="retired.permission"))
+    await session.commit()
+
+    await roles.set_role_permissions(role.id, ["role.read"], session)
+
+    assert await roles.get_role_permissions(role.id, session) == ["role.read"]
+
+
+async def test_set_role_permissions_missing_role_raises(session: AsyncSession) -> None:
+    with pytest.raises(RoleNotFound):
+        await roles.set_role_permissions(999, ["assignment.grade"], session)
+
+
 def test_available_permissions_includes_registered() -> None:
     assert "assignment.grade" in roles.available_permissions()
 
@@ -344,6 +409,8 @@ _BUILTIN_ROLE_CHANGES: dict[str, Callable[[int, AsyncSession], Awaitable[object]
     "grant_held": lambda role_id, session: roles.add_role_permission(role_id, "assignment.grade", session),
     "revoke": lambda role_id, session: roles.remove_role_permission(role_id, "assignment.grade", session),
     "revoke_unheld": lambda role_id, session: roles.remove_role_permission(role_id, "role.read", session),
+    "set": lambda role_id, session: roles.set_role_permissions(role_id, ["role.read"], session),
+    "set_unchanged": lambda role_id, session: roles.set_role_permissions(role_id, ["assignment.grade"], session),
     "delete": lambda role_id, session: roles.delete_role(role_id, session),
 }
 

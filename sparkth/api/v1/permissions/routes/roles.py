@@ -15,7 +15,13 @@ risks of its permissions.
 from fastapi import APIRouter, Depends, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.api.v1.permissions.schemas import RoleCreate, RolePermissionAdd, RoleResponse, RoleUpdate
+from sparkth.api.v1.permissions.schemas import (
+    RoleCreate,
+    RolePermissionAdd,
+    RolePermissionsSet,
+    RoleResponse,
+    RoleUpdate,
+)
 from sparkth.core.permissions import roles as role_engine
 from sparkth.core.permissions.models import Role
 from sparkth.core.permissions.types import RoleAssigneeCounts
@@ -144,6 +150,24 @@ async def create_role_permission(
     Returns the updated RoleResponse.
     """
     role = await role_engine.add_role_permission(role_id, payload.permission, session)
+    return await _role_to_response(role, session)
+
+
+@router.put(
+    "/{role_id}/permissions",
+    response_model=RoleResponse,
+    dependencies=[Depends(ROLE_UPDATE.require(ROLE, "role_id"))],
+)
+async def set_role_permissions(
+    role_id: int, payload: RolePermissionsSet, session: AsyncSession = Depends(get_async_session)
+) -> RoleResponse:
+    """Make the role grant exactly the listed permissions, in one transaction.
+
+    Grants what is missing and revokes what is not listed. Refused with 422, changing nothing, when a
+    permission being added is not registered, and with 409 for a role shipped with Sparkth. Returns the
+    updated RoleResponse.
+    """
+    role = await role_engine.set_role_permissions(role_id, payload.permissions, session)
     return await _role_to_response(role, session)
 
 

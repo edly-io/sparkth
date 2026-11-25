@@ -1,6 +1,6 @@
 """Pydantic models for the permissions API: permission checks, role management and group management."""
 
-from typing import Self
+from typing import Annotated, Self
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -66,6 +66,12 @@ class RoleResponse(BaseModel):
 
 class RolePermissionAdd(BaseModel):
     permission: str = Field(min_length=1, max_length=100)
+
+
+class RolePermissionsSet(BaseModel):
+    """Every permission the role should grant once saved; anything else it grants is revoked."""
+
+    permissions: list[Annotated[str, Field(min_length=1, max_length=100)]]
 
 
 class GroupCreate(BaseModel):
