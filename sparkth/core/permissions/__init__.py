@@ -382,7 +382,6 @@ LLM_CONFIG_DELETE = Permission.create(
     gettext_noop("Delete AI keys"),
     gettext_noop("Remove saved AI keys."),
     _AI_KEYS,
-    risks=(PermissionRisk.DELETES,),
 )
 
 # Using a plugin's feature routes, checked at the plugin scope of the plugin's name.

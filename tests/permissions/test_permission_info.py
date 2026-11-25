@@ -69,7 +69,6 @@ RISKS = {
     "role.delete": {PermissionRisk.DELETES},
     "group.delete": {PermissionRisk.DELETES},
     "email.whitelist.delete": {PermissionRisk.DELETES},
-    "llm.config.delete": {PermissionRisk.DELETES},
 }
 
 
