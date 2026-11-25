@@ -14,6 +14,10 @@
     "title": "Plugin introuvable",
     "message": "Aucun plugin n'est enregistré sous le nom {name}."
   },
+  "pageNotFound": {
+    "title": "Page introuvable",
+    "message": "Rien n'existe à cette adresse."
+  },
   "pluginPage": {
     "authenticating": "Authentification...",
     "notEnabledTitle": "Plugin non activé",

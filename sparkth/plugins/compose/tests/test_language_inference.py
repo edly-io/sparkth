@@ -21,6 +21,7 @@ from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
 from sparkth.plugins.compose.models import Conversation
 from sparkth.plugins.compose.prompt import render_system_prompt
+from sparkth.plugins.compose.tests.conftest import STUB_AGENT
 from sparkth.plugins.compose.tests.helpers import answering_model, hand_off, planning
 from sparkth.plugins.compose.types import ConversationDocuments
 
@@ -171,7 +172,7 @@ class TestOutputLanguageDirective:
         appears unconditionally. The remaining names are the discriminating ones — if
         any of them is present, something is still resolving and injecting a tag.
         """
-        prompt = render_system_prompt([])
+        prompt = render_system_prompt(STUB_AGENT)
         assert "{language_name}" not in prompt
         injectable = {info.name for info in SUPPORTED_LANGUAGES.values() if info.name != "English"}
         assert not any(name in prompt for name in injectable)
