@@ -14,6 +14,7 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.permissions import PERMISSIONS, get_permission
+from sparkth.core.permissions.enums import PermissionRisk
 from sparkth.core.permissions.exceptions import (
     RoleAlreadyExists,
     RoleIsBuiltin,
@@ -274,6 +275,20 @@ async def get_permissions_for_roles(role_ids: list[int], session: AsyncSession) 
     for role_id, permission in result.all():
         permissions_by_role[role_id].append(permission)
     return permissions_by_role
+
+
+def get_role_risks(permission_names: list[str]) -> list[PermissionRisk]:
+    """Return the risks of holding a role: those of every permission it holds, each once, in the risks' order.
+
+    A permission the registry no longer declares adds none.
+    """
+    held = {
+        risk
+        for name in permission_names
+        if (permission := PERMISSIONS.get(name)) is not None
+        for risk in permission.risks
+    }
+    return [risk for risk in PermissionRisk if risk in held]
 
 
 def available_permissions() -> list[str]:

@@ -15,6 +15,7 @@ function role(overrides: Partial<RoleResponse>): RoleResponse {
     is_default: false,
     user_count: 0,
     group_count: 0,
+    risks: [],
     ...overrides,
   };
 }

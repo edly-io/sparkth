@@ -7,6 +7,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.permissions import PERMISSIONS, Permission, roles
+from sparkth.core.permissions.enums import PermissionRisk
 from sparkth.core.permissions.exceptions import (
     PermissionNotFound,
     RoleAlreadyExists,
@@ -445,3 +446,19 @@ async def test_get_role_assignee_counts_includes_roles_nobody_holds(session: Asy
 
 async def test_get_role_assignee_counts_empty_input_returns_empty_map(session: AsyncSession) -> None:
     assert await roles.get_role_assignee_counts([], session) == {}
+
+
+def test_get_role_risks_collects_each_risk_once_in_a_fixed_order() -> None:
+    assert roles.get_role_risks(["audit.read", "role.delete", "group.delete", "role.update", "role.read"]) == [
+        PermissionRisk.DELEGATES_ACCESS,
+        PermissionRisk.PRIVATE_DATA,
+        PermissionRisk.DELETES,
+    ]
+
+
+def test_get_role_risks_is_empty_for_permissions_without_risk() -> None:
+    assert roles.get_role_risks(["role.read", "analytics.read"]) == []
+
+
+def test_get_role_risks_skips_a_permission_no_longer_declared() -> None:
+    assert roles.get_role_risks(["no.such.permission", "role.delete"]) == [PermissionRisk.DELETES]

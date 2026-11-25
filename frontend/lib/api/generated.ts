@@ -1004,7 +1004,8 @@ export interface paths {
         };
         /**
          * List Permissions
-         * @description List the permissions assignable to a role. Returns a list of permission strings.
+         * @description List the permissions a role can hold, each with its label, description, category, risks and the
+         *     permissions it needs, in the request's language.
          */
         get: operations["list_permissions_api_v1_permissions_get"];
         put?: never;
@@ -1111,7 +1112,7 @@ export interface paths {
          * @description List the roles the caller may read.
          *
          *     Returns a list of RoleResponse (id, name, description, permissions, is_builtin, is_default,
-         *     user_count, group_count).
+         *     user_count, group_count, risks).
          *
          *     Grants and assignee counts are fetched for every listed role in batched queries.
          */
@@ -2759,6 +2760,45 @@ export interface components {
              */
             scope_object_id?: string | null;
         };
+        /**
+         * PermissionResponse
+         * @description A permission a role can hold, with what it is for, in the request's language.
+         */
+        PermissionResponse: {
+            /**
+             * Category
+             * @description The category the permission is listed under, e.g. 'Users & access'.
+             */
+            category: string;
+            /**
+             * Description
+             * @description One sentence on what the permission allows.
+             */
+            description: string;
+            /**
+             * Label
+             * @description What the permission lets its holder do, e.g. 'Edit roles'.
+             */
+            label: string;
+            /** Name */
+            name: string;
+            /**
+             * Requires
+             * @description The permissions a holder also needs for this one to be of use.
+             */
+            requires: string[];
+            /**
+             * Risks
+             * @description The reasons to think twice before granting the permission.
+             */
+            risks: components["schemas"]["PermissionRisk"][];
+        };
+        /**
+         * PermissionRisk
+         * @description A reason to think twice before giving someone a permission.
+         * @enum {string}
+         */
+        PermissionRisk: "delegates_access" | "private_data" | "deletes";
         /** PersistedToolCall */
         PersistedToolCall: {
             /** Name */
@@ -2922,6 +2962,11 @@ export interface components {
             name: string;
             /** Permissions */
             permissions: string[];
+            /**
+             * Risks
+             * @description The reasons to think twice before giving someone this role.
+             */
+            risks: components["schemas"]["PermissionRisk"][];
             /**
              * User Count
              * @description How many people hold this role directly, at any scope.
@@ -4976,7 +5021,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": string[];
+                    "application/json": components["schemas"]["PermissionResponse"][];
                 };
             };
         };
