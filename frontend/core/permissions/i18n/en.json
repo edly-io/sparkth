@@ -26,6 +26,17 @@
         "label": "View",
         "list": "List",
         "compare": "Compare permissions"
+      },
+      "create": {
+        "button": "Create role",
+        "title": "Create role",
+        "intro": "Name it after the job people do.",
+        "name": "Name",
+        "description": "Description",
+        "cancel": "Cancel",
+        "submit": "Create",
+        "nameTaken": "A role with this name already exists.",
+        "failed": "Couldn't create the role. Try again."
       }
     },
     "groups": {

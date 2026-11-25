@@ -1,5 +1,10 @@
 import { api, bearer, call } from "@/lib/api";
-import type { GroupResponse, PermissionCheckResult, RoleResponse } from "@/core/permissions/types";
+import type {
+  GroupResponse,
+  PermissionCheckResult,
+  RoleCreate,
+  RoleResponse,
+} from "@/core/permissions/types";
 import type { PermissionName } from "@/lib/permissions/names";
 
 /** One permission check: a permission at a scope, optionally at one of its objects. */
@@ -41,5 +46,12 @@ export async function listRoles(token: string): Promise<RoleResponse[]> {
 export async function listGroups(token: string): Promise<GroupResponse[]> {
   return call<GroupResponse[]>(() =>
     api.GET("/api/v1/permissions/groups", { headers: bearer(token) }),
+  );
+}
+
+/** Creates a role with a name and an optional description, holding no permissions yet. */
+export async function createRole(token: string, role: RoleCreate): Promise<RoleResponse> {
+  return call<RoleResponse>(() =>
+    api.POST("/api/v1/permissions/roles", { body: role, headers: bearer(token) }),
   );
 }
