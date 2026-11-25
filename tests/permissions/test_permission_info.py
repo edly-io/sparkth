@@ -3,11 +3,11 @@
 from pathlib import Path
 
 import pytest
-from babel.messages.extract import DEFAULT_KEYWORDS, extract_from_dir
 
 import sparkth.core.permissions as core_permissions
 from sparkth.core.permissions import PERMISSIONS, Permission, get_permission
 from sparkth.core.permissions.enums import PermissionRisk
+from sparkth.lib.testing import get_marked_messages
 
 
 @pytest.fixture(autouse=True)
@@ -85,9 +85,7 @@ def test_a_core_permission_carries_the_risks_decided_for_it(name: str) -> None:
 
 
 def test_core_permission_text_is_marked_for_translation() -> None:
-    package = Path(core_permissions.__file__).parent
-    keywords = {**DEFAULT_KEYWORDS, "gettext_noop": None}
-    extracted = {message for _, _, message, *_ in extract_from_dir(str(package), keywords=keywords)}
+    extracted = get_marked_messages(Path(core_permissions.__file__).parent)
 
     for name in CORE_PERMISSIONS:
         permission = get_permission(name)

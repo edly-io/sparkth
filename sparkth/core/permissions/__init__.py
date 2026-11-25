@@ -67,9 +67,9 @@ class Permission:
     def create(
         cls,
         name: str,
-        label: str = "",
-        description: str = "",
-        category: str = "",
+        label: str,
+        description: str,
+        category: str,
         risks: tuple[PermissionRisk, ...] = (),
         requires: tuple["Permission", ...] = (),
     ) -> "Permission":
