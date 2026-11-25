@@ -1,15 +1,16 @@
 """Request and response schemas for reading the audit trail: the filter set, one row
 in summary and in full, a page of rows, and the export query."""
 
+import re
 from datetime import datetime
 from typing import Any, Self
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic_core import PydanticCustomError
 
 from sparkth.lib.audit.context import AuditSource
 from sparkth.lib.audit.events import AuditOutcome
-from sparkth.services.audit.constants import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
+from sparkth.services.audit.constants import ACTOR_ID_PATTERN, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 from sparkth.services.audit.enums import ExportFormat
 
 
@@ -18,15 +19,15 @@ class AuditEventQuery(BaseModel):
 
     ``from`` and ``to`` bound ``occurred_at`` inclusively and must carry a timezone, so
     a range never silently shifts by the server's offset. ``actor_id`` is a user id, the
-    only actor that carries one, so anything but a positive integer of at most 64 digits
-    is rejected, matching the column width.
+    only actor that carries one, so anything but a positive whole number of at most 64 digits
+    is rejected, matching the column width, with a message that names the field.
     """
 
     model_config = ConfigDict(populate_by_name=True)
 
     from_: AwareDatetime | None = Field(default=None, alias="from")
     to: AwareDatetime | None = None
-    actor_id: str | None = Field(default=None, max_length=64, pattern=r"^[1-9][0-9]*$")
+    actor_id: str | None = Field(default=None, max_length=64, json_schema_extra={"pattern": ACTOR_ID_PATTERN})
     category: str | None = None
     action: str | None = None
     outcome: AuditOutcome | None = None
@@ -34,6 +35,13 @@ class AuditEventQuery(BaseModel):
     target_type: str | None = None
     target_id: str | None = None
     request_id: str | None = None
+
+    @field_validator("actor_id")
+    @classmethod
+    def _check_actor_id(cls, actor_id: str | None) -> str | None:
+        if actor_id is not None and not re.fullmatch(ACTOR_ID_PATTERN, actor_id):
+            raise PydanticCustomError("actor_id_invalid", "'actor_id' must be a positive whole number")
+        return actor_id
 
     @model_validator(mode="after")
     def _check_range(self) -> Self:

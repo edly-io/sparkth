@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "title": "Accès et autorisations",
+    "subtitle": "Consultez et gérez qui peut faire quoi dans Sparkth.",
+    "nav": {
+      "label": "Sections d'accès",
+      "roles": "Rôles",
+      "groups": "Groupes"
+    },
+    "roles": {
+      "label": "Rôles",
+      "empty": "Aucun rôle pour l'instant.",
+      "loadFailed": "Impossible de charger les rôles. Réessayez plus tard."
+    },
+    "groups": {
+      "label": "Groupes",
+      "empty": "Aucun groupe pour l'instant.",
+      "loadFailed": "Impossible de charger les groupes. Réessayez plus tard."
+    }
+  }
+}
