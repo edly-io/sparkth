@@ -88,11 +88,11 @@ PXC_SANDBOX_OUTPUT_LIMIT = 2000
 # The MCP category every pxc tool registers under.
 PXC_TOOL_CATEGORY = "pxc"
 
-# The heading its section is rendered under in chat's system prompt.
+# The heading its section is rendered under in Compose's system prompt.
 PXC_ACTIVITY_BUILDER_TITLE = "Interactive PXC activities"
 
-# What Compose's scope classifier judges an activity-building message against.
+# What Compose's planner reads to decide a message is the activity builder's.
 PXC_ACTIVITY_BUILDER_DESCRIPTION = read_asset(__file__, "pxc_activity_building_description.txt")
 
-# The activity builder's section of chat's system prompt, inserted as written.
+# The activity builder's section of Compose's system prompt, inserted as written.
 PXC_ACTIVITY_BUILDER_PROMPT = read_asset(__file__, "pxc_activity_builder_prompt.txt")

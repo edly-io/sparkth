@@ -1,10 +1,10 @@
 import base64
 import binascii
 from datetime import datetime
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from sparkth.plugins.compose.constants import MAX_COMBINED_UPLOAD_MB
 from sparkth.plugins.compose.enums import (
@@ -87,9 +87,6 @@ class ChatCompletionRequest(BaseModel):
         default="*",
         description="Includes every tool of the plugins the requesting user has switched on and has permission to use. "
         "Use 'none' or empty list to disable.",
-    )
-    tool_choice: str | None = Field(
-        default="auto", description="How to use tools: 'auto', 'none', or specific tool name"
     )
     document_ids: list[int] | None = Field(
         default=None,
@@ -225,30 +222,6 @@ class ConversationDetailResponse(ConversationResponse):
     messages: list[MessageResponse]
 
 
-class HistoryTurn(TypedDict):
-    """One prior conversation turn, as a classifier receives it.
-
-    ``role`` is the role as stored, not a narrowed union: a conversation also holds ``tool``
-    and ``system`` turns, and a classifier that replays history decides for itself which
-    roles it can represent.
-    """
-
-    role: str
-    content: str
-
-
-class MessageScopeInput(BaseModel):
-    """What the message-scope classifier is asked to judge.
-
-    Everything here is shown to the model. The conversation UUID is deliberately absent — it
-    identifies the thread for logging and is nobody's business to classify.
-    """
-
-    query: str
-    history: list[HistoryTurn] = Field(default_factory=list)
-    attached_document_names: list[str] = Field(default_factory=list)
-
-
 class ClassifierVerdict(BaseModel):
     """What every classifier verdict carries besides its decision.
 
@@ -264,20 +237,6 @@ class ClassifierVerdict(BaseModel):
             "When the decision is negative, a short phrase naming the category it fell under. "
             "Name the category only: never quote or restate the user's message. Leave empty "
             "when the decision is positive."
-        ),
-    )
-
-
-class MessageScopeVerdict(ClassifierVerdict):
-    """Whether a turn belongs to any of the assistant's capabilities."""
-
-    # A rejected answer can echo the message, and validation errors are logged.
-    model_config = ConfigDict(hide_input_in_errors=True)
-
-    in_scope: bool = Field(
-        description=(
-            "True when the message belongs to at least one of the capabilities listed in the "
-            "instructions, false when it belongs to none of them."
         ),
     )
 
