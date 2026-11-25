@@ -14,6 +14,7 @@ from sparkth.core.permissions.exceptions import (
     RoleNotFound,
 )
 from sparkth.core.permissions.models import Group, GroupRoleAssignment, Role, RoleAssignment, RolePermission
+from sparkth.core.permissions.types import RoleAssigneeCounts
 from sparkth.lib.permissions import (
     assign_role,
     assign_role_to_group,
@@ -22,7 +23,7 @@ from sparkth.lib.permissions import (
     revoke_role_from_group,
 )
 from sparkth.lib.permissions.scopes import GLOBAL, ROLE
-from sparkth.lib.testing import AuditEventsFetcher, make_user
+from sparkth.lib.testing import AuditEventsFetcher, add_role_assignment, assign_through_group, make_user
 
 
 @pytest.fixture(autouse=True)
@@ -377,3 +378,70 @@ async def test_a_builtin_role_can_still_be_assigned_and_revoked(session: AsyncSe
     assert await has_role(user, "admin", GLOBAL, None, session) is False
     await session.refresh(group_assignment)
     assert group_assignment.is_deleted is True
+
+
+async def test_get_role_assignee_counts_counts_each_person_and_group_once(session: AsyncSession) -> None:
+    role = await roles.create_role("grader", None, session)
+    alice = await make_user(session, "alice")
+    bob = await make_user(session, "bob")
+    staff = await make_group(session, "staff")
+    assert role.id is not None and staff.id is not None
+    await add_role_assignment(session, alice, role, GLOBAL.name, None)
+    await add_role_assignment(session, alice, role, ROLE.name, "7")
+    await add_role_assignment(session, bob, role, GLOBAL.name, None)
+    session.add(GroupRoleAssignment(group_id=staff.id, role_id=role.id, scope=GLOBAL.name, scope_object_id=None))
+    session.add(GroupRoleAssignment(group_id=staff.id, role_id=role.id, scope=ROLE.name, scope_object_id="7"))
+    await session.flush()
+
+    counts = await roles.get_role_assignee_counts([role.id], session)
+
+    assert counts == {role.id: RoleAssigneeCounts(user_count=2, group_count=1)}
+
+
+async def test_get_role_assignee_counts_ignores_revoked_assignments(session: AsyncSession) -> None:
+    role = await roles.create_role("grader", None, session)
+    alice = await make_user(session, "alice")
+    alumni = await make_group(session, "alumni")
+    assert role.id is not None and alumni.id is not None
+    revoked = await add_role_assignment(session, alice, role, GLOBAL.name, None)
+    revoked.soft_delete()
+    revoked_group = GroupRoleAssignment(group_id=alumni.id, role_id=role.id, scope=GLOBAL.name, scope_object_id=None)
+    revoked_group.soft_delete()
+    session.add_all([revoked, revoked_group])
+    await session.flush()
+
+    counts = await roles.get_role_assignee_counts([role.id], session)
+
+    assert counts == {role.id: RoleAssigneeCounts(user_count=0, group_count=0)}
+
+
+async def test_get_role_assignee_counts_leaves_out_people_who_hold_it_only_through_a_group(
+    session: AsyncSession,
+) -> None:
+    role = await roles.create_role("grader", None, session)
+    alice = await make_user(session, "alice")
+    assert role.id is not None
+    await assign_through_group(session, alice, role, GLOBAL.name, None)
+
+    counts = await roles.get_role_assignee_counts([role.id], session)
+
+    assert counts == {role.id: RoleAssigneeCounts(user_count=0, group_count=1)}
+
+
+async def test_get_role_assignee_counts_includes_roles_nobody_holds(session: AsyncSession) -> None:
+    held = await roles.create_role("grader", None, session)
+    unheld = await roles.create_role("viewer", None, session)
+    alice = await make_user(session, "alice")
+    assert held.id is not None and unheld.id is not None
+    await add_role_assignment(session, alice, held, GLOBAL.name, None)
+
+    counts = await roles.get_role_assignee_counts([held.id, unheld.id], session)
+
+    assert counts == {
+        held.id: RoleAssigneeCounts(user_count=1, group_count=0),
+        unheld.id: RoleAssigneeCounts(user_count=0, group_count=0),
+    }
+
+
+async def test_get_role_assignee_counts_empty_input_returns_empty_map(session: AsyncSession) -> None:
+    assert await roles.get_role_assignee_counts([], session) == {}

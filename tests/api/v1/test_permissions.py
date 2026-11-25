@@ -9,15 +9,26 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import event
 from sqlalchemy.orm import make_transient
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.api.v1.permissions.routes.roles import _build_role_response
 from sparkth.core.db import get_engine
 from sparkth.core.models.user import User
 from sparkth.core.permissions import PERMISSIONS, Permission
+from sparkth.core.permissions.constants import PLUGIN_USER_ROLE, SPARKTH_USER_ROLE
 from sparkth.core.permissions.models import Role, RoleAssignment, RolePermission
+from sparkth.core.permissions.types import RoleAssigneeCounts
 from sparkth.lib.auth import get_current_user
-from sparkth.lib.testing import grant_permissions, make_user_with_permissions
+from sparkth.lib.permissions.scopes import GLOBAL
+from sparkth.lib.testing import (
+    add_role_assignment,
+    assign_through_group,
+    grant_permissions,
+    make_role,
+    make_user,
+    make_user_with_permissions,
+)
 
 
 def _record_statement(
@@ -270,7 +281,7 @@ def test_build_role_response_without_id_raises() -> None:
     # A persisted role always has an id; if it is missing we fail loudly with a real guard, not a
     # bare assert (which `python -O` would strip), so RoleResponse is never built from bad data.
     with pytest.raises(RuntimeError):
-        _build_role_response(Role(name="x"), [])
+        _build_role_response(Role(name="x"), [], RoleAssigneeCounts(user_count=0, group_count=0))
 
 
 async def test_create_role_permission_fetches_role_once(client: AsyncClient, session: AsyncSession) -> None:
@@ -466,3 +477,80 @@ async def test_changing_a_builtin_role_returns_409(
         "Ships with Sparkth",
         ["assignment.grade"],
     )
+
+
+async def test_role_response_says_whether_every_account_gets_the_role(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    existing = set((await session.exec(select(Role.name))).all())
+    for name in {SPARKTH_USER_ROLE, PLUGIN_USER_ROLE, "admin"} - existing:
+        session.add(Role(name=name, is_builtin=True))
+    await session.commit()
+    custom = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()
+
+    listed = {role["name"]: role["is_default"] for role in (await client.get("/api/v1/permissions/roles")).json()}
+
+    assert custom["is_default"] is False
+    assert listed[SPARKTH_USER_ROLE] is True
+    assert listed[PLUGIN_USER_ROLE] is True
+    assert listed["admin"] is False
+    assert listed["grader"] is False
+
+
+async def test_role_response_counts_the_people_and_groups_holding_it(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    grader = await make_role(session, "grader", [])
+    await add_role_assignment(session, await make_user(session, "alice"), grader, GLOBAL.name, None)
+    await assign_through_group(session, await make_user(session, "bob"), grader, GLOBAL.name, None)
+    await session.commit()
+
+    listed = {role["id"]: role for role in (await client.get("/api/v1/permissions/roles")).json()}
+    fetched = (await client.get(f"/api/v1/permissions/roles/{grader.id}")).json()
+
+    assert (listed[grader.id]["user_count"], listed[grader.id]["group_count"]) == (1, 1)
+    assert (fetched["user_count"], fetched["group_count"]) == (1, 1)
+
+
+async def test_a_new_role_is_held_by_nobody(client: AsyncClient, session: AsyncSession) -> None:
+    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+
+    created = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()
+
+    assert (created["user_count"], created["group_count"]) == (0, 0)
+
+
+async def _count_list_roles_statements(client: AsyncClient) -> int:
+    """Return how many SQL statements one ``GET /api/v1/permissions/roles`` runs."""
+    statements: list[str] = []
+    listener = functools.partial(_record_statement, statements)
+    sync_engine = get_engine().sync_engine
+    event.listen(sync_engine, "before_cursor_execute", listener)
+    try:
+        response = await client.get("/api/v1/permissions/roles")
+    finally:
+        event.remove(sync_engine, "before_cursor_execute", listener)
+    assert response.status_code == 200
+    return len(statements)
+
+
+async def test_list_roles_runs_as_many_queries_for_many_held_roles_as_for_one(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    assignee = await make_user(session, "alice")
+
+    async def add_held_role() -> None:
+        role = await _add_role_with_permission(session, "assignment.grade")
+        await add_role_assignment(session, assignee, role, GLOBAL.name, None)
+        await assign_through_group(session, assignee, role, GLOBAL.name, None)
+        await session.commit()
+
+    await add_held_role()
+    with_one = await _count_list_roles_statements(client)
+    for _ in range(4):
+        await add_held_role()
+
+    assert await _count_list_roles_statements(client) == with_one
