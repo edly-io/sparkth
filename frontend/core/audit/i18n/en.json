@@ -23,7 +23,7 @@
     "loadMore": "Load more",
     "empty": "No audit events match these filters.",
     "errors": {
-      "actorIdInvalid": "Actor user ID must be a number.",
+      "actorIdInvalid": "Actor user ID must be a positive whole number.",
       "rangeReversed": "The start time must be on or before the end time."
     },
     "outcomes": {
