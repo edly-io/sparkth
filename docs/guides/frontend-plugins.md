@@ -512,8 +512,9 @@ declare module "@/lib/permissions/names" {
 Removing the plugin's directory removes its names with it.
 
 A plugin gates a control on what the signed-in user may do with the hooks from `@/lib/permissions/hooks`, never from
-`@/core`. `usePermissionCheck` asks about one permission, and `usePermissionChecks` asks about several in one
-request. Each returns `"checking"`, `"allowed"` or `"denied"`, and a failed request counts as `"denied"`:
+`@/core`. `usePermissionCheck` asks about one permission and returns one of `"checking"`, `"allowed"` or
+`"denied"`. `usePermissionChecks` asks about several permissions in one request and returns an array of those values,
+one per check, in the order asked. A failed request counts as `"denied"`:
 
 ```tsx
 import { useAuth } from "@/lib/auth/hooks";
