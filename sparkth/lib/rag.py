@@ -20,7 +20,7 @@ from sparkth.rag.mcp.tools import (
     search_section_by_keyword,
 )
 from sparkth.rag.retrieval import agentic_retrieve_context, get_section_chunks
-from sparkth.rag.schemas import SectionRef
+from sparkth.rag.schemas import DocumentSections, SectionRef, SectionSelection
 from sparkth.rag.store import copy_document_chunk_links
 from sparkth.rag.types import DocumentSection, RetrievedChunk
 from sparkth.rag.utils import get_rag_ingested_document_structure
@@ -43,6 +43,8 @@ __all__ = [
     "list_document_sections",
     "search_section_by_keyword",
     "DocumentSection",
+    "DocumentSections",
     "SectionRef",
+    "SectionSelection",
     "RetrievedChunk",
 ]
