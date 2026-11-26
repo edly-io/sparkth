@@ -1,6 +1,6 @@
 """User-group management commands: add and remove members, and grant roles to a group.
 
-Group-role grants are managed only here; membership is also managed through the REST API.
+Membership and group-role grants are also managed through the REST API.
 Authored with LLM (Claude) assistance."""
 
 import asyncio

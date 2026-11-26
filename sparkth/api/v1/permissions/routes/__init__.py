@@ -5,8 +5,9 @@ The router is mounted at ``/permissions``. The permission vocabulary is read her
 /permissions``), each permission with what it is for; ``POST /permissions/can/batch`` answers
 whether the current user holds each of a list of permissions; role management lives under
 ``/permissions/roles`` via the role sub-router, group management under ``/permissions/groups`` via
-the group sub-router, and the users holding a role under ``/permissions/roles/{role_id}/assignments/users``
-via the role-assignment router.
+the group sub-router, and the users and groups holding a role under
+``/permissions/roles/{role_id}/assignments/users`` and ``.../assignments/groups`` via the
+role-assignment router.
 """
 
 from typing import Annotated
