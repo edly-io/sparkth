@@ -16,21 +16,25 @@ import { ListLoader } from "@/core/permissions/components/ui/ListLoader";
 import { RoleCard } from "@/core/permissions/components/ui/RoleCard";
 
 /**
- * The Roles tab: a card for each role the signed-in user may read, under a switch between the list
- * and a permission comparison that is not available yet. Those who may create roles get a Create
- * role button, and those who may delete them a Delete action on each custom role.
+ * What the page asks before showing its actions, read by position as create, update, delete.
+ * Creating a role needs `role.update` too, since a new role can start with permissions.
  */
-/** What the page asks before showing its actions, read by position as create, delete. */
 const ROLE_ACTION_CHECKS: PermissionCheckQuery[] = [
   { permission: "role.create", scope: "global" },
+  { permission: "role.update", scope: "global" },
   { permission: "role.delete", scope: "role" },
 ];
 
+/**
+ * The Roles tab: a card for each role the signed-in user may read, under a switch between the list
+ * and a permission comparison that is not available yet. Those who may create and change roles get a
+ * Create role button, and those who may delete roles a Delete action on each custom role.
+ */
 export default function RolesPage() {
   const t = useTranslations("permissions.roles");
   const { token } = useAuth();
-  const [createAccess, deleteAccess] = usePermissionChecks(token, ROLE_ACTION_CHECKS);
-  const mayCreate = createAccess === "allowed";
+  const [createAccess, updateAccess, deleteAccess] = usePermissionChecks(token, ROLE_ACTION_CHECKS);
+  const mayCreate = createAccess === "allowed" && updateAccess === "allowed";
   const mayDelete = deleteAccess === "allowed";
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<RoleResponse | null>(null);

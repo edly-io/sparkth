@@ -36,7 +36,12 @@
         "cancel": "Annuler",
         "submit": "Créer",
         "nameTaken": "Un rôle porte déjà ce nom.",
-        "failed": "Impossible de créer le rôle. Réessayez."
+        "failed": "Impossible de créer le rôle. Réessayez.",
+        "picker": {
+          "search": "Rechercher des permissions",
+          "chosen": "{count, plural, one {# choisie} other {# choisies}}",
+          "noMatches": "Aucune permission ne correspond."
+        }
       },
       "menu": {
         "label": "Plus d'actions pour {name}",

@@ -36,7 +36,12 @@
         "cancel": "Cancel",
         "submit": "Create",
         "nameTaken": "A role with this name already exists.",
-        "failed": "Couldn't create the role. Try again."
+        "failed": "Couldn't create the role. Try again.",
+        "picker": {
+          "search": "Search permissions",
+          "chosen": "{count} chosen",
+          "noMatches": "No permissions match."
+        }
       },
       "menu": {
         "label": "More actions for {name}",

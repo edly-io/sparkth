@@ -2,6 +2,7 @@ import { api, bearer, call } from "@/lib/api";
 import type {
   GroupResponse,
   PermissionCheckResult,
+  PermissionResponse,
   RoleCreate,
   RoleResponse,
 } from "@/core/permissions/types";
@@ -49,10 +50,17 @@ export async function listGroups(token: string): Promise<GroupResponse[]> {
   );
 }
 
-/** Creates a role with a name and an optional description, holding no permissions yet. */
+/** Creates a role with a name, an optional description and the permissions it starts with, if any. */
 export async function createRole(token: string, role: RoleCreate): Promise<RoleResponse> {
   return call<RoleResponse>(() =>
     api.POST("/api/v1/permissions/roles", { body: role, headers: bearer(token) }),
+  );
+}
+
+/** Every permission Sparkth and its plugins declare, with its label, description, category and risks. */
+export async function listPermissions(token: string): Promise<PermissionResponse[]> {
+  return call<PermissionResponse[]>(() =>
+    api.GET("/api/v1/permissions", { headers: bearer(token) }),
   );
 }
 

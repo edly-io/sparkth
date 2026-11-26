@@ -36,7 +36,12 @@
         "cancel": "Cancelar",
         "submit": "Crear",
         "nameTaken": "Ya existe un rol con este nombre.",
-        "failed": "No se pudo crear el rol. Inténtalo de nuevo."
+        "failed": "No se pudo crear el rol. Inténtalo de nuevo.",
+        "picker": {
+          "search": "Buscar permisos",
+          "chosen": "{count, plural, one {# elegido} other {# elegidos}}",
+          "noMatches": "Ningún permiso coincide."
+        }
       },
       "menu": {
         "label": "Más acciones para {name}",
