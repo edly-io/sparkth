@@ -10,7 +10,7 @@ import {
   ReactNode,
 } from "react";
 import { api, ApiRequestError, bearer } from "@/lib/api";
-import { isPluginUsable } from "./metadata";
+import { isPluginUsable as isPluginStateUsable } from "./metadata";
 import { PluginConfig, PluginContext as IPluginContext, PluginState } from "./types";
 
 // ============================================================================
@@ -29,7 +29,7 @@ interface PluginContextValue extends PluginProviderState {
   updatePluginConfig: (pluginName: string, config: Partial<PluginConfig>) => Promise<void>;
   enablePlugin: (pluginName: string) => Promise<void>;
   disablePlugin: (pluginName: string) => Promise<void>;
-  isPluginUsableByName: (pluginName: string) => boolean;
+  isPluginUsable: (pluginName: string) => boolean;
   createPluginContext: (pluginName: string) => IPluginContext;
 }
 
@@ -191,9 +191,9 @@ export function PluginProvider({ children, token }: PluginProviderProps) {
     [token, refreshPlugins],
   );
 
-  const isPluginUsableByName = useCallback(
+  const isPluginUsable = useCallback(
     (pluginName: string): boolean => {
-      return state.plugins.some((p) => p.plugin_name === pluginName && isPluginUsable(p));
+      return state.plugins.some((p) => p.plugin_name === pluginName && isPluginStateUsable(p));
     },
     [state.plugins],
   );
@@ -244,7 +244,7 @@ export function PluginProvider({ children, token }: PluginProviderProps) {
       updatePluginConfig,
       enablePlugin,
       disablePlugin,
-      isPluginUsableByName,
+      isPluginUsable,
       createPluginContext,
     }),
     [
@@ -254,7 +254,7 @@ export function PluginProvider({ children, token }: PluginProviderProps) {
       updatePluginConfig,
       enablePlugin,
       disablePlugin,
-      isPluginUsableByName,
+      isPluginUsable,
       createPluginContext,
     ],
   );
@@ -291,15 +291,10 @@ export function usePlugin(pluginName: string): {
   context: IPluginContext;
   updateConfig: (config: Partial<PluginConfig>) => Promise<void>;
 } {
-  const {
-    loading,
-    isPluginUsableByName,
-    getPluginConfig,
-    createPluginContext,
-    updatePluginConfig,
-  } = usePluginContext();
+  const { loading, isPluginUsable, getPluginConfig, createPluginContext, updatePluginConfig } =
+    usePluginContext();
 
-  const isUsable = isPluginUsableByName(pluginName);
+  const isUsable = isPluginUsable(pluginName);
   const config = getPluginConfig(pluginName);
   const context = useMemo(() => createPluginContext(pluginName), [pluginName, createPluginContext]);
 
