@@ -12,7 +12,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn() }),
 }));
 const checkPermissions = vi.hoisted(() => vi.fn());
-vi.mock("@/core/permissions/client", () => ({ checkPermissions }));
+vi.mock("@/lib/permissions/client", () => ({ checkPermissions }));
 // The plugins registered with core, which is what counts as installed.
 const plugins = vi.hoisted(() => ({ installed: ["compose"] }));
 vi.mock("@/core/plugins/registry", async (importOriginal) => ({
