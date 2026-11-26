@@ -6,7 +6,7 @@ import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.permissions import PERMISSIONS, Permission, roles
+from sparkth.core.permissions import roles
 from sparkth.core.permissions.enums import PermissionRisk
 from sparkth.core.permissions.exceptions import (
     PermissionNotFound,
@@ -25,14 +25,6 @@ from sparkth.lib.permissions import (
 )
 from sparkth.lib.permissions.scopes import GLOBAL, ROLE
 from sparkth.lib.testing import AuditEventsFetcher, add_role_assignment, assign_through_group, make_user
-
-
-@pytest.fixture(autouse=True)
-def _register_test_permission(monkeypatch: pytest.MonkeyPatch) -> None:
-    # set_role_permissions validates against the registry, so register a known permission on the
-    # PERMISSIONS hook for the duration of one test. monkeypatch restores the backing dict after
-    # each test, so the permission never leaks into the shared vocabulary other tests see.
-    monkeypatch.setitem(PERMISSIONS._items, "assignment.grade", Permission("assignment.grade"))
 
 
 async def make_group(session: AsyncSession, name: str) -> Group:

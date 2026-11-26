@@ -41,7 +41,7 @@ from langchain_core.messages import AIMessage
 from langchain_core.runnables import Runnable
 from langchain_core.tools import BaseTool
 from sqlalchemy.ext.asyncio import AsyncSession as SQLAlchemyAsyncSession
-from sqlmodel import SQLModel, col, or_, select
+from sqlmodel import SQLModel, col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 import sparkth.core.analytics.db as analytics_db
@@ -290,20 +290,19 @@ AuditEventsFetcher = Callable[[], Awaitable[list[AuditEvent]]]
 
 @pytest.fixture
 def audit_events(session: AsyncSession) -> AuditEventsFetcher:
-    """Fetch the audit rows in insertion order, leaving out those a test's setup recorded.
+    """Fetch the audit rows in insertion order, leaving out those the shared role helpers recorded.
 
     Shared by every audit-capture test (core wrapper, chat provider seam, RAG
     agent tools, MCP server), so the query lives once. Returns a coroutine
     factory rather than a snapshot because tests read the rows *after* driving
     the code under test. Rows recorded as the test-setup actor, which the shared
-    role helpers create roles as, are not returned.
+    helpers create roles and grants as, are not returned; any other row is.
     """
 
     async def _fetch() -> list[AuditEvent]:
-        setup_label = _TEST_SETUP_ACTOR.label
         result = await session.exec(
             select(AuditEvent)
-            .where(or_(col(AuditEvent.actor_label).is_(None), col(AuditEvent.actor_label) != setup_label))
+            .where(col(AuditEvent.actor_label).is_distinct_from(_TEST_SETUP_ACTOR.label))
             .order_by(col(AuditEvent.id))
         )
         return list(result.all())
