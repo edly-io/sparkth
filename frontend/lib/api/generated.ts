@@ -1260,6 +1260,8 @@ export interface paths {
         /**
          * Revoke Group Role
          * @description Take a role away from a group by the id of the assignment. Returns 204 No Content.
+         *
+         *     An assignment whose stored scope kind is no longer registered is refused with 422 and left in place.
          */
         delete: operations["revoke_group_role_api_v1_permissions_roles__role_id__assignments_groups__assignment_id__delete"];
         options?: never;
