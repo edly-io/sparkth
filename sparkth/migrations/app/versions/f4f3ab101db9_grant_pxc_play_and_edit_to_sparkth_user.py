@@ -4,9 +4,8 @@ Revision ID: f4f3ab101db9
 Revises: 8c14826347d8
 Create Date: 2026-11-26 22:50:00.000000
 
-Grants ``pxc.activity.play`` and ``pxc.activity.edit`` to the default ``sparkth_user`` role. Every account
-holds that role at its own ``user`` scope, so every account can open its own activities at either level. A
-deployment without the role gets no rows.
+Grants ``pxc.activity.play`` and ``pxc.activity.edit`` to the default ``sparkth_user`` role. A deployment
+without the role gets no rows.
 """
 
 from typing import Sequence, Union
