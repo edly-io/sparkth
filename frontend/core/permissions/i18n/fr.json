@@ -72,6 +72,11 @@
         "failed": "Impossible de supprimer le rôle. Réessayez."
       },
       "detail": {
+        "breadcrumb": "Fil d'Ariane",
+        "roles": "Rôles",
+        "notFound": "Ce rôle n'existe pas.",
+        "loadFailed": "Impossible de charger le rôle. Réessayez plus tard.",
+        "permissionsFailed": "Impossible de charger les permissions. Réessayez plus tard.",
         "list": {
           "label": "Permissions",
           "filter": "Filtrer les permissions",

@@ -3,7 +3,8 @@ import { screen } from "@testing-library/react";
 import { renderWithIntl } from "@/tests/intl";
 
 vi.mock("@/core/auth/hooks", () => ({ useAuth: () => ({ token: "test-token" }) }));
-vi.mock("next/navigation", () => ({ usePathname: () => "/dashboard/permissions/roles" }));
+const nav = vi.hoisted(() => ({ pathname: "/dashboard/permissions/roles" }));
+vi.mock("next/navigation", () => ({ usePathname: () => nav.pathname }));
 const checkPermissions = vi.hoisted(() => vi.fn());
 vi.mock("@/core/permissions/client", () => ({ checkPermissions }));
 
@@ -11,6 +12,7 @@ import PermissionsLayout from "@/app/dashboard/permissions/layout";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  nav.pathname = "/dashboard/permissions/roles";
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -51,6 +53,16 @@ describe("PermissionsLayout", () => {
       "href",
       "/dashboard/permissions/groups",
     );
+  });
+
+  it("leaves the section heading and tabs to a page below a tab, such as one role's", async () => {
+    nav.pathname = "/dashboard/permissions/roles/role";
+    checkPermissions.mockResolvedValue([true, true, true]);
+    renderLayout();
+
+    expect(await screen.findByText("tab body")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Access & permissions" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Access sections" })).not.toBeInTheDocument();
   });
 
   it.each([

@@ -30,6 +30,15 @@ describe("RoleCard", () => {
     expect(screen.queryByText("Built-in")).not.toBeInTheDocument();
   });
 
+  it("links its name to the role's page", () => {
+    renderWithIntl(<RoleCard role={role({ id: 3 })} />);
+
+    expect(screen.getByRole("link", { name: "Grader" })).toHaveAttribute(
+      "href",
+      "/dashboard/permissions/roles/role?id=3",
+    );
+  });
+
   it("shows a built-in role's name formatted to read, its description and a Built-in badge", () => {
     renderWithIntl(
       <RoleCard

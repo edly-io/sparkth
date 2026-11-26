@@ -72,6 +72,11 @@
         "failed": "Couldn't delete the role. Try again."
       },
       "detail": {
+        "breadcrumb": "Breadcrumb",
+        "roles": "Roles",
+        "notFound": "This role doesn't exist.",
+        "loadFailed": "Couldn't load the role. Try again later.",
+        "permissionsFailed": "Couldn't load the permissions. Try again later.",
         "list": {
           "label": "Permissions",
           "filter": "Filter permissions",

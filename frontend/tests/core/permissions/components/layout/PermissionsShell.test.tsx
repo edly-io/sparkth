@@ -13,6 +13,17 @@ describe("PermissionsShell", () => {
     expect(screen.getByText("See and manage who can do what in Sparkth.")).toBeInTheDocument();
   });
 
+  it("leaves the heading out for a page that has its own", () => {
+    renderWithIntl(
+      <PermissionsShell withHeading={false}>
+        <p>role page</p>
+      </PermissionsShell>,
+    );
+
+    expect(screen.getByText("role page")).toBeInTheDocument();
+    expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+  });
+
   it("renders its content after the heading", () => {
     renderWithIntl(
       <PermissionsShell>

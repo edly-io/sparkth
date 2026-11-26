@@ -1,19 +1,20 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Ellipsis, Lock, Trash2, Zap } from "lucide-react";
+import Link from "next/link";
+import { Ellipsis, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Popover, PopoverContent, PopoverTrigger } from "@/core/components/ui/Popover";
 import { RiskChips } from "@/core/permissions/components/ui/RiskChips";
+import { RoleBadges } from "@/core/permissions/components/ui/RoleBadges";
 import { formatRoleName, getRoleHolders } from "@/core/permissions/roleDisplay";
 import type { RoleResponse } from "@/core/permissions/types";
 
-const BADGE = "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium";
-
 /**
- * One role in the Roles list: its name and description, a badge saying whether it ships with
- * Sparkth, is given to everyone or was made here, the risks of its permissions, how many permissions
- * it holds and who holds it. With `onDelete`, a menu on the card offers to delete the role.
+ * One role in the Roles list: its name, linking to the role's page, and description, a badge saying
+ * whether it ships with Sparkth, is given to everyone or was made here, the risks of its permissions,
+ * how many permissions it holds and who holds it. With `onDelete`, a menu on the card offers to
+ * delete the role.
  */
 export function RoleCard({ role, onDelete }: { role: RoleResponse; onDelete?: () => void }) {
   const t = useTranslations("permissions.roles");
@@ -22,28 +23,16 @@ export function RoleCard({ role, onDelete }: { role: RoleResponse; onDelete?: ()
     <article className="flex h-full flex-col gap-3 rounded-xl border border-border bg-card p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-base font-semibold text-foreground">{formatRoleName(role.name)}</h2>
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
-            {role.is_builtin ? (
-              <span
-                className={`${BADGE} bg-neutral-200 text-neutral-700 dark:bg-neutral-700 dark:text-neutral-100`}
-              >
-                <Lock className="h-3 w-3" aria-hidden="true" />
-                {t("badges.builtin")}
-              </span>
-            ) : (
-              <span className={`${BADGE} bg-primary-500/15 text-primary-600 dark:text-primary-400`}>
-                {t("badges.custom")}
-              </span>
-            )}
-            {role.is_default && (
-              <span
-                className={`${BADGE} bg-secondary-50 text-secondary-700 dark:bg-secondary-900/30 dark:text-secondary-300`}
-              >
-                <Zap className="h-3 w-3" aria-hidden="true" />
-                {t("badges.default")}
-              </span>
-            )}
+          <h2 className="text-base font-semibold text-foreground">
+            <Link
+              href={`/dashboard/permissions/roles/role?id=${role.id}`}
+              className="hover:underline focus-visible:underline"
+            >
+              {formatRoleName(role.name)}
+            </Link>
+          </h2>
+          <div className="mt-1.5">
+            <RoleBadges role={role} />
           </div>
         </div>
         {onDelete && <RoleMenu name={formatRoleName(role.name)} onDelete={onDelete} />}
