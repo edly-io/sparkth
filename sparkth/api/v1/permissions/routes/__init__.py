@@ -5,7 +5,8 @@ The router is mounted at ``/permissions``. The permission vocabulary is read her
 /permissions``), each permission with what it is for; ``POST /permissions/can/batch`` answers
 whether the current user holds each of a list of permissions; role management lives under
 ``/permissions/roles`` via the role sub-router, group management under ``/permissions/groups`` via
-the group sub-router.
+the group sub-router, and the users holding a role under ``/permissions/roles/{role_id}/assignments/users``
+via the role-assignment router.
 """
 
 from typing import Annotated
@@ -14,7 +15,7 @@ from fastapi import APIRouter, Body, Depends
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.api.v1.permissions.constants import MAX_PERMISSION_CHECKS
-from sparkth.api.v1.permissions.routes import groups, roles
+from sparkth.api.v1.permissions.routes import groups, role_assignments, roles
 from sparkth.api.v1.permissions.schemas import PermissionCheck, PermissionCheckResult, PermissionResponse
 from sparkth.core.models.user import User
 from sparkth.core.permissions import PERMISSIONS, Permission
@@ -92,4 +93,5 @@ async def answer_permission_checks(
 
 
 router.include_router(roles.router, prefix="/roles")
+router.include_router(role_assignments.router, prefix="/roles")
 router.include_router(groups.router, prefix="/groups")

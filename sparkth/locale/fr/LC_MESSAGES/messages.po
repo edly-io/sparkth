@@ -532,3 +532,19 @@ msgstr "Retirer des membres des groupes"
 #: sparkth/core/permissions/__init__.py:336
 msgid "Take people out of groups, and the group's roles with them."
 msgstr "Retirer des personnes des groupes, et avec elles les rôles du groupe."
+
+#: sparkth/core/permissions/__init__.py:299
+msgid "Give roles"
+msgstr "Attribuer des rôles"
+
+#: sparkth/core/permissions/__init__.py:300
+msgid "Give a role to people or groups."
+msgstr "Attribuer un rôle à des personnes ou à des groupes."
+
+#: sparkth/core/permissions/__init__.py:306
+msgid "Take roles away"
+msgstr "Retirer des rôles"
+
+#: sparkth/core/permissions/__init__.py:307
+msgid "Take a role away from people or groups."
+msgstr "Retirer un rôle à des personnes ou à des groupes."

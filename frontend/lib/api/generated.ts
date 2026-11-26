@@ -1223,6 +1223,50 @@ export interface paths {
         patch: operations["update_role_api_v1_permissions_roles__role_id__patch"];
         trace?: never;
     };
+    "/api/v1/permissions/roles/{role_id}/assignments/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List User Role Assignments
+         * @description List a page of the users holding a role, by assignment id. Returns each user's scope and grant time.
+         */
+        get: operations["list_user_role_assignments_api_v1_permissions_roles__role_id__assignments_users_get"];
+        put?: never;
+        /**
+         * Assign User Role
+         * @description Give a role to a user at a scope; an assignment that already exists is returned unchanged.
+         */
+        post: operations["assign_user_role_api_v1_permissions_roles__role_id__assignments_users_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/permissions/roles/{role_id}/assignments/users/{assignment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke User Role
+         * @description Take a role away from a user by the id of the assignment. Returns 204 No Content.
+         */
+        delete: operations["revoke_user_role_api_v1_permissions_roles__role_id__assignments_users__assignment_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/permissions/roles/{role_id}/permissions": {
         parameters: {
             query?: never;
@@ -3337,6 +3381,45 @@ export interface components {
         UserLogin: {
             /** Password */
             password: string;
+            /** Username */
+            username: string;
+        };
+        /** UserRoleAssignmentCreate */
+        UserRoleAssignmentCreate: {
+            /**
+             * Scope
+             * @description Scope kind to give the role at, e.g. 'global'.
+             */
+            scope: string;
+            /**
+             * Scope Object Id
+             * @description The object the scope names. Leave it out for a scope without objects.
+             */
+            scope_object_id?: string | null;
+            /** User Id */
+            user_id: number;
+        };
+        /** UserRoleAssignmentResponse */
+        UserRoleAssignmentResponse: {
+            /**
+             * Assigned At
+             * Format: date-time
+             */
+            assigned_at: string;
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Role Id */
+            role_id: number;
+            /** Role Name */
+            role_name: string;
+            /** Scope */
+            scope: string;
+            /** Scope Object Id */
+            scope_object_id: string | null;
+            /** User Id */
+            user_id: number;
             /** Username */
             username: string;
         };
@@ -5640,6 +5723,105 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["RoleResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_user_role_assignments_api_v1_permissions_roles__role_id__assignments_users_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                role_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserRoleAssignmentResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    assign_user_role_api_v1_permissions_roles__role_id__assignments_users_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                role_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserRoleAssignmentCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserRoleAssignmentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_user_role_api_v1_permissions_roles__role_id__assignments_users__assignment_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                role_id: number;
+                assignment_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
