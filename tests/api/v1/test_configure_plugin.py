@@ -119,3 +119,14 @@ async def test_configure_plugin_internal_error(client: AsyncClient, plugin_prefe
 
     assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
     assert response.json()["detail"] == "Plugin cannot be configured"
+
+
+async def test_configure_plugin_value_error_is_a_bad_request(client: AsyncClient, plugin_preferences: User) -> None:
+    with patch(
+        "sparkth.core.plugins.service.PluginService.apply_preprocess",
+        side_effect=ValueError("Model not allowed"),
+    ):
+        response = await client.post("/api/v1/plugins/plugin_a/configure", json={"model": "x"})
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert response.json()["detail"] == "Model not allowed"
