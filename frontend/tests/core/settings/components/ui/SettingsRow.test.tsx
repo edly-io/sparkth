@@ -41,6 +41,26 @@ describe("SettingsRow", () => {
     expect(screen.getByText("Disabled")).toBeDefined();
   });
 
+  it("puts the switch where `active` says and keeps it enabled by default", () => {
+    renderRow({ active: false });
+    const toggle = screen.getByRole("switch");
+    expect(toggle).not.toBeChecked();
+    expect(toggle).not.toBeDisabled();
+  });
+
+  it("lets the switch position and its disabled state differ from `active`", () => {
+    renderRow({ active: false, toggleChecked: true, toggleDisabled: true });
+    const toggle = screen.getByRole("switch");
+    expect(toggle).toBeChecked();
+    expect(toggle).toBeDisabled();
+  });
+
+  it("does not report a click on a disabled switch", () => {
+    const onToggle = renderRow({ toggleDisabled: true });
+    fireEvent.click(screen.getByRole("switch"));
+    expect(onToggle).not.toHaveBeenCalled();
+  });
+
   it("reports a toggle", () => {
     const onToggle = renderRow();
     fireEvent.click(screen.getByRole("switch"));

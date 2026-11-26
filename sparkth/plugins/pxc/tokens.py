@@ -3,10 +3,10 @@
 The LMS mints a short-lived HS256 JWT carrying its user id, course id and activity instance,
 signed with a secret shared between the two servers. This plugin verifies the signature and
 takes the learner's identity from the token, so it never looks up a learner itself. Sparkth
-mints only an author's preview of their own activity (``mint_preview_token``), and re-signs a
-verified token to pin its launch to one revision of a generated activity (``pin_launch_token``). The
-secret stays server-side at both ends and only the token travels through the browser, which is
-what makes the identity trustworthy rather than client-asserted.
+mints only a preview of an activity for a user permitted to preview it (``mint_preview_token``), and
+re-signs a verified token to pin its launch to one revision of a generated activity
+(``pin_launch_token``). The secret stays server-side at both ends and only the token travels
+through the browser, which is what makes the identity trustworthy rather than client-asserted.
 
 The claim names are the plugin's own — ``act``, ``ins``, ``cid``, ``uid``, and ``rev`` on a
 pinned token — since none of the registered JWT claims describe an activity instance or an
@@ -112,9 +112,9 @@ def mint_launch_token(
 ) -> str:
     """Return a token carrying these claims, signed with ``secret`` and valid for ``ttl`` seconds.
 
-    The LMS mints learner launches. Sparkth mints only an author's preview, through
-    ``mint_preview_token``, and tests mint tokens to exercise verification. Both halves of the
-    format are defined here.
+    The LMS mints learner launches. Sparkth mints only previews, for a user permitted to preview the
+    activity, and tests mint tokens to exercise verification. Both halves of the format are defined
+    here.
 
     ``ttl`` defaults to the configured lifetime, resolved per call rather than as an argument
     default so it is not frozen at import time.
@@ -133,11 +133,11 @@ def mint_launch_token(
 
 
 def mint_preview_token(activity_id: UUID, user_id: int, permission: PreviewPermission) -> str:
-    """A launch token for an author previewing their own generated activity inside Sparkth.
+    """A launch token for a user previewing a generated activity inside Sparkth.
 
     The preview is the one launch Sparkth mints itself. It goes into a fixed preview course and
     activity instance, as a learner id namespaced away from any LMS's. The caller has already checked
-    that the user owns the activity; the token only carries that decision to the embed.
+    that the user may preview the activity in this view; the token only carries that decision to the embed.
 
     Raises:
         PxcLaunchNotConfigured: if ``PXC_LAUNCH_SECRET`` is empty, since PyJWT refuses an empty key.

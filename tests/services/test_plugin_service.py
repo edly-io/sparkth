@@ -213,3 +213,11 @@ async def test_get_or_create_all_updates_schema_but_preserves_enabled(session: A
     assert len(rows) == 1
     assert rows[0].config_schema == {"new": True}
     assert rows[0].enabled is False
+
+
+@pytest.mark.asyncio
+async def test_update_preference_config_needs_a_saved_plugin() -> None:
+    unsaved = Plugin(name="compose", is_core=True, config_schema={}, enabled=True)
+
+    with pytest.raises(RuntimeError):
+        await PluginService().update_preference_config(_make_session(), 1, unsaved, {})

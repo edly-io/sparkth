@@ -17,9 +17,9 @@ def _restore_registry(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_a_permission_keeps_the_information_it_is_created_with() -> None:
-    viewing = Permission.create("assignment.view", "See assignments", "Open submissions.", "Courses")
+    viewing = Permission.create("submission.view", "See assignments", "Open submissions.", "Courses")
     Permission.create(
-        "assignment.grade",
+        "submission.grade",
         "Grade assignments",
         "Mark submissions and give feedback.",
         "Courses",
@@ -27,7 +27,7 @@ def test_a_permission_keeps_the_information_it_is_created_with() -> None:
         requires=(viewing,),
     )
 
-    permission = get_permission("assignment.grade")
+    permission = get_permission("submission.grade")
     assert (permission.label, permission.description, permission.category) == (
         "Grade assignments",
         "Mark submissions and give feedback.",
@@ -61,6 +61,7 @@ CORE_PERMISSIONS = [
     "llm.config.update",
     "llm.config.delete",
     "plugin.use",
+    "plugin.manage",
     "file.upload",
 ]
 

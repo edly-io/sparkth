@@ -27,6 +27,7 @@ function state(pluginName: string): PluginState {
   return {
     plugin_name: pluginName,
     enabled: true,
+    system_enabled: true,
     config: {},
     config_schema: {},
     is_core: true,
