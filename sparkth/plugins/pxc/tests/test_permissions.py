@@ -16,6 +16,7 @@ from sparkth.plugins.pxc.permissions import (
     has_activity_permission,
     require_activity_permission,
 )
+from sparkth.plugins.pxc.tests.conftest import assert_activity_permission_denied
 
 PXC_ACTIVITY_PERMISSIONS = (PXC_ACTIVITY_READ, PXC_ACTIVITY_UPDATE, PXC_ACTIVITY_DELETE, PXC_ACTIVITY_PLACE)
 
@@ -34,13 +35,7 @@ async def test_another_user_is_refused_and_the_refusal_is_recorded(
     owner, other = authors
     with pytest.raises(PxcActivityNotPermitted):
         await require_activity_permission(session, PXC_ACTIVITY_READ, cast(int, owner.id), cast(int, other.id))
-    event = (await audit_events())[-1]
-    assert (event.category, event.action, event.target_id, event.error_detail) == (
-        "permission",
-        "denied",
-        "pxc.activity.read",
-        f"scope=user:{owner.id}",
-    )
+    await assert_activity_permission_denied(audit_events, "pxc.activity.read", owner.id)
 
 
 async def test_a_grant_at_the_owners_scope_covers_only_the_permission_it_holds(
@@ -48,7 +43,6 @@ async def test_a_grant_at_the_owners_scope_covers_only_the_permission_it_holds(
 ) -> None:
     owner, other = authors
     await grant_permissions(session, other, ["pxc.activity.read"], "user", str(owner.id))
-    await session.commit()
     assert await has_activity_permission(session, PXC_ACTIVITY_READ, cast(int, owner.id), cast(int, other.id))
     assert not await has_activity_permission(session, PXC_ACTIVITY_UPDATE, cast(int, owner.id), cast(int, other.id))
 
@@ -56,7 +50,6 @@ async def test_a_grant_at_the_owners_scope_covers_only_the_permission_it_holds(
 async def test_a_global_grant_covers_every_owner(session: AsyncSession, authors: tuple[User, User]) -> None:
     owner, other = authors
     await grant_global_permission(session, cast(int, other.id), "pxc.activity.delete")
-    await session.commit()
     assert await has_activity_permission(session, PXC_ACTIVITY_DELETE, cast(int, owner.id), cast(int, other.id))
 
 

@@ -22,6 +22,7 @@ from sparkth.plugins.pxc.activities import activity_dir, generated_activity_dir,
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.store import insert_activity
+from sparkth.plugins.pxc.tests.conftest import assert_activity_permission_denied
 from sparkth.plugins.pxc.tokens import read_launch_token
 
 OTHER_USER = 2
@@ -33,21 +34,6 @@ async def stored_user(session: AsyncSession, current_user: User) -> User:
     session.add(current_user)
     await session.commit()
     return current_user
-
-
-async def _assert_denied(audit_events: AuditEventsFetcher, permission: str) -> None:
-    event = (await audit_events())[-1]
-    assert (event.category, event.action, event.target_id, event.error_detail) == (
-        "permission",
-        "denied",
-        permission,
-        f"scope=user:{OTHER_USER}",
-    )
-
-
-async def _grant_at_other_users_scope(session: AsyncSession, permission: str) -> None:
-    await grant_permission_at_scope(session, 1, permission, USER, str(OTHER_USER))
-    await session.commit()
 
 
 def _launch_url(activity: PxcActivity) -> str:
@@ -158,7 +144,7 @@ async def test_another_users_activity_cannot_be_launched(
     response = await client.get(f"/api/v1/pxc/activities/{activity.id}/launch", params={"permission": "play"})
 
     assert response.status_code == 403
-    await _assert_denied(audit_events, "pxc.activity.read")
+    await assert_activity_permission_denied(audit_events, "pxc.activity.read", OTHER_USER)
 
 
 async def test_an_unknown_activity_cannot_be_launched(
@@ -244,7 +230,7 @@ async def test_another_users_activity_cannot_be_deleted(
     assert response.json() == {"detail": "Permission denied"}
     assert await _row_exists(session, activity.id)
     assert built.exists()
-    await _assert_denied(audit_events, "pxc.activity.delete")
+    await assert_activity_permission_denied(audit_events, "pxc.activity.delete", OTHER_USER)
     assert len(await audit_events()) == 1
 
 
@@ -324,7 +310,7 @@ async def test_listing_another_authors_activities_needs_read_at_their_scope(
     response = await client.get("/api/v1/pxc/activities", params={"owner_id": OTHER_USER})
 
     assert response.status_code == 403
-    await _assert_denied(audit_events, "pxc.activity.read")
+    await assert_activity_permission_denied(audit_events, "pxc.activity.read", OTHER_USER)
 
 
 async def test_a_reader_lists_another_authors_activities(
@@ -332,7 +318,7 @@ async def test_a_reader_lists_another_authors_activities(
 ) -> None:
     mine = await _insert_owned(session, cast(int, current_user.id))
     theirs = await _insert_owned(session, OTHER_USER)
-    await _grant_at_other_users_scope(session, "pxc.activity.read")
+    await grant_permission_at_scope(session, 1, "pxc.activity.read", USER, str(OTHER_USER))
 
     listed = await client.get("/api/v1/pxc/activities", params={"owner_id": OTHER_USER})
     own = await client.get("/api/v1/pxc/activities")
@@ -346,7 +332,6 @@ async def test_listing_a_user_who_does_not_exist(
 ) -> None:
     before = await client.get("/api/v1/pxc/activities", params={"owner_id": 999})
     await grant_global_permission(session, 1, "pxc.activity.read")
-    await session.commit()
     after = await client.get("/api/v1/pxc/activities", params={"owner_id": 999})
 
     assert before.status_code == 403
@@ -362,7 +347,7 @@ async def test_a_reader_launches_another_authors_activity_as_a_learner_only(
 ) -> None:
     activity = await _insert_owned(session, OTHER_USER)
     _write_built_files(activity)
-    await _grant_at_other_users_scope(session, "pxc.activity.read")
+    await grant_permission_at_scope(session, 1, "pxc.activity.read", USER, str(OTHER_USER))
 
     play = await client.get(_launch_url(activity), params={"permission": "play"})
     edit = await client.get(_launch_url(activity), params={"permission": "edit"})
@@ -370,7 +355,7 @@ async def test_a_reader_launches_another_authors_activity_as_a_learner_only(
     assert play.status_code == 200
     assert _token_claims(play.json()) == (str(activity.id), Permission.play)
     assert edit.status_code == 403
-    await _assert_denied(audit_events, "pxc.activity.update")
+    await assert_activity_permission_denied(audit_events, "pxc.activity.update", OTHER_USER)
 
 
 async def test_an_updater_launches_another_authors_activity_as_its_author(
@@ -378,7 +363,7 @@ async def test_an_updater_launches_another_authors_activity_as_its_author(
 ) -> None:
     activity = await _insert_owned(session, OTHER_USER)
     _write_built_files(activity)
-    await _grant_at_other_users_scope(session, "pxc.activity.update")
+    await grant_permission_at_scope(session, 1, "pxc.activity.update", USER, str(OTHER_USER))
 
     response = await client.get(_launch_url(activity), params={"permission": "edit"})
 
@@ -392,7 +377,6 @@ async def test_a_global_holder_launches_any_authors_activity(
     activity = await _insert_owned(session, OTHER_USER)
     _write_built_files(activity)
     await grant_global_permission(session, 1, "pxc.activity.read")
-    await session.commit()
 
     response = await client.get(_launch_url(activity), params={"permission": "play"})
 
@@ -403,7 +387,7 @@ async def test_a_holder_of_delete_deletes_another_authors_activity(
     client: AsyncClient, session: AsyncSession, current_user: User
 ) -> None:
     activity = await _insert_owned(session, OTHER_USER)
-    await _grant_at_other_users_scope(session, "pxc.activity.delete")
+    await grant_permission_at_scope(session, 1, "pxc.activity.delete", USER, str(OTHER_USER))
 
     response = await client.delete(f"/api/v1/pxc/activities/{activity.id}")
 
@@ -415,12 +399,12 @@ async def test_a_reader_cannot_delete_another_authors_activity(
     client: AsyncClient, session: AsyncSession, current_user: User, audit_events: AuditEventsFetcher
 ) -> None:
     activity = await _insert_owned(session, OTHER_USER)
-    await _grant_at_other_users_scope(session, "pxc.activity.read")
+    await grant_permission_at_scope(session, 1, "pxc.activity.read", USER, str(OTHER_USER))
 
     response = await client.delete(f"/api/v1/pxc/activities/{activity.id}")
 
     assert response.status_code == 403
-    await _assert_denied(audit_events, "pxc.activity.delete")
+    await assert_activity_permission_denied(audit_events, "pxc.activity.delete", OTHER_USER)
     assert await _row_exists(session, activity.id)
 
 

@@ -42,6 +42,7 @@ from sparkth.plugins.pxc.tests.conftest import (
     AUTHORED_UI_JS,
     THROWN_TEXT,
     act_as,
+    assert_activity_permission_denied,
     staged_activity,
 )
 from sparkth.plugins.pxc.tokens import mint_launch_token, pin_launch_token
@@ -206,7 +207,6 @@ async def test_list_leaves_out_another_authors_activities(
 ) -> None:
     other = authors[1]
     await grant_permissions(session, other, ["pxc.activity.read"], "user", str(other.id))
-    await session.commit()
     act_as(other)
 
     assert await pxc_list_activities() == {"activities": []}
@@ -490,23 +490,6 @@ async def test_another_authors_activity_is_refused_before_its_steps_are_checked(
         await pxc_run_activity(str(authored_activity.id), steps)
 
 
-async def _grant_at_owners_scope(
-    session: AsyncSession, authored_activity: PxcActivity, other: User, permissions: list[str]
-) -> None:
-    await grant_permissions(session, other, permissions, "user", str(authored_activity.owner_user_id))
-    await session.commit()
-
-
-async def _assert_denied(audit_events: AuditEventsFetcher, permission: str, scope_owner: int | None) -> None:
-    event = (await audit_events())[-1]
-    assert (event.category, event.action, event.target_id, event.error_detail) == (
-        "permission",
-        "denied",
-        permission,
-        f"scope=user:{scope_owner}",
-    )
-
-
 async def test_list_is_refused_without_read_at_the_callers_own_scope(
     authors: tuple[User, User], audit_events: AuditEventsFetcher
 ) -> None:
@@ -515,13 +498,13 @@ async def test_list_is_refused_without_read_at_the_callers_own_scope(
     with pytest.raises(PxcActivityNotPermitted):
         await pxc_list_activities()
 
-    await _assert_denied(audit_events, "pxc.activity.read", authors[1].id)
+    await assert_activity_permission_denied(audit_events, "pxc.activity.read", authors[1].id)
 
 
 async def test_a_reader_reads_another_authors_source_and_failures(
     session: AsyncSession, authored_activity: PxcActivity, authors: tuple[User, User]
 ) -> None:
-    await _grant_at_owners_scope(session, authored_activity, authors[1], ["pxc.activity.read"])
+    await grant_permissions(session, authors[1], ["pxc.activity.read"], "user", str(authored_activity.owner_user_id))
     act_as(authors[1])
 
     source = await pxc_get_activity_source(str(authored_activity.id))
@@ -534,7 +517,7 @@ async def test_a_reader_reads_another_authors_source_and_failures(
 async def test_a_reader_runs_another_authors_activity(
     session: AsyncSession, authored_activity: PxcActivity, authors: tuple[User, User]
 ) -> None:
-    await _grant_at_owners_scope(session, authored_activity, authors[1], ["pxc.activity.read"])
+    await grant_permissions(session, authors[1], ["pxc.activity.read"], "user", str(authored_activity.owner_user_id))
     act_as(authors[1])
     report: ScratchReport = {"steps": [], "state": [], "fields": {}}
     steps = cast(list[TrialStep], [{"action": "check", "permission": "play"}])
@@ -551,7 +534,7 @@ async def test_a_reader_cannot_update_another_authors_activity(
     authors: tuple[User, User],
     audit_events: AuditEventsFetcher,
 ) -> None:
-    await _grant_at_owners_scope(session, authored_activity, authors[1], ["pxc.activity.read"])
+    await grant_permissions(session, authors[1], ["pxc.activity.read"], "user", str(authored_activity.owner_user_id))
     act_as(authors[1])
 
     with (
@@ -561,13 +544,13 @@ async def test_a_reader_cannot_update_another_authors_activity(
         await pxc_update_activity(str(authored_activity.id), "Poll", "A poll", MANIFEST, "ui", "sandbox")
 
     assert "pxc.activity.update" in str(refused.value)
-    await _assert_denied(audit_events, "pxc.activity.update", authored_activity.owner_user_id)
+    await assert_activity_permission_denied(audit_events, "pxc.activity.update", authored_activity.owner_user_id)
 
 
 async def test_an_updater_updates_another_authors_activity(
     session: AsyncSession, authored_activity: PxcActivity, authors: tuple[User, User], uncompiled_builds: None
 ) -> None:
-    await _grant_at_owners_scope(session, authored_activity, authors[1], ["pxc.activity.update"])
+    await grant_permissions(session, authors[1], ["pxc.activity.update"], "user", str(authored_activity.owner_user_id))
     act_as(authors[1])
     manifest: dict[str, object] = {**AUTHORED_MANIFEST, "name": str(authored_activity.id)}
 
