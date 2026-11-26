@@ -28,7 +28,7 @@ type RoleState =
  */
 export default function RolePage() {
   const t = useTranslations("permissions.roles.detail");
-  const tSection = useTranslations("permissions");
+  const tPermissions = useTranslations("permissions");
   const { token } = useAuth();
   const roleId = Number(useSearchParams()?.get("id"));
   const [state, setState] = useState<RoleState>({ status: "loading" });
@@ -81,17 +81,13 @@ export default function RolePage() {
     <div className="space-y-6">
       <nav aria-label={t("breadcrumb")}>
         <ol className="flex items-center gap-1.5 text-sm text-muted-foreground">
-          <li>
-            <Link href="/dashboard/permissions/roles" className="hover:text-foreground">
-              {tSection("title")}
-            </Link>
-          </li>
+          <li>{tPermissions("title")}</li>
           <li aria-hidden="true">
             <ChevronRight className="h-4 w-4" />
           </li>
           <li>
             <Link href="/dashboard/permissions/roles" className="hover:text-foreground">
-              {t("roles")}
+              {tPermissions("nav.roles")}
             </Link>
           </li>
           <li aria-hidden="true">

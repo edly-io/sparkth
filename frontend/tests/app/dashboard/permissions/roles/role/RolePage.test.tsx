@@ -63,14 +63,11 @@ describe("RolePage", () => {
     expect(getRole).toHaveBeenCalledWith("test-token", 7);
   });
 
-  it("leads back through Access & permissions and Roles", async () => {
+  it("leads back to Roles, under Access & permissions", async () => {
     renderWithIntl(<RolePage />);
 
     const breadcrumb = await screen.findByRole("navigation", { name: "Breadcrumb" });
-    expect(within(breadcrumb).getByRole("link", { name: "Access & permissions" })).toHaveAttribute(
-      "href",
-      "/dashboard/permissions/roles",
-    );
+    expect(within(breadcrumb).getByText("Access & permissions")).not.toHaveAttribute("href");
     expect(within(breadcrumb).getByRole("link", { name: "Roles" })).toHaveAttribute(
       "href",
       "/dashboard/permissions/roles",

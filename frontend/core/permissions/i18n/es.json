@@ -73,7 +73,6 @@
       },
       "detail": {
         "breadcrumb": "Ruta de navegación",
-        "roles": "Roles",
         "notFound": "Este rol no existe.",
         "loadFailed": "No se pudo cargar el rol. Inténtalo de nuevo más tarde.",
         "permissionsFailed": "No se pudieron cargar los permisos. Inténtalo de nuevo más tarde.",

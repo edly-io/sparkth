@@ -132,7 +132,9 @@ test.describe("access & permissions", () => {
     await expect(page).toHaveURL(/\/dashboard\/permissions\/roles\/role\/?\?id=1$/);
     await expect(page.getByRole("heading", { name: "Course editor" })).toBeVisible();
     await expect(page.getByRole("checkbox", { name: "See roles" })).toBeChecked();
-    await expect(page.getByRole("link", { name: "Roles", exact: true }).first()).toBeVisible();
+    await expect(
+      page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Roles" }),
+    ).toBeVisible();
   });
 
   for (const missing of ALL_THREE) {
