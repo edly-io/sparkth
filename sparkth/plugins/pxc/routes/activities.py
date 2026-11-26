@@ -89,7 +89,7 @@ async def launch_activity(
     user_id: int = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_async_session),
 ) -> ActivityLaunch:
-    """An embed URL that previews an activity, as a learner or as its author.
+    """An embed URL that previews an activity, as a learner or as its author, and the id of its owner.
 
     A learner preview needs ``pxc.activity.play`` or ``pxc.activity.edit`` and an author preview
     needs ``pxc.activity.edit``, both at the activity owner's scope. The permission depends on the
