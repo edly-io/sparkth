@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@/core/auth/hooks";
-import { usePermissionChecks } from "@/core/permissions/hooks";
+import { usePermissionChecks } from "@/lib/permissions/hooks";
 import { PERMISSIONS_SECTION_CHECKS } from "@/core/permissions/section";
 import { PermissionsShell } from "@/core/permissions/components/layout/PermissionsShell";
 import { PermissionsNav } from "@/core/permissions/components/ui/PermissionsNav";

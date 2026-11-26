@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { checkPermissions, type PermissionCheckQuery } from "@/core/permissions/client";
+import { checkPermissions, type PermissionCheckQuery } from "@/lib/permissions/client";
 import type { PermissionName } from "@/lib/permissions/names";
 
 /** Where a permission check stands: still in flight, granted, or refused (including on error). */

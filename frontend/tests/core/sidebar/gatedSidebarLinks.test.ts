@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/core/permissions/client", () => ({ checkPermissions: vi.fn() }));
+vi.mock("@/lib/permissions/client", () => ({ checkPermissions: vi.fn() }));
 
-import { checkPermissions } from "@/core/permissions/client";
+import { checkPermissions } from "@/lib/permissions/client";
 import { PERMISSIONS_SECTION_CHECKS } from "@/core/permissions/section";
 import {
   GATED_SIDEBAR_LINKS,
