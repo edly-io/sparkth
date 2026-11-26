@@ -118,7 +118,11 @@ async def assign_user_role(
 async def revoke_user_role(
     role_id: int, assignment_id: int, session: AsyncSession = Depends(get_async_session)
 ) -> None:
-    """Take a role away from a user by the id of the assignment. Returns 204 No Content."""
+    """Take a role away from a user by the id of the assignment. Returns 204 No Content.
+
+    An assignment whose stored scope is no longer registered, or whose stored scope and object pairing is no
+    longer valid, is refused with 422 and left in place.
+    """
     role = await get_role(role_id, session)
     assignment = await get_role_assignment(assignment_id, role_id, session)
     # ponytail: a row whose scope kind is no longer registered, or whose stored pairing is no longer valid,

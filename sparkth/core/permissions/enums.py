@@ -6,7 +6,8 @@ from enum import StrEnum
 class PermissionRisk(StrEnum):
     """A reason to think twice before giving someone a permission."""
 
-    # Lets the holder give others access: create roles, or change what a role or group grants.
+    # Lets the holder give others access: create roles, change what a role or group grants, add people to a group,
+    # or give a role to people.
     DELEGATES_ACCESS = "delegates_access"
     # Lets the holder see information about other people.
     PRIVATE_DATA = "private_data"

@@ -1,5 +1,7 @@
-"""Pydantic models for the permissions API: permission checks, role management, group management and role
-assignments."""
+"""Pydantic models for the permissions API.
+
+Covers permission checks, role management, group management and role assignments.
+"""
 
 from datetime import datetime
 from typing import Self
