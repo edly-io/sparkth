@@ -21,7 +21,7 @@ import {
 } from "@/core/analytics";
 import { ApiRequestError } from "@/lib/api";
 import { useAuth } from "@/core/auth/hooks";
-import { usePermissionCheck } from "@/core/permissions/hooks";
+import { usePermissionCheck } from "@/lib/permissions/hooks";
 import { Alert } from "@/core/components/ui/Alert";
 import { BarChart } from "@/core/analytics/components/ui/BarChart";
 import { Button } from "@/core/components/ui/Button";
