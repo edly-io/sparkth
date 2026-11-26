@@ -376,8 +376,8 @@ msgid "See roles"
 msgstr "Voir les rôles"
 
 #: sparkth/core/permissions/__init__.py
-msgid "Open the list of roles and what each one allows."
-msgstr "Ouvrir la liste des rôles et ce que chacun permet."
+msgid "Open the list of roles, what each one allows and who holds it."
+msgstr "Ouvrir la liste des rôles, ce que chacun permet et qui le détient."
 
 #: sparkth/core/permissions/__init__.py
 msgid "Edit roles"
