@@ -486,7 +486,6 @@ class PluginService:
                 ),
             ),
         )
-        await session.flush()
 
     @staticmethod
     async def _plugin_name(session: AsyncSession, plugin_id: int) -> str | None:
