@@ -10,7 +10,53 @@
     "roles": {
       "label": "Rôles",
       "empty": "Aucun rôle pour l'instant.",
-      "loadFailed": "Impossible de charger les rôles. Réessayez plus tard."
+      "loadFailed": "Impossible de charger les rôles. Réessayez plus tard.",
+      "badges": {
+        "builtin": "Intégré",
+        "default": "Automatique",
+        "custom": "Personnalisé"
+      },
+      "permissionCount": "{count, plural, one {<strong>#</strong> autorisation} other {<strong>#</strong> autorisations}}",
+      "peopleCount": "{count, plural, one {# personne} other {# personnes}}",
+      "groupCount": "{count, plural, one {# groupe} other {# groupes}}",
+      "everyone": "Tout le monde",
+      "notAssigned": "Non attribué",
+      "intro": "Un rôle est un ensemble nommé d'autorisations. Les autorisations viennent de Sparkth et de ses plugins ; vous choisissez celles que chaque rôle contient.",
+      "view": {
+        "label": "Affichage",
+        "list": "Liste",
+        "compare": "Comparer les autorisations"
+      },
+      "create": {
+        "button": "Créer un rôle",
+        "title": "Créer un rôle",
+        "intro": "Nommez-le d'après le travail que font les gens.",
+        "name": "Nom",
+        "description": "Description",
+        "cancel": "Annuler",
+        "submit": "Créer",
+        "nameTaken": "Un rôle porte déjà ce nom.",
+        "failed": "Impossible de créer le rôle. Réessayez."
+      },
+      "menu": {
+        "label": "Plus d'actions pour {name}",
+        "delete": "Supprimer le rôle"
+      },
+      "delete": {
+        "title": "Supprimer {name} ?",
+        "holders": "{holders} perdront ce rôle. Cette action est irréversible.",
+        "nobody": "Personne n'a ce rôle. Cette action est irréversible.",
+        "confirm": "Supprimer",
+        "pending": "Suppression…",
+        "cancel": "Annuler",
+        "failed": "Impossible de supprimer le rôle. Réessayez."
+      },
+      "risks": {
+        "label": "Risques",
+        "delegates_access": "Peut donner des accès à d'autres",
+        "private_data": "Voit des données privées",
+        "deletes": "Peut supprimer"
+      }
     },
     "groups": {
       "label": "Groupes",

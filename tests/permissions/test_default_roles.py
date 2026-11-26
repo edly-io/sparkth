@@ -7,6 +7,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.cli import users
 from sparkth.core.models.user import User
+from sparkth.core.permissions.constants import DEFAULT_ROLES
 from sparkth.core.permissions.exceptions import RoleNotFound
 from sparkth.core.permissions.models import Role, RoleAssignment
 from sparkth.lib.permissions import PLUGIN_USE, PLUGIN_USER_ROLE, SPARKTH_USER_ROLE, assign_default_roles, can
@@ -30,6 +31,23 @@ async def test_assign_default_roles_grants_both_roles(session: AsyncSession) -> 
         (SPARKTH_USER_ROLE, USER.name, str(user.id)),
         (PLUGIN_USER_ROLE, GLOBAL.name, None),
     ]
+
+
+async def test_assign_default_roles_gives_exactly_the_default_roles(session: AsyncSession) -> None:
+    await make_role(session, SPARKTH_USER_ROLE, [])
+    await make_role(session, PLUGIN_USER_ROLE, [PLUGIN_USE.name])
+    user = await make_user(session, "alice")
+    assert user.id is not None
+
+    assignments = await assign_default_roles(user.id, session)
+
+    names = {role.id: role.name for role in (await session.exec(select(Role))).all()}
+    assert {names[assignment.role_id] for assignment in assignments} == DEFAULT_ROLES
+
+
+async def test_a_role_is_default_only_when_every_account_is_given_it() -> None:
+    assert {name for name in DEFAULT_ROLES if Role(name=name).is_default} == DEFAULT_ROLES
+    assert Role(name="admin").is_default is False
 
 
 async def test_assign_default_roles_fails_when_plugin_user_is_missing(session: AsyncSession) -> None:

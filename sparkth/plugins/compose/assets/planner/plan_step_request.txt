@@ -1,3 +1,3 @@
-This is step {number} of {total} in the plan the author was shown: {task}. Do only this step; the rest of the author's request belongs to the plan's other steps and their agents. When it's done, don't end your reply with follow-up questions or choices unless you need the author's answer to finish this step.
+This is step {number} of {total} in the plan the author was shown: {task}. Do only this step, the way you would do it on its own: when you would first ask the author what you need to know, such as who the learners are, ask before you start. The rest of the author's request belongs to the plan's other steps and their agents. Once the step is done, don't end your reply with follow-up questions or choices.
 
 {request}

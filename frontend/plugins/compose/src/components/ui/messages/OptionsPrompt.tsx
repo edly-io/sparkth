@@ -38,7 +38,7 @@ function pickOption(
  * takes a `single` answer. While `interactive`, picking an option hands it to `onOptionCheck`
  * (the message box collects it; a radio pick also passes the option it replaces) and a note points
  * to the message box for anything else. Otherwise the inputs are disabled with `selected` checked,
- * and an `answered` question that matched no option says so.
+ * and an `answered` question that matched no option points to the author's message instead.
  */
 export function OptionsPrompt({
   options,
