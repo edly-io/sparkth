@@ -185,51 +185,11 @@ async def test_delete_assigned_role_returns_204(client: AsyncClient, session: As
     assert (await client.get(f"/api/v1/permissions/roles/{created['id']}")).status_code == 404
 
 
-async def test_add_permission_grants_it(client: AsyncClient, session: AsyncSession) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
-    created = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()
-    response = await client.post(
-        f"/api/v1/permissions/roles/{created['id']}/permissions", json={"permission": "assignment.grade"}
-    )
-    assert response.status_code == 200
-    assert "assignment.grade" in response.json()["permissions"]
-
-
-async def test_add_unregistered_permission_returns_422(client: AsyncClient, session: AsyncSession) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
-    created = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()
-    response = await client.post(
-        f"/api/v1/permissions/roles/{created['id']}/permissions", json={"permission": "bogus.unregistered"}
-    )
-    assert response.status_code == 422
-    assert response.json()["detail"] == "Permission not found: bogus.unregistered"
-
-
-async def test_add_duplicate_permission_is_idempotent(client: AsyncClient, session: AsyncSession) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
-    created = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()
-    path = f"/api/v1/permissions/roles/{created['id']}/permissions"
-    await client.post(path, json={"permission": "assignment.grade"})
-    response = await client.post(path, json={"permission": "assignment.grade"})
-    assert response.status_code == 200
-    assert response.json()["permissions"] == ["assignment.grade"]
-
-
-async def test_remove_permission_returns_204(client: AsyncClient, session: AsyncSession) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
-    created = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()
-    await client.post(f"/api/v1/permissions/roles/{created['id']}/permissions", json={"permission": "assignment.grade"})
-    response = await client.delete(f"/api/v1/permissions/roles/{created['id']}/permissions/assignment.grade")
-    assert response.status_code == 204
-    got = await client.get(f"/api/v1/permissions/roles/{created['id']}")
-    assert got.json()["permissions"] == []
-
-
 async def test_set_permissions_replaces_the_roles_permissions(client: AsyncClient, session: AsyncSession) -> None:
     _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     created = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()
     path = f"/api/v1/permissions/roles/{created['id']}/permissions"
-    await client.post(path, json={"permission": "assignment.grade"})
+    await client.put(path, json={"permissions": ["assignment.grade"]})
 
     response = await client.put(path, json={"permissions": ["role.read", "role.update"]})
 
@@ -243,7 +203,7 @@ async def test_set_unregistered_permission_returns_422_and_changes_nothing(
     _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     created = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()
     path = f"/api/v1/permissions/roles/{created['id']}/permissions"
-    await client.post(path, json={"permission": "assignment.grade"})
+    await client.put(path, json={"permissions": ["assignment.grade"]})
 
     response = await client.put(path, json={"permissions": ["role.read", "bogus.unregistered"]})
 
@@ -374,9 +334,9 @@ def test_build_role_response_without_id_raises() -> None:
         _build_role_response(Role(name="x"), [], RoleAssigneeCounts(user_count=0, group_count=0))
 
 
-async def test_create_role_permission_fetches_role_once(client: AsyncClient, session: AsyncSession) -> None:
-    # Granting a permission must not re-fetch the role: add_role_permission already loads and returns
-    # it, so the handler builds the response from that instance (a single role-by-id SELECT).
+async def test_setting_permissions_fetches_role_once(client: AsyncClient, session: AsyncSession) -> None:
+    # Setting a role's permissions must not re-fetch the role: set_role_permissions already loads and
+    # returns it, so the handler builds the response from that instance (a single role-by-id SELECT).
     _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     created = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()
 
@@ -385,8 +345,8 @@ async def test_create_role_permission_fetches_role_once(client: AsyncClient, ses
     sync_engine = get_engine().sync_engine
     event.listen(sync_engine, "before_cursor_execute", listener)
     try:
-        response = await client.post(
-            f"/api/v1/permissions/roles/{created['id']}/permissions", json={"permission": "assignment.grade"}
+        response = await client.put(
+            f"/api/v1/permissions/roles/{created['id']}/permissions", json={"permissions": ["assignment.grade"]}
         )
     finally:
         event.remove(sync_engine, "before_cursor_execute", listener)
@@ -429,13 +389,13 @@ async def test_role_scoped_manager_can_edit_that_roles_permissions(client: Async
     target = await _create_target_role(session)
     _override_current_user(client, await make_user_with_permissions(session, ["role.update"], "role", str(target.id)))
     await session.commit()
-    added = await client.post(
-        f"/api/v1/permissions/roles/{target.id}/permissions", json={"permission": "assignment.grade"}
-    )
+    path = f"/api/v1/permissions/roles/{target.id}/permissions"
+    added = await client.put(path, json={"permissions": ["assignment.grade"]})
     assert added.status_code == 200
-    assert "assignment.grade" in added.json()["permissions"]
-    removed = await client.delete(f"/api/v1/permissions/roles/{target.id}/permissions/assignment.grade")
-    assert removed.status_code == 204
+    assert added.json()["permissions"] == ["assignment.grade"]
+    removed = await client.put(path, json={"permissions": []})
+    assert removed.status_code == 200
+    assert removed.json()["permissions"] == []
 
 
 async def test_role_scoped_reader_can_get_only_that_role(client: AsyncClient, session: AsyncSession) -> None:
@@ -537,18 +497,17 @@ class TestPermissionExceptionRegistration:
         assert PermissionNotFound in registered
 
 
-_BUILTIN_ROLE_REQUESTS: dict[str, tuple[str, str, dict[str, str] | None]] = {
+_BUILTIN_ROLE_REQUESTS: dict[str, tuple[str, str, dict[str, object] | None]] = {
     "rename": ("PATCH", "", {"name": "renamed"}),
     "describe": ("PATCH", "", {"description": "Changed"}),
-    "grant": ("POST", "/permissions", {"permission": "role.read"}),
-    "revoke": ("DELETE", "/permissions/assignment.grade", None),
+    "set_permissions": ("PUT", "/permissions", {"permissions": ["role.read"]}),
     "delete": ("DELETE", "", None),
 }
 
 
 @pytest.mark.parametrize(("method", "path", "body"), _BUILTIN_ROLE_REQUESTS.values(), ids=_BUILTIN_ROLE_REQUESTS.keys())
 async def test_changing_a_builtin_role_returns_409(
-    client: AsyncClient, session: AsyncSession, method: str, path: str, body: dict[str, str] | None
+    client: AsyncClient, session: AsyncSession, method: str, path: str, body: dict[str, object] | None
 ) -> None:
     _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     role = Role(name="admin", description="Ships with Sparkth", is_builtin=True)
@@ -623,8 +582,8 @@ async def test_granting_a_permission_updates_the_roles_risks(client: AsyncClient
     created = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()
     assert created["risks"] == []
 
-    response = await client.post(
-        f"/api/v1/permissions/roles/{created['id']}/permissions", json={"permission": "assignment.grade"}
+    response = await client.put(
+        f"/api/v1/permissions/roles/{created['id']}/permissions", json={"permissions": ["assignment.grade"]}
     )
 
     assert response.json()["risks"] == ["deletes"]

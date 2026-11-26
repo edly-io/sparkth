@@ -17,7 +17,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.api.v1.permissions.schemas import (
     RoleCreate,
-    RolePermissionAdd,
     RolePermissionsSet,
     RoleResponse,
     RoleUpdate,
@@ -137,22 +136,6 @@ async def delete_role(role_id: int, session: AsyncSession = Depends(get_async_se
     await role_engine.delete_role(role_id, session)
 
 
-@router.post(
-    "/{role_id}/permissions",
-    response_model=RoleResponse,
-    dependencies=[Depends(ROLE_UPDATE.require(ROLE, "role_id"))],
-)
-async def create_role_permission(
-    role_id: int, payload: RolePermissionAdd, session: AsyncSession = Depends(get_async_session)
-) -> RoleResponse:
-    """Grant a registered permission to the role (idempotent). Refused with 409 for a role shipped with Sparkth.
-
-    Returns the updated RoleResponse.
-    """
-    role = await role_engine.add_role_permission(role_id, payload.permission, session)
-    return await _role_to_response(role, session)
-
-
 @router.put(
     "/{role_id}/permissions",
     response_model=RoleResponse,
@@ -169,18 +152,3 @@ async def set_role_permissions(
     """
     role = await role_engine.set_role_permissions(role_id, payload.permissions, session)
     return await _role_to_response(role, session)
-
-
-@router.delete(
-    "/{role_id}/permissions/{permission}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(ROLE_UPDATE.require(ROLE, "role_id"))],
-)
-async def delete_role_permission(
-    role_id: int, permission: str, session: AsyncSession = Depends(get_async_session)
-) -> None:
-    """Revoke a permission from the role (idempotent). Refused with 409 for a role shipped with Sparkth.
-
-    Returns 204 No Content.
-    """
-    await role_engine.remove_role_permission(role_id, permission, session)

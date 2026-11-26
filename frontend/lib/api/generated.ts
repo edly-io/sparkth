@@ -1176,36 +1176,8 @@ export interface paths {
          *     updated RoleResponse.
          */
         put: operations["set_role_permissions_api_v1_permissions_roles__role_id__permissions_put"];
-        /**
-         * Create Role Permission
-         * @description Grant a registered permission to the role (idempotent). Refused with 409 for a role shipped with Sparkth.
-         *
-         *     Returns the updated RoleResponse.
-         */
-        post: operations["create_role_permission_api_v1_permissions_roles__role_id__permissions_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/permissions/roles/{role_id}/permissions/{permission}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
         post?: never;
-        /**
-         * Delete Role Permission
-         * @description Revoke a permission from the role (idempotent). Refused with 409 for a role shipped with Sparkth.
-         *
-         *     Returns 204 No Content.
-         */
-        delete: operations["delete_role_permission_api_v1_permissions_roles__role_id__permissions__permission__delete"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -2942,11 +2914,6 @@ export interface components {
             description?: string | null;
             /** Name */
             name: string;
-        };
-        /** RolePermissionAdd */
-        RolePermissionAdd: {
-            /** Permission */
-            permission: string;
         };
         /**
          * RolePermissionsSet
@@ -5394,71 +5361,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["RoleResponse"];
                 };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_role_permission_api_v1_permissions_roles__role_id__permissions_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                role_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RolePermissionAdd"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RoleResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_role_permission_api_v1_permissions_roles__role_id__permissions__permission__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                role_id: number;
-                permission: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
             /** @description Validation Error */
             422: {

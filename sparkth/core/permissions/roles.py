@@ -167,16 +167,6 @@ async def delete_role(role_id: int, session: AsyncSession) -> None:
     await session.commit()
 
 
-async def _record_permission_revoked(role_id: int, permission: str, session: AsyncSession) -> None:
-    """Record ``role.permission_revoked`` in the caller's transaction."""
-    await record_event(
-        session,
-        RolePermissionRevokedAuditEvent(
-            outcome=AuditOutcome.SUCCESS, target=_target(role_id), change=AuditChange(old={"permission": permission})
-        ),
-    )
-
-
 async def _grant_permissions(role_id: int, permissions: list[str], session: AsyncSession) -> None:
     """Grant each of ``permissions`` to the role, recording ``role.permission_granted`` for each.
 
@@ -195,49 +185,27 @@ async def _grant_permissions(role_id: int, permissions: list[str], session: Asyn
         )
 
 
-async def add_role_permission(role_id: int, permission: str, session: AsyncSession) -> Role:
-    """Grant permission to the role (idempotent: a no-op if it's already granted) and return the role.
+async def _revoke_permissions(role_id: int, permissions: list[str], session: AsyncSession) -> None:
+    """Revoke each of ``permissions`` from the role, recording ``role.permission_revoked`` for each.
 
-    A new grant records ``role.permission_granted``; a no-op records nothing. Returning the
-    role lets callers build a response without re-fetching it. Raises RoleNotFound
-    (no such role), RoleIsBuiltin (the role ships with Sparkth) or PermissionNotFound
-    (permission is not registered).
+    Writes in the caller's transaction. The caller passes only permissions the role grants.
     """
-    role = await _get_changeable_role(role_id, session)
-    get_permission(permission)
-    existing = (
-        await session.exec(
-            select(RolePermission).where(
-                RolePermission.role_id == role_id,
-                RolePermission.permission == permission,
-            )
+    if not permissions:
+        return
+    await session.exec(
+        delete(RolePermission).where(
+            col(RolePermission.role_id) == role_id, col(RolePermission.permission).in_(permissions)
         )
-    ).first()
-    if existing is None:
-        await _grant_permissions(role_id, [permission], session)
-        await session.commit()
-    return role
-
-
-async def remove_role_permission(role_id: int, permission: str, session: AsyncSession) -> None:
-    """Revoke permission from the role (idempotent: a no-op if it isn't granted).
-
-    Revoking a held grant records ``role.permission_revoked``; a no-op records nothing.
-    Raises RoleNotFound if the role is missing or RoleIsBuiltin if it ships with Sparkth.
-    """
-    await _get_changeable_role(role_id, session)
-    grant = (
-        await session.exec(
-            select(RolePermission).where(
-                RolePermission.role_id == role_id,
-                RolePermission.permission == permission,
-            )
+    )
+    for permission in permissions:
+        await record_event(
+            session,
+            RolePermissionRevokedAuditEvent(
+                outcome=AuditOutcome.SUCCESS,
+                target=_target(role_id),
+                change=AuditChange(old={"permission": permission}),
+            ),
         )
-    ).first()
-    if grant is not None:
-        await session.delete(grant)
-        await _record_permission_revoked(role_id, permission, session)
-        await session.commit()
 
 
 async def get_role_assignee_counts(role_ids: list[int], session: AsyncSession) -> dict[int, RoleAssigneeCounts]:
@@ -287,14 +255,7 @@ async def set_role_permissions(role_id: int, permissions: list[str], session: As
     for permission in permissions_to_grant:
         get_permission(permission)
     await _grant_permissions(role_id, permissions_to_grant, session)
-    if permissions_to_revoke:
-        await session.exec(
-            delete(RolePermission).where(
-                col(RolePermission.role_id) == role_id, col(RolePermission.permission).in_(permissions_to_revoke)
-            )
-        )
-    for permission in permissions_to_revoke:
-        await _record_permission_revoked(role_id, permission, session)
+    await _revoke_permissions(role_id, permissions_to_revoke, session)
     await session.commit()
     return role
 
