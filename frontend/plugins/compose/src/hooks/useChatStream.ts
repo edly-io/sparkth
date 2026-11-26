@@ -3,7 +3,7 @@ import { requestChatCompletionStream, stopChatTurn } from "@/plugins/compose/src
 import {
   ChatMessage,
   PlanSnapshot,
-  STREAM_STATUS_PHASES,
+  StreamStatusEvent,
   StreamStatusPhase,
   TextAttachment,
   ToolCall,
@@ -25,66 +25,57 @@ interface UseChatStreamOptions {
 }
 
 function applyStatusEvent(
-  parsed: Record<string, unknown>,
+  event: StreamStatusEvent,
   assistantId: string,
   setMessages: UseChatStreamOptions["setMessages"],
 ) {
-  if (parsed.status === "scanning_section" && parsed.section) {
-    const section = parsed.section as {
-      type: string;
-      name: string;
-      source?: string;
-    };
-    setMessages((prev) =>
-      prev.map((msg) =>
-        msg.id === assistantId
-          ? {
-              ...msg,
-              statusPhase: undefined,
-              ragSections: [...(msg.ragSections ?? []), { ...section, state: "scanning" as const }],
-            }
-          : msg,
-      ),
-    );
-  } else if (parsed.status === "section_confirmed" && parsed.section) {
-    const sectionName = (parsed.section as { name: string }).name;
-    setMessages((prev) =>
-      prev.map((msg) =>
-        msg.id === assistantId
-          ? {
-              ...msg,
-              ragSections: msg.ragSections?.map((s) =>
-                s.name === sectionName ? { ...s, state: "confirmed" as const } : s,
-              ),
-            }
-          : msg,
-      ),
-    );
-  } else if (STREAM_STATUS_PHASES.includes(parsed.status as StreamStatusPhase)) {
-    const phase = parsed.status as StreamStatusPhase;
-    setMessages((prev) =>
-      prev.map((msg) => (msg.id === assistantId ? { ...msg, statusPhase: phase } : msg)),
-    );
-  } else if (parsed.status === "step" && typeof parsed.step_status === "string") {
-    const stepLabel = parsed.step_status;
-    setMessages((prev) =>
-      prev.map((msg) => (msg.id === assistantId ? { ...msg, stepLabel } : msg)),
-    );
-  } else if (parsed.status === "plan" && parsed.plan) {
-    const plan = parsed.plan as PlanSnapshot;
-    setMessages((prev) => prev.map((msg) => (msg.id === assistantId ? { ...msg, plan } : msg)));
-  } else if (parsed.status === "tool_call" && parsed.tool_name) {
-    const toolName = parsed.tool_name as string;
-    const toolStatus = parsed.tool_status as ToolCall["status"];
-    setMessages((prev) =>
-      prev.map((msg) => {
-        if (msg.id !== assistantId) return msg;
+  const update = (change: (msg: ChatMessage) => ChatMessage) =>
+    setMessages((prev) => prev.map((msg) => (msg.id === assistantId ? change(msg) : msg)));
+
+  switch (event.status) {
+    case "scanning_section": {
+      const { section } = event;
+      update((msg) => ({
+        ...msg,
+        statusPhase: undefined,
+        ragSections: [...(msg.ragSections ?? []), { ...section, state: "scanning" }],
+      }));
+      break;
+    }
+    case "section_confirmed": {
+      const { name } = event.section;
+      update((msg) => ({
+        ...msg,
+        ragSections: msg.ragSections?.map((s) =>
+          s.name === name ? { ...s, state: "confirmed" } : s,
+        ),
+      }));
+      break;
+    }
+    case "scanning_attachments":
+    case "searching_documents":
+    case "skipping_rag":
+    case "generating": {
+      const { status } = event;
+      update((msg) => ({ ...msg, statusPhase: status }));
+      break;
+    }
+    case "step": {
+      const stepLabel = event.step_status;
+      update((msg) => ({ ...msg, stepLabel }));
+      break;
+    }
+    case "plan": {
+      const { plan } = event;
+      update((msg) => ({ ...msg, plan }));
+      break;
+    }
+    case "tool_call": {
+      const { tool_name: toolName, tool_status: toolStatus } = event;
+      update((msg) => {
         const existing = msg.toolCalls ?? [];
         if (toolStatus === "running") {
-          return {
-            ...msg,
-            toolCalls: [...existing, { name: toolName, status: "running" as const }],
-          };
+          return { ...msg, toolCalls: [...existing, { name: toolName, status: "running" }] };
         }
         // TODO: tool_end events are matched by name alone; if the same tool is
         // called in parallel, the first running entry wins regardless of which
@@ -98,8 +89,12 @@ function applyStatusEvent(
           return t;
         });
         return { ...msg, toolCalls: updated };
-      }),
-    );
+      });
+      break;
+    }
+    default:
+      // A status the API does not declare is ignored; one it declares must be handled above.
+      event satisfies never;
   }
 }
 
@@ -207,10 +202,11 @@ async function readStream(
         if (parsed.status) {
           // Persist the current RAG phase so a mid-stream refresh can show a
           // meaningful message ("Scanning documents…") rather than a generic one.
-          if (parsed.status === "scanning_attachments" || parsed.status === "searching_documents") {
-            saveStreamProgress(conversationId, assistantText, parsed.status as StreamStatusPhase);
+          const event = parsed as StreamStatusEvent;
+          if (event.status === "scanning_attachments" || event.status === "searching_documents") {
+            saveStreamProgress(conversationId, assistantText, event.status);
           }
-          applyStatusEvent(parsed, assistantId, setMessages);
+          applyStatusEvent(event, assistantId, setMessages);
           continue;
         }
 

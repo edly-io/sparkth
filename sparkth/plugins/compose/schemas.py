@@ -185,6 +185,17 @@ class ToolExecutionEvent(StreamStatusEvent):
     tool_status: ToolExecutionStatus
 
 
+# Every status event a streamed reply can send.
+AnyStreamStatusEvent = (
+    ResponseGenerationEvent
+    | DocumentProcessingEvent
+    | DocumentSectionProcessingEvent
+    | StepEvent
+    | PlanEvent
+    | ToolExecutionEvent
+)
+
+
 class PersistedToolCall(BaseModel):
     """A tool call a stored reply made: the tool's name, and whether the call was done or failed."""
 

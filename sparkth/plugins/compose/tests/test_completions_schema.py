@@ -1,10 +1,12 @@
 """Schema tests for the chat completions request and response."""
 
+import json
+
 import pytest
 from pydantic import ValidationError
 
 from sparkth.main import assemble_app
-from sparkth.plugins.compose.schemas import ChatCompletionRequest, ChatMessage
+from sparkth.plugins.compose.schemas import ChatCompletionRequest, ChatMessage, StreamStatusEvent
 
 COMPLETIONS_PATH = "/api/v1/compose/completions"
 
@@ -21,6 +23,23 @@ def test_completions_200_response_declares_json_and_sse_union() -> None:
 
     assert content["application/json"]["schema"]["$ref"] == "#/components/schemas/ChatCompletionResponse"
     assert "text/event-stream" in content
+
+
+def test_the_event_stream_schema_describes_every_status_event_in_full() -> None:
+    """A renamed or added status changes the published schema, which says it covers status events only."""
+    schema = assemble_app().openapi()
+    content = schema["paths"][COMPLETIONS_PATH]["post"]["responses"]["200"]["content"]
+    stream_schema = content["text/event-stream"]["schema"]
+    events = {event["title"]: event for event in stream_schema["anyOf"]}
+
+    assert "status events" in stream_schema["description"]
+
+    assert set(events) == {event.__name__ for event in StreamStatusEvent.__subclasses__()}
+    assert "$ref" not in json.dumps(events)
+    assert events["DocumentSectionProcessingEvent"]["properties"]["status"]["enum"] == [
+        "scanning_section",
+        "section_confirmed",
+    ]
 
 
 class TestTheRequestMustCarryAUserTurn:
