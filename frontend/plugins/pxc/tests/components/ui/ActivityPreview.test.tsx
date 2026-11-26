@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -29,6 +29,14 @@ const ACTIVITY_ID = "0192f0c4-0000-7000-8000-000000000001";
 
 function launchOf(token: string): { embed_url: string; owner_user_id: number } {
   return { embed_url: `/api/v1/pxc/embed?token=${token}`, owner_user_id: 7 };
+}
+
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
 }
 
 describe("ActivityPreview", () => {
@@ -118,41 +126,59 @@ describe("ActivityPreview", () => {
     ]);
   });
 
-  it("hides the Author view from a user who may not edit", async () => {
+  it("does not offer the Author view while the check is pending, then offers it when allowed", async () => {
+    const check = deferred<boolean[]>();
     vi.mocked(getActivityLaunch).mockResolvedValue(launchOf("play"));
-    vi.mocked(checkPermissions).mockResolvedValue([false]);
+    vi.mocked(checkPermissions).mockReturnValue(check.promise);
 
     renderWithIntl(<ActivityPreview activityId={ACTIVITY_ID} permission="play" />, pxcEn);
 
     await screen.findByTitle("Activity preview");
     await waitFor(() => expect(checkPermissions).toHaveBeenCalled());
     expect(screen.queryByRole("button", { name: "Author" })).not.toBeInTheDocument();
+    await act(async () => check.resolve([true]));
+    expect(await screen.findByRole("button", { name: "Author" })).toBeInTheDocument();
+  });
+
+  it("hides the Author view from a user who may not edit, pending or answered", async () => {
+    const check = deferred<boolean[]>();
+    vi.mocked(getActivityLaunch).mockResolvedValue(launchOf("play"));
+    vi.mocked(checkPermissions).mockReturnValue(check.promise);
+
+    renderWithIntl(<ActivityPreview activityId={ACTIVITY_ID} permission="play" />, pxcEn);
+
+    await screen.findByTitle("Activity preview");
+    await waitFor(() => expect(checkPermissions).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: "Author" })).not.toBeInTheDocument();
+    await act(async () => check.resolve([false]));
+    expect(screen.queryByRole("button", { name: "Author" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Student" })).toBeInTheDocument();
   });
 
-  it("hides the Author view when the launch is refused", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.mocked(getActivityLaunch).mockRejectedValue(
-      new ApiRequestError({ message: "Permission denied", fieldErrors: {} }, 403),
-    );
+  it("does not offer the Author view, or ask, before a launch has resolved", () => {
+    vi.mocked(getActivityLaunch).mockReturnValue(new Promise(() => {}));
 
-    renderWithIntl(<ActivityPreview activityId={ACTIVITY_ID} permission="edit" />, pxcEn);
+    renderWithIntl(<ActivityPreview activityId={ACTIVITY_ID} permission="play" />, pxcEn);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(pxcEn.pxc.notPermitted);
     expect(screen.queryByRole("button", { name: "Author" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Student" })).toBeInTheDocument();
     expect(checkPermissions).not.toHaveBeenCalled();
   });
 
   it("hides the Author view when the check fails", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    errorSpy.mockClear();
     vi.mocked(getActivityLaunch).mockResolvedValue(launchOf("play"));
     vi.mocked(checkPermissions).mockRejectedValue(new Error("boom"));
 
     renderWithIntl(<ActivityPreview activityId={ACTIVITY_ID} permission="play" />, pxcEn);
 
-    await screen.findByTitle("Activity preview");
-    await waitFor(() => expect(checkPermissions).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(errorSpy).toHaveBeenCalledWith("Permission checks failed:", expect.any(Error)),
+    );
+    await act(async () => {});
     expect(screen.queryByRole("button", { name: "Author" })).not.toBeInTheDocument();
+    errorSpy.mockRestore();
   });
 
   it.each([404, 422])("says the activity was not found on a %i, with no retry", async (status) => {
@@ -196,6 +222,8 @@ describe("ActivityPreview", () => {
     expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
     expect(screen.queryByTitle("Activity preview")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Student" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Author" })).not.toBeInTheDocument();
+    expect(checkPermissions).not.toHaveBeenCalled();
   });
 
   it("reports a generic failure for any other error", async () => {
