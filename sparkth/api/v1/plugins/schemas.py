@@ -11,7 +11,7 @@ class UpdatePluginRequest(BaseModel):
     enabled: bool
 
 
-class PluginSystemStateResponse(BaseModel):
+class PluginSystemEnabledResponse(BaseModel):
     """Response model for a plugin's system-wide switch, which applies to every user."""
 
     plugin_name: str
