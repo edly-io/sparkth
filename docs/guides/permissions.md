@@ -241,9 +241,9 @@ managed through the REST API as well as the CLI, with three routes under
 
 | Route | Does | Needs |
 |---|---|---|
-| `GET /` | Lists the active members, oldest first, as `user_id`, `name`, `username` and `added_at` | `group.read` |
-| `POST /` with `{"user_id": 7}` | Adds the user and answers 201; a user already in the group is answered 201 unchanged | `group.member.add` |
-| `DELETE /{user_id}` | Takes the user out and answers 204, also when they were not a member | `group.member.remove` |
+| `GET /api/v1/permissions/groups/{group_id}/members` | Lists the active members, oldest first, as `user_id`, `name`, `username` and `added_at` | `group.read` |
+| `POST /api/v1/permissions/groups/{group_id}/members` with `{"user_id": 7}` | Adds the user and answers 201; a user already in the group is answered 201 unchanged | `group.member.add` |
+| `DELETE /api/v1/permissions/groups/{group_id}/members/{user_id}` | Takes the user out and answers 204, also when they were not a member | `group.member.remove` |
 
 A request for an unknown group is 404, and so is adding an unknown or deleted user. Each route checks
 its permission at the `group` scope, so a grant at one group reaches that group's members only.
