@@ -1,7 +1,7 @@
 """Reads, writes and deletes of ``pxc_activities`` and ``pxc_action_failures``.
 
-Activity reads are scoped to the owner: each takes the owner's id. An author sees only their own
-activities, and asking for someone else's looks the same as asking for one that does not exist.
+Listing activities takes the owner's id and returns only that user's. Loading one activity by id does
+not look at who owns it: the caller checks what the user may do with it.
 """
 
 from uuid import UUID
@@ -45,8 +45,12 @@ async def update_activity_details(session: AsyncSession, activity_id: UUID, titl
     await session.commit()
 
 
-def _create_audit_snapshot(activity: PxcActivity) -> dict[str, str | bool]:
-    return {"title": activity.title, "placed": activity.placed_at is not None}
+def _create_audit_snapshot(activity: PxcActivity) -> dict[str, str | bool | int]:
+    return {
+        "title": activity.title,
+        "placed": activity.placed_at is not None,
+        "owner_user_id": activity.owner_user_id,
+    }
 
 
 async def delete_activity(session: AsyncSession, activity: PxcActivity) -> None:
@@ -54,7 +58,7 @@ async def delete_activity(session: AsyncSession, activity: PxcActivity) -> None:
 
     The audit row commits atomically with the deletion (fail-closed), and the database deletes the
     activity's failure rows with it. A delete that matches no row, because a concurrent delete got
-    there first, records nothing. The caller has already checked ownership.
+    there first, records nothing. The caller has already checked that the user may delete it.
 
     Raises:
         PxcActivityNotFound: if the activity's row is already gone.
@@ -99,21 +103,6 @@ async def get_activity(session: AsyncSession, activity_id: UUID) -> PxcActivity:
     return activity
 
 
-async def get_owned_activity(session: AsyncSession, activity_id: UUID, owner_user_id: int) -> PxcActivity:
-    """One activity, provided this user owns it.
-
-    Raises:
-        PxcActivityNotFound: if no activity has this id, or another user owns it.
-    """
-    result = await session.exec(
-        select(PxcActivity).where(PxcActivity.id == activity_id, PxcActivity.owner_user_id == owner_user_id)
-    )
-    activity = result.first()
-    if activity is None:
-        raise PxcActivityNotFound(f"Unknown activity: {activity_id}")
-    return activity
-
-
 async def insert_action_failure(session: AsyncSession, failure: PxcActionFailure, keep: int) -> None:
     """Record one failed preview action, drop all but the activity's ``keep`` newest, and commit."""
     session.add(failure)
@@ -137,7 +126,7 @@ async def list_action_failures(
 ) -> list[PxcActionFailure]:
     """The activity's recorded failures from one revision, newest first: the ``limit`` newest.
 
-    Not scoped to an owner: check ownership with ``get_owned_activity`` first.
+    Not scoped to an owner: the caller checks what the user may do with the activity first.
     """
     result = await session.exec(
         select(PxcActionFailure)
