@@ -22,12 +22,14 @@ from sparkth.api.v1 import (
     permissions,
     plugins,
     user,
+    users,
     whitelist,
 )
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(user.router, prefix="/user", tags=["user"])
+api_router.include_router(users.router, prefix="/users", tags=["Users"])
 api_router.include_router(language.router, prefix="/languages", tags=["Languages"])
 api_router.include_router(plugins.router, prefix="/plugins", tags=["Plugins"])
 api_router.include_router(file_upload.router, prefix="/parser", tags=["File Parser"])

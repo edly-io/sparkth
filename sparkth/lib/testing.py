@@ -12,6 +12,7 @@ conftest, not here.
 """
 
 import asyncio
+import functools
 import os
 import uuid
 
@@ -41,6 +42,7 @@ from langchain_core.messages import AIMessage
 from langchain_core.runnables import Runnable
 from langchain_core.tools import BaseTool
 from sqlalchemy.ext.asyncio import AsyncSession as SQLAlchemyAsyncSession
+from sqlalchemy.orm import make_transient
 from sqlmodel import SQLModel, col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -352,6 +354,32 @@ async def current_user(client: AsyncClient) -> AsyncGenerator[User, None]:
     app_instance.dependency_overrides[get_current_user] = override_user
     yield user
     app_instance.dependency_overrides.pop(get_current_user, None)
+
+
+async def _resolve_logged_in_user(user: User) -> User:
+    """Bind ``user`` as the request's actor and return it."""
+    bind_request_user(user)
+    return user
+
+
+def login_as(client: AsyncClient, user: User) -> None:
+    """Make every request from ``client`` run as ``user``.
+
+    The route sees a detached copy of ``user`` (id, name, username, email, password hash) and
+    binds it as ``get_current_user`` does, so audit events name it as the actor. The override
+    lasts until the test ends.
+    """
+    transport = cast(ASGITransport, client._transport)
+    app_instance = cast(FastAPI, transport.app)
+    snapshot = User(
+        id=user.id,
+        name=user.name,
+        username=user.username,
+        email=user.email,
+        hashed_password=user.hashed_password,
+    )
+    make_transient(snapshot)
+    app_instance.dependency_overrides[get_current_user] = functools.partial(_resolve_logged_in_user, snapshot)
 
 
 @pytest.fixture(autouse=True)
