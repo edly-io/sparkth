@@ -22,6 +22,8 @@
     "authenticating": "Authenticating...",
     "notEnabledTitle": "Plugin Not Enabled",
     "notEnabledMessage": "{name} is not enabled for your account.",
+    "systemDisabledTitle": "Plugin Switched Off",
+    "systemDisabledMessage": "{name} has been switched off by an administrator.",
     "enableInSettings": "Enable in Settings",
     "goBack": "Go Back"
   },

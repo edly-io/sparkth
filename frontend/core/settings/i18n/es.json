@@ -19,6 +19,7 @@
     "disableError": "No se pudo desactivar el plugin.",
     "enabled": "Habilitado",
     "disabled": "Deshabilitado",
+    "disabledByAdmin": "Deshabilitado por un administrador",
     "title": "Configuración",
     "subtitle": "Activa o desactiva tus plugins y configúralos.",
     "loading": "Cargando plugins...",

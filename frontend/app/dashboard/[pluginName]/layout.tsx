@@ -9,9 +9,9 @@ export default function PluginLayout({ children }: { children: React.ReactNode }
   const pluginName = params?.pluginName as string;
 
   const pluginDef = getPlugin(pluginName);
-  const { isEnabled } = usePlugin(pluginName);
+  const { isUsable } = usePlugin(pluginName);
 
-  if (!pluginDef || !isEnabled) {
+  if (!pluginDef || !isUsable) {
     return <>{children}</>;
   }
 

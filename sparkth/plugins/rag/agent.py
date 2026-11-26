@@ -1,13 +1,11 @@
 """The RAG agent: selects the sections of the author's attached documents that a request needs."""
 
-from pydantic import BaseModel, Field
-
 from sparkth.lib.assets import read_asset
 from sparkth.lib.compose.hooks import Agent, AgentStructuredReply
 from sparkth.lib.i18n import gettext_noop
 from sparkth.lib.mcp.hooks import Tool
 from sparkth.lib.rag import (
-    SectionRef,
+    SectionSelection,
     format_document_chunks_as_llm_context,
     get_document_metadata,
     get_document_structure,
@@ -15,23 +13,6 @@ from sparkth.lib.rag import (
     search_section_by_keyword,
 )
 from sparkth.plugins.rag.constants import NOTHING_MATCHED
-
-
-class DocumentSections(BaseModel):
-    """The sections selected from one document."""
-
-    document_id: int = Field(description="The document's id.")
-    sections: list[SectionRef] = Field(description="The sections the request needs.")
-
-
-class SectionSelection(BaseModel):
-    """The sections of the attached documents that a request needs."""
-
-    documents: list[DocumentSections] = Field(default_factory=list, description="The documents the request draws on.")
-    unavailable: str | None = Field(
-        default=None,
-        description="Which document couldn't be read and why, such as one still processing, in one sentence.",
-    )
 
 
 async def build_document_context(section_selection: SectionSelection) -> str:

@@ -39,6 +39,7 @@ from sparkth.core.permissions import (
     LLM_CONFIG_READ,
     LLM_CONFIG_UPDATE,
     PERMISSION_READ,
+    PLUGIN_MANAGE,
     PLUGIN_USE,
     ROLE_ASSIGN,
     ROLE_CREATE,
@@ -116,5 +117,6 @@ __all__ = [
     "LLM_CONFIG_UPDATE",
     "LLM_CONFIG_DELETE",
     "PLUGIN_USE",
+    "PLUGIN_MANAGE",
     "FILE_UPLOAD",
 ]
