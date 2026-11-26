@@ -11,21 +11,27 @@ import httpx
 import pytest
 from langchain_core.messages import AIMessage
 from pydantic import Field
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.i18n import locale_context
 from sparkth.lib.audit import ToolFailureKind
 from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME
+from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.lib.llm import get_provider
 from sparkth.lib.mcp.hooks import Tool
 from sparkth.lib.rag import (
     DocumentNotFoundError,
+    DocumentSections,
     RAGNotReadyError,
     RAGRetrievalError,
     RetrievedChunk,
+    SectionRef,
+    SectionSelection,
 )
 from sparkth.lib.testing import AddTranslation, ScriptedChatModel
-from sparkth.plugins.compose.analytics import StopPoint
+from sparkth.plugins.compose.analytics import AnalyticsAttribution, StopPoint
 from sparkth.plugins.compose.constants import SSE_HEARTBEAT
+from sparkth.plugins.compose.detached import join_live_tasks
 from sparkth.plugins.compose.planner import ExistingPlan, PlannedStep
 from sparkth.plugins.compose.planner.types import PlanSnapshot
 from sparkth.plugins.compose.routes.utils.live_turns import claim_conversation, release_conversation, request_stop
@@ -955,6 +961,66 @@ class TestAFailedToolCall:
         assert statuses == ["running", "failed", "running", "done"]
         assert payloads[-1]["message"]["tool_calls"] == stored
         assert _stored_replies(processor)[-1]["metadata"]["tool_calls"] == stored
+
+
+# A step's selection: two sections of the author's ready document 10, and one section each of another
+# user's document 11 and the author's still-processing document 12.
+SECTION_SELECTION = SectionSelection(
+    documents=[
+        DocumentSections(
+            document_id=10,
+            sections=[SectionRef(chapter="Cells", section="Membranes"), SectionRef(chapter="Cells")],
+        ),
+        DocumentSections(document_id=11, sections=[SectionRef(chapter="Secrets")]),
+        DocumentSections(document_id=12, sections=[SectionRef(chapter="Drafts")]),
+    ]
+)
+SELECTING_TURN = partial(
+    replay_turn,
+    [
+        routed(STUB_AGENT.name),
+        {"type": "structured_reply", "agent": STUB_AGENT.name, "reply": SECTION_SELECTION},
+        {"type": "token", "content": "Here is the lesson."},
+    ],
+)
+
+
+class TestADocumentSelection:
+    @pytest.mark.asyncio
+    async def test_the_reply_lists_the_sections_selected_from_the_authors_ready_documents(
+        self, session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        session.add(Document(id=10, user_id=1, name="Biology.pdf", status=DocumentStatus.READY))
+        session.add(Document(id=11, user_id=2, name="Secret.pdf", status=DocumentStatus.READY))
+        session.add(Document(id=12, user_id=1, name="Draft.pdf", status=DocumentStatus.PROCESSING))
+        await session.commit()
+        monkeypatch.setattr(STREAM_TURN, SELECTING_TURN)
+        processor = _make_processor(user_id=1)
+
+        async for _ in processor.stream():
+            pass
+
+        assert _stored_replies(processor)[-1]["metadata"]["rag_sections"] == [
+            {"type": "section", "name": "Cells / Membranes", "source": "Biology.pdf"},
+            {"type": "chapter", "name": "Cells", "source": "Biology.pdf"},
+        ]
+
+    @pytest.mark.asyncio
+    async def test_a_selection_is_reported_as_a_search_of_the_sections_selected(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(STREAM_TURN, SELECTING_TURN)
+        processor = _make_processor()
+        processor.analytics = AnalyticsAttribution(provider="openai", actor_id="1")
+        module = "sparkth.plugins.compose.routes.utils.stream_processor"
+
+        with patch(f"{module}.emit_completion"), patch(f"{module}.emit_rag_search_completed") as emit_search:
+            async for _ in processor.stream():
+                pass
+            await join_live_tasks()
+
+        event = emit_search.call_args.args[0]
+        assert (event.chunks_found, event.document_count, event.streamed) == (4, 3, True)
 
 
 class TestPersistAndEmitDone:

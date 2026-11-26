@@ -20,6 +20,10 @@ activity instance id and the permission (`prm`). The plugin verifies the signatu
 learner and the permission from the claims. A token without `prm` is treated as `play`, so
 deploy Sparkth before an XBlock that sends `edit`.
 
+A correctly signed token is still refused with `403` when the built-in `pxc_lms` account, which stands for the
+LMS, may not launch that activity at the token's level. The README's "Who may launch" section says which
+permissions that takes.
+
 The token's lifetime is set on the Open edX side. The plugin refuses an action sent with a
 lapsed token, over HTTP and over the socket alike.
 

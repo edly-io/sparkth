@@ -1,10 +1,18 @@
 """Which account a launch token is checked for, and how long an answer holds."""
 
+from collections.abc import AsyncGenerator
+from pathlib import Path
+
 import pytest
 from pxc.lib.permission import Permission
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.pool import AsyncAdaptedQueuePool
+from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 from uuid6 import uuid7
 
+from sparkth.core import db as core_db
+from sparkth.lib.db import session_scope
 from sparkth.lib.models import User
 from sparkth.lib.testing import AuditEventsFetcher, grant_permissions
 from sparkth.plugins.pxc import launch_access
@@ -40,6 +48,31 @@ def _preview_claims(activity: PxcActivity, user: User, level: str = "play") -> L
 async def test_the_lms_account_launches_a_bundled_activity_at_both_levels(lms_account: User) -> None:
     await require_launch_access(_lms_claims("mcq", "play"))
     await require_launch_access(_lms_claims("mcq", "edit"))
+
+
+@pytest.fixture
+async def one_connection_pool(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[None]:
+    """Serve every session from a file database whose pool holds one connection and waits 2 seconds for it."""
+    engine = create_async_engine(
+        f"sqlite+aiosqlite:///{tmp_path / 'pool.db'}",
+        poolclass=AsyncAdaptedQueuePool,
+        pool_size=1,
+        max_overflow=0,
+        pool_timeout=2,
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
+    monkeypatch.setattr(core_db, "get_engine", lambda: engine)
+    yield
+    await engine.dispose()
+
+
+async def test_a_refused_check_needs_only_one_pooled_connection(one_connection_pool: None) -> None:
+    async with session_scope() as session:
+        session.add(User(name="PXC LMS", username=PXC_LMS_USERNAME, email="pxc_lms@sparkth.invalid"))
+        await session.commit()
+    with pytest.raises(PxcActivityNotPermitted):
+        await require_launch_access(_lms_claims("mcq"))
 
 
 async def test_a_launch_is_refused_when_the_lms_account_does_not_exist(audit_events: AuditEventsFetcher) -> None:
@@ -148,6 +181,20 @@ async def test_a_preview_token_with_a_malformed_learner_id_is_refused(
 ) -> None:
     claims = LaunchClaims(
         str(authored_activity.id), PXC_PREVIEW_ACTIVITY_INSTANCE, PXC_PREVIEW_COURSE_ID, "sparkth-abc", Permission.play
+    )
+    with pytest.raises(PxcActivityNotPermitted):
+        await require_launch_access(claims)
+
+
+async def test_a_preview_token_with_an_oversized_learner_id_is_refused(
+    authors: tuple[User, User], authored_activity: PxcActivity
+) -> None:
+    claims = LaunchClaims(
+        str(authored_activity.id),
+        PXC_PREVIEW_ACTIVITY_INSTANCE,
+        PXC_PREVIEW_COURSE_ID,
+        f"{PXC_PREVIEW_USER_PREFIX}{'9' * 20}",
+        Permission.play,
     )
     with pytest.raises(PxcActivityNotPermitted):
         await require_launch_access(claims)

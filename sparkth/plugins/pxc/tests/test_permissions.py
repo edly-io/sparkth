@@ -118,6 +118,11 @@ def test_a_level_names_the_permissions_that_allow_it() -> None:
     assert get_launch_permissions("view") == (PXC_ACTIVITY_PLAY, PXC_ACTIVITY_EDIT)
 
 
+def test_an_unknown_level_is_refused_rather_than_served_on_the_play_permission() -> None:
+    with pytest.raises(ValueError, match="author"):
+        get_launch_permissions("author")
+
+
 async def test_play_alone_opens_the_play_level_only(session: AsyncSession, authors: tuple[User, User]) -> None:
     owner, other = authors
     owner_id, other_id = cast(int, owner.id), cast(int, other.id)

@@ -12,9 +12,7 @@ from sparkth.plugins.pxc.actions import perform_action
 from sparkth.plugins.pxc.constants import (
     PXC_ACTION_FAILED,
     PXC_ACTION_REJECTED,
-    PXC_CLOSE_ACTIVITY_NOT_FOUND,
-    PXC_CLOSE_INVALID_TOKEN,
-    PXC_CLOSE_NOT_PERMITTED,
+    PXC_SOCKET_REFUSAL_CODES,
 )
 from sparkth.plugins.pxc.exceptions import (
     PxcActionRejected,
@@ -28,13 +26,6 @@ from sparkth.plugins.pxc.tokens import read_launch_token
 
 logger = get_logger(__name__)
 
-# The close code a refused socket gets, by the refusal.
-SOCKET_REFUSAL_CODES: dict[type[Exception], int] = {
-    PxcInvalidLaunchToken: PXC_CLOSE_INVALID_TOKEN,
-    PxcActivityNotPermitted: PXC_CLOSE_NOT_PERMITTED,
-    PxcActivityNotFound: PXC_CLOSE_ACTIVITY_NOT_FOUND,
-}
-
 
 def get_socket_refusal_code(refusal: Exception) -> int:
     """Return the close code for a refusal, the code of the nearest mapped class when it is a subclass of one.
@@ -42,7 +33,7 @@ def get_socket_refusal_code(refusal: Exception) -> int:
     Raises:
         KeyError: if the refusal is not an instance of any mapped class.
     """
-    for refusal_type, code in SOCKET_REFUSAL_CODES.items():
+    for refusal_type, code in PXC_SOCKET_REFUSAL_CODES.items():
         if isinstance(refusal, refusal_type):
             return code
     raise KeyError(type(refusal))

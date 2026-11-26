@@ -3,6 +3,7 @@ from pathlib import Path
 from pxc.lib.permission import Permission
 
 from sparkth.lib.assets import read_asset
+from sparkth.plugins.pxc.exceptions import PxcActivityNotFound, PxcActivityNotPermitted, PxcInvalidLaunchToken
 
 # The name the plugin registers under.
 PXC_PLUGIN_NAME = "pxc"
@@ -23,6 +24,16 @@ PXC_SANDBOX_HEADERS = {"Content-Security-Policy": "sandbox allow-scripts allow-f
 PXC_CLOSE_INVALID_TOKEN = 4401
 PXC_CLOSE_NOT_PERMITTED = 4403
 PXC_CLOSE_ACTIVITY_NOT_FOUND = 4404
+
+# The close code a refused socket gets, by the refusal.
+PXC_SOCKET_REFUSAL_CODES: dict[type[Exception], int] = {
+    PxcInvalidLaunchToken: PXC_CLOSE_INVALID_TOKEN,
+    PxcActivityNotPermitted: PXC_CLOSE_NOT_PERMITTED,
+    PxcActivityNotFound: PXC_CLOSE_ACTIVITY_NOT_FOUND,
+}
+
+# The refusal text for a permission the caller lacks; the placeholder is the permission's name.
+PXC_NOT_PERMITTED_MESSAGE = "You are not allowed to do this; it needs the {} permission."
 
 # The error a socket frame carries for an action the sandbox failed or the manifest refused.
 PXC_ACTION_FAILED = "action_failed"
@@ -49,6 +60,9 @@ PXC_LMS_USERNAME = "pxc_lms"
 
 # How long a launch check's answer is reused before the permissions are read again.
 PXC_LAUNCH_ANSWER_TTL_SECONDS = 60
+
+# The most digits a Sparkth user id in a preview token can have: the id column is a 32-bit integer.
+PXC_MAX_USER_ID_DIGITS = 9
 
 # Ends a recorded failure's value or error that was cut at the build error limit.
 PXC_TRUNCATED_MARKER = "…(truncated)"
