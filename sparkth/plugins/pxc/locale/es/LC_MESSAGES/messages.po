@@ -18,7 +18,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: sparkth/plugins/pxc/plugin.py:85
+#: sparkth/plugins/pxc/permissions.py:15 sparkth/plugins/pxc/plugin.py:85
 msgid "PXC Activities"
 msgstr "Actividades PXC"
 
@@ -34,3 +34,43 @@ msgstr "Actividades"
 #: sparkth/plugins/pxc/agent.py:17
 msgid "Building your activity…"
 msgstr "Creando tu actividad…"
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/pxc/permissions.py:20
+msgid "See activities"
+msgstr "Ver actividades"
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/pxc/permissions.py:21
+msgid "List activities, preview them as a learner and read their files."
+msgstr "Listar actividades, previsualizarlas como estudiante y leer sus archivos."
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/pxc/permissions.py:26
+msgid "Edit activities"
+msgstr "Editar actividades"
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/pxc/permissions.py:27
+msgid "Preview activities as their author and change them from chat."
+msgstr "Previsualizar actividades como su autor y cambiarlas desde el chat."
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/pxc/permissions.py:32
+msgid "Delete activities"
+msgstr "Eliminar actividades"
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/pxc/permissions.py:33
+msgid "Delete activities, with their learners' data, from every course that uses them."
+msgstr "Eliminar actividades, con los datos de sus estudiantes, de todos los cursos que las usan."
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/pxc/permissions.py:39
+msgid "Place activities"
+msgstr "Colocar actividades"
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/pxc/permissions.py:40
+msgid "Put activities into LMS courses."
+msgstr "Colocar actividades en cursos del LMS."

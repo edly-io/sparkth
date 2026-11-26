@@ -14,6 +14,10 @@ vi.mock("@/core/plugins/context", () => ({
 }));
 
 describe("AppSidebar permission-gated links", () => {
+  afterEach(() => {
+    nav.pathname = "/dashboard";
+  });
+
   it("shows Analytics when sidebarPermissions.analytics is true", () => {
     render(<AppSidebar user={{ name: "A" }} sidebarPermissions={{ analytics: true }} />);
     expect(screen.getByText("Analytics")).toBeInTheDocument();
@@ -32,6 +36,27 @@ describe("AppSidebar permission-gated links", () => {
   it("hides Admin when its permission is false", () => {
     render(<AppSidebar user={{ name: "A" }} sidebarPermissions={{ admin: false }} />);
     expect(screen.queryByText("Admin")).not.toBeInTheDocument();
+  });
+
+  it("links Access & permissions to its first tab when sidebarPermissions.permissions is true", () => {
+    render(<AppSidebar user={{ name: "A" }} sidebarPermissions={{ permissions: true }} />);
+    expect(screen.getByRole("link", { name: "Access & permissions" })).toHaveAttribute(
+      "href",
+      "/dashboard/permissions/roles",
+    );
+  });
+
+  it("hides Access & permissions when its permissions are not all held", () => {
+    render(<AppSidebar user={{ name: "A" }} sidebarPermissions={{ permissions: false }} />);
+    expect(screen.queryByText("Access & permissions")).not.toBeInTheDocument();
+  });
+
+  it("highlights Access & permissions on any of its tabs", () => {
+    nav.pathname = "/dashboard/permissions/groups";
+    render(<AppSidebar user={{ name: "A" }} sidebarPermissions={{ permissions: true }} />);
+    expect(screen.getByRole("link", { name: "Access & permissions" })).toHaveClass(
+      "border-primary-500",
+    );
   });
 
   it("shows neither gated entry when sidebarPermissions is absent", () => {

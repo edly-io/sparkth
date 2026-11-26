@@ -202,6 +202,9 @@ The static export builds that page for every plugin registered with core: `gener
 so a plugin folder gets its page on the next build with nothing to regenerate. `PluginPageClient` then loads the
 plugin's component.
 
+A name no plugin registered has no page. The export serves `app/not-found.tsx` for it, as it does for every address
+with no page, and that page says no plugin has that name, on the dev server too.
+
 The display name, description, icon and sidebar entry stay **declared by the backend plugin** and arrive on the
 plugins API. A plugin must set a component for every icon name its backend declares (see above); the e2e suite
 reads the declared icons from that API and checks each one shows on the plugin's dashboard card and sidebar link,

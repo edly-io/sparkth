@@ -2,18 +2,17 @@ from datetime import datetime
 
 from sparkth.lib.compose.hooks import Agent
 from sparkth.plugins.compose.constants import (
-    MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT,
     REFUSAL_MESSAGE,
     SYSTEM_PROMPT_SKELETON,
 )
 from sparkth.plugins.compose.enums import OptionsFence
 
 
-def render_system_prompt(agents: list[Agent]) -> str:
-    """Render the Compose system prompt: Compose's skeleton with each agent's prompt under its title.
+def render_system_prompt(agent: Agent) -> str:
+    """Render ``agent``'s system prompt: Compose's skeleton with the agent's prompt under its title.
 
     The skeleton holds every rule the agents share: the date, the assistant's identity, the
-    output language, the response boundaries and the offering-choices format. Each prompt is
+    output language, the response boundaries and the offering-choices format. The agent's prompt is
     inserted as a value, never formatted, so a brace in it reaches the model as written.
 
     No language is injected. The skeleton tells the model to write in the language of the
@@ -21,23 +20,10 @@ def render_system_prompt(agents: list[Agent]) -> str:
     substitution that varies per request. The refusal sentence is the English source constant,
     which the model is told to send in the conversation's language.
     """
-    sections = "\n\n".join(f"## {agent.title}\n{agent.prompt}" for agent in agents)
     return SYSTEM_PROMPT_SKELETON.format(
         current_datetime=datetime.now(),
         refusal_message=REFUSAL_MESSAGE,
-        capabilities=sections,
+        work=f"## {agent.title}\n{agent.prompt}",
         options_tag=OptionsFence.MULTIPLE,
         single_options_tag=OptionsFence.SINGLE,
     )
-
-
-def render_scope_classifier_prompt(agents: list[Agent]) -> str:
-    """Render the scope classifier's system prompt, listing each of ``agents`` by its title and
-    its description, which is what the classifier judges a message against, after Compose's own
-    LMS operations.
-
-    Rendered per request from the enabled agents, so nothing depends on which plugin was
-    imported first.
-    """
-    sections = "\n\n".join(f'CAPABILITY "{agent.title}":\n{agent.description}' for agent in agents)
-    return MESSAGE_SCOPE_CLASSIFIER_SYSTEM_PROMPT.format(capabilities=sections)
