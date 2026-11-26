@@ -9,6 +9,8 @@ cannot be changed or deleted; assigning and revoking it is unaffected. Each role
 counted for the role-management API: the people who hold it directly and the groups that hold it.
 """
 
+from collections.abc import Sequence
+
 from sqlalchemy import delete, func
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -49,13 +51,20 @@ def _create_audit_snapshot(role: Role) -> dict[str, str | None]:
     return {"name": role.name, "description": role.description}
 
 
-async def create_role(name: str, description: str | None, session: AsyncSession) -> Role:
-    """Create and return a role, recording ``role.created``.
+async def create_role(
+    name: str, description: str | None, session: AsyncSession, *, permissions: Sequence[str] = ()
+) -> Role:
+    """Create and return a role granting ``permissions``, in one transaction.
 
-    Raises RoleAlreadyExists if the name is already taken.
+    Records ``role.created``, then ``role.permission_granted`` for each permission. Raises
+    RoleAlreadyExists if the name is already taken, or PermissionNotFound if a permission is not
+    registered; either is checked before anything is written.
     """
     if (await session.exec(select(Role).where(Role.name == name))).first() is not None:
         raise RoleAlreadyExists(name)
+    permissions_to_grant = sorted(set(permissions))
+    for permission in permissions_to_grant:
+        get_permission(permission)
     role = Role(name=name, description=description)
     session.add(role)
     await session.flush()
@@ -65,6 +74,9 @@ async def create_role(name: str, description: str | None, session: AsyncSession)
             outcome=AuditOutcome.SUCCESS, target=_target(role.id), change=AuditChange(new=_create_audit_snapshot(role))
         ),
     )
+    if role.id is None:
+        raise RuntimeError(f"Role has no id after flush: {role!r}")
+    await _grant_permissions(role.id, permissions_to_grant, session)
     await session.commit()
     await session.refresh(role)
     return role

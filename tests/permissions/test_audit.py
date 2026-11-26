@@ -71,6 +71,18 @@ class TestRoleEvents:
         assert event.old_values is None
         assert event.new_values == {"name": "grader", "description": "Grades stuff"}
 
+    async def test_create_with_permissions_records_each_grant_after_created(
+        self, session: AsyncSession, audit_events: AuditEventsFetcher
+    ) -> None:
+        role = await roles.create_role("grader", None, session, permissions=["role.update", "role.read"])
+
+        created, granted_read, granted_update = await audit_events()
+        _assert_envelope(created, "role.created", "role", role.id)
+        _assert_envelope(granted_read, "role.permission_granted", "role", role.id)
+        assert granted_read.new_values == {"permission": "role.read"}
+        _assert_envelope(granted_update, "role.permission_granted", "role", role.id)
+        assert granted_update.new_values == {"permission": "role.update"}
+
     async def test_update_records_before_and_after(
         self, session: AsyncSession, audit_events: AuditEventsFetcher
     ) -> None:

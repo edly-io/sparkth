@@ -122,7 +122,9 @@ assigned at.
 Roles and their permission grants are managed at runtime through the role-management REST API
 under `/api/v1/permissions` (gated by `role.*` / `permission.read`). See the REST API docs
 (`/docs`) for the endpoints. Permissions and scope kinds themselves are **not** editable
-there — they are declared in code.
+there — they are declared in code. A role can be created with its permissions in one request, as
+when duplicating a role; listing permissions there also needs `role.update` at `global`, since giving
+a role permissions needs `role.update` and the new role has no `role` scope yet.
 
 Compose checks a conversation's permissions at the conversation itself where one is named, except that attaching
 documents is checked at the owner's `user` scope. Reading one conversation, its last message and its attachments,
@@ -259,7 +261,7 @@ CLI commands are attributed to the `cli` system actor.
 | Event | Recorded by | Target | Snapshot |
 |---|---|---|---|
 | `role.created`, `role.updated`, `role.deleted` | `create_role`, `update_role`, `delete_role` | `role` | name and description (before and after for an update) |
-| `role.permission_granted`, `role.permission_revoked` | `set_role_permissions` (one event for each permission granted or revoked) | `role` | the permission |
+| `role.permission_granted`, `role.permission_revoked` | `set_role_permissions`, `create_role` (one event for each permission granted or revoked) | `role` | the permission |
 | `role.assigned`, `role.unassigned` | `assign_role`, `revoke_role`, `delete_role`, `delete_group` | `user` | role, scope, and scope object id |
 | `group.created`, `group.updated`, `group.deleted` | `create_group`, `update_group`, `delete_group` | `group` | name and description (before and after for an update) |
 | `group.member_added`, `group.member_removed` | `add_group_member`, `remove_group_member`, `delete_group` | `group` | the member's user id |
@@ -538,6 +540,11 @@ Code that turns down one thing a caller asked for by name, without refusing the 
 the same event with `await PERMISSION.record_denial(SCOPE, scope_path)`. It writes the row the same way
 and does not refuse the request; a failed write still fails the caller. A list that only leaves out what
 the caller may not use records nothing.
+
+A check that depends on the request, such as a field of its body, cannot be a route dependency. Make it
+inside the route with `await PERMISSION.require_now(user, SCOPE, scope_path, session)`: it refuses with
+403 and records `permission.denied` exactly as the dependencies do. Creating a role does this, asking for
+`role.update` at `global` only when the request lists permissions for the new role.
 
 **Check the current user's permissions** — a client (e.g. the web UI) can ask whether the
 authenticated user holds permissions via `POST /api/v1/permissions/can/batch`. The body is a list of
