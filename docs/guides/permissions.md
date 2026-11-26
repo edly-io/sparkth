@@ -124,14 +124,13 @@ under `/api/v1/permissions` (gated by `role.*` / `permission.read`). See the RES
 (`/docs`) for the endpoints. Permissions and scope kinds themselves are **not** editable
 there — they are declared in code.
 
-A role can also be given to a user and taken from one through the API, with three routes under
-`/api/v1/permissions/roles/{role_id}/assignments/users`:
+A role can also be given to a user and taken from one through the API, with three routes:
 
 | Route | Does | Needs |
 |---|---|---|
-| `GET /?limit=&offset=` | Lists the active holders by assignment id, 50 a page (1 to 200), as `id`, `user_id`, `name`, `username`, `role_id`, `role_name`, `scope`, `scope_object_id` and `assigned_at` | `role.read` |
-| `POST /` with `{"user_id": 7, "scope": "global"}` | Gives the role and answers 201; a grant that already exists is answered 201 unchanged | `role.assign` |
-| `DELETE /{assignment_id}` | Takes the role away and answers 204 | `role.revoke` |
+| `GET /api/v1/permissions/roles/{role_id}/assignments/users?limit=&offset=` | Lists the active holders by assignment id, 50 a page (1 to 200), as `id`, `user_id`, `name`, `username`, `role_id`, `role_name`, `scope`, `scope_object_id` and `assigned_at` | `role.read` |
+| `POST /api/v1/permissions/roles/{role_id}/assignments/users` with `{"user_id": 7, "scope": "global"}` | Gives the role and answers 201; a grant that already exists is answered 201 unchanged | `role.assign` |
+| `DELETE /api/v1/permissions/roles/{role_id}/assignments/users/{assignment_id}` | Takes the role away and answers 204 | `role.revoke` |
 
 Each route checks its permission at the `role` scope, so a grant at one role reaches that role only. `scope` is
 required, with `scope_object_id` for a scope that names objects, and is checked as the CLI checks it: an unknown
