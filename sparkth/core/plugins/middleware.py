@@ -104,9 +104,9 @@ class PluginAccessMiddleware(BaseHTTPMiddleware):
             return JSONResponse(
                 status_code=status.HTTP_403_FORBIDDEN,
                 content={
-                    "detail": _("Plugin '{name}' is switched off, in your settings or by an administrator.").format(
-                        name=plugin_name
-                    )
+                    "detail": _(
+                        "Plugin '{name}' is switched off, either in your settings or by an administrator."
+                    ).format(name=plugin_name)
                 },
             )
 
