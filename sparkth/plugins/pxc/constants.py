@@ -23,6 +23,9 @@ PXC_SANDBOX_HEADERS = {"Content-Security-Policy": "sandbox allow-scripts allow-f
 PXC_CLOSE_INVALID_TOKEN = 4401
 PXC_CLOSE_ACTIVITY_NOT_FOUND = 4404
 
+# The refusal text for a permission the caller lacks; the placeholder is the permission's name.
+PXC_NOT_PERMITTED_MESSAGE = "You are not allowed to do this; it needs the {} permission."
+
 # The error a socket frame carries for an action the sandbox failed or the manifest refused.
 PXC_ACTION_FAILED = "action_failed"
 PXC_ACTION_REJECTED = "action_rejected"

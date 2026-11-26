@@ -21,6 +21,7 @@ from sparkth.lib.log import get_logger
 from sparkth.lib.permissions import get_listed_owner_id
 from sparkth.lib.permissions.scopes import USER
 from sparkth.plugins.pxc.activities import activity_dir, preview_url
+from sparkth.plugins.pxc.constants import PXC_NOT_PERMITTED_MESSAGE
 from sparkth.plugins.pxc.enums import PreviewLevel
 from sparkth.plugins.pxc.exceptions import PxcActivityNotPermitted
 from sparkth.plugins.pxc.models import PxcActivity
@@ -111,7 +112,7 @@ async def launch_activity(
             activity.owner_user_id,
         )
         await record_launch_denial(permission, activity.owner_user_id)
-        raise PxcActivityNotPermitted(f"You are not allowed to do this; it needs the {needed.name} permission.")
+        raise PxcActivityNotPermitted(PXC_NOT_PERMITTED_MESSAGE.format(needed.name))
     activity_dir(str(activity_id))
     token = mint_preview_token(activity_id, user_id, permission)
     return ActivityLaunch(embed_url=str(request.url_for("embed_activity").include_query_params(token=token)))
