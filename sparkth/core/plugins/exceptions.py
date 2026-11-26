@@ -55,8 +55,8 @@ class ConfigValidationError(PluginError):
     """Raised when a plugin config a user submitted fails validation."""
 
 
-class InternalServerError(PluginError):
-    """Raised when a plugin's config cannot be validated or saved because of a server-side fault."""
+class PluginConfigUnavailable(PluginError):
+    """Raised when a plugin has no usable config class, so its config cannot be validated or saved."""
 
 
 class PluginDisabledError(PluginError):

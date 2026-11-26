@@ -12,8 +12,8 @@ from sparkth.core.plugins.base import SparkthPlugin
 from sparkth.core.plugins.config_base import PluginConfig
 from sparkth.core.plugins.exceptions import (
     ConfigValidationError,
-    InternalServerError,
     PluginConfigInvalidError,
+    PluginConfigUnavailable,
     PluginDisabledError,
     PluginNotConfiguredError,
 )
@@ -41,7 +41,7 @@ __all__ = [
     "PluginService",
     "get_plugin_service",
     "ConfigValidationError",
-    "InternalServerError",
+    "PluginConfigUnavailable",
     "PluginDisabledError",
     "PluginResponse",
     "disabled_plugin_names",
