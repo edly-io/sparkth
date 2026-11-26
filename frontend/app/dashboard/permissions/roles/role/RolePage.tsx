@@ -54,9 +54,9 @@ export default function RolePage() {
 
   useEffect(() => loadPermissionList(), [loadPermissionList]);
 
-  const justSaved = state.status === "loaded" && state.saveStatus === "saved";
+  const saveStatus = state.status === "loaded" ? state.saveStatus : "idle";
   useEffect(() => {
-    if (!justSaved) return;
+    if (saveStatus !== "saved") return;
     const timer = setTimeout(
       () =>
         setState((current) =>
@@ -67,7 +67,7 @@ export default function RolePage() {
       SAVED_MESSAGE_MS,
     );
     return () => clearTimeout(timer);
-  }, [justSaved]);
+  }, [saveStatus]);
 
   useEffect(() => {
     if (!Number.isInteger(roleId) || roleId <= 0) {
@@ -108,7 +108,7 @@ export default function RolePage() {
       );
   }
 
-  const { role, checked, saveStatus } = state;
+  const { role, checked } = state;
   const name = formatRoleName(role.name);
   const held = new Set(role.permissions);
   const changed =
