@@ -12,7 +12,7 @@ Authored with LLM (Claude) assistance.
 from fastapi import APIRouter, Depends, Query, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.api.v1.permissions.routes.groups import _build_group_role_response
+from sparkth.api.v1.permissions.routes.groups import build_group_role_response
 from sparkth.api.v1.permissions.schemas import (
     GroupRoleAssignmentCreate,
     GroupRoleAssignmentResponse,
@@ -121,8 +121,8 @@ async def revoke_user_role(
     """Take a role away from a user by the id of the assignment. Returns 204 No Content."""
     role = await get_role(role_id, session)
     assignment = await get_role_assignment(assignment_id, role_id, session)
-    # ponytail: a row whose scope kind is no longer registered cannot be revoked here (422);
-    # upgrade to a revoke that works from the row's own strings.
+    # ponytail: a row whose scope kind is no longer registered, or whose stored pairing is no longer valid,
+    # cannot be revoked here (422); upgrade to a revoke that works from the row's own strings.
     permission_scope = get_permission_scope(assignment.scope)
     await revoke_role(assignment.user_id, role.name, permission_scope, assignment.scope_object_id, session)
     await session.commit()
@@ -139,7 +139,7 @@ async def list_group_role_assignments(
     """List the groups holding a role, by assignment id. Returns each group's scope and grant time."""
     role = await get_role(role_id, session)
     rows = await group_engine.get_group_assignments_of_role(role_id, session)
-    return [_build_group_role_response(assignment, group, role.name) for assignment, group in rows]
+    return [build_group_role_response(assignment, group, role.name) for assignment, group in rows]
 
 
 @router.post(
@@ -158,7 +158,7 @@ async def assign_group_role(
     assignment = await group_engine.assign_role_to_group(
         payload.group_id, role.name, permission_scope, payload.scope_object_id, session
     )
-    response = _build_group_role_response(assignment, group, role.name)
+    response = build_group_role_response(assignment, group, role.name)
     await session.commit()
     return response
 
@@ -174,6 +174,8 @@ async def revoke_group_role(
     """Take a role away from a group by the id of the assignment. Returns 204 No Content."""
     role = await get_role(role_id, session)
     assignment = await group_engine.get_group_role_assignment(assignment_id, role_id, session)
+    # ponytail: same ceiling as the user revoke above (422 for an unregistered scope kind or an invalid
+    # stored pairing); upgrade to a revoke that works from the row's own strings.
     permission_scope = get_permission_scope(assignment.scope)
     await group_engine.revoke_role_from_group(
         assignment.group_id, role.name, permission_scope, assignment.scope_object_id, session

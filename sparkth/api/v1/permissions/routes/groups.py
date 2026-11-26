@@ -59,7 +59,7 @@ def _build_member_response(membership: GroupMembership, user: User) -> GroupMemb
     )
 
 
-def _build_group_role_response(
+def build_group_role_response(
     assignment: GroupRoleAssignment, group: Group, role_name: str
 ) -> GroupRoleAssignmentResponse:
     """Assemble the response for a group's role assignment, guarding the persisted-id invariant."""
@@ -185,4 +185,4 @@ async def list_group_roles(
     assignments = await group_engine.get_group_roles(group_id, session)
     roles = await list_roles({assignment.role_id for assignment in assignments}, session)
     role_names = {role.id: role.name for role in roles}
-    return [_build_group_role_response(assignment, group, role_names[assignment.role_id]) for assignment in assignments]
+    return [build_group_role_response(assignment, group, role_names[assignment.role_id]) for assignment in assignments]

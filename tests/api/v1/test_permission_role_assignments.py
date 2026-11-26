@@ -584,6 +584,39 @@ async def test_revoke_unknown_group_assignment_returns_404(client: AsyncClient, 
     assert response.status_code == 404
 
 
+async def test_revoke_a_group_assignment_of_another_role_returns_404(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    role_a = await make_role(session, _uniq("role"), [])
+    role_b = await make_role(session, _uniq("role"), [])
+    group = await _make_group(session)
+    assignment = await _add_group_assignment(group, role_b, session)
+    login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
+    await session.commit()
+
+    response = await client.delete(_build_group_assignments_url(role_a, assignment))
+
+    assert response.status_code == 404
+    assert await _count_group_assignments(group, role_b, session) == 1
+
+
+async def test_assign_to_group_with_an_overlong_object_id_returns_422(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    role = await make_role(session, _uniq("role"), [])
+    group = await _make_group(session)
+    login_as(client, await make_user_with_permissions(session, ["role.assign"]))
+    await session.commit()
+
+    response = await client.post(
+        _build_group_assignments_url(role),
+        json={"group_id": group.id, "scope": "group", "scope_object_id": "9" * 101},
+    )
+
+    assert response.status_code == 422
+    assert await _count_group_assignments(group, role, session) == 0
+
+
 async def test_user_assignment_id_on_the_groups_path_returns_404(client: AsyncClient, session: AsyncSession) -> None:
     role = await make_role(session, _uniq("role"), [])
     holder = await make_user(session, _uniq("target"))
