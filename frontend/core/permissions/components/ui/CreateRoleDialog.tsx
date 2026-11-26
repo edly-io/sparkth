@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { twMerge } from "tailwind-merge";
 import { ApiRequestError } from "@/lib/api";
+import { useAuth } from "@/core/auth/hooks";
 import { Button } from "@/core/components/ui/Button";
 import {
   Dialog,
@@ -15,18 +16,22 @@ import {
 } from "@/core/components/ui/Dialog";
 import { Input } from "@/core/components/ui/Input";
 import { Select } from "@/core/components/ui/Select";
+import { Spinner } from "@/core/components/ui/Spinner";
 import { Textarea } from "@/core/components/ui/Textarea";
+import { PermissionPicker } from "@/core/permissions/components/ui/PermissionPicker";
+import { usePermissionList } from "@/core/permissions/hooks";
 import { formatRoleName } from "@/core/permissions/roleDisplay";
 import type { RoleCreate, RoleResponse } from "@/core/permissions/types";
 
 /** Where the new role's first permissions come from. */
-type PermissionSource = "none" | "duplicate";
+type PermissionSource = "none" | "duplicate" | "choose";
 
 /**
  * Asks for a new role's name and description, trimmed, the description `null` when left empty, and
- * what it starts from: no permissions, or a duplicate of one of `roles`, with that role's
- * permissions. Calls `onCreate` with all of it, closes once the role is created, and stays open with
- * a message when the name is taken or creating fails.
+ * what it starts from: no permissions, a duplicate of one of `roles`, with that role's permissions,
+ * or permissions chosen from the full list, loaded when that is first selected. Calls `onCreate`
+ * with all of it, closes once the role is created, and stays open with a message when the name is
+ * taken or creating fails.
  */
 export function CreateRoleDialog({
   open,
@@ -64,6 +69,7 @@ function RoleForm({
   onClose: () => void;
 }) {
   const t = useTranslations("permissions.roles.create");
+  const { token } = useAuth();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [permissionSource, setPermissionSource] = useState<PermissionSource>("none");
@@ -71,15 +77,39 @@ function RoleForm({
   // The role to duplicate: the one selected, or the first listed until one is selected (the roles
   // may only arrive after the dialog opens).
   const duplicateRoleId = selectedRoleId ?? roles[0]?.id;
+  const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set());
+  const { permissionList, load: loadPermissionList } = usePermissionList(token);
   const [nameError, setNameError] = useState<string>();
   const [createFailed, setCreateFailed] = useState(false);
   const [creating, setCreating] = useState(false);
 
+  useEffect(() => {
+    if (permissionSource === "choose") loadPermissionList();
+  }, [permissionSource, loadPermissionList]);
+
+  const toggleChosen = (permission: string) => {
+    const next = new Set(chosen);
+    if (!next.delete(permission)) next.add(permission);
+    setChosen(next);
+  };
+
   const getPermissionsToGrant = (): string[] | undefined => {
-    if (permissionSource === "none") return undefined;
-    const duplicateRole = roles.find((role) => role.id === duplicateRoleId);
-    if (!duplicateRole) throw new Error(`The role to duplicate, ${duplicateRoleId}, is not listed`);
-    return duplicateRole.permissions;
+    switch (permissionSource) {
+      case "none":
+        return undefined;
+      case "duplicate": {
+        const duplicateRole = roles.find((role) => role.id === duplicateRoleId);
+        if (!duplicateRole) {
+          throw new Error(`The role to duplicate, ${duplicateRoleId}, is not listed`);
+        }
+        return duplicateRole.permissions;
+      }
+      case "choose":
+        if (permissionList.status !== "loaded") throw new Error("The permissions are not loaded");
+        return permissionList.permissions
+          .map((permission) => permission.name)
+          .filter((permission) => chosen.has(permission));
+    }
   };
 
   const submit = async (event: React.FormEvent) => {
@@ -155,6 +185,32 @@ function RoleForm({
             </div>
           </PermissionSourceOption>
         )}
+        <PermissionSourceOption
+          label={t("startFrom.choose")}
+          selected={permissionSource === "choose"}
+          onSelect={() => setPermissionSource("choose")}
+        />
+        {permissionSource === "choose" && permissionList.status === "loading" && (
+          <div
+            role="status"
+            aria-label={t("permissionsLoading")}
+            className="flex justify-center py-2"
+          >
+            <Spinner size="md" />
+          </div>
+        )}
+        {permissionSource === "choose" && permissionList.status === "failed" && (
+          <p role="alert" className="text-sm text-error-600">
+            {t("permissionsFailed")}
+          </p>
+        )}
+        {permissionSource === "choose" && permissionList.status === "loaded" && (
+          <PermissionPicker
+            permissions={permissionList.permissions}
+            chosen={chosen}
+            onToggle={toggleChosen}
+          />
+        )}
       </fieldset>
       {createFailed && (
         <p role="alert" className="text-sm text-error-600">
@@ -165,7 +221,13 @@ function RoleForm({
         <Button type="button" variant="ghost" onClick={onClose} disabled={creating}>
           {t("cancel")}
         </Button>
-        <Button type="submit" loading={creating} disabled={!name.trim()}>
+        <Button
+          type="submit"
+          loading={creating}
+          disabled={
+            !name.trim() || (permissionSource === "choose" && permissionList.status !== "loaded")
+          }
+        >
           {t("submit")}
         </Button>
       </DialogFooter>

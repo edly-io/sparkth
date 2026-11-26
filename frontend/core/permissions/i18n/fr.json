@@ -52,8 +52,11 @@
           "label": "Partir de",
           "none": "Aucune permission",
           "duplicate": "Un duplicata d'un autre rôle",
-          "duplicateSource": "Rôle à dupliquer"
-        }
+          "duplicateSource": "Rôle à dupliquer",
+          "choose": "Choisir les permissions"
+        },
+        "permissionsLoading": "Chargement des permissions…",
+        "permissionsFailed": "Impossible de charger les permissions. Réessayez."
       },
       "menu": {
         "label": "Plus d'actions pour {name}",

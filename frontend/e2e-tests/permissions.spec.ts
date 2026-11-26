@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { stubGroups, stubPermissions, stubRoles } from "./utils/permissions";
+import { stubGroups, stubPermissionList, stubPermissions, stubRoles } from "./utils/permissions";
 
 /**
  * The Access & permissions section. Its sidebar entry and its pages need permission.read,
@@ -53,6 +53,47 @@ test.describe("access & permissions", () => {
       "page",
     );
     await expect(page.getByText("Science faculty")).toBeVisible();
+  });
+
+  test("creates a role with the permissions ticked", async ({ page }) => {
+    await stubPermissions(page, [...ALL_THREE, "role.create", "role.update"]);
+    await stubPermissionList(page, [
+      {
+        name: "role.read",
+        label: "See roles",
+        description: "See every role and what it allows.",
+        category: "Users & access",
+        risks: [],
+        requires: [],
+      },
+      {
+        name: "role.update",
+        label: "Change roles",
+        description: "Choose what a role allows.",
+        category: "Users & access",
+        risks: ["delegates_access"],
+        requires: [],
+      },
+    ]);
+    const sent: unknown[] = [];
+    await page.route("**/api/v1/permissions/roles", (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      sent.push(route.request().postDataJSON());
+      return route.fulfill({ status: 201, json: {} });
+    });
+    await page.goto("/dashboard/permissions/roles");
+
+    await page.getByRole("button", { name: "Create role" }).click();
+    await page.getByLabel("Name").fill("Grader");
+    await page.getByRole("radio", { name: "Choose permissions" }).click();
+    await page.getByLabel("Search permissions").fill("change");
+    await expect(page.getByRole("checkbox", { name: "See roles" })).toHaveCount(0);
+    await page.getByRole("checkbox", { name: "Change roles" }).check();
+    await page.getByRole("button", { name: "Create", exact: true }).click();
+
+    await expect
+      .poll(() => sent)
+      .toEqual([{ name: "Grader", description: null, permissions: ["role.update"] }]);
   });
 
   for (const missing of ALL_THREE) {
