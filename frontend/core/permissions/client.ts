@@ -74,6 +74,21 @@ export async function listPermissions(token: string): Promise<PermissionResponse
   );
 }
 
+/** Makes the role grant exactly `permissions`, granting what it lacks and revoking the rest. */
+export async function setRolePermissions(
+  token: string,
+  roleId: number,
+  permissions: string[],
+): Promise<RoleResponse> {
+  return call<RoleResponse>(() =>
+    api.PUT("/api/v1/permissions/roles/{role_id}/permissions", {
+      params: { path: { role_id: roleId } },
+      body: { permissions },
+      headers: bearer(token),
+    }),
+  );
+}
+
 /** Deletes a role, taking it away from everyone who holds it. */
 export async function deleteRole(token: string, roleId: number): Promise<void> {
   await call(() =>

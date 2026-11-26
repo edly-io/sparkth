@@ -77,11 +77,15 @@
         "loadFailed": "Couldn't load the role. Try again later.",
         "permissionsLoading": "Loading the permissions…",
         "permissionsFailed": "Couldn't load the permissions. Try again later.",
+        "save": "Save changes",
+        "saveFailed": "Couldn't save the permissions. Try again.",
+        "saved": "Saved",
         "list": {
           "label": "Permissions",
           "filter": "Filter permissions",
           "granted": "<strong>{granted}</strong> of {total} permissions granted",
-          "groupCount": "{granted} of {total}"
+          "groupCount": "{granted} of {total}",
+          "allInCategory": "All permissions in {category}"
         }
       }
     },

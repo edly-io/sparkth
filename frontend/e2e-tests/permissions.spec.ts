@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import type { RoleResponse } from "@/core/permissions/types";
 import {
   stubGroups,
   stubPermissionList,
@@ -135,6 +136,57 @@ test.describe("access & permissions", () => {
     await expect(
       page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Roles" }),
     ).toBeVisible();
+  });
+
+  test("saves the permissions ticked on a role's page", async ({ page }) => {
+    const role = {
+      id: 1,
+      name: "Course editor",
+      description: "Edits courses",
+      permissions: ["role.read"],
+      is_builtin: false,
+      is_default: false,
+      user_count: 0,
+      group_count: 0,
+      risks: [],
+    } satisfies RoleResponse;
+    await stubPermissions(page, ALL_THREE);
+    await stubRole(page, role);
+    await stubPermissionList(page, [
+      {
+        name: "role.read",
+        label: "See roles",
+        description: "See every role and what it allows.",
+        category: "Users & access",
+        risks: [],
+        requires: [],
+      },
+      {
+        name: "role.update",
+        label: "Edit roles",
+        description: "Choose what a role allows.",
+        category: "Users & access",
+        risks: ["delegates_access"],
+        requires: [],
+      },
+    ]);
+    const sent: unknown[] = [];
+    await page.route("**/api/v1/permissions/roles/1/permissions", (route) => {
+      sent.push(route.request().postDataJSON());
+      return route.fulfill({
+        json: { ...role, permissions: ["role.read", "role.update"], risks: ["delegates_access"] },
+      });
+    });
+    await page.goto("/dashboard/permissions/roles/role?id=1");
+
+    const save = page.getByRole("button", { name: "Save changes" });
+    await expect(save).toBeDisabled();
+    await page.getByRole("checkbox", { name: "Edit roles" }).check();
+    await save.click();
+
+    await expect.poll(() => sent).toEqual([{ permissions: ["role.read", "role.update"] }]);
+    await expect(page.getByText("Can give others access").first()).toBeVisible();
+    await expect(save).toBeDisabled();
   });
 
   for (const missing of ALL_THREE) {

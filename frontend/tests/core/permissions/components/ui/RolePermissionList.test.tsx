@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithIntl } from "@/tests/intl";
@@ -58,6 +58,93 @@ describe("RolePermissionList", () => {
     expect(screen.getByRole("checkbox", { name: "See roles" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Edit roles" })).not.toBeChecked();
     for (const checkbox of screen.getAllByRole("checkbox")) expect(checkbox).toBeDisabled();
+  });
+
+  it("hands over the permissions granted once one is ticked or unticked", async () => {
+    const onChange = vi.fn();
+    renderWithIntl(
+      <RolePermissionList
+        permissions={PERMISSIONS}
+        granted={new Set(["role.read"])}
+        onChange={onChange}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "Edit roles" }));
+    expect(onChange).toHaveBeenLastCalledWith(new Set(["role.read", "role.update"]));
+    await userEvent.click(screen.getByRole("checkbox", { name: "See roles" }));
+    expect(onChange).toHaveBeenLastCalledWith(new Set());
+  });
+
+  it("grants every permission in a category when some are granted", async () => {
+    const onChange = vi.fn();
+    renderWithIntl(
+      <RolePermissionList
+        permissions={PERMISSIONS}
+        granted={new Set(["role.read", "compose.conversation.read"])}
+        onChange={onChange}
+      />,
+    );
+
+    const all = screen.getByRole("checkbox", { name: "All permissions in Users & access" });
+    expect(all).not.toBeChecked();
+    expect(all).toHaveProperty("indeterminate", true);
+    await userEvent.click(all);
+
+    expect(onChange).toHaveBeenLastCalledWith(
+      new Set(["role.read", "compose.conversation.read", "role.update"]),
+    );
+  });
+
+  it("clears every permission in a category when all are granted", async () => {
+    const onChange = vi.fn();
+    renderWithIntl(
+      <RolePermissionList
+        permissions={PERMISSIONS}
+        granted={new Set(["role.read", "role.update", "compose.conversation.read"])}
+        onChange={onChange}
+      />,
+    );
+
+    const all = screen.getByRole("checkbox", { name: "All permissions in Users & access" });
+    expect(all).toBeChecked();
+    await userEvent.click(all);
+
+    expect(onChange).toHaveBeenLastCalledWith(new Set(["compose.conversation.read"]));
+  });
+
+  it("grants the whole category, including permissions the filter hides", async () => {
+    const onChange = vi.fn();
+    renderWithIntl(
+      <RolePermissionList permissions={PERMISSIONS} granted={new Set()} onChange={onChange} />,
+    );
+
+    await userEvent.type(screen.getByLabelText("Filter permissions"), "edit");
+    await userEvent.click(
+      screen.getByRole("checkbox", { name: "All permissions in Users & access" }),
+    );
+
+    expect(onChange).toHaveBeenLastCalledWith(new Set(["role.read", "role.update"]));
+  });
+
+  it("can't change a whole category when the role can't be changed", () => {
+    renderList();
+
+    expect(
+      screen.getByRole("checkbox", { name: "All permissions in Users & access" }),
+    ).toBeDisabled();
+  });
+
+  it("shows the actions it is given beside the filter", () => {
+    renderWithIntl(
+      <RolePermissionList
+        permissions={PERMISSIONS}
+        granted={new Set()}
+        actions={<button type="button">Save</button>}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
   });
 
   it("collapses a group and expands it again", async () => {
