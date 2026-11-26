@@ -46,7 +46,6 @@ async def test_a_grant_at_the_owners_scope_covers_only_the_permission_it_holds(
 ) -> None:
     owner, other = authors
     await grant_permissions(session, other, ["pxc.activity.read"], "user", str(owner.id))
-    await session.commit()
     assert await has_activity_permission(session, PXC_ACTIVITY_READ, cast(int, owner.id), cast(int, other.id))
     assert not await has_activity_permission(session, PXC_ACTIVITY_UPDATE, cast(int, owner.id), cast(int, other.id))
 
@@ -54,7 +53,6 @@ async def test_a_grant_at_the_owners_scope_covers_only_the_permission_it_holds(
 async def test_a_global_grant_covers_every_owner(session: AsyncSession, authors: tuple[User, User]) -> None:
     owner, other = authors
     await grant_global_permission(session, cast(int, other.id), "pxc.activity.delete")
-    await session.commit()
     assert await has_activity_permission(session, PXC_ACTIVITY_DELETE, cast(int, owner.id), cast(int, other.id))
 
 

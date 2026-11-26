@@ -41,7 +41,7 @@ from langchain_core.messages import AIMessage
 from langchain_core.runnables import Runnable
 from langchain_core.tools import BaseTool
 from sqlalchemy.ext.asyncio import AsyncSession as SQLAlchemyAsyncSession
-from sqlmodel import SQLModel, col, or_, select
+from sqlmodel import SQLModel, col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 import sparkth.core.analytics.db as analytics_db
@@ -159,13 +159,16 @@ async def grant_permission_at_scope(
     permission_scope: PermissionScope,
     scope_object_id: str | None = None,
 ) -> None:
-    """Grant ``permission`` to the user at ``permission_scope`` and ``scope_object_id``, via a role named after it."""
+    """Grant ``permission`` to the user at ``permission_scope`` and ``scope_object_id``, via a role named after it.
+
+    Commits, as creating the role does, so the grant is in place when the call returns.
+    """
     role = await make_role(session, permission, [permission])
     assert role.id is not None
     session.add(
         RoleAssignment(user_id=user_id, role_id=role.id, scope=permission_scope.name, scope_object_id=scope_object_id)
     )
-    await session.flush()
+    await session.commit()
 
 
 @pytest.fixture
@@ -244,9 +247,10 @@ async def add_role_assignment(
 async def grant_permissions(
     session: AsyncSession, user: User, permissions: list[str], scope: str, scope_object_id: str | None
 ) -> None:
-    """Give ``user`` a new role holding ``permissions`` at ``scope`` and ``scope_object_id``."""
+    """Give ``user`` a new role holding ``permissions`` at ``scope`` and ``scope_object_id``, and commit."""
     role = await make_role(session, f"role_{uuid.uuid4().hex[:8]}", permissions)
     await add_role_assignment(session, user, role, scope, scope_object_id)
+    await session.commit()
 
 
 async def make_user_with_permissions(
@@ -286,20 +290,19 @@ AuditEventsFetcher = Callable[[], Awaitable[list[AuditEvent]]]
 
 @pytest.fixture
 def audit_events(session: AsyncSession) -> AuditEventsFetcher:
-    """Fetch the audit rows in insertion order, leaving out those a test's setup recorded.
+    """Fetch the audit rows in insertion order, leaving out those the shared role helpers recorded.
 
     Shared by every audit-capture test (core wrapper, chat provider seam, RAG
     agent tools, MCP server), so the query lives once. Returns a coroutine
     factory rather than a snapshot because tests read the rows *after* driving
     the code under test. Rows recorded as the test-setup actor, which the shared
-    role helpers create roles as, are not returned.
+    helpers create roles and grants as, are not returned; any other row is.
     """
 
     async def _fetch() -> list[AuditEvent]:
-        setup_label = _TEST_SETUP_ACTOR.label
         result = await session.exec(
             select(AuditEvent)
-            .where(or_(col(AuditEvent.actor_label).is_(None), col(AuditEvent.actor_label) != setup_label))
+            .where(col(AuditEvent.actor_label).is_distinct_from(_TEST_SETUP_ACTOR.label))
             .order_by(col(AuditEvent.id))
         )
         return list(result.all())

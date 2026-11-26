@@ -319,7 +319,6 @@ async def test_a_reader_lists_another_authors_activities(
     mine = await _insert_owned(session, cast(int, current_user.id))
     theirs = await _insert_owned(session, OTHER_USER)
     await grant_permission_at_scope(session, 1, "pxc.activity.read", USER, str(OTHER_USER))
-    await session.commit()
 
     listed = await client.get("/api/v1/pxc/activities", params={"owner_id": OTHER_USER})
     own = await client.get("/api/v1/pxc/activities")
@@ -333,7 +332,6 @@ async def test_listing_a_user_who_does_not_exist(
 ) -> None:
     before = await client.get("/api/v1/pxc/activities", params={"owner_id": 999})
     await grant_global_permission(session, 1, "pxc.activity.read")
-    await session.commit()
     after = await client.get("/api/v1/pxc/activities", params={"owner_id": 999})
 
     assert before.status_code == 403
@@ -350,7 +348,6 @@ async def test_a_reader_launches_another_authors_activity_as_a_learner_only(
     activity = await _insert_owned(session, OTHER_USER)
     _write_built_files(activity)
     await grant_permission_at_scope(session, 1, "pxc.activity.read", USER, str(OTHER_USER))
-    await session.commit()
 
     play = await client.get(_launch_url(activity), params={"permission": "play"})
     edit = await client.get(_launch_url(activity), params={"permission": "edit"})
@@ -367,7 +364,6 @@ async def test_an_updater_launches_another_authors_activity_as_its_author(
     activity = await _insert_owned(session, OTHER_USER)
     _write_built_files(activity)
     await grant_permission_at_scope(session, 1, "pxc.activity.update", USER, str(OTHER_USER))
-    await session.commit()
 
     response = await client.get(_launch_url(activity), params={"permission": "edit"})
 
@@ -381,7 +377,6 @@ async def test_a_global_holder_launches_any_authors_activity(
     activity = await _insert_owned(session, OTHER_USER)
     _write_built_files(activity)
     await grant_global_permission(session, 1, "pxc.activity.read")
-    await session.commit()
 
     response = await client.get(_launch_url(activity), params={"permission": "play"})
 
@@ -393,7 +388,6 @@ async def test_a_holder_of_delete_deletes_another_authors_activity(
 ) -> None:
     activity = await _insert_owned(session, OTHER_USER)
     await grant_permission_at_scope(session, 1, "pxc.activity.delete", USER, str(OTHER_USER))
-    await session.commit()
 
     response = await client.delete(f"/api/v1/pxc/activities/{activity.id}")
 
@@ -406,7 +400,6 @@ async def test_a_reader_cannot_delete_another_authors_activity(
 ) -> None:
     activity = await _insert_owned(session, OTHER_USER)
     await grant_permission_at_scope(session, 1, "pxc.activity.read", USER, str(OTHER_USER))
-    await session.commit()
 
     response = await client.delete(f"/api/v1/pxc/activities/{activity.id}")
 
