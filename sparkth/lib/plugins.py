@@ -1,10 +1,8 @@
 """Public API for the plugin framework.
 
 All plugins and external modules import the plugin-authoring surface from here.
-Nothing outside ``sparkth/lib/plugins`` should import from ``sparkth.core.plugins``,
-``sparkth.core.plugins.base``, ``sparkth.core.plugins.config_base``,
-``sparkth.core.plugins.middleware``, ``sparkth.core.plugins.schemas`` or
-``sparkth.core.plugins.service`` directly.
+Nothing outside ``sparkth/lib/plugins`` should import from ``sparkth.core.plugins`` or its
+submodules directly.
 """
 
 from typing import TYPE_CHECKING, Any
