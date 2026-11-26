@@ -1,8 +1,8 @@
 """grant pxc play and edit to sparkth_user
 
-Revision ID: f4f3ab101db9
+Revision ID: 05e3a64e5c3a
 Revises: 8c14826347d8
-Create Date: 2026-11-26 22:50:00.000000
+Create Date: 2026-11-26 23:11:47.562119
 
 Grants ``pxc.activity.play`` and ``pxc.activity.edit`` to the default ``sparkth_user`` role. A deployment
 without the role gets no rows.
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "f4f3ab101db9"
+revision: str = "05e3a64e5c3a"
 down_revision: Union[str, Sequence[str], None] = "8c14826347d8"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
