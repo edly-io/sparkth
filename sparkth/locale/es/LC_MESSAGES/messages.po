@@ -512,3 +512,19 @@ msgstr "Usuario no encontrado: {user_id}"
 #, python-brace-format
 msgid "Role assignment not found: {assignment_id}"
 msgstr "Asignación de rol no encontrada: {assignment_id}"
+
+#: sparkth/core/permissions/__init__.py:328
+msgid "Add group members"
+msgstr "Añadir miembros a grupos"
+
+#: sparkth/core/permissions/__init__.py:329
+msgid "Add people to groups, giving them the group's roles."
+msgstr "Añadir personas a grupos, dándoles los roles del grupo."
+
+#: sparkth/core/permissions/__init__.py:335
+msgid "Remove group members"
+msgstr "Quitar miembros de grupos"
+
+#: sparkth/core/permissions/__init__.py:336
+msgid "Take people out of groups, and the group's roles with them."
+msgstr "Sacar personas de los grupos, y con ellas los roles del grupo."

@@ -1,5 +1,6 @@
-"""User-group management commands (issue #519): membership and group-role grants are
-CLI-managed, mirroring how user-role assignment is CLI-only.
+"""User-group management commands: add and remove members, and grant roles to a group.
+
+Group-role grants are managed only here; membership is also managed through the REST API.
 Authored with LLM (Claude) assistance."""
 
 import asyncio

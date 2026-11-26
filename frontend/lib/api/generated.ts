@@ -1100,6 +1100,50 @@ export interface paths {
         patch: operations["update_group_api_v1_permissions_groups__group_id__patch"];
         trace?: never;
     };
+    "/api/v1/permissions/groups/{group_id}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Group Members
+         * @description List a group's active members, oldest first. Returns each member's id, name, username and join time.
+         */
+        get: operations["list_group_members_api_v1_permissions_groups__group_id__members_get"];
+        put?: never;
+        /**
+         * Add Group Member
+         * @description Add a user to a group; a user who is already a member is returned unchanged.
+         */
+        post: operations["add_group_member_api_v1_permissions_groups__group_id__members_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/permissions/groups/{group_id}/members/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Group Member
+         * @description Take a user out of a group; a user who is not a member is a no-op. Returns 204 No Content.
+         */
+        delete: operations["remove_group_member_api_v1_permissions_groups__group_id__members__user_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/permissions/roles": {
         parameters: {
             query?: never;
@@ -2511,6 +2555,25 @@ export interface components {
             description?: string | null;
             /** Name */
             name: string;
+        };
+        /** GroupMemberAdd */
+        GroupMemberAdd: {
+            /** User Id */
+            user_id: number;
+        };
+        /** GroupMemberResponse */
+        GroupMemberResponse: {
+            /**
+             * Added At
+             * Format: date-time
+             */
+            added_at: string;
+            /** Name */
+            name: string;
+            /** User Id */
+            user_id: number;
+            /** Username */
+            username: string;
         };
         /** GroupResponse */
         GroupResponse: {
@@ -5260,6 +5323,102 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["GroupResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_group_members_api_v1_permissions_groups__group_id__members_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                group_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupMemberResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_group_member_api_v1_permissions_groups__group_id__members_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                group_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupMemberAdd"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupMemberResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_group_member_api_v1_permissions_groups__group_id__members__user_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                group_id: number;
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

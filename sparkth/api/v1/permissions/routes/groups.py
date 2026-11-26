@@ -1,22 +1,38 @@
-"""Group sub-router (mounted at ``/groups``): CRUD for user groups.
+"""Group sub-router (mounted at ``/groups``): CRUD for user groups, and their members.
 
-Structural definition only — membership and group-role grants are CLI-managed, mirroring
-how user-role assignment is CLI-only. The endpoints that address one group by ``{group_id}``
-(get/update/delete) authorize at the ``group`` scope, so a
-grant can be delegated to a single group; a global grant still satisfies them via the scope
-cascade. Listing returns the groups the caller holds ``group.read`` at (every group for a global
+Group-role grants are CLI-managed. The endpoints that address one group by ``{group_id}``
+(get/update/delete and the member routes) authorize at the ``group`` scope, so a grant can be
+delegated to a single group; a global grant still satisfies them via the scope cascade. Listing
+members needs ``group.read``, adding one ``group.member.add`` and removing one ``group.member.remove``.
+Listing groups returns the groups the caller holds ``group.read`` at (every group for a global
 grant); creating a group stays global. Authored with LLM (Claude) assistance.
 """
 
 from fastapi import APIRouter, Depends, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.api.v1.permissions.schemas import GroupCreate, GroupResponse, GroupUpdate
+from sparkth.api.v1.permissions.schemas import (
+    GroupCreate,
+    GroupMemberAdd,
+    GroupMemberResponse,
+    GroupResponse,
+    GroupUpdate,
+)
+from sparkth.core.models.user import User
 from sparkth.core.permissions import groups as group_engine
-from sparkth.core.permissions.models import Group
+from sparkth.core.permissions.models import Group, GroupMembership
 from sparkth.lib.db import get_async_session
-from sparkth.lib.permissions import GROUP_CREATE, GROUP_DELETE, GROUP_READ, GROUP_UPDATE, object_id_str_to_int
+from sparkth.lib.permissions import (
+    GROUP_CREATE,
+    GROUP_DELETE,
+    GROUP_MEMBER_ADD,
+    GROUP_MEMBER_REMOVE,
+    GROUP_READ,
+    GROUP_UPDATE,
+    object_id_str_to_int,
+)
 from sparkth.lib.permissions.scopes import GROUP
+from sparkth.services.users.service import get_user
 
 router = APIRouter()
 
@@ -30,6 +46,13 @@ def _group_to_response(group: Group) -> GroupResponse:
     if group.id is None:
         raise RuntimeError(f"Group has no id: {group!r}")
     return GroupResponse(id=group.id, name=group.name, description=group.description)
+
+
+def _build_member_response(membership: GroupMembership, user: User) -> GroupMemberResponse:
+    """Assemble the response for a member from their membership and user rows, leaving the email out."""
+    return GroupMemberResponse(
+        user_id=membership.user_id, name=user.name, username=user.username, added_at=membership.created_at
+    )
 
 
 @router.get("", response_model=list[GroupResponse])
@@ -83,3 +106,45 @@ async def update_group(
 async def delete_group(group_id: int, session: AsyncSession = Depends(get_async_session)) -> None:
     """Delete a group with its memberships, role assignments and scoped grants. Returns 204 No Content."""
     await group_engine.delete_group(group_id, session)
+
+
+@router.get(
+    "/{group_id}/members",
+    response_model=list[GroupMemberResponse],
+    dependencies=[Depends(GROUP_READ.require(GROUP, "group_id"))],
+)
+async def list_group_members(
+    group_id: int, session: AsyncSession = Depends(get_async_session)
+) -> list[GroupMemberResponse]:
+    """List a group's active members, oldest first. Returns each member's id, name, username and join time."""
+    members = await group_engine.get_group_members(group_id, session)
+    return [_build_member_response(membership, user) for membership, user in members]
+
+
+@router.post(
+    "/{group_id}/members",
+    response_model=GroupMemberResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(GROUP_MEMBER_ADD.require(GROUP, "group_id"))],
+)
+async def add_group_member(
+    group_id: int, payload: GroupMemberAdd, session: AsyncSession = Depends(get_async_session)
+) -> GroupMemberResponse:
+    """Add a user to a group; a user who is already a member is returned unchanged."""
+    user = await get_user(payload.user_id, session)
+    membership = await group_engine.add_group_member(payload.user_id, group_id, session)
+    response = _build_member_response(membership, user)
+    await session.commit()
+    return response
+
+
+@router.delete(
+    "/{group_id}/members/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(GROUP_MEMBER_REMOVE.require(GROUP, "group_id"))],
+)
+async def remove_group_member(group_id: int, user_id: int, session: AsyncSession = Depends(get_async_session)) -> None:
+    """Take a user out of a group; a user who is not a member is a no-op. Returns 204 No Content."""
+    await group_engine.get_group(group_id, session)
+    await group_engine.remove_group_member(user_id, group_id, session)
+    await session.commit()

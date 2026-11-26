@@ -1,5 +1,6 @@
 """Pydantic models for the permissions API: permission checks, role management and group management."""
 
+from datetime import datetime
 from typing import Self
 
 from pydantic import BaseModel, Field, model_validator
@@ -92,3 +93,14 @@ class GroupResponse(BaseModel):
     id: int
     name: str
     description: str | None
+
+
+class GroupMemberAdd(BaseModel):
+    user_id: int
+
+
+class GroupMemberResponse(BaseModel):
+    user_id: int
+    name: str
+    username: str
+    added_at: datetime
