@@ -91,9 +91,9 @@ async def get_permitted_activity(activity_id: str, permission: Permission) -> Px
         PxcActivityNotFound: if the id names no activity.
         PxcActivityNotPermitted: if the user lacks the permission; the refusal is recorded.
     """
-    user_id = current_user_id()
+    caller_user_id = current_user_id()
     parsed_id = parse_activity_id(activity_id)
     async with session_scope() as session:
         activity = await get_activity(session, parsed_id)
-        await require_activity_permission(session, permission, activity.owner_user_id, user_id)
+        await require_activity_permission(session, permission, activity.owner_user_id, caller_user_id)
     return activity
