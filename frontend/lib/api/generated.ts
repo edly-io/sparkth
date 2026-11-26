@@ -1833,6 +1833,8 @@ export interface paths {
         /**
          * List User Summaries
          * @description List active users by username, keeping those whose name, username or email contains ``search``.
+         *
+         *     An empty ``search`` keeps everyone.
          */
         get: operations["list_user_summaries_api_v1_users_get"];
         put?: never;
