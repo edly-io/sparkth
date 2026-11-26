@@ -5,7 +5,7 @@ Revises: 21a9ae1ebffd
 Create Date: 2026-11-26 14:19:44.672567
 
 Grants the role-assignment permissions (role.assign/revoke) to the seeded ``admin`` role, so
-existing admins can give roles to users and take them away through the API.
+existing admins can give roles and take them away through the API.
 """
 
 from typing import Sequence, Union

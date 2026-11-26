@@ -1,5 +1,7 @@
-"""Pydantic models for the permissions API: permission checks, role management, group management and role
-assignments."""
+"""Pydantic models for the permissions API.
+
+Covers permission checks, role management, group management and role assignments.
+"""
 
 from datetime import datetime
 from typing import Self
@@ -118,7 +120,7 @@ class GroupRoleAssignmentResponse(BaseModel):
     assigned_at: datetime
 
 
-class RoleAssignmentScopeInput(BaseModel):
+class RoleAssignmentCreate(BaseModel):
     """The scope a role is given at, with the input limits shared by every assignment request."""
 
     scope: str = Field(min_length=1, max_length=50, description="Scope kind to give the role at, e.g. 'global'.")
@@ -129,11 +131,11 @@ class RoleAssignmentScopeInput(BaseModel):
     )
 
 
-class UserRoleAssignmentCreate(RoleAssignmentScopeInput):
+class UserRoleAssignmentCreate(RoleAssignmentCreate):
     user_id: int
 
 
-class GroupRoleAssignmentCreate(RoleAssignmentScopeInput):
+class GroupRoleAssignmentCreate(RoleAssignmentCreate):
     group_id: int
 
 
