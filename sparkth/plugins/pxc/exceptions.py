@@ -13,6 +13,13 @@ class PxcActivityNotFound(ToolFailure):
     or its files are gone."""
 
 
+class PxcActivityNotPermitted(ToolFailure):
+    """The caller holds no permission for what they asked of this activity.
+
+    ``str()`` is read by the agent.
+    """
+
+
 class PxcDuplicateActivityName(Exception):
     """Two bundled activity directories declare the same manifest name.
 
