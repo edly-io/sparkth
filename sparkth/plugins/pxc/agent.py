@@ -14,6 +14,6 @@ PXC_ACTIVITY_BUILDER = Agent(
     PXC_ACTIVITY_BUILDER_TITLE,
     PXC_ACTIVITY_BUILDER_DESCRIPTION,
     PXC_ACTIVITY_BUILDER_PROMPT,
-    gettext_noop("Building your activity…"),
+    gettext_noop("Working on your activity…"),
     tools=tuple(PXC_TOOLS),
 )

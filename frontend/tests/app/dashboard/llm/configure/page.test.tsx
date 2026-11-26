@@ -62,4 +62,21 @@ describe("AI Keys page", () => {
     ).toBeDefined();
     expect(screen.getByRole("button", { name: "Save Changes" })).toBeDisabled();
   });
+
+  it("opts the new config name and key out of autofill", async () => {
+    renderWithIntl(<LLMConfigurePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "New Config" }));
+
+    expect(await screen.findByLabelText("Name")).toHaveAttribute("autocomplete", "off");
+    expect(screen.getByLabelText("API Key")).toHaveAttribute("autocomplete", "new-password");
+  });
+
+  it("opts the edit config name and rotated key out of autofill", async () => {
+    renderWithIntl(<LLMConfigurePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit config my-key" }));
+
+    expect(screen.getByLabelText("Name")).toHaveAttribute("autocomplete", "off");
+    fireEvent.click(screen.getByRole("button", { name: "Rotate Key" }));
+    expect(screen.getByLabelText("New API key")).toHaveAttribute("autocomplete", "new-password");
+  });
 });
