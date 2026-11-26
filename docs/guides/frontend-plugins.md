@@ -418,8 +418,8 @@ import { EXAMPLE_SECTIONS } from "@/lib/example/slots";
 import { slotItems } from "@/lib/slots";
 
 export function ExampleSections() {
-  const { isPluginEnabled } = usePluginContext();
-  const sections = slotItems(EXAMPLE_SECTIONS).filter(([plugin]) => isPluginEnabled(plugin));
+  const { isPluginUsableByName } = usePluginContext();
+  const sections = slotItems(EXAMPLE_SECTIONS).filter(([plugin]) => isPluginUsableByName(plugin));
 
   return (
     <ul>

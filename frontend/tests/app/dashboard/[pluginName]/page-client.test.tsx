@@ -22,7 +22,7 @@ vi.mock("@/core/auth/hooks", () => ({
 }));
 
 vi.mock("@/core/plugins/context", () => ({
-  usePlugin: () => ({ isEnabled: false }),
+  usePlugin: () => ({ isUsable: false }),
   usePluginContext: () => ({ plugins, loading: false }),
 }));
 

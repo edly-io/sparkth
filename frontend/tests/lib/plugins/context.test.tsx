@@ -30,7 +30,7 @@ describe("usePlugin", () => {
 
     const { result } = renderHook(() => usePlugin("example"), { wrapper });
 
-    await waitFor(() => expect(result.current.isEnabled).toBe(true));
+    await waitFor(() => expect(result.current.isUsable).toBe(true));
     expect(result.current.config).toEqual({ limit: 3 });
   });
 
@@ -46,10 +46,10 @@ describe("usePlugin", () => {
 
     expect(result.current.loading).toBe(true);
     await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(result.current.isEnabled).toBe(true);
+    expect(result.current.isUsable).toBe(true);
   });
 
-  it("reports the plugin enabled once the user turns it on", async () => {
+  it("reports the plugin usable once the user turns it on", async () => {
     let enabled = false;
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       if ((input as Request).method === "PATCH") {
@@ -68,14 +68,14 @@ describe("usePlugin", () => {
       { wrapper },
     );
     await waitFor(() => expect(result.current.plugin.loading).toBe(false));
-    expect(result.current.plugin.isEnabled).toBe(false);
+    expect(result.current.plugin.isUsable).toBe(false);
 
     await result.current.plugins.enablePlugin("example");
 
-    await waitFor(() => expect(result.current.plugin.isEnabled).toBe(true));
+    await waitFor(() => expect(result.current.plugin.isUsable).toBe(true));
   });
 
-  it("reports a plugin switched off system-wide as not enabled", async () => {
+  it("reports a plugin switched off system-wide as not usable", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(
       async () =>
         new Response(
@@ -86,6 +86,6 @@ describe("usePlugin", () => {
     const { result } = renderHook(() => usePlugin("example"), { wrapper });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(result.current.isEnabled).toBe(false);
+    expect(result.current.isUsable).toBe(false);
   });
 });

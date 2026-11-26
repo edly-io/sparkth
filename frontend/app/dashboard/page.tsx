@@ -10,7 +10,7 @@ import { Spinner } from "@/core/components/ui/Spinner";
 
 export default function DashboardPage() {
   const { plugins, loading } = usePluginContext();
-  const enabledPlugins = plugins.filter((plugin) => isPluginUsable(plugin) && plugin.has_frontend);
+  const usablePlugins = plugins.filter((plugin) => isPluginUsable(plugin) && plugin.has_frontend);
 
   if (loading) {
     return (
@@ -26,7 +26,7 @@ export default function DashboardPage() {
         <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Dashboard</h1>
         <p className="text-muted-foreground mb-8">Manage your enabled plugins</p>
 
-        {enabledPlugins.length === 0 ? (
+        {usablePlugins.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-muted-foreground mb-4">No plugins enabled yet.</p>
             <Link
@@ -38,7 +38,7 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            {enabledPlugins.map((plugin) => {
+            {usablePlugins.map((plugin) => {
               const displayName = displayNameOf(plugin);
               const Icon = resolvePluginIcon(plugin.plugin_name, plugin.display?.icon);
               return (
