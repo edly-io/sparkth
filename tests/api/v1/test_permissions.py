@@ -5,28 +5,25 @@ import uuid
 from typing import cast
 
 import pytest
-from fastapi import FastAPI
-from httpx import ASGITransport, AsyncClient
+from httpx import AsyncClient
 from sqlalchemy import event
-from sqlalchemy.orm import make_transient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.api.v1.permissions.routes.roles import _build_role_response
 from sparkth.core.db import get_engine
-from sparkth.core.models.user import User
 from sparkth.core.permissions import PERMISSIONS, Permission
 from sparkth.core.permissions.constants import PLUGIN_USER_ROLE, SPARKTH_USER_ROLE
 from sparkth.core.permissions.enums import PermissionRisk
 from sparkth.core.permissions.models import Role, RoleAssignment, RolePermission
 from sparkth.core.permissions.types import RoleAssigneeCounts
-from sparkth.lib.auth import get_current_user
 from sparkth.lib.permissions.scopes import GLOBAL
 from sparkth.lib.testing import (
     AddTranslation,
     add_role_assignment,
     assign_through_group,
     grant_permissions,
+    login_as,
     make_role,
     make_user,
     make_user_with_permissions,
@@ -70,26 +67,8 @@ def _uniq(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:8]}"
 
 
-def _override_current_user(client: AsyncClient, user: User) -> None:
-    transport = cast(ASGITransport, client._transport)
-    app_instance = cast(FastAPI, transport.app)
-    snapshot = User(
-        id=user.id,
-        name=user.name,
-        username=user.username,
-        email=user.email,
-        hashed_password=user.hashed_password,
-    )
-    make_transient(snapshot)
-
-    async def override() -> User:
-        return snapshot
-
-    app_instance.dependency_overrides[get_current_user] = override
-
-
 async def test_create_role_returns_201(client: AsyncClient, session: AsyncSession) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    login_as(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     response = await client.post("/api/v1/permissions/roles", json={"name": "grader", "description": "Grades"})
     assert response.status_code == 201
     body = response.json()
@@ -99,7 +78,7 @@ async def test_create_role_returns_201(client: AsyncClient, session: AsyncSessio
 
 
 async def test_create_duplicate_role_returns_409(client: AsyncClient, session: AsyncSession) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    login_as(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     await client.post("/api/v1/permissions/roles", json={"name": "grader"})
     response = await client.post("/api/v1/permissions/roles", json={"name": "grader"})
     assert response.status_code == 409
@@ -107,7 +86,7 @@ async def test_create_duplicate_role_returns_409(client: AsyncClient, session: A
 
 
 async def test_list_roles_returns_them(client: AsyncClient, session: AsyncSession) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    login_as(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     await client.post("/api/v1/permissions/roles", json={"name": "grader"})
     response = await client.get("/api/v1/permissions/roles")
     assert response.status_code == 200
@@ -115,7 +94,7 @@ async def test_list_roles_returns_them(client: AsyncClient, session: AsyncSessio
 
 
 async def test_role_response_says_whether_the_role_is_builtin(client: AsyncClient, session: AsyncSession) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    login_as(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     custom = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()
     builtin = Role(name="admin", description="Ships with Sparkth", is_builtin=True)
     session.add(builtin)
@@ -130,7 +109,7 @@ async def test_role_response_says_whether_the_role_is_builtin(client: AsyncClien
 
 
 async def test_get_role_returns_it(client: AsyncClient, session: AsyncSession) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    login_as(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     created = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()
     response = await client.get(f"/api/v1/permissions/roles/{created['id']}")
     assert response.status_code == 200
@@ -138,14 +117,14 @@ async def test_get_role_returns_it(client: AsyncClient, session: AsyncSession) -
 
 
 async def test_get_missing_role_returns_404(client: AsyncClient, session: AsyncSession) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    login_as(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     response = await client.get("/api/v1/permissions/roles/99999")
     assert response.status_code == 404
     assert response.json()["detail"] == "Role not found: 99999"
 
 
 async def test_update_role(client: AsyncClient, session: AsyncSession) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    login_as(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     created = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()
     response = await client.patch(f"/api/v1/permissions/roles/{created['id']}", json={"description": "Updated"})
     assert response.status_code == 200
@@ -154,20 +133,20 @@ async def test_update_role(client: AsyncClient, session: AsyncSession) -> None:
 
 async def test_update_role_empty_body_returns_422(client: AsyncClient, session: AsyncSession) -> None:
     # A fully-empty update would silently no-op; it must be rejected before hitting the DB.
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    login_as(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     created = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()
     assert (await client.patch(f"/api/v1/permissions/roles/{created['id']}", json={})).status_code == 422
 
 
 async def test_update_role_only_null_fields_returns_422(client: AsyncClient, session: AsyncSession) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    login_as(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     created = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()
     response = await client.patch(f"/api/v1/permissions/roles/{created['id']}", json={"description": None})
     assert response.status_code == 422
 
 
 async def test_delete_role_returns_204(client: AsyncClient, session: AsyncSession) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    login_as(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     created = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()
     response = await client.delete(f"/api/v1/permissions/roles/{created['id']}")
     assert response.status_code == 204
@@ -177,7 +156,7 @@ async def test_delete_role_returns_204(client: AsyncClient, session: AsyncSessio
 async def test_delete_assigned_role_returns_204(client: AsyncClient, session: AsyncSession) -> None:
     user = await make_user_with_permissions(session, ROLE_PERMISSIONS)
     assert user.id is not None
-    _override_current_user(client, user)
+    login_as(client, user)
     created = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()
     session.add(RoleAssignment(user_id=user.id, role_id=created["id"], scope="global", scope_object_id=None))
     await session.flush()
@@ -186,7 +165,7 @@ async def test_delete_assigned_role_returns_204(client: AsyncClient, session: As
 
 
 async def test_add_permission_grants_it(client: AsyncClient, session: AsyncSession) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    login_as(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     created = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()
     response = await client.post(
         f"/api/v1/permissions/roles/{created['id']}/permissions", json={"permission": "assignment.grade"}
@@ -196,7 +175,7 @@ async def test_add_permission_grants_it(client: AsyncClient, session: AsyncSessi
 
 
 async def test_add_unregistered_permission_returns_422(client: AsyncClient, session: AsyncSession) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    login_as(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     created = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()
     response = await client.post(
         f"/api/v1/permissions/roles/{created['id']}/permissions", json={"permission": "bogus.unregistered"}
@@ -206,7 +185,7 @@ async def test_add_unregistered_permission_returns_422(client: AsyncClient, sess
 
 
 async def test_add_duplicate_permission_is_idempotent(client: AsyncClient, session: AsyncSession) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    login_as(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     created = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()
     path = f"/api/v1/permissions/roles/{created['id']}/permissions"
     await client.post(path, json={"permission": "assignment.grade"})
@@ -216,7 +195,7 @@ async def test_add_duplicate_permission_is_idempotent(client: AsyncClient, sessi
 
 
 async def test_remove_permission_returns_204(client: AsyncClient, session: AsyncSession) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    login_as(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     created = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()
     await client.post(f"/api/v1/permissions/roles/{created['id']}/permissions", json={"permission": "assignment.grade"})
     response = await client.delete(f"/api/v1/permissions/roles/{created['id']}/permissions/assignment.grade")
@@ -235,7 +214,7 @@ async def _get_listed_permission(
 
 
 async def test_available_permissions_lists_registered(client: AsyncClient, session: AsyncSession) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    login_as(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
 
     assert await _get_listed_permission(client, "assignment.grade") == {
         "name": "assignment.grade",
@@ -248,7 +227,7 @@ async def test_available_permissions_lists_registered(client: AsyncClient, sessi
 
 
 async def test_a_core_permission_is_listed_with_what_it_is_for(client: AsyncClient, session: AsyncSession) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    login_as(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
 
     assert await _get_listed_permission(client, "role.update") == {
         "name": "role.update",
@@ -263,7 +242,7 @@ async def test_a_core_permission_is_listed_with_what_it_is_for(client: AsyncClie
 async def test_a_permission_is_listed_in_the_request_language(
     client: AsyncClient, session: AsyncSession, translation_catalog: AddTranslation
 ) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    login_as(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     translation_catalog("Edit roles", "Editar roles")
     translation_catalog("Users & access", "Usuarios y acceso")
 
@@ -275,13 +254,13 @@ async def test_a_permission_is_listed_in_the_request_language(
 async def test_available_requires_permission_read(client: AsyncClient, session: AsyncSession) -> None:
     # The permission listing is gated on permission.read — holding the role.* permissions (which
     # manage roles) does not grant access to it.
-    _override_current_user(client, await make_user_with_permissions(session, ["role.read"]))
+    login_as(client, await make_user_with_permissions(session, ["role.read"]))
     assert (await client.get("/api/v1/permissions")).status_code == 403
 
 
 async def test_regular_user_is_forbidden(client: AsyncClient, session: AsyncSession) -> None:
     # A user without any of the gating permissions cannot reach the endpoints.
-    _override_current_user(client, await make_user_with_permissions(session, []))
+    login_as(client, await make_user_with_permissions(session, []))
     assert (await client.get("/api/v1/permissions/roles")).status_code == 403
     assert (await client.post("/api/v1/permissions/roles", json={"name": "x"})).status_code == 403
     assert (await client.get("/api/v1/permissions")).status_code == 403
@@ -298,7 +277,7 @@ async def _add_role_with_permission(session: AsyncSession, permission: str) -> R
 
 
 async def test_list_roles_returns_each_roles_own_permissions(client: AsyncClient, session: AsyncSession) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    login_as(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     grader = await _add_role_with_permission(session, "assignment.grade")
     viewer = await _add_role_with_permission(session, "assignment.view")
     body = {role["id"]: role["permissions"] for role in (await client.get("/api/v1/permissions/roles")).json()}
@@ -308,7 +287,7 @@ async def test_list_roles_returns_each_roles_own_permissions(client: AsyncClient
 
 async def test_list_roles_does_not_n_plus_1_on_permissions(client: AsyncClient, session: AsyncSession) -> None:
     # Grants for all roles must be fetched in a single batched query, not one SELECT per role.
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    login_as(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     for _ in range(5):
         await _add_role_with_permission(session, "assignment.grade")
 
@@ -339,7 +318,7 @@ def test_build_role_response_without_id_raises() -> None:
 async def test_create_role_permission_fetches_role_once(client: AsyncClient, session: AsyncSession) -> None:
     # Granting a permission must not re-fetch the role: add_role_permission already loads and returns
     # it, so the handler builds the response from that instance (a single role-by-id SELECT).
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    login_as(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     created = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()
 
     statements: list[str] = []
@@ -375,7 +354,7 @@ async def _create_target_role(session: AsyncSession) -> Role:
 async def test_role_scoped_manager_can_manage_only_that_role(client: AsyncClient, session: AsyncSession) -> None:
     target = await _create_target_role(session)
     other = await _create_target_role(session)
-    _override_current_user(client, await make_user_with_permissions(session, ["role.update"], "role", str(target.id)))
+    login_as(client, await make_user_with_permissions(session, ["role.update"], "role", str(target.id)))
     # Commit the setup so it survives each request's session close (a read request rolls back the
     # shared in-memory transaction, which would otherwise wipe uncommitted setup rows).
     await session.commit()
@@ -389,7 +368,7 @@ async def test_role_scoped_manager_can_manage_only_that_role(client: AsyncClient
 
 async def test_role_scoped_manager_can_edit_that_roles_permissions(client: AsyncClient, session: AsyncSession) -> None:
     target = await _create_target_role(session)
-    _override_current_user(client, await make_user_with_permissions(session, ["role.update"], "role", str(target.id)))
+    login_as(client, await make_user_with_permissions(session, ["role.update"], "role", str(target.id)))
     await session.commit()
     added = await client.post(
         f"/api/v1/permissions/roles/{target.id}/permissions", json={"permission": "assignment.grade"}
@@ -403,7 +382,7 @@ async def test_role_scoped_manager_can_edit_that_roles_permissions(client: Async
 async def test_role_scoped_reader_can_get_only_that_role(client: AsyncClient, session: AsyncSession) -> None:
     target = await _create_target_role(session)
     other = await _create_target_role(session)
-    _override_current_user(client, await make_user_with_permissions(session, ["role.read"], "role", str(target.id)))
+    login_as(client, await make_user_with_permissions(session, ["role.read"], "role", str(target.id)))
     await session.commit()
     assert (await client.get(f"/api/v1/permissions/roles/{target.id}")).status_code == 200
     assert (await client.get(f"/api/v1/permissions/roles/{other.id}")).status_code == 403
@@ -411,7 +390,7 @@ async def test_role_scoped_reader_can_get_only_that_role(client: AsyncClient, se
 
 async def test_role_scoped_deleter_can_delete_that_role(client: AsyncClient, session: AsyncSession) -> None:
     target = await _create_target_role(session)
-    _override_current_user(client, await make_user_with_permissions(session, ["role.delete"], "role", str(target.id)))
+    login_as(client, await make_user_with_permissions(session, ["role.delete"], "role", str(target.id)))
     await session.commit()
     assert (await client.delete(f"/api/v1/permissions/roles/{target.id}")).status_code == 204
 
@@ -419,7 +398,7 @@ async def test_role_scoped_deleter_can_delete_that_role(client: AsyncClient, ses
 async def test_role_scoped_reader_lists_only_that_role(client: AsyncClient, session: AsyncSession) -> None:
     target = await _create_target_role(session)
     await _create_target_role(session)
-    _override_current_user(client, await make_user_with_permissions(session, ["role.read"], "role", str(target.id)))
+    login_as(client, await make_user_with_permissions(session, ["role.read"], "role", str(target.id)))
     await session.commit()
     response = await client.get("/api/v1/permissions/roles")
     assert response.status_code == 200
@@ -432,7 +411,7 @@ async def test_reader_at_two_roles_lists_both(client: AsyncClient, session: Asyn
     await _create_target_role(session)
     user = await make_user_with_permissions(session, ["role.read"], "role", str(first.id))
     await grant_permissions(session, user, ["role.read"], "role", str(second.id))
-    _override_current_user(client, user)
+    login_as(client, user)
     await session.commit()
     response = await client.get("/api/v1/permissions/roles")
     assert response.status_code == 200
@@ -441,7 +420,7 @@ async def test_reader_at_two_roles_lists_both(client: AsyncClient, session: Asyn
 
 async def test_role_reader_at_no_role_is_refused_listing(client: AsyncClient, session: AsyncSession) -> None:
     await _create_target_role(session)
-    _override_current_user(client, await make_user_with_permissions(session, ["role.update"]))
+    login_as(client, await make_user_with_permissions(session, ["role.update"]))
     await session.commit()
     assert (await client.get("/api/v1/permissions/roles")).status_code == 403
 
@@ -452,7 +431,7 @@ async def test_role_scoped_grant_does_not_authorize_create_or_vocabulary_endpoin
     # Creating a role and listing the permission vocabulary stay gated at the global scope (a
     # role-scoped grant does not cascade UP to global).
     target = await _create_target_role(session)
-    _override_current_user(
+    login_as(
         client,
         await make_user_with_permissions(session, ["role.create", "permission.read"], "role", str(target.id)),
     )
@@ -464,7 +443,7 @@ async def test_role_scoped_grant_does_not_authorize_create_or_vocabulary_endpoin
 async def test_global_admin_still_manages_every_role(client: AsyncClient, session: AsyncSession) -> None:
     # Existing global admins keep full authority over per-role endpoints via the global->role cascade.
     target = await _create_target_role(session)
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    login_as(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     await session.commit()
     assert (await client.get(f"/api/v1/permissions/roles/{target.id}")).status_code == 200
     assert (await client.patch(f"/api/v1/permissions/roles/{target.id}", json={"description": "d"})).status_code == 200
@@ -476,7 +455,7 @@ async def test_unauthorized_user_gets_403_before_404_on_missing_role(
 ) -> None:
     # The permission gate runs before the route's role lookup: an unauthorized user hitting a
     # nonexistent role id is denied (403), not told it is missing (404).
-    _override_current_user(client, await make_user_with_permissions(session, []))
+    login_as(client, await make_user_with_permissions(session, []))
     await session.commit()
     assert (await client.get("/api/v1/permissions/roles/99999")).status_code == 403
 
@@ -512,7 +491,7 @@ _BUILTIN_ROLE_REQUESTS: dict[str, tuple[str, str, dict[str, str] | None]] = {
 async def test_changing_a_builtin_role_returns_409(
     client: AsyncClient, session: AsyncSession, method: str, path: str, body: dict[str, str] | None
 ) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    login_as(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     role = Role(name="admin", description="Ships with Sparkth", is_builtin=True)
     session.add(role)
     await session.flush()
@@ -534,7 +513,7 @@ async def test_changing_a_builtin_role_returns_409(
 async def test_role_response_says_whether_every_account_gets_the_role(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    login_as(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     existing = set((await session.exec(select(Role.name))).all())
     for name in {SPARKTH_USER_ROLE, PLUGIN_USER_ROLE, "admin"} - existing:
         session.add(Role(name=name, is_builtin=True))
@@ -553,7 +532,7 @@ async def test_role_response_says_whether_every_account_gets_the_role(
 async def test_role_response_counts_the_people_and_groups_holding_it(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    login_as(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     grader = await make_role(session, "grader", [])
     await add_role_assignment(session, await make_user(session, "alice"), grader, GLOBAL.name, None)
     await assign_through_group(session, await make_user(session, "bob"), grader, GLOBAL.name, None)
@@ -567,7 +546,7 @@ async def test_role_response_counts_the_people_and_groups_holding_it(
 
 
 async def test_a_role_response_tags_the_risks_of_its_permissions(client: AsyncClient, session: AsyncSession) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    login_as(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     risky = await make_role(session, "risky", ["role.read", "role.delete", "role.update", "audit.read"])
     harmless = await make_role(session, "harmless", ["role.read"])
     await session.commit()
@@ -581,7 +560,7 @@ async def test_a_role_response_tags_the_risks_of_its_permissions(client: AsyncCl
 
 
 async def test_granting_a_permission_updates_the_roles_risks(client: AsyncClient, session: AsyncSession) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    login_as(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     created = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()
     assert created["risks"] == []
 
@@ -593,7 +572,7 @@ async def test_granting_a_permission_updates_the_roles_risks(client: AsyncClient
 
 
 async def test_a_new_role_is_held_by_nobody(client: AsyncClient, session: AsyncSession) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    login_as(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
 
     created = (await client.post("/api/v1/permissions/roles", json={"name": "grader"})).json()
 
@@ -617,7 +596,7 @@ async def _count_list_roles_statements(client: AsyncClient) -> int:
 async def test_list_roles_runs_as_many_queries_for_many_held_roles_as_for_one(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    login_as(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     assignee = await make_user(session, "alice")
 
     async def add_held_role() -> None:
