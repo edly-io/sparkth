@@ -35,6 +35,7 @@ from sparkth.core.audit.events import (
     PluginConfigCreatedAuditEvent,
     PluginConfigUpdatedAuditEvent,
     PluginEnabledChangedAuditEvent,
+    PluginSystemEnabledChangedAuditEvent,
     RAGChunksPurgedAuditEvent,
     RAGDocumentDeletedAuditEvent,
     RAGDocumentIngestedAuditEvent,
@@ -103,6 +104,7 @@ __all__ = [
     "PluginConfigCreatedAuditEvent",
     "PluginConfigUpdatedAuditEvent",
     "PluginEnabledChangedAuditEvent",
+    "PluginSystemEnabledChangedAuditEvent",
     "WhitelistEntryAddedAuditEvent",
     "WhitelistEntryRemovedAuditEvent",
 ]

@@ -9,8 +9,14 @@ from sparkth.lib.mcp.exceptions import ToolFailure
 
 
 class PxcActivityNotFound(ToolFailure):
-    """No bundled or generated activity goes by this name, the caller does not own the one asked for,
-    or its files are gone."""
+    """No bundled or generated activity goes by this name, or its files are gone."""
+
+
+class PxcActivityNotPermitted(ToolFailure):
+    """The caller holds no permission for what they asked: an action on an activity, or listing activities.
+
+    ``str()`` is read by the agent.
+    """
 
 
 class PxcDuplicateActivityName(Exception):

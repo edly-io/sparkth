@@ -17,6 +17,7 @@
     "notFound": "Activité introuvable",
     "notFoundMessage": "Cette activité n'existe pas ou a été supprimée.",
     "notConfigured": "Les aperçus ne sont pas configurés sur ce serveur.",
+    "notPermitted": "Vous n'avez pas la permission d'ouvrir cette vue.",
     "launchFailed": "Impossible de charger l'activité.",
     "frameTitle": "Aperçu de l'activité",
     "loadingActivity": "Chargement de l'activité",

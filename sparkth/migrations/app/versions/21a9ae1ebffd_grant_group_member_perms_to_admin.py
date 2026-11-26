@@ -1,7 +1,7 @@
 """grant group member perms to admin
 
 Revision ID: 21a9ae1ebffd
-Revises: a5b4a01a31ca
+Revises: 8c14826347d8
 Create Date: 2026-11-26 13:43:23.695015
 
 Grants the group-membership permissions (group.member.add/remove) to the seeded ``admin``
@@ -15,7 +15,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "21a9ae1ebffd"
-down_revision: Union[str, Sequence[str], None] = "a5b4a01a31ca"
+down_revision: Union[str, Sequence[str], None] = "8c14826347d8"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

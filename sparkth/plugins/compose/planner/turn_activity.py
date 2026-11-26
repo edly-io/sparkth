@@ -2,14 +2,15 @@
 
 from typing import Any
 
+from sparkth.lib.rag import SectionSelection
 from sparkth.plugins.compose.enums import TurnEventType
 from sparkth.plugins.compose.planner.types import ExistingPlan, PlanSnapshot, TurnRouting
 
 
 class TurnActivity:
     """What a turn has done so far: who answered it last, the agents and operator its steps went to,
-    in order, how far it took a plan, the existing one it was given or one it made, and whether it showed
-    that plan."""
+    in order, how far it took a plan, the existing one it was given or one it made, whether it showed
+    that plan, and the document sections its steps selected."""
 
     def __init__(self, existing_plan: ExistingPlan | None) -> None:
         # A turn stopped before a hand-off returned has no agent.
@@ -19,10 +20,11 @@ class TurnActivity:
         self._current_step = existing_plan.current_step if existing_plan is not None else 0
         self._has_current_step_run = existing_plan.has_current_step_run if existing_plan is not None else False
         self._is_plan_shown = False
+        self.section_selections: list[SectionSelection] = []
 
     def record(self, event: dict[str, Any]) -> None:
-        """Note what the turn's ``event`` says it did: a hand-off, a plan it made, or a plan step that
-        started or ran. Other events are ignored."""
+        """Note what the turn's ``event`` says it did: a hand-off, a plan it made, a plan step that
+        started or ran, or document sections a step selected. Other events are ignored."""
         match event["type"]:
             case TurnEventType.ROUTED:
                 self.routing = event["routing"]
@@ -37,6 +39,8 @@ class TurnActivity:
                 self._current_step = event["number"]
                 self._has_current_step_run = event["ran"]
                 self._is_plan_shown = True
+            case TurnEventType.STRUCTURED_REPLY if isinstance(event["reply"], SectionSelection):
+                self.section_selections.append(event["reply"])
 
     def get_plan_in_progress(self) -> ExistingPlan | None:
         """The plan still in progress when the turn has run to its end, or None if:
