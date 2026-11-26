@@ -22,10 +22,13 @@ msgstr ""
 #: sparkth/plugins/compose/constants.py:96
 msgid ""
 "I'm a course creation assistant and can only help with designing and "
-"building courses."
+"building courses. Tell me about the course you're working on and I can "
+"help you plan it, write it or improve it."
 msgstr ""
 "Je suis un assistant de création de cours et je peux uniquement vous "
-"aider à concevoir et à créer des cours."
+"aider à concevoir et à créer des cours. Parlez-moi du cours sur lequel "
+"vous travaillez et je pourrai vous aider à le planifier, à le rédiger ou "
+"à l'améliorer."
 
 # Machine-generated translation (LLM), not yet reviewed by a native speaker.
 #: sparkth/plugins/compose/constants.py:101
@@ -294,3 +297,19 @@ msgstr "Traitement de votre demande…"
 #, python-brace-format
 msgid "The files in this conversation can total at most {limit_mb} MB."
 msgstr "Les fichiers de cette conversation peuvent totaliser au maximum {limit_mb} Mo."
+
+#: sparkth/plugins/compose/permissions.py
+msgid "Read conversations"
+msgstr "Lire les conversations"
+
+#: sparkth/plugins/compose/permissions.py
+msgid "Open Compose conversations and their files."
+msgstr "Ouvrir les conversations Compose et leurs fichiers."
+
+#: sparkth/plugins/compose/permissions.py
+msgid "Write in conversations"
+msgstr "Écrire dans les conversations"
+
+#: sparkth/plugins/compose/permissions.py
+msgid "Send messages and attach files."
+msgstr "Envoyer des messages et joindre des fichiers."

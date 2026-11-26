@@ -167,9 +167,9 @@ class ComposeAttachmentUnusable(AnalyticsEventSchema):
 
 
 class ScopeVerdict(StrEnum):
-    """What the scope classifier decided about one turn.
+    """What the scope classifier decided about one turn, in recorded ``compose.scope_classified`` rows.
 
-    ``IN_SCOPE`` means the message belongs to at least one of the assistant's capabilities.
+    ``IN_SCOPE`` means the message belonged to at least one of the assistant's capabilities.
     """
 
     IN_SCOPE = "in_scope"
@@ -177,13 +177,10 @@ class ScopeVerdict(StrEnum):
 
 
 class ComposeScopeClassified(AnalyticsEventSchema):
-    """The scope classifier judged one turn.
+    """The scope classifier judged one turn. No longer emitted; registered so recorded rows still read.
 
-    ``out_of_scope`` is a refusal — the chat model is never reached, and this event is the
-    only record of it. Emitted on every judged turn, so the rate has its denominator here. A
-    turn the classifier could not judge records ``compose.turn_failed`` instead.
-    ``conversation_id`` is null on a first message, judged before the conversation exists.
-    ``classifier_model`` is the classifier's own model, not the conversation's.
+    ``out_of_scope`` was a refusal. ``conversation_id`` is null on a first message, judged before the
+    conversation existed. ``classifier_model`` is the classifier's own model, not the conversation's.
     """
 
     event_type = "compose.scope_classified"
@@ -268,7 +265,6 @@ class TurnFailureCause(StrEnum):
     PROVIDER_API_ERROR = "provider_api_error"
     RAG_SEARCH_ERROR = "rag_search_error"
     RAG_RETRIEVAL_ERROR = "rag_retrieval_error"
-    SCOPE_CLASSIFICATION_ERROR = "scope_classification_error"
     UNEXPECTED = "unexpected"
 
 

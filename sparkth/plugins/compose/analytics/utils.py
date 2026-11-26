@@ -28,10 +28,8 @@ from sparkth.plugins.compose.analytics.events import (
     ComposeMessageSent,
     ComposeRagSearchClassified,
     ComposeRagSearchCompleted,
-    ComposeScopeClassified,
     ComposeToolInvoked,
     ComposeTurnFailed,
-    ScopeVerdict,
     SearchResult,
     StopPoint,
     ToolOutcome,
@@ -433,40 +431,13 @@ def record_turn_failed(
 class ComposeClassifierAnalytics:
     """The scheduling surface for the classifier decisions.
 
-    Built before the first scope check, which happens before the conversation exists.
+    Built before the classifiers run, which can be before the conversation exists.
     Carries the provider but no model: each classifier passes its own per call.
     """
 
     background_tasks: BackgroundTasks
     provider: str
     actor_id: str
-
-    def schedule_scope_classified(
-        self,
-        *,
-        conversation_id: str | None,
-        classifier_model: str,
-        verdict: ScopeVerdict,
-        history_turns: int,
-        attachment_count: int,
-        query_length: int,
-        occurred_at: datetime,
-    ) -> None:
-        """Queue ``compose.scope_classified``. Exactly once per turn."""
-        self.background_tasks.add_task(
-            _emit,
-            lambda: ComposeScopeClassified(
-                conversation_id=conversation_id,
-                provider=self.provider,
-                classifier_model=classifier_model,
-                verdict=verdict,
-                history_turns=history_turns,
-                attachment_count=attachment_count,
-                query_length=query_length,
-            ),
-            self.actor_id,
-            occurred_at,
-        )
 
     def schedule_rag_search_classified(
         self,

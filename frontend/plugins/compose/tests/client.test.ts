@@ -22,7 +22,6 @@ const COMPLETION_BODY: ChatCompletionRequestBody = {
   stream: true,
   temperature: 0.7,
   tools: "*",
-  tool_choice: "auto",
 };
 
 function mockFetch(body: unknown, status = 200) {
