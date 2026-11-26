@@ -31,6 +31,7 @@ from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.llm import get_provider
 from sparkth.lib.mcp.hooks import Tool
 from sparkth.lib.models import LLMConfig, User
+from sparkth.lib.rag import DocumentSections, SectionRef, SectionSelection
 from sparkth.lib.settings import get_settings
 from sparkth.lib.testing import FakeRedis, ScriptedChatModel
 from sparkth.plugins.compose.detached import join_live_tasks
@@ -514,6 +515,50 @@ async def test_non_streaming_tool_executions_emit_tool_invoked(
     for event in invoked:
         assert set(event) == {"conversation_id", "tool_name", "tool_category", "outcome", "failure_kind"}
         assert "Data Privacy" not in str(event)
+
+
+async def test_each_non_streamed_section_selection_emits_a_search_of_the_sections_selected(
+    client: AsyncClient,
+    current_user: User,
+    session: AsyncSession,
+    analytics_session: SQLAlchemyAsyncSession,
+) -> None:
+    config_id = await _seed_llm_config(session, current_user.id or 1)
+    cells = DocumentSections(document_id=7, sections=[SectionRef(chapter="Cells"), SectionRef(chapter="DNA")])
+    turn = AsyncMock(
+        return_value={
+            "content": "Here is the lesson.",
+            "routing": TurnRouting(),
+            "section_selections": [
+                SectionSelection(documents=[cells]),
+                SectionSelection(),
+            ],
+            "metadata": {},
+        }
+    )
+
+    with (
+        patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_non_streaming_provider()),
+        patch("sparkth.plugins.compose.routes.completions.complete_turn", new=turn),
+        patch("sparkth.plugins.compose.conversation_title.get_provider", return_value=_non_streaming_provider()),
+    ):
+        response = await client.post(
+            COMPLETIONS_URL,
+            json={
+                "llm_config_id": config_id,
+                "messages": [{"role": "user", "content": "Write a lesson on cells"}],
+                "stream": False,
+                "tools": "none",
+            },
+        )
+
+    assert response.status_code == 200
+    searches = await _events(analytics_session, "compose.rag_search_completed")
+    assert [(event["result"], event["chunks_found"], event["document_count"]) for event in searches] == [
+        ("found", 2, 1),
+        ("empty", 0, 0),
+    ]
+    assert all(event["streamed"] is False for event in searches)
 
 
 async def test_analytics_emission_failure_propagates_from_the_completion(

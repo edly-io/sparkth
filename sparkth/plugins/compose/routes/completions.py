@@ -375,6 +375,13 @@ async def compose_completion(
                 routing=response["routing"],
                 agents=response_metadata.get("agents") or [],
             )
+            # Nothing records when a step's search returned; the reply's is the nearest moment.
+            for section_selection in response.get("section_selections") or []:
+                turn_analytics.schedule_rag_search_completed(
+                    chunks_found=sum(len(document.sections) for document in section_selection.documents),
+                    document_count=len(section_selection.documents),
+                    occurred_at=assistant_message.created_at,
+                )
 
             return ChatCompletionResponse(
                 message=ChatMessage(
