@@ -155,11 +155,11 @@ msgstr ""
 #: sparkth/core/plugins/middleware.py:106
 #, python-brace-format
 msgid ""
-"Access to plugin '{name}' is disabled for your account. Please enable the"
-" plugin in your settings."
+"Plugin '{name}' is switched off, either in your settings or by an "
+"administrator."
 msgstr ""
-"L'accès au plugin « {name} » est désactivé pour votre compte. Veuillez "
-"activer le plugin dans vos paramètres."
+"Le plugin « {name} » est désactivé, soit dans vos paramètres, soit par "
+"un administrateur."
 
 #: sparkth/core/plugins/service.py:159 sparkth/core/plugins/service.py:165
 #, python-brace-format
