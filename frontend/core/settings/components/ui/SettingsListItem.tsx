@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { Sliders } from "lucide-react";
-import { displayNameOf } from "@/core/plugins/metadata";
+import { displayNameOf, isPluginUsable } from "@/core/plugins/metadata";
 import type { SettingsListItemProps } from "@/lib/settings/slots";
 import { Button } from "@/core/components/ui/Button";
 import { Spinner } from "@/core/components/ui/Spinner";
@@ -27,6 +27,7 @@ export function SettingsListItem({
   const name = displayNameOf(plugin);
   const masked = Object.entries(plugin.masked_secrets);
   const systemEnabled = plugin.system_enabled;
+  const usable = isPluginUsable(plugin);
   const statusLabel = !systemEnabled
     ? t("disabledByAdmin")
     : plugin.enabled
@@ -36,7 +37,7 @@ export function SettingsListItem({
   return (
     <SettingsRow
       name={name}
-      active={systemEnabled && plugin.enabled}
+      active={usable}
       statusLabel={statusLabel}
       description={plugin.display?.description}
       details={
@@ -58,7 +59,7 @@ export function SettingsListItem({
             variant="ghost"
             size="sm"
             onClick={onConfigure}
-            disabled={!systemEnabled || !plugin.enabled || configuring}
+            disabled={!usable || configuring}
             aria-busy={configuring}
             aria-label={t("configure", { name })}
           >
