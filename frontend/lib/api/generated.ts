@@ -1184,7 +1184,11 @@ export interface paths {
         put?: never;
         /**
          * Create Role
-         * @description Create a role. Returns the created RoleResponse, which nobody holds yet.
+         * @description Create a role, granting it the listed permissions in the same transaction.
+         *
+         *     Needs ``role.update`` at global as well as ``role.create``, since the new role can be given
+         *     permissions; an unregistered one is refused with 422 and nothing is created. Returns the created
+         *     RoleResponse, which nobody holds yet.
          */
         post: operations["create_role_api_v1_permissions_roles_post"];
         delete?: never;
@@ -1231,37 +1235,17 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
         /**
-         * Create Role Permission
-         * @description Grant a registered permission to the role (idempotent). Refused with 409 for a role shipped with Sparkth.
+         * Set Role Permissions
+         * @description Make the role grant exactly the listed permissions, in one transaction.
          *
-         *     Returns the updated RoleResponse.
+         *     Grants what is missing and revokes what is not listed. Refused with 422, changing nothing, when a
+         *     permission being added is not registered, and with 409 for a role shipped with Sparkth. Returns the
+         *     updated RoleResponse.
          */
-        post: operations["create_role_permission_api_v1_permissions_roles__role_id__permissions_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/permissions/roles/{role_id}/permissions/{permission}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
+        put: operations["set_role_permissions_api_v1_permissions_roles__role_id__permissions_put"];
         post?: never;
-        /**
-         * Delete Role Permission
-         * @description Revoke a permission from the role (idempotent). Refused with 409 for a role shipped with Sparkth.
-         *
-         *     Returns 204 No Content.
-         */
-        delete: operations["delete_role_permission_api_v1_permissions_roles__role_id__permissions__permission__delete"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1400,6 +1384,26 @@ export interface paths {
         patch: operations["enable_plugin_api_v1_plugins__plugin_name__enable_patch"];
         trace?: never;
     };
+    "/api/v1/plugins/{plugin_name}/system": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Plugin System Enabled
+         * @description Switch a plugin on or off for every user, leaving each user's own preference untouched.
+         */
+        patch: operations["update_plugin_system_enabled_api_v1_plugins__plugin_name__system_patch"];
+        trace?: never;
+    };
     "/api/v1/pxc/actions/{action_name}": {
         parameters: {
             query?: never;
@@ -1414,7 +1418,7 @@ export interface paths {
          * @description Run one action through the activity's sandbox, for a payload too large for the socket.
          *
          *     The events it produces are published to the bus, not returned; the client reads only the status.
-         *     A failure in an author's preview is recorded for the author's agent.
+         *     A failure in a preview inside Sparkth is recorded for the agents that work on the activity.
          *
          *     Raises:
          *         PxcActionRejected: if the body is not JSON the parser will read.
@@ -1436,7 +1440,9 @@ export interface paths {
         };
         /**
          * List Activities
-         * @description The activities this user built, newest first.
+         * @description The activities a user built, newest first: the ``owner_id`` user's, or the caller's own without it.
+         *
+         *     Needs ``pxc.activity.read`` at the listed owner's scope.
          */
         get: operations["list_activities_api_v1_pxc_activities_get"];
         put?: never;
@@ -1458,17 +1464,18 @@ export interface paths {
         put?: never;
         post?: never;
         /**
-         * Delete Owned Activity
-         * @description Delete one of this user's activities: its row, failure rows, files and learner data.
+         * Remove Activity
+         * @description Delete an activity: its row, failure rows, files and learner data.
          *
-         *     Deletes the row and its ``pxc.activity_deleted`` audit event in one commit, then removes the
-         *     files. A file that cannot be removed is logged and left behind.
+         *     Needs ``pxc.activity.delete`` at the activity owner's scope. Deletes the row and its
+         *     ``pxc.activity_deleted`` audit event in one commit, then removes the files. A file that cannot
+         *     be removed is logged and left behind.
          *
          *     Raises:
-         *         PxcActivityNotFound: if the activity does not exist or another user owns it.
+         *         PxcActivityNotFound: if the activity does not exist.
          *         SQLAlchemyError: if the delete or its audit record cannot be committed; nothing is removed.
          */
-        delete: operations["delete_owned_activity_api_v1_pxc_activities__activity_id__delete"];
+        delete: operations["remove_activity_api_v1_pxc_activities__activity_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1483,14 +1490,17 @@ export interface paths {
         };
         /**
          * Launch Activity
-         * @description An embed URL that previews one of this user's activities, as a learner or as its author.
+         * @description An embed URL that previews an activity, as a learner or as its author.
          *
-         *     The activity's files are resolved before a token is minted, so a row whose files are
-         *     missing from ``PXC_DATA_DIR`` never yields an embed URL that would fail on load.
+         *     A learner preview needs ``pxc.activity.read`` and an author preview ``pxc.activity.update``,
+         *     both at the activity owner's scope. The permission depends on the requested view, so it is
+         *     checked in the handler, not in the route's dependencies. The activity's files are resolved before a token is
+         *     minted, so a row whose files are missing from ``PXC_DATA_DIR`` never yields an embed URL that
+         *     would fail on load.
          *
          *     Raises:
-         *         PxcActivityNotFound: if the activity does not exist, another user owns it, or its files
-         *             are missing.
+         *         PxcActivityNotFound: if the activity does not exist or its files are missing.
+         *         PxcActivityNotPermitted: if the caller lacks the permission the view needs.
          *         PxcLaunchNotConfigured: if no launch secret is configured.
          */
         get: operations["launch_activity_api_v1_pxc_activities__activity_id__launch_get"];
@@ -2988,6 +2998,9 @@ export interface components {
          *     ``sparkth.lib.frontend`` hooks; build responses with :meth:`for_plugin`
          *     so they are always populated.
          *
+         *     ``enabled`` is the calling user's own preference for the plugin; ``system_enabled`` is the
+         *     system-wide switch, which applies to every user.
+         *
          *     ``config_schema`` is the plugin's declared JSON schema, which the settings
          *     UI renders its form from -- field types, labels, defaults, and the widget
          *     hints a plugin sets through ``json_schema_extra``. It is empty for a plugin
@@ -3033,10 +3046,22 @@ export interface components {
              */
             secrets_set: string[];
             sidebar?: components["schemas"]["SidebarEntry"] | null;
+            /** System Enabled */
+            system_enabled: boolean;
+        };
+        /**
+         * PluginSystemEnabledResponse
+         * @description Response model for a plugin's system-wide switch, which applies to every user.
+         */
+        PluginSystemEnabledResponse: {
+            /** Plugin Name */
+            plugin_name: string;
+            /** System Enabled */
+            system_enabled: boolean;
         };
         /**
          * PreviewPermission
-         * @description The permissions an author may preview their own activity under.
+         * @description The permissions an activity can be previewed under.
          * @enum {string}
          */
         PreviewPermission: "play" | "edit";
@@ -3080,17 +3105,25 @@ export interface components {
              */
             email: string;
         };
-        /** RoleCreate */
+        /**
+         * RoleCreate
+         * @description A new role: its name, description and the permissions it starts with (none by default).
+         */
         RoleCreate: {
             /** Description */
             description?: string | null;
             /** Name */
             name: string;
+            /** Permissions */
+            permissions?: string[];
         };
-        /** RolePermissionAdd */
-        RolePermissionAdd: {
-            /** Permission */
-            permission: string;
+        /**
+         * RolePermissionsSet
+         * @description Every permission the role should grant once saved; anything else it grants is revoked.
+         */
+        RolePermissionsSet: {
+            /** Permissions */
+            permissions: string[];
         };
         /** RoleResponse */
         RoleResponse: {
@@ -3263,7 +3296,7 @@ export interface components {
         ToolExecutionStatus: "running" | "done" | "failed";
         /**
          * UpdatePluginRequest
-         * @description Request model for turning a plugin on or off for the calling user.
+         * @description Request model for turning a plugin on or off, for the calling user or for everyone.
          */
         UpdatePluginRequest: {
             /** Enabled */
@@ -5654,7 +5687,7 @@ export interface operations {
             };
         };
     };
-    create_role_permission_api_v1_permissions_roles__role_id__permissions_post: {
+    set_role_permissions_api_v1_permissions_roles__role_id__permissions_put: {
         parameters: {
             query?: never;
             header?: never;
@@ -5665,7 +5698,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["RolePermissionAdd"];
+                "application/json": components["schemas"]["RolePermissionsSet"];
             };
         };
         responses: {
@@ -5677,36 +5710,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["RoleResponse"];
                 };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_role_permission_api_v1_permissions_roles__role_id__permissions__permission__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                role_id: number;
-                permission: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -5939,6 +5942,41 @@ export interface operations {
             };
         };
     };
+    update_plugin_system_enabled_api_v1_plugins__plugin_name__system_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plugin_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePluginRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PluginSystemEnabledResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     submit_action_api_v1_pxc_actions__action_name__post: {
         parameters: {
             query: {
@@ -5972,7 +6010,9 @@ export interface operations {
     };
     list_activities_api_v1_pxc_activities_get: {
         parameters: {
-            query?: never;
+            query?: {
+                owner_id?: number | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5988,9 +6028,18 @@ export interface operations {
                     "application/json": components["schemas"]["ActivitySummary"][];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
-    delete_owned_activity_api_v1_pxc_activities__activity_id__delete: {
+    remove_activity_api_v1_pxc_activities__activity_id__delete: {
         parameters: {
             query?: never;
             header?: never;

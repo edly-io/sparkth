@@ -32,10 +32,8 @@ SPANISH_EMPTY_BODY = "Cuerpo vacío. Nada que actualizar."
 FRENCH_EMPTY_BODY = "Corps vide. Rien à mettre à jour."
 
 # The plugin gate's own 403 body, marked in sparkth/core/plugins/middleware.py.
-GATE_DENIAL_MESSAGE = (
-    "Access to plugin '{name}' is disabled for your account. Please enable the plugin in your settings."
-)
-SPANISH_GATE_DENIAL = "El plugin '{name}' esta desactivado para tu cuenta."
+GATE_DENIAL_MESSAGE = "Plugin '{name}' is switched off, either in your settings or by an administrator."
+SPANISH_GATE_DENIAL = "El plugin '{name}' esta desactivado, en tu configuracion o por un administrador."
 
 
 @pytest.fixture(autouse=True)
