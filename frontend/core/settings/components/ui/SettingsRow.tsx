@@ -22,7 +22,9 @@ function StatusBadge({ active, label }: { active: boolean; label: string }) {
  * One settings row: what it is, its status, its actions and a labelled on/off switch.
  *
  * The row runs the toggle itself: the switch is disabled until `onToggle` settles, and a
- * rejection shows `toggleErrorMessage` inside the row.
+ * rejection shows `toggleErrorMessage` inside the row. `active` colours the status badge and,
+ * unless `toggleChecked` says otherwise, sets the switch position. `toggleDisabled` keeps the
+ * switch off-limits for a row that cannot be toggled.
  */
 export function SettingsRow({
   name,
@@ -32,6 +34,8 @@ export function SettingsRow({
   details,
   description,
   toggleLabel,
+  toggleChecked,
+  toggleDisabled = false,
   onToggle,
   toggleErrorMessage,
   actions,
@@ -43,6 +47,8 @@ export function SettingsRow({
   details?: ReactNode;
   description?: ReactNode;
   toggleLabel: string;
+  toggleChecked?: boolean;
+  toggleDisabled?: boolean;
   onToggle: (checked: boolean) => Promise<void>;
   toggleErrorMessage: (error: unknown, checked: boolean) => string;
   actions: ReactNode;
@@ -85,9 +91,9 @@ export function SettingsRow({
         {actions}
         {/* The switch comes last, so every row's switch lines up whatever actions it has. */}
         <Switch
-          checked={active}
+          checked={toggleChecked ?? active}
           onCheckedChange={handleToggle}
-          disabled={toggling}
+          disabled={toggling || toggleDisabled}
           aria-label={toggleLabel}
         />
       </div>

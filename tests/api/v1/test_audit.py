@@ -24,6 +24,8 @@ from sparkth.lib.testing import AuditEventsFetcher, grant_global_permission
 from sparkth.services.audit import AuditEventQuery
 
 NOW = datetime.now(timezone.utc)
+# The seeded rows are all older than this; the role grants a test's setup records are newer.
+SEEDED_UNTIL = (NOW - timedelta(hours=1)).isoformat()
 ALICE = UserActor(id="7", label="alice")
 BOB = UserActor(id="8", label="bob")
 
@@ -67,7 +69,7 @@ async def test_lists_newest_first_without_canonical_bytes(
     await _grant(session, current_user)
     await _seed(session)
 
-    response = await client.get("/api/v1/audit/events")
+    response = await client.get("/api/v1/audit/events", params={"to": SEEDED_UNTIL})
 
     assert response.status_code == 200
     items = response.json()["items"]
@@ -103,12 +105,14 @@ async def test_paginates_with_before_id(client: AsyncClient, session: AsyncSessi
     await _grant(session, current_user)
     await _seed(session)
 
-    first = (await client.get("/api/v1/audit/events", params={"limit": 2})).json()
+    first = (await client.get("/api/v1/audit/events", params={"limit": 2, "to": SEEDED_UNTIL})).json()
     assert len(first["items"]) == 2
     assert first["next_before_id"] == first["items"][-1]["id"]
 
     second = (
-        await client.get("/api/v1/audit/events", params={"limit": 2, "before_id": first["next_before_id"]})
+        await client.get(
+            "/api/v1/audit/events", params={"limit": 2, "before_id": first["next_before_id"], "to": SEEDED_UNTIL}
+        )
     ).json()
     assert [i["action"] for i in second["items"]] == ["login"]
     assert second["next_before_id"] is None

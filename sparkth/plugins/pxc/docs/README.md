@@ -38,14 +38,19 @@ does not repeat the list.
 An author places an activity by asking for it by its title in a chat:
 
 1. The agent lists the activities the author can place: the bundled samples, then the author's
-   own activities by title.
+   own activities by title, when the author holds `pxc.activity.place` at their own `user` scope.
 2. The author picks one. If they pick none, nothing is placed.
 3. Sparkth creates a new activity instance for it, with its own id and its own learner data.
 4. The LMS course gets a `pxc` block that holds only that id. The LMS integration shows the
    activity through it.
 
-An author can place only their own activities and the bundled samples. Sparkth checks this
-again when it places the activity, so an id from anywhere else is refused.
+Anyone can place a bundled sample. A generated activity can be placed by a user who holds
+`pxc.activity.place` at the `user` scope of its owner (or at `global`), which every author holds
+for their own activities by default. Sparkth checks this again when it places the activity. An id that names
+no activity, a malformed one, one the user may not place, and one whose files are gone all get the
+same refusal, which does not reveal whether the activity exists. A refusal for lack of the
+permission is recorded as a `permission.denied` event; an unknown id records nothing. Listing the
+options never records a denial: a user without the permission is offered the bundled samples only.
 
 Sparkth records the first time a generated activity is placed, once the LMS has created its block,
 so a placement the LMS refuses leaves the activity a draft. Until then the activity is a draft;
@@ -63,6 +68,21 @@ activity's `preview_url` is `/dashboard/pxc?activity=<id>`. The page itself live
 `frontend/plugins/pxc`. The page marks each placed activity and gives each row a Delete button that
 asks for confirmation before calling the delete route.
 
+Each author-facing route checks an activity at the `user` scope of its owner:
+
+| Action | Needs |
+|---|---|
+| List an owner's activities (`owner_id`, the caller's own when absent) | `pxc.activity.read` |
+| Preview an activity as a learner (`permission=play`) | `pxc.activity.read` |
+| Preview an activity as its author (`permission=edit`) | `pxc.activity.update` |
+| Delete an activity | `pxc.activity.delete` |
+
+Every account holds all four `pxc.activity.*` names at its own `user` scope through the default
+`sparkth_user` role, so an author keeps full access to their own activities. A grant at another
+user's `user` scope reaches that user's activities, and a grant at `global` reaches every user's.
+A caller without the permission gets 403 and the refusal is recorded as a `permission.denied`
+event; an id that names no activity gets 404, and records no denial.
+
 ## Building an activity from chat
 
 The plugin contributes a Compose agent: its name, title, description, prompt and tools. Its
@@ -78,22 +98,26 @@ tool lists and places PXC activities only for such an author.
 | `pxc_about` | The contract: file rules and the manifest JSON schema |
 | `pxc_build_activity` | The id and preview link of a newly built activity |
 | `pxc_update_activity` | The id and preview link of an existing activity, changed in place |
-| `pxc_list_activities` | The author's most recent activities (20 by default, set by `PXC_LIST_ACTIVITIES_LIMIT`), newest first, each with id, title, creation time, preview link and whether it is placed |
-| `pxc_get_activity_source` | One of the author's activities as its title, description, manifest, `ui.js` and `sandbox.js`, and whether it is placed |
-| `pxc_get_activity_failures` | The actions that failed in the author's preview of one activity's live version (20 by default, set by `PXC_ACTION_FAILURE_LIMIT`), newest first, each with kind, action, permission, value, error and time |
+| `pxc_list_activities` | The caller's own most recent activities (20 by default, set by `PXC_LIST_ACTIVITIES_LIMIT`), newest first, each with id, title, creation time, preview link and whether it is placed |
+| `pxc_get_activity_source` | One activity as its title, description, manifest, `ui.js` and `sandbox.js`, and whether it is placed |
+| `pxc_get_activity_failures` | The actions that failed in previews of one activity's live version (20 by default, set by `PXC_ACTION_FAILURE_LIMIT`), newest first, each with kind, action, permission, value, error and time |
 | `pxc_run_activity` | The result of the steps the agent gives, run in order on a throwaway store that starts from the manifest's field defaults: each step's events or error, then the state for each permission and the stored fields. At most `PXC_TRIAL_STEP_LIMIT` steps (20 by default), and a report over `PXC_TRIAL_REPORT_LIMIT` characters (20000 by default) is refused, not cut |
 
 A build or update failure is raised, not returned, and the agent reads its message to fix the
 files and try again.
 
-Every tool reads the author from the authenticated request, never from an argument. The read
-tools, `pxc_run_activity` and `pxc_update_activity` are owner-only: another author's activity is reported as
-unknown. The tools need an authenticated chat session; on the unauthenticated `/ai/mcp` endpoint
-they fail with `NoAuthenticatedUser`.
+Every tool reads the user from the authenticated request, never from an argument. The tools that
+name an activity check the permission at the activity owner's `user` scope, as the routes do:
+`pxc_get_activity_source`, `pxc_get_activity_failures` and `pxc_run_activity` need `pxc.activity.read`,
+and `pxc_update_activity` needs `pxc.activity.update`. An id that names no activity is reported as
+unknown before any permission is checked. `pxc_list_activities` lists the caller's own activities and
+needs `pxc.activity.read` at the caller's own scope. A refusal tells the agent which permission is
+missing, without naming the activity, and records a `permission.denied` event. The tools need an
+authenticated chat session; on the unauthenticated `/ai/mcp` endpoint they fail with `NoAuthenticatedUser`.
 
 ## Changing an activity from chat
 
-`pxc_update_activity` changes one of the author's activities in place, under the same id and
+`pxc_update_activity` changes an activity in place, under the same id and
 preview link. The change reaches every placement of the activity at its next launch.
 
 What an update may change depends on whether the activity is placed:
@@ -219,7 +243,7 @@ saved before it failed, since each write is stored on its own:
   The client drops the action from its queue, so the actions behind it still go. A 502 or other
   5xx, which a proxy sends while the app redeploys, leaves the action queued.
 
-Only an author's preview records a failure. It is stored in `pxc_action_failures`, with its kind
+Only a preview inside Sparkth records a failure. It is stored in `pxc_action_failures`, with its kind
 (`failed` or `rejected`), the action, the permission, the value and the error, and the newest
 `PXC_ACTION_FAILURE_LIMIT` failures per activity are kept. A learner's failure in a course is never
 stored. Every failure and refusal is logged, over the socket and on the POST alike.
@@ -333,9 +357,9 @@ bounded number of retries.
 - The smoke test's sample values do not reach every code path, so a build that passes can still
   fail on a value the activity's UI sends.
 - Course staff who edit an LMS block's activity reference directly can point it at any activity
-  id, and the LMS signs it. Ownership is checked only when the agent places content. Such a block
-  can point at a draft, which is never marked placed, so a later update that changes one of its
-  fields clears the learner state that block has saved.
+  id, and the LMS signs it. The place permission, `pxc.activity.place`, is checked only when the
+  agent places content. Such a block can point at a draft, which is never marked placed, so a later
+  update that changes one of its fields clears the learner state that block has saved.
 - A placement that lands in the milliseconds between an update's placement check and its link
   swap is not seen by that update. Likewise, two updates of one activity in separate processes can
   swap the link in the opposite order to their revision ids, so a later update's prune can remove
@@ -354,8 +378,8 @@ bounded number of retries.
 - "Placed" means placed at least once. Every activity built before placement was recorded shows as
   placed. A block that course staff pointed at a draft by editing it in the LMS shows as not
   placed, yet deleting the draft breaks that block.
-- A delete that lands between `pxc_update_activity`'s last ownership check and its link swap
-  leaves the update republishing files for an id with no row. Those files are orphaned: nothing
+- A delete that lands between `pxc_update_activity`'s last lookup of the activity's row and its link
+  swap leaves the update republishing files for an id with no row. Those files are orphaned: nothing
   lists or places them, but embeds would load again.
 - A learner request already past its activity check when a delete runs can recreate an empty state
   file. The file is orphaned and harmless.

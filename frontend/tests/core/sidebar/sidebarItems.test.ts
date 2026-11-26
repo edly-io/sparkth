@@ -6,6 +6,7 @@ import type { PluginState } from "@/core/plugins/types";
 function state(overrides: Partial<PluginState> & { plugin_name: string }): PluginState {
   return {
     enabled: true,
+    system_enabled: true,
     config: {},
     config_schema: {},
     is_core: true,
@@ -69,5 +70,10 @@ describe("sidebarItemsFrom", () => {
   it("excludes disabled plugins", () => {
     const disabled = { ...chat, enabled: false };
     expect(sidebarItemsFrom([disabled, slack])).toHaveLength(1);
+  });
+
+  it("excludes plugins switched off system-wide", () => {
+    const systemOff = { ...chat, system_enabled: false };
+    expect(sidebarItemsFrom([systemOff, slack]).map((item) => item.name)).toEqual(["slack"]);
   });
 });

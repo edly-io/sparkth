@@ -102,6 +102,12 @@ async def test_get_plugin_success(client: AsyncClient, plugin_preferences: User)
     assert data["has_frontend"] is False
 
 
+async def test_get_reports_a_plugin_switched_off_system_wide(client: AsyncClient, plugin_preferences: User) -> None:
+    response = await client.get("/api/v1/plugins/disabled_plugin")
+
+    assert (response.json()["enabled"], response.json()["system_enabled"]) == (True, False)
+
+
 async def test_get_plugin_carries_declared_display_info(
     client: AsyncClient, current_user: User, session: AsyncSession
 ) -> None:

@@ -1,4 +1,4 @@
-"""Run an author's steps against one of their activities in a child process, for the author's agent.
+"""Run an author's steps against an activity in a child process, for the author's agent.
 
 The child is ``python -m sparkth.plugins.pxc.scratch``, started through the builder's
 ``run_bounded``. It gets a bare environment and the build timeout, and its whole process group is
