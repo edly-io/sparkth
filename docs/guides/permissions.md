@@ -123,8 +123,7 @@ Roles and their permission grants are managed at runtime through the role-manage
 under `/api/v1/permissions` (gated by `role.*` / `permission.read`). See the REST API docs
 (`/docs`) for the endpoints. Permissions and scope kinds themselves are **not** editable
 there — they are declared in code. A role can be created with its permissions in one request, as
-when duplicating a role; listing permissions there also needs `role.update` at `global`, since giving
-a role permissions needs `role.update` and the new role has no `role` scope yet.
+when duplicating a role, so creating one needs `role.update` at `global` as well as `role.create`.
 
 Compose checks a conversation's permissions at the conversation itself where one is named, except that attaching
 documents is checked at the owner's `user` scope. Reading one conversation, its last message and its attachments,
@@ -540,11 +539,6 @@ Code that turns down one thing a caller asked for by name, without refusing the 
 the same event with `await PERMISSION.record_denial(SCOPE, scope_path)`. It writes the row the same way
 and does not refuse the request; a failed write still fails the caller. A list that only leaves out what
 the caller may not use records nothing.
-
-A check that depends on the request, such as a field of its body, cannot be a route dependency. Make it
-inside the route with `await PERMISSION.require_now(user, SCOPE, scope_path, session)`: it refuses with
-403 and records `permission.denied` exactly as the dependencies do. Creating a role does this, asking for
-`role.update` at `global` only when the request lists permissions for the new role.
 
 **Check the current user's permissions** — a client (e.g. the web UI) can ask whether the
 authenticated user holds permissions via `POST /api/v1/permissions/can/batch`. The body is a list of

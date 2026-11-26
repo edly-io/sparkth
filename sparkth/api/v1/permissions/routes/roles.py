@@ -24,27 +24,11 @@ from sparkth.api.v1.permissions.schemas import (
 from sparkth.core.permissions import roles as role_engine
 from sparkth.core.permissions.models import Role
 from sparkth.core.permissions.types import RoleAssigneeCounts
-from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
-from sparkth.lib.models import User
 from sparkth.lib.permissions import ROLE_CREATE, ROLE_DELETE, ROLE_READ, ROLE_UPDATE, object_id_str_to_int
-from sparkth.lib.permissions.scopes import GLOBAL, ROLE
+from sparkth.lib.permissions.scopes import ROLE
 
 router = APIRouter()
-
-
-async def _require_role_update_to_grant(
-    payload: RoleCreate,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
-) -> None:
-    """Refuse a new role that lists permissions unless the caller holds ``role.update`` at global.
-
-    Granting a role permissions needs ``role.update``, and a role being created has no ``role``
-    scope yet.
-    """
-    if payload.permissions:
-        await ROLE_UPDATE.require_now(current_user, GLOBAL, None, session)
 
 
 def _role_id(role: Role) -> int:
@@ -107,13 +91,14 @@ async def list_roles(
     "",
     response_model=RoleResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(ROLE_CREATE.require_in_global_scope()), Depends(_require_role_update_to_grant)],
+    dependencies=[Depends(ROLE_CREATE.require_in_global_scope()), Depends(ROLE_UPDATE.require_in_global_scope())],
 )
 async def create_role(payload: RoleCreate, session: AsyncSession = Depends(get_async_session)) -> RoleResponse:
     """Create a role, granting it the listed permissions in the same transaction.
 
-    Listing permissions also needs ``role.update`` at global (403 otherwise); an unregistered one is
-    refused with 422 and nothing is created. Returns the created RoleResponse, which nobody holds yet.
+    Needs ``role.update`` at global as well as ``role.create``, since the new role can be given
+    permissions; an unregistered one is refused with 422 and nothing is created. Returns the created
+    RoleResponse, which nobody holds yet.
     """
     role = await role_engine.create_role(payload.name, payload.description, session, permissions=payload.permissions)
     return await _role_to_response(role, session)

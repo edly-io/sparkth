@@ -113,22 +113,11 @@ class Permission:
                 build_scope_path_dependency(permission_scope, scope_param, scope_object_id)
             ),
         ) -> User:
-            await self.require_now(current_user, permission_scope, scope_path, session)
+            if not await can(current_user, self, permission_scope, scope_path, session):
+                await self._deny(permission_scope, scope_path)
             return current_user
 
         return dependency
-
-    async def require_now(
-        self, user: User, permission_scope: PermissionScope, scope_path: str | None, session: AsyncSession
-    ) -> None:
-        """Raise 403 unless ``user`` holds this permission at ``scope_path`` in ``permission_scope``.
-
-        For a check that depends on the request, such as a field of its body, made inside a route.
-        A refusal is recorded as a ``permission.denied`` audit event before the 403, as by the
-        ``require*`` dependencies.
-        """
-        if not await can(user, self, permission_scope, scope_path, session):
-            await self._deny(permission_scope, scope_path)
 
     async def record_denial(self, permission_scope: PermissionScope, scope_path: str | None) -> None:
         """Record a ``permission.denied`` audit event for this permission at the checked scope.

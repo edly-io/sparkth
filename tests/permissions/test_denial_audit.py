@@ -1,4 +1,4 @@
-"""A refusal from the ``Permission.require*`` dependencies or ``require_now`` lands a
+"""A refusal from the ``Permission.require*`` dependencies lands a
 ``permission.denied`` audit row that survives the request's rollback, and the
 write is fail-closed. Granted requests and the ``/permissions/can`` probe
 record nothing."""
@@ -6,7 +6,6 @@ record nothing."""
 from collections.abc import Callable
 
 import pytest
-from fastapi import HTTPException
 from httpx import AsyncClient
 from pytest import MonkeyPatch, raises
 from sqlalchemy.exc import SQLAlchemyError
@@ -203,42 +202,6 @@ async def test_a_denial_is_recorded_without_refusing_a_request(
 
     await Permission("quiz.read").record_denial(quiz_scope, build_scope_path(quiz_scope, "7"))
 
-    (event,) = await audit_events()
-    assert (event.category, event.action, event.outcome) == ("permission", "denied", "denied")
-    assert (event.actor_type, event.actor_id) == ("user", str(user.id))
-    assert (event.target_type, event.target_id, event.error_detail) == ("permission", "quiz.read", "scope=quiz:7")
-
-
-async def test_require_now_passes_a_holder_and_records_nothing(
-    session: AsyncSession, audit_events: AuditEventsFetcher
-) -> None:
-    user = await _user(session, "now-ivy", "role.update")
-
-    await Permission("role.update").require_now(user, GLOBAL, None, session)
-
-    assert await audit_events() == []
-
-
-async def test_require_now_passes_a_global_holder_at_a_narrower_scope(
-    session: AsyncSession, quiz_scope: PermissionScope, audit_events: AuditEventsFetcher
-) -> None:
-    user = await _user(session, "now-jack", "quiz.read")
-
-    await Permission("quiz.read").require_now(user, quiz_scope, build_scope_path(quiz_scope, "7"), session)
-
-    assert await audit_events() == []
-
-
-async def test_require_now_refuses_with_403_and_records_the_denial(
-    session: AsyncSession, quiz_scope: PermissionScope, audit_events: AuditEventsFetcher
-) -> None:
-    user = await _user(session, "now-kim")
-    bind_request_user(user)
-
-    with raises(HTTPException) as refused:
-        await Permission("quiz.read").require_now(user, quiz_scope, build_scope_path(quiz_scope, "7"), session)
-
-    assert refused.value.status_code == 403
     (event,) = await audit_events()
     assert (event.category, event.action, event.outcome) == ("permission", "denied", "denied")
     assert (event.actor_type, event.actor_id) == ("user", str(user.id))
