@@ -1,0 +1,67 @@
+{
+  "permissions": {
+    "title": "Acceso y permisos",
+    "subtitle": "Consulta y gestiona quién puede hacer qué en Sparkth.",
+    "nav": {
+      "label": "Secciones de acceso",
+      "roles": "Roles",
+      "groups": "Grupos"
+    },
+    "roles": {
+      "label": "Roles",
+      "empty": "Aún no hay roles.",
+      "loadFailed": "No se pudieron cargar los roles. Inténtalo más tarde.",
+      "badges": {
+        "builtin": "Integrado",
+        "default": "Automático",
+        "custom": "Personalizado"
+      },
+      "permissionCount": "{count, plural, one {<strong>#</strong> permiso} other {<strong>#</strong> permisos}}",
+      "peopleCount": "{count, plural, one {# persona} other {# personas}}",
+      "groupCount": "{count, plural, one {# grupo} other {# grupos}}",
+      "everyone": "Todos",
+      "notAssigned": "Sin asignar",
+      "intro": "Un rol es un conjunto de permisos con nombre. Los permisos vienen de Sparkth y sus plugins; tú eliges cuáles tiene cada rol.",
+      "view": {
+        "label": "Vista",
+        "list": "Lista",
+        "compare": "Comparar permisos"
+      },
+      "create": {
+        "button": "Crear rol",
+        "title": "Crear rol",
+        "intro": "Ponle el nombre del trabajo que hace la gente.",
+        "name": "Nombre",
+        "description": "Descripción",
+        "cancel": "Cancelar",
+        "submit": "Crear",
+        "nameTaken": "Ya existe un rol con este nombre.",
+        "failed": "No se pudo crear el rol. Inténtalo de nuevo."
+      },
+      "menu": {
+        "label": "Más acciones para {name}",
+        "delete": "Eliminar rol"
+      },
+      "delete": {
+        "title": "¿Eliminar {name}?",
+        "holders": "{holders} perderán este rol. No se puede deshacer.",
+        "nobody": "Nadie tiene este rol. No se puede deshacer.",
+        "confirm": "Eliminar",
+        "pending": "Eliminando…",
+        "cancel": "Cancelar",
+        "failed": "No se pudo eliminar el rol. Inténtalo de nuevo."
+      },
+      "risks": {
+        "label": "Riesgos",
+        "delegates_access": "Puede dar acceso a otros",
+        "private_data": "Ve datos privados",
+        "deletes": "Puede eliminar"
+      }
+    },
+    "groups": {
+      "label": "Grupos",
+      "empty": "Aún no hay grupos.",
+      "loadFailed": "No se pudieron cargar los grupos. Inténtalo más tarde."
+    }
+  }
+}

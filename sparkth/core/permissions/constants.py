@@ -11,3 +11,6 @@ SPARKTH_USER_ROLE = "sparkth_user"
 
 # The role every account holds at global, letting it use every plugin.
 PLUGIN_USER_ROLE = "plugin_user"
+
+# The roles every account is given when it is created.
+DEFAULT_ROLES = frozenset({SPARKTH_USER_ROLE, PLUGIN_USER_ROLE})

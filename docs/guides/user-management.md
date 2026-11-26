@@ -121,10 +121,10 @@ generate in, which means output in a language nobody on the team has reviewed is
 possible; large language models are measurably stronger in widely spoken languages than
 in low-resource ones.
 
-Internal prompts are deliberately excluded — the scope classifier, the retrieval intent
-router and the document search agent all reason in English, the language current models
-are strongest in, while handling input in any language. Nothing they produce is shown to
-a user.
+Internal prompts are deliberately excluded — the classifier that decides whether a message
+needs a search of the attached documents, and the agent that runs that search, reason in
+English, the language current models are strongest in, while handling input in any
+language. Nothing they produce is shown to a user.
 
 The **Slack assistant** is a separate case: it answers questions from Slack members, who
 are not signed-in Sparkth users, and its prompts carry no language directive at all.

@@ -58,9 +58,20 @@ test.describe("dashboard", () => {
     for (const plugin of await frontendPlugins(request)) {
       await page.goto(`/dashboard/${plugin.plugin_name}`);
       await page.waitForLoadState("networkidle");
-      // Core's "Plugin Not Found" / "Plugin <name> not found", or the export's 404 for a page it never built.
-      await expect(page.getByText(/not found|could not be found/i)).toHaveCount(0);
+      // The not-found page for an address with no built page, or core's "Plugin <name> not found".
+      await expect(page.getByText(/not found/i)).toHaveCount(0);
     }
+  });
+
+  test("says no plugin has that name at an address that names none", async ({ page }) => {
+    await page.goto("/dashboard/nosuchplugin");
+
+    await expect(page.getByRole("heading", { name: "Plugin not found" })).toBeVisible();
+    await expect(
+      page.getByText("No plugin is registered with the name nosuchplugin."),
+    ).toBeVisible();
+    await page.getByRole("link", { name: "Back to dashboard" }).click();
+    await expect(page.getByRole("heading", { name: /dashboard/i })).toBeVisible();
   });
 
   test("redirects to login when the token is cleared", async ({ page }) => {

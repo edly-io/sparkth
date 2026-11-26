@@ -709,7 +709,7 @@ async def test_tool_calls_saved_in_metadata(monkeypatch: pytest.MonkeyPatch) -> 
     metadata = assistant_call.kwargs.get("metadata")
     assert metadata is not None
     assert "tool_calls" in metadata
-    assert metadata["tool_calls"] == [{"name": "search_web"}]
+    assert metadata["tool_calls"] == [{"name": "search_web", "status": "done"}]
 
 
 @pytest.mark.asyncio
@@ -739,7 +739,7 @@ async def test_tool_calls_in_done_payload(monkeypatch: pytest.MonkeyPatch) -> No
     done_event = next((e for e in events if e.get("done")), None)
     assert done_event is not None
     msg = done_event.get("message", {})
-    assert msg.get("tool_calls") == [{"name": "get_data"}]
+    assert msg.get("tool_calls") == [{"name": "get_data", "status": "done"}]
 
 
 @pytest.mark.asyncio
