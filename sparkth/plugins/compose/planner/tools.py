@@ -105,7 +105,8 @@ def _graph_runner(
 
     It returns what the planner reads, the reply marked as data and cut to its last ``tail_chars``
     characters when there is a limit, and the whole reply, which later steps read. With ``build_context``,
-    the reply is the context it builds from the graph's structured response, and nothing when there is none. It reports
+    the reply is the context it builds from the graph's structured response, which it reports as a
+    ``structured_reply`` event, and nothing when there is none. It reports
     ``name`` as answering the turn before the graph runs, so a turn stopped mid-reply still records
     who was answering it, with ``status``, what the author reads while the step works. The graph
     runs only once the reader of the stream asks for the next event, so a reader that stops there keeps
@@ -128,7 +129,11 @@ def _graph_runner(
             reply: str = result["messages"][-1].text
         else:
             structured = result.get("structured_response")
-            reply = await build_context(structured) if structured is not None else ""
+            if structured is None:
+                reply = ""
+            else:
+                runtime.stream_writer({"type": TurnEventType.STRUCTURED_REPLY, "agent": name, "reply": structured})
+                reply = await build_context(structured)
         if not reply:
             return "", ""
         if tail_chars is not None and len(reply) > tail_chars:

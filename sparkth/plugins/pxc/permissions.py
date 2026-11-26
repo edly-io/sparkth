@@ -11,6 +11,7 @@ from sparkth.lib.models import User
 from sparkth.lib.permissions import Permission, PermissionCheckQuery, PermissionRisk, batched_can, can
 from sparkth.lib.permissions.scopes import GLOBAL, USER, PermissionScope, build_scope_path
 from sparkth.plugins.pxc.activities import parse_activity_id
+from sparkth.plugins.pxc.constants import PXC_NOT_PERMITTED_MESSAGE
 from sparkth.plugins.pxc.exceptions import PxcActivityNotPermitted
 from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.store import get_activity
@@ -93,18 +94,22 @@ async def require_activity_permission(
         "PXC permission %s denied for user %s on activities of user %s", permission.name, caller_user_id, owner_user_id
     )
     await permission.record_denial(USER, build_scope_path(USER, str(owner_user_id)))
-    raise PxcActivityNotPermitted(f"You are not allowed to do this; it needs the {permission.name} permission.")
+    raise PxcActivityNotPermitted(PXC_NOT_PERMITTED_MESSAGE.format(permission.name))
 
 
 def get_launch_permissions(level: str) -> tuple[Permission, ...]:
     """Return the permissions that allow a launch at this level, any one of which is enough.
 
-    ``edit`` needs the edit permission. Every other level, ``play`` and ``view`` among them, needs the
-    play permission or the edit permission.
+    ``edit`` needs the edit permission. ``play`` and ``view`` need the play permission or the edit permission.
+
+    Raises:
+        ValueError: if the level is none of ``edit``, ``play`` and ``view``.
     """
     if level == "edit":
         return (PXC_ACTIVITY_EDIT,)
-    return (PXC_ACTIVITY_PLAY, PXC_ACTIVITY_EDIT)
+    if level in ("play", "view"):
+        return (PXC_ACTIVITY_PLAY, PXC_ACTIVITY_EDIT)
+    raise ValueError(f"Unknown launch level {level!r}.")
 
 
 def _get_launch_scope(owner_user_id: int | None) -> tuple[PermissionScope, str | None]:
