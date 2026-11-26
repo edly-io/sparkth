@@ -13,6 +13,9 @@
  * An unknown widget name falls back to a text input rather than rendering nothing:
  * a backend that declares a hint this frontend has not shipped yet still gets a
  * usable field.
+ *
+ * The text, URL and password controls ask the browser and password managers not to fill
+ * them: the modal holds third-party credentials, never the user's Sparkth login.
  */
 
 import { ComponentType, useEffect, useState } from "react";
@@ -63,6 +66,7 @@ function TextWidget({ field, value, error, disabled, onChange }: ConfigWidgetPro
       helperText={field.description}
       disabled={disabled}
       required={field.required}
+      noAutofill
     />
   );
 }

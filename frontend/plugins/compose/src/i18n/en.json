@@ -4,6 +4,7 @@
     "working": "Working out what to do…",
     "toolCallCount": "{count, plural, one {# tool call made} other {# tool calls made}}",
     "toolExecuting": "executing",
+    "toolFailed": "failed",
     "statusScanningAttachments": "Reading your attached files…",
     "statusSearchingDocuments": "Scanning document sections…",
     "statusSkippingRag": "Answering without the attachments…",
