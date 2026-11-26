@@ -218,6 +218,20 @@ async def test_assign_unknown_role_returns_404(client: AsyncClient, session: Asy
     assert response.status_code == 404
 
 
+async def test_list_user_assignments_of_unknown_role_returns_404(client: AsyncClient, session: AsyncSession) -> None:
+    login_as(client, await make_user_with_permissions(session, ["role.read"]))
+    await session.commit()
+
+    assert (await client.get(_build_assignments_url(999999))).status_code == 404
+
+
+async def test_revoke_under_unknown_role_returns_404(client: AsyncClient, session: AsyncSession) -> None:
+    login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
+    await session.commit()
+
+    assert (await client.delete(_build_assignments_url(999999, 1))).status_code == 404
+
+
 async def test_assign_unknown_scope_kind_returns_422(client: AsyncClient, session: AsyncSession) -> None:
     role = await make_role(session, _uniq("role"), [])
     target = await make_user(session, _uniq("target"))
