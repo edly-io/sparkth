@@ -18,7 +18,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: sparkth/plugins/pxc/plugin.py:85
+#: sparkth/plugins/pxc/permissions.py:15 sparkth/plugins/pxc/plugin.py:85
 msgid "PXC Activities"
 msgstr "Activités PXC"
 
@@ -34,3 +34,43 @@ msgstr "Activités"
 #: sparkth/plugins/pxc/agent.py:17
 msgid "Working on your activity…"
 msgstr "Travail en cours sur votre activité…"
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/pxc/permissions.py:20
+msgid "See activities"
+msgstr "Voir les activités"
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/pxc/permissions.py:21
+msgid "List activities, preview them as a learner and read their files."
+msgstr "Lister les activités, les prévisualiser en tant qu'étudiant et lire leurs fichiers."
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/pxc/permissions.py:26
+msgid "Edit activities"
+msgstr "Modifier les activités"
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/pxc/permissions.py:27
+msgid "Preview activities as their author and change them from chat."
+msgstr "Prévisualiser les activités en tant qu'auteur et les modifier depuis le chat."
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/pxc/permissions.py:32
+msgid "Delete activities"
+msgstr "Supprimer les activités"
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/pxc/permissions.py:33
+msgid "Delete activities, with their learners' data, from every course that uses them."
+msgstr "Supprimer les activités, avec les données de leurs étudiants, de tous les cours qui les utilisent."
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/pxc/permissions.py:39
+msgid "Place activities"
+msgstr "Placer les activités"
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/pxc/permissions.py:40
+msgid "Put activities into LMS courses."
+msgstr "Placer les activités dans des cours du LMS."

@@ -22,6 +22,8 @@
     "authenticating": "Autenticando...",
     "notEnabledTitle": "Plugin no habilitado",
     "notEnabledMessage": "{name} no está habilitado para tu cuenta.",
+    "systemDisabledTitle": "Plugin deshabilitado",
+    "systemDisabledMessage": "{name} ha sido deshabilitado por un administrador.",
     "enableInSettings": "Habilitar en Configuración",
     "goBack": "Volver"
   },

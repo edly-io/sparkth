@@ -1,6 +1,6 @@
 from typing import Any
 
-from sparkth.core.plugins.service import PluginResponse
+from sparkth.core.plugins.schemas import PluginResponse
 from sparkth.core.plugins.widgets import ConfigWidget, secret, widget
 
 SCHEMA: dict[str, Any] = {
@@ -16,7 +16,9 @@ SCHEMA: dict[str, Any] = {
 
 
 def _response(config: dict[str, Any]) -> PluginResponse:
-    return PluginResponse.for_plugin(plugin_name="lms", enabled=True, config=config, is_core=True, config_schema=SCHEMA)
+    return PluginResponse.for_plugin(
+        plugin_name="lms", enabled=True, system_enabled=True, config=config, is_core=True, config_schema=SCHEMA
+    )
 
 
 def test_secret_fields_are_left_out_of_config() -> None:
@@ -52,7 +54,7 @@ def test_empty_secret_is_not_reported_as_set() -> None:
 
 def test_plugin_without_secret_fields_has_none_set() -> None:
     response = PluginResponse.for_plugin(
-        plugin_name="plain", enabled=True, config={"note": "x"}, is_core=True, config_schema={}
+        plugin_name="plain", enabled=True, system_enabled=True, config={"note": "x"}, is_core=True, config_schema={}
     )
 
     assert response.config == {"note": "x"}
@@ -77,3 +79,9 @@ def test_an_empty_masked_secret_is_not_returned() -> None:
     response = _response({"token": ""})
 
     assert response.masked_secrets == {}
+
+
+def test_the_system_switch_is_reported_beside_the_users_preference() -> None:
+    response = PluginResponse.for_plugin(plugin_name="lms", enabled=True, system_enabled=False, config={}, is_core=True)
+
+    assert (response.enabled, response.system_enabled) == (True, False)
