@@ -5,9 +5,13 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
+from sparkth.lib.auth import current_user_id
 from sparkth.lib.db import session_scope
+from sparkth.lib.documents import DocumentStatus, get_document
+from sparkth.rag.config import get_rag_settings
 from sparkth.rag.retrieval.agent import get_context_via_agent
 from sparkth.rag.retrieval.utils import validate_documents_ready
+from sparkth.rag.store import ChunkStoreService
 from sparkth.rag.types import RAGContext, RetrievedChunk
 
 if TYPE_CHECKING:
@@ -82,3 +86,28 @@ async def get_context_via_agent_with_isolated_session(
     """
     async with session_scope() as document_session:
         return await get_context_via_agent(document_session, document_id, query, llm)
+
+
+async def get_section_chunks(document_id: int, sections: list[dict[str, str | None]]) -> list[RetrievedChunk]:
+    """Return the chunks of ``sections`` of ``document_id``, in document order.
+
+    Each section is a dict of ``chapter``, ``section`` and ``subsection``, matched exactly. Reads
+    only a ready document the requesting user owns; any other has no chunks.
+    """
+    async with session_scope() as session:
+        document = await get_document(session, document_id, current_user_id())
+        if document is None or document.status != DocumentStatus.READY:
+            return []
+        chunks = await ChunkStoreService().fetch_chunks_by_sections(
+            session, document_id, sections, get_rag_settings().RAG_DEFAULT_CHUNKS
+        )
+    return [
+        RetrievedChunk(
+            source_name=chunk.source_name,
+            chapter=chunk.chapter,
+            section=chunk.section,
+            subsection=chunk.subsection,
+            content=chunk.content,
+        )
+        for chunk in chunks
+    ]

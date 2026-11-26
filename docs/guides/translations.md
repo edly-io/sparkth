@@ -39,18 +39,16 @@ The practical consequences worth knowing:
   parameter from its caller, and the Open edX publishing path asks the model for the same
   tag again when it creates a course run, since the model is the only thing that knows
   which language it wrote the course in.
-- Internal prompts stay English on purpose: the scope classifier, the retrieval intent
-  router and the document search agent reason in English while handling input in any
-  language. Nothing they produce is shown to a user.
+- Internal prompts stay English on purpose: the classifier that decides whether a message
+  needs a search of the attached documents, and the agent that runs that search, reason in
+  English while handling input in any language. Nothing they produce is shown to a user.
 - Output quality varies by language and Sparkth does not restrict which languages it will
   generate in, so output in a language nobody has reviewed is possible.
 
-The out-of-scope chat refusal is the one string that touches both. When the assistant
-model itself judges a request out of scope, it is handed the English source and told to
-send it in the conversation's language. A faster check can also catch the request first;
-a classification step may run there, but it only decides whether the request is in
-scope for the assistant — the backend writes the refusal sentence itself rather than a
-model, so that refusal follows the interface language instead.
+The out-of-scope chat refusal is the one string that touches both. When an agent judges a
+request out of scope, it is handed the English source and told to send it in the
+conversation's language. When the planner refuses a request no agent covers, the backend
+writes the sentence itself, so that refusal follows the interface language instead.
 
 ## Backend
 
