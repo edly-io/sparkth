@@ -3,6 +3,7 @@ from pathlib import Path
 from pxc.lib.permission import Permission
 
 from sparkth.lib.assets import read_asset
+from sparkth.plugins.compose.lib.enums import OptionsFence
 
 # The name the plugin registers under.
 PXC_PLUGIN_NAME = "pxc"
@@ -94,5 +95,7 @@ PXC_ACTIVITY_BUILDER_TITLE = "Interactive PXC activities"
 # What Compose's planner reads to decide a message is the activity builder's.
 PXC_ACTIVITY_BUILDER_DESCRIPTION = read_asset(__file__, "pxc_activity_building_description.txt")
 
-# The activity builder's section of Compose's system prompt, inserted as written.
-PXC_ACTIVITY_BUILDER_PROMPT = read_asset(__file__, "pxc_activity_builder_prompt.txt")
+# The activity builder's section of Compose's system prompt, with the tag of its block of choices filled in.
+PXC_ACTIVITY_BUILDER_PROMPT = read_asset(__file__, "pxc_activity_builder_prompt.txt").format(
+    single_options_tag=OptionsFence.SINGLE
+)

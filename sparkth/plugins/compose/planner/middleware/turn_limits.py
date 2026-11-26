@@ -17,7 +17,8 @@ from sparkth.plugins.compose.constants import (
     MAX_STEPS_PER_TURN,
     STOPPED_EARLY_NOTICE,
 )
-from sparkth.plugins.compose.enums import OptionsFence, TurnEventType
+from sparkth.plugins.compose.enums import TurnEventType
+from sparkth.plugins.compose.lib.enums import OptionsFence
 from sparkth.plugins.compose.planner.middleware.messages import get_step_number, get_step_results, with_calls
 from sparkth.plugins.compose.planner.middleware.plan import get_plan, get_rejection_reason
 from sparkth.plugins.compose.planner.types import ExistingPlan, PlannedStep

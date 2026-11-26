@@ -20,7 +20,7 @@ from sparkth.plugins.compose.constants import (
     PLANNER_PROMPT,
     PLANNER_WITHOUT_OPERATIONS,
 )
-from sparkth.plugins.compose.enums import OptionsFence
+from sparkth.plugins.compose.lib.enums import OptionsFence
 from sparkth.plugins.compose.planner.middleware import (
     end_at_repeat_hand_off,
     end_turn_after_agent_offers_choices,
