@@ -115,6 +115,7 @@ function EditModal({ config, providers, token, onClose, onSaved }: EditModalProp
           <Input
             label={t("name")}
             name="name"
+            noAutofill
             value={name}
             error={nameError}
             onChange={(e) => {
@@ -177,6 +178,7 @@ function EditModal({ config, providers, token, onClose, onSaved }: EditModalProp
               <div className="flex gap-2">
                 <Input
                   type="password"
+                  noAutofill
                   placeholder={t("newKeyPlaceholder")}
                   aria-label={t("newKeyPlaceholder")}
                   value={newKey}
@@ -494,6 +496,7 @@ function NewConfigModal({ token, onClose, onCreated }: NewConfigModalProps) {
               <Input
                 label={t("name")}
                 name="name"
+                noAutofill
                 required
                 placeholder={t("namePlaceholder")}
                 value={name}
@@ -538,7 +541,7 @@ function NewConfigModal({ token, onClose, onCreated }: NewConfigModalProps) {
                 name="api_key"
                 type="password"
                 required
-                autoComplete="off"
+                noAutofill
                 placeholder="sk-..."
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}

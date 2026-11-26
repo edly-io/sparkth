@@ -8,6 +8,8 @@ export type ApiConversation = Schema<"ConversationDetailResponse">;
 export type ConversationSummary = Schema<"ConversationResponse">;
 /** A plan as the author sees it: its tasks, the step it is at (0 before the first starts) and whether that step has run. */
 export type PlanSnapshot = Schema<"PlanSnapshot">;
+/** A tool call a reply made: the tool's name and where the call stands. */
+export type ToolCall = Schema<"PersistedToolCall">;
 /** A document attached to a conversation. */
 export type PersistedAttachment = Schema<"AttachedDocumentResponse">;
 /** A file uploaded from the computer that a conversation still has, without its text. */
@@ -69,6 +71,6 @@ export interface ChatMessage {
     source?: string | null;
     state: "scanning" | "confirmed";
   }[];
-  toolCalls?: { name: string; status: "running" | "done" }[];
+  toolCalls?: ToolCall[];
   stopped?: boolean;
 }
