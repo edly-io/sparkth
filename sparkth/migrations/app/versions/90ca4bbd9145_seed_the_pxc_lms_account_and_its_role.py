@@ -1,8 +1,8 @@
 """seed the pxc_lms account and its role
 
-Revision ID: a91c3e5d7b20
-Revises: f4f3ab101db9
-Create Date: 2026-11-26 23:10:00.000000
+Revision ID: 90ca4bbd9145
+Revises: 05e3a64e5c3a
+Create Date: 2026-11-26 23:14:32.721727
 
 Seeds the built-in ``pxc_lms`` account, which stands for the connected LMS, with no password and an address
 under ``.invalid``, so it can neither sign in nor receive mail. It also seeds the built-in ``pxc_lms_user``
@@ -10,15 +10,15 @@ role holding ``pxc.activity.play`` and ``pxc.activity.edit``, and assigns that r
 ``global``. The upgrade fails if an account already goes by the username.
 """
 
-import uuid
 from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
+from uuid6 import uuid7
 
 # revision identifiers, used by Alembic.
-revision: str = "a91c3e5d7b20"
-down_revision: Union[str, Sequence[str], None] = "f4f3ab101db9"
+revision: str = "90ca4bbd9145"
+down_revision: Union[str, Sequence[str], None] = "05e3a64e5c3a"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -40,7 +40,7 @@ def upgrade() -> None:
             "created_at, updated_at) "
             "VALUES ('PXC LMS', :username, :email, NULL, :uuid, false, false, now(), now()) RETURNING id"
         ),
-        {"username": _USERNAME, "email": _EMAIL, "uuid": uuid.uuid4()},
+        {"username": _USERNAME, "email": _EMAIL, "uuid": uuid7()},
     ).scalar_one()
     role_id = conn.execute(
         sa.text(

@@ -151,18 +151,28 @@ def _empty_launch_answers() -> Iterator[None]:
     _LAUNCH_ANSWERS.clear()
 
 
-@pytest.fixture
-async def lms_account(session: AsyncSession) -> User:
-    """The LMS account: stored with no password, holding both launch permissions at ``global``.
+async def make_lms_account(session: AsyncSession, permissions: list[str], scope_object_id: str | None) -> User:
+    """Create the LMS account, stored with no password, holding ``permissions`` at one owner's user scope.
 
-    The default-role fixture grants at ``user:1`` and ``authors`` relies on its owner being user 1, so a test
-    that uses both must name ``authors`` or ``authored_activity`` before ``lms_account`` in its parameters.
+    It holds them at ``global`` when given no owner. The default-role fixture grants at ``user:1`` and ``authors``
+    relies on its owner being user 1, so create the account after the authors.
     """
     account = User(name="PXC LMS", username=PXC_LMS_USERNAME, email="pxc_lms@sparkth.invalid")
     session.add(account)
     await session.commit()
-    await grant_permissions(session, account, ["pxc.activity.play", "pxc.activity.edit"], "global", None)
+    scope = "global" if scope_object_id is None else "user"
+    await grant_permissions(session, account, permissions, scope, scope_object_id)
     return account
+
+
+@pytest.fixture
+async def lms_account(session: AsyncSession) -> User:
+    """The LMS account holding both launch permissions at ``global``.
+
+    A test that also uses ``authors`` or ``authored_activity`` must name them before ``lms_account`` in its
+    parameters, so the authors are created first.
+    """
+    return await make_lms_account(session, ["pxc.activity.play", "pxc.activity.edit"], None)
 
 
 @pytest.fixture

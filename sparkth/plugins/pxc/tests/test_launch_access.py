@@ -17,6 +17,7 @@ from sparkth.plugins.pxc.constants import (
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound, PxcActivityNotPermitted
 from sparkth.plugins.pxc.launch_access import require_launch_access
 from sparkth.plugins.pxc.models import PxcActivity
+from sparkth.plugins.pxc.tests.conftest import make_lms_account
 from sparkth.plugins.pxc.tokens import LaunchClaims
 
 BOTH = ["pxc.activity.play", "pxc.activity.edit"]
@@ -36,16 +37,6 @@ def _preview_claims(activity: PxcActivity, user: User, level: str = "play") -> L
     )
 
 
-async def _make_lms_account(session: AsyncSession, permissions: list[str], scope_object_id: str | None) -> User:
-    """The LMS account holding ``permissions`` at one owner's user scope, or at global when given no owner."""
-    account = User(name="PXC LMS", username=PXC_LMS_USERNAME, email="pxc_lms@sparkth.invalid")
-    session.add(account)
-    await session.commit()
-    scope = "global" if scope_object_id is None else "user"
-    await grant_permissions(session, account, permissions, scope, scope_object_id)
-    return account
-
-
 async def test_the_lms_account_launches_a_bundled_activity_at_both_levels(lms_account: User) -> None:
     await require_launch_access(_lms_claims("mcq", "play"))
     await require_launch_access(_lms_claims("mcq", "edit"))
@@ -63,7 +54,7 @@ async def test_a_launch_is_refused_when_the_lms_account_does_not_exist(audit_eve
 async def test_an_lms_account_with_play_alone_cannot_edit(
     session: AsyncSession, audit_events: AuditEventsFetcher
 ) -> None:
-    account = await _make_lms_account(session, ["pxc.activity.play"], None)
+    account = await make_lms_account(session, ["pxc.activity.play"], None)
     await require_launch_access(_lms_claims("mcq", "play"))
     with pytest.raises(PxcActivityNotPermitted):
         await require_launch_access(_lms_claims("mcq", "edit"))
@@ -72,7 +63,7 @@ async def test_an_lms_account_with_play_alone_cannot_edit(
 
 
 async def test_an_lms_account_with_edit_alone_still_plays(session: AsyncSession) -> None:
-    await _make_lms_account(session, ["pxc.activity.edit"], None)
+    await make_lms_account(session, ["pxc.activity.edit"], None)
     await require_launch_access(_lms_claims("mcq", "play"))
     await require_launch_access(_lms_claims("mcq", "edit"))
 
@@ -81,7 +72,7 @@ async def test_a_generated_activity_is_checked_at_its_owners_scope(
     session: AsyncSession, authors: tuple[User, User], authored_activity: PxcActivity, audit_events: AuditEventsFetcher
 ) -> None:
     owner, other = authors
-    await _make_lms_account(session, BOTH, str(other.id))
+    await make_lms_account(session, BOTH, str(other.id))
     with pytest.raises(PxcActivityNotPermitted):
         await require_launch_access(_lms_claims(str(authored_activity.id)))
     assert (await audit_events())[-1].error_detail == f"scope=user:{owner.id}"
@@ -91,7 +82,7 @@ async def test_an_lms_grant_at_the_owners_scope_launches_that_owners_activity(
     session: AsyncSession, authors: tuple[User, User], authored_activity: PxcActivity
 ) -> None:
     owner, _ = authors
-    await _make_lms_account(session, BOTH, str(owner.id))
+    await make_lms_account(session, BOTH, str(owner.id))
     await require_launch_access(_lms_claims(str(authored_activity.id)))
     with pytest.raises(PxcActivityNotPermitted):
         await require_launch_access(_lms_claims("mcq"))
@@ -145,11 +136,29 @@ async def test_a_generated_activity_with_no_row_is_not_found(
     assert await audit_events() == []
 
 
+async def test_a_not_found_is_not_remembered(lms_account: User) -> None:
+    claims = _lms_claims(str(uuid7()))
+    for _ in range(2):
+        with pytest.raises(PxcActivityNotFound):
+            await require_launch_access(claims)
+
+
 async def test_a_preview_token_with_a_malformed_learner_id_is_refused(
     authors: tuple[User, User], authored_activity: PxcActivity
 ) -> None:
     claims = LaunchClaims(
         str(authored_activity.id), PXC_PREVIEW_ACTIVITY_INSTANCE, PXC_PREVIEW_COURSE_ID, "sparkth-abc", Permission.play
+    )
+    with pytest.raises(PxcActivityNotPermitted):
+        await require_launch_access(claims)
+
+
+async def test_a_preview_token_without_the_prefix_is_not_checked_as_that_user(
+    authors: tuple[User, User], authored_activity: PxcActivity
+) -> None:
+    owner, _ = authors
+    claims = LaunchClaims(
+        str(authored_activity.id), PXC_PREVIEW_ACTIVITY_INSTANCE, PXC_PREVIEW_COURSE_ID, str(owner.id), Permission.play
     )
     with pytest.raises(PxcActivityNotPermitted):
         await require_launch_access(claims)

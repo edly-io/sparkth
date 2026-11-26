@@ -2,8 +2,8 @@
 
 A preview token names the Sparkth user it was minted for, so it is checked for that user. Every other
 token comes from the LMS, whose learners and authors have no Sparkth account, so it is checked for the
-built-in LMS account. Answers are reused for a short time, since a launch is checked on every request
-and socket a page opens.
+built-in LMS account. An answer is reused for a short time, so checking the same launch again within it
+reads nothing.
 """
 
 from time import monotonic
@@ -105,6 +105,8 @@ async def require_launch_access(claims: LaunchClaims) -> None:
     is_preview = claims.course_id == PXC_PREVIEW_COURSE_ID
     key = (is_preview, claims.user_id if is_preview else PXC_LMS_USERNAME, level, claims.activity)
     now = monotonic()
+    # ponytail: requests for one key arriving before its first answer is stored each run the check and each
+    # record a denial; share one in-flight answer per key if that matters.
     answer = _LAUNCH_ANSWERS.get(key)
     if answer is None or now - answer[0] >= PXC_LAUNCH_ANSWER_TTL_SECONDS:
         answer = (now, await _check_launch(claims))
