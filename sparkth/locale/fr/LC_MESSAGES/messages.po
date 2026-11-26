@@ -317,3 +317,202 @@ msgstr "L'entrée existe déjà : {value}"
 msgid "Whitelist entry not found: {entry_id}"
 msgstr "Entrée de la liste blanche introuvable : {entry_id}"
 
+#: sparkth/core/permissions/__init__.py
+msgid "Users & access"
+msgstr "Utilisateurs et accès"
+
+#: sparkth/core/permissions/__init__.py
+msgid "Registration whitelist"
+msgstr "Liste d'inscription autorisée"
+
+#: sparkth/core/permissions/__init__.py
+msgid "Analytics & audit"
+msgstr "Analytique et audit"
+
+#: sparkth/core/permissions/__init__.py
+msgid "AI keys"
+msgstr "Clés d'IA"
+
+#: sparkth/core/permissions/__init__.py
+msgid "Plugins & files"
+msgstr "Plugins et fichiers"
+
+#: sparkth/core/permissions/__init__.py
+msgid "See the whitelist"
+msgstr "Voir la liste autorisée"
+
+#: sparkth/core/permissions/__init__.py
+msgid "View which emails and domains may sign up."
+msgstr "Voir quels e-mails et domaines peuvent s'inscrire."
+
+#: sparkth/core/permissions/__init__.py
+msgid "Add to the whitelist"
+msgstr "Ajouter à la liste autorisée"
+
+#: sparkth/core/permissions/__init__.py
+msgid "Let a new email or domain sign up."
+msgstr "Autoriser un nouvel e-mail ou domaine à s'inscrire."
+
+#: sparkth/core/permissions/__init__.py
+msgid "Remove from the whitelist"
+msgstr "Retirer de la liste autorisée"
+
+#: sparkth/core/permissions/__init__.py
+msgid "Stop an email or domain from signing up."
+msgstr "Empêcher un e-mail ou un domaine de s'inscrire."
+
+#: sparkth/core/permissions/__init__.py
+msgid "Create roles"
+msgstr "Créer des rôles"
+
+#: sparkth/core/permissions/__init__.py
+msgid "Add new roles."
+msgstr "Ajouter de nouveaux rôles."
+
+#: sparkth/core/permissions/__init__.py
+msgid "See roles"
+msgstr "Voir les rôles"
+
+#: sparkth/core/permissions/__init__.py
+msgid "Open the list of roles and what each one allows."
+msgstr "Ouvrir la liste des rôles et ce que chacun permet."
+
+#: sparkth/core/permissions/__init__.py
+msgid "Edit roles"
+msgstr "Modifier les rôles"
+
+#: sparkth/core/permissions/__init__.py
+msgid "Rename roles and change their permissions."
+msgstr "Renommer les rôles et modifier leurs autorisations."
+
+#: sparkth/core/permissions/__init__.py
+msgid "Delete roles"
+msgstr "Supprimer des rôles"
+
+#: sparkth/core/permissions/__init__.py
+msgid "Delete custom roles and take them away from everyone."
+msgstr "Supprimer des rôles personnalisés et les retirer à tout le monde."
+
+#: sparkth/core/permissions/__init__.py
+msgid "Create groups"
+msgstr "Créer des groupes"
+
+#: sparkth/core/permissions/__init__.py
+msgid "Add new groups."
+msgstr "Ajouter de nouveaux groupes."
+
+#: sparkth/core/permissions/__init__.py
+msgid "See groups"
+msgstr "Voir les groupes"
+
+#: sparkth/core/permissions/__init__.py
+msgid "Open groups and their members."
+msgstr "Ouvrir les groupes et leurs membres."
+
+#: sparkth/core/permissions/__init__.py
+msgid "Edit groups"
+msgstr "Modifier les groupes"
+
+#: sparkth/core/permissions/__init__.py
+msgid "Rename groups and change their description."
+msgstr "Renommer les groupes et modifier leur description."
+
+#: sparkth/core/permissions/__init__.py
+msgid "Delete groups"
+msgstr "Supprimer des groupes"
+
+#: sparkth/core/permissions/__init__.py
+msgid "Delete groups and take their roles away from their members."
+msgstr "Supprimer des groupes et retirer leurs rôles à leurs membres."
+
+#: sparkth/core/permissions/__init__.py
+msgid "See permissions"
+msgstr "Voir les autorisations"
+
+#: sparkth/core/permissions/__init__.py
+msgid "List the permissions a role can hold."
+msgstr "Lister les autorisations qu'un rôle peut avoir."
+
+#: sparkth/core/permissions/__init__.py
+msgid "View analytics"
+msgstr "Voir l'analytique"
+
+#: sparkth/core/permissions/__init__.py
+msgid "Open the analytics dashboards and run Explore queries."
+msgstr "Ouvrir les tableaux de bord d'analytique et lancer des requêtes Explorer."
+
+#: sparkth/core/permissions/__init__.py
+msgid "View the audit log"
+msgstr "Voir le journal d'audit"
+
+#: sparkth/core/permissions/__init__.py
+msgid "Read and export the record of every access change."
+msgstr "Lire et exporter l'historique de chaque changement d'accès."
+
+#: sparkth/core/permissions/__init__.py
+msgid "See information about users"
+msgstr "Voir des informations sur les utilisateurs"
+
+#: sparkth/core/permissions/__init__.py
+msgid "See who the people in Sparkth are, such as who did what in analytics."
+msgstr "Voir qui sont les personnes dans Sparkth, par exemple qui a fait quoi dans l'analytique."
+
+#: sparkth/core/permissions/__init__.py
+msgid "Add AI keys"
+msgstr "Ajouter des clés d'IA"
+
+#: sparkth/core/permissions/__init__.py
+msgid "Save a new AI provider and key."
+msgstr "Enregistrer un nouveau fournisseur d'IA et sa clé."
+
+#: sparkth/core/permissions/__init__.py
+msgid "See AI key settings"
+msgstr "Voir les réglages des clés d'IA"
+
+#: sparkth/core/permissions/__init__.py
+msgid "View saved AI providers and models."
+msgstr "Voir les fournisseurs et modèles d'IA enregistrés."
+
+#: sparkth/core/permissions/__init__.py
+msgid "Change AI keys"
+msgstr "Modifier les clés d'IA"
+
+#: sparkth/core/permissions/__init__.py
+msgid "Edit, rotate or switch the active AI key."
+msgstr "Modifier, renouveler ou changer la clé d'IA active."
+
+#: sparkth/core/permissions/__init__.py
+msgid "Delete AI keys"
+msgstr "Supprimer des clés d'IA"
+
+#: sparkth/core/permissions/__init__.py
+msgid "Remove saved AI keys."
+msgstr "Supprimer les clés d'IA enregistrées."
+
+#: sparkth/core/permissions/__init__.py
+msgid "Use plugins"
+msgstr "Utiliser les plugins"
+
+#: sparkth/core/permissions/__init__.py
+msgid "Use a plugin's features, such as Compose or Google Drive."
+msgstr "Utiliser les fonctions d'un plugin, comme Compose ou Google Drive."
+
+#: sparkth/core/permissions/__init__.py
+msgid "Switch plugins on or off"
+msgstr "Activer ou désactiver les plugins"
+
+#: sparkth/core/permissions/__init__.py
+msgid ""
+"Turn a plugin on or off for every user, which hides it and refuses its "
+"requests."
+msgstr ""
+"Activer ou désactiver un plugin pour tous les utilisateurs, ce qui le masque "
+"et refuse ses requêtes."
+
+#: sparkth/core/permissions/__init__.py
+msgid "Upload files"
+msgstr "Téléverser des fichiers"
+
+#: sparkth/core/permissions/__init__.py
+msgid "Upload files to read in conversations."
+msgstr "Téléverser des fichiers à lire dans les conversations."

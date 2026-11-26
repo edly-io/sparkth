@@ -31,6 +31,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from babel.messages.catalog import Catalog
+from babel.messages.extract import DEFAULT_KEYWORDS, extract_from_dir
 from babel.messages.mofile import write_mo
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
@@ -444,6 +445,19 @@ def translation_catalog(tmp_path: Path) -> Generator[AddTranslation]:
 
     for locale_dir in registered:
         LOCALE_DIRS.remove(locale_dir)
+
+
+def get_marked_messages(directory: Path) -> set[str]:
+    """Return the messages marked for translation in ``directory``'s modules, as ``make i18n.extract`` finds
+    them: with ``lazy_gettext`` and ``gettext_noop`` as markers, and skipping test directories."""
+    keywords = {**DEFAULT_KEYWORDS, "lazy_gettext": None, "gettext_noop": None}
+    messages: set[str] = set()
+    for _, _, message, *_ in extract_from_dir(
+        str(directory), keywords=keywords, directory_filter=lambda path: Path(path).name != "tests"
+    ):
+        # A plural message comes back as a tuple of its forms.
+        messages.update((message,) if isinstance(message, str) else message)
+    return messages
 
 
 def schema_property_names(schema: dict[str, Any]) -> set[str]:

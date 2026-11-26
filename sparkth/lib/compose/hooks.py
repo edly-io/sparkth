@@ -9,7 +9,11 @@ user or that the user may not use. A plugin registers one agent from its ``__ini
     register_agent(self, Agent(NAME, TITLE, DESCRIPTION, PROMPT, STATUS, tools=(...)))
 """
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from typing import Any
+
+from pydantic import BaseModel
 
 from sparkth.lib.compose.constants import AGENT_NAME_PATTERN, RESERVED_AGENT_NAMES
 from sparkth.lib.compose.exceptions import (
@@ -27,6 +31,19 @@ logger = get_logger(__name__)
 
 
 @dataclass(frozen=True)
+class AgentStructuredReply:
+    """An agent's reply as data instead of text, and how later steps read it.
+
+    ``schema`` is the shape of the reply. ``build_context`` is an async function that takes a reply of
+    that shape and builds the context the planner and later steps read from it, as text, such as the
+    passages a reply points to. The author never reads it.
+    """
+
+    schema: type[BaseModel]
+    build_context: Callable[[Any], Awaitable[str]]
+
+
+@dataclass(frozen=True)
 class Agent:
     """One kind of work Compose hands to a plugin.
 
@@ -34,7 +51,8 @@ class Agent:
     prompt, ``description`` is what Compose reads to decide a message is the agent's, ``prompt`` is
     inserted as written, ``status`` is what the author reads while the agent works, marked for
     translation, and ``tools`` are the tools the agent runs. A tool given only to the agent
-    is seen by no MCP client; one the plugin also gives the MCP server is seen by both.
+    is seen by no MCP client; one the plugin also gives the MCP server is seen by both. An agent
+    with a ``structured_reply`` replies with data for later steps, which the author never reads.
 
     A frozen dataclass, so the copies registered by repeated plugin constructions compare equal.
     Tools take no part in the comparison, so a plugin may build them on each construction.
@@ -46,6 +64,7 @@ class Agent:
     prompt: str
     status: str
     tools: tuple[Tool, ...] = field(default=(), compare=False)
+    structured_reply: AgentStructuredReply | None = None
 
 
 # One agent per plugin, consumed by the compose plugin. Keyed by plugin instance, so constructing

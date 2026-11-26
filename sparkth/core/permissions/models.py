@@ -5,6 +5,7 @@ from sqlalchemy import Index, text
 from sqlmodel import Field
 
 from sparkth.core.models.base import SoftDeleteModel, TimestampedModel
+from sparkth.core.permissions.constants import DEFAULT_ROLES
 
 
 class Role(TimestampedModel, table=True):
@@ -15,6 +16,11 @@ class Role(TimestampedModel, table=True):
     description: str | None = Field(default=None, max_length=255)
     # True for a role shipped with Sparkth; false for one an operator creates.
     is_builtin: bool = Field(default=False, sa_column_kwargs={"server_default": sa.false()})
+
+    @property
+    def is_default(self) -> bool:
+        """Whether every account is given this role when it is created."""
+        return self.name in DEFAULT_ROLES
 
 
 class RolePermission(TimestampedModel, table=True):
