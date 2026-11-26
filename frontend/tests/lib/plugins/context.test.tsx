@@ -89,3 +89,30 @@ describe("usePlugin", () => {
     expect(result.current.isUsable).toBe(false);
   });
 });
+
+describe("usePluginContext().isPluginUsable", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("answers by plugin name: on for the user and system-wide is usable, anything else is not", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify([
+            { plugin_name: "on", enabled: true, system_enabled: true },
+            { plugin_name: "user-off", enabled: false, system_enabled: true },
+            { plugin_name: "system-off", enabled: true, system_enabled: false },
+          ]),
+        ),
+    );
+
+    const { result } = renderHook(() => usePluginContext(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.isPluginUsable("on")).toBe(true);
+    expect(result.current.isPluginUsable("user-off")).toBe(false);
+    expect(result.current.isPluginUsable("system-off")).toBe(false);
+    expect(result.current.isPluginUsable("unknown")).toBe(false);
+  });
+});
