@@ -19,7 +19,7 @@ vi.mock("@/core/plugins/registry", async (importOriginal) => ({
 vi.mock("@/core/auth/hooks", () => ({ useAuth: () => ({ token: "test-token" }) }));
 const access = vi.hoisted(() => ({ userRead: "allowed" }));
 const usePermissionCheck = vi.hoisted(() => vi.fn(() => access.userRead));
-vi.mock("@/core/permissions/hooks", () => ({ usePermissionCheck }));
+vi.mock("@/lib/permissions/hooks", () => ({ usePermissionCheck }));
 vi.mock("@/core/analytics", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/core/analytics")>();
   return { ...actual, listViews: vi.fn() };

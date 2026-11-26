@@ -9,10 +9,11 @@ const client = vi.hoisted(() => ({
   listRoles: vi.fn(),
   createRole: vi.fn(),
   deleteRole: vi.fn(),
-  checkPermissions: vi.fn(),
 }));
+const checkPermissions = vi.hoisted(() => vi.fn());
 vi.mock("@/core/permissions/client", () => client);
-const { listRoles, createRole, deleteRole, checkPermissions } = client;
+vi.mock("@/lib/permissions/client", () => ({ checkPermissions }));
+const { listRoles, createRole, deleteRole } = client;
 
 import RolesPage from "@/app/dashboard/permissions/roles/RolesPage";
 

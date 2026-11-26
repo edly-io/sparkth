@@ -1,4 +1,4 @@
-import type { PermissionCheckQuery } from "@/core/permissions/client";
+import type { PermissionCheckQuery } from "@/lib/permissions/client";
 
 /**
  * What opening the Access & permissions section takes: every one of these checks must pass. An

@@ -26,7 +26,7 @@ vi.mock("@/core/analytics", async (importOriginal) => {
 
 const access = vi.hoisted(() => ({ userRead: "allowed" }));
 const usePermissionCheck = vi.hoisted(() => vi.fn(() => access.userRead));
-vi.mock("@/core/permissions/hooks", () => ({ usePermissionCheck }));
+vi.mock("@/lib/permissions/hooks", () => ({ usePermissionCheck }));
 
 const nav = vi.hoisted(() => ({ search: "", replace: vi.fn() }));
 vi.mock("next/navigation", () => ({
