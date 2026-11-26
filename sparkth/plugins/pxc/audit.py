@@ -1,7 +1,7 @@
 """Audit event types owned by the PXC plugin.
 
-An author permanently deleting one of their generated activities. Snapshots carry the activity's
-title and whether it was placed, never its content.
+A user permanently deleting a generated activity. Snapshots carry the activity's
+title, whether it was placed and its owner's user id, never its content.
 """
 
 from dataclasses import dataclass
@@ -16,9 +16,10 @@ PXC_ACTIVITY_TARGET = "pxc_activity"
 @AUDIT_EVENTS.register
 @dataclass(frozen=True, slots=True, kw_only=True)
 class PxcActivityDeletedAuditEvent(MutationAuditEvent):
-    """An author deleted an activity and its row was removed.
+    """A user deleted an activity and its row was removed.
 
-    ``change.old`` carries the activity's ``title`` and whether it was ``placed``.
+    ``change.old`` carries the activity's ``title``, whether it was ``placed`` and its
+    ``owner_user_id``, which names the owner when the deleting user is someone else.
     """
 
     event_type: ClassVar[str] = "pxc.activity_deleted"

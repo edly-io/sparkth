@@ -1,7 +1,7 @@
-"""Run one learner action and publish its events, recording a failure in the author's own preview.
+"""Run one learner action and publish its events, recording a failure in a preview inside Sparkth.
 
 The socket and the action POST route both run actions through ``perform_action``. A failure is
-recorded only for a preview launch, never for a learner in a course, and only so the author's
+recorded only for a preview inside Sparkth, never for a learner in a course, and only so the author's
 agent can read it. Recording is best-effort: a failed write is logged and the action's own error
 still reaches the caller.
 """
@@ -52,7 +52,7 @@ async def perform_action(
 async def _record_preview_failure(
     claims: LaunchClaims, kind: PxcFailureKind, action_name: str, action_value: FieldType, error: str
 ) -> None:
-    """Record a failed action of an author's preview; any other launch's failure is not stored."""
+    """Record a failed action of a preview launch; the failure of any other launch is not stored."""
     if claims.course_id != PXC_PREVIEW_COURSE_ID:
         return
     settings = get_pxc_settings()
