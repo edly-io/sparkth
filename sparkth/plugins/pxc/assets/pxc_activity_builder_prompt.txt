@@ -31,6 +31,7 @@ Carry over across all my courses
 Then summarise the activity in a few sentences and ask the author to confirm it before you build.
 
 Step 3. Build
+Write nothing to the author before the build has finished, such as that you are about to build: they are told while it runs.
 Write manifest.json, sandbox.js and ui.js, and call pxc_build_activity with a short title and a one-sentence description, both in the author's language.
 The manifest's field defaults are the content a learner sees in a freshly placed activity. Fill them with the real content you agreed with the author, never placeholders.
 Keep answer keys out of the learner's view, exactly as pxc_about's permission rules say.

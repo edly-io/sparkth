@@ -16,6 +16,7 @@ from langchain_core.exceptions import LangChainException
 from langchain_google_genai.chat_models import ChatGoogleGenerativeAIError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.lib.audit import ToolFailureKind
 from sparkth.lib.db import session_scope
 from sparkth.lib.i18n import _, gettext
 from sparkth.lib.llm import BaseChatProvider
@@ -123,10 +124,15 @@ def _agent_reply_metadata(
     return metadata
 
 
-def _tool_call_names(tool_calls: list[dict[str, Any]]) -> list[dict[str, str]]:
-    """The stored and streamed shape of a turn's tool calls: their names only. A failure reaches analytics
-    through the executed-tools list, not through the reply."""
-    return [{"name": call["name"]} for call in tool_calls]
+def _get_tool_call_status(failure: ToolFailureKind | None) -> ToolExecutionStatus:
+    """How a tool call that has ended with ``failure``, if any, is shown to the author."""
+    return ToolExecutionStatus.FAILED if failure is not None else ToolExecutionStatus.DONE
+
+
+def _get_stored_tool_calls(tool_calls: list[dict[str, Any]]) -> list[dict[str, str]]:
+    """The stored and streamed shape of a turn's tool calls: each one's name, and whether it was done or
+    failed. How it failed reaches analytics through the executed-tools list, not through the reply."""
+    return [{"name": call["name"], "status": _get_tool_call_status(call.get("failure"))} for call in tool_calls]
 
 
 @dataclass(frozen=True)
@@ -594,12 +600,10 @@ class ComposeStreamProcessor:
                         )
                     elif event["type"] == TurnEventType.TOOL_END:
                         tool_running = False
-                        completed_tool_calls.append({"name": event["name"], "failure": event.get("failure")})
+                        failure = event.get("failure")
+                        completed_tool_calls.append({"name": event["name"], "failure": failure})
                         await self._emit_status(
-                            ToolExecutionEvent(
-                                tool_name=event["name"],
-                                tool_status=ToolExecutionStatus.DONE,
-                            )
+                            ToolExecutionEvent(tool_name=event["name"], tool_status=_get_tool_call_status(failure))
                         )
                     if self._stop_is_requested():
                         stopped = True
@@ -612,7 +616,9 @@ class ComposeStreamProcessor:
                 stopped=stopped,
                 routing=turn_activity.routing,
                 agents=turn_activity.agents,
-                plan=turn_activity.get_plan_in_progress(),
+                plan=(
+                    turn_activity.get_plan_left_when_cut_short() if stopped else turn_activity.get_plan_in_progress()
+                ),
                 plan_snapshot=turn_activity.get_plan_snapshot(),
             )
         except LLM_PROVIDER_API_ERRORS as e:
@@ -622,7 +628,7 @@ class ComposeStreamProcessor:
                 confirmed_rag_sections,
                 completed_tool_calls,
                 turn_activity.agents,
-                turn_activity.get_plan_in_progress(),
+                turn_activity.get_plan_left_when_cut_short(),
                 turn_activity.get_plan_snapshot(),
                 bg_session,
             )
@@ -637,7 +643,7 @@ class ComposeStreamProcessor:
                 confirmed_rag_sections,
                 completed_tool_calls,
                 turn_activity.agents,
-                turn_activity.get_plan_in_progress(),
+                turn_activity.get_plan_left_when_cut_short(),
                 turn_activity.get_plan_snapshot(),
                 bg_session,
             )
@@ -668,7 +674,7 @@ class ComposeStreamProcessor:
             content=text,
             metadata=_agent_reply_metadata(
                 confirmed_rag_sections,
-                _tool_call_names(tool_calls),
+                _get_stored_tool_calls(tool_calls),
                 agents,
                 plan,
                 plan_snapshot=plan_snapshot,
@@ -705,7 +711,7 @@ class ComposeStreamProcessor:
             caller to emit once the stream is closed. See :meth:`_process_and_stream` for
             why they are returned rather than emitted here.
         """
-        tool_calls = _tool_call_names(completed_tool_calls)
+        tool_calls = _get_stored_tool_calls(completed_tool_calls)
         stopped = stopped_at is not None
         metadata = _agent_reply_metadata(
             confirmed_rag_sections,

@@ -1,5 +1,7 @@
 import type { Page } from "@playwright/test";
 
+import type { GroupResponse, RoleResponse } from "@/core/permissions/types";
+
 /** One permission check as `POST /api/v1/permissions/can/batch` sends it. */
 type SentCheck = { permission: string; scope: string; scope_object_id?: string | null };
 
@@ -21,11 +23,11 @@ export async function stubPermissions(page: Page, granted: readonly string[]): P
 }
 
 /** Stubs `GET /api/v1/permissions/roles` with `roles`. */
-export async function stubRoles(page: Page, roles: unknown[]): Promise<void> {
+export async function stubRoles(page: Page, roles: RoleResponse[]): Promise<void> {
   await page.route("**/api/v1/permissions/roles", (route) => route.fulfill({ json: roles }));
 }
 
 /** Stubs `GET /api/v1/permissions/groups` with `groups`. */
-export async function stubGroups(page: Page, groups: unknown[]): Promise<void> {
+export async function stubGroups(page: Page, groups: GroupResponse[]): Promise<void> {
   await page.route("**/api/v1/permissions/groups", (route) => route.fulfill({ json: groups }));
 }
