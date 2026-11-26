@@ -14,7 +14,7 @@
     "planStepRunning": "In progress",
     "planStepToDo": "To do",
     "optionsTypeElse": "Want something else? Type it in the message box below.",
-    "optionsNoneSelected": "No option selected",
+    "optionsNoneSelected": "Answered in the message below",
     "stopGenerating": "Stop generating",
     "sendMessage": "Send message",
     "pickerFailed": "Couldn't open the file picker. Please try again.",
