@@ -120,3 +120,33 @@ async def test_get_group_role_assignment_refuses_an_id_of_another_role(session: 
     assert assignment.id is not None and other.id is not None
     with pytest.raises(RoleAssignmentNotFound):
         await get_group_role_assignment(assignment.id, other.id, session)
+
+
+async def test_get_group_assignments_of_role_skips_a_revoked_row(session: AsyncSession) -> None:
+    user = await make_user(session, "ada")
+    role = await make_role(session, "grader", [])
+    _, assignment = await assign_through_group(session, user, role, "global", None)
+    assignment.soft_delete()
+    await session.flush()
+    assert role.id is not None
+    assert await get_group_assignments_of_role(role.id, session) == []
+
+
+async def test_get_group_role_assignment_returns_the_active_row(session: AsyncSession) -> None:
+    user = await make_user(session, "ada")
+    role = await make_role(session, "held", [])
+    _, assignment = await assign_through_group(session, user, role, "global", None)
+    assert assignment.id is not None and role.id is not None
+    found = await get_group_role_assignment(assignment.id, role.id, session)
+    assert found.id == assignment.id
+
+
+async def test_get_group_role_assignment_refuses_a_revoked_row(session: AsyncSession) -> None:
+    user = await make_user(session, "ada")
+    role = await make_role(session, "held", [])
+    _, assignment = await assign_through_group(session, user, role, "global", None)
+    assignment.soft_delete()
+    await session.flush()
+    assert assignment.id is not None and role.id is not None
+    with pytest.raises(RoleAssignmentNotFound):
+        await get_group_role_assignment(assignment.id, role.id, session)
