@@ -14,7 +14,7 @@
     "planStepRunning": "En curso",
     "planStepToDo": "Pendiente",
     "optionsTypeElse": "¿Quieres algo más? Escríbelo en el cuadro de mensaje de abajo.",
-    "optionsNoneSelected": "No se seleccionó ninguna opción",
+    "optionsNoneSelected": "Respondido en el mensaje siguiente",
     "stopGenerating": "Detener la generación",
     "sendMessage": "Enviar mensaje",
     "pickerFailed": "No se pudo abrir el selector de archivos. Inténtalo de nuevo.",
