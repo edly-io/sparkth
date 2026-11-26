@@ -58,6 +58,12 @@
         "permissionsLoading": "Chargement des permissions…",
         "permissionsFailed": "Impossible de charger les permissions. Réessayez."
       },
+      "edit": {
+        "button": "Modifier",
+        "title": "Modifier le rôle",
+        "save": "Enregistrer",
+        "failed": "Impossible d'enregistrer le rôle. Réessayez."
+      },
       "menu": {
         "label": "Plus d'actions pour {name}",
         "delete": "Supprimer le rôle"

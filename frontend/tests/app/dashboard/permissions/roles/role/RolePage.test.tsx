@@ -18,9 +18,11 @@ const client = vi.hoisted(() => ({
   getRole: vi.fn(),
   listPermissions: vi.fn(),
   setRolePermissions: vi.fn(),
+  updateRoleDetails: vi.fn(),
 }));
 vi.mock("@/core/permissions/client", () => client);
-const { checkPermissions, getRole, listPermissions, setRolePermissions } = client;
+const { checkPermissions, getRole, listPermissions, setRolePermissions, updateRoleDetails } =
+  client;
 
 import RolePage from "@/app/dashboard/permissions/roles/role/RolePage";
 
@@ -207,12 +209,39 @@ describe("RolePage", () => {
     expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
   });
 
+  it("edits the role's name and description, keeping unsaved permission changes", async () => {
+    updateRoleDetails.mockResolvedValue({
+      ...ROLE,
+      name: "Reviewer",
+      description: "Reviews work.",
+    });
+    renderWithIntl(<RolePage />);
+
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Edit roles" }));
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    await userEvent.clear(screen.getByLabelText("Name"));
+    await userEvent.type(screen.getByLabelText("Name"), "Reviewer");
+    await userEvent.clear(screen.getByLabelText("Description"));
+    await userEvent.type(screen.getByLabelText("Description"), "Reviews work.");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(updateRoleDetails).toHaveBeenCalledWith("test-token", 7, {
+      name: "Reviewer",
+      description: "Reviews work.",
+    });
+    expect(await screen.findByRole("heading", { level: 1, name: "Reviewer" })).toBeInTheDocument();
+    expect(screen.getByText("Reviews work.")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Edit roles" })).toBeChecked();
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
+  });
+
   it("lets nobody change a built-in role's permissions", async () => {
     getRole.mockResolvedValue({ ...ROLE, is_builtin: true });
     renderWithIntl(<RolePage />);
 
     expect(await screen.findByRole("checkbox", { name: "Edit roles" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Save changes" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
   });
 
   it("lets only those who may change the role change its permissions", async () => {

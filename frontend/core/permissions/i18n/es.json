@@ -58,6 +58,12 @@
         "permissionsLoading": "Cargando los permisos…",
         "permissionsFailed": "No se pudieron cargar los permisos. Inténtalo de nuevo."
       },
+      "edit": {
+        "button": "Editar",
+        "title": "Editar rol",
+        "save": "Guardar",
+        "failed": "No se pudo guardar el rol. Inténtalo de nuevo."
+      },
       "menu": {
         "label": "Más acciones para {name}",
         "delete": "Eliminar rol"

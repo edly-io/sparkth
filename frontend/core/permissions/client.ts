@@ -5,6 +5,7 @@ import type {
   PermissionResponse,
   RoleCreate,
   RoleResponse,
+  RoleUpdate,
 } from "@/core/permissions/types";
 import type { PermissionName } from "@/lib/permissions/names";
 
@@ -84,6 +85,21 @@ export async function setRolePermissions(
     api.PUT("/api/v1/permissions/roles/{role_id}/permissions", {
       params: { path: { role_id: roleId } },
       body: { permissions },
+      headers: bearer(token),
+    }),
+  );
+}
+
+/** Changes a role's name, its description or both, leaving out a field it isn't given. */
+export async function updateRoleDetails(
+  token: string,
+  roleId: number,
+  details: RoleUpdate,
+): Promise<RoleResponse> {
+  return call<RoleResponse>(() =>
+    api.PATCH("/api/v1/permissions/roles/{role_id}", {
+      params: { path: { role_id: roleId } },
+      body: details,
       headers: bearer(token),
     }),
   );

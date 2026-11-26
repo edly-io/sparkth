@@ -9,6 +9,7 @@ import {
   listPermissions,
   listRoles,
   setRolePermissions,
+  updateRoleDetails,
 } from "@/core/permissions/client";
 import { ApiRequestError } from "@/lib/api";
 
@@ -180,6 +181,22 @@ describe("setRolePermissions", () => {
     expect(await request.json()).toEqual({ permissions: ["role.read", "group.read"] });
     expect(request.headers.get("authorization")).toBe("Bearer test-token");
     expect(result).toEqual(saved);
+  });
+});
+
+describe("updateRoleDetails", () => {
+  it("PATCHes the changed details to /api/v1/permissions/roles/{id} and returns the role", async () => {
+    const updated = { id: 7, name: "Reviewer", description: "Reviews work." };
+    const spy = mockFetch(updated);
+
+    const result = await updateRoleDetails("test-token", 7, { name: "Reviewer" });
+
+    const request = sentRequest(spy);
+    expect(request.method).toBe("PATCH");
+    expect(new URL(request.url).pathname).toBe("/api/v1/permissions/roles/7");
+    expect(await request.json()).toEqual({ name: "Reviewer" });
+    expect(request.headers.get("authorization")).toBe("Bearer test-token");
+    expect(result).toEqual(updated);
   });
 });
 

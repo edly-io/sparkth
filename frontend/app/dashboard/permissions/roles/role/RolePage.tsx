@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Pencil } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRoleEditor } from "@/app/dashboard/permissions/roles/role/hooks";
 import { useAuth } from "@/core/auth/hooks";
 import { Alert } from "@/core/components/ui/Alert";
 import { Button } from "@/core/components/ui/Button";
 import { Spinner } from "@/core/components/ui/Spinner";
+import { EditRoleDialog } from "@/core/permissions/components/ui/EditRoleDialog";
 import { RiskChips } from "@/core/permissions/components/ui/RiskChips";
 import { RoleBadges } from "@/core/permissions/components/ui/RoleBadges";
 import { RolePermissionList } from "@/core/permissions/components/ui/RolePermissionList";
@@ -20,9 +21,10 @@ import { formatRoleName } from "@/core/permissions/roleDisplay";
 /**
  * One role's page, for the role named by `?id=`: a breadcrumb back through Access & permissions and
  * Roles, then the role's name as the page heading with its badges, description and risks, and every
- * permission with the role's own checked. Those who may change a custom role can check and uncheck
- * its permissions, and Save, enabled once they differ from the role's, saves them all at once and
- * says so. Says so too when there is no such role, it can't be loaded or saving fails.
+ * permission with the role's own checked. Those who may change a custom role can edit its name and
+ * description, and check and uncheck its permissions, with Save, enabled once they differ from the
+ * role's, saving them all at once and saying so. Says so too when there is no such role, it can't be
+ * loaded or saving fails.
  */
 export default function RolePage() {
   const t = useTranslations("permissions.roles.detail");
@@ -35,7 +37,8 @@ export default function RolePage() {
       scope: "role",
       scopeObjectId: String(roleId),
     }) === "allowed";
-  const { state, changed, setChecked, saveChecked } = useRoleEditor(roleId);
+  const { state, changed, setChecked, saveChecked, saveDetails } = useRoleEditor(roleId);
+  const [editing, setEditing] = useState(false);
   const { permissionList, load: loadPermissionList } = usePermissionList(token);
 
   useEffect(() => loadPermissionList(), [loadPermissionList]);
@@ -82,10 +85,27 @@ export default function RolePage() {
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold text-foreground sm:text-3xl">{name}</h1>
           <RoleBadges role={role} />
+          {!role.is_builtin && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-auto px-2.5 py-1 text-xs"
+              onClick={() => setEditing(true)}
+            >
+              <Pencil className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+              {tPermissions("roles.edit.button")}
+            </Button>
+          )}
         </div>
         {role.description && <p className="text-sm text-muted-foreground">{role.description}</p>}
         <RiskChips risks={role.risks} />
       </header>
+      <EditRoleDialog
+        open={editing}
+        role={role}
+        onSave={saveDetails}
+        onClose={() => setEditing(false)}
+      />
       {permissionList.status === "loading" && (
         <div
           role="status"

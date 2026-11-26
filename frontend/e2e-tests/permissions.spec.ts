@@ -172,6 +172,37 @@ test.describe("access & permissions", () => {
     await expect(save).toBeDisabled();
   });
 
+  test("edits a role's name and description on its page", async ({ page }) => {
+    const role = {
+      id: 1,
+      name: "Course editor",
+      description: "Edits courses",
+      permissions: [],
+      is_builtin: false,
+      is_default: false,
+      user_count: 0,
+      group_count: 0,
+      risks: [],
+    } satisfies RoleResponse;
+    await stubPermissions(page, SECTION_PERMISSIONS);
+    await stubRole(page, role);
+    await stubPermissionList(page, []);
+    const sent: unknown[] = [];
+    await page.route("**/api/v1/permissions/roles/1", (route) => {
+      if (route.request().method() !== "PATCH") return route.fallback();
+      sent.push(route.request().postDataJSON());
+      return route.fulfill({ json: { ...role, name: "Course reviewer" } });
+    });
+    await page.goto("/dashboard/permissions/roles/role?id=1");
+
+    await page.getByRole("button", { name: "Edit" }).click();
+    await page.getByLabel("Name").fill("Course reviewer");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+
+    await expect.poll(() => sent).toEqual([{ name: "Course reviewer" }]);
+    await expect(page.getByRole("heading", { level: 1, name: "Course reviewer" })).toBeVisible();
+  });
+
   for (const missing of SECTION_PERMISSIONS) {
     test(`without ${missing} there is no entry and the URL shows no access`, async ({ page }) => {
       await stubPermissions(
