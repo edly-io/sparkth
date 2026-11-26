@@ -167,26 +167,14 @@ async def delete_role(role_id: int, session: AsyncSession) -> None:
     await session.commit()
 
 
-async def add_role_permission(role_id: int, permission: str, session: AsyncSession) -> Role:
-    """Grant permission to the role (idempotent: a no-op if it's already granted) and return the role.
+async def _grant_permissions(role_id: int, permissions: list[str], session: AsyncSession) -> None:
+    """Grant each of ``permissions`` to the role, recording ``role.permission_granted`` for each.
 
-    A new grant records ``role.permission_granted``; a no-op records nothing. Returning the
-    role lets callers build a response without re-fetching it. Raises RoleNotFound
-    (no such role), RoleIsBuiltin (the role ships with Sparkth) or PermissionNotFound
-    (permission is not registered).
+    Writes in the caller's transaction. The caller checks the permissions are registered and not
+    already granted.
     """
-    role = await _get_changeable_role(role_id, session)
-    get_permission(permission)
-    existing = (
-        await session.exec(
-            select(RolePermission).where(
-                RolePermission.role_id == role_id,
-                RolePermission.permission == permission,
-            )
-        )
-    ).first()
-    if existing is None:
-        session.add(RolePermission(role_id=role_id, permission=permission))
+    session.add_all(RolePermission(role_id=role_id, permission=permission) for permission in permissions)
+    for permission in permissions:
         await record_event(
             session,
             RolePermissionGrantedAuditEvent(
@@ -195,27 +183,21 @@ async def add_role_permission(role_id: int, permission: str, session: AsyncSessi
                 change=AuditChange(new={"permission": permission}),
             ),
         )
-        await session.commit()
-    return role
 
 
-async def remove_role_permission(role_id: int, permission: str, session: AsyncSession) -> None:
-    """Revoke permission from the role (idempotent: a no-op if it isn't granted).
+async def _revoke_permissions(role_id: int, permissions: list[str], session: AsyncSession) -> None:
+    """Revoke each of ``permissions`` from the role, recording ``role.permission_revoked`` for each.
 
-    Revoking a held grant records ``role.permission_revoked``; a no-op records nothing.
-    Raises RoleNotFound if the role is missing or RoleIsBuiltin if it ships with Sparkth.
+    Writes in the caller's transaction. The caller passes only permissions the role grants.
     """
-    await _get_changeable_role(role_id, session)
-    grant = (
-        await session.exec(
-            select(RolePermission).where(
-                RolePermission.role_id == role_id,
-                RolePermission.permission == permission,
-            )
+    if not permissions:
+        return
+    await session.exec(
+        delete(RolePermission).where(
+            col(RolePermission.role_id) == role_id, col(RolePermission.permission).in_(permissions)
         )
-    ).first()
-    if grant is not None:
-        await session.delete(grant)
+    )
+    for permission in permissions:
         await record_event(
             session,
             RolePermissionRevokedAuditEvent(
@@ -224,7 +206,6 @@ async def remove_role_permission(role_id: int, permission: str, session: AsyncSe
                 change=AuditChange(old={"permission": permission}),
             ),
         )
-        await session.commit()
 
 
 async def get_role_assignee_counts(role_ids: list[int], session: AsyncSession) -> dict[int, RoleAssigneeCounts]:
@@ -252,6 +233,31 @@ async def get_role_assignee_counts(role_ids: list[int], session: AsyncSession) -
         role_id: RoleAssigneeCounts(users_by_role.get(role_id, 0), groups_by_role.get(role_id, 0))
         for role_id in role_ids
     }
+
+
+async def set_role_permissions(role_id: int, permissions: list[str], session: AsyncSession) -> Role:
+    """Make the role grant exactly ``permissions`` and return the role, in one transaction.
+
+    Grants what the role lacks and revokes what is not listed, recording ``role.permission_granted``
+    or ``role.permission_revoked`` for each change; a call that changes nothing records nothing.
+    Every permission being added must be registered, checked before anything changes; one the role
+    already holds may stay listed even if it is no longer registered. Raises RoleNotFound (no such
+    role), RoleIsBuiltin (the role ships with Sparkth) or PermissionNotFound (an added permission is
+    not registered). The role row is locked so concurrent saves apply one after the other.
+    """
+    role = await _get_changeable_role(role_id, session, for_update=True)
+    requested_permissions = set(permissions)
+    current_permissions = set(await get_role_permissions(role_id, session))
+    permissions_to_grant = sorted(requested_permissions - current_permissions)
+    permissions_to_revoke = sorted(current_permissions - requested_permissions)
+    if not permissions_to_grant and not permissions_to_revoke:
+        return role
+    for permission in permissions_to_grant:
+        get_permission(permission)
+    await _grant_permissions(role_id, permissions_to_grant, session)
+    await _revoke_permissions(role_id, permissions_to_revoke, session)
+    await session.commit()
+    return role
 
 
 async def get_role_permissions(role_id: int, session: AsyncSession) -> list[str]:
