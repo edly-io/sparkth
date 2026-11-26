@@ -114,7 +114,8 @@ async def launch_activity(
         raise PxcActivityNotPermitted(f"You are not allowed to do this; it needs the {needed.name} permission.")
     activity_dir(str(activity_id))
     token = mint_preview_token(activity_id, user_id, permission)
-    return ActivityLaunch(embed_url=str(request.url_for("embed_activity").include_query_params(token=token)))
+    embed_url = str(request.url_for("embed_activity").include_query_params(token=token))
+    return ActivityLaunch(embed_url=embed_url, owner_user_id=activity.owner_user_id)
 
 
 @router.delete(
