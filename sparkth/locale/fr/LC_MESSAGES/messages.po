@@ -456,8 +456,8 @@ msgid "See information about users"
 msgstr "Voir des informations sur les utilisateurs"
 
 #: sparkth/core/permissions/__init__.py
-msgid "See who the people in Sparkth are, such as who did what in analytics."
-msgstr "Voir qui sont les personnes dans Sparkth, par exemple qui a fait quoi dans l'analytique."
+msgid "List the people in Sparkth with their email addresses, and see who did what in analytics."
+msgstr "Lister les personnes dans Sparkth avec leurs adresses e-mail, et voir qui a fait quoi dans l'analytique."
 
 #: sparkth/core/permissions/__init__.py
 msgid "Add AI keys"

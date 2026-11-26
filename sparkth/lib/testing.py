@@ -366,7 +366,7 @@ def login_as(client: AsyncClient, user: User) -> None:
     """Make every request from ``client`` run as ``user``.
 
     The route sees a detached copy of ``user`` (id, name, username, email, password hash) and
-    binds it as ``get_current_user`` does, so audit events name it as the actor. The override
+    binds it as the authenticated user, so audit events name it as the actor. The override
     lasts until the test ends.
     """
     transport = cast(ASGITransport, client._transport)
