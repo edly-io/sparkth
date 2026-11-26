@@ -62,6 +62,7 @@ from sparkth.plugins.compose.routes.utils.stream_processor import (
     ComposeStreamProcessor,
     streaming_error_message,
 )
+from sparkth.plugins.compose.routes.utils.stream_schema import get_stream_status_schema
 from sparkth.plugins.compose.schemas import (
     ChatCompletionRequest,
     ChatCompletionResponse,
@@ -94,14 +95,16 @@ def _unusable_status(document: Document) -> Literal["queued", "processing", "fai
 
 # The handler returns ChatCompletionResponse (stream=false) or an SSE
 # StreamingResponse (stream=true); response_model alone cannot express that
-# union, so the 200 response declares both content types explicitly.
+# union, so the 200 response declares both content types explicitly. The event
+# stream's schema covers its status events only, not the reply's text, the final event or errors;
+# the frontend's status types are generated from it.
 @router.post(
     "/completions",
     response_model=None,
     responses={
         200: {
             "model": ChatCompletionResponse,
-            "content": {"text/event-stream": {"schema": {"type": "string"}}},
+            "content": {"text/event-stream": {"schema": get_stream_status_schema()}},
         }
     },
     dependencies=[Depends(CONVERSATION_WRITE.require_for_object(CONVERSATION, get_turn_conversation))],

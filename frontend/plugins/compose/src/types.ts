@@ -1,4 +1,4 @@
-import type { Schema } from "@/lib/api";
+import type { paths, Schema } from "@/lib/api";
 
 /** A stored chat message, as the chat API returns it. */
 export type ApiMessage = Schema<"MessageResponse">;
@@ -43,13 +43,17 @@ export function isUnsentUpload(attachment: TextAttachment): boolean {
 
 export type ChatRole = "user" | "assistant";
 
-// The status names the chat stream sends; stored verbatim so a rename cannot go unnoticed.
+/** A status event of a streamed reply, as the chat API sends it. */
+export type StreamStatusEvent =
+  paths["/api/v1/compose/completions"]["post"]["responses"][200]["content"]["text/event-stream"];
+
+/** The statuses shown as a line of text while the reply is on its way. */
 export const STREAM_STATUS_PHASES = [
   "scanning_attachments",
   "searching_documents",
   "skipping_rag",
   "generating",
-] as const;
+] as const satisfies readonly StreamStatusEvent["status"][];
 
 export type StreamStatusPhase = (typeof STREAM_STATUS_PHASES)[number];
 

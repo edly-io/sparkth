@@ -4027,7 +4027,119 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ChatCompletionResponse"];
-                    "text/event-stream": string;
+                    "text/event-stream": {
+                        /**
+                         * Done
+                         * @default false
+                         * @constant
+                         */
+                        done: false;
+                        /**
+                         * ResponseGenerationStatus
+                         * @description Where a streamed reply's writing stands.
+                         * @enum {string}
+                         */
+                        status: "generating" | "skipping_rag";
+                    } | {
+                        /**
+                         * Done
+                         * @default false
+                         * @constant
+                         */
+                        done: false;
+                        /** File Count */
+                        file_count: number;
+                        /**
+                         * DocumentProcessingStatus
+                         * @description What a streamed reply does with the author's files.
+                         * @enum {string}
+                         */
+                        status: "searching_documents" | "scanning_attachments";
+                    } | {
+                        /**
+                         * Done
+                         * @default false
+                         * @constant
+                         */
+                        done: false;
+                        /** RagSection */
+                        section: {
+                            /** Name */
+                            name: string;
+                            /** Source */
+                            source?: string | null;
+                            /** Type */
+                            type: string;
+                        };
+                        /**
+                         * DocumentSectionProcessingStatus
+                         * @description What a streamed reply does with a document section.
+                         * @enum {string}
+                         */
+                        status: "scanning_section" | "section_confirmed";
+                    } | {
+                        /**
+                         * Done
+                         * @default false
+                         * @constant
+                         */
+                        done: false;
+                        /**
+                         * Status
+                         * @default step
+                         * @constant
+                         */
+                        status: "step";
+                        /** Step Status */
+                        step_status: string;
+                    } | {
+                        /**
+                         * Done
+                         * @default false
+                         * @constant
+                         */
+                        done: false;
+                        /**
+                         * PlanSnapshot
+                         * @description A plan as the author sees it: its tasks, the number of the step it is at (0 before the first starts),
+                         *     and whether that step has run.
+                         */
+                        plan: {
+                            /** Current Step */
+                            current_step: number;
+                            /** Has Current Step Run */
+                            has_current_step_run: boolean;
+                            /** Tasks */
+                            tasks: string[];
+                        };
+                        /**
+                         * Status
+                         * @default plan
+                         * @constant
+                         */
+                        status: "plan";
+                    } | {
+                        /**
+                         * Done
+                         * @default false
+                         * @constant
+                         */
+                        done: false;
+                        /**
+                         * Status
+                         * @default tool_call
+                         * @constant
+                         */
+                        status: "tool_call";
+                        /** Tool Name */
+                        tool_name: string;
+                        /**
+                         * ToolExecutionStatus
+                         * @description Where a tool call stands, as reported on a streamed reply or kept with a stored one.
+                         * @enum {string}
+                         */
+                        tool_status: "running" | "done" | "failed";
+                    };
                 };
             };
             /** @description Validation Error */
