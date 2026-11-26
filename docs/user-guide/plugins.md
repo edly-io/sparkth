@@ -3,7 +3,8 @@
 A plugin is one feature you can turn on: Compose (the course assistant), an LMS, an online
 drive, a team-chat bot, or interactive activities. See
 [Supported integrations](index.md#supported-integrations) for which ones Sparkth connects to.
-Plugins are per user: turning one on or configuring it affects only your account.
+Plugins are per user: turning one on or configuring it affects only your account, unless an
+administrator has [switched it off for everyone](#a-plugin-an-administrator-switched-off).
 
 ## Turn a plugin on
 
@@ -25,6 +26,18 @@ A plugin's row shows its saved API key with all but the last few characters hidd
 password is never shown.
 
 ![Configuring a plugin](../img/user-guide/my-plugins-configure.png)
+
+## A plugin an administrator switched off
+
+An administrator can switch a plugin off for every user. When they do:
+
+- Its row in **Settings** reads **Switched off by an administrator**. The switch still shows your own
+  choice, but you cannot use it, and the sliders button is disabled.
+- The plugin leaves the sidebar and the dashboard, and opening its page says an administrator
+  switched it off.
+
+Your own choice and your saved settings are kept. When the administrator switches the plugin back on,
+it works again as you left it.
 
 !!! warning "Enabled is not configured"
     **Enabled** only means the plugin is turned on. It does not check your credentials or
