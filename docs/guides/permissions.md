@@ -122,7 +122,8 @@ assigned at.
 Roles and their permission grants are managed at runtime through the role-management REST API
 under `/api/v1/permissions` (gated by `role.*` / `permission.read`). See the REST API docs
 (`/docs`) for the endpoints. Permissions and scope kinds themselves are **not** editable
-there — they are declared in code.
+there — they are declared in code. A role can be created with its permissions in one request, as
+when duplicating a role, so creating one needs `role.update` at `global` as well as `role.create`.
 
 Compose checks a conversation's permissions at the conversation itself where one is named, except that attaching
 documents is checked at the owner's `user` scope. Reading one conversation, its last message and its attachments,
@@ -259,7 +260,7 @@ CLI commands are attributed to the `cli` system actor.
 | Event | Recorded by | Target | Snapshot |
 |---|---|---|---|
 | `role.created`, `role.updated`, `role.deleted` | `create_role`, `update_role`, `delete_role` | `role` | name and description (before and after for an update) |
-| `role.permission_granted`, `role.permission_revoked` | `add_role_permission`, `remove_role_permission` | `role` | the permission |
+| `role.permission_granted`, `role.permission_revoked` | `set_role_permissions`, `create_role` (one event for each permission granted or revoked) | `role` | the permission |
 | `role.assigned`, `role.unassigned` | `assign_role`, `revoke_role`, `delete_role`, `delete_group` | `user` | role, scope, and scope object id |
 | `group.created`, `group.updated`, `group.deleted` | `create_group`, `update_group`, `delete_group` | `group` | name and description (before and after for an update) |
 | `group.member_added`, `group.member_removed` | `add_group_member`, `remove_group_member`, `delete_group` | `group` | the member's user id |
