@@ -214,7 +214,8 @@ Taking `pxc.activity.play` from `pxc_lms` does not stop learners while it still 
 that permission allows a `play` launch too; remove both to stop them. A change reaches launches within 60
 seconds, since a launch's answer is reused for that long. A refused launch records `permission.denied` for the
 first permission that allows its level. On these routes the actor of that event is the account whose grant was
-checked, the previewing user or `pxc_lms`, because the request carries no signed-in caller.
+checked, the previewing user or `pxc_lms`, because the request carries no signed-in caller. When that account
+does not exist, as when code serves before the `pxc_lms` seed migration has run, the event has no actor.
 
 ## Groups
 
