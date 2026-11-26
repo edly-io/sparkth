@@ -796,13 +796,11 @@ class TestTurnWriteGate:
         scope_object_id = str(conv_uuid) if grant_scope is CONVERSATION else str(OWNER_ID)
         await grant_permission_at_scope(session, 1, WRITE, grant_scope, scope_object_id)
         await session.commit()
-        search = MagicMock(requires_search=AsyncMock(return_value=False))
         # A dropped id named twice still counts once.
         named_ids = [document_id] if attached else [document_id, document_id]
 
         with (
             patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_answering_provider()),
-            patch("sparkth.plugins.compose.routes.completions.RAGSearchClassifier", return_value=search),
         ):
             response = await client.post(
                 COMPLETIONS_URL, json={**_turn(config_id, conv_uuid), "document_ids": named_ids}
@@ -834,12 +832,10 @@ class TestTurnWriteGate:
         await session.flush()
         document_id = document.id
         await session.commit()
-        search = MagicMock(requires_search=AsyncMock(return_value=False))
 
         with (
             patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_answering_provider()),
             patch("sparkth.plugins.compose.conversation_title.get_provider", return_value=_answering_provider()),
-            patch("sparkth.plugins.compose.routes.completions.RAGSearchClassifier", return_value=search),
         ):
             response = await client.post(COMPLETIONS_URL, json={**_turn(config_id), "document_ids": [document_id]})
 
@@ -870,11 +866,9 @@ class TestTurnWriteGate:
         owner_doc_id, caller_doc_id = owner_doc.id, caller_doc.id
         await grant_permission_at_scope(session, 1, WRITE, GLOBAL)
         await session.commit()
-        search = MagicMock(requires_search=AsyncMock(return_value=False))
 
         with (
             patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_answering_provider()),
-            patch("sparkth.plugins.compose.routes.completions.RAGSearchClassifier", return_value=search),
         ):
             response = await client.post(
                 COMPLETIONS_URL, json={**_turn(config_id, conv_uuid), "document_ids": [owner_doc_id, caller_doc_id]}

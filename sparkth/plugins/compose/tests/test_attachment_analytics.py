@@ -8,7 +8,7 @@ prove an instructor was affected, not just that a code path ran.
 
 from datetime import datetime, timezone
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 from uuid import UUID
 
 from httpx import AsyncClient
@@ -96,13 +96,7 @@ def _provider() -> MagicMock:
 
 async def _complete_turn(client: AsyncClient, config_id: int, conversation_uuid: str, **extra: Any) -> Any:
     """Drive one non-streaming turn on an existing conversation."""
-    with (
-        patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()),
-        patch("sparkth.plugins.compose.routes.completions.RAGSearchClassifier") as mock_search_cls,
-    ):
-        search = MagicMock()
-        search.requires_search = AsyncMock(return_value=False)
-        mock_search_cls.return_value = search
+    with patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()):
         return await client.post(
             COMPLETIONS_URL,
             json={

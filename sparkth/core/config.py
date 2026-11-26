@@ -146,6 +146,7 @@ PLUGINS = [
     "sparkth.plugins.slack.plugin:Slack",
     "sparkth.plugins.moodle.plugin:MoodlePlugin",
     "sparkth.plugins.pxc.plugin:PxcPlugin",
+    "sparkth.plugins.rag.plugin:RagPlugin",
 ]
 
 

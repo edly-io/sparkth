@@ -898,7 +898,7 @@ class ComposeStreamProcessor:
                 conversation_id=self.conversation_uuid,
                 attribution=self.analytics,
                 model=self.provider.model,
-                rag_used=self.rag_search_required,
+                rag_used=bool(self.completed_searches),
                 streamed=True,
                 executed_tools=completion.executed_tools,
                 occurred_at=completion.occurred_at,

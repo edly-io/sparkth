@@ -1,37 +1,30 @@
 # Document retrieval in Compose
 
-When a user attaches documents to a conversation, the assistant can answer from their content
-rather than from the model's own knowledge. Retrieval is not automatic: it runs only when the
-conversation has documents to search and only when the user's message needs them.
+When an author attaches documents to a conversation, Compose can answer from their content rather than from the
+model's own knowledge. Retrieval is a step of the planner's, done by the `rag` agent, and it runs only when the
+author's message needs the documents.
+
+## Which documents the planner sees
+
+Every turn lists the conversation's attached documents for the planner and its agents, each with its id and name
+(`ComposeService.list_conversation_attachments`). The list holds the documents that are ready and the ones that can't
+be read: still being ingested or failed. A deleted document is not listed.
 
 ## When retrieval runs
 
-Both conditions must hold.
+The planner decides from the `rag` agent's description, as it does for every other agent. It gives `rag` a step
+before any step that draws on what the attached documents say: a question about them, a summary, or a course,
+lesson or assessment built from them. It never gives `rag` a step when no documents are attached, or for chit-chat,
+confirmations, phrasing tweaks or anything unrelated to the documents.
 
-**The conversation has at least one usable document.** `ComposeService.list_conversation_attachments`
-selects documents joined to the conversation whose status is `READY` and that are not deleted. A
-document still being ingested, one whose ingestion failed, and one the user has deleted are all
-invisible here, so none of them can trigger retrieval. With no such document the turn skips
-retrieval without asking anything.
+## What `rag` returns
 
-**The message needs those documents.** `RAGSearchClassifier.requires_search` puts the message to
-a model together with each document's section headings, and answers yes or no. "Explain
-mitochondria" against a document that has such a section is a yes; "make that punchier", a short
-confirmation, or a question unrelated to the attached material is a no. A declined search is
-logged with the reason the model gave and the conversation UUID; the client is told retrieval was
-skipped, not why.
+`rag` checks each document the request draws on, reads its structure and picks the sections the request needs. Its
+reply is data for the next step, never shown to the author: the text of the picked sections, followed by why any
+document couldn't be read. A document that is still being ingested, failed, or is missing is explained in the
+conversation, not turned into an error.
 
-An empty message with documents attached does not retrieve. A document sent with no words is a
-valid turn, but there is no question to search for.
+## What `rag` may read
 
-## What gets searched
-
-Exactly the documents from the first condition. The route turns them into `drive_file` blocks and
-the stream processor reads those blocks back out, so the set the classifier judged is the set
-retrieved from. There is no second source of document ids.
-
-## When the decision fails
-
-A classifier failure raises `RAGSearchError`, and the turn ends with an error the user sees and
-that is persisted to the conversation. Retrieval is never guessed at: answering from the model's
-own knowledge while the user believes their document was consulted is worse than an error.
+Only documents that are attached to the conversation the turn belongs to and that the requesting user owns. The route
+binds the attached documents' ids for the turn, and the document tools treat any other document as missing.

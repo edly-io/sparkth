@@ -184,11 +184,11 @@ every plugin; revoke that grant with `groups revoke-role-from-group`.
 Every route of the built-in plugins is gated on `plugin.use` at `plugin:<name>`, except those the table above
 names; a test fails on any plugin route that is neither gated nor listed with a reason.
 
-A Compose turn is given the tools and the agent of only the plugins its caller holds `plugin.use` at. Course
-design is its own plugin, `course-design`, so a user limited to `plugin:compose` can open Compose but is offered
-no agent. Assign `plugin_user` at `course-design` too, and at each plugin whose tools or agent the user should
-get in Compose. A request that names a tool of a plugin left out this way records a `permission.denied` event
-for that plugin; a request for every tool records none.
+A Compose turn is given the tools and the agent of only the plugins its caller holds `plugin.use` at. Course design is
+its own plugin, `course-design`, so a user limited to `plugin:compose` can open Compose but is offered no agent. Assign
+`plugin_user` at `course-design` too, at `rag` so Compose can read the documents they attach, and at each plugin whose
+tools or agent the user should get in Compose. A request that names a tool of a plugin left out this way records a
+`permission.denied` event for that plugin; a request for every tool records none.
 
 An LMS publishing tool lists and places the content of a plugin only for a caller who holds `plugin.use` at that
 plugin. Asking by name for the content of another plugin is refused and records a `permission.denied` event;

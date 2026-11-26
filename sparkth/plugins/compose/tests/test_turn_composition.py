@@ -203,10 +203,8 @@ class TestTheAttachedDocuments:
 
         with (
             patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()),
-            patch("sparkth.plugins.compose.routes.completions.RAGSearchClassifier") as classifier,
             patch("sparkth.plugins.compose.routes.completions.complete_turn", new=_turn_answer()) as turn,
         ):
-            classifier.return_value.requires_search = AsyncMock(return_value=False)
             await _turn(client, config_id, conversation_uuid)
 
         listing = f"{ATTACHED_DOCUMENTS_HEADING}\n- {documents[0].id}: Biology.pdf\n- {documents[1].id}: Draft.pdf"
@@ -236,10 +234,8 @@ class TestTheAttachedDocuments:
 
         with (
             patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()),
-            patch("sparkth.plugins.compose.routes.completions.RAGSearchClassifier") as classifier,
             patch(STREAM_TURN, reading_turn),
         ):
-            classifier.return_value.requires_search = AsyncMock(return_value=False)
             await _turn(client, config_id, conversation_uuid, stream=True)
 
         assert readable == {"Biology.pdf": True, "Notes.pdf": False}
