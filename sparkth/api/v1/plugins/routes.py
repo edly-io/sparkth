@@ -89,6 +89,7 @@ async def list_plugins(
             PluginResponse.for_plugin(
                 plugin_name=plugin.name,
                 enabled=preference.enabled if preference else True,
+                system_enabled=plugin.enabled,
                 config=safe_config,
                 is_core=plugin.is_core,
                 config_schema=plugin.config_schema,
@@ -142,6 +143,7 @@ async def configure_plugin(
     return PluginResponse.for_plugin(
         plugin_name=plugin.name,
         enabled=preference.enabled,
+        system_enabled=plugin.enabled,
         config=safe_config,
         is_core=plugin.is_core,
         config_schema=plugin.config_schema,
@@ -173,6 +175,7 @@ async def get_plugin(
         return PluginResponse.for_plugin(
             plugin_name=plugin_name,
             enabled=preference.enabled,
+            system_enabled=plugin.enabled,
             config=safe_config,
             is_core=plugin.is_core,
             config_schema=plugin.config_schema,
@@ -181,6 +184,7 @@ async def get_plugin(
         return PluginResponse.for_plugin(
             plugin_name=plugin_name,
             enabled=True,
+            system_enabled=plugin.enabled,
             config=config,
             is_core=plugin.is_core,
             config_schema=plugin.config_schema,
@@ -213,6 +217,7 @@ async def update_plugin(
     return PluginResponse.for_plugin(
         plugin_name=plugin_name,
         enabled=preference.enabled,
+        system_enabled=plugin.enabled,
         config=PluginService.config_with_schema_keys(plugin.config_schema, preference.config),
         is_core=plugin.is_core,
         config_schema=plugin.config_schema,
@@ -274,6 +279,7 @@ async def update_plugin_config(
     return PluginResponse.for_plugin(
         plugin_name=plugin_name,
         enabled=preference.enabled,
+        system_enabled=plugin.enabled,
         config=safe_config,
         is_core=plugin.is_core,
         config_schema=plugin.config_schema,

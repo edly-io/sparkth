@@ -6,6 +6,7 @@ import type { PluginState } from "@/core/plugins/types";
 function state(overrides: Partial<PluginState> & { plugin_name: string }): PluginState {
   return {
     enabled: true,
+    system_enabled: true,
     config: {},
     config_schema: {},
     is_core: true,

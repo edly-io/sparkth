@@ -2861,6 +2861,9 @@ export interface components {
          *     ``sparkth.lib.frontend`` hooks; build responses with :meth:`for_plugin`
          *     so they are always populated.
          *
+         *     ``enabled`` is the calling user's own preference for the plugin; ``system_enabled`` is the
+         *     system-wide switch, which applies to every user.
+         *
          *     ``config_schema`` is the plugin's declared JSON schema, which the settings
          *     UI renders its form from -- field types, labels, defaults, and the widget
          *     hints a plugin sets through ``json_schema_extra``. It is empty for a plugin
@@ -2906,6 +2909,8 @@ export interface components {
              */
             secrets_set: string[];
             sidebar?: components["schemas"]["SidebarEntry"] | null;
+            /** System Enabled */
+            system_enabled: boolean;
         };
         /**
          * PluginSystemEnabledResponse
