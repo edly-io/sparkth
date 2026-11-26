@@ -116,7 +116,7 @@ export default function RolePage() {
 
   // Applies `next` only while the same role is on show, so a save finishing after another role
   // was opened changes nothing.
-  const updateShownRole = (next: (current: LoadedRole) => LoadedRole) =>
+  const updateRole = (next: (current: LoadedRole) => LoadedRole) =>
     setState((current) =>
       current.status === "loaded" && current.role.id === role.id ? next(current) : current,
     );
@@ -126,10 +126,10 @@ export default function RolePage() {
     setState({ ...state, saveStatus: "saving" });
     try {
       const savedRole = await setRolePermissions(token, role.id, [...checked]);
-      updateShownRole(() => getLoadedState(savedRole, "saved"));
+      updateRole(() => getLoadedState(savedRole, "saved"));
     } catch (error) {
       console.error("Saving the role's permissions failed:", error);
-      updateShownRole((current) => ({ ...current, saveStatus: "failed" }));
+      updateRole((current) => ({ ...current, saveStatus: "failed" }));
     }
   };
 
