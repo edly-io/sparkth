@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.websockets import WebSocketDisconnect
 
-from sparkth.core.models.user import User
+from sparkth.lib.models import User
 from sparkth.lib.testing import AuditEventsFetcher
 from sparkth.plugins.pxc.constants import (
     PXC_ACTION_FAILED,
@@ -21,6 +21,7 @@ from sparkth.plugins.pxc.constants import (
     PXC_CLOSE_ACTIVITY_NOT_FOUND,
     PXC_CLOSE_INVALID_TOKEN,
     PXC_CLOSE_NOT_PERMITTED,
+    PXC_LMS_USERNAME,
     PXC_PREVIEW_ACTIVITY_INSTANCE,
     PXC_PREVIEW_COURSE_ID,
     PXC_PREVIEW_USER_PREFIX,
@@ -368,8 +369,17 @@ def test_a_socket_the_lms_account_may_not_open_is_closed_as_not_permitted(
     assert refusal.value.code == PXC_CLOSE_NOT_PERMITTED
 
 
+@pytest.fixture
+async def empty_lms_account(session: AsyncSession) -> User:
+    """The LMS account, holding no permission."""
+    account = User(name="PXC LMS", username=PXC_LMS_USERNAME, email="pxc_lms@sparkth.invalid")
+    session.add(account)
+    await session.commit()
+    return account
+
+
 def test_a_refused_socket_records_the_denial(
-    ws_client: TestClient, configured_secret: str, audit_events: AuditEventsFetcher
+    ws_client: TestClient, configured_secret: str, empty_lms_account: User, audit_events: AuditEventsFetcher
 ) -> None:
     token = mint_launch_token("mcq", "instance-1", "course-1", "learner-7", "play", configured_secret, 300)
 
@@ -379,7 +389,9 @@ def test_a_refused_socket_records_the_denial(
 
     assert ws_client.portal is not None
     events = ws_client.portal.call(audit_events)
-    assert [(e.category, e.action, e.target_id) for e in events] == [("permission", "denied", "pxc.activity.play")]
+    assert [(e.category, e.action, e.target_id, e.actor_id, e.actor_label) for e in events] == [
+        ("permission", "denied", "pxc.activity.play", str(empty_lms_account.id), PXC_LMS_USERNAME)
+    ]
     assert (events[0].request_id, events[0].request_ip) == (None, None)
 
 

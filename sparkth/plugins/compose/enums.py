@@ -58,3 +58,4 @@ class TurnEventType(StrEnum):
     LIMIT_REACHED = "limit_reached"
     USAGE = "usage"
     FINAL = "final"
+    STRUCTURED_REPLY = "structured_reply"

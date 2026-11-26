@@ -4,8 +4,8 @@ import { useReducer, useEffect, useCallback, type SubmitEvent } from "react";
 import { redirect } from "next/navigation";
 import { Plus, Trash2, Mail, Globe } from "lucide-react";
 import { useAuth } from "@/core/auth/hooks";
-import type { PermissionCheckQuery } from "@/core/permissions/client";
-import { usePermissionChecks } from "@/core/permissions/hooks";
+import type { PermissionCheckQuery } from "@/lib/permissions/client";
+import { usePermissionChecks } from "@/lib/permissions/hooks";
 import { ApiRequestError } from "@/lib/api";
 import {
   getWhitelist,

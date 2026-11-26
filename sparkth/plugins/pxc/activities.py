@@ -60,10 +60,9 @@ def activity_dir(activity_name: str) -> Path:
     """The source directory of one activity: a bundled one by name, else a generated one by id.
 
     Bundled activities are looked up first. A generated activity resolves from its directory
-    alone, so a learner's launch needs no database read. A generated activity's path is the
-    directory of the revision live at the call, so a caller holding it keeps reading that revision
-    after a newer one goes live. A launch spans many calls, so it reads the revision its token pins
-    instead (see ``runtime.launch_dir``).
+    alone, with no database read. A generated activity's path is the directory of the revision live
+    at the call, so a caller holding it keeps reading that revision after a newer one goes live. A launch
+    spans many calls, so it reads the revision its token pins instead (see ``runtime.launch_dir``).
 
     Raises:
         PxcActivityNotFound: if no bundled activity goes by this name and no generated activity

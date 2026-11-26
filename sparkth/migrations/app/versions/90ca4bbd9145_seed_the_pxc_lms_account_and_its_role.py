@@ -7,7 +7,7 @@ Create Date: 2026-11-26 23:14:32.721727
 Seeds the built-in ``pxc_lms`` account, which stands for the connected LMS, with no password and an address
 under ``.invalid``, so it can neither sign in nor receive mail. It also seeds the built-in ``pxc_lms_user``
 role holding ``pxc.activity.play`` and ``pxc.activity.edit``, and assigns that role to the account at
-``global``. The upgrade fails if an account already goes by the username.
+``global``. The upgrade fails if an account already goes by the username or a role by the role name.
 """
 
 from typing import Sequence, Union
@@ -34,6 +34,8 @@ def upgrade() -> None:
     conn = op.get_bind()
     if conn.execute(sa.text('SELECT 1 FROM "user" WHERE username = :username'), {"username": _USERNAME}).first():
         raise RuntimeError(f"An account named {_USERNAME!r} already exists; rename it before upgrading.")
+    if conn.execute(sa.text("SELECT 1 FROM role WHERE name = :name"), {"name": _ROLE}).first():
+        raise RuntimeError(f"A role named {_ROLE!r} already exists; rename it before upgrading.")
     user_id = conn.execute(
         sa.text(
             'INSERT INTO "user" (name, username, email, hashed_password, uuid, email_verified, is_deleted, '
@@ -76,8 +78,9 @@ def downgrade() -> None:
             {"name": _ROLE},
         )
     conn.execute(sa.text("DELETE FROM role WHERE name = :name"), {"name": _ROLE})
-    conn.execute(
-        sa.text('DELETE FROM role_assignment WHERE user_id IN (SELECT id FROM "user" WHERE username = :username)'),
-        {"username": _USERNAME},
-    )
+    for table in ("role_assignment", "group_membership"):
+        conn.execute(
+            sa.text(f'DELETE FROM {table} WHERE user_id IN (SELECT id FROM "user" WHERE username = :username)'),
+            {"username": _USERNAME},
+        )
     conn.execute(sa.text('DELETE FROM "user" WHERE username = :username'), {"username": _USERNAME})

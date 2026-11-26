@@ -149,7 +149,8 @@ class PermissionDeniedAuditEvent(BaseAuditEvent):
 
     ``target`` is the permission checked; ``error_detail`` names the scope
     (and the scope object id, when the scope has one). The actor is the authenticated caller, or, for a
-    request that carries no session, the account whose grant was checked.
+    request that carries no session, the account whose grant was checked, and none when that
+    account does not exist.
     """
 
     event_type: ClassVar[str] = "permission.denied"
