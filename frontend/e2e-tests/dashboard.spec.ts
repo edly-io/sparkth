@@ -1,17 +1,18 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
 
+import { isPluginUsable } from "@/core/plugins/metadata";
 import type { PluginState } from "@/core/plugins/types";
 import { apiBaseUrl, firstSuperuser, firstSuperuserPassword } from "./config";
 import { logInViaApi } from "./utils/user";
 
-/** The enabled plugins with a frontend, as the plugins API declares them. */
+/** The usable plugins with a frontend, as the plugins API declares them. */
 async function frontendPlugins(request: APIRequestContext): Promise<PluginState[]> {
   const { access_token } = await logInViaApi(request, firstSuperuser, firstSuperuserPassword);
   const response = await request.get(`${apiBaseUrl}/api/v1/plugins/`, {
     headers: { Authorization: `Bearer ${access_token}` },
   });
   const plugins = ((await response.json()) as PluginState[]).filter(
-    (plugin) => plugin.enabled && plugin.has_frontend,
+    (plugin) => isPluginUsable(plugin) && plugin.has_frontend,
   );
   expect(plugins.length).toBeGreaterThan(0);
   return plugins;

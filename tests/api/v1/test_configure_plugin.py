@@ -5,7 +5,8 @@ from fastapi import status
 from httpx import AsyncClient
 
 from sparkth.core.models.user import User
-from sparkth.core.plugins.service import ConfigValidationError, InternalServerError, PluginService
+from sparkth.core.plugins.exceptions import ConfigValidationError, PluginConfigUnavailable
+from sparkth.core.plugins.service import PluginService
 from sparkth.lib.testing import AuditEventsFetcher
 
 
@@ -111,10 +112,21 @@ async def test_configure_plugin_internal_error(client: AsyncClient, plugin_prefe
         patch.object(
             PluginService,
             "create_preference",
-            side_effect=InternalServerError("Plugin cannot be configured"),
+            side_effect=PluginConfigUnavailable("Plugin cannot be configured"),
         ),
     ):
         response = await client.post("/api/v1/plugins/plugin_a/configure", json=valid_config)
 
     assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
     assert response.json()["detail"] == "Plugin cannot be configured"
+
+
+async def test_configure_plugin_value_error_is_a_bad_request(client: AsyncClient, plugin_preferences: User) -> None:
+    with patch(
+        "sparkth.core.plugins.service.PluginService.apply_preprocess",
+        side_effect=ValueError("Model not allowed"),
+    ):
+        response = await client.post("/api/v1/plugins/plugin_a/configure", json={"model": "x"})
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert response.json()["detail"] == "Model not allowed"

@@ -1336,6 +1336,26 @@ export interface paths {
         patch: operations["enable_plugin_api_v1_plugins__plugin_name__enable_patch"];
         trace?: never;
     };
+    "/api/v1/plugins/{plugin_name}/system": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Plugin System Enabled
+         * @description Switch a plugin on or off for every user, leaving each user's own preference untouched.
+         */
+        patch: operations["update_plugin_system_enabled_api_v1_plugins__plugin_name__system_patch"];
+        trace?: never;
+    };
     "/api/v1/pxc/actions/{action_name}": {
         parameters: {
             query?: never;
@@ -2841,6 +2861,9 @@ export interface components {
          *     ``sparkth.lib.frontend`` hooks; build responses with :meth:`for_plugin`
          *     so they are always populated.
          *
+         *     ``enabled`` is the calling user's own preference for the plugin; ``system_enabled`` is the
+         *     system-wide switch, which applies to every user.
+         *
          *     ``config_schema`` is the plugin's declared JSON schema, which the settings
          *     UI renders its form from -- field types, labels, defaults, and the widget
          *     hints a plugin sets through ``json_schema_extra``. It is empty for a plugin
@@ -2886,6 +2909,18 @@ export interface components {
              */
             secrets_set: string[];
             sidebar?: components["schemas"]["SidebarEntry"] | null;
+            /** System Enabled */
+            system_enabled: boolean;
+        };
+        /**
+         * PluginSystemEnabledResponse
+         * @description Response model for a plugin's system-wide switch, which applies to every user.
+         */
+        PluginSystemEnabledResponse: {
+            /** Plugin Name */
+            plugin_name: string;
+            /** System Enabled */
+            system_enabled: boolean;
         };
         /**
          * PreviewPermission
@@ -3116,7 +3151,7 @@ export interface components {
         ToolExecutionStatus: "running" | "done" | "failed";
         /**
          * UpdatePluginRequest
-         * @description Request model for turning a plugin on or off for the calling user.
+         * @description Request model for turning a plugin on or off, for the calling user or for everyone.
          */
         UpdatePluginRequest: {
             /** Enabled */
@@ -5638,6 +5673,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PluginResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_plugin_system_enabled_api_v1_plugins__plugin_name__system_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plugin_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePluginRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PluginSystemEnabledResponse"];
                 };
             };
             /** @description Validation Error */

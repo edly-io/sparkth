@@ -48,3 +48,8 @@ def secret(control: ConfigWidget = ConfigWidget.PASSWORD, *, masked: bool = Fals
     ```
     """
     return {**widget(control), "secret": True, "masked": masked}
+
+
+def secret_field_names(config_schema: dict[str, Any]) -> list[str]:
+    """The names of the fields a config schema marks secret."""
+    return [name for name, prop in config_schema.get("properties", {}).items() if prop.get("secret")]
