@@ -18,7 +18,7 @@ vi.mock("@/lib/auth/hooks", () => ({
 }));
 
 vi.mock("@/lib/plugins/context", () => ({
-  usePlugin: () => ({ isEnabled: false, loading: false, config: pluginConfig }),
+  usePlugin: () => ({ isUsable: false, loading: false, config: pluginConfig }),
 }));
 
 vi.mock("next/navigation", () => ({

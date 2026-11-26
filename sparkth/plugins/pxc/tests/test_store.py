@@ -1,4 +1,4 @@
-"""Owner-scoped reads and writes of generated activities."""
+"""Reads and writes of generated activities and their failure rows."""
 
 from collections.abc import AsyncGenerator
 from datetime import timedelta
@@ -21,7 +21,7 @@ from sparkth.plugins.pxc.exceptions import PxcActivityNotFound
 from sparkth.plugins.pxc.models import PxcActionFailure, PxcActivity
 from sparkth.plugins.pxc.store import (
     delete_activity,
-    get_owned_activity,
+    get_activity,
     insert_action_failure,
     insert_activity,
     list_action_failures,
@@ -43,6 +43,18 @@ async def test_an_inserted_activity_is_listed_for_its_owner(session: AsyncSessio
     assert [listed.id for listed in await list_owned_activities(session, OWNER)] == [activity.id]
 
 
+async def test_an_activity_is_found_by_its_id_whoever_owns_it(session: AsyncSession) -> None:
+    activity = _activity(OTHER_USER)
+    await insert_activity(session, activity)
+
+    assert (await get_activity(session, activity.id)).owner_user_id == OTHER_USER
+
+
+async def test_an_id_that_names_no_activity_is_not_found(session: AsyncSession) -> None:
+    with pytest.raises(PxcActivityNotFound):
+        await get_activity(session, uuid7())
+
+
 async def test_another_users_activities_are_not_listed(session: AsyncSession) -> None:
     await insert_activity(session, _activity(OTHER_USER))
 
@@ -61,26 +73,6 @@ async def test_activities_are_listed_newest_first(session: AsyncSession) -> None
     await insert_activity(session, older)
 
     assert [listed.title for listed in await list_owned_activities(session, OWNER)] == ["Newer", "Older"]
-
-
-async def test_the_owner_gets_their_activity(session: AsyncSession) -> None:
-    activity = _activity(OWNER)
-    await insert_activity(session, activity)
-
-    assert (await get_owned_activity(session, activity.id, OWNER)).title == "Fractions"
-
-
-async def test_another_users_activity_is_not_found(session: AsyncSession) -> None:
-    activity = _activity(OTHER_USER)
-    await insert_activity(session, activity)
-
-    with pytest.raises(PxcActivityNotFound):
-        await get_owned_activity(session, activity.id, OWNER)
-
-
-async def test_an_unknown_activity_is_not_found(session: AsyncSession) -> None:
-    with pytest.raises(PxcActivityNotFound):
-        await get_owned_activity(session, uuid7(), OWNER)
 
 
 async def test_two_activities_with_the_same_title_are_both_kept(session: AsyncSession) -> None:
@@ -177,7 +169,7 @@ async def test_deleting_an_activity_removes_its_row_and_records_it(
     assert (event.category, event.action) == ("pxc", "activity_deleted")
     assert event.outcome == "success"
     assert (event.target_type, event.target_id) == ("pxc_activity", str(activity.id))
-    assert event.old_values == {"title": "Fractions", "placed": True}
+    assert event.old_values == {"title": "Fractions", "placed": True, "owner_user_id": OWNER}
     assert event.new_values is None
 
 
@@ -193,7 +185,7 @@ async def test_an_activity_is_not_deleted_when_its_audit_record_fails(
         await delete_activity(session, activity)
 
     await session.rollback()
-    assert (await get_owned_activity(session, activity_id, OWNER)).id == activity_id
+    assert (await get_activity(session, activity_id)).id == activity_id
 
 
 async def test_deleting_an_activity_already_deleted_is_not_found_and_records_nothing(
@@ -201,7 +193,7 @@ async def test_deleting_an_activity_already_deleted_is_not_found_and_records_not
 ) -> None:
     activity = _activity(OWNER)
     await insert_activity(session, activity)
-    stale = await get_owned_activity(session, activity.id, OWNER)
+    stale = await get_activity(session, activity.id)
     await session.exec(delete(PxcActivity).where(col(PxcActivity.id) == activity.id))
     await session.commit()
 

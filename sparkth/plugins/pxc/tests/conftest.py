@@ -24,6 +24,7 @@ from uuid6 import uuid7
 
 from sparkth.core.models.user import User
 from sparkth.lib.auth import bind_current_user_id
+from sparkth.lib.testing import AuditEventsFetcher
 from sparkth.main import assemble_app
 from sparkth.plugins.pxc import builder
 from sparkth.plugins.pxc.activities import activity_dir, generated_activity_dir
@@ -154,6 +155,19 @@ def act_as(user: User) -> None:
     """Bind ``user`` as the authenticated caller for the rest of this test."""
     assert user.id is not None
     bind_current_user_id(user.id)
+
+
+async def assert_activity_permission_denied(
+    audit_events: AuditEventsFetcher, permission: str, owner_id: int | None
+) -> None:
+    """Assert the last audit row is a denial of ``permission`` at the user scope of the activity's owner."""
+    event = (await audit_events())[-1]
+    assert (event.category, event.action, event.target_id, event.error_detail) == (
+        "permission",
+        "denied",
+        permission,
+        f"scope=user:{owner_id}",
+    )
 
 
 @pytest.fixture
