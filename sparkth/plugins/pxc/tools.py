@@ -117,6 +117,7 @@ async def pxc_list_activities(limit: int | None = None) -> dict[str, list[dict[s
     if limit is None:
         limit = get_pxc_settings().list_activities_limit
     async with session_scope() as session:
+        # The caller lists their own activities, so the owner and the caller are the same user.
         await require_activity_permission(session, PXC_ACTIVITY_READ, owner, owner)
         activities = await list_owned_activities(session, owner, limit)
     return {
