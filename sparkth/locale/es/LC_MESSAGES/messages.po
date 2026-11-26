@@ -507,3 +507,8 @@ msgstr "Subir archivos para leerlos en las conversaciones."
 #, python-brace-format
 msgid "User not found: {user_id}"
 msgstr "Usuario no encontrado: {user_id}"
+
+#: sparkth/core/permissions/exceptions.py:66
+#, python-brace-format
+msgid "Role assignment not found: {assignment_id}"
+msgstr "Asignación de rol no encontrada: {assignment_id}"

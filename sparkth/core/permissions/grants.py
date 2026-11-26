@@ -1,9 +1,10 @@
-"""Role grants: assigning and revoking roles for users, and removing the grants scoped to an object.
+"""Role grants: assigning and revoking roles for users, reading a role's assignments, and removing the
+grants scoped to an object.
 
-``assign_role`` and ``revoke_role`` change a user's role assignments, and
-``delete_grants_at_object`` removes every user and group grant scoped to one object when that
-object is deleted. Each active grant removed is recorded as a ``role.unassigned`` or
-``group.role_revoked`` audit event.
+``assign_role`` and ``revoke_role`` change a user's role assignments, ``get_user_assignments_of_role``
+and ``get_role_assignment`` read the active assignments of one role, and ``delete_grants_at_object``
+removes every user and group grant scoped to one object when that object is deleted. Each active grant
+removed is recorded as a ``role.unassigned`` or ``group.role_revoked`` audit event.
 """
 
 from sqlalchemy import ColumnElement, and_, delete
@@ -11,8 +12,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.core.models.user import User
 from sparkth.core.permissions.constants import PLUGIN_USER_ROLE, SPARKTH_USER_ROLE
-from sparkth.core.permissions.exceptions import RoleNotFound
+from sparkth.core.permissions.exceptions import RoleAssignmentNotFound, RoleNotFound
 from sparkth.core.permissions.models import GroupRoleAssignment, Role, RoleAssignment
 from sparkth.core.permissions.scopes import GLOBAL, USER, PermissionScope
 from sparkth.lib.audit import record_event
@@ -164,6 +166,37 @@ async def revoke_role(
             ),
         )
     return len(assignments)
+
+
+async def get_user_assignments_of_role(
+    role_id: int, limit: int, offset: int, session: AsyncSession
+) -> list[tuple[RoleAssignment, User]]:
+    """Return a page of the role's active user assignments, each with its user, ordered by assignment id.
+
+    An assignment whose user account is soft-deleted is still returned; the user row says so.
+    """
+    result = await session.exec(
+        select(RoleAssignment, User)
+        .join(User, col(User.id) == col(RoleAssignment.user_id))
+        .where(RoleAssignment.role_id == role_id, RoleAssignment.is_deleted == False)
+        .order_by(col(RoleAssignment.id))
+        .limit(limit)
+        .offset(offset)
+    )
+    return list(result.all())
+
+
+async def get_role_assignment(assignment_id: int, role_id: int, session: AsyncSession) -> RoleAssignment:
+    """Return the active user assignment with this id and role, or raise RoleAssignmentNotFound."""
+    statement = select(RoleAssignment).where(
+        RoleAssignment.id == assignment_id,
+        RoleAssignment.role_id == role_id,
+        RoleAssignment.is_deleted == False,
+    )
+    assignment = (await session.exec(statement)).first()
+    if assignment is None:
+        raise RoleAssignmentNotFound(assignment_id)
+    return assignment
 
 
 async def record_active_user_grants_removed(match: ColumnElement[bool], session: AsyncSession) -> None:
