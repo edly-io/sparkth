@@ -1350,10 +1350,10 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Update Plugin System State
+         * Update Plugin System Enabled
          * @description Switch a plugin on or off for every user, leaving each user's own preference untouched.
          */
-        patch: operations["update_plugin_system_state_api_v1_plugins__plugin_name__system_patch"];
+        patch: operations["update_plugin_system_enabled_api_v1_plugins__plugin_name__system_patch"];
         trace?: never;
     };
     "/api/v1/pxc/actions/{action_name}": {
@@ -2908,10 +2908,10 @@ export interface components {
             sidebar?: components["schemas"]["SidebarEntry"] | null;
         };
         /**
-         * PluginSystemStateResponse
+         * PluginSystemEnabledResponse
          * @description Response model for a plugin's system-wide switch, which applies to every user.
          */
-        PluginSystemStateResponse: {
+        PluginSystemEnabledResponse: {
             /** Plugin Name */
             plugin_name: string;
             /** System Enabled */
@@ -5681,7 +5681,7 @@ export interface operations {
             };
         };
     };
-    update_plugin_system_state_api_v1_plugins__plugin_name__system_patch: {
+    update_plugin_system_enabled_api_v1_plugins__plugin_name__system_patch: {
         parameters: {
             query?: never;
             header?: never;
@@ -5702,7 +5702,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PluginSystemStateResponse"];
+                    "application/json": components["schemas"]["PluginSystemEnabledResponse"];
                 };
             };
             /** @description Validation Error */
