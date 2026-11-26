@@ -502,3 +502,8 @@ msgstr "Subir archivos"
 #: sparkth/core/permissions/__init__.py
 msgid "Upload files to read in conversations."
 msgstr "Subir archivos para leerlos en las conversaciones."
+
+#: sparkth/services/users/exceptions.py:8
+#, python-brace-format
+msgid "User not found: {user_id}"
+msgstr "Usuario no encontrado: {user_id}"

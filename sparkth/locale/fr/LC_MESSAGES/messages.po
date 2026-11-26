@@ -506,3 +506,8 @@ msgstr "Téléverser des fichiers"
 #: sparkth/core/permissions/__init__.py
 msgid "Upload files to read in conversations."
 msgstr "Téléverser des fichiers à lire dans les conversations."
+
+#: sparkth/services/users/exceptions.py:8
+#, python-brace-format
+msgid "User not found: {user_id}"
+msgstr "Utilisateur introuvable : {user_id}"
