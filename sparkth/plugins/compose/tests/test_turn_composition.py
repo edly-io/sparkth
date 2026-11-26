@@ -1,5 +1,5 @@
-"""What a turn starts with: every enabled agent, and every requested tool whose plugin is on,
-of the plugins the caller may use.
+"""What a turn starts with: every enabled agent, every requested tool whose plugin is on, of the
+plugins the caller may use, and the documents attached to its conversation.
 
 Each agent then runs with only the tools it names.
 """
@@ -13,11 +13,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.exc import OperationalError
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.plugin import Plugin, UserPluginPreference
 from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME
 from sparkth.lib.compose.hooks import Agent
+from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.llm import small_model_for
 from sparkth.lib.models import LLMConfig, User
@@ -27,9 +29,9 @@ from sparkth.lib.settings import get_settings
 from sparkth.lib.testing import AuditEventsFetcher
 from sparkth.main import app
 from sparkth.plugins.compose.config import ComposeSettings, get_compose_settings
-from sparkth.plugins.compose.constants import REFUSAL_MESSAGE
+from sparkth.plugins.compose.constants import ATTACHED_DOCUMENTS_HEADING, REFUSAL_MESSAGE
 from sparkth.plugins.compose.enums import PlannerModel
-from sparkth.plugins.compose.models import Conversation
+from sparkth.plugins.compose.models import Conversation, ConversationAttachment
 from sparkth.plugins.compose.planner import ExistingPlan, PlannedStep, TurnRouting, render_planner_prompt
 from sparkth.plugins.compose.prompt import render_system_prompt
 from sparkth.plugins.compose.tests.helpers import CANVAS_CONFIG, OPENEDX_CONFIG, answering_model, planning, refusal
@@ -167,6 +169,39 @@ class TestThePlannersModel:
         models = await self._models_asked_for(client, session, current_user.id or 1)
 
         assert models == ["gpt-4o", "gpt-4o"]
+
+
+class TestTheAttachedDocuments:
+    """The planner is told what is attached, so an agent can name a document or say why it can't read one yet."""
+
+    async def test_the_turn_lists_the_attached_documents_ready_or_not_but_not_deleted_ones(
+        self, client: AsyncClient, current_user: User, session: AsyncSession
+    ) -> None:
+        user_id = current_user.id or 1
+        config_id = await _seed_llm_config(session, user_id)
+        conversation_uuid = await _seed_conversation(session, user_id)
+        conversation = (await session.exec(select(Conversation))).one()
+        documents = [
+            Document(user_id=user_id, name="Biology.pdf", status=DocumentStatus.READY),
+            Document(user_id=user_id, name="Draft.pdf", status=DocumentStatus.PROCESSING),
+            Document(user_id=user_id, name="Removed.pdf", status=DocumentStatus.READY, is_deleted=True),
+        ]
+        session.add_all(documents)
+        await session.flush()
+        for document in documents:
+            session.add(ConversationAttachment(conversation_id=conversation.id or 0, document_id=document.id or 0))
+        await session.commit()
+
+        with (
+            patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()),
+            patch("sparkth.plugins.compose.routes.completions.RAGSearchClassifier") as classifier,
+            patch("sparkth.plugins.compose.routes.completions.complete_turn", new=_turn_answer()) as turn,
+        ):
+            classifier.return_value.requires_search = AsyncMock(return_value=False)
+            await _turn(client, config_id, conversation_uuid)
+
+        listing = f"{ATTACHED_DOCUMENTS_HEADING}\n- {documents[0].id}: Biology.pdf\n- {documents[1].id}: Draft.pdf"
+        assert {"role": "user", "content": listing} in turn.await_args_list[-1].args[0]
 
 
 class TestAnUnfinishedPlan:

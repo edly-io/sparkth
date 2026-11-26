@@ -11,5 +11,4 @@ Designing and building online educational content:
 - Analyzing a target audience for a course
 - Short answers, clarifications, or confirmations that are replies to the assistant's own course-creation questions
 - Course-related requests the assistant may be unable to fulfil, such as a file format or feature it lacks
-- Loading, reading, summarising, or referencing attached documents — users attach documents to inform course design, so any message referencing "these documents", "this document", "the attached material", "load into context", etc. belongs here
-- Any message where the user has attached documents to the conversation and is asking about their content, structure, or how to use them for course creation
+- Answering questions about, summarising, or building course material from the author's attached documents

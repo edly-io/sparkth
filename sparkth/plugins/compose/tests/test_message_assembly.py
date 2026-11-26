@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from sparkth.lib.documents import Document, DocumentStatus
+from sparkth.plugins.compose.constants import ATTACHED_DOCUMENTS_HEADING
 from sparkth.plugins.compose.models import Message
 from sparkth.plugins.compose.routes.utils.message_assembly import assemble_provider_messages
 from sparkth.plugins.compose.schemas import ChatCompletionRequest, ChatMessage, UploadedFile
@@ -49,7 +50,15 @@ class TestHistoryAndCurrentTurns:
         ]
 
         messages, _unresolved = await assemble_provider_messages(
-            request, db_messages, [], "", False, MagicMock(), uploaded_files=[], analytics=MagicMock()
+            request,
+            db_messages,
+            [],
+            "",
+            False,
+            MagicMock(),
+            uploaded_files=[],
+            analytics=MagicMock(),
+            listed_documents=[],
         )
 
         assert [m["content"] for m in messages] == ["hello", "hi", "what about chapter 3?"]
@@ -63,7 +72,15 @@ class TestHistoryAndCurrentTurns:
         db_messages = [_stored("user", "summarise this")]
 
         messages, _unresolved = await assemble_provider_messages(
-            request, db_messages, [], "", False, MagicMock(), uploaded_files=[], analytics=MagicMock()
+            request,
+            db_messages,
+            [],
+            "",
+            False,
+            MagicMock(),
+            uploaded_files=[],
+            analytics=MagicMock(),
+            listed_documents=[],
         )
 
         assert messages[-1]["content"] == blocks
@@ -81,6 +98,7 @@ class TestHistoryAndCurrentTurns:
             MagicMock(),
             uploaded_files=[],
             analytics=MagicMock(),
+            listed_documents=[],
         )
 
         assert [m["content"] for m in messages] == ["first message"]
@@ -95,7 +113,15 @@ class TestHistoryAndCurrentTurns:
         db_messages = [_stored("user", "hello"), _stored("assistant", "hi"), _stored("user", "summarise them")]
 
         messages, _unresolved = await assemble_provider_messages(
-            request, db_messages, [], "", False, MagicMock(), uploaded_files=uploaded_files, analytics=MagicMock()
+            request,
+            db_messages,
+            [],
+            "",
+            False,
+            MagicMock(),
+            uploaded_files=uploaded_files,
+            analytics=MagicMock(),
+            listed_documents=[],
         )
 
         assert [m["content"] for m in messages] == [
@@ -124,6 +150,7 @@ class TestWhenRetrievalWillRun:
             MagicMock(),
             uploaded_files=[],
             analytics=MagicMock(),
+            listed_documents=[],
         )
 
         assert unresolved is not None
@@ -147,6 +174,7 @@ class TestWhenRetrievalWillRun:
                 MagicMock(),
                 uploaded_files=[],
                 analytics=MagicMock(),
+                listed_documents=[],
             )
 
         mock_resolve.assert_awaited_once()
@@ -166,6 +194,7 @@ class TestWhenRetrievalWillRun:
             MagicMock(),
             uploaded_files=[],
             analytics=MagicMock(),
+            listed_documents=[],
         )
 
         file_ids = [b["file_id"] for b in messages[-1]["content"] if b.get("type") == "drive_file"]
@@ -177,7 +206,15 @@ class TestWhenRetrievalWillRun:
         request = _request([{"type": "document", "source": {"type": "base64", "data": ""}}], stream=True)
 
         messages, _unresolved = await assemble_provider_messages(
-            request, [], [_document(3)], "", True, MagicMock(), uploaded_files=[], analytics=MagicMock()
+            request,
+            [],
+            [_document(3)],
+            "",
+            True,
+            MagicMock(),
+            uploaded_files=[],
+            analytics=MagicMock(),
+            listed_documents=[],
         )
 
         blocks = messages[-1]["content"]
@@ -198,6 +235,7 @@ class TestWhenRetrievalWillRun:
             MagicMock(),
             uploaded_files=uploaded_files,
             analytics=MagicMock(),
+            listed_documents=[],
         )
 
         assert messages[0]["content"] == "[File: notes.txt]\n\nmitochondria"
@@ -211,7 +249,15 @@ class TestWhenRetrievalWillNotRun:
         request = _request("just chatting", stream=True)
 
         _messages, unresolved = await assemble_provider_messages(
-            request, [], [_document()], "just chatting", False, MagicMock(), uploaded_files=[], analytics=MagicMock()
+            request,
+            [],
+            [_document()],
+            "just chatting",
+            False,
+            MagicMock(),
+            uploaded_files=[],
+            analytics=MagicMock(),
+            listed_documents=[],
         )
 
         assert unresolved is None
@@ -230,6 +276,51 @@ class TestWhenRetrievalWillNotRun:
                 MagicMock(),
                 uploaded_files=[],
                 analytics=MagicMock(),
+                listed_documents=[],
             )
 
         mock_resolve.assert_not_awaited()
+
+
+class TestTheAttachedDocuments:
+    """The planner and its agents name a document by its id, so every turn lists them."""
+
+    @pytest.mark.asyncio
+    async def test_they_are_listed_by_id_and_name_before_the_requests_turns(self) -> None:
+        request = _request("summarise them")
+        db_messages = [_stored("user", "hello"), _stored("assistant", "hi"), _stored("user", "summarise them")]
+
+        messages, _unresolved = await assemble_provider_messages(
+            request,
+            db_messages,
+            [],
+            "",
+            False,
+            MagicMock(),
+            uploaded_files=[],
+            analytics=MagicMock(),
+            listed_documents=[_document(1, "a.pdf"), _document(2, "b.pdf")],
+        )
+
+        assert [m["content"] for m in messages] == [
+            "hello",
+            "hi",
+            f"{ATTACHED_DOCUMENTS_HEADING}\n- 1: a.pdf\n- 2: b.pdf",
+            "summarise them",
+        ]
+
+    @pytest.mark.asyncio
+    async def test_a_conversation_with_none_lists_nothing(self) -> None:
+        messages, _unresolved = await assemble_provider_messages(
+            _request("hello"),
+            [],
+            [],
+            "",
+            False,
+            MagicMock(),
+            uploaded_files=[],
+            analytics=MagicMock(),
+            listed_documents=[],
+        )
+
+        assert [m["content"] for m in messages] == ["hello"]
