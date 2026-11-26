@@ -393,7 +393,12 @@ PLUGIN_USE = Permission.create(
 )
 
 # Switching a plugin on or off for everyone, checked at the plugin scope of the plugin's name.
-PLUGIN_MANAGE = Permission.create("plugin.manage")
+PLUGIN_MANAGE = Permission.create(
+    "plugin.manage",
+    gettext_noop("Switch plugins on or off"),
+    gettext_noop("Turn a plugin on or off for every user, which hides it and refuses its requests."),
+    _PLUGINS_AND_FILES,
+)
 
 # Uploading files, checked at the user scope of the uploader.
 FILE_UPLOAD = Permission.create(

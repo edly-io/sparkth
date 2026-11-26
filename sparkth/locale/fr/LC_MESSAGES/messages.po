@@ -500,6 +500,18 @@ msgid "Use a plugin's features, such as Compose or Google Drive."
 msgstr "Utiliser les fonctions d'un plugin, comme Compose ou Google Drive."
 
 #: sparkth/core/permissions/__init__.py
+msgid "Switch plugins on or off"
+msgstr "Activer ou désactiver les plugins"
+
+#: sparkth/core/permissions/__init__.py
+msgid ""
+"Turn a plugin on or off for every user, which hides it and refuses its "
+"requests."
+msgstr ""
+"Activer ou désactiver un plugin pour tous les utilisateurs, ce qui le masque "
+"et refuse ses requêtes."
+
+#: sparkth/core/permissions/__init__.py
 msgid "Upload files"
 msgstr "Téléverser des fichiers"
 
