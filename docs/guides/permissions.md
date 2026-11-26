@@ -37,7 +37,7 @@ is declared in application code, not kept in a catalogue table.
   permission system has no hierarchy yet). A plugin's permission uses the plugin's name as its category. The
   risks are:
   - `delegates_access`: the holder can give others access, by creating roles, changing what a role or group
-    grants, or giving a role or a group membership to someone;
+    grants, adding people to a group, or giving a role to people;
   - `private_data`: the holder can see information about other people;
   - `deletes`: the holder can delete something for everyone.
 
@@ -250,6 +250,8 @@ its permission at the `group` scope, so a grant at one group reaches that group'
 that group's `group` scope. It returns the active assignments, oldest first, each as `id`, `group_id`,
 `group_name`, `role_id`, `role_name`, `scope`, `scope_object_id` and `assigned_at`; revoked ones are left out,
 and an unknown group is 404.
+A holder of `group.member.add` at a group can add any user, themselves included, and the added user then holds
+every role the group holds.
 Granting and revoking a group's roles is CLI-managed. The CLI manages both:
 
 ```bash
