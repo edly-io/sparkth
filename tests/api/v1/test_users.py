@@ -28,6 +28,16 @@ async def test_list_users_filters_by_search(client: AsyncClient, session: AsyncS
     assert [row["id"] for row in response.json()] == [wanted.id]
 
 
+async def test_list_users_with_an_empty_search_lists_everyone(client: AsyncClient, session: AsyncSession) -> None:
+    caller = await make_user_with_permissions(session, ["user.read"])
+    other = await make_user(session, "other_person")
+    await session.commit()
+    login_as(client, caller)
+    response = await client.get("/api/v1/users?search=")
+    assert response.status_code == 200
+    assert [row["username"] for row in response.json()] == sorted([caller.username, other.username])
+
+
 async def test_list_users_pages(client: AsyncClient, session: AsyncSession) -> None:
     caller = await make_user_with_permissions(session, ["user.read"])
     for username in ("page_a", "page_b", "page_c"):
