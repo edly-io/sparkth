@@ -1120,7 +1120,11 @@ export interface paths {
         put?: never;
         /**
          * Create Role
-         * @description Create a role. Returns the created RoleResponse, which nobody holds yet.
+         * @description Create a role, granting it the listed permissions in the same transaction.
+         *
+         *     Needs ``role.update`` at global as well as ``role.create``, since the new role can be given
+         *     permissions; an unregistered one is refused with 422 and nothing is created. Returns the created
+         *     RoleResponse, which nobody holds yet.
          */
         post: operations["create_role_api_v1_permissions_roles_post"];
         delete?: never;
@@ -2948,12 +2952,17 @@ export interface components {
              */
             email: string;
         };
-        /** RoleCreate */
+        /**
+         * RoleCreate
+         * @description A new role: its name, description and the permissions it starts with (none by default).
+         */
         RoleCreate: {
             /** Description */
             description?: string | null;
             /** Name */
             name: string;
+            /** Permissions */
+            permissions?: string[];
         };
         /**
          * RolePermissionsSet

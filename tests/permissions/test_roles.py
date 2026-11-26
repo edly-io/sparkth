@@ -312,6 +312,28 @@ async def test_get_permissions_for_roles_empty_input_returns_empty_map(session: 
     assert await roles.get_permissions_for_roles([], session) == {}
 
 
+async def test_create_role_with_permissions_grants_them(session: AsyncSession) -> None:
+    role = await roles.create_role("grader", None, session, permissions=["role.read", "assignment.grade"])
+    assert role.id is not None
+    assert sorted(await roles.get_role_permissions(role.id, session)) == ["assignment.grade", "role.read"]
+
+
+async def test_create_role_grants_a_permission_listed_twice_once(session: AsyncSession) -> None:
+    role = await roles.create_role("grader", None, session, permissions=["role.read", "role.read"])
+    assert role.id is not None
+    assert await roles.get_role_permissions(role.id, session) == ["role.read"]
+
+
+async def test_create_role_with_an_unknown_permission_creates_nothing(
+    session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    with pytest.raises(PermissionNotFound):
+        await roles.create_role("grader", None, session, permissions=["role.read", "bogus.unregistered"])
+
+    assert (await session.exec(select(Role).where(Role.name == "grader"))).first() is None
+    assert await audit_events() == []
+
+
 async def test_create_role_is_not_builtin(session: AsyncSession) -> None:
     role = await roles.create_role("grader", None, session)
     assert role.is_builtin is False

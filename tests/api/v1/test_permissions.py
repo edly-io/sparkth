@@ -24,6 +24,7 @@ from sparkth.lib.auth import get_current_user
 from sparkth.lib.permissions.scopes import GLOBAL
 from sparkth.lib.testing import (
     AddTranslation,
+    AuditEventsFetcher,
     add_role_assignment,
     assign_through_group,
     grant_permissions,
@@ -96,6 +97,46 @@ async def test_create_role_returns_201(client: AsyncClient, session: AsyncSessio
     assert body["name"] == "grader"
     assert body["description"] == "Grades"
     assert body["permissions"] == []
+
+
+async def test_create_role_with_permissions_returns_them(client: AsyncClient, session: AsyncSession) -> None:
+    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    response = await client.post(
+        "/api/v1/permissions/roles", json={"name": "grader", "permissions": ["role.update", "role.read"]}
+    )
+    assert response.status_code == 201
+    assert sorted(response.json()["permissions"]) == ["role.read", "role.update"]
+    assert response.json()["risks"] == ["delegates_access"]
+
+
+async def test_create_role_with_an_unregistered_permission_returns_422_and_creates_nothing(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    response = await client.post(
+        "/api/v1/permissions/roles", json={"name": "grader", "permissions": ["bogus.unregistered"]}
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Permission not found: bogus.unregistered"
+    assert (await session.exec(select(Role).where(Role.name == "grader"))).first() is None
+
+
+@pytest.mark.parametrize("body", [{"name": "grader"}, {"name": "grader", "permissions": ["role.read"]}])
+async def test_creating_a_role_needs_role_update_too(
+    body: dict[str, object], client: AsyncClient, session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    _override_current_user(client, await make_user_with_permissions(session, ["role.create"]))
+    response = await client.post("/api/v1/permissions/roles", json=body)
+
+    assert response.status_code == 403
+    assert (await session.exec(select(Role).where(Role.name == "grader"))).first() is None
+    event = (await audit_events())[-1]
+    assert (event.category, event.action, event.target_id, event.error_detail) == (
+        "permission",
+        "denied",
+        "role.update",
+        "scope=global",
+    )
 
 
 async def test_create_duplicate_role_returns_409(client: AsyncClient, session: AsyncSession) -> None:
