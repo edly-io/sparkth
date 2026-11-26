@@ -193,6 +193,62 @@ test.describe("access & permissions", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Course reviewer" })).toBeVisible();
   });
 
+  test("duplicates a role from its page, then deletes the copy", async ({ page }) => {
+    const role = {
+      id: 1,
+      name: "Course editor",
+      description: "Edits courses",
+      permissions: ["role.read"],
+      is_builtin: false,
+      is_default: false,
+      user_count: 0,
+      group_count: 0,
+      risks: [],
+    } satisfies RoleResponse;
+    const copy = { ...role, id: 2, name: "Course editor copy" };
+    await stubPermissions(page, [...SECTION_PERMISSIONS, "role.create", "role.update", "role.delete"]);
+    await stubRole(page, role);
+    await stubRole(page, copy);
+    await stubPermissionList(page, [
+      {
+        name: "role.read",
+        label: "See roles",
+        description: "See every role and what it allows.",
+        category: "Users & access",
+        risks: [],
+        requires: [],
+      },
+    ]);
+    const created: unknown[] = [];
+    await page.route("**/api/v1/permissions/roles", (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      created.push(route.request().postDataJSON());
+      return route.fulfill({ status: 201, json: copy });
+    });
+    let deleted = false;
+    await page.route("**/api/v1/permissions/roles/2", (route) => {
+      if (route.request().method() !== "DELETE") return route.fallback();
+      deleted = true;
+      return route.fulfill({ status: 204 });
+    });
+    await page.goto("/dashboard/permissions/roles/role?id=1");
+
+    await page.getByRole("button", { name: "Duplicate" }).click();
+    await page.getByLabel("Name").fill("Course editor copy");
+    await page.getByRole("button", { name: "Create", exact: true }).click();
+    await expect
+      .poll(() => created)
+      .toEqual([
+        { name: "Course editor copy", description: "Edits courses", permissions: ["role.read"] },
+      ]);
+    await expect(page).toHaveURL(/\/dashboard\/permissions\/roles\/role\/?\?id=2$/);
+
+    await page.getByRole("button", { name: "Delete" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Delete" }).click();
+    await expect.poll(() => deleted).toBe(true);
+    await expect(page).toHaveURL(/\/dashboard\/permissions\/roles\/?$/);
+  });
+
   for (const missing of SECTION_PERMISSIONS) {
     test(`without ${missing} there is no entry and the URL shows no access`, async ({ page }) => {
       await stubPermissions(

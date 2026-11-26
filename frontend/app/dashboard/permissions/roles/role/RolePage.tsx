@@ -2,43 +2,56 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { ChevronRight, Pencil } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ChevronRight, Copy, Pencil, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRoleEditor } from "@/app/dashboard/permissions/roles/role/hooks";
 import { useAuth } from "@/core/auth/hooks";
 import { Alert } from "@/core/components/ui/Alert";
 import { Button } from "@/core/components/ui/Button";
 import { Spinner } from "@/core/components/ui/Spinner";
+import { createRole, deleteRole } from "@/core/permissions/client";
+import { CreateRoleDialog } from "@/core/permissions/components/ui/CreateRoleDialog";
+import { DeleteRoleDialog } from "@/core/permissions/components/ui/DeleteRoleDialog";
 import { EditRoleDialog } from "@/core/permissions/components/ui/EditRoleDialog";
 import { RiskChips } from "@/core/permissions/components/ui/RiskChips";
 import { RoleBadges } from "@/core/permissions/components/ui/RoleBadges";
 import { RolePermissionList } from "@/core/permissions/components/ui/RolePermissionList";
-import { usePermissionCheck, usePermissionList } from "@/core/permissions/hooks";
-import { ROLES_PATH } from "@/core/permissions/paths";
+import { usePermissionChecks, usePermissionList } from "@/core/permissions/hooks";
+import { ROLES_PATH, getRolePath } from "@/core/permissions/paths";
 import { formatRoleName } from "@/core/permissions/roleDisplay";
+import type { RoleCreate } from "@/core/permissions/types";
 
 /**
  * One role's page, for the role named by `?id=`: a breadcrumb back through Access & permissions and
  * Roles, then the role's name as the page heading with its badges, description and risks, and every
- * permission with the role's own checked. Those who may change a custom role can edit its name and
- * description, and check and uncheck its permissions, with Save, enabled once they differ from the
- * role's, saving them all at once and saying so. Says so too when there is no such role, it can't be
- * loaded or saving fails.
+ * permission with the role's own checked. What the signed-in user may do decides the rest: a custom
+ * role's name, description and permissions can be changed, with Save enabled once the permissions
+ * differ and saying so once saved; any role can be duplicated, opening the copy; and a custom role
+ * can be deleted, going back to Roles. Says so too when there is no such role, it can't be loaded
+ * or saving fails.
  */
 export default function RolePage() {
   const t = useTranslations("permissions.roles.detail");
   const tPermissions = useTranslations("permissions");
   const { token } = useAuth();
+  const router = useRouter();
   const idParam = Number(useSearchParams()?.get("id"));
   const roleId = Number.isInteger(idParam) && idParam > 0 ? idParam : null;
-  const canChangeRole =
-    usePermissionCheck(roleId === null ? null : token, "role.update", {
-      scope: "role",
-      scopeObjectId: String(roleId),
-    }) === "allowed";
   const { state, changed, setChecked, saveChecked, saveDetails } = useRoleEditor(roleId);
   const [editing, setEditing] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  // Read by position. A copy can start with permissions, so duplicating needs role.update too.
+  const [canCreateRoles, canChangeRoles, canChangeRole, canDeleteRole] = usePermissionChecks(
+    roleId === null ? null : token,
+    [
+      { permission: "role.create", scope: "global" },
+      { permission: "role.update", scope: "global" },
+      { permission: "role.update", scope: "role", scopeObjectId: String(roleId) },
+      { permission: "role.delete", scope: "role", scopeObjectId: String(roleId) },
+    ],
+  ).map((access) => access === "allowed");
   const { permissionList, load: loadPermissionList } = usePermissionList(token);
 
   useEffect(() => loadPermissionList(), [loadPermissionList]);
@@ -59,6 +72,18 @@ export default function RolePage() {
   const { role, checked, saveStatus } = state;
   const name = formatRoleName(role.name);
   const canEdit = canChangeRole && !role.is_builtin;
+
+  const createCopy = async (copy: RoleCreate) => {
+    if (!token) throw new Error("not signed in");
+    const created = await createRole(token, copy);
+    router.push(getRolePath(created.id));
+  };
+
+  const confirmDelete = async () => {
+    if (!token) throw new Error("not signed in");
+    await deleteRole(token, role.id);
+    router.push(ROLES_PATH);
+  };
 
   return (
     <div className="space-y-6">
@@ -85,21 +110,59 @@ export default function RolePage() {
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold text-foreground sm:text-3xl">{name}</h1>
           <RoleBadges role={role} />
-          {canEdit && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="ml-auto px-2.5 py-1 text-xs"
-              onClick={() => setEditing(true)}
-            >
-              <Pencil className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-              {t("edit")}
-            </Button>
-          )}
+          <div className="ml-auto flex flex-wrap gap-2">
+            {canEdit && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="px-2.5 py-1 text-xs"
+                onClick={() => setEditing(true)}
+              >
+                <Pencil className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+                {t("edit")}
+              </Button>
+            )}
+            {canCreateRoles && canChangeRoles && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="px-2.5 py-1 text-xs"
+                onClick={() => setDuplicating(true)}
+              >
+                <Copy className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+                {t("duplicate")}
+              </Button>
+            )}
+            {canDeleteRole && !role.is_builtin && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-error-200 px-2.5 py-1 text-xs text-error-700 hover:bg-error-50 dark:border-error-800 dark:text-error-300 dark:hover:bg-error-900/30"
+                onClick={() => setDeleting(true)}
+              >
+                <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+                {t("delete")}
+              </Button>
+            )}
+          </div>
         </div>
         {role.description && <p className="text-sm text-muted-foreground">{role.description}</p>}
         <RiskChips risks={role.risks} />
       </header>
+      <CreateRoleDialog
+        open={duplicating}
+        roles={[role]}
+        initialPermissionSource="duplicate"
+        onCreate={createCopy}
+        onClose={() => setDuplicating(false)}
+      />
+      {deleting && (
+        <DeleteRoleDialog
+          role={role}
+          onConfirm={confirmDelete}
+          onClose={() => setDeleting(false)}
+        />
+      )}
       <EditRoleDialog
         open={editing}
         role={role}

@@ -255,6 +255,29 @@ describe("CreateRoleDialog", () => {
     expect(screen.getByRole("button", { name: "Create" })).toBeDisabled();
   });
 
+  it("can start as a duplicate of the role it is given, with its description", async () => {
+    const onCreate = vi.fn().mockResolvedValue(undefined);
+    renderWithIntl(
+      <CreateRoleDialog
+        open
+        roles={[{ ...ROLES[1], description: "Builds courses." }]}
+        initialPermissionSource="duplicate"
+        onCreate={onCreate}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("radio", { name: "A duplicate of another role" })).toBeChecked();
+    expect(screen.getByLabelText("Description")).toHaveValue("Builds courses.");
+    await userEvent.type(screen.getByLabelText("Name"), "Grader");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+    expect(onCreate).toHaveBeenCalledWith({
+      name: "Grader",
+      description: "Builds courses.",
+      permissions: ["role.read", "retired.permission"],
+    });
+  });
+
   it("closes without creating on Cancel", async () => {
     const { onCreate, onClose } = renderDialog();
 

@@ -83,6 +83,8 @@
         "permissionsLoading": "Chargement des permissions…",
         "permissionsFailed": "Impossible de charger les permissions. Réessayez plus tard.",
         "edit": "Modifier",
+        "duplicate": "Dupliquer",
+        "delete": "Supprimer",
         "save": "Enregistrer les modifications",
         "saveFailed": "Impossible d'enregistrer les permissions. Réessayez.",
         "saved": "Enregistré",

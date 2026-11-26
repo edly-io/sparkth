@@ -24,7 +24,7 @@ import { toggleItem } from "@/core/permissions/sets";
 import type { RoleCreate, RoleResponse } from "@/core/permissions/types";
 
 /** Where the new role's first permissions come from. */
-type PermissionSource = "none" | "duplicate" | "choose";
+export type PermissionSource = "none" | "duplicate" | "choose";
 
 /**
  * Asks for a new role's name and description, trimmed, the description `null` when left empty, and
@@ -36,11 +36,17 @@ type PermissionSource = "none" | "duplicate" | "choose";
 export function CreateRoleDialog({
   open,
   roles,
+  initialPermissionSource = "none",
   onCreate,
   onClose,
 }: {
   open: boolean;
   roles: RoleResponse[];
+  /**
+   * What the role starts from when the dialog opens: "duplicate" to duplicate the first of `roles`,
+   * whose description it then starts with too.
+   */
+  initialPermissionSource?: PermissionSource;
   onCreate: (role: RoleCreate) => Promise<void>;
   onClose: () => void;
 }) {
@@ -53,7 +59,12 @@ export function CreateRoleDialog({
           <DialogDescription>{t("intro")}</DialogDescription>
         </DialogHeader>
         {/* Mounted per opening, so the form starts empty each time. */}
-        <RoleForm roles={roles} onCreate={onCreate} onClose={onClose} />
+        <RoleForm
+          roles={roles}
+          initialPermissionSource={initialPermissionSource}
+          onCreate={onCreate}
+          onClose={onClose}
+        />
       </DialogContent>
     </Dialog>
   );
@@ -61,18 +72,22 @@ export function CreateRoleDialog({
 
 function RoleForm({
   roles,
+  initialPermissionSource,
   onCreate,
   onClose,
 }: {
   roles: RoleResponse[];
+  initialPermissionSource: PermissionSource;
   onCreate: (role: RoleCreate) => Promise<void>;
   onClose: () => void;
 }) {
   const t = useTranslations("permissions.roles");
   const { token } = useAuth();
   const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [permissionSource, setPermissionSource] = useState<PermissionSource>("none");
+  const [description, setDescription] = useState(
+    initialPermissionSource === "duplicate" ? (roles[0]?.description ?? "") : "",
+  );
+  const [permissionSource, setPermissionSource] = useState(initialPermissionSource);
   const [selectedRoleId, setSelectedRoleId] = useState<number>();
   // The role to duplicate: the one selected, or the first listed until one is selected (the roles
   // may only arrive after the dialog opens).
