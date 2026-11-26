@@ -85,7 +85,8 @@ async def launch_activity(
     """An embed URL that previews an activity, as a learner or as its author.
 
     A learner preview needs ``pxc.activity.read`` and an author preview ``pxc.activity.update``,
-    both at the activity owner's scope. The activity's files are resolved before a token is
+    both at the activity owner's scope. The permission depends on the requested view, so it is
+    checked in the handler, not in the route's dependencies. The activity's files are resolved before a token is
     minted, so a row whose files are missing from ``PXC_DATA_DIR`` never yields an embed URL that
     would fail on load.
 
