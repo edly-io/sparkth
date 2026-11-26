@@ -29,7 +29,7 @@ from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.plugin import PxcPlugin
 from sparkth.plugins.pxc.runtime import build_runtime, read_state
 from sparkth.plugins.pxc.store import insert_activity
-from sparkth.plugins.pxc.tests.conftest import act_as
+from sparkth.plugins.pxc.tests.conftest import act_as, assert_activity_permission_denied
 from sparkth.plugins.pxc.tokens import LaunchClaims
 
 
@@ -224,13 +224,7 @@ async def test_another_author_cannot_place_someone_elses_activity(
         await build_pxc_block("course-1", str(authored_activity.id))
 
     assert str(refusal.value) == f"No activity you can place has the id {str(authored_activity.id)!r}"
-    denial = (await audit_events())[-1]
-    assert (denial.category, denial.action, denial.target_id, denial.error_detail) == (
-        "permission",
-        "denied",
-        "pxc.activity.place",
-        f"scope=user:{authored_activity.owner_user_id}",
-    )
+    await assert_activity_permission_denied(audit_events, "pxc.activity.place", authored_activity.owner_user_id)
 
 
 async def test_a_holder_of_place_places_another_authors_activity(
