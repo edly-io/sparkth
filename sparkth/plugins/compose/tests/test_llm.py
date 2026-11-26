@@ -24,6 +24,7 @@ from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME, REFUSAL_TOOL_NAME
 from sparkth.lib.compose.hooks import AgentStructuredReply
 from sparkth.lib.llm import BaseChatProvider, get_provider
 from sparkth.lib.mcp.hooks import Tool
+from sparkth.lib.rag import DocumentSections, SectionRef, SectionSelection
 from sparkth.lib.testing import AddTranslation, ScriptedChatModel
 from sparkth.plugins.compose.constants import (
     MAX_REJECTED_PLANNER_CALLS,
@@ -550,6 +551,44 @@ async def test_a_structured_reply_never_shows_and_the_planner_reads_its_context(
 
     assert shown == "Found two sections."
     assert planner_model.seen[1][-1].text == f"{STEP_RESULT_HEADING}\nPicked 1.2, 3.1"
+
+
+async def test_a_structured_reply_is_reported_on_the_stream(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = _provider(ScriptedChatModel(messages=iter([_picked("1.2")])), monkeypatch)
+    planner_model = RecordingChatModel(
+        messages=iter([_calling(PICKING_AGENT.name, {"request": "Find it"}), AIMessage("")]), disable_streaming=True
+    )
+
+    turn = stream_turn(TURN, [], provider, 50, planner_setup=PlannerSetup([PICKING_AGENT], planner_model, None))
+    replies = [event async for event in turn if event["type"] == "structured_reply"]
+
+    assert replies == [{"type": "structured_reply", "agent": PICKING_AGENT.name, "reply": _Picked(sections=["1.2"])}]
+
+
+async def _no_context(section_selection: SectionSelection) -> str:
+    return ""
+
+
+SELECTING_AGENT = replace(STUB_AGENT, structured_reply=AgentStructuredReply(SectionSelection, _no_context))
+
+
+async def test_a_turn_returns_the_document_sections_its_steps_selected(monkeypatch: pytest.MonkeyPatch) -> None:
+    section_selection = SectionSelection(
+        documents=[DocumentSections(document_id=7, sections=[SectionRef(chapter="Cells")])]
+    )
+    selecting = AIMessage(
+        "", tool_calls=[{"name": "SectionSelection", "args": section_selection.model_dump(), "id": "selected"}]
+    )
+    provider = _provider(ScriptedChatModel(messages=iter([selecting])), monkeypatch)
+    planner_model = RecordingChatModel(
+        messages=iter([_calling(SELECTING_AGENT.name, {"request": "Find it"}), AIMessage("")]), disable_streaming=True
+    )
+
+    response = await complete_turn(
+        TURN, [], provider, 50, planner_setup=PlannerSetup([SELECTING_AGENT], planner_model, None)
+    )
+
+    assert response["section_selections"] == [section_selection]
 
 
 async def test_a_structured_agent_that_answers_in_text_returns_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
