@@ -309,6 +309,10 @@ async def compose_completion(
             provider,
             uploaded_files=uploaded_files,
             analytics=turn_analytics,
+            listed_documents=[
+                *conversation_documents.ready,
+                *(document for document in conversation_documents.unusable if not document.is_deleted),
+            ],
         )
 
         tools = await resolve_tools(request, tool_registry, disabled_plugins, allowed_plugins)
