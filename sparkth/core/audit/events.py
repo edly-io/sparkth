@@ -336,6 +336,14 @@ class PluginEnabledChangedAuditEvent(MutationAuditEvent):
 
 @AUDIT_EVENTS.register
 @dataclass(frozen=True, slots=True, kw_only=True)
+class PluginSystemEnabledChangedAuditEvent(MutationAuditEvent):
+    """A plugin was switched on or off for every user."""
+
+    event_type: ClassVar[str] = "plugin.system_enabled_changed"
+
+
+@AUDIT_EVENTS.register
+@dataclass(frozen=True, slots=True, kw_only=True)
 class RoleCreatedAuditEvent(MutationAuditEvent):
     """A role was created; ``change.new`` carries its name and description."""
 
