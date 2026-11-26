@@ -16,15 +16,18 @@ from sparkth.lib.auth import current_user_id
 from sparkth.lib.db import session_scope
 from sparkth.lib.log import get_logger
 from sparkth.lib.mcp.hooks import Tool
+from sparkth.lib.permissions import Permission
 from sparkth.plugins.pxc.activities import activity_dir, parse_activity_id, preview_url
 from sparkth.plugins.pxc.builder import build_activity, update_activity
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import PXC_TOOL_CATEGORY
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound, PxcManifestInvalid
+from sparkth.plugins.pxc.models import PxcActivity
+from sparkth.plugins.pxc.permissions import PXC_ACTIVITY_READ, PXC_ACTIVITY_UPDATE, require_activity_permission
 from sparkth.plugins.pxc.revisions import live_revision
 from sparkth.plugins.pxc.schemas import ActivitySource, TrialStep
 from sparkth.plugins.pxc.scratch.schemas import ScratchReport
-from sparkth.plugins.pxc.store import get_owned_activity, list_action_failures, list_owned_activities
+from sparkth.plugins.pxc.store import get_activity, list_action_failures, list_owned_activities
 from sparkth.plugins.pxc.trial import run_trial
 
 logger = get_logger(__name__)
@@ -60,6 +63,21 @@ def _manifest_object(manifest: dict[str, object] | str) -> dict[str, object]:
         logger.info("Refused a JSON manifest of type %s", type(parsed).__name__)
         raise PxcManifestInvalid(f"manifest must be a JSON object, got {type(parsed).__name__}")
     return parsed
+
+
+async def _get_permitted_activity(activity_id: str, permission: Permission) -> PxcActivity:
+    """The activity the id names, provided the signed-in user holds the permission over its owner's activities.
+
+    Raises:
+        PxcActivityNotFound: if the id names no activity, before any permission is checked.
+        PxcActivityNotPermitted: if the user lacks the permission.
+    """
+    user_id = current_user_id()
+    parsed_id = parse_activity_id(activity_id)
+    async with session_scope() as session:
+        activity = await get_activity(session, parsed_id)
+        await require_activity_permission(session, permission, activity.owner_user_id, user_id)
+    return activity
 
 
 async def pxc_build_activity(
@@ -99,6 +117,8 @@ async def pxc_list_activities(limit: int | None = None) -> dict[str, list[dict[s
     if limit is None:
         limit = get_pxc_settings().list_activities_limit
     async with session_scope() as session:
+        # The caller lists their own activities, so the owner and the caller are the same user.
+        await require_activity_permission(session, PXC_ACTIVITY_READ, owner, owner)
         activities = await list_owned_activities(session, owner, limit)
     return {
         "activities": [
@@ -115,16 +135,14 @@ async def pxc_list_activities(limit: int | None = None) -> dict[str, list[dict[s
 
 
 async def pxc_get_activity_source(activity_id: str) -> dict[str, object]:
-    """Return one of the author's activities as the files it was built from.
+    """Return one activity as the files it was built from.
 
     Use this before changing an activity: edit the files it returns and pass them to
-    `pxc_update_activity`. Only the activity's own author can read it. `placed` says whether the
-    activity has ever been placed in a course (this is never cleared); once it has, its fields may
-    not be removed or change their type, scope or schema.
+    `pxc_update_activity`. `placed` says whether the activity has ever been placed in a course
+    (this is never cleared); once it has, its fields may not be removed or change their type,
+    scope or schema.
     """
-    owner = current_user_id()
-    async with session_scope() as session:
-        activity = await get_owned_activity(session, parse_activity_id(activity_id), owner)
+    activity = await _get_permitted_activity(activity_id, PXC_ACTIVITY_READ)
     directory = activity_dir(str(activity.id))
     try:
         manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
@@ -145,7 +163,7 @@ async def pxc_get_activity_source(activity_id: str) -> dict[str, object]:
 
 
 async def pxc_get_activity_failures(activity_id: str, limit: int | None = None) -> dict[str, list[dict[str, str]]]:
-    """Return the actions that failed in the author's own preview of one activity, newest first.
+    """Return the actions that failed in previews of one activity, newest first.
 
     Call this when the author reports an issue with the activity (e.g. glitches, wrong scores,
     etc.). Failures of only the activity's current version are returned.
@@ -167,13 +185,11 @@ async def pxc_get_activity_failures(activity_id: str, limit: int | None = None) 
         activity_id: The activity's id, as `pxc_build_activity` or `pxc_list_activities` returns it.
         limit: How many of the newest failures to return; leave it out for the default.
     """
-    owner = current_user_id()
-    parsed_id = parse_activity_id(activity_id)
+    activity = await _get_permitted_activity(activity_id, PXC_ACTIVITY_READ)
     if limit is None:
         limit = get_pxc_settings().action_failure_limit
     async with session_scope() as session:
-        await get_owned_activity(session, parsed_id, owner)
-        failures = await list_action_failures(session, parsed_id, live_revision(activity_id), limit)
+        failures = await list_action_failures(session, activity.id, live_revision(activity_id), limit)
     return {
         "failures": [
             {
@@ -192,7 +208,7 @@ async def pxc_get_activity_failures(activity_id: str, limit: int | None = None) 
 async def pxc_update_activity(
     activity_id: str, title: str, description: str, manifest: dict[str, object] | str, ui_js: str, sandbox_js: str
 ) -> dict[str, str]:
-    """Update one of the author's activities in place from its edited files, keeping its id.
+    """Update an activity in place from its edited files, keeping its id.
 
     Pass back all three files from `pxc_get_activity_source`, edited, with the title and
     description. The update reaches every course using the activity and cannot be undone, so get
@@ -204,8 +220,7 @@ async def pxc_update_activity(
 
     A failed update leaves the activity unchanged, unless it fails after the new files go live.
     """
-    owner = current_user_id()
-    parsed_id = parse_activity_id(activity_id)
+    activity = await _get_permitted_activity(activity_id, PXC_ACTIVITY_UPDATE)
     source = ActivitySource(
         title=title,
         description=description,
@@ -213,12 +228,13 @@ async def pxc_update_activity(
         ui_js=ui_js,
         sandbox_js=sandbox_js,
     )
-    await update_activity(parsed_id, source, owner)
-    return {"activity_id": activity_id, "preview_url": preview_url(parsed_id)}
+    await update_activity(activity.id, source)
+    logger.info("User %s updated PXC activity %s", current_user_id(), activity.id)
+    return {"activity_id": activity_id, "preview_url": preview_url(activity.id)}
 
 
 async def pxc_run_activity(activity_id: str, steps: list[TrialStep]) -> ScratchReport:
-    """Run actions against one of the author's activities on a throwaway store, and report what happened.
+    """Run actions against one activity on a throwaway store, and report what happened.
 
     Each step is {"action": name, "value": the value ui.js would send, "permission": "play" or
     "edit"}. The steps run in order against the activity's current version. They start from the
@@ -239,10 +255,7 @@ async def pxc_run_activity(activity_id: str, steps: list[TrialStep]) -> ScratchR
     fixing ui.js, run the steps with the value the fixed ui.js now sends, since the old value is
     still refused. Then ask the author to try it.
     """
-    owner = current_user_id()
-    parsed_id = parse_activity_id(activity_id)
-    async with session_scope() as session:
-        await get_owned_activity(session, parsed_id, owner)
+    await _get_permitted_activity(activity_id, PXC_ACTIVITY_READ)
     step_list = Annotated[list[TrialStep], Field(max_length=get_pxc_settings().trial_step_limit)]
     validated = TypeAdapter(step_list).validate_python(steps)
     return await run_trial(activity_dir(activity_id), validated)

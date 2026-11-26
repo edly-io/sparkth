@@ -2914,7 +2914,7 @@ export interface components {
         };
         /**
          * PreviewPermission
-         * @description The permissions an author may preview their own activity under.
+         * @description The permissions an activity can be previewed under.
          * @enum {string}
          */
         PreviewPermission: "play" | "edit";

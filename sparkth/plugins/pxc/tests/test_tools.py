@@ -18,6 +18,7 @@ from sparkth.lib.auth import bind_current_user_id
 from sparkth.lib.exceptions.auth import NoAuthenticatedUser
 from sparkth.lib.mcp.exceptions import ToolFailure
 from sparkth.lib.models import utc_now
+from sparkth.lib.testing import AuditEventsFetcher, assign_through_group, grant_permissions, make_role
 from sparkth.plugins.pxc import tools as pxc_tools
 from sparkth.plugins.pxc.activities import generated_activity_dir, preview_url
 from sparkth.plugins.pxc.config import get_pxc_settings
@@ -25,6 +26,7 @@ from sparkth.plugins.pxc.constants import PXC_PREVIEW_ACTIVITY_INSTANCE, PXC_PRE
 from sparkth.plugins.pxc.enums import PreviewPermission, PxcFailureKind
 from sparkth.plugins.pxc.exceptions import (
     PxcActivityNotFound,
+    PxcActivityNotPermitted,
     PxcCompileFailed,
     PxcFieldsFrozen,
     PxcManifestInvalid,
@@ -200,9 +202,12 @@ async def test_list_defaults_to_the_configured_limit(
 
 
 async def test_list_leaves_out_another_authors_activities(
-    authored_activity: PxcActivity, authors: tuple[User, User]
+    session: AsyncSession, authored_activity: PxcActivity, authors: tuple[User, User]
 ) -> None:
-    act_as(authors[1])
+    other = authors[1]
+    await grant_permissions(session, other, ["pxc.activity.read"], "user", str(other.id))
+    await session.commit()
+    act_as(other)
 
     assert await pxc_list_activities() == {"activities": []}
 
@@ -243,7 +248,7 @@ async def test_source_refuses_another_authors_activity(
 ) -> None:
     act_as(authors[1])
 
-    with pytest.raises(PxcActivityNotFound):
+    with pytest.raises(PxcActivityNotPermitted):
         await pxc_get_activity_source(str(authored_activity.id))
 
 
@@ -284,26 +289,32 @@ async def test_source_refuses_an_id_that_is_not_a_uuid(authors: tuple[User, User
         await pxc_get_activity_source("../../mcq")
 
 
-async def test_update_hands_the_activity_its_edited_files() -> None:
-    bind_current_user_id(7)
-    activity_id = uuid7()
+async def test_update_hands_the_activity_its_edited_files(
+    authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    act_as(authors[0])
     with patch("sparkth.plugins.pxc.tools.update_activity", new=AsyncMock()) as update:
-        result = await pxc_update_activity(str(activity_id), "Poll", "A one-question poll", MANIFEST, "ui", "sandbox")
+        result = await pxc_update_activity(
+            str(authored_activity.id), "Poll", "A one-question poll", MANIFEST, "ui", "sandbox"
+        )
 
     update.assert_awaited_once_with(
-        activity_id,
+        authored_activity.id,
         ActivitySource(
             title="Poll", description="A one-question poll", manifest=MANIFEST, ui_js="ui", sandbox_js="sandbox"
         ),
-        7,
     )
-    assert result == {"activity_id": str(activity_id), "preview_url": preview_url(activity_id)}
+    assert result == {"activity_id": str(authored_activity.id), "preview_url": preview_url(authored_activity.id)}
 
 
-async def test_update_reads_a_manifest_sent_as_json_text() -> None:
-    bind_current_user_id(7)
+async def test_update_reads_a_manifest_sent_as_json_text(
+    authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    act_as(authors[0])
     with patch("sparkth.plugins.pxc.tools.update_activity", new=AsyncMock()) as update:
-        await pxc_update_activity(str(uuid7()), "Poll", "A one-question poll", json.dumps(MANIFEST), "ui", "sandbox")
+        await pxc_update_activity(
+            str(authored_activity.id), "Poll", "A one-question poll", json.dumps(MANIFEST), "ui", "sandbox"
+        )
 
     assert update.await_args is not None
     assert update.await_args.args[1].manifest == MANIFEST
@@ -326,14 +337,16 @@ async def test_an_unauthenticated_update_is_refused_before_its_id_is_read() -> N
         await pxc_update_activity("../../mcq", "Poll", "A one-question poll", MANIFEST, "ui", "sandbox")
 
 
-async def test_a_refused_update_reaches_the_agent_with_its_message() -> None:
-    bind_current_user_id(7)
+async def test_a_refused_update_reaches_the_agent_with_its_message(
+    authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    act_as(authors[0])
     refusal = PxcFieldsFrozen("Nothing was updated. field 'question' was removed")
     with (
         patch("sparkth.plugins.pxc.tools.update_activity", new=AsyncMock(side_effect=refusal)),
         pytest.raises(ToolFailure) as caught,
     ):
-        await pxc_update_activity(str(uuid7()), "Poll", "A one-question poll", MANIFEST, "ui", "sandbox")
+        await pxc_update_activity(str(authored_activity.id), "Poll", "A one-question poll", MANIFEST, "ui", "sandbox")
 
     assert str(caught.value) == "Nothing was updated. field 'question' was removed"
 
@@ -407,7 +420,7 @@ async def test_failures_of_another_authors_activity_are_refused(
 ) -> None:
     act_as(authors[1])
 
-    with pytest.raises(PxcActivityNotFound):
+    with pytest.raises(PxcActivityNotPermitted):
         await pxc_get_activity_failures(str(authored_activity.id))
 
 
@@ -461,11 +474,11 @@ async def test_running_another_authors_activity_is_refused(
     act_as(authors[1])
     steps = cast(list[TrialStep], [{"action": "check", "permission": "play"}])
 
-    with pytest.raises(PxcActivityNotFound):
+    with pytest.raises(PxcActivityNotPermitted):
         await pxc_run_activity(str(authored_activity.id), steps)
 
 
-async def test_another_authors_activity_is_not_found_before_its_steps_are_checked(
+async def test_another_authors_activity_is_refused_before_its_steps_are_checked(
     authored_activity: PxcActivity, authors: tuple[User, User], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("PXC_TRIAL_STEP_LIMIT", "1")
@@ -473,5 +486,131 @@ async def test_another_authors_activity_is_not_found_before_its_steps_are_checke
     act_as(authors[1])
     steps = cast(list[TrialStep], [{"action": "check", "permission": "view"}] * 2)
 
-    with pytest.raises(PxcActivityNotFound):
+    with pytest.raises(PxcActivityNotPermitted):
         await pxc_run_activity(str(authored_activity.id), steps)
+
+
+async def _grant_at_owners_scope(
+    session: AsyncSession, authored_activity: PxcActivity, other: User, permissions: list[str]
+) -> None:
+    await grant_permissions(session, other, permissions, "user", str(authored_activity.owner_user_id))
+    await session.commit()
+
+
+async def _assert_denied(audit_events: AuditEventsFetcher, permission: str, scope_owner: int | None) -> None:
+    event = (await audit_events())[-1]
+    assert (event.category, event.action, event.target_id, event.error_detail) == (
+        "permission",
+        "denied",
+        permission,
+        f"scope=user:{scope_owner}",
+    )
+
+
+async def test_list_is_refused_without_read_at_the_callers_own_scope(
+    authors: tuple[User, User], audit_events: AuditEventsFetcher
+) -> None:
+    act_as(authors[1])
+
+    with pytest.raises(PxcActivityNotPermitted):
+        await pxc_list_activities()
+
+    await _assert_denied(audit_events, "pxc.activity.read", authors[1].id)
+
+
+async def test_a_reader_reads_another_authors_source_and_failures(
+    session: AsyncSession, authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    await _grant_at_owners_scope(session, authored_activity, authors[1], ["pxc.activity.read"])
+    act_as(authors[1])
+
+    source = await pxc_get_activity_source(str(authored_activity.id))
+    failures = await pxc_get_activity_failures(str(authored_activity.id))
+
+    assert source["activity_id"] == str(authored_activity.id)
+    assert failures == {"failures": []}
+
+
+async def test_a_reader_runs_another_authors_activity(
+    session: AsyncSession, authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    await _grant_at_owners_scope(session, authored_activity, authors[1], ["pxc.activity.read"])
+    act_as(authors[1])
+    report: ScratchReport = {"steps": [], "state": [], "fields": {}}
+    steps = cast(list[TrialStep], [{"action": "check", "permission": "play"}])
+
+    with patch("sparkth.plugins.pxc.tools.run_trial", AsyncMock(return_value=report)) as trial:
+        assert await pxc_run_activity(str(authored_activity.id), steps) == report
+
+    trial.assert_awaited_once()
+
+
+async def test_a_reader_cannot_update_another_authors_activity(
+    session: AsyncSession,
+    authored_activity: PxcActivity,
+    authors: tuple[User, User],
+    audit_events: AuditEventsFetcher,
+) -> None:
+    await _grant_at_owners_scope(session, authored_activity, authors[1], ["pxc.activity.read"])
+    act_as(authors[1])
+
+    with (
+        patch("sparkth.plugins.pxc.builder.stage_activity", AsyncMock(side_effect=AssertionError("staged"))),
+        pytest.raises(PxcActivityNotPermitted) as refused,
+    ):
+        await pxc_update_activity(str(authored_activity.id), "Poll", "A poll", MANIFEST, "ui", "sandbox")
+
+    assert "pxc.activity.update" in str(refused.value)
+    await _assert_denied(audit_events, "pxc.activity.update", authored_activity.owner_user_id)
+
+
+async def test_an_updater_updates_another_authors_activity(
+    session: AsyncSession, authored_activity: PxcActivity, authors: tuple[User, User], uncompiled_builds: None
+) -> None:
+    await _grant_at_owners_scope(session, authored_activity, authors[1], ["pxc.activity.update"])
+    act_as(authors[1])
+    manifest: dict[str, object] = {**AUTHORED_MANIFEST, "name": str(authored_activity.id)}
+
+    result = await pxc_update_activity(
+        str(authored_activity.id), "Poll", "A poll", manifest, AUTHORED_UI_JS, AUTHORED_SANDBOX_JS
+    )
+
+    assert result["activity_id"] == str(authored_activity.id)
+    await session.refresh(authored_activity)
+    assert authored_activity.title == "Poll"
+
+
+async def test_a_grant_held_through_a_group_reads_the_source(
+    session: AsyncSession, authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    owner, other = authors
+    role = await make_role(session, "pxc-reader", ["pxc.activity.read"])
+    await assign_through_group(session, other, role, "user", str(owner.id))
+    await session.commit()
+    act_as(other)
+
+    source = await pxc_get_activity_source(str(authored_activity.id))
+
+    assert source["activity_id"] == str(authored_activity.id)
+
+
+async def test_a_malformed_activity_id_records_no_denial(
+    authors: tuple[User, User], audit_events: AuditEventsFetcher
+) -> None:
+    act_as(authors[1])
+
+    with pytest.raises(PxcActivityNotFound):
+        await pxc_get_activity_source("not-a-uuid")
+
+    assert await audit_events() == []
+
+
+async def test_an_unknown_activity_id_is_not_found_and_records_no_denial(
+    authors: tuple[User, User], audit_events: AuditEventsFetcher
+) -> None:
+    act_as(authors[1])
+
+    with pytest.raises(PxcActivityNotFound):
+        await pxc_get_activity_source(str(uuid7()))
+
+    assert await audit_events() == []
