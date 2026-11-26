@@ -24,8 +24,8 @@ function SourceItem({
   source: AttachmentSource;
   onPick: () => void;
 }) {
-  const { isEnabled } = usePlugin(plugin);
-  if (!isEnabled) return null;
+  const { isUsable } = usePlugin(plugin);
+  if (!isUsable) return null;
 
   const Icon = source.icon;
   return (

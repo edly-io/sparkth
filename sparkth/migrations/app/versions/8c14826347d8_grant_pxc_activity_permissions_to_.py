@@ -1,7 +1,7 @@
 """grant pxc activity permissions to sparkth_user
 
 Revision ID: 8c14826347d8
-Revises: a5b4a01a31ca
+Revises: 233eacc2996e
 Create Date: 2026-11-24 14:54:33.717352
 
 Grants the four PXC activity permissions (read, update, delete, place) to the default ``sparkth_user``
@@ -17,7 +17,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "8c14826347d8"
-down_revision: Union[str, Sequence[str], None] = "a5b4a01a31ca"
+down_revision: Union[str, Sequence[str], None] = "233eacc2996e"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

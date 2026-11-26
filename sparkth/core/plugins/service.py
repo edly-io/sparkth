@@ -11,8 +11,15 @@ from sparkth.core.models.plugin import Plugin, UserPluginPreference
 from sparkth.core.models.user import User
 from sparkth.core.plugins import get_plugin_loader
 from sparkth.core.plugins.config_base import PluginConfig
-from sparkth.core.plugins.constants import USER_PLUGIN_PREFERENCE_TARGET_TYPE
-from sparkth.core.plugins.exceptions import PluginConfigInvalidError, PluginNotConfiguredError
+from sparkth.core.plugins.constants import PLUGIN_AUDIT_TARGET_TYPE, USER_PLUGIN_PREFERENCE_TARGET_TYPE
+from sparkth.core.plugins.exceptions import (
+    ConfigValidationError,
+    PluginConfigInvalidError,
+    PluginConfigUnavailable,
+    PluginDisabledError,
+    PluginNotConfiguredError,
+)
+from sparkth.core.plugins.widgets import secret_field_names
 from sparkth.lib.audit import record_event
 from sparkth.lib.audit.events import (
     AuditChange,
@@ -21,15 +28,13 @@ from sparkth.lib.audit.events import (
     PluginConfigCreatedAuditEvent,
     PluginConfigUpdatedAuditEvent,
     PluginEnabledChangedAuditEvent,
+    PluginSystemEnabledChangedAuditEvent,
 )
 from sparkth.lib.auth import current_user_id, get_current_user
 from sparkth.lib.config import get_plugin_adapter, get_plugin_config_schema
 from sparkth.lib.db import get_async_session, session_scope
-from sparkth.lib.encryption import mask_secret
-from sparkth.lib.frontend import get_plugin_display_info, get_plugin_sidebar_entry, plugin_has_frontend
-from sparkth.lib.frontend.hooks import DisplayInfo, SidebarEntry
+from sparkth.lib.frontend import get_plugin_display_info
 from sparkth.lib.i18n import _
-from sparkth.lib.i18n import gettext as translate
 from sparkth.lib.log import get_logger
 
 logger = get_logger(__name__)
@@ -143,92 +148,6 @@ async def get_disabled_plugins(
     return await disabled_plugin_names(cast(int, current_user.id), session)
 
 
-class ConfigValidationError(Exception):
-    pass
-
-
-class InternalServerError(Exception):
-    pass
-
-
-class PluginDisabledError(Exception):
-    pass
-
-
-class PluginResponse(pydantic.BaseModel):
-    """Response model for one plugin as the calling user sees it.
-
-    ``display``, ``sidebar``, and ``has_frontend`` carry the read-only
-    frontend-facing metadata the plugin declared through the
-    ``sparkth.lib.frontend`` hooks; build responses with :meth:`for_plugin`
-    so they are always populated.
-
-    ``config_schema`` is the plugin's declared JSON schema, which the settings
-    UI renders its form from -- field types, labels, defaults, and the widget
-    hints a plugin sets through ``json_schema_extra``. It is empty for a plugin
-    that registered no config class.
-
-    ``config`` never carries a field marked ``secret()``; ``secrets_set`` names the ones stored,
-    and ``masked_secrets`` maps each stored ``secret(masked=True)`` field to its masked value.
-    """
-
-    plugin_name: str
-    enabled: bool
-    config: dict[str, Any]
-    secrets_set: list[str] = []
-    masked_secrets: dict[str, str] = {}
-    is_core: bool
-    config_schema: dict[str, Any] = {}
-    display: DisplayInfo | None = None
-    sidebar: SidebarEntry | None = None
-    has_frontend: bool = False
-
-    @classmethod
-    def for_plugin(
-        cls,
-        plugin_name: str,
-        enabled: bool,
-        config: dict[str, Any],
-        is_core: bool,
-        config_schema: dict[str, Any] | None = None,
-    ) -> "PluginResponse":
-        """Build a response carrying the frontend metadata declared for ``plugin_name``.
-
-        The declared display and sidebar strings are ``gettext_noop``-marked
-        source messages; this is their rendering boundary, so they are
-        translated into the request locale here.
-        """
-        display = get_plugin_display_info(plugin_name)
-        if display is not None:
-            display = DisplayInfo(translate(display.display_name), translate(display.description), display.icon)
-        sidebar = get_plugin_sidebar_entry(plugin_name)
-        if sidebar is not None:
-            sidebar = SidebarEntry(translate(sidebar.label), sidebar.icon, sidebar.order)
-        properties = (config_schema or {}).get("properties", {})
-        secrets = secret_field_names(config_schema or {})
-        return cls(
-            plugin_name=plugin_name,
-            enabled=enabled,
-            config={key: value for key, value in config.items() if key not in secrets},
-            secrets_set=[name for name in secrets if config.get(name)],
-            masked_secrets={
-                name: mask_secret(config[name])
-                for name in secrets
-                if config.get(name) and properties[name].get("masked")
-            },
-            is_core=is_core,
-            config_schema=config_schema or {},
-            display=display,
-            sidebar=sidebar,
-            has_frontend=plugin_has_frontend(plugin_name),
-        )
-
-
-def secret_field_names(config_schema: dict[str, Any]) -> list[str]:
-    """The names of the fields a config schema marks secret."""
-    return [name for name, prop in config_schema.get("properties", {}).items() if prop.get("secret")]
-
-
 def get_plugin_service() -> PluginService:
     return PluginService()
 
@@ -260,19 +179,24 @@ class PluginService:
         Uses the plugin.config_schema directly instead of dynamically loading config.py.
 
         Raises:
-            ConfigValidationError: if config_schema is not a subclass of PluginConfig or if validation fails
+            PluginConfigUnavailable: if the plugin has no config class or it is not a PluginConfig subclass
+            ConfigValidationError: if the submitted config fails validation
         """
 
         config_class = get_plugin_config_schema(plugin.name)
         if not config_class:
             logger.error(f"Plugin '{plugin.name}' config class is missing or invalid")
-            raise InternalServerError(_("Plugin '{name}' cannot be configured at this time.").format(name=plugin.name))
+            raise PluginConfigUnavailable(
+                _("Plugin '{name}' cannot be configured at this time.").format(name=plugin.name)
+            )
 
         if not issubclass(config_class, PluginConfig):
             logger.error(
                 f"'{plugin.name.title()}Config' must inherit from sparkth.core.plugins.config_base.PluginConfig"
             )
-            raise InternalServerError(_("Plugin '{name}' cannot be configured at this time.").format(name=plugin.name))
+            raise PluginConfigUnavailable(
+                _("Plugin '{name}' cannot be configured at this time.").format(name=plugin.name)
+            )
 
         try:
             validated_config = config_class(**user_config)
@@ -339,8 +263,8 @@ class PluginService:
 
         Called once at startup. Fetches existing plugins in a single query and
         upserts all loaded plugins in one transaction. Only ``config_schema`` is
-        refreshed on existing rows — ``enabled`` is left untouched so a plugin a
-        user disabled stays disabled across restarts.
+        refreshed on existing rows — ``enabled`` is left untouched so a plugin
+        switched off system-wide stays off across restarts.
         """
         loaded = get_plugin_loader().get_loaded_plugins()
         async with session_scope() as session:
@@ -464,6 +388,28 @@ class PluginService:
 
         return preference
 
+    async def update_system_enabled(self, plugin: Plugin, enabled: bool, session: AsyncSession) -> None:
+        """Switch the plugin on or off for every user and record the change.
+
+        Flushes without committing, so the switch and its audit row commit or roll back together.
+        Setting the value it already has changes and records nothing.
+        """
+        if plugin.enabled == enabled:
+            return
+        previously_enabled = plugin.enabled
+        plugin.enabled = enabled
+        await record_event(
+            session,
+            PluginSystemEnabledChangedAuditEvent(
+                outcome=AuditOutcome.SUCCESS,
+                target=AuditTarget(type=PLUGIN_AUDIT_TARGET_TYPE, id=str(plugin.id)),
+                change=AuditChange(
+                    old=self._create_enabled_audit_snapshot(plugin.name, previously_enabled),
+                    new=self._create_enabled_audit_snapshot(plugin.name, enabled),
+                ),
+            ),
+        )
+
     @staticmethod
     async def _plugin_name(session: AsyncSession, plugin_id: int) -> str | None:
         return (await session.exec(select(Plugin.name).where(col(Plugin.id) == plugin_id))).first()
@@ -529,7 +475,7 @@ class PluginService:
         user_config: dict[str, Any],
     ) -> UserPluginPreference:
         if plugin.id is None:
-            raise InternalServerError("Plugin must be persisted before saving a preference for it")
+            raise RuntimeError("Plugin must be persisted before saving a preference for it")
 
         preference = await self.get_preference(
             session,
