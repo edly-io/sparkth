@@ -18,14 +18,14 @@ from sparkth.plugins.pxc.permissions import (
 )
 from sparkth.plugins.pxc.tests.conftest import assert_activity_permission_denied
 
-ALL_FOUR = (PXC_ACTIVITY_READ, PXC_ACTIVITY_UPDATE, PXC_ACTIVITY_DELETE, PXC_ACTIVITY_PLACE)
+PXC_ACTIVITY_PERMISSIONS = (PXC_ACTIVITY_READ, PXC_ACTIVITY_UPDATE, PXC_ACTIVITY_DELETE, PXC_ACTIVITY_PLACE)
 
 
 async def test_an_author_holds_every_activity_permission_at_their_own_scope(
     session: AsyncSession, authors: tuple[User, User]
 ) -> None:
     owner, _ = authors
-    for permission in ALL_FOUR:
+    for permission in PXC_ACTIVITY_PERMISSIONS:
         await require_activity_permission(session, permission, cast(int, owner.id), cast(int, owner.id))
 
 
