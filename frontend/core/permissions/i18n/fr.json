@@ -2,6 +2,7 @@
   "permissions": {
     "title": "Accès et autorisations",
     "subtitle": "Consultez et gérez qui peut faire quoi dans Sparkth.",
+    "noPermissionsMatch": "Aucune permission ne correspond.",
     "nav": {
       "label": "Sections d'accès",
       "roles": "Rôles",
@@ -39,8 +40,7 @@
         "failed": "Impossible de créer le rôle. Réessayez.",
         "picker": {
           "search": "Rechercher des permissions",
-          "chosen": "{count, plural, one {# choisie} other {# choisies}}",
-          "noMatches": "Aucune permission ne correspond."
+          "chosen": "{count, plural, one {# choisie} other {# choisies}}"
         }
       },
       "menu": {

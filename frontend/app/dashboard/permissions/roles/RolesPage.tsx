@@ -37,7 +37,6 @@ export default function RolesPage() {
     token,
     ROLE_ACTION_CHECKS,
   ).map((access) => access === "allowed");
-  // A new role can start with permissions, so creating one needs role.update as well.
   const canCreate = canCreateRoles && canChangeRoles;
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<RoleResponse | null>(null);

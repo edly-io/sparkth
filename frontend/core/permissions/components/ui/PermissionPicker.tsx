@@ -21,6 +21,7 @@ export function PermissionPicker({
   onToggle: (name: string) => void;
 }) {
   const t = useTranslations("permissions.roles.create.picker");
+  const tPermissions = useTranslations("permissions");
   const [search, setSearch] = useState("");
   const query = search.trim().toLocaleLowerCase();
   const shown = permissions.filter(
@@ -47,7 +48,7 @@ export function PermissionPicker({
       </div>
       <div className="max-h-34 space-y-3 overflow-y-auto rounded-lg border border-border px-3 py-2">
         {categories.length === 0 && (
-          <p className="text-sm text-muted-foreground">{t("noMatches")}</p>
+          <p className="text-sm text-muted-foreground">{tPermissions("noPermissionsMatch")}</p>
         )}
         {categories.map((category) => (
           <fieldset key={category}>
