@@ -493,8 +493,8 @@ names the plugin (`plugin: "<pluginname>"`); the entry shows only while that plu
 
 ## Permissions (Optional)
 
-A plugin whose backend registers permissions adds their names to the vocabulary that `checkPermission` and
-`usePermissionCheck` are typed against, so a typo'd name fails the typecheck and core names no plugin. Add a
+A plugin whose backend registers permissions adds their names to the vocabulary that `usePermissionCheck` and
+`usePermissionChecks` are typed against, so a typo'd name fails the typecheck and core names no plugin. Add a
 `src/permissions.d.ts` to the plugin that extends the `PluginPermissions` interface in `lib/permissions/names.ts`
 with one entry holding the union of its names:
 
@@ -510,6 +510,19 @@ declare module "@/lib/permissions/names" {
 ```
 
 Removing the plugin's directory removes its names with it.
+
+A plugin gates a control on what the signed-in user may do with the hooks from `@/lib/permissions/hooks`, never from
+`@/core`. `usePermissionCheck` asks about one permission, and `usePermissionChecks` asks about several in one
+request. Each returns `"checking"`, `"allowed"` or `"denied"`, and a failed request counts as `"denied"`:
+
+```tsx
+import { useAuth } from "@/lib/auth/hooks";
+import { usePermissionCheck } from "@/lib/permissions/hooks";
+
+const { token } = useAuth();
+const access = usePermissionCheck(token, "example.thing.write", { scope: "global" });
+{access === "allowed" && <button>Edit</button>}
+```
 
 ## Settings
 
