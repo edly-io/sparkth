@@ -4,18 +4,28 @@ from pathlib import Path
 
 import pytest
 from httpx import AsyncClient
+from sqlmodel.ext.asyncio.session import AsyncSession
 from uuid6 import uuid7
 
+from sparkth.core.models.user import User
+from sparkth.lib.testing import AuditEventsFetcher
 from sparkth.plugins.pxc.activities import activity_dir
 from sparkth.plugins.pxc.config import get_pxc_settings
+from sparkth.plugins.pxc.constants import PXC_LMS_USERNAME
+from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.revisions import publish_revision
-from sparkth.plugins.pxc.tests.conftest import inline_config
-from sparkth.plugins.pxc.tokens import mint_launch_token
+from sparkth.plugins.pxc.store import insert_activity
+from sparkth.plugins.pxc.tests.conftest import inline_config, make_lms_account
+from sparkth.plugins.pxc.tokens import mint_launch_token, mint_preview_token
 
 
 @pytest.fixture
-def token(configured_secret: str) -> str:
+def token(configured_secret: str, lms_account: User) -> str:
     return mint_launch_token("mcq", "instance-1", "course-1", "learner-7", "play", configured_secret, 300)
+
+
+def _play_token(secret: str, level: str = "play") -> str:
+    return mint_launch_token("mcq", "instance-1", "course-1", "learner-7", level, secret, 300)
 
 
 async def test_the_embed_shell_without_a_token_is_rejected(client: AsyncClient) -> None:
@@ -99,7 +109,7 @@ async def test_the_embed_shell_inlines_the_state_and_the_learners_context(client
 
 @pytest.mark.wasm
 async def test_the_embed_shell_reports_the_permission_the_token_asked_for(
-    client: AsyncClient, configured_secret: str
+    client: AsyncClient, configured_secret: str, lms_account: User
 ) -> None:
     edit_token = mint_launch_token("mcq", "instance-1", "course-1", "learner-7", "edit", configured_secret, 300)
 
@@ -245,6 +255,67 @@ async def test_the_embed_shell_upgrades_a_tls_launch_to_wss(client: AsyncClient,
     assert ws_url.endswith(f"/api/v1/pxc/ws?token={token}")
 
 
+@pytest.mark.parametrize("path", ["/api/v1/pxc/embed", "/api/v1/pxc/assets/ui.js"])
+async def test_a_launch_the_lms_account_may_not_make_is_forbidden(
+    client: AsyncClient, configured_secret: str, path: str
+) -> None:
+    response = await client.get(path, params={"token": _play_token(configured_secret)})
+
+    assert response.status_code == 403
+    assert response.headers["access-control-allow-origin"] == "*"
+
+
+async def test_an_action_the_lms_account_may_not_make_is_forbidden(client: AsyncClient, configured_secret: str) -> None:
+    response = await client.post(
+        "/api/v1/pxc/actions/answer.submit", params={"token": _play_token(configured_secret)}, json=[1]
+    )
+
+    assert response.status_code == 403
+    assert response.headers["access-control-allow-origin"] == "*"
+
+
+async def test_a_refused_embed_is_recorded_once_with_the_checked_account_as_actor(
+    client: AsyncClient, session: AsyncSession, configured_secret: str, audit_events: AuditEventsFetcher
+) -> None:
+    account = User(name="PXC LMS", username=PXC_LMS_USERNAME, email="pxc_lms@sparkth.invalid")
+    session.add(account)
+    await session.commit()
+    params = {"token": _play_token(configured_secret)}
+
+    await client.get("/api/v1/pxc/embed", params=params)
+    await client.get("/api/v1/pxc/embed", params=params)
+
+    denials = [event for event in await audit_events() if event.action == "denied"]
+    assert [(event.target_id, event.actor_id, event.actor_label) for event in denials] == [
+        ("pxc.activity.play", str(account.id), "pxc_lms")
+    ]
+
+
+async def test_the_studio_editor_is_refused_once_edit_is_taken_from_the_lms_account(
+    client: AsyncClient, session: AsyncSession, configured_secret: str
+) -> None:
+    await make_lms_account(session, ["pxc.activity.play"], None)
+
+    edit = await client.get("/api/v1/pxc/assets/ui.js", params={"token": _play_token(configured_secret, "edit")})
+    play = await client.get("/api/v1/pxc/assets/ui.js", params={"token": _play_token(configured_secret, "play")})
+
+    assert (edit.status_code, play.status_code) == (403, 200)
+
+
+async def test_a_preview_token_is_checked_for_its_user(
+    client: AsyncClient, authors: tuple[User, User], authored_activity: PxcActivity, configured_secret: str
+) -> None:
+    # The assets route stands in for the embed: its answer is the same check, and a 200 needs no compiled sandbox.
+    owner, other = authors
+    assert owner.id is not None and other.id is not None
+    path = "/api/v1/pxc/assets/ui.js"
+
+    refused = await client.get(path, params={"token": mint_preview_token(authored_activity.id, other.id, "play")})
+    allowed = await client.get(path, params={"token": mint_preview_token(authored_activity.id, owner.id, "play")})
+
+    assert (refused.status_code, allowed.status_code) == (403, 200)
+
+
 @pytest.mark.wasm
 async def test_an_action_returns_no_content(client: AsyncClient, token: str) -> None:
     # The events go to the socket, so there is no body to return. pxc.js's _postAction
@@ -334,9 +405,14 @@ def _publish_mcq_copy(activity_id: str, ui_js: str) -> Path:
 
 @pytest.mark.wasm
 async def test_an_open_page_keeps_its_revisions_ui_script_after_an_update(
-    client: AsyncClient, configured_secret: str
+    client: AsyncClient, session: AsyncSession, authors: tuple[User, User], configured_secret: str
 ) -> None:
-    activity_id = str(uuid7())
+    owner, _ = authors
+    assert owner.id is not None
+    await make_lms_account(session, ["pxc.activity.play"], None)
+    activity = PxcActivity(owner_user_id=owner.id, title="Copy", description="A copy of the sample")
+    await insert_activity(session, activity)
+    activity_id = str(activity.id)
     _publish_mcq_copy(activity_id, "first")
     token = mint_launch_token(activity_id, "instance-1", "course-1", "learner-7", "play", configured_secret, 300)
     config = inline_config((await client.get("/api/v1/pxc/embed", params={"token": token})).text)

@@ -44,15 +44,16 @@ from sparkth.plugins.pxc.routes.activities import router as activity_router
 from sparkth.plugins.pxc.tools import PXC_TOOLS
 
 # A bad launch token is 401: the token is the learner's only credential here, and the caller
-# can get a fresh one by reloading the page. An activity the caller holds no permission for is
-# 403: the caller is known and the permission is missing. A duplicate activity name is 500 — it
-# is a broken deployment, not a bad request. An unconfigured launch secret is 503: the author's
-# request is fine and the deployment is not. A sandbox failure is 422, like a refused action: the
-# request was fine but the activity could not process it, and unlike a 5xx a proxy never sends
-# it, so the embed page can drop that action without dropping one a redeploy refused. Errors the
-# embed page can hit carry CORS headers so it can read them.
+# can get a fresh one by reloading the page. A missing permission is 403: the account is known
+# and lacks the permission, whether it is the caller of an author route or the account a launch
+# token is checked for. A duplicate activity name is 500 — it is a broken deployment, not a bad
+# request. An unconfigured launch secret is 503: the author's request is fine and the deployment
+# is not. A sandbox failure is 422, like a refused action: the request was fine but the activity
+# could not process it, and unlike a 5xx a proxy never sends it, so the embed page can drop that
+# action without dropping one a redeploy refused. Errors the embed page can hit carry CORS
+# headers so it can read them; a refused launch is one of them.
 register_exception_handler(PxcActivityNotFound, status.HTTP_404_NOT_FOUND, PXC_CORS_HEADERS)
-register_exception_handler(PxcActivityNotPermitted, status.HTTP_403_FORBIDDEN)
+register_exception_handler(PxcActivityNotPermitted, status.HTTP_403_FORBIDDEN, PXC_CORS_HEADERS)
 register_exception_handler(PxcAssetNotFound, status.HTTP_404_NOT_FOUND, PXC_CORS_HEADERS)
 register_exception_handler(PxcInvalidLaunchToken, status.HTTP_401_UNAUTHORIZED, PXC_CORS_HEADERS)
 register_exception_handler(PxcActionRejected, status.HTTP_422_UNPROCESSABLE_CONTENT, PXC_CORS_HEADERS)

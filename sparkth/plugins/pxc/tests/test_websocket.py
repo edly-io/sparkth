@@ -14,6 +14,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.websockets import WebSocketDisconnect
 from uuid6 import uuid7
 
+from sparkth.core.models.user import User
 from sparkth.plugins.pxc.constants import (
     PXC_ACTION_FAILED,
     PXC_ACTION_REJECTED,
@@ -104,7 +105,9 @@ def test_two_learners_on_one_activity_instance_both_receive_one_learners_event(
 
 
 @pytest.mark.wasm
-def test_a_frame_cannot_escalate_its_own_permission(ws_client: TestClient, configured_secret: str) -> None:
+def test_a_frame_cannot_escalate_its_own_permission(
+    ws_client: TestClient, configured_secret: str, lms_account: User
+) -> None:
     """Asserted on the effect, not an error: the sandbox ignores a play-mode save silently."""
     token = mint_launch_token("mcq", "instance-1", "course-1", "learner-7", "play", configured_secret, 300)
     saved = {"question": "Owned?", "answers": ["yes"], "correct_answers": [0]}
@@ -266,7 +269,9 @@ def test_an_action_named_by_a_number_is_refused_by_its_name_as_text(
 
 
 @pytest.mark.wasm
-def test_the_http_action_route_publishes_to_the_socket(ws_client: TestClient, configured_secret: str) -> None:
+def test_the_http_action_route_publishes_to_the_socket(
+    ws_client: TestClient, configured_secret: str, lms_account: User
+) -> None:
     """``_flushQueue`` routes any payload over 512 KiB through HTTP, and its events must still land."""
     token = mint_launch_token("mcq", "instance-1", "course-1", "learner-7", "play", configured_secret, 300)
 
