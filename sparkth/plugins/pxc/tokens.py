@@ -15,8 +15,10 @@ standard, and it is PyJWT that enforces it.
 
 Permission travels as the ``prm`` claim, inside the signed payload, so a caller cannot ask for
 ``edit``: altering the claim invalidates the signature. The LMS decides which permission a
-launch gets, since only it knows whether the viewer may author the course. So the shared secret
-grants ``edit`` as well as ``play``.
+launch asks for, since only it knows whether the viewer may author the course. Sparkth serves the
+level the token carries only when the account the launch is checked for holds a permission that
+allows it, so the shared secret asks for ``edit`` as well as ``play`` but does not by itself grant
+either.
 
 ``pxc.lib.signing`` is not used: it reads ``PXC_SIGNING_SECRET`` from the environment and then
 unconditionally reassigns it to ``b"dev-insecure-default"``, discarding the configured value.

@@ -12,7 +12,8 @@
 //     overridden to address Sparkth's route and carry the token
 //
 // A third: reconnection stops, and says why. pxc.js retries a dropped socket forever. Here a
-// socket the server refuses (an expired token, a missing activity) stops at once with a notice
+// socket the server refuses (an expired token, a missing activity, a launch the account may
+// not make) stops at once with a notice
 // naming the cause, and any other drop stops with a notice after a bounded number of retries.
 // sendAction resolves as soon as the action is queued, so without the notice an author would
 // never learn that a save they were told succeeded did not reach the server.
@@ -53,6 +54,7 @@ const WS_PAYLOAD_MAX = 512 * 1024;
 // 4000 plus the same status.
 const REFUSAL_NOTICES = {
   401: "Your session has expired. Reload this page to continue.",
+  403: "You do not have permission to do this.",
   404: "This activity is no longer available.",
 };
 const CLOSE_CODE_BASE = 4000;

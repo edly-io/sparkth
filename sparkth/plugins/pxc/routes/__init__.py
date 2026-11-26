@@ -22,8 +22,6 @@ from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.actions import perform_action
 from sparkth.plugins.pxc.activities import asset_path
 from sparkth.plugins.pxc.constants import (
-    PXC_CLOSE_ACTIVITY_NOT_FOUND,
-    PXC_CLOSE_INVALID_TOKEN,
     PXC_CORS_HEADERS,
     PXC_PREFLIGHT_HEADERS,
     PXC_SANDBOX_HEADERS,
@@ -32,6 +30,7 @@ from sparkth.plugins.pxc.event_bus import EVENT_BUS, subscribe_socket
 from sparkth.plugins.pxc.exceptions import (
     PxcActionRejected,
     PxcActivityNotFound,
+    PxcActivityNotPermitted,
     PxcAssetNotFound,
     PxcInvalidLaunchToken,
 )
@@ -40,7 +39,7 @@ from sparkth.plugins.pxc.revisions import live_revision
 from sparkth.plugins.pxc.runtime import build_runtime, launch_dir, read_state
 from sparkth.plugins.pxc.schemas import ActivityConfig, LaunchContext
 from sparkth.plugins.pxc.tokens import LaunchClaims, pin_launch_token, read_launch_token
-from sparkth.plugins.pxc.websocket import run_action_frames
+from sparkth.plugins.pxc.websocket import SOCKET_REFUSAL_CODES, run_action_frames
 
 logger = get_logger(__name__)
 
@@ -185,16 +184,20 @@ async def preflight_action() -> Response:
 
 @router.websocket("/ws")
 async def activity_socket(websocket: WebSocket, token: str = Query()) -> None:
-    """The socket an activity's client keeps open, to send actions and to receive events."""
+    """The socket an activity's client keeps open, to send actions and to receive events.
+
+    A socket whose token does not verify, whose activity is gone, or whose account may not make the
+    launch is accepted and then closed with the code for that refusal.
+    """
     try:
         claims = read_launch_token(token)
+        await require_launch_access(claims)
         runtime = await asyncio.to_thread(build_runtime, claims)
-    except (PxcInvalidLaunchToken, PxcActivityNotFound) as err:
+    except (PxcInvalidLaunchToken, PxcActivityNotFound, PxcActivityNotPermitted) as err:
         logger.warning("Refused a PXC activity socket: %s", err)
         # Accepted first: a browser sees the close code only after a completed handshake.
         await websocket.accept()
-        invalid_token = isinstance(err, PxcInvalidLaunchToken)
-        await websocket.close(code=PXC_CLOSE_INVALID_TOKEN if invalid_token else PXC_CLOSE_ACTIVITY_NOT_FOUND)
+        await websocket.close(code=SOCKET_REFUSAL_CODES[type(err)])
         return
 
     await websocket.accept()

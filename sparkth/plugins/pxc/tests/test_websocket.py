@@ -12,23 +12,26 @@ from fastapi import status
 from fastapi.testclient import TestClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.websockets import WebSocketDisconnect
-from uuid6 import uuid7
 
 from sparkth.core.models.user import User
+from sparkth.lib.testing import AuditEventsFetcher
 from sparkth.plugins.pxc.constants import (
     PXC_ACTION_FAILED,
     PXC_ACTION_REJECTED,
     PXC_CLOSE_ACTIVITY_NOT_FOUND,
     PXC_CLOSE_INVALID_TOKEN,
+    PXC_CLOSE_NOT_PERMITTED,
     PXC_PREVIEW_ACTIVITY_INSTANCE,
     PXC_PREVIEW_COURSE_ID,
+    PXC_PREVIEW_USER_PREFIX,
 )
 from sparkth.plugins.pxc.enums import PxcFailureKind
 from sparkth.plugins.pxc.event_bus import EVENT_BUS
-from sparkth.plugins.pxc.models import PxcActionFailure
+from sparkth.plugins.pxc.exceptions import PxcActivityNotFound, PxcActivityNotPermitted
+from sparkth.plugins.pxc.models import PxcActionFailure, PxcActivity
 from sparkth.plugins.pxc.revisions import publish_revision
 from sparkth.plugins.pxc.tests.conftest import inline_config, staged_activity
-from sparkth.plugins.pxc.tokens import mint_launch_token, pin_launch_token
+from sparkth.plugins.pxc.tokens import LaunchClaims, mint_launch_token, pin_launch_token
 
 
 def test_a_socket_without_a_token_is_refused(ws_client: TestClient) -> None:
@@ -60,14 +63,18 @@ def test_a_socket_for_an_unbundled_activity_is_closed_as_not_found(
     assert refusal.value.code == PXC_CLOSE_ACTIVITY_NOT_FOUND
 
 
-def test_a_socket_with_a_valid_token_is_accepted(ws_client: TestClient, configured_secret: str) -> None:
+def test_a_socket_with_a_valid_token_is_accepted(
+    ws_client: TestClient, configured_secret: str, lms_account: User
+) -> None:
     token = mint_launch_token("mcq", "instance-1", "course-1", "learner-7", "play", configured_secret, 300)
 
     with ws_client.websocket_connect(f"/api/v1/pxc/ws?token={token}") as socket:
         assert socket is not None
 
 
-def test_a_closed_socket_leaves_no_subscriber_behind(ws_client: TestClient, configured_secret: str) -> None:
+def test_a_closed_socket_leaves_no_subscriber_behind(
+    ws_client: TestClient, configured_secret: str, lms_account: User
+) -> None:
     """The finally clause must unsubscribe; the inner assertion pins the subscription key (L16)."""
     token = mint_launch_token("mcq", "instance-1", "course-1", "learner-7", "play", configured_secret, 300)
 
@@ -78,7 +85,9 @@ def test_a_closed_socket_leaves_no_subscriber_behind(ws_client: TestClient, conf
 
 
 @pytest.mark.wasm
-def test_an_action_sent_over_the_socket_comes_back_as_an_event(ws_client: TestClient, configured_secret: str) -> None:
+def test_an_action_sent_over_the_socket_comes_back_as_an_event(
+    ws_client: TestClient, configured_secret: str, lms_account: User
+) -> None:
     token = mint_launch_token("mcq", "instance-1", "course-1", "learner-7", "play", configured_secret, 300)
 
     with ws_client.websocket_connect(f"/api/v1/pxc/ws?token={token}") as socket:
@@ -90,7 +99,9 @@ def test_an_action_sent_over_the_socket_comes_back_as_an_event(ws_client: TestCl
 
 @pytest.mark.wasm
 def test_two_learners_on_one_activity_instance_both_receive_one_learners_event(
-    ws_client: TestClient, configured_secret: str
+    ws_client: TestClient,
+    configured_secret: str,
+    lms_account: User,
 ) -> None:
     """An action's events reach every learner on the activity instance, not just the actor."""
     acting = mint_launch_token("mcq", "instance-1", "course-1", "learner-7", "play", configured_secret, 300)
@@ -130,7 +141,9 @@ def test_a_frame_cannot_escalate_its_own_permission(
     assert inline_config(embed_response.text).state.get("question") != "Owned?"
 
 
-def test_a_frame_that_is_not_json_closes_the_socket(ws_client: TestClient, configured_secret: str) -> None:
+def test_a_frame_that_is_not_json_closes_the_socket(
+    ws_client: TestClient, configured_secret: str, lms_account: User
+) -> None:
     token = mint_launch_token("mcq", "instance-1", "course-1", "learner-7", "play", configured_secret, 300)
 
     with pytest.raises(WebSocketDisconnect) as refusal:
@@ -141,7 +154,7 @@ def test_a_frame_that_is_not_json_closes_the_socket(ws_client: TestClient, confi
     assert refusal.value.code == status.WS_1003_UNSUPPORTED_DATA
 
 
-def test_a_binary_frame_closes_the_socket(ws_client: TestClient, configured_secret: str) -> None:
+def test_a_binary_frame_closes_the_socket(ws_client: TestClient, configured_secret: str, lms_account: User) -> None:
     """A binary frame reaches the loop as ``KeyError``, not as ``JSONDecodeError``."""
     token = mint_launch_token("mcq", "instance-1", "course-1", "learner-7", "play", configured_secret, 300)
 
@@ -153,7 +166,9 @@ def test_a_binary_frame_closes_the_socket(ws_client: TestClient, configured_secr
     assert refusal.value.code == status.WS_1003_UNSUPPORTED_DATA
 
 
-def test_a_deeply_nested_frame_closes_the_socket(ws_client: TestClient, configured_secret: str) -> None:
+def test_a_deeply_nested_frame_closes_the_socket(
+    ws_client: TestClient, configured_secret: str, lms_account: User
+) -> None:
     """A frame nested past the parser's recursion limit raises ``RecursionError``, not a decode error.
 
     200_000 is measured: ``RecursionError`` from ~150_000 up, and 195 KiB stays under the 1 MiB cap.
@@ -168,7 +183,9 @@ def test_a_deeply_nested_frame_closes_the_socket(ws_client: TestClient, configur
     assert refusal.value.code == status.WS_1003_UNSUPPORTED_DATA
 
 
-def test_a_frame_with_an_over_long_integer_closes_the_socket(ws_client: TestClient, configured_secret: str) -> None:
+def test_a_frame_with_an_over_long_integer_closes_the_socket(
+    ws_client: TestClient, configured_secret: str, lms_account: User
+) -> None:
     """An integer literal past CPython's int-from-string limit raises a bare ``ValueError``.
 
     The digit count is read from the live limit, which is an interpreter setting, not hardcoded.
@@ -184,7 +201,9 @@ def test_a_frame_with_an_over_long_integer_closes_the_socket(ws_client: TestClie
     assert refusal.value.code == status.WS_1003_UNSUPPORTED_DATA
 
 
-def test_a_frame_with_no_action_closes_the_socket(ws_client: TestClient, configured_secret: str) -> None:
+def test_a_frame_with_no_action_closes_the_socket(
+    ws_client: TestClient, configured_secret: str, lms_account: User
+) -> None:
     token = mint_launch_token("mcq", "instance-1", "course-1", "learner-7", "play", configured_secret, 300)
 
     with pytest.raises(WebSocketDisconnect) as refusal:
@@ -196,7 +215,10 @@ def test_a_frame_with_no_action_closes_the_socket(ws_client: TestClient, configu
 
 
 def test_an_action_after_the_token_lapses_closes_the_socket(
-    ws_client: TestClient, configured_secret: str, monkeypatch: pytest.MonkeyPatch
+    ws_client: TestClient,
+    configured_secret: str,
+    monkeypatch: pytest.MonkeyPatch,
+    lms_account: User,
 ) -> None:
     """A socket verified only at its handshake would accept an action an hour later."""
     token = mint_launch_token("mcq", "instance-1", "course-1", "learner-7", "play", configured_secret, 300)
@@ -214,7 +236,9 @@ def test_an_action_after_the_token_lapses_closes_the_socket(
 
 
 @pytest.mark.wasm
-def test_an_action_the_manifest_rejects_leaves_the_socket_open(ws_client: TestClient, configured_secret: str) -> None:
+def test_an_action_the_manifest_rejects_leaves_the_socket_open(
+    ws_client: TestClient, configured_secret: str, lms_account: User
+) -> None:
     """Survival is asserted by a valid action afterwards; an absent disconnect would not surface."""
     token = mint_launch_token("mcq", "instance-1", "course-1", "learner-7", "play", configured_secret, 300)
 
@@ -231,7 +255,10 @@ CLOSE: dict[str, list[int]] = {"value": []}
 
 
 def test_an_action_whose_sandbox_fails_gets_an_error_frame_and_the_socket_stays_open(
-    ws_client: TestClient, configured_secret: str, throwing_sandbox: None
+    ws_client: TestClient,
+    configured_secret: str,
+    throwing_sandbox: None,
+    lms_account: User,
 ) -> None:
     token = mint_launch_token("mcq", "instance-1", "course-1", "learner-7", "play", configured_secret, 300)
 
@@ -246,7 +273,9 @@ def test_an_action_whose_sandbox_fails_gets_an_error_frame_and_the_socket_stays_
     assert second == first
 
 
-def test_an_action_the_manifest_refuses_gets_an_error_frame(ws_client: TestClient, configured_secret: str) -> None:
+def test_an_action_the_manifest_refuses_gets_an_error_frame(
+    ws_client: TestClient, configured_secret: str, lms_account: User
+) -> None:
     token = mint_launch_token("mcq", "instance-1", "course-1", "learner-7", "play", configured_secret, 300)
 
     with ws_client.websocket_connect(f"/api/v1/pxc/ws?token={token}") as socket:
@@ -257,7 +286,9 @@ def test_an_action_the_manifest_refuses_gets_an_error_frame(ws_client: TestClien
 
 
 def test_an_action_named_by_a_number_is_refused_by_its_name_as_text(
-    ws_client: TestClient, configured_secret: str
+    ws_client: TestClient,
+    configured_secret: str,
+    lms_account: User,
 ) -> None:
     token = mint_launch_token("mcq", "instance-1", "course-1", "learner-7", "play", configured_secret, 300)
 
@@ -292,14 +323,26 @@ async def _record(session: AsyncSession, failure: PxcActionFailure, keep: int) -
 
 
 def test_a_preview_socket_action_that_fails_is_recorded_with_its_revision(
-    ws_client: TestClient, configured_secret: str, throwing_sandbox: None, monkeypatch: pytest.MonkeyPatch
+    ws_client: TestClient,
+    configured_secret: str,
+    throwing_sandbox: None,
+    monkeypatch: pytest.MonkeyPatch,
+    authors: tuple[User, User],
+    authored_activity: PxcActivity,
 ) -> None:
     RECORDED.clear()
     monkeypatch.setattr("sparkth.plugins.pxc.actions.insert_action_failure", _record)
-    activity_id = str(uuid7())
+    owner, _ = authors
+    activity_id = str(authored_activity.id)
     revision = publish_revision(staged_activity("q"), activity_id).name
     token = mint_launch_token(
-        activity_id, PXC_PREVIEW_ACTIVITY_INSTANCE, PXC_PREVIEW_COURSE_ID, "sparkth-1", "play", configured_secret, 300
+        activity_id,
+        PXC_PREVIEW_ACTIVITY_INSTANCE,
+        PXC_PREVIEW_COURSE_ID,
+        f"{PXC_PREVIEW_USER_PREFIX}{owner.id}",
+        "play",
+        configured_secret,
+        300,
     )
     pinned = pin_launch_token(token, revision)
 
@@ -310,3 +353,65 @@ def test_a_preview_socket_action_that_fails_is_recorded_with_its_revision(
 
     [failure] = RECORDED
     assert (failure.kind, failure.action, failure.revision) == (PxcFailureKind.FAILED, "answer.submit", revision)
+
+
+def test_a_socket_the_lms_account_may_not_open_is_closed_as_not_permitted(
+    ws_client: TestClient, configured_secret: str
+) -> None:
+    token = mint_launch_token("mcq", "instance-1", "course-1", "learner-7", "play", configured_secret, 300)
+
+    with pytest.raises(WebSocketDisconnect) as refusal:
+        with ws_client.websocket_connect(f"/api/v1/pxc/ws?token={token}") as socket:
+            socket.receive_text()
+
+    assert refusal.value.code == PXC_CLOSE_NOT_PERMITTED
+
+
+def test_a_refused_socket_records_the_denial(
+    ws_client: TestClient, configured_secret: str, audit_events: AuditEventsFetcher
+) -> None:
+    token = mint_launch_token("mcq", "instance-1", "course-1", "learner-7", "play", configured_secret, 300)
+
+    with pytest.raises(WebSocketDisconnect):
+        with ws_client.websocket_connect(f"/api/v1/pxc/ws?token={token}") as socket:
+            socket.receive_text()
+
+    assert ws_client.portal is not None
+    events = ws_client.portal.call(audit_events)
+    assert [(e.category, e.action, e.target_id) for e in events] == [("permission", "denied", "pxc.activity.play")]
+
+
+async def _refuse_launch(claims: LaunchClaims) -> None:
+    raise PxcActivityNotPermitted("not permitted")
+
+
+async def _lose_launch_activity(claims: LaunchClaims) -> None:
+    raise PxcActivityNotFound("gone")
+
+
+def test_an_action_frame_after_the_grant_is_gone_closes_the_socket(
+    ws_client: TestClient, configured_secret: str, lms_account: User, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token = mint_launch_token("mcq", "instance-1", "course-1", "learner-7", "play", configured_secret, 300)
+
+    with ws_client.websocket_connect(f"/api/v1/pxc/ws?token={token}") as socket:
+        monkeypatch.setattr("sparkth.plugins.pxc.websocket.require_launch_access", _refuse_launch)
+        socket.send_json({"action": "answer.submit", "value": [1]})
+        with pytest.raises(WebSocketDisconnect) as refusal:
+            socket.receive_text()
+
+    assert refusal.value.code == PXC_CLOSE_NOT_PERMITTED
+
+
+def test_an_action_frame_after_the_activity_is_gone_closes_the_socket(
+    ws_client: TestClient, configured_secret: str, lms_account: User, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token = mint_launch_token("mcq", "instance-1", "course-1", "learner-7", "play", configured_secret, 300)
+
+    with ws_client.websocket_connect(f"/api/v1/pxc/ws?token={token}") as socket:
+        monkeypatch.setattr("sparkth.plugins.pxc.websocket.require_launch_access", _lose_launch_activity)
+        socket.send_json({"action": "answer.submit", "value": [1]})
+        with pytest.raises(WebSocketDisconnect) as refusal:
+            socket.receive_text()
+
+    assert refusal.value.code == PXC_CLOSE_ACTIVITY_NOT_FOUND

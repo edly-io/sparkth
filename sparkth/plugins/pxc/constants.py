@@ -21,6 +21,7 @@ PXC_SANDBOX_HEADERS = {"Content-Security-Policy": "sandbox allow-scripts allow-f
 
 # Socket close codes for a refusal: 4000 plus the matching HTTP status.
 PXC_CLOSE_INVALID_TOKEN = 4401
+PXC_CLOSE_NOT_PERMITTED = 4403
 PXC_CLOSE_ACTIVITY_NOT_FOUND = 4404
 
 # The error a socket frame carries for an action the sandbox failed or the manifest refused.

@@ -195,12 +195,13 @@ When the account that connected a Slack workspace lacks `plugin.use` at `plugin:
 workspace that it is disabled instead of answering.
 
 A PXC activity is shown to a browser through routes that carry a launch token instead of a Sparkth session: the
-embed page, each of its assets and each of its action requests. Each of these requests is checked, and a refusal
-answers 403. A token minted for a preview inside Sparkth is checked for the user it names. Any other token comes
-from the LMS, which has no Sparkth accounts for its learners, and is checked for the built-in `pxc_lms` account.
-The check needs `pxc.activity.edit` for an `edit` launch and `pxc.activity.play` or `pxc.activity.edit` for any
-other, at the `user` scope of the activity's owner, or at `global` for a bundled activity; a grant at `global`
-counts for either.
+embed page, each of its assets, each action POST, and the activity's WebSocket. Each of these is checked, the
+socket when it opens and again on every action it sends. A refused HTTP request answers 403 and a refused socket
+is closed with code 4403. A token minted for a preview inside Sparkth is checked for the user it names. Any other
+token comes from the LMS, which has no Sparkth accounts for its learners, and is checked for the built-in
+`pxc_lms` account. The check needs `pxc.activity.edit` for an `edit` launch and `pxc.activity.play` or
+`pxc.activity.edit` for any other, at the `user` scope of the activity's owner, or at `global` for a bundled
+activity; a grant at `global` counts for either.
 
 An operator narrows what the LMS may launch by revoking the `pxc_lms_user` assignment from `pxc_lms` and assigning
 a role that holds the wanted permissions at the wanted scopes:
@@ -215,6 +216,7 @@ that permission allows a `play` launch too; remove both to stop them. A change r
 seconds, since a launch's answer is reused for that long. A refused launch records `permission.denied` for the
 first permission that allows its level. On these routes the actor of that event is the account whose grant was
 checked, the previewing user or `pxc_lms`, because the request carries no signed-in caller.
+A denial recorded from a socket carries no request id and no address.
 
 ## Groups
 

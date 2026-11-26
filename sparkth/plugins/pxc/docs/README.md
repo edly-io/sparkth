@@ -158,11 +158,13 @@ of its fields, and the runtime serves those for an activity instance nobody has 
 
 ## Who may launch
 
-A launch's level, `view`, `play` or `edit`, is decided by whoever minted its token. The LMS decides it for
-a launch from a course, because only the LMS knows who may author the course. Sparkth decides it for a
-preview, after checking that the previewing user may open the activity at that level.
+A launch's level, `view`, `play` or `edit`, is the one whoever minted its token asked for. The LMS asks for it
+for a launch from a course, because only the LMS knows who may author the course. Sparkth asks for it for a
+preview, after checking that the previewing user may open the activity at that level. Sparkth serves the level
+only when the account the launch is checked for holds a permission that allows it.
 
-The embed page, each of its assets and each of its action requests are checked against the token's level:
+The embed page, each of its assets, each action POST, and the socket (when it opens and on every action it
+sends) are checked against the token's level:
 
 - A preview token is checked for the Sparkth user it names.
 - Any other token is checked for the built-in `pxc_lms` account, which stands for the connected LMS.
@@ -170,12 +172,14 @@ The embed page, each of its assets and each of its action requests are checked a
 - The permission is checked at the `user` scope of the activity's owner, or at `global` for a bundled
   activity. A grant at `global` counts for either.
 
-A refused request answers 403, readable from any origin. A token that is wrongly signed or expired is a 401
-and an activity that does not exist a 404, both before any permission is checked.
+A refused request answers 403, readable from any origin, and a refused socket closes with code 4403. A token
+that is wrongly signed or expired is a 401 and an activity that does not exist a 404, both before any
+permission is checked.
 
 An answer is reused for 60 seconds per account, level and activity, so a change to a role or an assignment
-reaches launches within a minute. A refusal is recorded once per answer. How to narrow what the LMS may launch
-is in the permissions guide.
+reaches launches within a minute. A refusal is recorded once per answer. A refusal recorded from a socket carries
+no request id and no address, since a socket has no request to take them from. How to narrow what the LMS may
+launch is in the permissions guide.
 
 The check binds what the shipped Open edX block does, not what a holder of the launch secret could do. One
 secret signs every token, so whoever holds it can mint any token, a preview-shaped one included, and so
@@ -369,9 +373,9 @@ success message can appear for an action the server has not seen yet. The queue 
 long as the page, so an action still queued when the page reloads is lost.
 
 What the viewer does get is a notice once the action is known to be undeliverable. A lapsed
-token closes the socket with code 4401 (4000 plus the HTTP status), and a missing activity with
-4404. `sparkth-pxc.js` then stops retrying and puts a message at the top of the embed that names
-the cause and asks for a reload. Any other drop gets a generic "disconnected" message after a
+token closes the socket with code 4401 (4000 plus the HTTP status), a launch the account may not make
+with 4403, and a missing activity with 4404. `sparkth-pxc.js` then stops retrying and puts a message at
+the top of the embed that names the cause. Any other drop gets a generic "disconnected" message after a
 bounded number of retries.
 
 ## Known limits
@@ -411,5 +415,5 @@ bounded number of retries.
   file. The file is orphaned and harmless.
 - A file that cannot be removed is logged and left on disk. If the live link survives, learners
   keep loading the activity, though no row lists or places it.
-- A learner socket open when its activity is deleted does not close cleanly: it fails on its next
-  action, and its reconnect gets the existing "activity missing" close (4404).
+- A learner socket open when its activity is deleted keeps accepting actions until the cached launch
+  answer expires, then closes with 4404 on its next action, and its reconnect gets the same close.
