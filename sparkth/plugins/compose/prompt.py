@@ -5,7 +5,7 @@ from sparkth.plugins.compose.constants import (
     REFUSAL_MESSAGE,
     SYSTEM_PROMPT_SKELETON,
 )
-from sparkth.plugins.compose.enums import OptionsFence
+from sparkth.plugins.compose.lib.enums import OptionsFence
 
 
 def render_system_prompt(agent: Agent) -> str:

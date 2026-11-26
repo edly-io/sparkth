@@ -45,6 +45,10 @@ guide](../guides/plugins.md) for the how-to; this page is the generated referenc
 
 ::: sparkth.lib.compose.constants
 
+## Compose plugin enums
+
+::: sparkth.plugins.compose.lib.enums
+
 ## Compose agent exceptions
 
 ::: sparkth.lib.compose.exceptions

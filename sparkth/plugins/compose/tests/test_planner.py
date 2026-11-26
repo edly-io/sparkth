@@ -34,7 +34,8 @@ from sparkth.plugins.compose.constants import (
     STEP_RESULT_TAIL_CHARS,
     STOPPED_EARLY_NOTICE,
 )
-from sparkth.plugins.compose.enums import OptionsFence, TurnEventType
+from sparkth.plugins.compose.enums import TurnEventType
+from sparkth.plugins.compose.lib.enums import OptionsFence
 from sparkth.plugins.compose.llm import build_turn_agent
 from sparkth.plugins.compose.planner import (
     AgentGraph,

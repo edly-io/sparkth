@@ -3,6 +3,7 @@ from sparkth.lib.frontend import plugin_has_frontend
 from sparkth.lib.frontend.hooks import DISPLAY_INFO, SIDEBAR_ENTRIES, SidebarEntry
 from sparkth.lib.mcp.hooks import MCP_TOOLS
 from sparkth.lib.plugins import get_plugin_loader
+from sparkth.plugins.compose.lib.enums import OptionsFence
 from sparkth.plugins.pxc.agent import PXC_ACTIVITY_BUILDER
 from sparkth.plugins.pxc.plugin import PxcPlugin
 
@@ -68,3 +69,7 @@ def test_the_agent_is_never_allowed_to_show_code_or_errors_on_request() -> None:
     """The author sees the activity, never how it is built or why a build failed."""
     assert "unless the author asks" not in PXC_ACTIVITY_BUILDER.prompt
     assert "even when the author asks" in PXC_ACTIVITY_BUILDER.prompt
+
+
+def test_the_activity_builder_prompt_offers_choices_under_the_single_choice_tag() -> None:
+    assert f"```{OptionsFence.SINGLE}\nStart fresh in each lesson" in PXC_ACTIVITY_BUILDER.prompt

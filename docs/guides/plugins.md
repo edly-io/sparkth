@@ -796,7 +796,10 @@ does not hold `plugin.use` at (a `global` grant covers every plugin).
 - **Agent.** The agent runs on the user's model, with Compose's skeleton wrapped around its
   `prompt`. The skeleton owns the date, the assistant's identity, the output language, and the
   refusal, injection and offering-choices rules, so a prompt must not repeat them. A prompt holds
-  the agent's workflow, plus any language or guardrail rules specific to it.
+  the agent's workflow, plus any language or guardrail rules specific to it. A prompt that shows a
+  block of choices as an example takes the block's tag from `OptionsFence` in
+  `sparkth.plugins.compose.lib.enums`, never a hand-written copy. A plugin may import from another
+  plugin only through that plugin's `lib` package, as here.
 - **Tools.** The agent runs with its own `tools` and no others. A tool call is recorded in
   analytics under the tool's category, or under the agent's name when the tool has none.
 - **Operations.** The tools of plugins that register no agent, such as the LMS plugins', are
