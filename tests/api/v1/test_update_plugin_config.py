@@ -4,7 +4,7 @@ from fastapi import status
 from httpx import AsyncClient
 
 from sparkth.core.models.user import User
-from sparkth.core.plugins.service import ConfigValidationError
+from sparkth.core.plugins.exceptions import ConfigValidationError
 
 
 async def test_update_plugin_not_configured_success(client: AsyncClient, plugin_preferences: User) -> None:

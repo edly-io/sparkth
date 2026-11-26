@@ -1,6 +1,6 @@
 from typing import Any
 
-from sparkth.core.plugins.service import PluginResponse
+from sparkth.core.plugins.schemas import PluginResponse
 from sparkth.core.plugins.widgets import ConfigWidget, secret, widget
 
 SCHEMA: dict[str, Any] = {
