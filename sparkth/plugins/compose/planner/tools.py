@@ -166,7 +166,10 @@ def build_operator_tool(operator: CompiledStateGraph[Any, AuditModelInfo, Any, A
     return StructuredTool.from_function(
         coroutine=_graph_runner(operator, OPERATOR_AGENT_NAME, OPERATOR_STATUS, tail_chars=None),
         name=OPERATOR_AGENT_NAME,
-        description="Publish, retrieve or manage courses on the author's LMS.",
+        description=(
+            "Publish, retrieve or manage courses on the author's LMS. Show a plan first when the message asks "
+            "for anything besides this one operation."
+        ),
         args_schema=Operation,
         response_format="content_and_artifact",
         tags=[AUDIT_SKIP_TAG],
