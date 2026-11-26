@@ -1,5 +1,7 @@
-"""Tests for listing and reading users over the REST API."""
+"""Tests for listing and reading users over the REST API.
+Authored with LLM (Claude) assistance."""
 
+import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -48,11 +50,14 @@ async def test_list_users_pages(client: AsyncClient, session: AsyncSession) -> N
     assert [row["username"] for row in response.json()] == ["page_b"]
 
 
-async def test_list_users_rejects_limit_over_200(client: AsyncClient, session: AsyncSession) -> None:
+@pytest.mark.parametrize("params", [{"limit": 0}, {"limit": 201}, {"offset": -1}, {"search": "x" * 51}])
+async def test_list_users_rejects_out_of_range_params(
+    params: dict[str, int | str], client: AsyncClient, session: AsyncSession
+) -> None:
     caller = await make_user_with_permissions(session, ["user.read"])
     await session.commit()
     login_as(client, caller)
-    response = await client.get("/api/v1/users", params={"limit": 201})
+    response = await client.get("/api/v1/users", params=params)
     assert response.status_code == 422
 
 

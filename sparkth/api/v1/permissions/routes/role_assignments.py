@@ -118,7 +118,11 @@ async def assign_user_role(
 async def revoke_user_role(
     role_id: int, assignment_id: int, session: AsyncSession = Depends(get_async_session)
 ) -> None:
-    """Take a role away from a user by the id of the assignment. Returns 204 No Content."""
+    """Take a role away from a user by the id of the assignment. Returns 204 No Content.
+
+    An assignment whose stored scope is no longer registered, or whose stored scope and object pairing is no
+    longer valid, is refused with 422 and left in place.
+    """
     role = await get_role(role_id, session)
     assignment = await get_role_assignment(assignment_id, role_id, session)
     # ponytail: a row whose scope kind is no longer registered, or whose stored pairing is no longer valid,
@@ -171,11 +175,14 @@ async def assign_group_role(
 async def revoke_group_role(
     role_id: int, assignment_id: int, session: AsyncSession = Depends(get_async_session)
 ) -> None:
-    """Take a role away from a group by the id of the assignment. Returns 204 No Content."""
+    """Take a role away from a group by the id of the assignment. Returns 204 No Content.
+
+    An assignment whose stored scope kind is no longer registered is refused with 422 and left in place.
+    """
     role = await get_role(role_id, session)
     assignment = await group_engine.get_group_role_assignment(assignment_id, role_id, session)
-    # ponytail: same ceiling as the user revoke above (422 for an unregistered scope kind or an invalid
-    # stored pairing); upgrade to a revoke that works from the row's own strings.
+    # ponytail: a row whose scope kind is no longer registered cannot be revoked here (422);
+    # upgrade to a revoke that works from the row's own strings.
     permission_scope = get_permission_scope(assignment.scope)
     await group_engine.revoke_role_from_group(
         assignment.group_id, role.name, permission_scope, assignment.scope_object_id, session
