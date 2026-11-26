@@ -105,8 +105,7 @@ class PluginAccessMiddleware(BaseHTTPMiddleware):
                 status_code=status.HTTP_403_FORBIDDEN,
                 content={
                     "detail": _(
-                        "Access to plugin '{name}' is disabled for your account. "
-                        "Please enable the plugin in your settings."
+                        "Plugin '{name}' is switched off, either in your settings or by an administrator."
                     ).format(name=plugin_name)
                 },
             )

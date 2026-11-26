@@ -8,11 +8,11 @@ import composeEn from "@/plugins/compose/src/i18n/en.json";
 import { renderWithIntl } from "@/lib/testing/intl";
 
 // usePlugin is mocked to read this directly, so a test sets it before rendering.
-let enabledPlugins = new Set<string>();
+let usablePlugins = new Set<string>();
 
 vi.mock("@/lib/plugins/context", () => ({
   usePlugin: (name: string) => ({
-    isEnabled: enabledPlugins.has(name),
+    isUsable: usablePlugins.has(name),
     loading: false,
     config: {},
   }),
@@ -49,10 +49,10 @@ describe("UploadMenu", () => {
   beforeEach(() => {
     ATTACHMENT_SOURCES.clear();
     ATTACHMENT_SOURCES.set("files-plugin", [filesSource]);
-    enabledPlugins = new Set(["files-plugin"]);
+    usablePlugins = new Set(["files-plugin"]);
   });
 
-  it("lists a source set in the slot, with its label and icon, while its plugin is enabled", () => {
+  it("lists a source set in the slot, with its label and icon, while its plugin is usable", () => {
     renderMenu();
 
     expect(screen.getByRole("button", { name: "Pick from Files" })).toBeInTheDocument();
@@ -60,7 +60,7 @@ describe("UploadMenu", () => {
   });
 
   it("hides a source while its plugin is disabled", () => {
-    enabledPlugins = new Set();
+    usablePlugins = new Set();
     renderMenu();
 
     expect(screen.queryByRole("button", { name: "Pick from Files" })).not.toBeInTheDocument();

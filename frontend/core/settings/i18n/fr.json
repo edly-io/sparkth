@@ -19,6 +19,7 @@
     "disableError": "Échec de la désactivation du plugin.",
     "enabled": "Activé",
     "disabled": "Désactivé",
+    "disabledByAdmin": "Désactivé par un administrateur",
     "title": "Paramètres",
     "subtitle": "Activez ou désactivez vos plugins et configurez-les.",
     "loading": "Chargement des plugins...",

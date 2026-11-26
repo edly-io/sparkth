@@ -206,7 +206,10 @@ a second, failed `audit.exported` when a batch cannot be read and the file is cu
 ## Tests
 
 Follow TDD, and assert on rows that actually landed, using the `audit_events` fixture from
-`sparkth/lib/testing.py`:
+`sparkth/lib/testing.py`. The shared role helpers there create roles and grants through the role engine,
+which records them, under a `test-setup` system actor; the fixture leaves those rows out, so a test sees
+only what its own action recorded. A test that reads the log through the audit API sees every row, and
+narrows the listing itself.
 
 - **Drive the real seam** (the endpoint or service method), then read the rows. Asserting a
   mocked `record_event` was called proves nothing about the row.
