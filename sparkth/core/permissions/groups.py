@@ -425,7 +425,10 @@ async def get_group_roles(group_id: int, session: AsyncSession) -> list[GroupRol
 
 
 async def get_group_assignments_of_role(role_id: int, session: AsyncSession) -> list[tuple[GroupRoleAssignment, Group]]:
-    """Return the active group assignments of the role, each with its group, ordered by assignment id."""
+    """Return the active group assignments of the role, each with its group, ordered by assignment id.
+
+    An unknown role has no assignments and gives an empty list.
+    """
     result = await session.exec(
         select(GroupRoleAssignment, Group)
         .join(Group, col(Group.id) == col(GroupRoleAssignment.group_id))

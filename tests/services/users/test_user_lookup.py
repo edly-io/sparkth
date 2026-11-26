@@ -1,7 +1,10 @@
+"""Tests for searching, listing and reading users.
+Authored with LLM (Claude) assistance."""
+
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.core.models.user import User
+from sparkth.lib.models import User
 from sparkth.lib.testing import make_user
 from sparkth.services.users.exceptions import UserNotFound
 from sparkth.services.users.service import get_user, list_users

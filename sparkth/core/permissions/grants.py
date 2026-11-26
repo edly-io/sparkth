@@ -1,10 +1,7 @@
-"""Role grants: assigning and revoking roles for users, reading a role's assignments, and removing the
-grants scoped to an object.
+"""Role grants: assigning, revoking and reading a role's assignments, and removing grants scoped to an object.
 
-``assign_role`` and ``revoke_role`` change a user's role assignments, ``get_user_assignments_of_role``
-and ``get_role_assignment`` read the active assignments of one role, and ``delete_grants_at_object``
-removes every user and group grant scoped to one object when that object is deleted. Each active grant
-removed is recorded as a ``role.unassigned`` or ``group.role_revoked`` audit event.
+Reads return only active assignments. Deleting an object removes every user and group grant scoped to it.
+Each active grant removed is recorded as a ``role.unassigned`` or ``group.role_revoked`` audit event.
 """
 
 from sqlalchemy import ColumnElement, and_, delete
@@ -173,7 +170,8 @@ async def get_user_assignments_of_role(
 ) -> list[tuple[RoleAssignment, User]]:
     """Return a page of the role's active user assignments, each with its user, ordered by assignment id.
 
-    An assignment whose user account is soft-deleted is still returned; the user row says so.
+    An unknown role has no assignments and gives an empty list. An assignment whose user account is
+    soft-deleted is still returned; the user row says so.
     """
     result = await session.exec(
         select(RoleAssignment, User)

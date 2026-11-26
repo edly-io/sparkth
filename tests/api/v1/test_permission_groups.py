@@ -195,9 +195,6 @@ async def test_group_scoped_grant_does_not_authorize_creating_groups(
     assert (await client.post("/api/v1/permissions/groups", json={"name": _uniq("x")})).status_code == 403
 
 
-# --- Members -----------------------------------------------------------------------------------
-
-
 def _build_members_url(group_id: int, user_id: int | None = None) -> str:
     suffix = "" if user_id is None else f"/{user_id}"
     return f"/api/v1/permissions/groups/{group_id}/members{suffix}"
@@ -255,6 +252,33 @@ async def test_list_group_members_requires_group_read_at_that_group(client: Asyn
     assert (await client.get(_build_members_url(group.id))).status_code == 403
 
 
+async def test_list_members_of_unknown_group_returns_404(client: AsyncClient, session: AsyncSession) -> None:
+    login_as(client, await make_user_with_permissions(session, ["group.read"]))
+    await session.commit()
+
+    response = await client.get(_build_members_url(99999))
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Group not found: 99999"
+
+
+async def test_list_group_members_returns_oldest_first(client: AsyncClient, session: AsyncSession) -> None:
+    caller = await make_user_with_permissions(session, ["group.read"])
+    group = await _create_target_group(session)
+    assert group.id is not None
+    first = await make_user(session, _uniq("first"))
+    second = await make_user(session, _uniq("second"))
+    assert first.id is not None and second.id is not None
+    await group_engine.add_group_member(first.id, group.id, session)
+    await group_engine.add_group_member(second.id, group.id, session)
+    await session.commit()
+    login_as(client, caller)
+
+    response = await client.get(_build_members_url(group.id))
+
+    assert [row["user_id"] for row in response.json()] == [first.id, second.id]
+
+
 def _build_group_roles_url(group_id: int) -> str:
     return f"/api/v1/permissions/groups/{group_id}/roles"
 
@@ -288,6 +312,19 @@ async def test_list_group_roles_requires_group_read_at_that_group(client: AsyncC
     await session.commit()
 
     assert (await client.get(_build_group_roles_url(group.id))).status_code == 403
+
+
+async def test_list_roles_of_group_without_roles_returns_empty_list(client: AsyncClient, session: AsyncSession) -> None:
+    caller = await make_user_with_permissions(session, ["group.read"])
+    group = await _create_target_group(session)
+    assert group.id is not None
+    await session.commit()
+    login_as(client, caller)
+
+    response = await client.get(_build_group_roles_url(group.id))
+
+    assert response.status_code == 200
+    assert response.json() == []
 
 
 async def test_list_roles_of_unknown_group_returns_404(client: AsyncClient, session: AsyncSession) -> None:
