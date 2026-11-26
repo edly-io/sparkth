@@ -106,7 +106,7 @@ async def test_create_role_with_permissions_returns_them(client: AsyncClient, se
     )
     assert response.status_code == 201
     assert sorted(response.json()["permissions"]) == ["role.read", "role.update"]
-    assert response.json()["risks"] == ["delegates_access"]
+    assert response.json()["risks"] == ["delegates_access", "private_data"]
 
 
 async def test_create_role_with_an_unregistered_permission_returns_422_and_creates_nothing(
