@@ -7,7 +7,7 @@ vi.mock("@/core/auth/hooks", () => ({
   useAuth: () => ({ token: "test-token" }),
 }));
 const checkPermissions = vi.hoisted(() => vi.fn());
-vi.mock("@/core/permissions/client", () => ({ checkPermissions }));
+vi.mock("@/lib/permissions/client", () => ({ checkPermissions }));
 const audit = vi.hoisted(() => ({
   fetchAuditEvents: vi.fn(),
   fetchAuditEvent: vi.fn(),

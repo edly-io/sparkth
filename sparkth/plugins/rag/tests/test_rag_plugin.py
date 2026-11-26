@@ -7,13 +7,8 @@ from sparkth.lib.auth import bind_current_user_id
 from sparkth.lib.compose.hooks import COMPOSE_AGENTS, enabled_agents
 from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.lib.frontend import get_plugin_display_info, get_plugin_sidebar_entry, plugin_has_frontend
-from sparkth.lib.rag import SectionRef
-from sparkth.plugins.rag.agent import (
-    RAG,
-    DocumentSections,
-    SectionSelection,
-    build_document_context,
-)
+from sparkth.lib.rag import DocumentSections, SectionRef, SectionSelection
+from sparkth.plugins.rag.agent import RAG, build_document_context
 from sparkth.plugins.rag.constants import NOTHING_MATCHED
 from sparkth.plugins.rag.plugin import RagPlugin
 from sparkth.rag.models import DocumentChunk, DocumentChunkLink

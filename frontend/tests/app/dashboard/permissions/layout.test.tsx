@@ -5,7 +5,7 @@ import { renderWithIntl } from "@/tests/intl";
 vi.mock("@/core/auth/hooks", () => ({ useAuth: () => ({ token: "test-token" }) }));
 vi.mock("next/navigation", () => ({ usePathname: () => "/dashboard/permissions/roles" }));
 const checkPermissions = vi.hoisted(() => vi.fn());
-vi.mock("@/core/permissions/client", () => ({ checkPermissions }));
+vi.mock("@/lib/permissions/client", () => ({ checkPermissions }));
 
 import PermissionsLayout from "@/app/dashboard/permissions/layout";
 

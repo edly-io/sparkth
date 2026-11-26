@@ -7,7 +7,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 from uuid6 import uuid7
 
-from sparkth.core.models.user import User
+from sparkth.lib.models import User
 from sparkth.lib.testing import AuditEventsFetcher
 from sparkth.plugins.pxc.activities import activity_dir
 from sparkth.plugins.pxc.config import get_pxc_settings
