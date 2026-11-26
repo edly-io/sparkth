@@ -8,7 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.audit.models import AuditEvent
 from sparkth.core.models.user import User
-from sparkth.core.permissions import PERMISSIONS, Permission, groups, roles
+from sparkth.core.permissions import groups, roles
 from sparkth.core.permissions.grants import assign_role, revoke_role
 from sparkth.core.permissions.models import (
     Group,
@@ -22,11 +22,6 @@ from sparkth.lib.audit import record_event
 from sparkth.lib.audit.events import BaseAuditEvent, RoleDeletedAuditEvent
 from sparkth.lib.permissions.scopes import GLOBAL, GROUP, ROLE
 from sparkth.lib.testing import AuditEventsFetcher
-
-
-@pytest.fixture(autouse=True)
-def _register_test_permission(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setitem(PERMISSIONS._items, "assignment.grade", Permission("assignment.grade"))
 
 
 def _assert_envelope(event: AuditEvent, event_type: str, target_type: str, target_id: object) -> None:
@@ -70,6 +65,18 @@ class TestRoleEvents:
         _assert_envelope(event, "role.created", "role", role.id)
         assert event.old_values is None
         assert event.new_values == {"name": "grader", "description": "Grades stuff"}
+
+    async def test_create_with_permissions_records_each_grant_after_created(
+        self, session: AsyncSession, audit_events: AuditEventsFetcher
+    ) -> None:
+        role = await roles.create_role("grader", None, session, permissions=["role.update", "role.read"])
+
+        created, granted_read, granted_update = await audit_events()
+        _assert_envelope(created, "role.created", "role", role.id)
+        _assert_envelope(granted_read, "role.permission_granted", "role", role.id)
+        assert granted_read.new_values == {"permission": "role.read"}
+        _assert_envelope(granted_update, "role.permission_granted", "role", role.id)
+        assert granted_update.new_values == {"permission": "role.update"}
 
     async def test_update_records_before_and_after(
         self, session: AsyncSession, audit_events: AuditEventsFetcher
@@ -196,7 +203,7 @@ class TestRoleEvents:
         holder = await _user(session, "alice")
         assert role.id is not None and group.id is not None and holder.id is not None
         role_id = role.id
-        await roles.add_role_permission(role_id, "assignment.grade", session)
+        await roles.set_role_permissions(role_id, ["assignment.grade"], session)
         await assign_role(holder.id, "grader", GLOBAL, None, session)
         await groups.assign_role_to_group(group.id, "grader", GLOBAL, None, session)
         await session.commit()
@@ -215,47 +222,31 @@ class TestRoleEvents:
             await session.exec(select(GroupRoleAssignment).where(GroupRoleAssignment.role_id == role_id))
         ).all() != []
 
-    async def test_grant_records_permission_granted(
+    async def test_setting_permissions_records_each_grant_and_revoke(
         self, session: AsyncSession, audit_events: AuditEventsFetcher
     ) -> None:
         role = await _role(session)
         assert role.id is not None
-        await roles.add_role_permission(role.id, "assignment.grade", session)
+        await roles.set_role_permissions(role.id, ["assignment.grade"], session)
+        await roles.set_role_permissions(role.id, ["role.read", "role.update"], session)
 
-        _, event = await audit_events()
-        _assert_envelope(event, "role.permission_granted", "role", role.id)
-        assert event.new_values == {"permission": "assignment.grade"}
+        granted_read, granted_update, revoked_grade = (await audit_events())[2:]
+        _assert_envelope(granted_read, "role.permission_granted", "role", role.id)
+        assert granted_read.new_values == {"permission": "role.read"}
+        _assert_envelope(granted_update, "role.permission_granted", "role", role.id)
+        assert granted_update.new_values == {"permission": "role.update"}
+        _assert_envelope(revoked_grade, "role.permission_revoked", "role", role.id)
+        assert revoked_grade.old_values == {"permission": "assignment.grade"}
 
-    async def test_repeated_grant_records_nothing(
+    async def test_setting_the_same_permissions_records_nothing(
         self, session: AsyncSession, audit_events: AuditEventsFetcher
     ) -> None:
         role = await _role(session)
         assert role.id is not None
-        await roles.add_role_permission(role.id, "assignment.grade", session)
-        await roles.add_role_permission(role.id, "assignment.grade", session)
+        await roles.set_role_permissions(role.id, ["assignment.grade"], session)
+        await roles.set_role_permissions(role.id, ["assignment.grade"], session)
 
         assert [event.action for event in await audit_events()] == ["created", "permission_granted"]
-
-    async def test_revoke_records_permission_revoked(
-        self, session: AsyncSession, audit_events: AuditEventsFetcher
-    ) -> None:
-        role = await _role(session)
-        assert role.id is not None
-        await roles.add_role_permission(role.id, "assignment.grade", session)
-        await roles.remove_role_permission(role.id, "assignment.grade", session)
-
-        event = (await audit_events())[-1]
-        _assert_envelope(event, "role.permission_revoked", "role", role.id)
-        assert event.old_values == {"permission": "assignment.grade"}
-
-    async def test_revoking_an_absent_grant_records_nothing(
-        self, session: AsyncSession, audit_events: AuditEventsFetcher
-    ) -> None:
-        role = await _role(session)
-        assert role.id is not None
-        await roles.remove_role_permission(role.id, "assignment.grade", session)
-
-        assert [event.action for event in await audit_events()] == ["created"]
 
 
 class TestRoleAssignmentEvents:

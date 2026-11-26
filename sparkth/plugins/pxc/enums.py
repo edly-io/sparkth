@@ -4,7 +4,7 @@ from enum import StrEnum
 
 
 class PreviewPermission(StrEnum):
-    """The permissions an author may preview their own activity under."""
+    """The permissions an activity can be previewed under."""
 
     PLAY = "play"
     EDIT = "edit"

@@ -24,7 +24,7 @@ vi.mock("@/lib/auth/hooks", () => ({
 }));
 
 vi.mock("@/lib/plugins/context", () => ({
-  usePlugin: () => ({ isEnabled: false, loading: false, config: {} }),
+  usePlugin: () => ({ isUsable: false, loading: false, config: {} }),
 }));
 
 vi.mock("@/plugins/compose/src/hooks/useChatInput", () => ({

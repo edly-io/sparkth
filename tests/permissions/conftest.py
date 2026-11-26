@@ -7,8 +7,16 @@ from httpx import ASGITransport, AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.user import User
+from sparkth.core.permissions import PERMISSIONS, Permission
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
+
+
+@pytest.fixture(autouse=True)
+def _register_test_permissions(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Register the made-up permissions these tests grant, for one test, so the role engine accepts them."""
+    for name in ("assignment.grade", "quiz.grade"):
+        monkeypatch.setitem(PERMISSIONS._items, name, Permission(name))
 
 
 async def probe() -> dict[str, bool]:

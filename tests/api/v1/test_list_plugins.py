@@ -45,11 +45,14 @@ async def test_list_is_empty_without_a_grant(
     assert [event.action for event in await audit_events() if event.category == "permission"] == []
 
 
-def _plugin_entry(plugin_name: str, enabled: bool, config: dict[str, str], is_core: bool) -> dict[str, object]:
+def _plugin_entry(
+    plugin_name: str, enabled: bool, system_enabled: bool, config: dict[str, str], is_core: bool
+) -> dict[str, object]:
     """Expected response entry for a plugin that declared no frontend metadata."""
     return {
         "plugin_name": plugin_name,
         "enabled": enabled,
+        "system_enabled": system_enabled,
         "config": config,
         "is_core": is_core,
         "config_schema": {},
@@ -67,12 +70,26 @@ async def test_list_plugins_basic(client: AsyncClient, plugin_preferences: User)
 
     data = response.json()
     expected = [
-        _plugin_entry("plugin_a", enabled=True, config={}, is_core=True),
-        _plugin_entry("plugin_b", enabled=True, config={"some config": "abc"}, is_core=True),
-        _plugin_entry("configured_plugin_disabled", enabled=False, config={"some config": "abc"}, is_core=True),
-        _plugin_entry("disabled_plugin", enabled=True, config={}, is_core=True),
+        _plugin_entry("plugin_a", enabled=True, system_enabled=True, config={}, is_core=True),
+        _plugin_entry("plugin_b", enabled=True, system_enabled=True, config={"some config": "abc"}, is_core=True),
+        _plugin_entry(
+            "configured_plugin_disabled",
+            enabled=False,
+            system_enabled=True,
+            config={"some config": "abc"},
+            is_core=True,
+        ),
+        _plugin_entry("disabled_plugin", enabled=True, system_enabled=False, config={}, is_core=True),
     ]
     assert data == expected
+
+
+async def test_list_reports_a_plugin_switched_off_system_wide(client: AsyncClient, plugin_preferences: User) -> None:
+    response = await client.get("/api/v1/plugins/")
+
+    states = {entry["plugin_name"]: (entry["enabled"], entry["system_enabled"]) for entry in response.json()}
+    assert states["disabled_plugin"] == (True, False)
+    assert states["plugin_a"] == (True, True)
 
 
 async def test_list_plugins_carries_declared_frontend_metadata(

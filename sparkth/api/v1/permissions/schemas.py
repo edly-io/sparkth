@@ -39,8 +39,11 @@ class PermissionResponse(BaseModel):
 
 
 class RoleCreate(BaseModel):
+    """A new role: its name, description and the permissions it starts with (none by default)."""
+
     name: str = Field(min_length=1, max_length=50)
     description: str | None = Field(default=None, max_length=255)
+    permissions: list[str] = Field(default_factory=list)
 
 
 class RoleUpdate(BaseModel):
@@ -68,8 +71,10 @@ class RoleResponse(BaseModel):
     risks: list[PermissionRisk] = Field(description="The reasons to think twice before giving someone this role.")
 
 
-class RolePermissionAdd(BaseModel):
-    permission: str = Field(min_length=1, max_length=100)
+class RolePermissionsSet(BaseModel):
+    """Every permission the role should grant once saved; anything else it grants is revoked."""
+
+    permissions: list[str]
 
 
 class GroupCreate(BaseModel):
