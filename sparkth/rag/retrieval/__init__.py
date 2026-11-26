@@ -5,10 +5,10 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
-from sparkth.lib.auth import current_user_id
 from sparkth.lib.db import session_scope
-from sparkth.lib.documents import DocumentStatus, get_document
+from sparkth.lib.documents import DocumentStatus
 from sparkth.rag.config import get_rag_settings
+from sparkth.rag.document_access import get_readable_document
 from sparkth.rag.retrieval.agent import get_context_via_agent
 from sparkth.rag.retrieval.utils import validate_documents_ready
 from sparkth.rag.store import ChunkStoreService
@@ -92,10 +92,11 @@ async def get_section_chunks(document_id: int, sections: list[dict[str, str | No
     """Return the chunks of ``sections`` of ``document_id``, in document order.
 
     Each section is a dict of ``chapter``, ``section`` and ``subsection``, matched exactly. Reads
-    only a ready document the requesting user owns; any other has no chunks.
+    only a ready document the requesting user owns, and only a readable one when the request bound
+    them; any other has no chunks.
     """
     async with session_scope() as session:
-        document = await get_document(session, document_id, current_user_id())
+        document = await get_readable_document(session, document_id)
         if document is None or document.status != DocumentStatus.READY:
             return []
         chunks = await ChunkStoreService().fetch_chunks_by_sections(

@@ -18,7 +18,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.audit import ToolFailureKind
 from sparkth.lib.db import session_scope
-from sparkth.lib.documents import DocumentStatus, get_document
+from sparkth.lib.documents import DocumentStatus
 from sparkth.lib.i18n import _, gettext
 from sparkth.lib.llm import BaseChatProvider
 from sparkth.lib.log import get_logger
@@ -30,6 +30,7 @@ from sparkth.lib.rag import (
     SectionSelection,
     agentic_retrieve_context,
     format_document_chunks_as_llm_context,
+    get_readable_document,
 )
 from sparkth.plugins.compose.analytics import (
     AnalyticsAttribution,
@@ -340,13 +341,11 @@ class ComposeStreamProcessor:
     async def _get_selected_rag_sections(
         self, section_selection: SectionSelection, bg_session: AsyncSession
     ) -> list[dict[str, str | None]]:
-        """The sections a step selected, once each, from the ready documents the author owns: the only ones
-        whose text the step passed on."""
+        """The sections a step selected, once each, from the ready documents the turn may read, those the
+        author owns and attached to the conversation: the only ones whose text the step passed on."""
         rag_sections: list[dict[str, str | None]] = []
-        if self.user_id is None:
-            return rag_sections
         for document_sections in section_selection.documents:
-            document = await get_document(bg_session, document_sections.document_id, self.user_id)
+            document = await get_readable_document(bg_session, document_sections.document_id)
             if document is None or document.status != DocumentStatus.READY:
                 continue
             for section in document_sections.sections:

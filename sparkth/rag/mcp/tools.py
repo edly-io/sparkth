@@ -1,7 +1,8 @@
 """Metadata-only tools for the RAG search agent.
 
 Each tool reads only a document the requesting user owns, through ``current_user_id``, so a model
-naming a ``document_id`` can't read anyone else's. A document the user doesn't own reads as missing.
+naming a ``document_id`` can't read anyone else's, and only one of the readable documents when the
+request bound them. Any other document reads as missing.
 """
 
 from __future__ import annotations
@@ -9,12 +10,10 @@ from __future__ import annotations
 from typing import cast
 
 from sqlmodel import col, func, select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.lib.auth import current_user_id
 from sparkth.lib.db import session_scope
-from sparkth.lib.documents import Document, get_document
 from sparkth.lib.log import get_logger
+from sparkth.rag.document_access import get_readable_document
 from sparkth.rag.mcp.schemas import ChunkStats, DocumentMetadata, SectionKey
 from sparkth.rag.models import DocumentChunk, DocumentChunkLink
 from sparkth.rag.types import DocumentSection
@@ -23,16 +22,11 @@ from sparkth.rag.utils import get_rag_ingested_document_structure
 logger = get_logger(__name__)
 
 
-async def _fetch_document(session: AsyncSession, document_id: int) -> Document | None:
-    """Return the Document if the requesting user owns it and it is not deleted, else None."""
-    return await get_document(session, document_id, current_user_id())
-
-
 async def get_document_metadata(document_id: int) -> DocumentMetadata | None:
     """Get metadata for a specific document."""
 
     async with session_scope() as session:
-        doc = await _fetch_document(session, document_id)
+        doc = await get_readable_document(session, document_id)
         if doc is None:
             return None
 
@@ -48,7 +42,7 @@ async def list_document_sections(document_id: int) -> list[SectionKey]:
     """List all distinct sections in a document."""
 
     async with session_scope() as session:
-        doc = await _fetch_document(session, document_id)
+        doc = await get_readable_document(session, document_id)
         if doc is None:
             return []
 
@@ -71,7 +65,7 @@ async def get_chunk_stats(document_id: int) -> ChunkStats | None:
     """Get statistics about chunks in a document (count and average token count)."""
 
     async with session_scope() as session:
-        doc = await _fetch_document(session, document_id)
+        doc = await get_readable_document(session, document_id)
         if doc is None:
             return None
 
@@ -97,7 +91,7 @@ async def get_chunk_stats(document_id: int) -> ChunkStats | None:
 async def get_document_structure(document_id: int) -> list[DocumentSection]:
     """Get the full ordered structure of a document with chunk positions."""
     async with session_scope() as session:
-        if await _fetch_document(session, document_id) is None:
+        if await get_readable_document(session, document_id) is None:
             return []
     return await get_rag_ingested_document_structure(document_id)
 
@@ -108,7 +102,7 @@ async def search_section_by_keyword(document_id: int, keyword: str) -> list[Sect
         return []
 
     async with session_scope() as session:
-        doc = await _fetch_document(session, document_id)
+        doc = await get_readable_document(session, document_id)
         if doc is None:
             return []
 

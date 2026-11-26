@@ -9,6 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.auth import bind_current_user_id
 from sparkth.lib.documents import Document, DocumentStatus
+from sparkth.lib.rag import bind_readable_document_ids
 from sparkth.rag.mcp.tools import (
     get_chunk_stats,
     get_document_metadata,
@@ -184,7 +185,8 @@ class TestSearchSectionByKeyword:
         assert [r.section for r in result] == [r"foo\bar"]
 
 
-@pytest.mark.parametrize(
+# Each tool reading document 10, with what it returns for a document it can't read.
+READING_DOCUMENT_10 = pytest.mark.parametrize(
     ("tool", "missing"),
     [
         (lambda: get_document_metadata(document_id=10), None),
@@ -195,6 +197,9 @@ class TestSearchSectionByKeyword:
     ],
     ids=["metadata", "sections", "chunk_stats", "structure", "keyword_search"],
 )
+
+
+@READING_DOCUMENT_10
 async def test_another_users_document_reads_as_missing(
     tool: Callable[[], Awaitable[Any]], missing: Any, session: AsyncSession
 ) -> None:
@@ -202,3 +207,21 @@ async def test_another_users_document_reads_as_missing(
     await _seed_chunks(session, 10, [{"id": 1, "chapter": "Ch1", "section": "Sec1", "subsection": None}])
 
     assert await tool() == missing
+
+
+@READING_DOCUMENT_10
+async def test_an_owned_document_outside_the_readable_ones_reads_as_missing(
+    tool: Callable[[], Awaitable[Any]], missing: Any, session: AsyncSession
+) -> None:
+    await _seed_document(session, document_id=10)
+    await _seed_chunks(session, 10, [{"id": 1, "chapter": "Ch1", "section": "Sec1", "subsection": None}])
+    bind_readable_document_ids([11])
+
+    assert await tool() == missing
+
+
+async def test_a_readable_document_reads(session: AsyncSession) -> None:
+    await _seed_document(session, document_id=10)
+    bind_readable_document_ids([10])
+
+    assert await get_document_metadata(document_id=10) is not None
