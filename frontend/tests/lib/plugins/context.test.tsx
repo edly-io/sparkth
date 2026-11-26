@@ -22,7 +22,9 @@ describe("usePlugin", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(
       async () =>
         new Response(
-          JSON.stringify([{ plugin_name: "example", enabled: true, config: { limit: 3 } }]),
+          JSON.stringify([
+            { plugin_name: "example", enabled: true, system_enabled: true, config: { limit: 3 } },
+          ]),
         ),
     );
 
@@ -34,7 +36,10 @@ describe("usePlugin", () => {
 
   it("reports loading until the user's plugins arrive", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(
-      async () => new Response(JSON.stringify([{ plugin_name: "example", enabled: true }])),
+      async () =>
+        new Response(
+          JSON.stringify([{ plugin_name: "example", enabled: true, system_enabled: true }]),
+        ),
     );
 
     const { result } = renderHook(() => usePlugin("example"), { wrapper });
@@ -49,9 +54,13 @@ describe("usePlugin", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       if ((input as Request).method === "PATCH") {
         enabled = true;
-        return new Response(JSON.stringify({ plugin_name: "example", enabled }));
+        return new Response(
+          JSON.stringify({ plugin_name: "example", enabled, system_enabled: true }),
+        );
       }
-      return new Response(JSON.stringify([{ plugin_name: "example", enabled }]));
+      return new Response(
+        JSON.stringify([{ plugin_name: "example", enabled, system_enabled: true }]),
+      );
     });
 
     const { result } = renderHook(
@@ -64,5 +73,19 @@ describe("usePlugin", () => {
     await result.current.plugins.enablePlugin("example");
 
     await waitFor(() => expect(result.current.plugin.isEnabled).toBe(true));
+  });
+
+  it("reports a plugin switched off system-wide as not enabled", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify([{ plugin_name: "example", enabled: true, system_enabled: false }]),
+        ),
+    );
+
+    const { result } = renderHook(() => usePlugin("example"), { wrapper });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.isEnabled).toBe(false);
   });
 });
