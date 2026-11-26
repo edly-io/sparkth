@@ -71,7 +71,7 @@ export default function PluginPageClient() {
 
   const pluginName = String(params?.pluginName ?? "");
 
-  const { isEnabled } = usePlugin(pluginName);
+  const { isUsable } = usePlugin(pluginName);
   const { plugins, loading: pluginsLoading } = usePluginContext();
 
   const plugin = plugins.find((p) => p.plugin_name === pluginName);
@@ -92,7 +92,7 @@ export default function PluginPageClient() {
     );
   }
 
-  // Until the plugin list loads, neither isEnabled nor displayName is
+  // Until the plugin list loads, neither isUsable nor displayName is
   // meaningful, so don't render a verdict yet.
   if (pluginsLoading) {
     return (
@@ -112,7 +112,7 @@ export default function PluginPageClient() {
     );
   }
 
-  if (!isEnabled) {
+  if (!isUsable) {
     return (
       <PluginUnavailable
         title={tPage("notEnabledTitle")}
