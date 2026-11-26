@@ -4,6 +4,7 @@ from sparkth.core.permissions.exceptions import (
     InvalidScopeObjectId,
     PermissionNotFound,
     PermissionScopeNotFound,
+    PluginNotLoaded,
     RoleAlreadyExists,
     RoleAssignmentNotFound,
     RoleIsBuiltin,
@@ -20,4 +21,5 @@ __all__ = [
     "PermissionNotFound",
     "PermissionScopeNotFound",
     "InvalidScopeObjectId",
+    "PluginNotLoaded",
 ]

@@ -71,9 +71,8 @@ class InvalidScopeObjectId(Exception):
     """Raised when a scope cannot name the object id it is given.
 
     An objectless scope must name no object and an object-bearing scope must name one. An object id
-    containing the path separator is rejected, and so is a ``plugin`` scope whose object id is not
-    the name of a loaded plugin. The database stays ignorant of the scope vocabulary, so these are
-    checked in code.
+    containing the path separator is rejected. The database stays ignorant of the scope vocabulary,
+    so these are checked in code.
     """
 
     def __init__(self, scope: str, scope_object_id: str | None) -> None:
@@ -84,3 +83,11 @@ class InvalidScopeObjectId(Exception):
         )
         self.scope = scope
         self.scope_object_id = scope_object_id
+
+
+class PluginNotLoaded(Exception):
+    """Raised when a plugin scope names a plugin that is not loaded."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__(_("Plugin is not loaded: {name}").format(name=name))
+        self.name = name

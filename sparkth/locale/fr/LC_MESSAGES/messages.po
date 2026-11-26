@@ -548,3 +548,8 @@ msgstr "Retirer des rôles"
 #: sparkth/core/permissions/__init__.py:307
 msgid "Take a role away from people or groups."
 msgstr "Retirer un rôle à des personnes ou à des groupes."
+
+#: sparkth/core/permissions/exceptions.py:92
+#, python-brace-format
+msgid "Plugin is not loaded: {name}"
+msgstr "Le plugin n'est pas chargé : {name}"
