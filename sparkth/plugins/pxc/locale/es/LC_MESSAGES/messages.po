@@ -32,8 +32,8 @@ msgstr "Actividades"
 
 # Machine-generated translation (LLM), not yet reviewed by a native speaker.
 #: sparkth/plugins/pxc/agent.py:17
-msgid "Building your activity…"
-msgstr "Creando tu actividad…"
+msgid "Working on your activity…"
+msgstr "Trabajando en tu actividad…"
 
 # Machine-generated translation (LLM), not yet reviewed by a native speaker.
 #: sparkth/plugins/pxc/permissions.py:20
