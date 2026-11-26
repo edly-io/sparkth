@@ -251,14 +251,13 @@ its permission at the `group` scope, so a grant at one group reaches that group'
 that group's `group` scope. It returns the active assignments, oldest first, each as `id`, `group_id`,
 `group_name`, `role_id`, `role_name`, `scope`, `scope_object_id` and `assigned_at`; revoked ones are left out,
 and an unknown group is 404.
-A group's roles are managed through the REST API as well as the CLI, with three routes under
-`/api/v1/permissions/roles/{role_id}/assignments/groups`:
+A group's roles are managed through the REST API as well as the CLI, with three routes:
 
 | Route | Does | Needs |
 |---|---|---|
-| `GET /` | Lists the active group assignments of the role by assignment id, as `id`, `group_id`, `group_name`, `role_id`, `role_name`, `scope`, `scope_object_id` and `assigned_at`; the list is not paged | `role.read` |
-| `POST /` with `{"group_id": 3, "scope": "global"}` | Gives the role to every member of the group and answers 201; a grant that already exists is answered 201 unchanged | `role.assign` |
-| `DELETE /{assignment_id}` | Takes the role away from the group and answers 204 | `role.revoke` |
+| `GET /api/v1/permissions/roles/{role_id}/assignments/groups` | Lists the active group assignments of the role by assignment id, as `id`, `group_id`, `group_name`, `role_id`, `role_name`, `scope`, `scope_object_id` and `assigned_at`; the list is not paged | `role.read` |
+| `POST /api/v1/permissions/roles/{role_id}/assignments/groups` with `{"group_id": 3, "scope": "global"}` | Gives the role to every member of the group and answers 201; a grant that already exists is answered 201 unchanged | `role.assign` |
+| `DELETE /api/v1/permissions/roles/{role_id}/assignments/groups/{assignment_id}` | Takes the role away from the group and answers 204 | `role.revoke` |
 
 These routes check their permission at the `role` scope, not the group's, and `scope` and `scope_object_id` are
 validated as for users. An unknown group, an unknown role, and an assignment that is revoked, unknown or the
