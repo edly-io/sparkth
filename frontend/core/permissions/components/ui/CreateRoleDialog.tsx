@@ -17,15 +17,11 @@ import {
 import { Input } from "@/core/components/ui/Input";
 import { Select } from "@/core/components/ui/Select";
 import { Textarea } from "@/core/components/ui/Textarea";
-import { listPermissions } from "@/core/permissions/client";
-import { formatRoleName } from "@/core/permissions/roleDisplay";
-import type { PermissionResponse, RoleCreate, RoleResponse } from "@/core/permissions/types";
+import { usePermissionList } from "@/core/permissions/hooks";
+import { formatRoleName, getDeclaredPermissions } from "@/core/permissions/roleDisplay";
+import type { RoleCreate, RoleResponse } from "@/core/permissions/types";
 
 type StartFrom = "none" | "copy";
-
-type PermissionListState =
-  | { status: "idle" | "loading" | "failed" }
-  | { status: "loaded"; permissions: PermissionResponse[] };
 
 /**
  * Asks for a new role's name and description, trimmed, the description `null` when left empty, and
@@ -74,30 +70,20 @@ function RoleForm({
   const [description, setDescription] = useState("");
   const [startFrom, setStartFrom] = useState<StartFrom>("none");
   const [roleToCopyId, setRoleToCopyId] = useState(roles[0]?.id);
-  const [permissionList, setPermissionList] = useState<PermissionListState>({ status: "idle" });
+  const { permissionList, load: loadPermissionList } = usePermissionList(token);
   const [nameError, setNameError] = useState<string>();
   const [failed, setFailed] = useState(false);
   const [creating, setCreating] = useState(false);
 
   const selectStartFrom = (option: StartFrom) => {
     setStartFrom(option);
-    if (option === "none" || permissionList.status !== "idle" || !token) return;
-    setPermissionList({ status: "loading" });
-    listPermissions(token)
-      .then((permissions) => setPermissionList({ status: "loaded", permissions }))
-      .catch((error: unknown) => {
-        console.error("Loading the permissions failed:", error);
-        setPermissionList({ status: "failed" });
-      });
+    if (option !== "none") loadPermissionList();
   };
 
   const getPermissionsToGrant = (): string[] | undefined => {
     if (startFrom === "none" || permissionList.status !== "loaded") return undefined;
-    const declaredNames = permissionList.permissions.map((permission) => permission.name);
     const roleToCopy = roles.find((role) => role.id === roleToCopyId);
-    return (roleToCopy?.permissions ?? []).filter((permission) =>
-      declaredNames.includes(permission),
-    );
+    return getDeclaredPermissions(roleToCopy?.permissions ?? [], permissionList.permissions);
   };
 
   const submit = async (event: React.FormEvent) => {

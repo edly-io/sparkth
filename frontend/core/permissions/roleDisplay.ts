@@ -1,5 +1,5 @@
 import type { useTranslations } from "next-intl";
-import type { RoleResponse } from "@/core/permissions/types";
+import type { PermissionResponse, RoleResponse } from "@/core/permissions/types";
 
 /**
  * A role's name as people read it: each run of underscores becomes a space and the first letter is
@@ -22,4 +22,13 @@ export function getRoleHolders(
     role.group_count > 0 ? t("groupCount", { count: role.group_count }) : null,
     role.user_count > 0 ? t("peopleCount", { count: role.user_count }) : null,
   ].filter((part) => part !== null);
+}
+
+/** The ones of `permissions` that are still declared in `declared`, in the order given. */
+export function getDeclaredPermissions(
+  permissions: string[],
+  declared: PermissionResponse[],
+): string[] {
+  const declaredNames = new Set(declared.map((permission) => permission.name));
+  return permissions.filter((permission) => declaredNames.has(permission));
 }

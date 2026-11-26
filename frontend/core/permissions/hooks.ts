@@ -1,5 +1,10 @@
-import { useEffect, useState } from "react";
-import { checkPermissions, type PermissionCheckQuery } from "@/core/permissions/client";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  checkPermissions,
+  listPermissions,
+  type PermissionCheckQuery,
+} from "@/core/permissions/client";
+import type { PermissionResponse } from "@/core/permissions/types";
 import type { PermissionName } from "@/lib/permissions/names";
 
 /** Where a permission check stands: still in flight, granted, or refused (including on error). */
@@ -54,4 +59,36 @@ export function usePermissionChecks(
   }, [token, checksKey]);
 
   return answers;
+}
+
+/** Where the full permission list stands: not asked for yet, in flight, failed, or loaded. */
+export type PermissionListState =
+  | { status: "idle" | "loading" | "failed" }
+  | { status: "loaded"; permissions: PermissionResponse[] };
+
+/**
+ * Every declared permission, loaded the first time `load` is called with a token; idle until then.
+ * Later calls do nothing, so a caller can call `load` whenever it needs the list.
+ */
+export function usePermissionList(token: string | null): {
+  permissionList: PermissionListState;
+  load: () => void;
+} {
+  const [permissionList, setPermissionList] = useState<PermissionListState>({ status: "idle" });
+  // A ref, not the state: two calls before a re-render must still ask once.
+  const requested = useRef(false);
+
+  const load = useCallback(() => {
+    if (requested.current || !token) return;
+    requested.current = true;
+    setPermissionList({ status: "loading" });
+    listPermissions(token)
+      .then((permissions) => setPermissionList({ status: "loaded", permissions }))
+      .catch((error: unknown) => {
+        console.error("Loading the permissions failed:", error);
+        setPermissionList({ status: "failed" });
+      });
+  }, [token]);
+
+  return { permissionList, load };
 }

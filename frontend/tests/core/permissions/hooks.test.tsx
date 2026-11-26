@@ -1,12 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 
-import { checkPermissions, type PermissionCheckQuery } from "@/core/permissions/client";
-import { usePermissionCheck, usePermissionChecks } from "@/core/permissions/hooks";
+import {
+  checkPermissions,
+  listPermissions,
+  type PermissionCheckQuery,
+} from "@/core/permissions/client";
+import {
+  usePermissionCheck,
+  usePermissionChecks,
+  usePermissionList,
+} from "@/core/permissions/hooks";
+import type { PermissionResponse } from "@/core/permissions/types";
 
-vi.mock("@/core/permissions/client", () => ({ checkPermissions: vi.fn() }));
+vi.mock("@/core/permissions/client", () => ({
+  checkPermissions: vi.fn(),
+  listPermissions: vi.fn(),
+}));
 
 const mockChecks = vi.mocked(checkPermissions);
+const mockListPermissions = vi.mocked(listPermissions);
 
 const PERMISSION_CHECKS: PermissionCheckQuery[] = [
   { permission: "email.whitelist.read", scope: "whitelist" },
@@ -126,5 +139,72 @@ describe("usePermissionChecks", () => {
     rerender();
 
     expect(mockChecks).toHaveBeenCalledTimes(1);
+  });
+});
+
+const PERMISSIONS: PermissionResponse[] = [
+  {
+    name: "role.read",
+    label: "See roles",
+    description: "See roles.",
+    category: "Users & access",
+    risks: [],
+    requires: [],
+  },
+];
+
+describe("usePermissionList", () => {
+  it("stays idle and asks nothing until loaded", () => {
+    const { result } = renderHook(() => usePermissionList("tok"));
+
+    expect(result.current.permissionList).toEqual({ status: "idle" });
+    expect(mockListPermissions).not.toHaveBeenCalled();
+  });
+
+  it("loads the permissions when asked", async () => {
+    mockListPermissions.mockResolvedValue(PERMISSIONS);
+    const { result } = renderHook(() => usePermissionList("tok"));
+
+    act(() => result.current.load());
+
+    expect(result.current.permissionList).toEqual({ status: "loading" });
+    await waitFor(() =>
+      expect(result.current.permissionList).toEqual({
+        status: "loaded",
+        permissions: PERMISSIONS,
+      }),
+    );
+    expect(mockListPermissions).toHaveBeenCalledWith("tok");
+  });
+
+  it("loads once, however often it is asked", async () => {
+    mockListPermissions.mockResolvedValue(PERMISSIONS);
+    const { result } = renderHook(() => usePermissionList("tok"));
+
+    act(() => result.current.load());
+    act(() => result.current.load());
+    await waitFor(() => expect(result.current.permissionList.status).toBe("loaded"));
+    act(() => result.current.load());
+
+    expect(mockListPermissions).toHaveBeenCalledTimes(1);
+  });
+
+  it("says so when loading fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mockListPermissions.mockRejectedValue(new Error("network down"));
+    const { result } = renderHook(() => usePermissionList("tok"));
+
+    act(() => result.current.load());
+
+    await waitFor(() => expect(result.current.permissionList).toEqual({ status: "failed" }));
+  });
+
+  it("asks nothing without a token", () => {
+    const { result } = renderHook(() => usePermissionList(null));
+
+    act(() => result.current.load());
+
+    expect(result.current.permissionList).toEqual({ status: "idle" });
+    expect(mockListPermissions).not.toHaveBeenCalled();
   });
 });
