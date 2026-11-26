@@ -1120,7 +1120,11 @@ export interface paths {
         put?: never;
         /**
          * Create Role
-         * @description Create a role. Returns the created RoleResponse, which nobody holds yet.
+         * @description Create a role, granting it the listed permissions in the same transaction.
+         *
+         *     Needs ``role.update`` at global as well as ``role.create``, since the new role can be given
+         *     permissions; an unregistered one is refused with 422 and nothing is created. Returns the created
+         *     RoleResponse, which nobody holds yet.
          */
         post: operations["create_role_api_v1_permissions_roles_post"];
         delete?: never;
@@ -1167,37 +1171,17 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
         /**
-         * Create Role Permission
-         * @description Grant a registered permission to the role (idempotent). Refused with 409 for a role shipped with Sparkth.
+         * Set Role Permissions
+         * @description Make the role grant exactly the listed permissions, in one transaction.
          *
-         *     Returns the updated RoleResponse.
+         *     Grants what is missing and revokes what is not listed. Refused with 422, changing nothing, when a
+         *     permission being added is not registered, and with 409 for a role shipped with Sparkth. Returns the
+         *     updated RoleResponse.
          */
-        post: operations["create_role_permission_api_v1_permissions_roles__role_id__permissions_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/permissions/roles/{role_id}/permissions/{permission}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
+        put: operations["set_role_permissions_api_v1_permissions_roles__role_id__permissions_put"];
         post?: never;
-        /**
-         * Delete Role Permission
-         * @description Revoke a permission from the role (idempotent). Refused with 409 for a role shipped with Sparkth.
-         *
-         *     Returns 204 No Content.
-         */
-        delete: operations["delete_role_permission_api_v1_permissions_roles__role_id__permissions__permission__delete"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -2968,17 +2952,25 @@ export interface components {
              */
             email: string;
         };
-        /** RoleCreate */
+        /**
+         * RoleCreate
+         * @description A new role: its name, description and the permissions it starts with (none by default).
+         */
         RoleCreate: {
             /** Description */
             description?: string | null;
             /** Name */
             name: string;
+            /** Permissions */
+            permissions?: string[];
         };
-        /** RolePermissionAdd */
-        RolePermissionAdd: {
-            /** Permission */
-            permission: string;
+        /**
+         * RolePermissionsSet
+         * @description Every permission the role should grant once saved; anything else it grants is revoked.
+         */
+        RolePermissionsSet: {
+            /** Permissions */
+            permissions: string[];
         };
         /** RoleResponse */
         RoleResponse: {
@@ -5401,7 +5393,7 @@ export interface operations {
             };
         };
     };
-    create_role_permission_api_v1_permissions_roles__role_id__permissions_post: {
+    set_role_permissions_api_v1_permissions_roles__role_id__permissions_put: {
         parameters: {
             query?: never;
             header?: never;
@@ -5412,7 +5404,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["RolePermissionAdd"];
+                "application/json": components["schemas"]["RolePermissionsSet"];
             };
         };
         responses: {
@@ -5424,36 +5416,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["RoleResponse"];
                 };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_role_permission_api_v1_permissions_roles__role_id__permissions__permission__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                role_id: number;
-                permission: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
             /** @description Validation Error */
             422: {
