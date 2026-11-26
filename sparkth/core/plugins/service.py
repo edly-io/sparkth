@@ -11,7 +11,7 @@ from sparkth.core.models.plugin import Plugin, UserPluginPreference
 from sparkth.core.models.user import User
 from sparkth.core.plugins import get_plugin_loader
 from sparkth.core.plugins.config_base import PluginConfig
-from sparkth.core.plugins.constants import USER_PLUGIN_PREFERENCE_TARGET_TYPE
+from sparkth.core.plugins.constants import PLUGIN_AUDIT_TARGET_TYPE, USER_PLUGIN_PREFERENCE_TARGET_TYPE
 from sparkth.core.plugins.exceptions import PluginConfigInvalidError, PluginNotConfiguredError
 from sparkth.lib.audit import record_event
 from sparkth.lib.audit.events import (
@@ -21,6 +21,7 @@ from sparkth.lib.audit.events import (
     PluginConfigCreatedAuditEvent,
     PluginConfigUpdatedAuditEvent,
     PluginEnabledChangedAuditEvent,
+    PluginSystemEnabledChangedAuditEvent,
 )
 from sparkth.lib.auth import current_user_id, get_current_user
 from sparkth.lib.config import get_plugin_adapter, get_plugin_config_schema
@@ -339,8 +340,8 @@ class PluginService:
 
         Called once at startup. Fetches existing plugins in a single query and
         upserts all loaded plugins in one transaction. Only ``config_schema`` is
-        refreshed on existing rows — ``enabled`` is left untouched so a plugin a
-        user disabled stays disabled across restarts.
+        refreshed on existing rows — ``enabled`` is left untouched so a plugin
+        switched off system-wide stays off across restarts.
         """
         loaded = get_plugin_loader().get_loaded_plugins()
         async with session_scope() as session:
@@ -463,6 +464,28 @@ class PluginService:
         await session.refresh(preference)
 
         return preference
+
+    async def update_system_enabled(self, plugin: Plugin, enabled: bool, session: AsyncSession) -> None:
+        """Switch the plugin on or off for every user and record the change.
+
+        Flushes without committing, so the switch and its audit row commit or roll back together.
+        Setting the value it already has changes and records nothing.
+        """
+        if plugin.enabled == enabled:
+            return
+        previously_enabled = plugin.enabled
+        plugin.enabled = enabled
+        await record_event(
+            session,
+            PluginSystemEnabledChangedAuditEvent(
+                outcome=AuditOutcome.SUCCESS,
+                target=AuditTarget(type=PLUGIN_AUDIT_TARGET_TYPE, id=str(plugin.id)),
+                change=AuditChange(
+                    old=self._create_enabled_audit_snapshot(plugin.name, previously_enabled),
+                    new=self._create_enabled_audit_snapshot(plugin.name, enabled),
+                ),
+            ),
+        )
 
     @staticmethod
     async def _plugin_name(session: AsyncSession, plugin_id: int) -> str | None:
