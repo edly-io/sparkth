@@ -63,6 +63,21 @@ activity's `preview_url` is `/dashboard/pxc?activity=<id>`. The page itself live
 `frontend/plugins/pxc`. The page marks each placed activity and gives each row a Delete button that
 asks for confirmation before calling the delete route.
 
+Each author-facing route checks an activity at the `user` scope of its owner:
+
+| Action | Needs |
+|---|---|
+| List an owner's activities (`owner_id`, the caller's own when absent) | `pxc.activity.read` |
+| Preview an activity as a learner (`permission=play`) | `pxc.activity.read` |
+| Preview an activity as its author (`permission=edit`) | `pxc.activity.update` |
+| Delete an activity | `pxc.activity.delete` |
+
+Every account holds all four `pxc.activity.*` names at its own `user` scope through the default
+`sparkth_user` role, so an author keeps full access to their own activities. A grant at another
+user's `user` scope, or at `global`, reaches that user's activities. A caller without the permission
+gets 403 and the refusal is recorded as a `permission.denied` event; an id that names no activity
+gets 404, and records no denial.
+
 ## Building an activity from chat
 
 The plugin contributes a Compose agent: its name, title, description, prompt and tools. Its

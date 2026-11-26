@@ -1376,7 +1376,9 @@ export interface paths {
         };
         /**
          * List Activities
-         * @description The activities this user built, newest first.
+         * @description The activities a user built, newest first: the ``owner_id`` user's, or the caller's own without it.
+         *
+         *     Needs ``pxc.activity.read`` at the listed owner's scope.
          */
         get: operations["list_activities_api_v1_pxc_activities_get"];
         put?: never;
@@ -1398,17 +1400,18 @@ export interface paths {
         put?: never;
         post?: never;
         /**
-         * Delete Owned Activity
-         * @description Delete one of this user's activities: its row, failure rows, files and learner data.
+         * Remove Activity
+         * @description Delete an activity: its row, failure rows, files and learner data.
          *
-         *     Deletes the row and its ``pxc.activity_deleted`` audit event in one commit, then removes the
-         *     files. A file that cannot be removed is logged and left behind.
+         *     Needs ``pxc.activity.delete`` at the activity owner's scope. Deletes the row and its
+         *     ``pxc.activity_deleted`` audit event in one commit, then removes the files. A file that cannot
+         *     be removed is logged and left behind.
          *
          *     Raises:
-         *         PxcActivityNotFound: if the activity does not exist or another user owns it.
+         *         PxcActivityNotFound: if the activity does not exist.
          *         SQLAlchemyError: if the delete or its audit record cannot be committed; nothing is removed.
          */
-        delete: operations["delete_owned_activity_api_v1_pxc_activities__activity_id__delete"];
+        delete: operations["remove_activity_api_v1_pxc_activities__activity_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1423,14 +1426,17 @@ export interface paths {
         };
         /**
          * Launch Activity
-         * @description An embed URL that previews one of this user's activities, as a learner or as its author.
+         * @description An embed URL that previews an activity, as a learner or as its author.
          *
-         *     The activity's files are resolved before a token is minted, so a row whose files are
-         *     missing from ``PXC_DATA_DIR`` never yields an embed URL that would fail on load.
+         *     A learner preview needs ``pxc.activity.read`` and an author preview ``pxc.activity.update``,
+         *     both at the activity owner's scope. The permission depends on the requested view, so it is
+         *     checked in the handler, not in the route's dependencies. The activity's files are resolved before a token is
+         *     minted, so a row whose files are missing from ``PXC_DATA_DIR`` never yields an embed URL that
+         *     would fail on load.
          *
          *     Raises:
-         *         PxcActivityNotFound: if the activity does not exist, another user owns it, or its files
-         *             are missing.
+         *         PxcActivityNotFound: if the activity does not exist or its files are missing.
+         *         PxcActivityNotPermitted: if the caller lacks the permission the view needs.
          *         PxcLaunchNotConfigured: if no launch secret is configured.
          */
         get: operations["launch_activity_api_v1_pxc_activities__activity_id__launch_get"];
@@ -5716,7 +5722,9 @@ export interface operations {
     };
     list_activities_api_v1_pxc_activities_get: {
         parameters: {
-            query?: never;
+            query?: {
+                owner_id?: number | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5732,9 +5740,18 @@ export interface operations {
                     "application/json": components["schemas"]["ActivitySummary"][];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
-    delete_owned_activity_api_v1_pxc_activities__activity_id__delete: {
+    remove_activity_api_v1_pxc_activities__activity_id__delete: {
         parameters: {
             query?: never;
             header?: never;
