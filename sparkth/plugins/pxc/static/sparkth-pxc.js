@@ -13,8 +13,8 @@
 //
 // A third: reconnection stops, and says why. pxc.js retries a dropped socket forever. Here a
 // socket the server refuses (an expired token, a missing activity, a launch the account may
-// not make) stops at once with a notice
-// naming the cause, and any other drop stops with a notice after a bounded number of retries.
+// not make) stops at once with a notice naming the cause, and any other drop stops with a
+// notice after a bounded number of retries.
 // sendAction resolves as soon as the action is queued, so without the notice an author would
 // never learn that a save they were told succeeded did not reach the server.
 //

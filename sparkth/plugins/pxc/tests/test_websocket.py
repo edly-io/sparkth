@@ -32,6 +32,7 @@ from sparkth.plugins.pxc.models import PxcActionFailure, PxcActivity
 from sparkth.plugins.pxc.revisions import publish_revision
 from sparkth.plugins.pxc.tests.conftest import inline_config, staged_activity
 from sparkth.plugins.pxc.tokens import LaunchClaims, mint_launch_token, pin_launch_token
+from sparkth.plugins.pxc.websocket import get_socket_refusal_code
 
 
 def test_a_socket_without_a_token_is_refused(ws_client: TestClient) -> None:
@@ -379,6 +380,14 @@ def test_a_refused_socket_records_the_denial(
     assert ws_client.portal is not None
     events = ws_client.portal.call(audit_events)
     assert [(e.category, e.action, e.target_id) for e in events] == [("permission", "denied", "pxc.activity.play")]
+    assert (events[0].request_id, events[0].request_ip) == (None, None)
+
+
+def test_a_subclass_of_a_refusal_closes_with_its_parents_code() -> None:
+    class RevokedGrant(PxcActivityNotPermitted):
+        pass
+
+    assert get_socket_refusal_code(RevokedGrant("revoked")) == PXC_CLOSE_NOT_PERMITTED
 
 
 async def _refuse_launch(claims: LaunchClaims) -> None:

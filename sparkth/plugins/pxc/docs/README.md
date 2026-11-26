@@ -415,5 +415,6 @@ bounded number of retries.
   file. The file is orphaned and harmless.
 - A file that cannot be removed is logged and left on disk. If the live link survives, learners
   keep loading the activity, though no row lists or places it.
-- A learner socket open when its activity is deleted keeps accepting actions until the cached launch
-  answer expires, then closes with 4404 on its next action, and its reconnect gets the same close.
+- A learner socket open when its activity is deleted is closed with 4404 on its first action after the cached
+  launch answer expires, and its reconnect gets the same close. Until then an action runs against whatever
+  the open runtime still holds.

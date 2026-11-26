@@ -29,11 +29,23 @@ from sparkth.plugins.pxc.tokens import read_launch_token
 logger = get_logger(__name__)
 
 # The close code a refused socket gets, by the refusal.
-SOCKET_REFUSAL_CODES = {
+SOCKET_REFUSAL_CODES: dict[type[Exception], int] = {
     PxcInvalidLaunchToken: PXC_CLOSE_INVALID_TOKEN,
     PxcActivityNotPermitted: PXC_CLOSE_NOT_PERMITTED,
     PxcActivityNotFound: PXC_CLOSE_ACTIVITY_NOT_FOUND,
 }
+
+
+def get_socket_refusal_code(refusal: Exception) -> int:
+    """Return the close code for a refusal, the code of the nearest mapped class when it is a subclass of one.
+
+    Raises:
+        KeyError: if the refusal is not an instance of any mapped class.
+    """
+    for refusal_type, code in SOCKET_REFUSAL_CODES.items():
+        if isinstance(refusal, refusal_type):
+            return code
+    raise KeyError(type(refusal))
 
 
 async def run_action_frames(websocket: WebSocket, runtime: ActivityRuntime, token: str) -> None:
@@ -56,12 +68,13 @@ async def run_action_frames(websocket: WebSocket, runtime: ActivityRuntime, toke
             await _run_one_action(runtime, token, frame)
         except (PxcInvalidLaunchToken, PxcActivityNotPermitted, PxcActivityNotFound) as err:
             logger.warning(
-                "Closing a PXC socket whose launch is no longer allowed on %s (activity_instance=%s): %s",
+                "Closing a PXC socket whose launch is no longer allowed on %s (activity_instance=%s): %s: %s",
                 runtime.name,
                 runtime.activity_id,
+                type(err).__name__,
                 err,
             )
-            await websocket.close(code=SOCKET_REFUSAL_CODES[type(err)])
+            await websocket.close(code=get_socket_refusal_code(err))
             return
         except PxcActionRejected as err:
             # A client bug, not a connection fault: the socket stays open.

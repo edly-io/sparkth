@@ -39,7 +39,7 @@ from sparkth.plugins.pxc.revisions import live_revision
 from sparkth.plugins.pxc.runtime import build_runtime, launch_dir, read_state
 from sparkth.plugins.pxc.schemas import ActivityConfig, LaunchContext
 from sparkth.plugins.pxc.tokens import LaunchClaims, pin_launch_token, read_launch_token
-from sparkth.plugins.pxc.websocket import SOCKET_REFUSAL_CODES, run_action_frames
+from sparkth.plugins.pxc.websocket import get_socket_refusal_code, run_action_frames
 
 logger = get_logger(__name__)
 
@@ -197,7 +197,7 @@ async def activity_socket(websocket: WebSocket, token: str = Query()) -> None:
         logger.warning("Refused a PXC activity socket: %s", err)
         # Accepted first: a browser sees the close code only after a completed handshake.
         await websocket.accept()
-        await websocket.close(code=SOCKET_REFUSAL_CODES[type(err)])
+        await websocket.close(code=get_socket_refusal_code(err))
         return
 
     await websocket.accept()
