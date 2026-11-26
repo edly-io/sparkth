@@ -24,12 +24,14 @@ from uuid6 import uuid7
 
 from sparkth.core.models.user import User
 from sparkth.lib.auth import bind_current_user_id
-from sparkth.lib.testing import AuditEventsFetcher
+from sparkth.lib.testing import AuditEventsFetcher, grant_permissions
 from sparkth.main import assemble_app
 from sparkth.plugins.pxc import builder
 from sparkth.plugins.pxc.activities import activity_dir, generated_activity_dir
 from sparkth.plugins.pxc.config import get_pxc_settings
+from sparkth.plugins.pxc.constants import PXC_LMS_USERNAME
 from sparkth.plugins.pxc.event_bus import EVENT_BUS
+from sparkth.plugins.pxc.launch_access import _LAUNCH_ANSWERS
 from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.revisions import publish_revision
 from sparkth.plugins.pxc.schemas import ActivityConfig, ActivitySource
@@ -139,6 +141,28 @@ def _empty_bus() -> Iterator[None]:
     EVENT_BUS._subscribers.clear()
     yield
     EVENT_BUS._subscribers.clear()
+
+
+@pytest.fixture(autouse=True)
+def _empty_launch_answers() -> Iterator[None]:
+    """Forget every cached launch answer around every test, so one test's answer never serves the next."""
+    _LAUNCH_ANSWERS.clear()
+    yield
+    _LAUNCH_ANSWERS.clear()
+
+
+@pytest.fixture
+async def lms_account(session: AsyncSession) -> User:
+    """The LMS account: stored with no password, holding both launch permissions at ``global``.
+
+    The default-role fixture grants at ``user:1`` and ``authors`` relies on its owner being user 1, so a test
+    that uses both must name ``authors`` or ``authored_activity`` before ``lms_account`` in its parameters.
+    """
+    account = User(name="PXC LMS", username=PXC_LMS_USERNAME, email="pxc_lms@sparkth.invalid")
+    session.add(account)
+    await session.commit()
+    await grant_permissions(session, account, ["pxc.activity.play", "pxc.activity.edit"], "global", None)
+    return account
 
 
 @pytest.fixture

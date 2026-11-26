@@ -24,6 +24,13 @@ the new password and marks the email verified, recording `auth.password_reset` w
 `email` method. An unknown, used or expired link records an anonymous `failure`. Neither
 record carries the link's token or the password.
 
+## Built-in accounts
+
+Sparkth ships an account that no person owns: `pxc_lms`, which stands for the connected LMS and holds the
+`pxc_lms_user` role at `global`. It has no password and an address under `.invalid`, so it cannot sign in, and
+no password-reset link is ever sent for it. Never set a password on it from the command line: that would let
+anyone who knows the password sign in with the LMS's permissions. Do not delete or rename it.
+
 ## Create a user
 
 ```bash
