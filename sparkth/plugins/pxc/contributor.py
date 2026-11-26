@@ -23,12 +23,12 @@ from sparkth.lib.content.hooks import ContentBlock, ContentOption
 from sparkth.lib.db import session_scope
 from sparkth.lib.exceptions.auth import NoAuthenticatedUser
 from sparkth.lib.log import get_logger
-from sparkth.plugins.pxc.activities import activity_dir, activity_names, parse_activity_id
+from sparkth.plugins.pxc.activities import activity_dir, activity_names
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import PXC_BLOCK_CATEGORY
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound, PxcActivityNotPermitted
-from sparkth.plugins.pxc.permissions import PXC_ACTIVITY_PLACE, has_activity_permission, require_activity_permission
-from sparkth.plugins.pxc.store import get_activity, list_owned_activities, mark_placed
+from sparkth.plugins.pxc.permissions import PXC_ACTIVITY_PLACE, get_permitted_activity, has_activity_permission
+from sparkth.plugins.pxc.store import list_owned_activities, mark_placed
 
 logger = get_logger(__name__)
 
@@ -130,11 +130,7 @@ async def placeable_activity(activity_id: str) -> ContentOption:
     if activity_id in activity_names():
         return ContentOption(activity_id, activity_id)
     try:
-        generated_id = parse_activity_id(activity_id)
-        user_id = current_user_id()
-        async with session_scope() as session:
-            activity = await get_activity(session, generated_id)
-            await require_activity_permission(session, PXC_ACTIVITY_PLACE, activity.owner_user_id, user_id)
+        activity = await get_permitted_activity(activity_id, PXC_ACTIVITY_PLACE)
         activity_dir(str(activity.id))
     except (PxcActivityNotFound, PxcActivityNotPermitted, NoAuthenticatedUser) as err:
         logger.warning("Refused to place PXC activity %r: %s", activity_id, err)
