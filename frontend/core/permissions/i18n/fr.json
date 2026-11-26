@@ -47,7 +47,14 @@
         "cancel": "Annuler",
         "submit": "Créer",
         "nameTaken": "Un rôle porte déjà ce nom.",
-        "failed": "Impossible de créer le rôle. Réessayez."
+        "failed": "Impossible de créer le rôle. Réessayez.",
+        "startFrom": {
+          "label": "Partir de",
+          "none": "Aucune permission",
+          "copy": "Une copie d'un autre rôle",
+          "copySource": "Rôle à copier"
+        },
+        "permissionsFailed": "Impossible de charger les permissions. Réessayez."
       },
       "menu": {
         "label": "Plus d'actions pour {name}",

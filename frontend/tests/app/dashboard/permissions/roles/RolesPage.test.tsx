@@ -10,9 +10,10 @@ const client = vi.hoisted(() => ({
   createRole: vi.fn(),
   deleteRole: vi.fn(),
   checkPermissions: vi.fn(),
+  listPermissions: vi.fn(),
 }));
 vi.mock("@/core/permissions/client", () => client);
-const { listRoles, createRole, deleteRole, checkPermissions } = client;
+const { listRoles, createRole, deleteRole, checkPermissions, listPermissions } = client;
 
 import RolesPage from "@/app/dashboard/permissions/roles/RolesPage";
 
@@ -34,7 +35,7 @@ function role(id: number, name: string, overrides: Partial<RoleResponse> = {}): 
 const ROLES = [
   role(1, "admin", { is_builtin: true }),
   role(2, "sparkth_user", { is_builtin: true, is_default: true }),
-  role(3, "Course author", { user_count: 2, group_count: 1 }),
+  role(3, "Course author", { user_count: 2, group_count: 1, permissions: ["role.read"] }),
 ];
 
 beforeEach(() => {
@@ -131,6 +132,35 @@ describe("RolesPage", () => {
 
     expect(createRole).toHaveBeenCalledWith("test-token", { name: "Grader", description: null });
     expect(await findCardNames()).toContain("Grader");
+  });
+
+  it("creates a role as a copy of one listed", async () => {
+    listRoles.mockResolvedValue(ROLES);
+    listPermissions.mockResolvedValue([
+      {
+        name: "role.read",
+        label: "See roles",
+        description: "See roles.",
+        category: "Users & access",
+        risks: [],
+        requires: [],
+      },
+    ]);
+    createRole.mockResolvedValue(role(4, "Grader"));
+    renderWithIntl(<RolesPage />);
+    await findCardNames();
+
+    await userEvent.click(screen.getByRole("button", { name: "Create role" }));
+    await userEvent.type(screen.getByLabelText("Name"), "Grader");
+    await userEvent.click(screen.getByRole("radio", { name: "A copy of another role" }));
+    await userEvent.selectOptions(screen.getByLabelText("Role to copy"), "Course author");
+    await userEvent.click(await screen.findByRole("button", { name: "Create" }));
+
+    expect(createRole).toHaveBeenCalledWith("test-token", {
+      name: "Grader",
+      description: null,
+      permissions: ["role.read"],
+    });
   });
 
   it("offers Delete on custom roles only, to someone who may delete roles", async () => {
