@@ -30,7 +30,7 @@ class TestPluginsPublicApi:
             "PluginService",
             "get_plugin_service",
             "ConfigValidationError",
-            "InternalServerError",
+            "PluginConfigUnavailable",
             "PluginDisabledError",
             "PluginResponse",
             "disabled_plugin_names",

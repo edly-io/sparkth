@@ -57,6 +57,7 @@ CORE_PERMISSIONS = [
     "llm.config.update",
     "llm.config.delete",
     "plugin.use",
+    "plugin.manage",
     "file.upload",
 ]
 
