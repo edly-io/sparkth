@@ -1,11 +1,12 @@
-"""Group sub-router (mounted at ``/groups``): CRUD for user groups, and their members.
+"""Group sub-router (mounted at ``/groups``): CRUD for user groups, their members and their roles.
 
-Group-role grants are CLI-managed. The endpoints that address one group by ``{group_id}``
-(get/update/delete and the member routes) authorize at the ``group`` scope, so a grant can be
-delegated to a single group; a global grant still satisfies them via the scope cascade. Listing
-members needs ``group.read``, adding one ``group.member.add`` and removing one ``group.member.remove``.
-Listing groups returns the groups the caller holds ``group.read`` at (every group for a global
-grant); creating a group stays global. Authored with LLM (Claude) assistance.
+Granting a role to a group is CLI-managed; the roles a group holds can be listed. The endpoints that
+address one group by ``{group_id}`` (get/update/delete, the member routes and the roles list) authorize
+at the ``group`` scope, so a grant can be delegated to a single group; a global grant still satisfies
+them via the scope cascade. Listing members or roles needs ``group.read``, adding a member
+``group.member.add`` and removing one ``group.member.remove``. Listing groups returns the groups the
+caller holds ``group.read`` at (every group for a global grant); creating a group stays global.
+Authored with LLM (Claude) assistance.
 """
 
 from fastapi import APIRouter, Depends, status
@@ -16,11 +17,13 @@ from sparkth.api.v1.permissions.schemas import (
     GroupMemberAdd,
     GroupMemberResponse,
     GroupResponse,
+    GroupRoleAssignmentResponse,
     GroupUpdate,
 )
 from sparkth.core.models.user import User
 from sparkth.core.permissions import groups as group_engine
-from sparkth.core.permissions.models import Group, GroupMembership
+from sparkth.core.permissions.models import Group, GroupMembership, GroupRoleAssignment
+from sparkth.core.permissions.roles import list_roles
 from sparkth.lib.db import get_async_session
 from sparkth.lib.permissions import (
     GROUP_CREATE,
@@ -52,6 +55,24 @@ def _build_member_response(membership: GroupMembership, user: User) -> GroupMemb
     """Assemble the response for a member from their membership and user rows, leaving the email out."""
     return GroupMemberResponse(
         user_id=membership.user_id, name=user.name, username=user.username, added_at=membership.created_at
+    )
+
+
+def _build_group_role_response(
+    assignment: GroupRoleAssignment, group: Group, role_name: str
+) -> GroupRoleAssignmentResponse:
+    """Assemble the response for a group's role assignment, guarding the persisted-id invariant."""
+    if assignment.id is None:
+        raise RuntimeError(f"Group role assignment has no id: {assignment!r}")
+    return GroupRoleAssignmentResponse(
+        id=assignment.id,
+        group_id=assignment.group_id,
+        group_name=group.name,
+        role_id=assignment.role_id,
+        role_name=role_name,
+        scope=assignment.scope,
+        scope_object_id=assignment.scope_object_id,
+        assigned_at=assignment.created_at,
     )
 
 
@@ -148,3 +169,19 @@ async def remove_group_member(group_id: int, user_id: int, session: AsyncSession
     await group_engine.get_group(group_id, session)
     await group_engine.remove_group_member(user_id, group_id, session)
     await session.commit()
+
+
+@router.get(
+    "/{group_id}/roles",
+    response_model=list[GroupRoleAssignmentResponse],
+    dependencies=[Depends(GROUP_READ.require(GROUP, "group_id"))],
+)
+async def list_group_roles(
+    group_id: int, session: AsyncSession = Depends(get_async_session)
+) -> list[GroupRoleAssignmentResponse]:
+    """List the roles a group holds, oldest first. Returns each assignment's role, scope and grant time."""
+    group = await group_engine.get_group(group_id, session)
+    assignments = await group_engine.get_group_roles(group_id, session)
+    roles = await list_roles({assignment.role_id for assignment in assignments}, session)
+    role_names = {role.id: role.name for role in roles}
+    return [_build_group_role_response(assignment, group, role_names[assignment.role_id]) for assignment in assignments]

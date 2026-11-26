@@ -1144,6 +1144,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/permissions/groups/{group_id}/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Group Roles
+         * @description List the roles a group holds, oldest first. Returns each assignment's role, scope and grant time.
+         */
+        get: operations["list_group_roles_api_v1_permissions_groups__group_id__roles_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/permissions/roles": {
         parameters: {
             query?: never;
@@ -2583,6 +2603,28 @@ export interface components {
             id: number;
             /** Name */
             name: string;
+        };
+        /** GroupRoleAssignmentResponse */
+        GroupRoleAssignmentResponse: {
+            /**
+             * Assigned At
+             * Format: date-time
+             */
+            assigned_at: string;
+            /** Group Id */
+            group_id: number;
+            /** Group Name */
+            group_name: string;
+            /** Id */
+            id: number;
+            /** Role Id */
+            role_id: number;
+            /** Role Name */
+            role_name: string;
+            /** Scope */
+            scope: string;
+            /** Scope Object Id */
+            scope_object_id: string | null;
         };
         /** GroupUpdate */
         GroupUpdate: {
@@ -5419,6 +5461,37 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_group_roles_api_v1_permissions_groups__group_id__roles_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                group_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupRoleAssignmentResponse"][];
+                };
             };
             /** @description Validation Error */
             422: {

@@ -104,3 +104,14 @@ class GroupMemberResponse(BaseModel):
     name: str
     username: str
     added_at: datetime
+
+
+class GroupRoleAssignmentResponse(BaseModel):
+    id: int
+    group_id: int
+    group_name: str
+    role_id: int
+    role_name: str
+    scope: str
+    scope_object_id: str | None
+    assigned_at: datetime

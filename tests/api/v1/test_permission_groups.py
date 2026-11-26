@@ -278,6 +278,48 @@ async def test_list_group_members_requires_group_read_at_that_group(client: Asyn
     assert (await client.get(_build_members_url(group.id))).status_code == 403
 
 
+def _build_group_roles_url(group_id: int) -> str:
+    return f"/api/v1/permissions/groups/{group_id}/roles"
+
+
+async def test_list_group_roles_returns_active_assignments(client: AsyncClient, session: AsyncSession) -> None:
+    caller = await make_user_with_permissions(session, ["group.read"])
+    group = await _create_target_group(session)
+    assert group.id is not None
+    grader = await make_role(session, "grader", ["audit.read"])
+    revoked = await make_role(session, _uniq("revoked"), ["audit.read"])
+    await group_engine.assign_role_to_group(group.id, grader.name, GLOBAL, None, session)
+    await group_engine.assign_role_to_group(group.id, revoked.name, GLOBAL, None, session)
+    await group_engine.revoke_role_from_group(group.id, revoked.name, GLOBAL, None, session)
+    await session.commit()
+    login_as(client, caller)
+
+    response = await client.get(_build_group_roles_url(group.id))
+
+    assert response.status_code == 200
+    (row,) = response.json()
+    assert (row["role_name"], row["scope"], row["scope_object_id"]) == ("grader", "global", None)
+    assert (row["group_id"], row["group_name"], row["role_id"]) == (group.id, group.name, grader.id)
+
+
+async def test_list_group_roles_requires_group_read_at_that_group(client: AsyncClient, session: AsyncSession) -> None:
+    group = await _create_target_group(session)
+    assert group.id is not None
+    other = await _create_target_group(session)
+    assert other.id is not None
+    login_as(client, await make_user_with_permissions(session, ["group.read"], "group", str(other.id)))
+    await session.commit()
+
+    assert (await client.get(_build_group_roles_url(group.id))).status_code == 403
+
+
+async def test_list_roles_of_unknown_group_returns_404(client: AsyncClient, session: AsyncSession) -> None:
+    login_as(client, await make_user_with_permissions(session, ["group.read"]))
+    await session.commit()
+
+    assert (await client.get(_build_group_roles_url(99999))).status_code == 404
+
+
 async def test_add_member_records_the_audit_event_for_the_caller(
     client: AsyncClient, session: AsyncSession, audit_events: AuditEventsFetcher
 ) -> None:
