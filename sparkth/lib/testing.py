@@ -42,7 +42,6 @@ from langchain_core.messages import AIMessage
 from langchain_core.runnables import Runnable
 from langchain_core.tools import BaseTool
 from sqlalchemy.ext.asyncio import AsyncSession as SQLAlchemyAsyncSession
-from sqlalchemy.orm import make_transient
 from sqlmodel import SQLModel, col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -378,7 +377,6 @@ def login_as(client: AsyncClient, user: User) -> None:
         email=user.email,
         hashed_password=user.hashed_password,
     )
-    make_transient(snapshot)
     app_instance.dependency_overrides[get_current_user] = functools.partial(_resolve_logged_in_user, snapshot)
 
 

@@ -1,4 +1,5 @@
-"""Users API routes: list and look up users, gated by ``user.read`` at the ``global`` scope."""
+"""Users API routes: list and look up users, gated by ``user.read`` at the ``global`` scope.
+Authored with LLM (Claude) assistance."""
 
 from fastapi import APIRouter, Depends, Query
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -8,14 +9,10 @@ from sparkth.lib.db import get_async_session
 from sparkth.lib.permissions import USER_READ
 from sparkth.services.users.service import get_user, list_users
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(USER_READ.require_in_global_scope())])
 
 
-@router.get(
-    "",
-    response_model=list[UserSummary],
-    dependencies=[Depends(USER_READ.require_in_global_scope())],
-)
+@router.get("", response_model=list[UserSummary])
 async def list_user_summaries(
     search: str | None = Query(None, max_length=50),
     limit: int = Query(50, ge=1, le=200),
@@ -30,11 +27,7 @@ async def list_user_summaries(
     return [UserSummary.model_validate(user) for user in users]
 
 
-@router.get(
-    "/{user_id}",
-    response_model=UserSummary,
-    dependencies=[Depends(USER_READ.require_in_global_scope())],
-)
+@router.get("/{user_id}", response_model=UserSummary)
 async def get_user_summary(user_id: int, session: AsyncSession = Depends(get_async_session)) -> UserSummary:
     """Return one active user, or 404 when there is none."""
     return UserSummary.model_validate(await get_user(user_id, session))
