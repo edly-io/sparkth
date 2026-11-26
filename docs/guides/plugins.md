@@ -336,6 +336,11 @@ has turned your plugin off in their settings — or a request to a plugin disabl
 system-wide — is answered with `403` before it reaches your handler, so a handler never has
 to check plugin access itself.
 
+Those are a plugin's two switches. A user flips their own in Settings; a holder of `plugin.manage`
+flips the system-wide one with `PATCH /api/v1/plugins/{plugin_name}/system`. Every plugin response
+reports them as `enabled` (the caller's own preference) and `system_enabled` (the switch that
+applies to everyone).
+
 A route that serves platform-wide data, such as an analytics read, opts out with
 `@platform_wide` from `sparkth.lib.routes`, placed below the route decorator. The gate lets it
 through whatever either switch says; its own dependencies, such as a permission, still apply.

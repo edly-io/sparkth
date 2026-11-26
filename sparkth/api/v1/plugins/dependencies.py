@@ -1,4 +1,4 @@
-"""FastAPI dependencies gating and scoping the plugin preference endpoints."""
+"""FastAPI dependencies gating and scoping the plugin endpoints."""
 
 from fastapi import Depends
 from sqlmodel.ext.asyncio.session import AsyncSession

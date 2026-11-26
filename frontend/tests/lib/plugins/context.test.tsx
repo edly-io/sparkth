@@ -22,36 +22,45 @@ describe("usePlugin", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(
       async () =>
         new Response(
-          JSON.stringify([{ plugin_name: "example", enabled: true, config: { limit: 3 } }]),
+          JSON.stringify([
+            { plugin_name: "example", enabled: true, system_enabled: true, config: { limit: 3 } },
+          ]),
         ),
     );
 
     const { result } = renderHook(() => usePlugin("example"), { wrapper });
 
-    await waitFor(() => expect(result.current.isEnabled).toBe(true));
+    await waitFor(() => expect(result.current.isUsable).toBe(true));
     expect(result.current.config).toEqual({ limit: 3 });
   });
 
   it("reports loading until the user's plugins arrive", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(
-      async () => new Response(JSON.stringify([{ plugin_name: "example", enabled: true }])),
+      async () =>
+        new Response(
+          JSON.stringify([{ plugin_name: "example", enabled: true, system_enabled: true }]),
+        ),
     );
 
     const { result } = renderHook(() => usePlugin("example"), { wrapper });
 
     expect(result.current.loading).toBe(true);
     await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(result.current.isEnabled).toBe(true);
+    expect(result.current.isUsable).toBe(true);
   });
 
-  it("reports the plugin enabled once the user turns it on", async () => {
+  it("reports the plugin usable once the user turns it on", async () => {
     let enabled = false;
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       if ((input as Request).method === "PATCH") {
         enabled = true;
-        return new Response(JSON.stringify({ plugin_name: "example", enabled }));
+        return new Response(
+          JSON.stringify({ plugin_name: "example", enabled, system_enabled: true }),
+        );
       }
-      return new Response(JSON.stringify([{ plugin_name: "example", enabled }]));
+      return new Response(
+        JSON.stringify([{ plugin_name: "example", enabled, system_enabled: true }]),
+      );
     });
 
     const { result } = renderHook(
@@ -59,10 +68,51 @@ describe("usePlugin", () => {
       { wrapper },
     );
     await waitFor(() => expect(result.current.plugin.loading).toBe(false));
-    expect(result.current.plugin.isEnabled).toBe(false);
+    expect(result.current.plugin.isUsable).toBe(false);
 
     await result.current.plugins.enablePlugin("example");
 
-    await waitFor(() => expect(result.current.plugin.isEnabled).toBe(true));
+    await waitFor(() => expect(result.current.plugin.isUsable).toBe(true));
+  });
+
+  it("reports a plugin switched off system-wide as not usable", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify([{ plugin_name: "example", enabled: true, system_enabled: false }]),
+        ),
+    );
+
+    const { result } = renderHook(() => usePlugin("example"), { wrapper });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.isUsable).toBe(false);
+  });
+});
+
+describe("usePluginContext().isPluginUsable", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("answers by plugin name: on for the user and system-wide is usable, anything else is not", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify([
+            { plugin_name: "on", enabled: true, system_enabled: true },
+            { plugin_name: "user-off", enabled: false, system_enabled: true },
+            { plugin_name: "system-off", enabled: true, system_enabled: false },
+          ]),
+        ),
+    );
+
+    const { result } = renderHook(() => usePluginContext(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.isPluginUsable("on")).toBe(true);
+    expect(result.current.isPluginUsable("user-off")).toBe(false);
+    expect(result.current.isPluginUsable("system-off")).toBe(false);
+    expect(result.current.isPluginUsable("unknown")).toBe(false);
   });
 });

@@ -28,7 +28,7 @@ export default function PluginRenderer({
   pluginName,
   pluginDef: overridePluginDef,
 }: PluginRendererProps) {
-  const { isEnabled, config, context } = usePlugin(pluginName);
+  const { isUsable, config, context } = usePlugin(pluginName);
   const { plugins, loading: pluginsLoading } = usePluginContext();
   const [pluginDef, setPluginDef] = useState<PluginDefinition | null>(overridePluginDef || null);
 
@@ -52,7 +52,7 @@ export default function PluginRenderer({
   }, [pluginName, overridePluginDef]);
 
   useEffect(() => {
-    if (pluginDef?.onInit && isEnabled) {
+    if (pluginDef?.onInit && isUsable) {
       const init = async () => {
         try {
           await pluginDef.onInit?.(context);
@@ -72,14 +72,14 @@ export default function PluginRenderer({
         }
       }
     };
-  }, [pluginDef, pluginName, isEnabled, context]);
+  }, [pluginDef, pluginName, isUsable, context]);
 
   const PluginComponent = useMemo(() => {
     if (!pluginDef) return null;
     return lazy(() => pluginDef.loadComponent());
   }, [pluginDef]);
 
-  // Until the plugin list loads, neither isEnabled nor displayName is
+  // Until the plugin list loads, neither isUsable nor displayName is
   // meaningful, so don't render a verdict yet.
   if (pluginsLoading) {
     return (
@@ -101,7 +101,7 @@ export default function PluginRenderer({
     );
   }
 
-  if (!isEnabled) {
+  if (!isUsable) {
     return (
       <div className="flex items-center justify-center h-full p-8">
         <div className="text-center max-w-md">
