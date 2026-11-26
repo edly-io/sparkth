@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 import { ChartColumn, KeyRound, ScrollText, Shield } from "lucide-react";
-import { checkPermissions, type PermissionCheckQuery } from "@/core/permissions/client";
+import { checkPermissions, type PermissionCheckQuery } from "@/lib/permissions/client";
 import { PERMISSIONS_SECTION_CHECKS } from "@/core/permissions/section";
 
 /** A sidebar link shown only to users who pass every one of its permission checks. */

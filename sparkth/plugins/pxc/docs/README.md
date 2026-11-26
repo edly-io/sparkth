@@ -77,11 +77,13 @@ Each author-facing route checks an activity at the `user` scope of its owner:
 | Preview an activity as its author (`permission=edit`) | `pxc.activity.edit` |
 | Delete an activity | `pxc.activity.delete` |
 
-Every account holds all six `pxc.activity.*` names at its own `user` scope through the default
-`sparkth_user` role, so an author keeps full access to their own activities. A grant at another
+Every person's account holds all six `pxc.activity.*` names at its own `user` scope through the
+default `sparkth_user` role, so an author keeps full access to their own activities. A grant at another
 user's `user` scope reaches that user's activities, and a grant at `global` reaches every user's.
 A caller without the permission gets 403 and the refusal is recorded as a `permission.denied`
 event; an id that names no activity gets 404, and records no denial.
+The built-in `pxc_lms` account, which stands for the connected LMS, holds no default role: it holds only
+`pxc_lms_user`, with `pxc.activity.play` and `pxc.activity.edit` at `global`.
 
 ## Building an activity from chat
 
@@ -203,8 +205,9 @@ so a token from Sparkth or the LMS (`PXC_LAUNCH_TOKEN_TTL_SECONDS` here, and the
 expires is told its session ended and asked to reload.
 
 Three session routes let an author list their activities, open a preview and delete one. They need
-`plugin.use` at `plugin:pxc` (403 without it); another user's id is a 404. Previews use a fixed
-course and activity instance, shared by the Student and Author views.
+`plugin.use` at `plugin:pxc` (403 without it). Opening or deleting an activity the caller holds no
+permission for is a 403, recorded as a denial; an id that names no activity is a 404. Previews use a
+fixed course and activity instance, shared by the Student and Author views.
 
 A delete removes the activity's row and its failure rows, then its live link and revisions, its
 learner state file with the `-wal` and `-shm` sidecars, and its storage directory. The row goes

@@ -20,6 +20,8 @@ from sparkth.plugins.pxc.activities import activity_names, parse_activity_id
 from sparkth.plugins.pxc.constants import (
     PXC_LAUNCH_ANSWER_TTL_SECONDS,
     PXC_LMS_USERNAME,
+    PXC_MAX_USER_ID_DIGITS,
+    PXC_NOT_PERMITTED_MESSAGE,
     PXC_PREVIEW_COURSE_ID,
     PXC_PREVIEW_USER_PREFIX,
 )
@@ -38,7 +40,7 @@ _LAUNCH_ANSWERS: dict[tuple[bool, str, str, str], tuple[float, bool]] = {}
 def _get_preview_user_id(learner_id: str) -> int | None:
     """Return the Sparkth user id a preview token's learner id names, or None if it names none."""
     digits = learner_id.removeprefix(PXC_PREVIEW_USER_PREFIX)
-    if digits == learner_id or not (digits.isascii() and digits.isdecimal()):
+    if digits == learner_id or not (digits.isascii() and digits.isdecimal()) or len(digits) > PXC_MAX_USER_ID_DIGITS:
         return None
     return int(digits)
 
@@ -77,18 +79,21 @@ async def _check_launch(claims: LaunchClaims) -> bool:
     async with session_scope() as session:
         owner_user_id = await _get_activity_owner_id(session, claims.activity)
         account = await _get_launch_account(session, claims)
-        if account is not None and await has_launch_permission(session, level, owner_user_id, cast(int, account.id)):
-            return True
-        if account is not None:
-            bind_audit_actor(UserActor(str(account.id), account.username))
-        logger.warning(
-            "PXC launch at level %s of activity %s denied for account %s",
-            level,
-            claims.activity,
-            None if account is None else account.id,
+        permitted = account is not None and await has_launch_permission(
+            session, level, owner_user_id, cast(int, account.id)
         )
-        await record_launch_denial(level, owner_user_id)
-        return False
+    if permitted:
+        return True
+    if account is not None:
+        bind_audit_actor(UserActor(str(account.id), account.username))
+    logger.warning(
+        "PXC launch at level %s of activity %s denied for account %s",
+        level,
+        claims.activity,
+        None if account is None else account.id,
+    )
+    await record_launch_denial(level, owner_user_id)
+    return False
 
 
 async def require_launch_access(claims: LaunchClaims) -> None:
@@ -113,4 +118,4 @@ async def require_launch_access(claims: LaunchClaims) -> None:
         _LAUNCH_ANSWERS[key] = answer
     if not answer[1]:
         needed = get_launch_permissions(level)[0]
-        raise PxcActivityNotPermitted(f"You are not allowed to do this; it needs the {needed.name} permission.")
+        raise PxcActivityNotPermitted(PXC_NOT_PERMITTED_MESSAGE.format(needed.name))

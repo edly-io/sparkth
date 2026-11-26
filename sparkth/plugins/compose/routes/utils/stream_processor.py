@@ -18,6 +18,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.audit import ToolFailureKind
 from sparkth.lib.db import session_scope
+from sparkth.lib.documents import DocumentStatus, get_document
 from sparkth.lib.i18n import _, gettext
 from sparkth.lib.llm import BaseChatProvider
 from sparkth.lib.log import get_logger
@@ -26,6 +27,7 @@ from sparkth.lib.rag import (
     RAGNotReadyError,
     RAGRetrievalError,
     RetrievedChunk,
+    SectionSelection,
     agentic_retrieve_context,
     format_document_chunks_as_llm_context,
 )
@@ -137,12 +139,13 @@ def _get_stored_tool_calls(tool_calls: list[dict[str, Any]]) -> list[dict[str, s
 
 @dataclass(frozen=True)
 class CollectedReply:
-    """What a turn streamed: its text, its tool calls, whether the author stopped it, who answered last,
-    the agents and operator that ran its steps, in order, the plan still in progress, if any, and the plan
-    it showed, if any."""
+    """What a turn streamed: its text, its tool calls, the document sections it drew on, whether the author
+    stopped it, who answered last, the agents and operator that ran its steps, in order, the plan still in
+    progress, if any, and the plan it showed, if any."""
 
     text: str
     tool_calls: list[dict[str, Any]]
+    rag_sections: list[dict[str, str | None]]
     stopped: bool
     routing: TurnRouting
     agents: list[str]
@@ -159,6 +162,16 @@ class CompletedSearch:
 
     event: ComposeRagSearchCompleted
     occurred_at: datetime
+
+
+def _build_rag_section(
+    chapter: str | None, section: str | None, subsection: str | None, source: str | None
+) -> dict[str, str | None]:
+    """Build a section the turn drew on, as the author reads it in the reply's sources: its kind (the
+    deepest heading it has), its headings joined into its name, and the document it came from."""
+    label = "subsection" if subsection else "section" if section else "chapter"
+    parts = [part for part in (chapter, section, subsection) if part]
+    return {"type": label, "name": " / ".join(parts) if parts else "General", "source": source}
 
 
 def streaming_error_message(exc: Exception) -> str:
@@ -298,7 +311,7 @@ class ComposeStreamProcessor:
         # keeps the processor constructible without analytics — its own unit tests build
         # it with four arguments and have no request to attribute to.
         self.analytics = analytics
-        self.completed_search: CompletedSearch | None = None
+        self.completed_searches: list[CompletedSearch] = []
         # A turn is stoppable only when the caller named it and its owner is known; the
         # pair is its key in the live-turns registry. None leaves the stop poll never firing.
         self.stoppable_turn: tuple[str, int] | None = (turn_id, user_id) if turn_id and user_id is not None else None
@@ -317,17 +330,43 @@ class ComposeStreamProcessor:
         UI when multiple chunks come from the same chapter/section/subsection.
         """
         rag_context = format_document_chunks_as_llm_context(all_chunks)
-        seen_section_keys: set[str] = set()
         confirmed_rag_sections: list[dict[str, str | None]] = []
         for chunk in all_chunks:
-            label = "subsection" if chunk.subsection else "section" if chunk.section else "chapter"
-            parts = [p for p in [chunk.chapter, chunk.section, chunk.subsection] if p]
-            name = " / ".join(parts) if parts else "General"
-            key = f"{label}:{name}:{chunk.source_name}"
-            if key not in seen_section_keys:
-                seen_section_keys.add(key)
-                confirmed_rag_sections.append({"type": label, "name": name, "source": chunk.source_name})
+            rag_section = _build_rag_section(chunk.chapter, chunk.section, chunk.subsection, chunk.source_name)
+            if rag_section not in confirmed_rag_sections:
+                confirmed_rag_sections.append(rag_section)
         return rag_context, confirmed_rag_sections
+
+    async def _get_selected_rag_sections(
+        self, section_selection: SectionSelection, bg_session: AsyncSession
+    ) -> list[dict[str, str | None]]:
+        """The sections a step selected, once each, from the ready documents the author owns: the only ones
+        whose text the step passed on."""
+        rag_sections: list[dict[str, str | None]] = []
+        if self.user_id is None:
+            return rag_sections
+        for document_sections in section_selection.documents:
+            document = await get_document(bg_session, document_sections.document_id, self.user_id)
+            if document is None or document.status != DocumentStatus.READY:
+                continue
+            for section in document_sections.sections:
+                rag_section = _build_rag_section(section.chapter, section.section, section.subsection, document.name)
+                if rag_section not in rag_sections:
+                    rag_sections.append(rag_section)
+        return rag_sections
+
+    def _record_document_search(self, chunks_found: int, document_count: int) -> None:
+        """Record a document search that returned, for its analytics to be emitted once the stream closes."""
+        if self.analytics is None:
+            return
+        event = rag_search_event(
+            self.conversation_uuid,
+            self.analytics.provider,
+            chunks_found=chunks_found,
+            document_count=document_count,
+            streamed=True,
+        )
+        self.completed_searches.append(CompletedSearch(event, datetime.now(timezone.utc)))
 
     def _inject_rag_into_messages(self, rag_context: str) -> None:
         """Mutates self.messages in-place to avoid copying large message lists."""
@@ -513,17 +552,7 @@ class ComposeStreamProcessor:
         chunks = await self._retrieve_rag_chunks(query_text, document_ids, bg_session)
         if chunks is None:
             return None
-        if self.analytics is not None:
-            self.completed_search = CompletedSearch(
-                rag_search_event(
-                    self.conversation_uuid,
-                    self.analytics.provider,
-                    chunks_found=len(chunks),
-                    document_count=len(document_ids),
-                    streamed=True,
-                ),
-                datetime.now(timezone.utc),
-            )
+        self._record_document_search(len(chunks), len(document_ids))
 
         rag_context, confirmed_rag_sections = self._build_rag_context(chunks)
         if not rag_context:
@@ -556,6 +585,7 @@ class ComposeStreamProcessor:
         """
         full_response = ""
         completed_tool_calls: list[dict[str, Any]] = []
+        rag_sections = list(confirmed_rag_sections)
         stopped = False
         tool_running = False
         turn_activity = TurnActivity(self.planner_setup.existing_plan)
@@ -605,6 +635,17 @@ class ComposeStreamProcessor:
                         await self._emit_status(
                             ToolExecutionEvent(tool_name=event["name"], tool_status=_get_tool_call_status(failure))
                         )
+                    elif event["type"] == TurnEventType.STRUCTURED_REPLY and isinstance(
+                        event["reply"], SectionSelection
+                    ):
+                        section_selection = event["reply"]
+                        self._record_document_search(
+                            sum(len(document.sections) for document in section_selection.documents),
+                            len(section_selection.documents),
+                        )
+                        selected = await self._get_selected_rag_sections(section_selection, bg_session)
+                        rag_sections.extend(section for section in selected if section not in rag_sections)
+                        await self._emit_rag_section_events(selected)
                     if self._stop_is_requested():
                         stopped = True
                         break
@@ -613,6 +654,7 @@ class ComposeStreamProcessor:
             return CollectedReply(
                 text=full_response,
                 tool_calls=completed_tool_calls,
+                rag_sections=rag_sections,
                 stopped=stopped,
                 routing=turn_activity.routing,
                 agents=turn_activity.agents,
@@ -625,7 +667,7 @@ class ComposeStreamProcessor:
             logger.error("Streaming failed: %s", e)
             await self._persist_partial_reply(
                 full_response,
-                confirmed_rag_sections,
+                rag_sections,
                 completed_tool_calls,
                 turn_activity.agents,
                 turn_activity.get_plan_left_when_cut_short(),
@@ -640,7 +682,7 @@ class ComposeStreamProcessor:
             logger.exception("Unexpected streaming error: %s", e)
             await self._persist_partial_reply(
                 full_response,
-                confirmed_rag_sections,
+                rag_sections,
                 completed_tool_calls,
                 turn_activity.agents,
                 turn_activity.get_plan_left_when_cut_short(),
@@ -777,7 +819,7 @@ class ComposeStreamProcessor:
             return None
         return await self._persist_and_emit_done(
             reply.text,
-            confirmed_rag_sections,
+            reply.rag_sections,
             reply.tool_calls,
             bg_session,
             reply.plan,
@@ -828,7 +870,7 @@ class ComposeStreamProcessor:
         however the task ends — including a failure to open the session — and the release
         runs first, so a stream that has closed can no longer be stopped.
 
-        A search the turn ran is emitted here too, after the completion so a failed search write
+        The searches the turn ran are emitted here too, after the completion so a failed search write
         cannot cost the completion's rows, and even when the turn produced no completion (the
         no-results reply).
         """
@@ -865,8 +907,7 @@ class ComposeStreamProcessor:
                 agents=completion.agents,
                 stopped_at=completion.stopped_at,
             )
-        if self.completed_search is not None:
-            search = self.completed_search
+        for search in self.completed_searches:
             await emit_rag_search_completed(search.event, self.analytics.actor_id, search.occurred_at)
 
     async def stream(self) -> AsyncGenerator[str, None]:

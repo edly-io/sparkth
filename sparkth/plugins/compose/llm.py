@@ -440,7 +440,8 @@ async def _turn_events(
     calls, and neither does what an agent writes before trying again after a failed tool call),
     ``tool_start`` and ``tool_end`` for each tool call, ``limit_reached`` when an agent's calls were
     blocked, ``usage`` with the tokens of each model reply, the planner's, the agents' and the
-    operator's, and ``final`` with each closing model reply. A step or a call reported as
+    operator's, ``final`` with each closing model reply, and ``structured_reply`` with the reply of an
+    agent with a ``structured_reply``. A step or a call reported as
     started runs only once this generator is asked for its next event. A refusal arrives as the
     refusal sentence. Yields ``plan`` with the steps of a plan the turn makes, and ``plan_step``
     with the number of each step of that plan or of ``planner_setup``'s existing plan, when the step
@@ -518,9 +519,10 @@ async def complete_turn(
     """Run one non-streamed turn on the planner and return its answer.
 
     The answer is the text a streamed turn would have shown, ``routing`` says who answered it last,
-    and ``metadata`` lists the agents the turn's steps went to, every tool call it made and the tokens of
-    all its model replies, the planner's and the agents', and holds the plan still in progress, if any, for
-    the next message to carry on.
+    ``section_selections`` holds the document sections its steps selected, and ``metadata`` lists the
+    agents the turn's steps went to, every tool call it made and the tokens of all its model replies, the
+    planner's and the agents', and holds the plan still in progress, if any, for the next message to carry
+    on.
     """
     tokens: list[str] = []
     tool_executions: list[dict[str, Any]] = []
@@ -558,6 +560,7 @@ async def complete_turn(
         "model": provider.model,
         "tool_calls": None,
         "routing": turn_activity.routing,
+        "section_selections": turn_activity.section_selections,
         "metadata": {
             **({"plan": asdict(plan_in_progress)} if plan_in_progress is not None else {}),
             "agents": turn_activity.agents,
@@ -595,6 +598,9 @@ async def stream_turn(
       {"type": "tool_start","name": str}       — tool execution beginning
       {"type": "tool_end",  "name": str, "failure": ToolFailureKind | None}
                                                — tool execution finished, and how it failed
+      {"type": "structured_reply", "agent": str, "reply": BaseModel}
+                                               — the reply of an agent with a ``structured_reply``,
+                                                 which the author never reads
 
     A call reported by ``tool_start``, or a step reported by ``routed``, runs only once the reader
     asks for the next event, so a reader that stops there keeps it from running.
@@ -609,6 +615,7 @@ async def stream_turn(
                     | TurnEventType.PLAN_STEP
                     | TurnEventType.TOKEN
                     | TurnEventType.TOOL_START
+                    | TurnEventType.STRUCTURED_REPLY
                 ):
                     yield event
                 case TurnEventType.TOOL_END:

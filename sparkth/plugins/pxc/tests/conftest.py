@@ -154,8 +154,8 @@ def _empty_launch_answers() -> Iterator[None]:
 async def make_lms_account(session: AsyncSession, permissions: list[str], scope_object_id: str | None) -> User:
     """Create the LMS account, stored with no password, holding ``permissions`` at one owner's user scope.
 
-    It holds them at ``global`` when given no owner. The default-role fixture grants at ``user:1`` and ``authors``
-    relies on its owner being user 1, so create the account after the authors.
+    It holds them at ``global`` when given no owner. The default-role grants are at the first user's scope, so
+    create the account after the test's other users.
     """
     account = User(name="PXC LMS", username=PXC_LMS_USERNAME, email="pxc_lms@sparkth.invalid")
     session.add(account)
@@ -169,8 +169,7 @@ async def make_lms_account(session: AsyncSession, permissions: list[str], scope_
 async def lms_account(session: AsyncSession) -> User:
     """The LMS account holding both launch permissions at ``global``.
 
-    A test that also uses ``authors`` or ``authored_activity`` must name them before ``lms_account`` in its
-    parameters, so the authors are created first.
+    Create it after the test's other users, because the default-role grants are at the first user's scope.
     """
     return await make_lms_account(session, ["pxc.activity.play", "pxc.activity.edit"], None)
 
