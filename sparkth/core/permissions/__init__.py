@@ -16,9 +16,11 @@ from typing import NoReturn
 from fastapi import Depends, HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.core.i18n import gettext_noop
 from sparkth.core.models.user import User
 from sparkth.core.permissions.dependencies import build_scope_path_dependency
 from sparkth.core.permissions.engine import can, get_accessible_scope_object_ids
+from sparkth.core.permissions.enums import PermissionRisk
 from sparkth.core.permissions.exceptions import PermissionNotFound
 from sparkth.core.permissions.scopes import GLOBAL, PermissionScope
 from sparkth.core.permissions.scopes.mixins import ScopeObjectMixin
@@ -37,17 +39,46 @@ def _describe_checked_scope(permission_scope: PermissionScope, scope_path: str |
 
 
 class Permission:
-    def __init__(self, name: str) -> None:
+    """A permission a role can hold, and what it is for as people read it.
+
+    ``label``, ``description`` and ``category`` are English marked for translation, translated when
+    shown, and ``category`` groups related permissions. ``risks`` are the reasons to think twice before
+    granting it, and ``requires`` holds the permissions a holder also needs for it to be of use; none
+    is declared today, as the permission system has no hierarchy yet.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        label: str = "",
+        description: str = "",
+        category: str = "",
+        risks: tuple[PermissionRisk, ...] = (),
+        requires: tuple["Permission", ...] = (),
+    ) -> None:
         self.name = name
+        self.label = label
+        self.description = description
+        self.category = category
+        self.risks = risks
+        self.requires = requires
 
     @classmethod
-    def create(cls, name: str) -> "Permission":
-        """Create a permission and register it on the PERMISSIONS hook.
+    def create(
+        cls,
+        name: str,
+        label: str,
+        description: str,
+        category: str,
+        risks: tuple[PermissionRisk, ...] = (),
+        requires: tuple["Permission", ...] = (),
+    ) -> "Permission":
+        """Create a permission, with what it is for, and register it on the PERMISSIONS hook.
 
         Use this, not the bare ``Permission(name)`` constructor — the constructor does not
         register (it is internal/test-only), and an unregistered permission authorizes nothing.
         """
-        permission = cls(name)
+        permission = cls(name, label, description, category, risks, requires)
         PERMISSIONS.add_item(permission)
         return permission
 
@@ -205,50 +236,174 @@ def get_permission(name: str) -> Permission:
     return permission
 
 
-# Core Permissions shipped with the application.
+# Core Permissions shipped with the application. Each says what it is for, under the category
+# it is listed in.
+_USERS_AND_ACCESS = gettext_noop("Users & access")
+_REGISTRATION_WHITELIST = gettext_noop("Registration whitelist")
+_ANALYTICS_AND_AUDIT = gettext_noop("Analytics & audit")
+_AI_KEYS = gettext_noop("AI keys")
+_PLUGINS_AND_FILES = gettext_noop("Plugins & files")
 
 # The email-whitelist permissions gate the registration email whitelist.
-EMAIL_WHITELIST_READ = Permission.create("email.whitelist.read")
-EMAIL_WHITELIST_CREATE = Permission.create("email.whitelist.create")
-EMAIL_WHITELIST_DELETE = Permission.create("email.whitelist.delete")
+EMAIL_WHITELIST_READ = Permission.create(
+    "email.whitelist.read",
+    gettext_noop("See the whitelist"),
+    gettext_noop("View which emails and domains may sign up."),
+    _REGISTRATION_WHITELIST,
+)
+EMAIL_WHITELIST_CREATE = Permission.create(
+    "email.whitelist.create",
+    gettext_noop("Add to the whitelist"),
+    gettext_noop("Let a new email or domain sign up."),
+    _REGISTRATION_WHITELIST,
+)
+EMAIL_WHITELIST_DELETE = Permission.create(
+    "email.whitelist.delete",
+    gettext_noop("Remove from the whitelist"),
+    gettext_noop("Stop an email or domain from signing up."),
+    _REGISTRATION_WHITELIST,
+    risks=(PermissionRisk.DELETES,),
+)
 
 # The role-management permissions gate the role-management API (sparkth/api/v1/permissions).
-ROLE_CREATE = Permission.create("role.create")
-ROLE_READ = Permission.create("role.read")
-ROLE_UPDATE = Permission.create("role.update")
-ROLE_DELETE = Permission.create("role.delete")
+ROLE_CREATE = Permission.create(
+    "role.create",
+    gettext_noop("Create roles"),
+    gettext_noop("Add new roles."),
+    _USERS_AND_ACCESS,
+    risks=(PermissionRisk.DELEGATES_ACCESS,),
+)
+ROLE_READ = Permission.create(
+    "role.read",
+    gettext_noop("See roles"),
+    gettext_noop("Open the list of roles and what each one allows."),
+    _USERS_AND_ACCESS,
+)
+ROLE_UPDATE = Permission.create(
+    "role.update",
+    gettext_noop("Edit roles"),
+    gettext_noop("Rename roles and change their permissions."),
+    _USERS_AND_ACCESS,
+    risks=(PermissionRisk.DELEGATES_ACCESS,),
+)
+ROLE_DELETE = Permission.create(
+    "role.delete",
+    gettext_noop("Delete roles"),
+    gettext_noop("Delete custom roles and take them away from everyone."),
+    _USERS_AND_ACCESS,
+    risks=(PermissionRisk.DELETES,),
+)
 
 # The group-management permissions gate the group-management API (sparkth/api/v1/permissions).
 # Membership and group-role grants are CLI-managed and carry no REST gate of their own.
-GROUP_CREATE = Permission.create("group.create")
-GROUP_READ = Permission.create("group.read")
-GROUP_UPDATE = Permission.create("group.update")
-GROUP_DELETE = Permission.create("group.delete")
+GROUP_CREATE = Permission.create(
+    "group.create",
+    gettext_noop("Create groups"),
+    gettext_noop("Add new groups."),
+    _USERS_AND_ACCESS,
+)
+GROUP_READ = Permission.create(
+    "group.read",
+    gettext_noop("See groups"),
+    gettext_noop("Open groups and their members."),
+    _USERS_AND_ACCESS,
+)
+GROUP_UPDATE = Permission.create(
+    "group.update",
+    gettext_noop("Edit groups"),
+    gettext_noop("Rename groups and change their description."),
+    _USERS_AND_ACCESS,
+    risks=(PermissionRisk.DELEGATES_ACCESS,),
+)
+GROUP_DELETE = Permission.create(
+    "group.delete",
+    gettext_noop("Delete groups"),
+    gettext_noop("Delete groups and take their roles away from their members."),
+    _USERS_AND_ACCESS,
+    risks=(PermissionRisk.DELETES,),
+)
 
 # Reading the permission vocabulary itself (the assignable-permissions listing), distinct from
 # reading roles.
-PERMISSION_READ = Permission.create("permission.read")
+PERMISSION_READ = Permission.create(
+    "permission.read",
+    gettext_noop("See permissions"),
+    gettext_noop("List the permissions a role can hold."),
+    _USERS_AND_ACCESS,
+)
 
 # The analytics read permission gates the in-app analytics dashboards / read API.
-ANALYTICS_READ = Permission.create("analytics.read")
+ANALYTICS_READ = Permission.create(
+    "analytics.read",
+    gettext_noop("View analytics"),
+    gettext_noop("Open the analytics dashboards and run Explore queries."),
+    _ANALYTICS_AND_AUDIT,
+)
 
 # The audit read permission gates querying and exporting the audit trail.
-AUDIT_READ = Permission.create("audit.read")
+AUDIT_READ = Permission.create(
+    "audit.read",
+    gettext_noop("View the audit log"),
+    gettext_noop("Read and export the record of every access change."),
+    _ANALYTICS_AND_AUDIT,
+    risks=(PermissionRisk.PRIVATE_DATA,),
+)
 
 # Reading user identities (usernames) outside user management, e.g. actor names in analytics.
-USER_READ = Permission.create("user.read")
+USER_READ = Permission.create(
+    "user.read",
+    gettext_noop("See information about users"),
+    gettext_noop("See who the people in Sparkth are, such as who did what in analytics."),
+    _USERS_AND_ACCESS,
+    risks=(PermissionRisk.PRIVATE_DATA,),
+)
 
 # LLM provider configurations, each checked at the user scope of the config's owner.
-LLM_CONFIG_CREATE = Permission.create("llm.config.create")
-LLM_CONFIG_READ = Permission.create("llm.config.read")
-LLM_CONFIG_UPDATE = Permission.create("llm.config.update")
-LLM_CONFIG_DELETE = Permission.create("llm.config.delete")
+LLM_CONFIG_CREATE = Permission.create(
+    "llm.config.create",
+    gettext_noop("Add AI keys"),
+    gettext_noop("Save a new AI provider and key."),
+    _AI_KEYS,
+)
+LLM_CONFIG_READ = Permission.create(
+    "llm.config.read",
+    gettext_noop("See AI key settings"),
+    gettext_noop("View saved AI providers and models."),
+    _AI_KEYS,
+)
+LLM_CONFIG_UPDATE = Permission.create(
+    "llm.config.update",
+    gettext_noop("Change AI keys"),
+    gettext_noop("Edit, rotate or switch the active AI key."),
+    _AI_KEYS,
+)
+LLM_CONFIG_DELETE = Permission.create(
+    "llm.config.delete",
+    gettext_noop("Delete AI keys"),
+    gettext_noop("Remove saved AI keys."),
+    _AI_KEYS,
+)
 
 # Using a plugin's feature routes, checked at the plugin scope of the plugin's name.
-PLUGIN_USE = Permission.create("plugin.use")
+PLUGIN_USE = Permission.create(
+    "plugin.use",
+    gettext_noop("Use plugins"),
+    gettext_noop("Use a plugin's features, such as Compose or Google Drive."),
+    _PLUGINS_AND_FILES,
+)
 
 # Switching a plugin on or off for everyone, checked at the plugin scope of the plugin's name.
-PLUGIN_MANAGE = Permission.create("plugin.manage")
+PLUGIN_MANAGE = Permission.create(
+    "plugin.manage",
+    gettext_noop("Switch plugins on or off"),
+    gettext_noop("Turn a plugin on or off for every user, which hides it and refuses its requests."),
+    _PLUGINS_AND_FILES,
+)
 
 # Uploading files, checked at the user scope of the uploader.
-FILE_UPLOAD = Permission.create("file.upload")
+FILE_UPLOAD = Permission.create(
+    "file.upload",
+    gettext_noop("Upload files"),
+    gettext_noop("Upload files to read in conversations."),
+    _PLUGINS_AND_FILES,
+)

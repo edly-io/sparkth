@@ -186,7 +186,10 @@ class ToolExecutionEvent(StreamStatusEvent):
 
 
 class PersistedToolCall(BaseModel):
+    """A tool call a stored reply made: the tool's name, and whether the call was done or failed."""
+
     name: str
+    status: ToolExecutionStatus = ToolExecutionStatus.DONE
 
 
 class MessageResponse(BaseModel):
