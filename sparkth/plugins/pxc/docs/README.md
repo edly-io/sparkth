@@ -83,6 +83,10 @@ user's `user` scope reaches that user's activities, and a grant at `global` reac
 A caller without the permission gets 403 and the refusal is recorded as a `permission.denied`
 event; an id that names no activity gets 404, and records no denial.
 
+The preview page offers the Author view only to a user who holds `pxc.activity.edit` for the
+activity owner's activities. The page learns the owner from its first launch and asks before it
+shows the Author button, so a user without the permission sees the Student button alone.
+
 ## Building an activity from chat
 
 The plugin contributes a Compose agent: its name, title, description, prompt and tools. Its
