@@ -4,6 +4,7 @@
     "working": "Détermination des prochaines actions…",
     "toolCallCount": "{count, plural, one {# appel d'outil effectué} other {# appels d'outils effectués}}",
     "toolExecuting": "en cours",
+    "toolFailed": "échec",
     "statusScanningAttachments": "Lecture de vos fichiers joints…",
     "statusSearchingDocuments": "Analyse des sections du document…",
     "statusSkippingRag": "Réponse sans les fichiers joints…",
