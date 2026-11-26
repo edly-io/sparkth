@@ -17,12 +17,15 @@ router = APIRouter()
     dependencies=[Depends(USER_READ.require_in_global_scope())],
 )
 async def list_user_summaries(
-    search: str | None = Query(None, min_length=1, max_length=50),
+    search: str | None = Query(None, max_length=50),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_async_session),
 ) -> list[UserSummary]:
-    """List active users by username, keeping those whose name, username or email contains ``search``."""
+    """List active users by username, keeping those whose name, username or email contains ``search``.
+
+    An empty ``search`` keeps everyone.
+    """
     users = await list_users(search, limit, offset, session)
     return [UserSummary.model_validate(user) for user in users]
 
