@@ -73,11 +73,11 @@ Each author-facing route checks an activity at the `user` scope of its owner:
 | Action | Needs |
 |---|---|
 | List an owner's activities (`owner_id`, the caller's own when absent) | `pxc.activity.read` |
-| Preview an activity as a learner (`permission=play`) | `pxc.activity.read` |
-| Preview an activity as its author (`permission=edit`) | `pxc.activity.update` |
+| Preview an activity as a learner (`permission=play`) | `pxc.activity.play` or `pxc.activity.edit` |
+| Preview an activity as its author (`permission=edit`) | `pxc.activity.edit` |
 | Delete an activity | `pxc.activity.delete` |
 
-Every account holds all four `pxc.activity.*` names at its own `user` scope through the default
+Every account holds all six `pxc.activity.*` names at its own `user` scope through the default
 `sparkth_user` role, so an author keeps full access to their own activities. A grant at another
 user's `user` scope reaches that user's activities, and a grant at `global` reaches every user's.
 A caller without the permission gets 403 and the refusal is recorded as a `permission.denied`

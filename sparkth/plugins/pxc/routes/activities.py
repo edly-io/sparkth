@@ -5,7 +5,9 @@ routes carry a launch token instead and declare no such dependency, so they are 
 
 An activity is checked at the ``user`` scope of its owner. A route that names one activity answers
 404 for an unknown id before it checks the permission, and 403 for a caller without the permission.
-Listing takes the owner from the ``owner_id`` query parameter and defaults to the caller.
+Listing takes the owner from the ``owner_id`` query parameter and defaults to the caller. Launching
+checks ``pxc.activity.play`` or ``pxc.activity.edit`` for the requested view, not the permissions that
+manage the activity record.
 """
 
 from uuid import UUID
@@ -15,21 +17,26 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.lib.auth import get_current_user_id
 from sparkth.lib.db import get_async_session
+from sparkth.lib.log import get_logger
 from sparkth.lib.permissions import get_listed_owner_id
 from sparkth.lib.permissions.scopes import USER
 from sparkth.plugins.pxc.activities import activity_dir, preview_url
 from sparkth.plugins.pxc.enums import PreviewLevel
+from sparkth.plugins.pxc.exceptions import PxcActivityNotPermitted
 from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.permissions import (
     PXC_ACTIVITY_DELETE,
     PXC_ACTIVITY_READ,
-    PXC_ACTIVITY_UPDATE,
-    require_activity_permission,
+    get_launch_permissions,
+    has_launch_permission,
+    record_launch_denial,
 )
 from sparkth.plugins.pxc.revisions import remove_activity_files
 from sparkth.plugins.pxc.schemas import ActivityLaunch, ActivitySummary
 from sparkth.plugins.pxc.store import delete_activity, get_activity, list_owned_activities
 from sparkth.plugins.pxc.tokens import mint_preview_token
+
+logger = get_logger(__name__)
 
 router = APIRouter()
 
@@ -84,19 +91,27 @@ async def launch_activity(
 ) -> ActivityLaunch:
     """An embed URL that previews an activity, as a learner or as its author.
 
-    A learner preview needs ``pxc.activity.read`` and an author preview ``pxc.activity.update``,
-    both at the activity owner's scope. The permission depends on the requested view, so it is
-    checked in the handler, not in the route's dependencies. The activity's files are resolved before a token is
-    minted, so a row whose files are missing from ``PXC_DATA_DIR`` never yields an embed URL that
-    would fail on load.
+    A learner preview needs ``pxc.activity.play`` or ``pxc.activity.edit`` and an author preview
+    needs ``pxc.activity.edit``, both at the activity owner's scope. The permission depends on the
+    requested view, so it is checked in the handler, not in the route's dependencies. The activity's
+    files are resolved before a token is minted, so a row whose files are missing from
+    ``PXC_DATA_DIR`` never yields an embed URL that would fail on load.
 
     Raises:
         PxcActivityNotFound: if the activity does not exist or its files are missing.
         PxcActivityNotPermitted: if the caller lacks the permission the view needs.
         PxcLaunchNotConfigured: if no launch secret is configured.
     """
-    needed = PXC_ACTIVITY_UPDATE if permission == "edit" else PXC_ACTIVITY_READ
-    await require_activity_permission(session, needed, activity.owner_user_id, user_id)
+    if not await has_launch_permission(session, permission, activity.owner_user_id, user_id):
+        needed = get_launch_permissions(permission)[0]
+        logger.warning(
+            "PXC launch at level %s denied for user %s on activities of user %s",
+            permission,
+            user_id,
+            activity.owner_user_id,
+        )
+        await record_launch_denial(permission, activity.owner_user_id)
+        raise PxcActivityNotPermitted(f"You are not allowed to do this; it needs the {needed.name} permission.")
     activity_dir(str(activity_id))
     token = mint_preview_token(activity_id, user_id, permission)
     return ActivityLaunch(embed_url=str(request.url_for("embed_activity").include_query_params(token=token)))
