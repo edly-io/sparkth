@@ -74,3 +74,23 @@ msgstr "Placer les activités"
 #: sparkth/plugins/pxc/permissions.py:40
 msgid "Put activities into LMS courses."
 msgstr "Placer les activités dans des cours du LMS."
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/pxc/permissions.py:53
+msgid "Play activities"
+msgstr "Lancer les activités"
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/pxc/permissions.py:54
+msgid "Open activities as a learner."
+msgstr "Ouvrir les activités en tant qu'apprenant."
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/pxc/permissions.py:59
+msgid "Edit activities as an author"
+msgstr "Modifier les activités en tant qu'auteur"
+
+# Machine-generated translation (LLM), not yet reviewed by a native speaker.
+#: sparkth/plugins/pxc/permissions.py:60
+msgid "Open activities as their author, which also opens them as a learner."
+msgstr "Ouvrir les activités en tant qu'auteur, ce qui les ouvre aussi en tant qu'apprenant."

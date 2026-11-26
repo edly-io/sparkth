@@ -7,16 +7,27 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from uuid6 import uuid7
 
 from sparkth.lib.models import User
-from sparkth.lib.testing import AuditEventsFetcher, grant_global_permission, grant_permissions
+from sparkth.lib.testing import (
+    AuditEventsFetcher,
+    assign_through_group,
+    grant_global_permission,
+    grant_permissions,
+    make_role,
+)
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound, PxcActivityNotPermitted
 from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.permissions import (
     PXC_ACTIVITY_DELETE,
+    PXC_ACTIVITY_EDIT,
     PXC_ACTIVITY_PLACE,
+    PXC_ACTIVITY_PLAY,
     PXC_ACTIVITY_READ,
     PXC_ACTIVITY_UPDATE,
+    get_launch_permissions,
     get_permitted_activity,
     has_activity_permission,
+    has_launch_permission,
+    record_launch_denial,
     require_activity_permission,
 )
 from sparkth.plugins.pxc.tests.conftest import act_as, assert_activity_permission_denied
@@ -99,3 +110,72 @@ async def test_an_id_that_names_no_activity_is_not_found_and_records_nothing(
         await get_permitted_activity(str(uuid7()), PXC_ACTIVITY_READ)
 
     assert await audit_events() == []
+
+
+def test_a_level_names_the_permissions_that_allow_it() -> None:
+    assert get_launch_permissions("edit") == (PXC_ACTIVITY_EDIT,)
+    assert get_launch_permissions("play") == (PXC_ACTIVITY_PLAY, PXC_ACTIVITY_EDIT)
+    assert get_launch_permissions("view") == (PXC_ACTIVITY_PLAY, PXC_ACTIVITY_EDIT)
+
+
+async def test_play_alone_opens_the_play_level_only(session: AsyncSession, authors: tuple[User, User]) -> None:
+    owner, other = authors
+    owner_id, other_id = cast(int, owner.id), cast(int, other.id)
+    await grant_permissions(session, other, ["pxc.activity.play"], "user", str(owner_id))
+    assert await has_launch_permission(session, "play", owner_id, other_id)
+    assert not await has_launch_permission(session, "edit", owner_id, other_id)
+
+
+async def test_edit_opens_both_levels(session: AsyncSession, authors: tuple[User, User]) -> None:
+    owner, other = authors
+    owner_id, other_id = cast(int, owner.id), cast(int, other.id)
+    await grant_permissions(session, other, ["pxc.activity.edit"], "user", str(owner_id))
+    assert await has_launch_permission(session, "play", owner_id, other_id)
+    assert await has_launch_permission(session, "edit", owner_id, other_id)
+
+
+async def test_the_management_permissions_open_no_level(session: AsyncSession, authors: tuple[User, User]) -> None:
+    owner, other = authors
+    owner_id, other_id = cast(int, owner.id), cast(int, other.id)
+    await grant_permissions(session, other, ["pxc.activity.read", "pxc.activity.update"], "user", str(owner_id))
+    assert not await has_launch_permission(session, "play", owner_id, other_id)
+    assert not await has_launch_permission(session, "edit", owner_id, other_id)
+
+
+async def test_an_activity_with_no_owner_is_checked_at_global(
+    session: AsyncSession, authors: tuple[User, User]
+) -> None:
+    owner, other = authors
+    other_id = cast(int, other.id)
+    await grant_permissions(session, other, ["pxc.activity.play"], "user", str(owner.id))
+    assert not await has_launch_permission(session, "play", None, other_id)
+    await grant_global_permission(session, other_id, "pxc.activity.play")
+    assert await has_launch_permission(session, "play", None, other_id)
+
+
+async def test_a_caller_with_no_account_opens_no_level(session: AsyncSession, authors: tuple[User, User]) -> None:
+    owner, _ = authors
+    assert not await has_launch_permission(session, "play", cast(int, owner.id), 999)
+
+
+async def test_a_grant_held_through_a_group_opens_the_level(session: AsyncSession, authors: tuple[User, User]) -> None:
+    owner, other = authors
+    role = await make_role(session, "pxc-players", ["pxc.activity.play"])
+    await assign_through_group(session, other, role, "user", str(owner.id))
+    assert await has_launch_permission(session, "play", cast(int, owner.id), cast(int, other.id))
+
+
+async def test_a_refused_play_launch_is_recorded_as_a_denial_of_play(
+    authors: tuple[User, User], audit_events: AuditEventsFetcher
+) -> None:
+    owner, _ = authors
+    await record_launch_denial("play", cast(int, owner.id))
+    await assert_activity_permission_denied(audit_events, "pxc.activity.play", owner.id)
+
+
+async def test_a_denial_for_an_activity_with_no_owner_names_the_global_scope(
+    audit_events: AuditEventsFetcher,
+) -> None:
+    await record_launch_denial("edit", None)
+    event = (await audit_events())[-1]
+    assert (event.target_id, event.error_detail) == ("pxc.activity.edit", "scope=global")
