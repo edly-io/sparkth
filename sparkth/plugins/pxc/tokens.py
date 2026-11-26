@@ -112,9 +112,9 @@ def mint_launch_token(
 ) -> str:
     """Return a token carrying these claims, signed with ``secret`` and valid for ``ttl`` seconds.
 
-    The LMS mints learner launches. Sparkth mints only an author's preview, through
-    ``mint_preview_token``, and tests mint tokens to exercise verification. Both halves of the
-    format are defined here.
+    The LMS mints learner launches. Sparkth mints only previews, for a user permitted to preview the
+    activity, and tests mint tokens to exercise verification. Both halves of the format are defined
+    here.
 
     ``ttl`` defaults to the configured lifetime, resolved per call rather than as an argument
     default so it is not frozen at import time.

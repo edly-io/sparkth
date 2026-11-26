@@ -16,18 +16,21 @@ from sparkth.lib.auth import current_user_id
 from sparkth.lib.db import session_scope
 from sparkth.lib.log import get_logger
 from sparkth.lib.mcp.hooks import Tool
-from sparkth.lib.permissions import Permission
-from sparkth.plugins.pxc.activities import activity_dir, parse_activity_id, preview_url
+from sparkth.plugins.pxc.activities import activity_dir, preview_url
 from sparkth.plugins.pxc.builder import build_activity, update_activity
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import PXC_TOOL_CATEGORY
 from sparkth.plugins.pxc.exceptions import PxcActivityNotFound, PxcManifestInvalid
-from sparkth.plugins.pxc.models import PxcActivity
-from sparkth.plugins.pxc.permissions import PXC_ACTIVITY_READ, PXC_ACTIVITY_UPDATE, require_activity_permission
+from sparkth.plugins.pxc.permissions import (
+    PXC_ACTIVITY_READ,
+    PXC_ACTIVITY_UPDATE,
+    get_permitted_activity,
+    require_activity_permission,
+)
 from sparkth.plugins.pxc.revisions import live_revision
 from sparkth.plugins.pxc.schemas import ActivitySource, TrialStep
 from sparkth.plugins.pxc.scratch.schemas import ScratchReport
-from sparkth.plugins.pxc.store import get_activity, list_action_failures, list_owned_activities
+from sparkth.plugins.pxc.store import list_action_failures, list_owned_activities
 from sparkth.plugins.pxc.trial import run_trial
 
 logger = get_logger(__name__)
@@ -63,21 +66,6 @@ def _manifest_object(manifest: dict[str, object] | str) -> dict[str, object]:
         logger.info("Refused a JSON manifest of type %s", type(parsed).__name__)
         raise PxcManifestInvalid(f"manifest must be a JSON object, got {type(parsed).__name__}")
     return parsed
-
-
-async def _get_permitted_activity(activity_id: str, permission: Permission) -> PxcActivity:
-    """The activity the id names, provided the signed-in user holds the permission over its owner's activities.
-
-    Raises:
-        PxcActivityNotFound: if the id names no activity, before any permission is checked.
-        PxcActivityNotPermitted: if the user lacks the permission.
-    """
-    user_id = current_user_id()
-    parsed_id = parse_activity_id(activity_id)
-    async with session_scope() as session:
-        activity = await get_activity(session, parsed_id)
-        await require_activity_permission(session, permission, activity.owner_user_id, user_id)
-    return activity
 
 
 async def pxc_build_activity(
@@ -141,7 +129,7 @@ async def pxc_get_activity_source(activity_id: str) -> dict[str, object]:
     (this is never cleared); once it has, its fields may not be removed or change their type,
     scope or schema.
     """
-    activity = await _get_permitted_activity(activity_id, PXC_ACTIVITY_READ)
+    activity = await get_permitted_activity(activity_id, PXC_ACTIVITY_READ)
     directory = activity_dir(str(activity.id))
     try:
         manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
@@ -184,7 +172,7 @@ async def pxc_get_activity_failures(activity_id: str, limit: int | None = None) 
         activity_id: The activity's id, as `pxc_build_activity` or `pxc_list_activities` returns it.
         limit: How many of the newest failures to return; leave it out for the default.
     """
-    activity = await _get_permitted_activity(activity_id, PXC_ACTIVITY_READ)
+    activity = await get_permitted_activity(activity_id, PXC_ACTIVITY_READ)
     if limit is None:
         limit = get_pxc_settings().action_failure_limit
     async with session_scope() as session:
@@ -219,7 +207,7 @@ async def pxc_update_activity(
 
     A failed update leaves the activity unchanged, unless it fails after the new files go live.
     """
-    activity = await _get_permitted_activity(activity_id, PXC_ACTIVITY_UPDATE)
+    activity = await get_permitted_activity(activity_id, PXC_ACTIVITY_UPDATE)
     source = ActivitySource(
         title=title,
         description=description,
@@ -254,7 +242,7 @@ async def pxc_run_activity(activity_id: str, steps: list[TrialStep]) -> ScratchR
     fixing ui.js, run the steps with the value the fixed ui.js now sends, since the old value is
     still refused. Then ask the author to try it.
     """
-    await _get_permitted_activity(activity_id, PXC_ACTIVITY_READ)
+    await get_permitted_activity(activity_id, PXC_ACTIVITY_READ)
     step_list = Annotated[list[TrialStep], Field(max_length=get_pxc_settings().trial_step_limit)]
     validated = TypeAdapter(step_list).validate_python(steps)
     return await run_trial(activity_dir(activity_id), validated)

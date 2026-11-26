@@ -102,7 +102,7 @@ async def _run_one_action(runtime: ActivityRuntime, token: str, frame: dict[str,
 
     A frame supplies only the action's name and value; permission and context come from the
     signed claims, re-verified here so an action after the token lapses does not take effect. A
-    failure in an author's preview is recorded for the author's agent.
+    failure in a preview inside Sparkth is recorded for the author's agent.
 
     Raises:
         PxcInvalidLaunchToken: if the token no longer verifies.
