@@ -13,6 +13,7 @@ from langchain_core.messages import AIMessage
 from pydantic import Field
 
 from sparkth.core.i18n import locale_context
+from sparkth.lib.audit import ToolFailureKind
 from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME
 from sparkth.lib.llm import get_provider
 from sparkth.lib.mcp.hooks import Tool
@@ -760,9 +761,7 @@ class TestAPlannedTurn:
         assert "plan" not in _stored_replies(processor)[-1]["metadata"]
 
     @pytest.mark.asyncio
-    async def test_the_reply_keeps_an_earlier_plan_the_turn_did_not_carry_on(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_a_reply_that_did_not_carry_on_an_earlier_plan_ends_it(self, monkeypatch: pytest.MonkeyPatch) -> None:
         events = [routed(STUB_AGENT.name), {"type": "token", "content": "Here is a quiz instead."}]
         monkeypatch.setattr(STREAM_TURN, partial(replay_turn, events))
         processor = _make_processor(existing_plan=FIRST_IN_PROGRESS)
@@ -770,7 +769,7 @@ class TestAPlannedTurn:
         async for _ in processor.stream():
             pass
 
-        assert _stored_replies(processor)[-1]["metadata"]["plan"] == asdict(FIRST_IN_PROGRESS)
+        assert "plan" not in _stored_replies(processor)[-1]["metadata"]
 
     @pytest.mark.asyncio
     async def test_a_failed_turn_keeps_the_plan_with_what_was_written(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -936,6 +935,28 @@ class TestASteppedTurn:
         assert [row.get("is_error", False) for row in _stored_replies(processor)] == [True]
 
 
+class TestAFailedToolCall:
+    @pytest.mark.asyncio
+    async def test_it_is_reported_and_stored_as_failed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        events: list[dict[str, Any]] = [
+            {"type": "tool_start", "name": "get_data"},
+            {"type": "tool_end", "name": "get_data", "failure": ToolFailureKind.UNKNOWN},
+            {"type": "tool_start", "name": "get_data"},
+            {"type": "tool_end", "name": "get_data", "failure": None},
+            {"type": "token", "content": "The first lookup could not be done."},
+        ]
+        monkeypatch.setattr(STREAM_TURN, partial(replay_turn, events))
+        processor = _make_processor()
+
+        payloads = [json.loads(chunk.removeprefix("data: ")) async for chunk in processor.stream()]
+
+        stored = [{"name": "get_data", "status": "failed"}, {"name": "get_data", "status": "done"}]
+        statuses = [payload["tool_status"] for payload in payloads if payload.get("status") == "tool_call"]
+        assert statuses == ["running", "failed", "running", "done"]
+        assert payloads[-1]["message"]["tool_calls"] == stored
+        assert _stored_replies(processor)[-1]["metadata"]["tool_calls"] == stored
+
+
 class TestPersistAndEmitDone:
     @pytest.mark.asyncio
     async def test_calls_add_message_with_rag_sections_in_metadata(self) -> None:
@@ -951,7 +972,7 @@ class TestPersistAndEmitDone:
         tool_calls = [{"name": "search_web"}]
         await processor._persist_and_emit_done("response", [], tool_calls, MagicMock(), plan=None)
         call_kwargs = processor.service.add_message.call_args.kwargs  # type: ignore[attr-defined]
-        assert call_kwargs["metadata"]["tool_calls"] == tool_calls
+        assert call_kwargs["metadata"]["tool_calls"] == [{"name": "search_web", "status": "done"}]
 
     @pytest.mark.asyncio
     async def test_calls_add_message_without_metadata_when_none(self) -> None:
@@ -1000,7 +1021,7 @@ class TestStopHonoured:
         assert executed == ["first"]
         done = payloads[-1]
         assert done["stopped"] is True
-        assert done["message"]["tool_calls"] == [{"name": "first"}]
+        assert done["message"]["tool_calls"] == [{"name": "first", "status": "done"}]
 
     @pytest.mark.asyncio
     async def test_a_stop_while_the_model_writes_cancels_the_model_call(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1045,7 +1066,7 @@ class TestStopHonoured:
         done = payloads[-1]
         assert done["done"] is True
         assert done["stopped"] is True
-        assert done["message"]["tool_calls"] == [{"name": "first_tool"}]
+        assert done["message"]["tool_calls"] == [{"name": "first_tool", "status": "done"}]
 
     @pytest.mark.asyncio
     async def test_a_stop_during_execution_still_keeps_the_finishing_tool(
@@ -1062,7 +1083,7 @@ class TestStopHonoured:
         assert executed == ["first_tool"]
         done = payloads[-1]
         assert done["stopped"] is True
-        assert done["message"]["tool_calls"] == [{"name": "first_tool"}]
+        assert done["message"]["tool_calls"] == [{"name": "first_tool", "status": "done"}]
 
     @pytest.mark.asyncio
     async def test_a_stopped_turn_keeps_the_token_delivered_when_stop_was_noticed(
@@ -1124,7 +1145,7 @@ class TestStopHonoured:
         assert executed == ["slow_tool"]
         done = payloads[-1]
         assert done["stopped"] is True
-        assert done["message"]["tool_calls"] == [{"name": "slow_tool"}]
+        assert done["message"]["tool_calls"] == [{"name": "slow_tool", "status": "done"}]
 
     @pytest.mark.asyncio
     async def test_an_uninterrupted_turn_is_not_marked_stopped(self, monkeypatch: pytest.MonkeyPatch) -> None:

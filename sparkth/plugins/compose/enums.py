@@ -39,10 +39,11 @@ class DocumentSectionProcessingStatus(StrEnum):
 
 
 class ToolExecutionStatus(StrEnum):
-    """Where a tool call reported on a streamed reply stands."""
+    """Where a tool call stands, as reported on a streamed reply or kept with a stored one."""
 
     RUNNING = "running"
     DONE = "done"
+    FAILED = "failed"
 
 
 class TurnEventType(StrEnum):

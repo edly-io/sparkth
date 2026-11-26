@@ -488,7 +488,7 @@ class TestPluginSwitches:
         agents = call.kwargs["planner_setup"].agents
         prompts = [
             render_planner_prompt(agents, operations=True, existing_plan=None),
-            *(render_system_prompt([agent]) for agent in agents),
+            *(render_system_prompt(agent) for agent in agents),
         ]
         sent = [str(call.args[0]), *prompts]
         for value in (*OPENEDX_CONFIG.values(), *CANVAS_CONFIG.values()):

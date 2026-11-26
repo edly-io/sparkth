@@ -2,19 +2,44 @@
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.lib.i18n import gettext_noop
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
-from sparkth.lib.permissions import Permission, can
+from sparkth.lib.permissions import Permission, PermissionRisk, can
 from sparkth.lib.permissions.scopes import USER, build_scope_path
 from sparkth.plugins.pxc.exceptions import PxcActivityNotPermitted
 
 logger = get_logger(__name__)
 
+# The category this plugin's permissions are listed under.
+_CATEGORY = gettext_noop("PXC Activities")
+
 # Actions on one user's activities, checked at that owner's user scope.
-PXC_ACTIVITY_READ = Permission.create("pxc.activity.read")
-PXC_ACTIVITY_UPDATE = Permission.create("pxc.activity.update")
-PXC_ACTIVITY_DELETE = Permission.create("pxc.activity.delete")
-PXC_ACTIVITY_PLACE = Permission.create("pxc.activity.place")
+PXC_ACTIVITY_READ = Permission.create(
+    "pxc.activity.read",
+    gettext_noop("See activities"),
+    gettext_noop("List activities, preview them as a learner and read their files."),
+    _CATEGORY,
+)
+PXC_ACTIVITY_UPDATE = Permission.create(
+    "pxc.activity.update",
+    gettext_noop("Edit activities"),
+    gettext_noop("Preview activities as their author and change them from chat."),
+    _CATEGORY,
+)
+PXC_ACTIVITY_DELETE = Permission.create(
+    "pxc.activity.delete",
+    gettext_noop("Delete activities"),
+    gettext_noop("Delete activities, with their learners' data, from every course that uses them."),
+    _CATEGORY,
+    risks=(PermissionRisk.DELETES,),
+)
+PXC_ACTIVITY_PLACE = Permission.create(
+    "pxc.activity.place",
+    gettext_noop("Place activities"),
+    gettext_noop("Put activities into LMS courses."),
+    _CATEGORY,
+)
 
 
 async def has_activity_permission(
