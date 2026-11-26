@@ -69,6 +69,25 @@ describe("PluginConfigModal", () => {
     expect(screen.getByLabelText(/Lms Password/).getAttribute("type")).toBe("password");
   });
 
+  it("opts its url, text and password fields out of autofill", () => {
+    renderModal({});
+
+    expect(screen.getByLabelText(/Lms Url/)).toHaveAttribute("autocomplete", "off");
+    expect(screen.getByLabelText(/Lms Username/)).toHaveAttribute("autocomplete", "off");
+    expect(screen.getByLabelText(/Lms Password/)).toHaveAttribute("autocomplete", "new-password");
+  });
+
+  it("opts the input of a replaced secret out of autofill", () => {
+    renderModal(STORED_PASSWORD);
+
+    fireEvent.click(screen.getByRole("button", { name: "Replace Lms Password" }));
+
+    expect(screen.getByLabelText(/Lms Password/, { selector: "input" })).toHaveAttribute(
+      "autocomplete",
+      "new-password",
+    );
+  });
+
   it("renders a textarea field as a textarea", () => {
     renderModal({});
     expect(screen.getByLabelText(/Note/).tagName).toBe("TEXTAREA");
