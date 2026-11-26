@@ -1,18 +1,26 @@
-"""Role-assignment routes (mounted under ``/roles``): list, give and take away a role for users.
+"""Role-assignment routes (mounted under ``/roles``): list, give and take away a role for users and groups.
 
 Every route addresses one role by ``{role_id}`` and authorizes at the ``role`` scope, so a grant can be
 delegated to a single role; a global grant still satisfies it via the scope cascade. Listing needs
 ``role.read``, giving a role ``role.assign`` and taking it away ``role.revoke``. A role is given at a
 scope the caller names, and a holder of ``role.assign`` at a role may give it at any scope. An assignment
-is addressed by its own id, and only an active assignment of the role in the path is found.
+is addressed by its own id, and only an active assignment of the role in the path is found. A user
+assignment and a group assignment live in separate tables, so an id is found only on its own path.
 Authored with LLM (Claude) assistance.
 """
 
 from fastapi import APIRouter, Depends, Query, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.api.v1.permissions.schemas import UserRoleAssignmentCreate, UserRoleAssignmentResponse
+from sparkth.api.v1.permissions.routes.groups import _build_group_role_response
+from sparkth.api.v1.permissions.schemas import (
+    GroupRoleAssignmentCreate,
+    GroupRoleAssignmentResponse,
+    UserRoleAssignmentCreate,
+    UserRoleAssignmentResponse,
+)
 from sparkth.core.models.user import User
+from sparkth.core.permissions import groups as group_engine
 from sparkth.core.permissions.grants import get_role_assignment, get_user_assignments_of_role
 from sparkth.core.permissions.models import RoleAssignment
 from sparkth.core.permissions.roles import get_role
@@ -117,4 +125,57 @@ async def revoke_user_role(
     # upgrade to a revoke that works from the row's own strings.
     permission_scope = get_permission_scope(assignment.scope)
     await revoke_role(assignment.user_id, role.name, permission_scope, assignment.scope_object_id, session)
+    await session.commit()
+
+
+@router.get(
+    "/{role_id}/assignments/groups",
+    response_model=list[GroupRoleAssignmentResponse],
+    dependencies=[Depends(ROLE_READ.require(ROLE, "role_id"))],
+)
+async def list_group_role_assignments(
+    role_id: int, session: AsyncSession = Depends(get_async_session)
+) -> list[GroupRoleAssignmentResponse]:
+    """List the groups holding a role, by assignment id. Returns each group's scope and grant time."""
+    role = await get_role(role_id, session)
+    rows = await group_engine.get_group_assignments_of_role(role_id, session)
+    return [_build_group_role_response(assignment, group, role.name) for assignment, group in rows]
+
+
+@router.post(
+    "/{role_id}/assignments/groups",
+    response_model=GroupRoleAssignmentResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(ROLE_ASSIGN.require(ROLE, "role_id"))],
+)
+async def assign_group_role(
+    role_id: int, payload: GroupRoleAssignmentCreate, session: AsyncSession = Depends(get_async_session)
+) -> GroupRoleAssignmentResponse:
+    """Give a role to a group at a scope; an assignment that already exists is returned unchanged."""
+    role = await get_role(role_id, session)
+    group = await group_engine.get_group(payload.group_id, session)
+    permission_scope = _resolve_grant_scope(payload.scope, payload.scope_object_id)
+    assignment = await group_engine.assign_role_to_group(
+        payload.group_id, role.name, permission_scope, payload.scope_object_id, session
+    )
+    response = _build_group_role_response(assignment, group, role.name)
+    await session.commit()
+    return response
+
+
+@router.delete(
+    "/{role_id}/assignments/groups/{assignment_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(ROLE_REVOKE.require(ROLE, "role_id"))],
+)
+async def revoke_group_role(
+    role_id: int, assignment_id: int, session: AsyncSession = Depends(get_async_session)
+) -> None:
+    """Take a role away from a group by the id of the assignment. Returns 204 No Content."""
+    role = await get_role(role_id, session)
+    assignment = await group_engine.get_group_role_assignment(assignment_id, role_id, session)
+    permission_scope = get_permission_scope(assignment.scope)
+    await group_engine.revoke_role_from_group(
+        assignment.group_id, role.name, permission_scope, assignment.scope_object_id, session
+    )
     await session.commit()

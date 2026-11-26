@@ -1,6 +1,7 @@
 """Group sub-router (mounted at ``/groups``): CRUD for user groups, their members and their roles.
 
-Granting a role to a group is CLI-managed; the roles a group holds can be listed. The endpoints that
+The roles a group holds can be listed here; giving and taking one away is done from the role's
+assignment routes. The endpoints that
 address one group by ``{group_id}`` (get/update/delete, the member routes and the roles list) authorize
 at the ``group`` scope, so a grant can be delegated to a single group; a global grant still satisfies
 them via the scope cascade. Listing members or roles needs ``group.read``, adding a member

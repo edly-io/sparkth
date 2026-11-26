@@ -1,4 +1,4 @@
-"""Tests for the role-assignment API for users (sparkth/api/v1/permissions/routes/role_assignments.py).
+"""Tests for the role-assignment API for users and groups (sparkth/api/v1/permissions/routes/role_assignments.py).
 Authored with LLM (Claude) assistance."""
 
 import uuid
@@ -9,7 +9,8 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.user import User
-from sparkth.core.permissions.models import Group, Role, RoleAssignment
+from sparkth.core.permissions import groups as group_engine
+from sparkth.core.permissions.models import Group, GroupRoleAssignment, Role, RoleAssignment
 from sparkth.lib.permissions import AUDIT_READ, can
 from sparkth.lib.permissions.scopes import GLOBAL
 from sparkth.lib.plugins import get_plugin_loader
@@ -35,11 +36,23 @@ RESPONSE_FIELDS = {
 }
 
 
+GROUP_RESPONSE_FIELDS = {
+    "id",
+    "group_id",
+    "group_name",
+    "role_id",
+    "role_name",
+    "scope",
+    "scope_object_id",
+    "assigned_at",
+}
+
+
 def _uniq(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:8]}"
 
 
-def _get_id(row: Role | User | RoleAssignment | int) -> int:
+def _get_id(row: Role | User | Group | RoleAssignment | GroupRoleAssignment | int) -> int:
     """The id of a persisted row, or the id itself when one is given."""
     if isinstance(row, int):
         return row
@@ -47,7 +60,9 @@ def _get_id(row: Role | User | RoleAssignment | int) -> int:
     return row.id
 
 
-def _build_assignments_url(role: Role | int, assignment: RoleAssignment | int | None = None) -> str:
+def _build_assignments_url(
+    role: Role | int, assignment: RoleAssignment | GroupRoleAssignment | int | None = None
+) -> str:
     suffix = "" if assignment is None else f"/{_get_id(assignment)}"
     return f"/api/v1/permissions/roles/{_get_id(role)}/assignments/users{suffix}"
 
@@ -402,6 +417,221 @@ async def test_role_revoke_does_not_allow_assign(client: AsyncClient, session: A
     await session.commit()
 
     response = await client.post(_build_assignments_url(role), json={"user_id": target.id, "scope": "global"})
+
+    assert response.status_code == 403
+
+
+def _build_group_assignments_url(
+    role: Role | int, assignment: GroupRoleAssignment | RoleAssignment | int | None = None
+) -> str:
+    suffix = "" if assignment is None else f"/{_get_id(assignment)}"
+    return f"/api/v1/permissions/roles/{_get_id(role)}/assignments/groups{suffix}"
+
+
+async def _make_group(session: AsyncSession) -> Group:
+    group = Group(name=_uniq("group"))
+    session.add(group)
+    await session.flush()
+    return group
+
+
+async def _add_group_assignment(group: Group, role: Role, session: AsyncSession) -> GroupRoleAssignment:
+    assignment = GroupRoleAssignment(
+        group_id=_get_id(group), role_id=_get_id(role), scope="global", scope_object_id=None
+    )
+    session.add(assignment)
+    await session.flush()
+    return assignment
+
+
+async def _count_group_assignments(group: Group | int, role: Role, session: AsyncSession) -> int:
+    statement = select(func.count()).select_from(GroupRoleAssignment)
+    statement = statement.where(
+        GroupRoleAssignment.group_id == _get_id(group),
+        GroupRoleAssignment.role_id == _get_id(role),
+        GroupRoleAssignment.is_deleted == False,
+    )
+    return (await session.exec(statement)).one()
+
+
+async def test_group_assignment_gives_and_takes_the_role_for_members(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    caller = await make_user_with_permissions(session, ["role.assign", "role.revoke"])
+    role = await make_role(session, _uniq("role"), ["audit.read"])
+    group = await _make_group(session)
+    member = await make_user(session, _uniq("member"))
+    await group_engine.add_group_member(_get_id(member), _get_id(group), session)
+    await session.commit()
+    login_as(client, caller)
+    assert not await can(member, AUDIT_READ, GLOBAL, None, session)
+
+    assigned = await client.post(_build_group_assignments_url(role), json={"group_id": group.id, "scope": "global"})
+    assert assigned.status_code == 201
+    body = assigned.json()
+    assert (body["group_id"], body["role_id"], body["role_name"]) == (group.id, role.id, role.name)
+    assert (body["scope"], body["scope_object_id"]) == ("global", None)
+    assert await can(member, AUDIT_READ, GLOBAL, None, session)
+
+    revoked = await client.delete(_build_group_assignments_url(role, body["id"]))
+    assert revoked.status_code == 204
+    assert not await can(member, AUDIT_READ, GLOBAL, None, session)
+
+
+async def test_list_group_assignments_returns_active_rows(client: AsyncClient, session: AsyncSession) -> None:
+    caller = await make_user_with_permissions(session, ["role.read"])
+    role = await make_role(session, _uniq("role"), [])
+    holder = await _make_group(session)
+    former = await _make_group(session)
+    await _add_group_assignment(holder, role, session)
+    (await _add_group_assignment(former, role, session)).soft_delete()
+    await session.commit()
+    login_as(client, caller)
+
+    response = await client.get(_build_group_assignments_url(role))
+
+    assert response.status_code == 200
+    (row,) = response.json()
+    assert set(row) == GROUP_RESPONSE_FIELDS
+    assert (row["group_id"], row["group_name"], row["role_id"], row["role_name"]) == (
+        holder.id,
+        holder.name,
+        role.id,
+        role.name,
+    )
+
+
+async def test_assign_to_group_records_the_audit_event_for_the_caller(
+    client: AsyncClient, session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    caller = await make_user_with_permissions(session, ["role.assign"])
+    role = await make_role(session, _uniq("role"), [])
+    group = await _make_group(session)
+    await session.commit()
+    login_as(client, caller)
+
+    await client.post(_build_group_assignments_url(role), json={"group_id": group.id, "scope": "global"})
+
+    event = (await audit_events())[-1]
+    assert (event.category, event.action, event.actor_id) == ("group", "role_assigned", str(caller.id))
+    assert (event.target_type, event.target_id) == ("group", str(group.id))
+
+
+async def test_assign_to_group_twice_returns_the_same_row_and_records_once(
+    client: AsyncClient, session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    role = await make_role(session, _uniq("role"), [])
+    group = await _make_group(session)
+    login_as(client, await make_user_with_permissions(session, ["role.assign"]))
+    await session.commit()
+    payload = {"group_id": group.id, "scope": "global"}
+
+    first = await client.post(_build_group_assignments_url(role), json=payload)
+    second = await client.post(_build_group_assignments_url(role), json=payload)
+
+    assert (first.status_code, second.status_code) == (201, 201)
+    assert first.json()["id"] == second.json()["id"]
+    assert [e.action for e in await audit_events() if e.category == "group"].count("role_assigned") == 1
+
+
+async def test_assign_to_unknown_group_returns_404(client: AsyncClient, session: AsyncSession) -> None:
+    role = await make_role(session, _uniq("role"), [])
+    login_as(client, await make_user_with_permissions(session, ["role.assign"]))
+    await session.commit()
+
+    response = await client.post(_build_group_assignments_url(role), json={"group_id": 999999, "scope": "global"})
+
+    assert response.status_code == 404
+    assert await _count_group_assignments(999999, role, session) == 0
+
+
+async def test_assign_to_group_at_an_unknown_scope_kind_returns_422(client: AsyncClient, session: AsyncSession) -> None:
+    role = await make_role(session, _uniq("role"), [])
+    group = await _make_group(session)
+    login_as(client, await make_user_with_permissions(session, ["role.assign"]))
+    await session.commit()
+
+    response = await client.post(_build_group_assignments_url(role), json={"group_id": group.id, "scope": "galaxy"})
+
+    assert response.status_code == 422
+    assert await _count_group_assignments(group, role, session) == 0
+
+
+async def test_revoke_from_group_records_the_audit_event_for_the_caller(
+    client: AsyncClient, session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    caller = await make_user_with_permissions(session, ["role.revoke"])
+    role = await make_role(session, _uniq("role"), [])
+    group = await _make_group(session)
+    assignment = await _add_group_assignment(group, role, session)
+    await session.commit()
+    login_as(client, caller)
+
+    await client.delete(_build_group_assignments_url(role, assignment))
+
+    event = (await audit_events())[-1]
+    assert (event.category, event.action, event.actor_id) == ("group", "role_revoked", str(caller.id))
+    assert (event.target_type, event.target_id) == ("group", str(group.id))
+
+
+async def test_revoke_unknown_group_assignment_returns_404(client: AsyncClient, session: AsyncSession) -> None:
+    role = await make_role(session, _uniq("role"), [])
+    login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
+    await session.commit()
+
+    response = await client.delete(_build_group_assignments_url(role, 999999))
+
+    assert response.status_code == 404
+
+
+async def test_user_assignment_id_on_the_groups_path_returns_404(client: AsyncClient, session: AsyncSession) -> None:
+    role = await make_role(session, _uniq("role"), [])
+    holder = await make_user(session, _uniq("target"))
+    await _add_group_assignment(await _make_group(session), role, session)
+    user_assignment = await add_role_assignment(session, holder, role, "global", None)
+    assert user_assignment.id != 1
+    login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
+    await session.commit()
+
+    response = await client.delete(_build_group_assignments_url(role, user_assignment))
+
+    assert response.status_code == 404
+    assert await _count_assignments(holder, role, session) == 1
+
+
+async def test_group_assignment_id_on_the_users_path_returns_404(client: AsyncClient, session: AsyncSession) -> None:
+    role = await make_role(session, _uniq("role"), [])
+    holder = await make_user(session, _uniq("target"))
+    await add_role_assignment(session, holder, role, "global", None)
+    for _ in range(3):
+        await _add_group_assignment(await _make_group(session), role, session)
+    group = await _make_group(session)
+    group_assignment = await _add_group_assignment(group, role, session)
+    login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
+    await session.commit()
+
+    response = await client.delete(_build_assignments_url(role, group_assignment))
+
+    assert response.status_code == 404
+    assert await _count_group_assignments(group, role, session) == 1
+
+
+async def test_role_assign_does_not_allow_group_revoke(client: AsyncClient, session: AsyncSession) -> None:
+    role = await make_role(session, _uniq("role"), [])
+    assignment = await _add_group_assignment(await _make_group(session), role, session)
+    login_as(client, await make_user_with_permissions(session, ["role.assign"]))
+    await session.commit()
+
+    assert (await client.delete(_build_group_assignments_url(role, assignment))).status_code == 403
+
+
+async def test_role_revoke_does_not_allow_group_assign(client: AsyncClient, session: AsyncSession) -> None:
+    role = await make_role(session, _uniq("role"), [])
+    group = await _make_group(session)
+    login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
+    await session.commit()
+
+    response = await client.post(_build_group_assignments_url(role), json={"group_id": group.id, "scope": "global"})
 
     assert response.status_code == 403
 
