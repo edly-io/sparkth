@@ -8,7 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.audit.models import AuditEvent
 from sparkth.core.models.user import User
-from sparkth.core.permissions import PERMISSIONS, Permission, groups, roles
+from sparkth.core.permissions import groups, roles
 from sparkth.core.permissions.grants import assign_role, revoke_role
 from sparkth.core.permissions.models import (
     Group,
@@ -22,11 +22,6 @@ from sparkth.lib.audit import record_event
 from sparkth.lib.audit.events import BaseAuditEvent, RoleDeletedAuditEvent
 from sparkth.lib.permissions.scopes import GLOBAL, GROUP, ROLE
 from sparkth.lib.testing import AuditEventsFetcher
-
-
-@pytest.fixture(autouse=True)
-def _register_test_permission(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setitem(PERMISSIONS._items, "assignment.grade", Permission("assignment.grade"))
 
 
 def _assert_envelope(event: AuditEvent, event_type: str, target_type: str, target_id: object) -> None:
