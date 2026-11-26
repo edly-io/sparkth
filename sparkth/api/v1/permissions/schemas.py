@@ -4,6 +4,8 @@ from typing import Self
 
 from pydantic import BaseModel, Field, model_validator
 
+from sparkth.core.permissions.enums import PermissionRisk
+
 
 class PermissionCheck(BaseModel):
     """One check: does the current user hold a permission at a scope?"""
@@ -19,6 +21,17 @@ class PermissionCheckResult(PermissionCheck):
     """A check and its answer."""
 
     allowed: bool
+
+
+class PermissionResponse(BaseModel):
+    """A permission a role can hold, with what it is for, in the request's language."""
+
+    name: str
+    label: str = Field(description="What the permission lets its holder do, e.g. 'Edit roles'.")
+    description: str = Field(description="One sentence on what the permission allows.")
+    category: str = Field(description="The category the permission is listed under, e.g. 'Users & access'.")
+    risks: list[PermissionRisk] = Field(description="The reasons to think twice before granting the permission.")
+    requires: list[str] = Field(description="The permissions a holder also needs for this one to be of use.")
 
 
 class RoleCreate(BaseModel):
@@ -45,6 +58,10 @@ class RoleResponse(BaseModel):
     description: str | None
     permissions: list[str]
     is_builtin: bool
+    is_default: bool = Field(description="Whether every account is given this role when it is created.")
+    user_count: int = Field(description="How many people hold this role directly, at any scope.")
+    group_count: int = Field(description="How many groups hold this role, at any scope.")
+    risks: list[PermissionRisk] = Field(description="The reasons to think twice before giving someone this role.")
 
 
 class RolePermissionAdd(BaseModel):

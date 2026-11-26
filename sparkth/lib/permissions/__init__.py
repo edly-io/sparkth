@@ -5,13 +5,20 @@ Application code and plugins import the permissions surface from here, never fro
 permissions and scope kinds at module level in its ``plugin.py``, or in a module of the plugin
 that its routes import when they need the constant, with ``Permission.create()``
 and ``PermissionScope.create()`` (or ``ObjectlessPermissionScope.create()`` for a singleton
-scope), never in the plugin class's ``__init__``, which runs more than once::
+scope), never in the plugin class's ``__init__``, which runs more than once. Each permission
+says what it is for::
 
+    from sparkth.lib.i18n import gettext_noop
     from sparkth.lib.permissions import Permission
     from sparkth.lib.permissions.scopes import GLOBAL, PermissionScope
 
     COURSE = PermissionScope.create("course", parent=GLOBAL)
-    COURSE_GRADE = Permission.create("course.grade")
+    COURSE_GRADE = Permission.create(
+        "course.grade",
+        gettext_noop("Grade courses"),
+        gettext_noop("Mark submissions in a course."),
+        gettext_noop("Courses"),
+    )
 """
 
 from sparkth.core.permissions import (
@@ -49,6 +56,7 @@ from sparkth.core.permissions.engine import (
     get_accessible_scope_object_ids,
     has_role,
 )
+from sparkth.core.permissions.enums import PermissionRisk
 from sparkth.core.permissions.grants import assign_default_roles, assign_role, revoke_role
 from sparkth.core.permissions.groups import (
     add_group_member,
@@ -80,6 +88,7 @@ __all__ = [
     "revoke_role",
     "revoke_role_from_group",
     "Permission",
+    "PermissionRisk",
     "EMAIL_WHITELIST_READ",
     "EMAIL_WHITELIST_CREATE",
     "EMAIL_WHITELIST_DELETE",

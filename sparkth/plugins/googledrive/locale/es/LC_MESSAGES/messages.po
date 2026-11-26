@@ -104,3 +104,26 @@ msgstr "Google Drive no está conectado"
 #~ msgid "Failed to rename file."
 #~ msgstr "No se pudo renombrar el archivo."
 
+#: sparkth/plugins/googledrive/permissions.py
+msgid "See Drive folders"
+msgstr "Ver las carpetas de Drive"
+
+#: sparkth/plugins/googledrive/permissions.py
+msgid "View connected folders and synced files."
+msgstr "Ver las carpetas conectadas y los archivos sincronizados."
+
+#: sparkth/plugins/googledrive/permissions.py
+msgid "Sync Drive folders"
+msgstr "Sincronizar las carpetas de Drive"
+
+#: sparkth/plugins/googledrive/permissions.py
+msgid "Fetch new and changed files."
+msgstr "Obtener los archivos nuevos y modificados."
+
+#: sparkth/plugins/googledrive/permissions.py
+msgid "Delete Drive files"
+msgstr "Eliminar archivos de Drive"
+
+#: sparkth/plugins/googledrive/permissions.py
+msgid "Delete synced files from Sparkth."
+msgstr "Eliminar de Sparkth los archivos sincronizados."

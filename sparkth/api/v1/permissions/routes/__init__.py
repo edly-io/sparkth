@@ -2,9 +2,10 @@
 mounted sub-routers.
 
 The router is mounted at ``/permissions``. The permission vocabulary is read here (``GET
-/permissions``); ``POST /permissions/can/batch`` answers whether the current user holds each of a
-list of permissions; role management lives under ``/permissions/roles`` via the role sub-router,
-group management under ``/permissions/groups`` via the group sub-router.
+/permissions``), each permission with what it is for; ``POST /permissions/can/batch`` answers
+whether the current user holds each of a list of permissions; role management lives under
+``/permissions/roles`` via the role sub-router, group management under ``/permissions/groups`` via
+the group sub-router.
 """
 
 from typing import Annotated
@@ -14,11 +15,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.api.v1.permissions.constants import MAX_PERMISSION_CHECKS
 from sparkth.api.v1.permissions.routes import groups, roles
-from sparkth.api.v1.permissions.schemas import PermissionCheck, PermissionCheckResult
+from sparkth.api.v1.permissions.schemas import PermissionCheck, PermissionCheckResult, PermissionResponse
 from sparkth.core.models.user import User
-from sparkth.core.permissions.roles import available_permissions
+from sparkth.core.permissions import PERMISSIONS, Permission
 from sparkth.lib.auth import get_current_user
 from sparkth.lib.db import get_async_session
+from sparkth.lib.i18n import gettext
 from sparkth.lib.permissions import (
     PERMISSION_READ,
     PermissionCheckQuery,
@@ -31,14 +33,27 @@ from sparkth.lib.permissions.scopes import build_scope_path
 router = APIRouter()
 
 
+def _build_permission_response(permission: Permission) -> PermissionResponse:
+    """Describe ``permission`` in the request's language."""
+    return PermissionResponse(
+        name=permission.name,
+        label=gettext(permission.label),
+        description=gettext(permission.description),
+        category=gettext(permission.category),
+        risks=list(permission.risks),
+        requires=[required.name for required in permission.requires],
+    )
+
+
 @router.get(
     "",
-    response_model=list[str],
+    response_model=list[PermissionResponse],
     dependencies=[Depends(PERMISSION_READ.require_in_global_scope())],
 )
-async def list_permissions() -> list[str]:
-    """List the permissions assignable to a role. Returns a list of permission strings."""
-    return available_permissions()
+async def list_permissions() -> list[PermissionResponse]:
+    """List the permissions a role can hold, each with its label, description, category, risks and the
+    permissions it needs, in the request's language."""
+    return [_build_permission_response(permission) for permission in PERMISSIONS.iter_values()]
 
 
 def _get_permission_check_query(check: PermissionCheck) -> PermissionCheckQuery:
