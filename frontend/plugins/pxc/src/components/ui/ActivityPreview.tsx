@@ -15,11 +15,13 @@ import { RetryAlert } from "@/plugins/pxc/src/components/ui/RetryAlert";
 
 const ACTIVITIES_PATH = "/dashboard/pxc";
 
-type LaunchError = "notFound" | "notConfigured" | "failed";
+type LaunchError = "notFound" | "forbidden" | "notConfigured" | "failed";
 
-// A 503 means the server has no launch secret, which a retry cannot fix.
+// A 403 means the user may not open this view and a 503 means the server has no launch secret;
+// a retry fixes neither.
 function launchErrorOf(error: unknown): LaunchError {
   if (isNotFoundError(error)) return "notFound";
+  if (error instanceof ApiRequestError && error.status === 403) return "forbidden";
   return error instanceof ApiRequestError && error.status === 503 ? "notConfigured" : "failed";
 }
 
@@ -84,6 +86,7 @@ function LaunchFrame({
 
   if (error === "notFound")
     return <NotFound title={t("notFound")} message={t("notFoundMessage")} />;
+  if (error === "forbidden") return <Alert severity="error">{t("notPermitted")}</Alert>;
   if (error === "notConfigured") return <Alert severity="error">{t("notConfigured")}</Alert>;
   if (error === "failed") return <RetryAlert message={t("launchFailed")} onRetry={onRetry} />;
   if (embedUrl === null) {

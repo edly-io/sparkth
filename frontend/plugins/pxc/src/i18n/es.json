@@ -17,6 +17,7 @@
     "notFound": "Actividad no encontrada",
     "notFoundMessage": "Esta actividad no existe o se eliminó.",
     "notConfigured": "Las vistas previas no están configuradas en este servidor.",
+    "notPermitted": "No tienes permiso para abrir esta vista.",
     "launchFailed": "No se pudo cargar la actividad.",
     "frameTitle": "Vista previa de la actividad",
     "loadingActivity": "Cargando la actividad",
