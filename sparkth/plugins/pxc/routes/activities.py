@@ -18,7 +18,7 @@ from sparkth.lib.db import get_async_session
 from sparkth.lib.permissions import get_listed_owner_id
 from sparkth.lib.permissions.scopes import USER
 from sparkth.plugins.pxc.activities import activity_dir, preview_url
-from sparkth.plugins.pxc.enums import PreviewPermission
+from sparkth.plugins.pxc.enums import PreviewLevel
 from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.permissions import (
     PXC_ACTIVITY_DELETE,
@@ -77,7 +77,7 @@ async def list_activities(
 async def launch_activity(
     activity_id: UUID,
     request: Request,
-    permission: PreviewPermission = Query(),
+    permission: PreviewLevel = Query(),
     activity: PxcActivity = Depends(get_activity_record),
     user_id: int = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_async_session),
@@ -95,7 +95,7 @@ async def launch_activity(
         PxcActivityNotPermitted: if the caller lacks the permission the view needs.
         PxcLaunchNotConfigured: if no launch secret is configured.
     """
-    needed = PXC_ACTIVITY_UPDATE if permission is PreviewPermission.EDIT else PXC_ACTIVITY_READ
+    needed = PXC_ACTIVITY_UPDATE if permission == "edit" else PXC_ACTIVITY_READ
     await require_activity_permission(session, needed, activity.owner_user_id, user_id)
     activity_dir(str(activity_id))
     token = mint_preview_token(activity_id, user_id, permission)
