@@ -1,4 +1,5 @@
-"""Permissions the PXC plugin declares, and the check of them against one user's activity."""
+"""Permissions the PXC plugin declares, their check against one user's activity, and loading the activity
+a caller may act on."""
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
