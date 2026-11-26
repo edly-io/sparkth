@@ -52,6 +52,7 @@ async def list_pxc_options() -> list[ContentOption]:
         logger.info("Listing PXC options with no authenticated user, bundled only: %s", err)
         return bundled
     async with session_scope() as session:
+        # The caller is offered their own activities, so the owner and the caller are the same user.
         if not await has_activity_permission(session, PXC_ACTIVITY_PLACE, user_id, user_id):
             return bundled
         owned = await list_owned_activities(session, user_id, get_pxc_settings().list_activities_limit)
