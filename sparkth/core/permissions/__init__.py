@@ -277,8 +277,9 @@ ROLE_CREATE = Permission.create(
 ROLE_READ = Permission.create(
     "role.read",
     gettext_noop("See roles"),
-    gettext_noop("Open the list of roles and what each one allows."),
+    gettext_noop("Open the list of roles, what each one allows and who holds it."),
     _USERS_AND_ACCESS,
+    risks=(PermissionRisk.PRIVATE_DATA,),
 )
 ROLE_UPDATE = Permission.create(
     "role.update",
@@ -322,6 +323,7 @@ GROUP_READ = Permission.create(
     gettext_noop("See groups"),
     gettext_noop("Open groups and their members."),
     _USERS_AND_ACCESS,
+    risks=(PermissionRisk.PRIVATE_DATA,),
 )
 GROUP_UPDATE = Permission.create(
     "group.update",

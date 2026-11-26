@@ -457,7 +457,7 @@ def test_get_role_risks_collects_each_risk_once_in_a_fixed_order() -> None:
 
 
 def test_get_role_risks_is_empty_for_permissions_without_risk() -> None:
-    assert roles.get_role_risks(["role.read", "analytics.read"]) == []
+    assert roles.get_role_risks(["permission.read", "analytics.read"]) == []
 
 
 def test_get_role_risks_skips_a_permission_no_longer_declared() -> None:

@@ -569,7 +569,7 @@ async def test_role_response_counts_the_people_and_groups_holding_it(
 async def test_a_role_response_tags_the_risks_of_its_permissions(client: AsyncClient, session: AsyncSession) -> None:
     _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     risky = await make_role(session, "risky", ["role.read", "role.delete", "role.update", "audit.read"])
-    harmless = await make_role(session, "harmless", ["role.read"])
+    harmless = await make_role(session, "harmless", ["permission.read"])
     await session.commit()
 
     listed = {role["id"]: role["risks"] for role in (await client.get("/api/v1/permissions/roles")).json()}
