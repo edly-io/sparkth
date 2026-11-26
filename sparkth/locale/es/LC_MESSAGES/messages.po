@@ -154,10 +154,12 @@ msgstr ""
 
 #: sparkth/core/plugins/middleware.py:106
 #, python-brace-format
-msgid "Plugin '{name}' is switched off, in your settings or by an administrator."
+msgid ""
+"Plugin '{name}' is switched off, either in your settings or by an "
+"administrator."
 msgstr ""
-"El plugin '{name}' está deshabilitado, en tu configuración o por un "
-"administrador."
+"El plugin '{name}' está deshabilitado, ya sea en tu configuración o por "
+"un administrador."
 
 #: sparkth/core/plugins/service.py:159 sparkth/core/plugins/service.py:165
 #, python-brace-format
