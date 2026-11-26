@@ -41,13 +41,15 @@ from langchain_core.messages import AIMessage
 from langchain_core.runnables import Runnable
 from langchain_core.tools import BaseTool
 from sqlalchemy.ext.asyncio import AsyncSession as SQLAlchemyAsyncSession
-from sqlmodel import SQLModel, col, select
+from sqlmodel import SQLModel, col, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 import sparkth.core.analytics.db as analytics_db
 import sparkth.core.db as core_db
 import sparkth.lib.db as db
+from sparkth.core.audit.context import audit_context
 from sparkth.core.audit.models import AuditEvent
+from sparkth.core.audit.types import AuditSystemContext, SystemActor
 from sparkth.core.cache import get_cache_service
 from sparkth.core.db import dispose_engine, get_engine
 from sparkth.core.models.plugin import Plugin, UserPluginPreference
@@ -61,9 +63,8 @@ from sparkth.core.permissions.models import (
     GroupRoleAssignment,
     Role,
     RoleAssignment,
-    RolePermission,
 )
-from sparkth.core.permissions.roles import available_permissions
+from sparkth.core.permissions.roles import available_permissions, create_role
 from sparkth.core.permissions.scopes import GLOBAL, PLUGIN, USER, PermissionScope
 from sparkth.lib.auth import bind_request_user, get_current_user
 from sparkth.lib.i18n import LOCALE_DIRS
@@ -71,6 +72,9 @@ from sparkth.lib.mcp.hooks import MCP_TOOLS
 from sparkth.lib.plugins import SparkthPlugin
 from sparkth.lib.settings import get_settings
 from sparkth.main import app
+
+# The actor the shared role helpers record their role events as, so the audit fixture can leave them out.
+_TEST_SETUP_ACTOR = SystemActor(label="test-setup")
 
 
 @pytest.fixture(autouse=True)
@@ -156,11 +160,8 @@ async def grant_permission_at_scope(
     scope_object_id: str | None = None,
 ) -> None:
     """Grant ``permission`` to the user at ``permission_scope`` and ``scope_object_id``, via a role named after it."""
-    role = Role(name=permission)
-    session.add(role)
-    await session.flush()
+    role = await make_role(session, permission, [permission])
     assert role.id is not None
-    session.add(RolePermission(role_id=role.id, permission=permission))
     session.add(
         RoleAssignment(user_id=user_id, role_id=role.id, scope=permission_scope.name, scope_object_id=scope_object_id)
     )
@@ -219,15 +220,14 @@ async def make_user(session: AsyncSession, username: str) -> User:
 
 
 async def make_role(session: AsyncSession, name: str, permissions: list[str]) -> Role:
-    """Create and flush a role named ``name`` that holds each of ``permissions``."""
-    role = Role(name=name)
-    session.add(role)
-    await session.flush()
-    assert role.id is not None
-    for permission in permissions:
-        session.add(RolePermission(role_id=role.id, permission=permission))
-    await session.flush()
-    return role
+    """Create a role named ``name`` that holds each of ``permissions``, the way the role engine grants them, and commit.
+
+    The role and each grant record their audit events as the test-setup actor, which the shared audit
+    fixture leaves out, so a test sees only the events its own action records. A permission that is
+    not registered raises ``PermissionNotFound``.
+    """
+    with audit_context(AuditSystemContext(actor=_TEST_SETUP_ACTOR)):
+        return await create_role(name, None, session, permissions=permissions)
 
 
 async def add_role_assignment(
@@ -286,16 +286,22 @@ AuditEventsFetcher = Callable[[], Awaitable[list[AuditEvent]]]
 
 @pytest.fixture
 def audit_events(session: AsyncSession) -> AuditEventsFetcher:
-    """Fetch all audit rows in insertion order.
+    """Fetch the audit rows in insertion order, leaving out those a test's setup recorded.
 
     Shared by every audit-capture test (core wrapper, chat provider seam, RAG
     agent tools, MCP server), so the query lives once. Returns a coroutine
     factory rather than a snapshot because tests read the rows *after* driving
-    the code under test.
+    the code under test. Rows recorded as the test-setup actor, which the shared
+    role helpers create roles as, are not returned.
     """
 
     async def _fetch() -> list[AuditEvent]:
-        result = await session.exec(select(AuditEvent).order_by(col(AuditEvent.id)))
+        setup_label = _TEST_SETUP_ACTOR.label
+        result = await session.exec(
+            select(AuditEvent)
+            .where(or_(col(AuditEvent.actor_label).is_(None), col(AuditEvent.actor_label) != setup_label))
+            .order_by(col(AuditEvent.id))
+        )
         return list(result.all())
 
     return _fetch
