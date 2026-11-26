@@ -8,7 +8,7 @@ import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.plugin import Plugin
-from sparkth.core.plugins.service import PluginService
+from sparkth.core.plugins.service import PluginService, disabled_plugin_names
 from sparkth.lib.testing import AuditEventsFetcher
 
 SECRET = "lms-p4ssw0rd"
@@ -148,3 +148,50 @@ async def test_update_enabled_records_transition(
     assert event.target_id == str(preference.id)
     assert event.old_values == {"plugin": PLUGIN_NAME, "enabled": True}
     assert event.new_values == {"plugin": PLUGIN_NAME, "enabled": False}
+
+
+async def test_switching_a_plugin_off_system_wide_records_the_change(
+    session: AsyncSession, plugin: Plugin, audit_events: AuditEventsFetcher
+) -> None:
+    await PluginService().update_system_enabled(plugin, False, session)
+
+    (event,) = await audit_events()
+    assert plugin.enabled is False
+    assert (event.category, event.action, event.outcome) == ("plugin", "system_enabled_changed", "success")
+    assert (event.target_type, event.target_id) == ("plugin", str(plugin.id))
+    assert event.old_values == {"plugin": PLUGIN_NAME, "enabled": True}
+    assert event.new_values == {"plugin": PLUGIN_NAME, "enabled": False}
+
+
+async def test_setting_the_system_switch_to_its_current_value_records_nothing(
+    session: AsyncSession, plugin: Plugin, audit_events: AuditEventsFetcher
+) -> None:
+    await PluginService().update_system_enabled(plugin, True, session)
+
+    assert plugin.enabled is True
+    assert await audit_events() == []
+
+
+async def test_rollback_discards_the_system_switch_and_its_record(
+    session: AsyncSession, plugin: Plugin, audit_events: AuditEventsFetcher
+) -> None:
+    await session.commit()
+    await PluginService().update_system_enabled(plugin, False, session)
+    await session.rollback()
+
+    await session.refresh(plugin)
+    assert plugin.enabled is True
+    assert await audit_events() == []
+
+
+async def test_the_system_switch_leaves_a_users_preference_alone(session: AsyncSession, plugin: Plugin) -> None:
+    assert plugin.id is not None
+    service = PluginService()
+    preference = await service.update_preference_enabled(session, 1, plugin.id, False)
+
+    for system_enabled in (False, True):
+        await service.update_system_enabled(plugin, system_enabled, session)
+
+        await session.refresh(preference)
+        assert preference.enabled is False
+        assert await disabled_plugin_names(1, session) == {PLUGIN_NAME}

@@ -11,12 +11,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.core.models.plugin import Plugin, UserPluginPreference
 from sparkth.core.models.user import User
 from sparkth.core.plugins.config_base import PluginConfig
-from sparkth.core.plugins.service import (
-    ConfigValidationError,
-    PluginService,
-    disabled_plugin_names,
-    get_disabled_plugins,
-)
+from sparkth.core.plugins.exceptions import ConfigValidationError, PluginConfigUnavailable
+from sparkth.core.plugins.service import PluginService, disabled_plugin_names, get_disabled_plugins
 
 
 async def _seed_plugin(session: AsyncSession, name: str, enabled: bool, deleted: bool = False) -> Plugin:
@@ -148,3 +144,9 @@ def test_validation_error_names_each_field_and_problem() -> None:
             PluginService.validate_user_config(Plugin(name="lms"), {})
 
     assert str(raised.value) == "api_url: Field required; api_key: Field required"
+
+
+def test_a_plugin_with_no_config_class_cannot_be_configured() -> None:
+    with patch("sparkth.core.plugins.service.get_plugin_config_schema", return_value=None):
+        with pytest.raises(PluginConfigUnavailable):
+            PluginService.validate_user_config(Plugin(name="lms"), {})

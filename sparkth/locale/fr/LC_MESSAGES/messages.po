@@ -155,11 +155,11 @@ msgstr ""
 #: sparkth/core/plugins/middleware.py:106
 #, python-brace-format
 msgid ""
-"Access to plugin '{name}' is disabled for your account. Please enable the"
-" plugin in your settings."
+"Plugin '{name}' is switched off, either in your settings or by an "
+"administrator."
 msgstr ""
-"L'accès au plugin « {name} » est désactivé pour votre compte. Veuillez "
-"activer le plugin dans vos paramètres."
+"Le plugin « {name} » est désactivé, soit dans vos paramètres, soit par "
+"un administrateur."
 
 #: sparkth/core/plugins/service.py:159 sparkth/core/plugins/service.py:165
 #, python-brace-format
@@ -498,6 +498,18 @@ msgstr "Utiliser les plugins"
 #: sparkth/core/permissions/__init__.py
 msgid "Use a plugin's features, such as Compose or Google Drive."
 msgstr "Utiliser les fonctions d'un plugin, comme Compose ou Google Drive."
+
+#: sparkth/core/permissions/__init__.py
+msgid "Switch plugins on or off"
+msgstr "Activer ou désactiver les plugins"
+
+#: sparkth/core/permissions/__init__.py
+msgid ""
+"Turn a plugin on or off for every user, which hides it and refuses its "
+"requests."
+msgstr ""
+"Activer ou désactiver un plugin pour tous les utilisateurs, ce qui le masque "
+"et refuse ses requêtes."
 
 #: sparkth/core/permissions/__init__.py
 msgid "Upload files"

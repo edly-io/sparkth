@@ -14,11 +14,13 @@ import pytest
 from pxc.lib.permission import Permission
 from sqlalchemy.exc import OperationalError
 from sqlmodel.ext.asyncio.session import AsyncSession
+from uuid6 import uuid7
 
 from sparkth.lib.content.exceptions import ContentBuildError, ContentPlacementError
 from sparkth.lib.content.hooks import LMS_CONTENT_CONTRIBUTORS, ContentOption
 from sparkth.lib.exceptions.auth import NoAuthenticatedUser
 from sparkth.lib.models import User
+from sparkth.lib.testing import AuditEventsFetcher, grant_permissions
 from sparkth.plugins.pxc.activities import generated_activity_dir
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import PXC_BLOCK_CATEGORY
@@ -27,7 +29,7 @@ from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.plugin import PxcPlugin
 from sparkth.plugins.pxc.runtime import build_runtime, read_state
 from sparkth.plugins.pxc.store import insert_activity
-from sparkth.plugins.pxc.tests.conftest import act_as
+from sparkth.plugins.pxc.tests.conftest import act_as, assert_activity_permission_denied
 from sparkth.plugins.pxc.tokens import LaunchClaims
 
 
@@ -157,11 +159,24 @@ async def test_options_offer_only_the_authors_newest_activities(
 
 
 async def test_options_leave_out_another_authors_activities(
-    authored_activity: PxcActivity, authors: tuple[User, User]
+    session: AsyncSession, authored_activity: PxcActivity, authors: tuple[User, User]
 ) -> None:
+    await grant_permissions(session, authors[1], ["pxc.activity.place"], "user", str(authors[1].id))
     act_as(authors[1])
 
     assert await list_pxc_options() == [ContentOption("mcq", "mcq")]
+
+
+async def test_options_without_place_at_the_callers_own_scope_are_the_bundled_activities(
+    session: AsyncSession, authors: tuple[User, User], audit_events: AuditEventsFetcher
+) -> None:
+    other = authors[1]
+    assert other.id is not None
+    await insert_activity(session, PxcActivity(owner_user_id=other.id, title="Theirs", description=""))
+    act_as(other)
+
+    assert await list_pxc_options() == [ContentOption("mcq", "mcq")]
+    assert await audit_events() == []
 
 
 async def test_options_with_nobody_authenticated_are_the_bundled_activities(
@@ -201,12 +216,47 @@ async def test_a_placed_block_is_titled_after_its_activity(
 
 
 async def test_another_author_cannot_place_someone_elses_activity(
-    authored_activity: PxcActivity, authors: tuple[User, User]
+    authored_activity: PxcActivity, authors: tuple[User, User], audit_events: AuditEventsFetcher
 ) -> None:
+    act_as(authors[1])
+
+    with pytest.raises(ContentBuildError) as refusal:
+        await build_pxc_block("course-1", str(authored_activity.id))
+
+    assert str(refusal.value) == f"No activity you can place has the id {str(authored_activity.id)!r}"
+    await assert_activity_permission_denied(audit_events, "pxc.activity.place", authored_activity.owner_user_id)
+
+
+async def test_a_holder_of_place_places_another_authors_activity(
+    session: AsyncSession, authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    await grant_permissions(session, authors[1], ["pxc.activity.place"], "user", str(authored_activity.owner_user_id))
+    act_as(authors[1])
+
+    block = await build_pxc_block("course-1", str(authored_activity.id))
+
+    assert block.attributes["activity"] == str(authored_activity.id)
+
+
+async def test_a_reader_cannot_place_another_authors_activity(
+    session: AsyncSession, authored_activity: PxcActivity, authors: tuple[User, User]
+) -> None:
+    await grant_permissions(session, authors[1], ["pxc.activity.read"], "user", str(authored_activity.owner_user_id))
     act_as(authors[1])
 
     with pytest.raises(ContentBuildError):
         await build_pxc_block("course-1", str(authored_activity.id))
+
+
+async def test_an_unknown_activity_id_records_no_denial(
+    authors: tuple[User, User], audit_events: AuditEventsFetcher
+) -> None:
+    act_as(authors[0])
+
+    with pytest.raises(ContentBuildError):
+        await build_pxc_block("course-1", str(uuid7()))
+
+    assert await audit_events() == []
 
 
 async def test_an_owned_activity_whose_files_are_gone_cannot_be_placed(
