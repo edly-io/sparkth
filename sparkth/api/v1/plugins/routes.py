@@ -9,7 +9,7 @@ from sparkth.api.v1.plugins.dependencies import get_usable_plugin_names, require
 from sparkth.api.v1.plugins.schemas import PluginConfigRequest, PluginSystemEnabledResponse, UpdatePluginRequest
 from sparkth.core.models.plugin import Plugin
 from sparkth.core.models.user import User
-from sparkth.core.plugins.exceptions import ConfigValidationError, InternalServerError, PluginDisabledError
+from sparkth.core.plugins.exceptions import ConfigValidationError, PluginConfigUnavailable, PluginDisabledError
 from sparkth.core.plugins.schemas import PluginResponse
 from sparkth.core.plugins.service import PluginService, get_plugin_service
 from sparkth.lib.auth import get_current_user
@@ -131,7 +131,7 @@ async def configure_plugin(
         )
     except (ValueError, ConfigValidationError) as err:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err)) from err
-    except InternalServerError as err:
+    except PluginConfigUnavailable as err:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(err)) from err
 
     safe_config = await PluginService.apply_postprocess(plugin_name, session, current_user.id, preference.config)
@@ -262,7 +262,7 @@ async def update_plugin_config(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(err)) from err
     except (ConfigValidationError, ValueError) as err:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err)) from err
-    except InternalServerError as err:
+    except PluginConfigUnavailable as err:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(err)) from err
 
     await session.commit()
