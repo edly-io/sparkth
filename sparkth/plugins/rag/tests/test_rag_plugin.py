@@ -7,7 +7,7 @@ from sparkth.lib.auth import bind_current_user_id
 from sparkth.lib.compose.hooks import COMPOSE_AGENTS, enabled_agents
 from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.lib.frontend import get_plugin_display_info, get_plugin_sidebar_entry, plugin_has_frontend
-from sparkth.lib.rag import DocumentSections, SectionRef, SectionSelection
+from sparkth.lib.rag import DocumentSections, SectionRef, SectionSelection, bind_readable_document_ids
 from sparkth.plugins.rag.agent import RAG, build_document_context
 from sparkth.plugins.rag.constants import NOTHING_MATCHED
 from sparkth.plugins.rag.plugin import RagPlugin
@@ -102,6 +102,13 @@ async def test_the_context_of_a_document_that_cant_be_read_is_nothing_matched(
     seeded: dict[str, Any], session: AsyncSession
 ) -> None:
     await _seed(session, **seeded)
+
+    assert await build_document_context(_selection()) == NOTHING_MATCHED
+
+
+async def test_the_context_of_a_document_outside_the_readable_ones_is_nothing_matched(session: AsyncSession) -> None:
+    await _seed(session)
+    bind_readable_document_ids([])
 
     assert await build_document_context(_selection()) == NOTHING_MATCHED
 

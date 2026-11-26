@@ -3,6 +3,7 @@
 All plugins and external modules import RAG functionality from here.
 """
 
+from sparkth.rag.document_access import bind_readable_document_ids, get_readable_document
 from sparkth.rag.exceptions import (
     DocumentNotFoundError,
     RAGNotReadyError,
@@ -26,6 +27,8 @@ from sparkth.rag.types import DocumentSection, RetrievedChunk
 from sparkth.rag.utils import get_rag_ingested_document_structure
 
 __all__ = [
+    "bind_readable_document_ids",
+    "get_readable_document",
     "DocumentNotFoundError",
     "RAGNotReadyError",
     "RAGRetrievalError",

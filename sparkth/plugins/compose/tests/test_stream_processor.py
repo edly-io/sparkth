@@ -15,6 +15,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.i18n import locale_context
 from sparkth.lib.audit import ToolFailureKind
+from sparkth.lib.auth import bind_current_user_id
 from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME
 from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.lib.llm import get_provider
@@ -27,6 +28,7 @@ from sparkth.lib.rag import (
     RetrievedChunk,
     SectionRef,
     SectionSelection,
+    bind_readable_document_ids,
 )
 from sparkth.lib.testing import AddTranslation, ScriptedChatModel
 from sparkth.plugins.compose.analytics import AnalyticsAttribution, StopPoint
@@ -994,8 +996,9 @@ class TestADocumentSelection:
         session.add(Document(id=11, user_id=2, name="Secret.pdf", status=DocumentStatus.READY))
         session.add(Document(id=12, user_id=1, name="Draft.pdf", status=DocumentStatus.PROCESSING))
         await session.commit()
+        bind_current_user_id(1)
         monkeypatch.setattr(STREAM_TURN, SELECTING_TURN)
-        processor = _make_processor(user_id=1)
+        processor = _make_processor()
 
         async for _ in processor.stream():
             pass
@@ -1004,6 +1007,22 @@ class TestADocumentSelection:
             {"type": "section", "name": "Cells / Membranes", "source": "Biology.pdf"},
             {"type": "chapter", "name": "Cells", "source": "Biology.pdf"},
         ]
+
+    @pytest.mark.asyncio
+    async def test_the_reply_leaves_out_a_document_the_turn_may_not_read(
+        self, session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        session.add(Document(id=10, user_id=1, name="Biology.pdf", status=DocumentStatus.READY))
+        await session.commit()
+        bind_current_user_id(1)
+        bind_readable_document_ids([])
+        monkeypatch.setattr(STREAM_TURN, SELECTING_TURN)
+        processor = _make_processor()
+
+        async for _ in processor.stream():
+            pass
+
+        assert "rag_sections" not in _stored_replies(processor)[-1]["metadata"]
 
     @pytest.mark.asyncio
     async def test_a_selection_is_reported_as_a_search_of_the_sections_selected(

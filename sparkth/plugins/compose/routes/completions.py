@@ -27,6 +27,7 @@ from sparkth.lib.models import User
 from sparkth.lib.permissions import PLUGIN_USE, get_accessible_scope_object_ids
 from sparkth.lib.permissions.scopes import PLUGIN
 from sparkth.lib.plugins import get_disabled_plugins
+from sparkth.lib.rag import bind_readable_document_ids
 from sparkth.plugins.compose.analytics import (
     ComposeAttachmentAnalytics,
     ComposeClassifierAnalytics,
@@ -268,7 +269,13 @@ async def compose_completion(
         conversation_documents = await service.list_conversation_attachments(
             session=session, conversation_id=conversation_id
         )
-        attached_documents = conversation_documents.ready
+        ready_documents = conversation_documents.ready
+        attached_documents = [
+            *conversation_documents.ready,
+            *(document for document in conversation_documents.unusable if not document.is_deleted),
+        ]
+        # Document retrieval reads only the documents attached to this conversation.
+        bind_readable_document_ids(cast(int, document.id) for document in attached_documents)
         for unusable in conversation_documents.unusable:
             # Attached as far as the instructor is concerned, but not ingestible, so this
             # turn runs as though it were not there. Stamped here: nothing records the
@@ -292,27 +299,24 @@ async def compose_completion(
 
         # Only asked when there is something to search and something to search for.
         rag_search_required = False
-        if attached_documents and query_text:
+        if ready_documents and query_text:
             search_classifier = RAGSearchClassifier(provider_name, api_key, user_id, classifier_analytics)
             rag_search_required = await search_classifier.requires_search(
-                query_text, attached_documents, conversation.uuid
+                query_text, ready_documents, conversation.uuid
             )
         # A skip is worth telling the client about only when the classifier weighed it.
-        rag_search_declined = bool(attached_documents) and bool(query_text) and not rag_search_required
+        rag_search_declined = bool(ready_documents) and bool(query_text) and not rag_search_required
 
         messages, unresolved_messages = await assemble_provider_messages(
             request,
             conversation_messages,
-            attached_documents,
+            ready_documents,
             query_text,
             rag_search_required,
             provider,
             uploaded_files=uploaded_files,
             analytics=turn_analytics,
-            listed_documents=[
-                *conversation_documents.ready,
-                *(document for document in conversation_documents.unusable if not document.is_deleted),
-            ],
+            listed_documents=attached_documents,
         )
 
         tools = await resolve_tools(request, tool_registry, disabled_plugins, allowed_plugins)

@@ -19,12 +19,14 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sparkth.core.models.plugin import Plugin, UserPluginPreference
 from sparkth.lib.compose.constants import OPERATOR_AGENT_NAME
 from sparkth.lib.compose.hooks import Agent
+from sparkth.lib.db import session_scope
 from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.llm import small_model_for
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.permissions import PLUGIN_USE, PLUGIN_USER_ROLE, assign_role, revoke_role
 from sparkth.lib.permissions.scopes import GLOBAL, PLUGIN
+from sparkth.lib.rag import get_readable_document
 from sparkth.lib.settings import get_settings
 from sparkth.lib.testing import AuditEventsFetcher
 from sparkth.main import app
@@ -34,7 +36,14 @@ from sparkth.plugins.compose.enums import PlannerModel
 from sparkth.plugins.compose.models import Conversation, ConversationAttachment
 from sparkth.plugins.compose.planner import ExistingPlan, PlannedStep, TurnRouting, render_planner_prompt
 from sparkth.plugins.compose.prompt import render_system_prompt
-from sparkth.plugins.compose.tests.helpers import CANVAS_CONFIG, OPENEDX_CONFIG, answering_model, planning, refusal
+from sparkth.plugins.compose.tests.helpers import (
+    CANVAS_CONFIG,
+    OPENEDX_CONFIG,
+    STREAM_TURN,
+    answering_model,
+    planning,
+    refusal,
+)
 
 COMPLETIONS_URL = "/api/v1/compose/completions"
 
@@ -202,6 +211,38 @@ class TestTheAttachedDocuments:
 
         listing = f"{ATTACHED_DOCUMENTS_HEADING}\n- {documents[0].id}: Biology.pdf\n- {documents[1].id}: Draft.pdf"
         assert {"role": "user", "content": listing} in turn.await_args_list[-1].args[0]
+
+    async def test_the_turn_binds_only_the_attached_documents_as_readable(
+        self, client: AsyncClient, current_user: User, session: AsyncSession
+    ) -> None:
+        user_id = current_user.id or 1
+        config_id = await _seed_llm_config(session, user_id)
+        conversation_uuid = await _seed_conversation(session, user_id)
+        conversation = (await session.exec(select(Conversation))).one()
+        attached = Document(user_id=user_id, name="Biology.pdf", status=DocumentStatus.READY)
+        unattached = Document(user_id=user_id, name="Notes.pdf", status=DocumentStatus.READY)
+        session.add_all([attached, unattached])
+        await session.flush()
+        document_ids = {"Biology.pdf": attached.id or 0, "Notes.pdf": unattached.id or 0}
+        session.add(ConversationAttachment(conversation_id=conversation.id or 0, document_id=attached.id or 0))
+        await session.commit()
+        readable: dict[str, bool] = {}
+
+        async def reading_turn(*args: Any, **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:
+            async with session_scope() as read_session:
+                for name, document_id in document_ids.items():
+                    readable[name] = await get_readable_document(read_session, document_id) is not None
+            yield {"type": "token", "content": "Done."}
+
+        with (
+            patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()),
+            patch("sparkth.plugins.compose.routes.completions.RAGSearchClassifier") as classifier,
+            patch(STREAM_TURN, reading_turn),
+        ):
+            classifier.return_value.requires_search = AsyncMock(return_value=False)
+            await _turn(client, config_id, conversation_uuid, stream=True)
+
+        assert readable == {"Biology.pdf": True, "Notes.pdf": False}
 
 
 class TestAnUnfinishedPlan:
