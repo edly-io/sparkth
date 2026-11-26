@@ -10,7 +10,53 @@
     "roles": {
       "label": "Roles",
       "empty": "No roles yet.",
-      "loadFailed": "Couldn't load the roles. Try again later."
+      "loadFailed": "Couldn't load the roles. Try again later.",
+      "badges": {
+        "builtin": "Built-in",
+        "default": "Automatic",
+        "custom": "Custom"
+      },
+      "permissionCount": "{count, plural, one {<strong>#</strong> permission} other {<strong>#</strong> permissions}}",
+      "peopleCount": "{count, plural, one {# person} other {# people}}",
+      "groupCount": "{count, plural, one {# group} other {# groups}}",
+      "everyone": "Everyone",
+      "notAssigned": "Not assigned",
+      "intro": "A role is a named set of permissions. Permissions come from Sparkth and its plugins; you choose which ones each role holds.",
+      "view": {
+        "label": "View",
+        "list": "List",
+        "compare": "Compare permissions"
+      },
+      "create": {
+        "button": "Create role",
+        "title": "Create role",
+        "intro": "Name it after the job people do.",
+        "name": "Name",
+        "description": "Description",
+        "cancel": "Cancel",
+        "submit": "Create",
+        "nameTaken": "A role with this name already exists.",
+        "failed": "Couldn't create the role. Try again."
+      },
+      "menu": {
+        "label": "More actions for {name}",
+        "delete": "Delete role"
+      },
+      "delete": {
+        "title": "Delete {name}?",
+        "holders": "{holders} will lose this role. This can't be undone.",
+        "nobody": "No one holds this role. This can't be undone.",
+        "confirm": "Delete",
+        "pending": "Deleting…",
+        "cancel": "Cancel",
+        "failed": "Couldn't delete the role. Try again."
+      },
+      "risks": {
+        "label": "Risks",
+        "delegates_access": "Can give others access",
+        "private_data": "Sees private data",
+        "deletes": "Can delete"
+      }
     },
     "groups": {
       "label": "Groups",

@@ -1,4 +1,8 @@
-"""Metadata-only tools for the RAG search agent."""
+"""Metadata-only tools for the RAG search agent.
+
+Each tool reads only a document the requesting user owns, through ``current_user_id``, so a model
+naming a ``document_id`` can't read anyone else's. A document the user doesn't own reads as missing.
+"""
 
 from __future__ import annotations
 
@@ -7,8 +11,9 @@ from typing import cast
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.lib.auth import current_user_id
 from sparkth.lib.db import session_scope
-from sparkth.lib.documents import Document
+from sparkth.lib.documents import Document, get_document
 from sparkth.lib.log import get_logger
 from sparkth.rag.mcp.schemas import ChunkStats, DocumentMetadata, SectionKey
 from sparkth.rag.models import DocumentChunk, DocumentChunkLink
@@ -19,14 +24,8 @@ logger = get_logger(__name__)
 
 
 async def _fetch_document(session: AsyncSession, document_id: int) -> Document | None:
-    """Return the Document if it exists and is not deleted, else None."""
-    result = await session.exec(
-        select(Document).where(
-            col(Document.id) == document_id,
-            col(Document.is_deleted) == False,  # noqa: E712
-        )
-    )
-    return result.first()
+    """Return the Document if the requesting user owns it and it is not deleted, else None."""
+    return await get_document(session, document_id, current_user_id())
 
 
 async def get_document_metadata(document_id: int) -> DocumentMetadata | None:
@@ -97,6 +96,9 @@ async def get_chunk_stats(document_id: int) -> ChunkStats | None:
 
 async def get_document_structure(document_id: int) -> list[DocumentSection]:
     """Get the full ordered structure of a document with chunk positions."""
+    async with session_scope() as session:
+        if await _fetch_document(session, document_id) is None:
+            return []
     return await get_rag_ingested_document_structure(document_id)
 
 

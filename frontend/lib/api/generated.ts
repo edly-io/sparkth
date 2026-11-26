@@ -1004,7 +1004,8 @@ export interface paths {
         };
         /**
          * List Permissions
-         * @description List the permissions assignable to a role. Returns a list of permission strings.
+         * @description List the permissions a role can hold, each with its label, description, category, risks and the
+         *     permissions it needs, in the request's language.
          */
         get: operations["list_permissions_api_v1_permissions_get"];
         put?: never;
@@ -1110,15 +1111,16 @@ export interface paths {
          * List Roles
          * @description List the roles the caller may read.
          *
-         *     Returns a list of RoleResponse (id, name, description, permissions, is_builtin).
+         *     Returns a list of RoleResponse (id, name, description, permissions, is_builtin, is_default,
+         *     user_count, group_count, risks).
          *
-         *     Grants are fetched for every listed role in a single batched query.
+         *     Grants and assignee counts are fetched for every listed role in batched queries.
          */
         get: operations["list_roles_api_v1_permissions_roles_get"];
         put?: never;
         /**
          * Create Role
-         * @description Create a role. Returns the created RoleResponse (id, name, description, permissions, is_builtin).
+         * @description Create a role. Returns the created RoleResponse, which nobody holds yet.
          */
         post: operations["create_role_api_v1_permissions_roles_post"];
         delete?: never;
@@ -1136,7 +1138,7 @@ export interface paths {
         };
         /**
          * Get Role
-         * @description Fetch a role by id. Returns its RoleResponse (id, name, description, permissions, is_builtin).
+         * @description Fetch a role by id. Returns its RoleResponse, with its permissions and how many people and groups hold it.
          */
         get: operations["get_role_api_v1_permissions_roles__role_id__get"];
         put?: never;
@@ -2758,10 +2760,54 @@ export interface components {
              */
             scope_object_id?: string | null;
         };
-        /** PersistedToolCall */
+        /**
+         * PermissionResponse
+         * @description A permission a role can hold, with what it is for, in the request's language.
+         */
+        PermissionResponse: {
+            /**
+             * Category
+             * @description The category the permission is listed under, e.g. 'Users & access'.
+             */
+            category: string;
+            /**
+             * Description
+             * @description One sentence on what the permission allows.
+             */
+            description: string;
+            /**
+             * Label
+             * @description What the permission lets its holder do, e.g. 'Edit roles'.
+             */
+            label: string;
+            /** Name */
+            name: string;
+            /**
+             * Requires
+             * @description The permissions a holder also needs for this one to be of use.
+             */
+            requires: string[];
+            /**
+             * Risks
+             * @description The reasons to think twice before granting the permission.
+             */
+            risks: components["schemas"]["PermissionRisk"][];
+        };
+        /**
+         * PermissionRisk
+         * @description A reason to think twice before giving someone a permission.
+         * @enum {string}
+         */
+        PermissionRisk: "delegates_access" | "private_data" | "deletes";
+        /**
+         * PersistedToolCall
+         * @description A tool call a stored reply made: the tool's name, and whether the call was done or failed.
+         */
         PersistedToolCall: {
             /** Name */
             name: string;
+            /** @default done */
+            status: components["schemas"]["ToolExecutionStatus"];
         };
         /**
          * PlanSnapshot
@@ -2903,14 +2949,34 @@ export interface components {
         RoleResponse: {
             /** Description */
             description: string | null;
+            /**
+             * Group Count
+             * @description How many groups hold this role, at any scope.
+             */
+            group_count: number;
             /** Id */
             id: number;
             /** Is Builtin */
             is_builtin: boolean;
+            /**
+             * Is Default
+             * @description Whether every account is given this role when it is created.
+             */
+            is_default: boolean;
             /** Name */
             name: string;
             /** Permissions */
             permissions: string[];
+            /**
+             * Risks
+             * @description The reasons to think twice before giving someone this role.
+             */
+            risks: components["schemas"]["PermissionRisk"][];
+            /**
+             * User Count
+             * @description How many people hold this role directly, at any scope.
+             */
+            user_count: number;
         };
         /** RoleUpdate */
         RoleUpdate: {
@@ -3042,6 +3108,12 @@ export interface components {
             /** Name */
             name: string;
         };
+        /**
+         * ToolExecutionStatus
+         * @description Where a tool call stands, as reported on a streamed reply or kept with a stored one.
+         * @enum {string}
+         */
+        ToolExecutionStatus: "running" | "done" | "failed";
         /**
          * UpdatePluginRequest
          * @description Request model for turning a plugin on or off for the calling user.
@@ -4960,7 +5032,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": string[];
+                    "application/json": components["schemas"]["PermissionResponse"][];
                 };
             };
         };

@@ -297,3 +297,19 @@ msgstr "Traitement de votre demande…"
 #, python-brace-format
 msgid "The files in this conversation can total at most {limit_mb} MB."
 msgstr "Les fichiers de cette conversation peuvent totaliser au maximum {limit_mb} Mo."
+
+#: sparkth/plugins/compose/permissions.py
+msgid "Read conversations"
+msgstr "Lire les conversations"
+
+#: sparkth/plugins/compose/permissions.py
+msgid "Open Compose conversations and their files."
+msgstr "Ouvrir les conversations Compose et leurs fichiers."
+
+#: sparkth/plugins/compose/permissions.py
+msgid "Write in conversations"
+msgstr "Écrire dans les conversations"
+
+#: sparkth/plugins/compose/permissions.py
+msgid "Send messages and attach files."
+msgstr "Envoyer des messages et joindre des fichiers."
