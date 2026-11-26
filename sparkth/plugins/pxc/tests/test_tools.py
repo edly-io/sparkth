@@ -207,7 +207,6 @@ async def test_list_leaves_out_another_authors_activities(
 ) -> None:
     other = authors[1]
     await grant_permissions(session, other, ["pxc.activity.read"], "user", str(other.id))
-    await session.commit()
     act_as(other)
 
     assert await pxc_list_activities() == {"activities": []}
@@ -506,7 +505,6 @@ async def test_a_reader_reads_another_authors_source_and_failures(
     session: AsyncSession, authored_activity: PxcActivity, authors: tuple[User, User]
 ) -> None:
     await grant_permissions(session, authors[1], ["pxc.activity.read"], "user", str(authored_activity.owner_user_id))
-    await session.commit()
     act_as(authors[1])
 
     source = await pxc_get_activity_source(str(authored_activity.id))
@@ -520,7 +518,6 @@ async def test_a_reader_runs_another_authors_activity(
     session: AsyncSession, authored_activity: PxcActivity, authors: tuple[User, User]
 ) -> None:
     await grant_permissions(session, authors[1], ["pxc.activity.read"], "user", str(authored_activity.owner_user_id))
-    await session.commit()
     act_as(authors[1])
     report: ScratchReport = {"steps": [], "state": [], "fields": {}}
     steps = cast(list[TrialStep], [{"action": "check", "permission": "play"}])
@@ -538,7 +535,6 @@ async def test_a_reader_cannot_update_another_authors_activity(
     audit_events: AuditEventsFetcher,
 ) -> None:
     await grant_permissions(session, authors[1], ["pxc.activity.read"], "user", str(authored_activity.owner_user_id))
-    await session.commit()
     act_as(authors[1])
 
     with (
@@ -555,7 +551,6 @@ async def test_an_updater_updates_another_authors_activity(
     session: AsyncSession, authored_activity: PxcActivity, authors: tuple[User, User], uncompiled_builds: None
 ) -> None:
     await grant_permissions(session, authors[1], ["pxc.activity.update"], "user", str(authored_activity.owner_user_id))
-    await session.commit()
     act_as(authors[1])
     manifest: dict[str, object] = {**AUTHORED_MANIFEST, "name": str(authored_activity.id)}
 
