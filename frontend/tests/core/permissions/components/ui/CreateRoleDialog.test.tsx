@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
 import userEvent from "@testing-library/user-event";
 import { renderWithIntl } from "@/tests/intl";
 import { ApiRequestError } from "@/lib/api";
+import en from "@/core/i18n/catalogs/en";
 import type { PermissionResponse, RoleResponse } from "@/core/permissions/types";
 
 vi.mock("@/core/auth/hooks", () => ({ useAuth: () => ({ token: "test-token" }) }));
@@ -140,6 +142,29 @@ describe("CreateRoleDialog", () => {
     const options = screen.getAllByRole("option").map((option) => option.textContent);
     expect(options).toEqual(["Sparkth user", "Course author"]);
     await userEvent.click(await screen.findByRole("button", { name: "Create" }));
+    expect(onCreate).toHaveBeenCalledWith({
+      name: "Grader",
+      description: null,
+      permissions: ["group.read"],
+    });
+  });
+
+  it("copies the first role when the roles arrive after the dialog opened", async () => {
+    const onCreate = vi.fn().mockResolvedValue(undefined);
+    const dialog = (roles: RoleResponse[]) => (
+      <CreateRoleDialog open roles={roles} onCreate={onCreate} onClose={vi.fn()} />
+    );
+    const { rerender } = renderWithIntl(dialog([]));
+    rerender(
+      <NextIntlClientProvider locale="en" timeZone="UTC" messages={en}>
+        {dialog(ROLES)}
+      </NextIntlClientProvider>,
+    );
+
+    await userEvent.type(screen.getByLabelText("Name"), "Grader");
+    await userEvent.click(screen.getByRole("radio", { name: "A copy of another role" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Create" }));
+
     expect(onCreate).toHaveBeenCalledWith({
       name: "Grader",
       description: null,

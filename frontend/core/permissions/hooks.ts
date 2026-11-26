@@ -68,7 +68,8 @@ export type PermissionListState =
 
 /**
  * Every declared permission, loaded the first time `load` is called with a token; idle until then.
- * Later calls do nothing, so a caller can call `load` whenever it needs the list.
+ * Later calls do nothing once the list is loading or loaded, so a caller can call `load` whenever it
+ * needs the list; after a failure, the next call asks again.
  */
 export function usePermissionList(token: string | null): {
   permissionList: PermissionListState;
@@ -86,6 +87,7 @@ export function usePermissionList(token: string | null): {
       .then((permissions) => setPermissionList({ status: "loaded", permissions }))
       .catch((error: unknown) => {
         console.error("Loading the permissions failed:", error);
+        requested.current = false;
         setPermissionList({ status: "failed" });
       });
   }, [token]);

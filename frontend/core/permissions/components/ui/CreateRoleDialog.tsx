@@ -69,7 +69,9 @@ function RoleForm({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [startFrom, setStartFrom] = useState<StartFrom>("none");
-  const [roleToCopyId, setRoleToCopyId] = useState(roles[0]?.id);
+  const [chosenRoleToCopyId, setChosenRoleToCopyId] = useState<number>();
+  // Until a role is picked, the first listed one, which may only arrive after the dialog opens.
+  const roleToCopyId = chosenRoleToCopyId ?? roles[0]?.id;
   const { permissionList, load: loadPermissionList } = usePermissionList(token);
   const [nameError, setNameError] = useState<string>();
   const [failed, setFailed] = useState(false);
@@ -148,7 +150,7 @@ function RoleForm({
               <Select
                 aria-label={t("startFrom.copySource")}
                 value={String(roleToCopyId)}
-                onChange={(event) => setRoleToCopyId(Number(event.target.value))}
+                onChange={(event) => setChosenRoleToCopyId(Number(event.target.value))}
                 disabled={startFrom !== "copy"}
                 options={roles.map((role) => ({
                   value: String(role.id),

@@ -41,7 +41,7 @@ export default function RolesPage() {
   const canCreate = canCreateRoles && canChangeRoles;
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<RoleResponse | null>(null);
-  const [roles, setRoles] = useState<RoleResponse[]>([]);
+  const [loadedRoles, setLoadedRoles] = useState<RoleResponse[]>([]);
   const [reloadKey, setReloadKey] = useState(0);
 
   const create = async (role: RoleCreate) => {
@@ -89,7 +89,7 @@ export default function RolesPage() {
       </div>
       <CreateRoleDialog
         open={creating}
-        roles={roles}
+        roles={loadedRoles}
         onCreate={create}
         onClose={() => setCreating(false)}
       />
@@ -105,7 +105,7 @@ export default function RolesPage() {
         empty={t("empty")}
         loadFailed={t("loadFailed")}
         reloadKey={reloadKey}
-        onLoaded={setRoles}
+        onLoaded={setLoadedRoles}
       >
         {(roles) => (
           <>

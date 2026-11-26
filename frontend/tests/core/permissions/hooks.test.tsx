@@ -199,6 +199,20 @@ describe("usePermissionList", () => {
     await waitFor(() => expect(result.current.permissionList).toEqual({ status: "failed" }));
   });
 
+  it("asks again after a failure", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mockListPermissions.mockRejectedValueOnce(new Error("network down"));
+    mockListPermissions.mockResolvedValueOnce(PERMISSIONS);
+    const { result } = renderHook(() => usePermissionList("tok"));
+
+    act(() => result.current.load());
+    await waitFor(() => expect(result.current.permissionList).toEqual({ status: "failed" }));
+    act(() => result.current.load());
+
+    await waitFor(() => expect(result.current.permissionList.status).toBe("loaded"));
+    expect(mockListPermissions).toHaveBeenCalledTimes(2);
+  });
+
   it("asks nothing without a token", () => {
     const { result } = renderHook(() => usePermissionList(null));
 
