@@ -14,8 +14,8 @@ from sparkth.core.plugins.config_base import PluginConfig
 from sparkth.core.plugins.constants import PLUGIN_AUDIT_TARGET_TYPE, USER_PLUGIN_PREFERENCE_TARGET_TYPE
 from sparkth.core.plugins.exceptions import (
     ConfigValidationError,
-    InternalServerError,
     PluginConfigInvalidError,
+    PluginConfigUnavailable,
     PluginDisabledError,
     PluginNotConfiguredError,
 )
@@ -179,19 +179,24 @@ class PluginService:
         Uses the plugin.config_schema directly instead of dynamically loading config.py.
 
         Raises:
-            ConfigValidationError: if config_schema is not a subclass of PluginConfig or if validation fails
+            PluginConfigUnavailable: if the plugin has no config class or it is not a PluginConfig subclass
+            ConfigValidationError: if the submitted config fails validation
         """
 
         config_class = get_plugin_config_schema(plugin.name)
         if not config_class:
             logger.error(f"Plugin '{plugin.name}' config class is missing or invalid")
-            raise InternalServerError(_("Plugin '{name}' cannot be configured at this time.").format(name=plugin.name))
+            raise PluginConfigUnavailable(
+                _("Plugin '{name}' cannot be configured at this time.").format(name=plugin.name)
+            )
 
         if not issubclass(config_class, PluginConfig):
             logger.error(
                 f"'{plugin.name.title()}Config' must inherit from sparkth.core.plugins.config_base.PluginConfig"
             )
-            raise InternalServerError(_("Plugin '{name}' cannot be configured at this time.").format(name=plugin.name))
+            raise PluginConfigUnavailable(
+                _("Plugin '{name}' cannot be configured at this time.").format(name=plugin.name)
+            )
 
         try:
             validated_config = config_class(**user_config)
@@ -470,7 +475,7 @@ class PluginService:
         user_config: dict[str, Any],
     ) -> UserPluginPreference:
         if plugin.id is None:
-            raise InternalServerError("Plugin must be persisted before saving a preference for it")
+            raise RuntimeError("Plugin must be persisted before saving a preference for it")
 
         preference = await self.get_preference(
             session,

@@ -11,11 +11,11 @@ at startup (Starlette dispatches by MRO).
 from fastapi import status
 
 from sparkth.api.v1.plugins.routes import router
-from sparkth.core.plugins.exceptions import ConfigValidationError, InternalServerError, PluginDisabledError
+from sparkth.core.plugins.exceptions import ConfigValidationError, PluginConfigUnavailable, PluginDisabledError
 from sparkth.lib.exceptions.handlers import register_exception_handler
 
 register_exception_handler(PluginDisabledError, status.HTTP_409_CONFLICT)
 register_exception_handler(ConfigValidationError, status.HTTP_400_BAD_REQUEST)
-register_exception_handler(InternalServerError, status.HTTP_500_INTERNAL_SERVER_ERROR)
+register_exception_handler(PluginConfigUnavailable, status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 __all__ = ["router"]

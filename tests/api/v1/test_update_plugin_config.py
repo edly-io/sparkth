@@ -4,7 +4,7 @@ from fastapi import status
 from httpx import AsyncClient
 
 from sparkth.core.models.user import User
-from sparkth.core.plugins.exceptions import ConfigValidationError, InternalServerError
+from sparkth.core.plugins.exceptions import ConfigValidationError, PluginConfigUnavailable
 
 
 async def test_update_plugin_not_configured_success(client: AsyncClient, plugin_preferences: User) -> None:
@@ -134,7 +134,7 @@ async def test_update_plugin_value_error_is_a_bad_request(client: AsyncClient, p
 async def test_update_plugin_internal_error_is_a_server_error(client: AsyncClient, plugin_preferences: User) -> None:
     with patch(
         "sparkth.core.plugins.service.PluginService.update_preference_config",
-        side_effect=InternalServerError("Plugin cannot be configured"),
+        side_effect=PluginConfigUnavailable("Plugin cannot be configured"),
     ):
         response = await client.put("/api/v1/plugins/plugin_a/config", json={"config": {"some_config": 1}})
 
