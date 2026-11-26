@@ -26,10 +26,23 @@ resolves exactly this — it is the single authorization check.
 The vocabulary the system draws on — which permission strings and which scope kinds exist —
 is declared in application code, not kept in a catalogue table.
 
-- **Permissions** are declared with `Permission.create("assignment.grade")`, which registers
-  the permission on the **`PERMISSIONS`** hook. Core permissions are declared this way in
+- **Permissions** are declared with `Permission.create("assignment.grade", ...)`, which
+  registers the permission on the **`PERMISSIONS`** hook. Core permissions are declared this way in
   `sparkth.core.permissions`; plugins declare their own at module level in their `plugin.py`, or in a module
   their routes import when the routes need the constant.
+- **A permission says what it is for** when it is created: `Permission.create` takes a label
+  ("Edit roles"), a one-line description and the category it is listed under, all marked with `gettext_noop` so
+  they can be translated. It also takes its risks, from `PermissionRisk`, and the other permissions a holder needs
+  for it to be of use (`requires`, as `Permission` objects, never names; none is declared today, as the
+  permission system has no hierarchy yet). A plugin's permission uses the plugin's name as its category. The
+  risks are:
+  - `delegates_access`: the holder can give others access, by creating roles or changing what a role or group
+    grants;
+  - `private_data`: the holder can see information about other people;
+  - `deletes`: the holder can delete something for everyone.
+
+  `GET /api/v1/permissions` lists every permission with this information, translated into the request's language,
+  for anyone who holds `permission.read`.
 - **Scope kinds** are declared with `PermissionScope.create("course", parent=...)`, which
   registers the scope on the **`PERMISSION_SCOPES`** hook. The root `global` scope is declared
   this way in `sparkth.core.permissions.scopes`; plugins declare their own at module level in
@@ -143,6 +156,13 @@ assignment of it (active and revoked), recording `role.unassigned` per active us
 `group.role_revoked` per active group assignment; the history stays in the audit trail. It removes
 every grant scoped to the role (`role:<id>`) too, so a later role that reuses the id never inherits
 them.
+
+Every role response also says who holds the role. `is_default` is true for the roles every account is given
+when it is created (`sparkth_user` and `plugin_user`). `user_count` is how many people hold the role directly
+and `group_count` how many groups hold it. Both count active assignments, each person or group once however
+many scopes they hold it at. Someone who holds a role only through a group adds to its `group_count`, not its
+`user_count`. `risks` lists the risks of the role's permissions, each once, so a client can warn before granting
+the role.
 
 A user who holds `plugin_user` at `plugin:<name>` instead of at `global` can use only those plugins.
 Every account holds `plugin_user` at `global`, so an assignment at a plugin changes nothing until the `global`
@@ -301,10 +321,16 @@ plugin's own tests each construct the class, and a second declaration of a name 
 
 ```python
 # sparkth/plugins/grader/plugin.py
+from sparkth.lib.i18n import gettext_noop
 from sparkth.lib.permissions import Permission
 from sparkth.lib.permissions.scopes import GLOBAL, PermissionScope
 
-ASSIGNMENT_GRADE = Permission.create("assignment.grade")
+ASSIGNMENT_GRADE = Permission.create(
+    "assignment.grade",
+    gettext_noop("Grade assignments"),
+    gettext_noop("Mark submissions and give feedback."),
+    gettext_noop("Grader"),
+)
 # a scope kind's parent must already be registered (the global root always is)
 COURSE = PermissionScope.create("course", parent=GLOBAL)
 ```

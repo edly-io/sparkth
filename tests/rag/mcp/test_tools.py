@@ -1,10 +1,13 @@
 """Tests for RAG MCP tools (against a real in-memory DB)."""
 
+from collections.abc import Awaitable, Callable
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
+import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.lib.auth import bind_current_user_id
 from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.rag.mcp.tools import (
     get_chunk_stats,
@@ -16,6 +19,16 @@ from sparkth.rag.mcp.tools import (
 from sparkth.rag.models import DocumentChunk, DocumentChunkLink
 from sparkth.rag.types import DocumentSection
 
+OWNER_ID = 1
+OTHER_USER_ID = 2
+
+
+@pytest.fixture(autouse=True)
+async def _owner_is_requesting() -> None:
+    """The seeded documents' owner is the user the request is for, bound in the test's own context so the
+    binding ends with the test."""
+    bind_current_user_id(OWNER_ID)
+
 
 async def _seed_document(
     session: AsyncSession,
@@ -23,8 +36,9 @@ async def _seed_document(
     name: str = "test.pdf",
     mime_type: str | None = "application/pdf",
     status: DocumentStatus = DocumentStatus.READY,
+    user_id: int = OWNER_ID,
 ) -> None:
-    session.add(Document(id=document_id, user_id=1, name=name, mime_type=mime_type, status=status))
+    session.add(Document(id=document_id, user_id=user_id, name=name, mime_type=mime_type, status=status))
     await session.commit()
 
 
@@ -101,7 +115,8 @@ class TestGetChunkStats:
 class TestGetDocumentStructure:
     """``get_document_structure`` is a thin delegation; verify it forwards the id."""
 
-    async def test_delegates_to_rag_ingested_document_structure(self) -> None:
+    async def test_delegates_to_rag_ingested_document_structure(self, session: AsyncSession) -> None:
+        await _seed_document(session, document_id=10)
         expected = [
             DocumentSection(
                 source_name="test.pdf",
@@ -167,3 +182,23 @@ class TestSearchSectionByKeyword:
         result = await search_section_by_keyword(document_id=10, keyword=r"foo\bar")
 
         assert [r.section for r in result] == [r"foo\bar"]
+
+
+@pytest.mark.parametrize(
+    ("tool", "missing"),
+    [
+        (lambda: get_document_metadata(document_id=10), None),
+        (lambda: list_document_sections(document_id=10), []),
+        (lambda: get_chunk_stats(document_id=10), None),
+        (lambda: get_document_structure(document_id=10), []),
+        (lambda: search_section_by_keyword(document_id=10, keyword="Ch"), []),
+    ],
+    ids=["metadata", "sections", "chunk_stats", "structure", "keyword_search"],
+)
+async def test_another_users_document_reads_as_missing(
+    tool: Callable[[], Awaitable[Any]], missing: Any, session: AsyncSession
+) -> None:
+    await _seed_document(session, document_id=10, user_id=OTHER_USER_ID)
+    await _seed_chunks(session, 10, [{"id": 1, "chapter": "Ch1", "section": "Sec1", "subsection": None}])
+
+    assert await tool() == missing

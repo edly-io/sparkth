@@ -237,6 +237,7 @@ from sparkth.plugins.myappplugin.config import MyAppPluginConfig
 from sparkth.lib.analytics import AnalyticsEventSchema, register_event_schema
 from sparkth.lib.config.hooks import CONFIG_SCHEMAS
 from sparkth.lib.mcp.hooks import MCP_TOOLS, Tool
+from sparkth.lib.i18n import gettext_noop
 from sparkth.lib.permissions import PLUGIN_USE, Permission
 from sparkth.lib.permissions.scopes import PLUGIN
 from sparkth.lib.routes import register_router
@@ -245,7 +246,12 @@ from sparkth.lib.plugins import SparkthPlugin
 # Create router outside the class; every route on it requires `plugin.use` for this plugin
 router = APIRouter(dependencies=[Depends(PLUGIN_USE.require_for_object(PLUGIN, "my-app"))])
 
-MYAPP_PROCESS = Permission.create("myapp.process")
+MYAPP_PROCESS = Permission.create(
+    "myapp.process",
+    gettext_noop("Process data"),
+    gettext_noop("Run My App on the data you give it."),
+    gettext_noop("My App"),
+)
 
 
 @router.get("/")
@@ -692,7 +698,7 @@ without importing compose, by registering an `Agent` with `register_agent` from
 `sparkth.lib.compose.hooks`. A plugin registers one agent, from its `__init__`, keyed by the plugin
 instance.
 
-An `Agent` has six fields:
+An `Agent` has seven fields:
 
 - `name` identifies the agent: lowercase letters, digits and underscores, starting with a letter.
   `compose`, `operator`, `show_plan` and `refuse` are reserved.
@@ -709,6 +715,12 @@ An `Agent` has six fields:
   to the agent is private to it: no MCP client sees it. To offer a tool on the MCP server as well,
   add the same `Tool` to `MCP_TOOLS`. Agents compare without their tools, so a plugin may build
   them in its `__init__`.
+- `structured_reply`, optional, makes the agent reply with data for later steps instead of text
+  for the author. It's an `AgentStructuredReply(schema, build_context)`: `schema` is the pydantic
+  model the agent's reply must fit, and `build_context` is an async function that builds, from a
+  reply of that shape, the text the planner and later steps read. The author never sees the agent's
+  own text, only its tool calls, the same as for the operator. When the agent ends without a reply
+  of that shape, the step returns nothing.
 
 Define the agent in the plugin's `agent.py` and register it from `plugin.py`. For example:
 
@@ -784,21 +796,23 @@ does not hold `plugin.use` at (a `global` grant covers every plugin).
   analytics under the tool's category, or under the agent's name when the tool has none.
 - **Operations.** The tools of plugins that register no agent, such as the LMS plugins', are
   Compose's operations. The planner runs them through its operator, on the user's model, and the
-  author sees each tool call but not the operator's text. What an operation returns goes back to
+  author sees each tool call, marked as failed when it failed, but not the operator's text. What an
+  operation returns goes back to
   the planner, which tells the author or hands the rest of the request to an agent, which reads
   it too. With no such plugin enabled there are no operations.
 - **Steps.** A step is one piece of work the planner gives to one agent or to its operator. It
   counts as one step however many tools that agent or the operator calls while doing it. A request
   can need several steps, such as writing a lesson, building an activity for it and publishing both.
   The planner shows the author its plan, a list of its tasks, each one short line, before
-  the first step. When the work begins with an agent gathering the author's requirements, such as a
-  course's audience and goals, that agent asks first and the plan comes once the author has
-  answered. What each step returns goes back to the planner, which runs the next part the author
-  asked for, up to a fixed limit of steps a message, without asking between them. A plan may hold
+  the first step, also when the first step's agent still has to gather the author's requirements,
+  such as a course's audience and goals: each agent asks its own questions when its step runs. What
+  each step returns goes back to the planner, which runs the next part the author asked for, up to a
+  fixed limit of steps a message, without asking between them. A plan may hold
   more steps than a message runs. The plan comes before the first step, and from then on every call
   names the step of the plan it carries out and is rejected if it doesn't fit; each step runs once,
   in order, and none is skipped. An agent carrying out a step is told which step it is and to do
-  only that one, so it leaves the plan's other steps to their agents. Outside a plan, a hand-off to
+  only that one, asking the author first what it needs to know as it would on its own, so it leaves
+  the plan's other steps to their agents. Outside a plan, a hand-off to
   the agent that has just answered ends the message instead of running, so a request is never handed
   over twice. Without a plan, an operation runs only as a message's first step. An operation that
   follows another step is asked for its task as the plan states it, not for what the planner wrote
@@ -811,20 +825,23 @@ does not hold `plugin.use` at (a `global` grant covers every plugin).
   something or the turn was stopped or failed, is kept with the reply until its last step has run.
   A later message carries it on from the step it is at: that step again or the one after it when it
   has run, since only the planner can tell whether its agent finished, and that step itself when it
-  hasn't. An operation that has run is never carried out again. A message that runs none of its
-  steps leaves the plan as it was, and no message carries it on while a step left is for an agent or
-  operator that is no longer enabled. An operation of a plan carried on this way is always asked for
-  its task as the plan states it. A message that reaches its limit as the planner asks for the plan's
-  next step ends with a note Compose writes, not the planner: the tasks done, the tasks left, and the
-  choices to continue or to stop here. The plan then waits at that step.
+  hasn't. An operation that has run is never carried out again. A message that runs to its end
+  without carrying the plan on, such as one about something else or one asking to stop, ends the
+  plan; one that was stopped or failed before it carried the plan on leaves it as it was. No message
+  carries the plan on while a step left is for an agent or operator that is no longer enabled. An
+  operation of a plan carried on this way is always asked for its task as the plan states it. A
+  message that reaches its limit as the planner asks for the plan's next step ends with a note
+  Compose writes, not the planner: the tasks done, the tasks left, and the choices to continue or to
+  stop here. The plan then waits at that step.
 - **Replies.** Each agent's reply streams as it is written, and a later step reads what earlier steps
   returned. Once a tool call of a step has failed, what its agent writes before calling a tool again
   never shows, and the rest of its reply shows a message at a time. An agent's question or choices
   are the last thing the author reads, and their answer continues that work: a reply that ends with
   choices ends the turn, whatever was left to run. After an operation the planner says briefly what
-  was done. All of a turn's replies are stored as one reply, which lists the agents its steps went
-  to; when a step fails, what was written before it is kept as a reply marked as interrupted,
-  followed by the error.
+  was done, also when another step follows it, and it tells the author when an operation they asked
+  for couldn't run. All of a turn's replies are stored as one reply, which lists the agents its
+  steps went to; when a step fails, what was written before it is kept as a reply marked as
+  interrupted, followed by the error.
 
 Plugin-specific knowledge belongs in a `<prefix>about` tool, not in an agent's `prompt`;
 see the LMS `about` tool [above](#lms-plugins-tools-without-credentials) for the convention.
