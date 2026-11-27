@@ -15,7 +15,7 @@ import { CreateRoleDialog } from "@/core/permissions/components/ui/CreateRoleDia
 import { DeleteRoleDialog } from "@/core/permissions/components/ui/DeleteRoleDialog";
 import { EditRoleDialog } from "@/core/permissions/components/ui/EditRoleDialog";
 import { RiskChips } from "@/core/permissions/components/ui/RiskChips";
-import { RoleBadges } from "@/core/permissions/components/ui/RoleBadges";
+import { AutomaticRoleBadge, RoleTypeBadge } from "@/core/permissions/components/ui/RoleBadges";
 import { RolePermissionList } from "@/core/permissions/components/ui/RolePermissionList";
 import { usePermissionList, useRoleAccess } from "@/core/permissions/hooks";
 import { ROLES_PATH, getRolePath } from "@/core/permissions/paths";
@@ -105,7 +105,10 @@ export default function RolePage() {
       <header className="space-y-2">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold text-foreground sm:text-3xl">{name}</h1>
-          <RoleBadges role={role} />
+          <div className="flex flex-wrap gap-1.5">
+            <RoleTypeBadge role={role} />
+            {role.is_default && <AutomaticRoleBadge />}
+          </div>
           <div className="ml-auto flex flex-wrap gap-2">
             {canEdit && (
               <Button

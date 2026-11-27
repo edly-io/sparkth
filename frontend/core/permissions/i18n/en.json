@@ -44,7 +44,18 @@
         "nameTaken": "A role with this name already exists."
       },
       "compare": {
-        "viewOnly": "View only"
+        "viewOnly": "View only",
+        "loading": "Loading the comparison…",
+        "loadFailed": "Couldn't load the comparison. Try again later.",
+        "noPermissions": "No permissions to compare.",
+        "showFor": "Show permissions for",
+        "categoryOption": "{category} · {count, plural, one {# permission} other {# permissions}}",
+        "legend": "Legend",
+        "granted": "Granted",
+        "notGranted": "Not granted",
+        "permission": "Permission",
+        "noRole": "No role has this yet",
+        "note": "This page is for comparing only. To change what a role can do, click its name to open the role."
       },
       "create": {
         "button": "Create role",
