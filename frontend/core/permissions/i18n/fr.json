@@ -70,6 +70,14 @@
         "pending": "Suppression…",
         "cancel": "Annuler",
         "failed": "Impossible de supprimer le rôle. Réessayez."
+      },
+      "detail": {
+        "list": {
+          "label": "Permissions",
+          "filter": "Filtrer les permissions",
+          "granted": "<strong>{granted}</strong> permissions accordées sur {total}",
+          "groupCount": "{granted} sur {total}"
+        }
       }
     },
     "groups": {

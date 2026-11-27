@@ -70,6 +70,14 @@
         "pending": "Deleting…",
         "cancel": "Cancel",
         "failed": "Couldn't delete the role. Try again."
+      },
+      "detail": {
+        "list": {
+          "label": "Permissions",
+          "filter": "Filter permissions",
+          "granted": "<strong>{granted}</strong> of {total} permissions granted",
+          "groupCount": "{granted} of {total}"
+        }
       }
     },
     "groups": {

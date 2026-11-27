@@ -64,7 +64,7 @@ describe("PermissionPicker", () => {
     expect(onToggle.mock.calls).toEqual([["role.update"], ["role.read"]]);
   });
 
-  it("filters by label or category as you search", async () => {
+  it("filters by label, category or internal name as you search", async () => {
     renderPicker();
 
     await userEvent.type(screen.getByLabelText("Search permissions"), "change");
@@ -76,6 +76,11 @@ describe("PermissionPicker", () => {
     await userEvent.type(screen.getByLabelText("Search permissions"), "compose");
     expect(screen.getByRole("checkbox", { name: "Read conversations" })).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Users & access" })).not.toBeInTheDocument();
+
+    await userEvent.clear(screen.getByLabelText("Search permissions"));
+    await userEvent.type(screen.getByLabelText("Search permissions"), "role.update");
+    expect(screen.getByRole("checkbox", { name: "Change roles" })).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "See roles" })).not.toBeInTheDocument();
   });
 
   it("keeps a chosen permission chosen while the search hides it", async () => {
