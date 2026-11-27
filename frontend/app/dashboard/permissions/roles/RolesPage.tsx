@@ -16,22 +16,28 @@ import { ListLoader } from "@/core/permissions/components/ui/ListLoader";
 import { RoleCard } from "@/core/permissions/components/ui/RoleCard";
 
 /**
- * The Roles tab: a card for each role the signed-in user may read, under a switch between the list
- * and a permission comparison that is not available yet. Those who may create roles get a Create
- * role button, and those who may delete them a Delete action on each custom role.
+ * What the page asks before showing its actions, read by position as create, update, delete.
+ * Creating a role needs `role.update` too, since a new role can start with permissions.
  */
-/** What the page asks before showing its actions, read by position as create, delete. */
 const ROLE_ACTION_CHECKS: PermissionCheckQuery[] = [
   { permission: "role.create", scope: "global" },
+  { permission: "role.update", scope: "global" },
   { permission: "role.delete", scope: "role" },
 ];
 
+/**
+ * The Roles tab: a card for each role the signed-in user may read, under a switch between the list
+ * and a permission comparison that is not available yet. Those who may create and change roles get a
+ * Create role button, and those who may delete roles a Delete action on each custom role.
+ */
 export default function RolesPage() {
   const t = useTranslations("permissions.roles");
   const { token } = useAuth();
-  const [createAccess, deleteAccess] = usePermissionChecks(token, ROLE_ACTION_CHECKS);
-  const mayCreate = createAccess === "allowed";
-  const mayDelete = deleteAccess === "allowed";
+  const [canCreateRoles, canChangeRoles, canDeleteRoles] = usePermissionChecks(
+    token,
+    ROLE_ACTION_CHECKS,
+  ).map((access) => access === "allowed");
+  const canCreate = canCreateRoles && canChangeRoles;
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<RoleResponse | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -72,7 +78,7 @@ export default function RolesPage() {
             {t("view.compare")}
           </button>
         </div>
-        {mayCreate && (
+        {canCreate && (
           <Button variant="outline" size="sm" className="py-2" onClick={() => setCreating(true)}>
             <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
             {t("create.button")}
@@ -101,7 +107,9 @@ export default function RolesPage() {
                 <li key={role.id}>
                   <RoleCard
                     role={role}
-                    onDelete={mayDelete && !role.is_builtin ? () => setDeleting(role) : undefined}
+                    onDelete={
+                      canDeleteRoles && !role.is_builtin ? () => setDeleting(role) : undefined
+                    }
                   />
                 </li>
               ))}

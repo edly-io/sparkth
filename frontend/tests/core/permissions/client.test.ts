@@ -5,6 +5,7 @@ import {
   createRole,
   deleteRole,
   listGroups,
+  listPermissions,
   listRoles,
 } from "@/core/permissions/client";
 import { ApiRequestError } from "@/lib/api";
@@ -106,6 +107,46 @@ describe("createRole", () => {
     expect(await request.json()).toEqual({ name: "Grader", description: "Marks work." });
     expect(request.headers.get("authorization")).toBe("Bearer test-token");
     expect(result).toEqual(created);
+  });
+
+  it("sends the permissions the new role starts with", async () => {
+    const spy = mockFetch({ id: 9, name: "Grader" }, 201);
+
+    await createRole("test-token", {
+      name: "Grader",
+      description: null,
+      permissions: ["role.read", "group.read"],
+    });
+
+    expect(await sentRequest(spy).json()).toEqual({
+      name: "Grader",
+      description: null,
+      permissions: ["role.read", "group.read"],
+    });
+  });
+});
+
+describe("listPermissions", () => {
+  it("GETs /api/v1/permissions and returns every permission with what it is for", async () => {
+    const permissions = [
+      {
+        name: "role.update",
+        label: "Change roles",
+        description: "Choose what a role allows.",
+        category: "Users & access",
+        risks: ["delegates_access"],
+        requires: [],
+      },
+    ];
+    const spy = mockFetch(permissions);
+
+    const result = await listPermissions("test-token");
+
+    const request = sentRequest(spy);
+    expect(request.method).toBe("GET");
+    expect(new URL(request.url).pathname).toBe("/api/v1/permissions");
+    expect(request.headers.get("authorization")).toBe("Bearer test-token");
+    expect(result).toEqual(permissions);
   });
 });
 

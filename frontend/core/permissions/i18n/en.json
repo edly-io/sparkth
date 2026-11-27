@@ -2,6 +2,17 @@
   "permissions": {
     "title": "Access & permissions",
     "subtitle": "See and manage who can do what in Sparkth.",
+    "picker": {
+      "search": "Search permissions",
+      "chosen": "{count} chosen",
+      "noMatches": "No permissions match."
+    },
+    "risks": {
+      "label": "Risks",
+      "delegates_access": "Can give others access",
+      "private_data": "Sees private data",
+      "deletes": "Can delete"
+    },
     "nav": {
       "label": "Access sections",
       "roles": "Roles",
@@ -50,12 +61,6 @@
         "pending": "Deleting…",
         "cancel": "Cancel",
         "failed": "Couldn't delete the role. Try again."
-      },
-      "risks": {
-        "label": "Risks",
-        "delegates_access": "Can give others access",
-        "private_data": "Sees private data",
-        "deletes": "Can delete"
       }
     },
     "groups": {

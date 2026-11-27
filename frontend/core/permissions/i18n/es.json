@@ -2,6 +2,17 @@
   "permissions": {
     "title": "Acceso y permisos",
     "subtitle": "Consulta y gestiona quién puede hacer qué en Sparkth.",
+    "picker": {
+      "search": "Buscar permisos",
+      "chosen": "{count, plural, one {# elegido} other {# elegidos}}",
+      "noMatches": "Ningún permiso coincide."
+    },
+    "risks": {
+      "label": "Riesgos",
+      "delegates_access": "Puede dar acceso a otros",
+      "private_data": "Ve datos privados",
+      "deletes": "Puede eliminar"
+    },
     "nav": {
       "label": "Secciones de acceso",
       "roles": "Roles",
@@ -50,12 +61,6 @@
         "pending": "Eliminando…",
         "cancel": "Cancelar",
         "failed": "No se pudo eliminar el rol. Inténtalo de nuevo."
-      },
-      "risks": {
-        "label": "Riesgos",
-        "delegates_access": "Puede dar acceso a otros",
-        "private_data": "Ve datos privados",
-        "deletes": "Puede eliminar"
       }
     },
     "groups": {
