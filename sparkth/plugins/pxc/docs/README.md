@@ -29,6 +29,8 @@ This README covers only the Sparkth side.
 4. **Persistent storage.** `PXC_DATA_DIR` holds all learner state and all generated activities.
 5. **The build toolchain.** Activities compile on the server, with `compile.mjs` and the
    `node_modules` under `PXC_TOOLCHAIN_DIR`, and `node` on `PATH`.
+6. **The seeded `pxc_lms` account.** A database migration creates it, holding the permissions an LMS launch is
+   checked against. Without it every LMS launch is a 403.
 
 `.env` is the source of truth for every setting and carries a comment on each one; this file
 does not repeat the list.
@@ -158,6 +160,31 @@ activity's name, fields, actions and events. Nothing in this plugin knows what a
 activity contains: an activity declares its own starting configuration as the `default` on each
 of its fields, and the runtime serves those for an activity instance nobody has configured yet.
 
+## Who may launch
+
+A launch's level, `view`, `play` or `edit`, is decided by whoever minted its token. The LMS decides it for
+a launch from a course, because only the LMS knows who may author the course. Sparkth decides it for a
+preview, after checking that the previewing user may open the activity at that level.
+
+The embed page, each of its assets and each of its action requests are checked against the token's level:
+
+- A preview token is checked for the Sparkth user it names.
+- Any other token is checked for the built-in `pxc_lms` account, which stands for the connected LMS.
+- `edit` needs `pxc.activity.edit`. `play` and `view` need `pxc.activity.play` or `pxc.activity.edit`.
+- The permission is checked at the `user` scope of the activity's owner, or at `global` for a bundled
+  activity. A grant at `global` counts for either.
+
+A refused request answers 403, readable from any origin. A token that is wrongly signed or expired is a 401
+and an activity that does not exist a 404, both before any permission is checked.
+
+An answer is reused for 60 seconds per account, level and activity, so a change to a role or an assignment
+reaches launches within a minute. A refusal is recorded once per answer. How to narrow what the LMS may launch
+is in the permissions guide.
+
+The check binds what the shipped Open edX block does, not what a holder of the launch secret could do. One
+secret signs every token, so whoever holds it can mint any token, a preview-shaped one included, and so
+choose the account and level a launch is checked for.
+
 ## Generated activities
 
 A generated activity's row is keyed by id and owner. Its title, description and `placed_at` can
@@ -166,11 +193,12 @@ change; its id never does. Its files live in revision directories,
 is published. The relative link `PXC_DATA_DIR/activities/<id>` points at the live revision.
 Replacing the link is atomic, so a reader sees the whole old revision or the whole new one.
 
-A launch resolves bundled names first, then a generated id from disk by following the link, with
-no database read. The embed pins the launch to the revision live when its page renders: it
-re-signs the launch token with that revision's id (`rev`), keeping the token's other claims and its
-expiry. Every later request of the page, for its UI script, assets, socket and actions, reads that
-revision. An open page keeps the revision it rendered until it reloads.
+A launch resolves bundled names first, then a generated id from disk by following the link. Its
+permission check reads the generated activity's row for its owner, so an id with no row is a 404.
+The embed pins the launch to the revision live when its page renders: it re-signs the launch
+token with that revision's id (`rev`), keeping the token's other claims and its expiry. Every later
+request of the page, for its UI script, assets, socket and actions, reads that revision. An open
+page keeps the revision it rendered until it reloads.
 
 An update prunes the activity's old revisions once their successor has been live for
 `PXC_REVISION_RETENTION_SECONDS`. The embed cuts a pinned launch token's lifetime to that value,
@@ -333,11 +361,11 @@ token in the query string, never by cookie. The activity configuration is inline
 page, and the client scripts, the activity assets and the action POSTs answer with
 `Access-Control-Allow-Origin: *` (the POSTs also answer their preflight).
 
-The plugin's own errors, such as a 401 for an expired token, carry the same header, so the
-client reads the status and shows the same notices as the socket. FastAPI's 422 for a malformed
-request, an unhandled 500 and the 403 for a disabled plugin carry no CORS header, so the browser
-reports them as a network failure. Each of those leaves the action queued, as does any network
-failure. The plugin's 422 for an action that cannot run drops it instead (see
+The plugin's own errors, such as a 401 for an expired token or a 403 for a refused launch, carry
+the same header, so the client reads the status and shows the same notices as the socket. FastAPI's
+422 for a malformed request, an unhandled 500 and the 403 for a disabled plugin carry no CORS
+header, so the browser reports them as a network failure. Each of those leaves the action queued,
+as does any network failure. The plugin's 422 for an action that cannot run drops it instead (see
 [When an action fails](#when-an-action-fails)).
 
 A refused action is not reported at the moment it is refused. `sendAction` resolves as soon as
