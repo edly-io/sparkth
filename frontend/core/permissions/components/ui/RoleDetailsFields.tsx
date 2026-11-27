@@ -4,6 +4,9 @@ import { useTranslations } from "next-intl";
 import { Input } from "@/core/components/ui/Input";
 import { Textarea } from "@/core/components/ui/Textarea";
 
+const ROLE_NAME_MAX_LENGTH = 50;
+const ROLE_DESCRIPTION_MAX_LENGTH = 255;
+
 /**
  * The name and description inputs of a role's form, each as long as a role allows. `nameError`
  * shows under the name, and the description is `descriptionRows` lines tall.
@@ -30,7 +33,7 @@ export function RoleDetailsFields({
         id="role-name"
         label={t("name")}
         value={name}
-        maxLength={50}
+        maxLength={ROLE_NAME_MAX_LENGTH}
         error={nameError}
         onChange={(event) => onNameChange(event.target.value)}
         autoFocus
@@ -39,7 +42,7 @@ export function RoleDetailsFields({
         id="role-description"
         label={t("description")}
         value={description}
-        maxLength={255}
+        maxLength={ROLE_DESCRIPTION_MAX_LENGTH}
         rows={descriptionRows}
         onChange={(event) => onDescriptionChange(event.target.value)}
       />
