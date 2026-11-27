@@ -1120,11 +1120,13 @@ export interface paths {
         put?: never;
         /**
          * Create Role
-         * @description Create a role, granting it the listed permissions in the same transaction.
+         * @description Create a role, granting it its permissions in the same transaction.
          *
-         *     Needs ``role.update`` at global as well as ``role.create``, since the new role can be given
-         *     permissions; one no longer registered is left out, so a role holding a retired one can be
-         *     copied. Returns the created RoleResponse, which nobody holds yet.
+         *     The permissions are the ones listed, or those of the role named by ``duplicate_of``. A listed
+         *     permission that is not registered is refused with 422 and nothing is created; a duplicated
+         *     role's permission that is no longer registered is left out. A missing role to duplicate is
+         *     refused with 404. Needs ``role.update`` at global as well as ``role.create``, since the new role
+         *     can be given permissions. Returns the created RoleResponse, which nobody holds yet.
          */
         post: operations["create_role_api_v1_permissions_roles_post"];
         delete?: never;
@@ -2961,10 +2963,17 @@ export interface components {
         /**
          * RoleCreate
          * @description A new role: its name, description and the permissions it starts with (none by default).
+         *
+         *     The permissions are either listed or taken from the role to duplicate, never both.
          */
         RoleCreate: {
             /** Description */
             description?: string | null;
+            /**
+             * Duplicate Of
+             * @description The id of a role whose permissions the new role starts with.
+             */
+            duplicate_of?: number | null;
             /** Name */
             name: string;
             /** Permissions */

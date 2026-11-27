@@ -56,13 +56,15 @@ async def create_role(
 ) -> Role:
     """Create and return a role granting ``permissions``, in one transaction.
 
-    A permission no longer registered is left out, so a role holding a retired one can be copied.
-    Records ``role.created``, then ``role.permission_granted`` for each permission granted. Raises
-    RoleAlreadyExists if the name is already taken, checked before anything is written.
+    Records ``role.created``, then ``role.permission_granted`` for each permission. Raises
+    RoleAlreadyExists if the name is already taken, or PermissionNotFound if a permission is not
+    registered; either is checked before anything is written.
     """
     if (await session.exec(select(Role).where(Role.name == name))).first() is not None:
         raise RoleAlreadyExists(name)
-    permissions_to_grant = sorted(set(permissions) & set(available_permissions()))
+    permissions_to_grant = sorted(set(permissions))
+    for permission in permissions_to_grant:
+        get_permission(permission)
     role = Role(name=name, description=description)
     session.add(role)
     await session.flush()
@@ -274,6 +276,16 @@ async def get_role_permissions(role_id: int, session: AsyncSession) -> list[str]
     """Return the permission strings the role grants."""
     result = await session.exec(select(RolePermission.permission).where(RolePermission.role_id == role_id))
     return list(result.all())
+
+
+async def get_registered_role_permissions(role_id: int, session: AsyncSession) -> list[str]:
+    """Return the permission strings the role grants that are still registered.
+
+    Raises RoleNotFound if there is no such role.
+    """
+    await get_role(role_id, session)
+    registered = set(available_permissions())
+    return [permission for permission in await get_role_permissions(role_id, session) if permission in registered]
 
 
 async def get_permissions_for_roles(role_ids: list[int], session: AsyncSession) -> dict[int, list[str]]:
