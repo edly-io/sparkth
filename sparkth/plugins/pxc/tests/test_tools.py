@@ -23,7 +23,7 @@ from sparkth.plugins.pxc import tools as pxc_tools
 from sparkth.plugins.pxc.activities import generated_activity_dir, preview_url
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import PXC_PREVIEW_ACTIVITY_INSTANCE, PXC_PREVIEW_COURSE_ID
-from sparkth.plugins.pxc.enums import PreviewPermission, PxcFailureKind
+from sparkth.plugins.pxc.enums import PxcFailureKind
 from sparkth.plugins.pxc.exceptions import (
     PxcActivityNotFound,
     PxcActivityNotPermitted,
@@ -357,7 +357,7 @@ def _recorded(activity: PxcActivity, revision: str | None, action: str, kind: Px
         revision=revision,
         kind=kind,
         action=action,
-        permission=PreviewPermission.PLAY,
+        permission="play",
         value="[0]",
         error="boom",
     )

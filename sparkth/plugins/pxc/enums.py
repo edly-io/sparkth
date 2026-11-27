@@ -7,13 +7,6 @@ from typing import Literal
 PreviewLevel = Literal["play", "edit"]
 
 
-class PreviewPermission(StrEnum):
-    """The permissions an activity can be previewed under."""
-
-    PLAY = "play"
-    EDIT = "edit"
-
-
 class PxcFailureKind(StrEnum):
     """Why a recorded action did not go through."""
 
