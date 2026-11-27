@@ -4,19 +4,21 @@ The roles a group holds can be listed here; giving and taking one away is done f
 assignment routes. The endpoints that address one group by ``{group_id}`` (get/update/delete, the
 member routes and the roles list) authorize at the ``group`` scope, so a grant can be delegated to a
 single group; a global grant still satisfies them via the scope cascade. Listing members or roles needs
-``group.read``, adding a member ``group.member.add`` and removing one ``group.member.remove``. Listing
-groups returns the groups the caller holds ``group.read`` at (every group for a global grant); creating
-a group stays global.
+``group.read``. Adding members (``POST .../members`` with ``user_ids``, 1 to 100) needs
+``group.member.add`` and removing them (``DELETE .../members?user_ids=...``, 1 to 100) needs
+``group.member.remove``; each request changes every listed user or none. Listing groups returns the
+groups the caller holds ``group.read`` at (every group for a global grant); creating a group stays global.
 Authored with LLM (Claude) assistance.
 """
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.api.v1.permissions.constants import MAX_GROUP_MEMBER_CHANGES
 from sparkth.api.v1.permissions.schemas import (
     GroupCreate,
-    GroupMemberAdd,
     GroupMemberResponse,
+    GroupMembersAdd,
     GroupResponse,
     GroupRoleAssignmentResponse,
     GroupUpdate,
@@ -52,7 +54,7 @@ def _group_to_response(group: Group) -> GroupResponse:
     return GroupResponse(id=group.id, name=group.name, description=group.description)
 
 
-def _build_member_response(membership: GroupMembership, user: User) -> GroupMemberResponse:
+def _build_group_member_response(membership: GroupMembership, user: User) -> GroupMemberResponse:
     """Assemble the response for a member from their membership and user rows, leaving the email out."""
     return GroupMemberResponse(
         user_id=membership.user_id, name=user.name, username=user.username, added_at=membership.created_at
@@ -140,35 +142,51 @@ async def list_group_members(
 ) -> list[GroupMemberResponse]:
     """List a group's active members, oldest first. Returns each member's id, name, username and join time."""
     members = await group_engine.get_group_members(group_id, session)
-    return [_build_member_response(membership, user) for membership, user in members]
+    return [_build_group_member_response(membership, user) for membership, user in members]
 
 
 @router.post(
     "/{group_id}/members",
-    response_model=GroupMemberResponse,
+    response_model=list[GroupMemberResponse],
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(GROUP_MEMBER_ADD.require(GROUP, "group_id"))],
 )
-async def add_group_member(
-    group_id: int, payload: GroupMemberAdd, session: AsyncSession = Depends(get_async_session)
-) -> GroupMemberResponse:
-    """Add a user to a group; a user who is already a member is returned unchanged."""
-    user = await get_user(payload.user_id, session)
-    membership = await group_engine.add_group_member(payload.user_id, group_id, session)
-    response = _build_member_response(membership, user)
+async def add_group_members(
+    group_id: int, payload: GroupMembersAdd, session: AsyncSession = Depends(get_async_session)
+) -> list[GroupMemberResponse]:
+    """Add up to 100 users to a group in one request, all or nothing.
+
+    Every user must exist and not be deleted, else the request answers 404 and changes nothing. A user who is
+    already a member is returned unchanged, and an id repeated in the request counts once. Returns one
+    GroupMemberResponse per distinct user, in request order.
+    """
+    user_ids = list(dict.fromkeys(payload.user_ids))
+    # ponytail: one lookup per user, capped at 100 per request; one batched query if that ceiling rises.
+    users = [await get_user(user_id, session) for user_id in user_ids]
+    memberships = [await group_engine.add_group_member(user_id, group_id, session) for user_id in user_ids]
+    response = [_build_group_member_response(membership, user) for membership, user in zip(memberships, users)]
     await session.commit()
     return response
 
 
 @router.delete(
-    "/{group_id}/members/{user_id}",
+    "/{group_id}/members",
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(GROUP_MEMBER_REMOVE.require(GROUP, "group_id"))],
 )
-async def remove_group_member(group_id: int, user_id: int, session: AsyncSession = Depends(get_async_session)) -> None:
-    """Take a user out of a group; a user who is not a member is a no-op. Returns 204 No Content."""
+async def remove_group_members(
+    group_id: int,
+    user_ids: list[int] = Query(..., min_length=1, max_length=MAX_GROUP_MEMBER_CHANGES),
+    session: AsyncSession = Depends(get_async_session),
+) -> None:
+    """Take up to 100 users, given as repeated ``user_ids`` query parameters, out of a group.
+
+    A user who is not a member is skipped. Returns 204 No Content, or 404 for an unknown group.
+    """
     await group_engine.get_group(group_id, session)
-    await group_engine.remove_group_member(user_id, group_id, session)
+    # ponytail: one removal query per user, capped at 100 per request; one batched update if that ceiling rises.
+    for user_id in dict.fromkeys(user_ids):
+        await group_engine.remove_group_member(user_id, group_id, session)
     await session.commit()
 
 
