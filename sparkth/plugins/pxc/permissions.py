@@ -8,9 +8,10 @@ from sparkth.lib.db import session_scope
 from sparkth.lib.i18n import gettext_noop
 from sparkth.lib.log import get_logger
 from sparkth.lib.models import User
-from sparkth.lib.permissions import Permission, PermissionRisk, can
-from sparkth.lib.permissions.scopes import USER, build_scope_path
+from sparkth.lib.permissions import Permission, PermissionCheckQuery, PermissionRisk, batched_can, can
+from sparkth.lib.permissions.scopes import GLOBAL, USER, PermissionScope, build_scope_path
 from sparkth.plugins.pxc.activities import parse_activity_id
+from sparkth.plugins.pxc.constants import PXC_NOT_PERMITTED_MESSAGE
 from sparkth.plugins.pxc.exceptions import PxcActivityNotPermitted
 from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.store import get_activity
@@ -47,6 +48,20 @@ PXC_ACTIVITY_PLACE = Permission.create(
     _CATEGORY,
 )
 
+# The levels a launch runs at, apart from the permissions that manage the record.
+PXC_ACTIVITY_PLAY = Permission.create(
+    "pxc.activity.play",
+    gettext_noop("Play activities"),
+    gettext_noop("Open activities as a learner."),
+    _CATEGORY,
+)
+PXC_ACTIVITY_EDIT = Permission.create(
+    "pxc.activity.edit",
+    gettext_noop("Edit activities as an author"),
+    gettext_noop("Open activities as their author, which also opens them as a learner."),
+    _CATEGORY,
+)
+
 
 async def has_activity_permission(
     session: AsyncSession, permission: Permission, owner_user_id: int, caller_user_id: int
@@ -79,7 +94,53 @@ async def require_activity_permission(
         "PXC permission %s denied for user %s on activities of user %s", permission.name, caller_user_id, owner_user_id
     )
     await permission.record_denial(USER, build_scope_path(USER, str(owner_user_id)))
-    raise PxcActivityNotPermitted(f"You are not allowed to do this; it needs the {permission.name} permission.")
+    raise PxcActivityNotPermitted(PXC_NOT_PERMITTED_MESSAGE.format(permission.name))
+
+
+def get_launch_permissions(level: str) -> tuple[Permission, ...]:
+    """Return the permissions that allow a launch at this level, any one of which is enough.
+
+    ``edit`` needs the edit permission. ``play`` and ``view`` need the play permission or the edit permission.
+
+    Raises:
+        ValueError: if the level is none of ``edit``, ``play`` and ``view``.
+    """
+    if level == "edit":
+        return (PXC_ACTIVITY_EDIT,)
+    if level in ("play", "view"):
+        return (PXC_ACTIVITY_PLAY, PXC_ACTIVITY_EDIT)
+    raise ValueError(f"Unknown launch level {level!r}.")
+
+
+def _get_launch_scope(owner_user_id: int | None) -> tuple[PermissionScope, str | None]:
+    """Return the scope and path a launch is checked at: the owner's user scope, or global for no owner."""
+    if owner_user_id is None:
+        return GLOBAL, None
+    return USER, build_scope_path(USER, str(owner_user_id))
+
+
+async def has_launch_permission(
+    session: AsyncSession, level: str, owner_user_id: int | None, caller_user_id: int
+) -> bool:
+    """Whether this user holds a permission that allows a launch at this level.
+
+    The permissions are checked at the activity owner's user scope, or at global for an activity with no
+    owner; a grant at global counts either way. A user id that names no account holds nothing.
+    Records nothing.
+    """
+    user = await session.get(User, caller_user_id)
+    if user is None:
+        logger.warning("PXC launch at level %s checked for unknown user %s", level, caller_user_id)
+        return False
+    scope, scope_path = _get_launch_scope(owner_user_id)
+    queries = [PermissionCheckQuery(permission, scope, scope_path) for permission in get_launch_permissions(level)]
+    return any(await batched_can(user, queries, session))
+
+
+async def record_launch_denial(level: str, owner_user_id: int | None) -> None:
+    """Record a refused launch as a denial of the first permission that allows the level."""
+    scope, scope_path = _get_launch_scope(owner_user_id)
+    await get_launch_permissions(level)[0].record_denial(scope, scope_path)
 
 
 async def get_permitted_activity(activity_id: str, permission: Permission) -> PxcActivity:
