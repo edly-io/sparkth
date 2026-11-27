@@ -14,6 +14,7 @@ import { RiskChips } from "@/core/permissions/components/ui/RiskChips";
 import { RoleBadges } from "@/core/permissions/components/ui/RoleBadges";
 import { RolePermissionList } from "@/core/permissions/components/ui/RolePermissionList";
 import { usePermissionList } from "@/core/permissions/hooks";
+import { ROLES_PATH } from "@/core/permissions/paths";
 import { formatRoleName } from "@/core/permissions/roleDisplay";
 import type { RoleResponse } from "@/core/permissions/types";
 
@@ -86,7 +87,7 @@ export default function RolePage() {
             <ChevronRight className="h-4 w-4" />
           </li>
           <li>
-            <Link href="/dashboard/permissions/roles" className="hover:text-foreground">
+            <Link href={ROLES_PATH} className="hover:text-foreground">
               {tPermissions("nav.roles")}
             </Link>
           </li>

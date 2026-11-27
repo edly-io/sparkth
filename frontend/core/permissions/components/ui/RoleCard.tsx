@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { Popover, PopoverContent, PopoverTrigger } from "@/core/components/ui/Popover";
 import { RiskChips } from "@/core/permissions/components/ui/RiskChips";
 import { RoleBadges } from "@/core/permissions/components/ui/RoleBadges";
+import { getRolePath } from "@/core/permissions/paths";
 import { formatRoleName, getRoleHolders } from "@/core/permissions/roleDisplay";
 import type { RoleResponse } from "@/core/permissions/types";
 
@@ -24,10 +25,7 @@ export function RoleCard({ role, onDelete }: { role: RoleResponse; onDelete?: ()
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-base font-semibold text-foreground">
-            <Link
-              href={`/dashboard/permissions/roles/role?id=${role.id}`}
-              className="hover:underline focus-visible:underline"
-            >
+            <Link href={getRolePath(role.id)} className="hover:underline focus-visible:underline">
               {formatRoleName(role.name)}
             </Link>
           </h2>

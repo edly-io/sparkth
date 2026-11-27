@@ -14,7 +14,7 @@ const client = vi.hoisted(() => ({
 vi.mock("@/core/permissions/client", () => client);
 const { listRoles, createRole, deleteRole, checkPermissions } = client;
 
-import RolesPage from "@/app/dashboard/permissions/roles/RolesPage";
+import RolesPage from "@/app/dashboard/permissions/(tabs)/roles/RolesPage";
 
 function role(id: number, name: string, overrides: Partial<RoleResponse> = {}): RoleResponse {
   return {
