@@ -202,7 +202,7 @@ Plugin code raises typed exceptions; FastAPI translates them to `HTTPException` 
 ## 9. Compose Plugin: Service + LLM Layer + Encryption
 
 **Files:** `sparkth/plugins/compose/service.py`, `sparkth/plugins/compose/llm.py`,
-`sparkth/plugins/compose/classifiers/`, `sparkth/plugins/compose/middleware.py`, `sparkth/llm/providers.py`,
+`sparkth/plugins/compose/planner/`, `sparkth/llm/providers.py`,
 `sparkth/llm/service.py`, `sparkth/core/encryption.py`, `sparkth/core/cache.py`
 
 - `ComposeService` owns conversation logic and history management
@@ -210,10 +210,9 @@ Plugin code raises typed exceptions; FastAPI translates them to `HTTPException` 
 - `compose/llm.py` runs a chat turn against the model. `complete_turn` and `stream_turn` run a turn with tools on a
   LangChain `create_agent` graph, one tool call at a time in the model's order, and stream a turn without tools
   token by token. The shared providers only build the chat model and answer a single message without tools
-- Two classifiers in `classifiers/` decide, before the chat model is reached, whether a turn
-  is in scope for any enabled Compose agent (`MessageScopeClassifier`) and whether answering it needs
-  the attached documents (`RAGSearchClassifier`). Both are one structured-output call on the
-  cheapest model of the user's provider, sharing `BaseClassifier` for everything but the judgement
+- `compose/planner/` decides each turn: it hands each step to the enabled agent suited for it, or to the operator
+  for an operation, reads what the step returns, then runs the next step or ends the turn. It answers small
+  talk itself and refuses what no agent can do
 - Stored LLM API keys and each user's plugin config are encrypted at rest with Fernet via `EncryptionService`
   (`sparkth/core/encryption.py`, `EncryptedJSON` in `sparkth/core/models/types.py`); key from
   `ENCRYPTION_KEY`, which may list several comma-separated keys for rotation (the first encrypts, any

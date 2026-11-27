@@ -196,14 +196,12 @@ class ComposeScopeClassified(AnalyticsEventSchema):
 
 
 class ComposeRagSearchClassified(AnalyticsEventSchema):
-    """The search classifier decided whether a turn needed the attached documents.
+    """The search classifier decided whether a turn needed the attached documents. No longer emitted;
+    registered so recorded rows still read.
 
-    Emitted only when the classifier was consulted, so its absence means there was no
-    decision to make — not that retrieval was skipped.
-    ``requires_search=False`` means attached documents were deliberately not read.
+    ``requires_search=False`` meant attached documents were deliberately not read.
     ``documents_with_unreadable_structure`` counts failed heading lookups, not documents
     that genuinely have no sections.
-    A failed classification is fatal to the turn and lands as ``compose.turn_failed`` instead.
     """
 
     event_type = "compose.rag_search_classified"
@@ -258,7 +256,8 @@ class TurnFailureCause(StrEnum):
     """Why a turn ended in an error message instead of a reply.
 
     A closed set on purpose: the exception's own text can quote a prompt or a document, so
-    the cause is named from here rather than carried from the error.
+    the cause is named from here rather than carried from the error. ``RAG_SEARCH_ERROR`` is no longer
+    recorded; it stays so recorded rows still read.
     """
 
     LLM_CONFIG_UNUSABLE = "llm_config_unusable"

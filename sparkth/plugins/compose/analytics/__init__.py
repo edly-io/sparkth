@@ -28,7 +28,6 @@ from sparkth.plugins.compose.analytics.events import (
 from sparkth.plugins.compose.analytics.utils import (
     AnalyticsAttribution,
     ComposeAttachmentAnalytics,
-    ComposeClassifierAnalytics,
     ComposeTurnAnalytics,
     ExecutedTool,
     as_utc,
@@ -44,7 +43,6 @@ __all__ = [
     "AnalyticsAttribution",
     "ComposeAttachmentAnalytics",
     "ComposeAttachmentUnusable",
-    "ComposeClassifierAnalytics",
     "ComposeCompletionServed",
     "ComposeCompletionServedV2",
     "ComposeConversationStarted",

@@ -39,9 +39,8 @@ The practical consequences worth knowing:
   parameter from its caller, and the Open edX publishing path asks the model for the same
   tag again when it creates a course run, since the model is the only thing that knows
   which language it wrote the course in.
-- Internal prompts stay English on purpose: the classifier that decides whether a message
-  needs a search of the attached documents, and the agent that runs that search, reason in
-  English while handling input in any language. Nothing they produce is shown to a user.
+- Internal prompts stay English on purpose: the agent that searches the attached documents
+  reasons in English while handling input in any language. Nothing it produces is shown to a user.
 - Output quality varies by language and Sparkth does not restrict which languages it will
   generate in, so output in a language nobody has reviewed is possible.
 

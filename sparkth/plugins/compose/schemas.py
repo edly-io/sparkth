@@ -236,50 +236,6 @@ class ConversationDetailResponse(ConversationResponse):
     messages: list[MessageResponse]
 
 
-class ClassifierVerdict(BaseModel):
-    """What every classifier verdict carries besides its decision.
-
-    A negative decision is the one a user or a reviewer asks about later, and the decision
-    itself does not say why. The reason is written by the model and read from a log, which is
-    why it is specified as a category rather than free narration: the message being judged can
-    hold course content, and these logs have never carried any of it.
-    """
-
-    refusal_reason: str = Field(
-        default="",
-        description=(
-            "When the decision is negative, a short phrase naming the category it fell under. "
-            "Name the category only: never quote or restate the user's message. Leave empty "
-            "when the decision is positive."
-        ),
-    )
-
-
-class DocumentHeadings(BaseModel):
-    """One attached document as the search classifier sees it: a name and its section paths.
-
-    ``structure_unavailable`` separates headings that could not be read from a document that
-    genuinely has none; both arrive with empty ``sections``.
-    """
-
-    name: str
-    sections: list[str] = Field(default_factory=list)
-    structure_unavailable: bool = False
-
-
-class RAGSearchInput(BaseModel):
-    """What the search classifier is asked to judge: a message against what the documents hold."""
-
-    query: str
-    documents: list[DocumentHeadings] = Field(default_factory=list)
-
-
-class RAGSearchVerdict(ClassifierVerdict):
-    """Whether answering this message needs content retrieved from the attached documents."""
-
-    requires_search: bool
-
-
 class ConversationAttachmentCreate(BaseModel):
     """Request body for attaching a document to a conversation."""
 

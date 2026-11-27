@@ -19,11 +19,3 @@ class DocumentNotFound(Exception):
     One exception for all three: telling a caller a document exists but is not theirs would
     confirm it to someone who cannot see it.
     """
-
-
-class RAGSearchError(Exception):
-    """Raised when the search classifier cannot decide whether to retrieve."""
-
-
-class ClassifierError(Exception):
-    """Raised when a classifier's LangChain call fails, or its answer does not fit the output schema."""
