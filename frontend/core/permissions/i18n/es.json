@@ -41,7 +41,6 @@
       "form": {
         "name": "Nombre",
         "description": "Descripción",
-        "cancel": "Cancelar",
         "nameTaken": "Ya existe un rol con este nombre."
       },
       "create": {
@@ -61,7 +60,6 @@
         "permissionsFailed": "No se pudieron cargar los permisos. Inténtalo de nuevo."
       },
       "edit": {
-        "button": "Editar",
         "title": "Editar rol",
         "save": "Guardar",
         "failed": "No se pudo guardar el rol. Inténtalo de nuevo."
@@ -76,7 +74,6 @@
         "nobody": "Nadie tiene este rol. No se puede deshacer.",
         "confirm": "Eliminar",
         "pending": "Eliminando…",
-        "cancel": "Cancelar",
         "failed": "No se pudo eliminar el rol. Inténtalo de nuevo."
       },
       "detail": {
@@ -85,6 +82,7 @@
         "loadFailed": "No se pudo cargar el rol. Inténtalo de nuevo más tarde.",
         "permissionsLoading": "Cargando los permisos…",
         "permissionsFailed": "No se pudieron cargar los permisos. Inténtalo de nuevo más tarde.",
+        "edit": "Editar",
         "save": "Guardar cambios",
         "saveFailed": "No se pudieron guardar los permisos. Inténtalo de nuevo.",
         "saved": "Guardado",
@@ -95,7 +93,8 @@
           "groupCount": "{granted} de {total}",
           "allInCategory": "Todos los permisos en {category}"
         }
-      }
+      },
+      "cancel": "Cancelar"
     },
     "groups": {
       "label": "Grupos",

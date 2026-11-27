@@ -31,7 +31,7 @@ export function DeleteRoleDialog({
       }
       confirmLabel={t("delete.confirm")}
       pendingLabel={t("delete.pending")}
-      cancelLabel={t("delete.cancel")}
+      cancelLabel={t("cancel")}
       errorMessage={t("delete.failed")}
       onConfirm={onConfirm}
       onClose={onClose}

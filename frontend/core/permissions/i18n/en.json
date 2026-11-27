@@ -41,7 +41,6 @@
       "form": {
         "name": "Name",
         "description": "Description",
-        "cancel": "Cancel",
         "nameTaken": "A role with this name already exists."
       },
       "create": {
@@ -61,7 +60,6 @@
         "permissionsFailed": "Couldn't load the permissions. Try again."
       },
       "edit": {
-        "button": "Edit",
         "title": "Edit role",
         "save": "Save",
         "failed": "Couldn't save the role. Try again."
@@ -76,7 +74,6 @@
         "nobody": "No one holds this role. This can't be undone.",
         "confirm": "Delete",
         "pending": "Deleting…",
-        "cancel": "Cancel",
         "failed": "Couldn't delete the role. Try again."
       },
       "detail": {
@@ -85,6 +82,7 @@
         "loadFailed": "Couldn't load the role. Try again later.",
         "permissionsLoading": "Loading the permissions…",
         "permissionsFailed": "Couldn't load the permissions. Try again later.",
+        "edit": "Edit",
         "save": "Save changes",
         "saveFailed": "Couldn't save the permissions. Try again.",
         "saved": "Saved",
@@ -95,7 +93,8 @@
           "groupCount": "{granted} of {total}",
           "allInCategory": "All permissions in {category}"
         }
-      }
+      },
+      "cancel": "Cancel"
     },
     "groups": {
       "label": "Groups",

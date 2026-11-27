@@ -41,7 +41,6 @@
       "form": {
         "name": "Nom",
         "description": "Description",
-        "cancel": "Annuler",
         "nameTaken": "Un rôle porte déjà ce nom."
       },
       "create": {
@@ -61,7 +60,6 @@
         "permissionsFailed": "Impossible de charger les permissions. Réessayez."
       },
       "edit": {
-        "button": "Modifier",
         "title": "Modifier le rôle",
         "save": "Enregistrer",
         "failed": "Impossible d'enregistrer le rôle. Réessayez."
@@ -76,7 +74,6 @@
         "nobody": "Personne n'a ce rôle. Cette action est irréversible.",
         "confirm": "Supprimer",
         "pending": "Suppression…",
-        "cancel": "Annuler",
         "failed": "Impossible de supprimer le rôle. Réessayez."
       },
       "detail": {
@@ -85,6 +82,7 @@
         "loadFailed": "Impossible de charger le rôle. Réessayez plus tard.",
         "permissionsLoading": "Chargement des permissions…",
         "permissionsFailed": "Impossible de charger les permissions. Réessayez plus tard.",
+        "edit": "Modifier",
         "save": "Enregistrer les modifications",
         "saveFailed": "Impossible d'enregistrer les permissions. Réessayez.",
         "saved": "Enregistré",
@@ -95,7 +93,8 @@
           "groupCount": "{granted} sur {total}",
           "allInCategory": "Toutes les permissions dans {category}"
         }
-      }
+      },
+      "cancel": "Annuler"
     },
     "groups": {
       "label": "Groupes",

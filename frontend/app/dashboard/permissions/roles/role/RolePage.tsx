@@ -85,7 +85,7 @@ export default function RolePage() {
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold text-foreground sm:text-3xl">{name}</h1>
           <RoleBadges role={role} />
-          {!role.is_builtin && (
+          {canEdit && (
             <Button
               variant="outline"
               size="sm"
@@ -93,7 +93,7 @@ export default function RolePage() {
               onClick={() => setEditing(true)}
             >
               <Pencil className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-              {tPermissions("roles.edit.button")}
+              {t("edit")}
             </Button>
           )}
         </div>

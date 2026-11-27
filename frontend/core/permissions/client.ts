@@ -90,7 +90,7 @@ export async function setRolePermissions(
   );
 }
 
-/** Changes a role's name, its description or both, leaving out a field it isn't given. */
+/** Changes a role's name, its description or both; a field left out of `details` stays as it is. */
 export async function updateRoleDetails(
   token: string,
   roleId: number,

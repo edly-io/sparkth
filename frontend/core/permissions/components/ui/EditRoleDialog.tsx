@@ -11,8 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/core/components/ui/Dialog";
-import { Input } from "@/core/components/ui/Input";
-import { Textarea } from "@/core/components/ui/Textarea";
+import { RoleDetailsFields } from "@/core/permissions/components/ui/RoleDetailsFields";
 import type { RoleResponse, RoleUpdate } from "@/core/permissions/types";
 
 type RoleDetails = Pick<RoleResponse, "name" | "description">;
@@ -89,22 +88,13 @@ function DetailsForm({
 
   return (
     <form onSubmit={submit} className="space-y-4">
-      <Input
-        id="role-name"
-        label={t("form.name")}
-        value={name}
-        maxLength={50}
-        error={nameError}
-        onChange={(event) => setName(event.target.value)}
-        autoFocus
-      />
-      <Textarea
-        id="role-description"
-        label={t("form.description")}
-        value={description}
-        maxLength={255}
-        rows={2}
-        onChange={(event) => setDescription(event.target.value)}
+      <RoleDetailsFields
+        name={name}
+        description={description}
+        nameError={nameError}
+        descriptionRows={2}
+        onNameChange={setName}
+        onDescriptionChange={setDescription}
       />
       {saveFailed && (
         <p role="alert" className="text-sm text-error-600">
@@ -113,7 +103,7 @@ function DetailsForm({
       )}
       <DialogFooter>
         <Button type="button" variant="ghost" onClick={onClose} disabled={saving}>
-          {t("form.cancel")}
+          {t("cancel")}
         </Button>
         <Button type="submit" loading={saving} disabled={!name.trim() || !changed}>
           {t("edit.save")}

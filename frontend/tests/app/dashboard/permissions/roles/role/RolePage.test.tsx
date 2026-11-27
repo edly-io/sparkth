@@ -250,6 +250,7 @@ describe("RolePage", () => {
 
     expect(await screen.findByRole("checkbox", { name: "Edit roles" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Save changes" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
     expect(checkPermissions).toHaveBeenCalledWith("test-token", [
       { permission: "role.update", scope: "role", scopeObjectId: "7" },
     ]);
