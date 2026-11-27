@@ -4,8 +4,8 @@ Every route addresses one role by ``{role_id}`` and authorizes at the ``role`` s
 delegated to a single role; a global grant still satisfies it via the scope cascade. Listing needs
 ``role.read``, giving a role ``role.assign`` and taking it away ``role.revoke``. A request gives the role to
 1 to 100 users (``user_ids``) at one scope the caller names, and a holder of ``role.assign`` at a role may
-give it at any scope. A request takes the role away by 1 to 100 assignment ids (``assignment_ids`` query
-parameters); only an active assignment of the role in the path is found. Giving and taking away are each
+give it at any scope. A request takes the role away by 1 to 100 assignment ids (``assignment_ids`` in the
+body); only an active assignment of the role in the path is found. Giving and taking away are each
 all or nothing.
 Authored with LLM (Claude) assistance.
 """
@@ -13,8 +13,11 @@ Authored with LLM (Claude) assistance.
 from fastapi import APIRouter, Depends, Query, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.api.v1.permissions.constants import MAX_ROLE_ASSIGNMENT_CHANGES
-from sparkth.api.v1.permissions.schemas import UserRoleAssignmentResponse, UserRoleAssignmentsCreate
+from sparkth.api.v1.permissions.schemas import (
+    RoleAssignmentsRevoke,
+    UserRoleAssignmentResponse,
+    UserRoleAssignmentsCreate,
+)
 from sparkth.core.models.user import User
 from sparkth.core.permissions.grants import get_role_assignment, get_user_assignments_of_role
 from sparkth.core.permissions.models import RoleAssignment
@@ -124,11 +127,9 @@ async def assign_role_to_users(
     dependencies=[Depends(ROLE_REVOKE.require(ROLE, "role_id"))],
 )
 async def revoke_user_role_assignments(
-    role_id: int,
-    assignment_ids: list[int] = Query(..., min_length=1, max_length=MAX_ROLE_ASSIGNMENT_CHANGES),
-    session: AsyncSession = Depends(get_async_session),
+    role_id: int, payload: RoleAssignmentsRevoke, session: AsyncSession = Depends(get_async_session)
 ) -> None:
-    """Take a role away from up to 100 users, given as repeated ``assignment_ids`` query parameters.
+    """Take a role away from up to 100 users, given as ``assignment_ids`` in the request body.
 
     All or nothing: an id that is unknown, already revoked or of another role answers 404, and an assignment
     whose stored scope is no longer registered, or whose stored scope and object pairing is no longer valid,
@@ -136,7 +137,7 @@ async def revoke_user_role_assignments(
     """
     role = await get_role(role_id, session)
     # ponytail: one lookup per id, capped at 100 per request; one batched query if that ceiling rises.
-    assignments = [await get_role_assignment(i, role_id, session) for i in dict.fromkeys(assignment_ids)]
+    assignments = [await get_role_assignment(i, role_id, session) for i in dict.fromkeys(payload.assignment_ids)]
     # ponytail: a row whose scope kind is no longer registered cannot be revoked here (422, nothing revoked);
     # upgrade to a revoke that works from the row's own strings.
     permission_scopes = [get_permission_scope(assignment.scope) for assignment in assignments]

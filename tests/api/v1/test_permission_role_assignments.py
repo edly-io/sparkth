@@ -75,7 +75,7 @@ async def test_assigned_user_gains_and_revoked_user_loses_the_role(client: Async
     assert (body["scope"], body["scope_object_id"]) == ("global", None)
     assert await can(target, AUDIT_READ, GLOBAL, None, session)
 
-    revoked = await client.delete(_build_assignments_url(role), params={"assignment_ids": [body["id"]]})
+    revoked = await client.request("DELETE", _build_assignments_url(role), json={"assignment_ids": [body["id"]]})
     assert revoked.status_code == 204
     assert not await can(target, AUDIT_READ, GLOBAL, None, session)
 
@@ -246,7 +246,9 @@ async def test_revoke_under_unknown_role_returns_404(client: AsyncClient, sessio
     login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
     await session.commit()
 
-    assert (await client.delete(_build_assignments_url(999999), params={"assignment_ids": [1]})).status_code == 404
+    assert (
+        await client.request("DELETE", _build_assignments_url(999999), json={"assignment_ids": [1]})
+    ).status_code == 404
 
 
 async def test_assign_unknown_scope_kind_returns_422(client: AsyncClient, session: AsyncSession) -> None:
@@ -357,7 +359,7 @@ async def test_revoke_records_the_audit_event_for_the_caller(
     await session.commit()
     login_as(client, caller)
 
-    await client.delete(_build_assignments_url(role), params={"assignment_ids": [_get_id(assignment)]})
+    await client.request("DELETE", _build_assignments_url(role), json={"assignment_ids": [_get_id(assignment)]})
 
     event = (await audit_events())[-1]
     assert (event.category, event.action, event.actor_id) == ("role", "unassigned", str(caller.id))
@@ -369,7 +371,7 @@ async def test_revoke_unknown_assignment_returns_404(client: AsyncClient, sessio
     login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
     await session.commit()
 
-    response = await client.delete(_build_assignments_url(role), params={"assignment_ids": [999999]})
+    response = await client.request("DELETE", _build_assignments_url(role), json={"assignment_ids": [999999]})
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Role assignment not found: 999999"
@@ -383,7 +385,9 @@ async def test_revoke_an_assignment_of_another_role_returns_404(client: AsyncCli
     login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
     await session.commit()
 
-    response = await client.delete(_build_assignments_url(role_a), params={"assignment_ids": [_get_id(assignment)]})
+    response = await client.request(
+        "DELETE", _build_assignments_url(role_a), json={"assignment_ids": [_get_id(assignment)]}
+    )
 
     assert response.status_code == 404
     assert await _count_assignments(target, role_b, session) == 1
@@ -396,8 +400,10 @@ async def test_revoke_twice_returns_404_the_second_time(client: AsyncClient, ses
     login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
     await session.commit()
 
-    first = await client.delete(_build_assignments_url(role), params={"assignment_ids": [_get_id(assignment)]})
-    second = await client.delete(_build_assignments_url(role), params={"assignment_ids": [_get_id(assignment)]})
+    first = await client.request("DELETE", _build_assignments_url(role), json={"assignment_ids": [_get_id(assignment)]})
+    second = await client.request(
+        "DELETE", _build_assignments_url(role), json={"assignment_ids": [_get_id(assignment)]}
+    )
 
     assert (first.status_code, second.status_code) == (204, 404)
 
@@ -411,7 +417,9 @@ async def test_revoke_an_assignment_at_an_unregistered_scope_returns_422(
     login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
     await session.commit()
 
-    response = await client.delete(_build_assignments_url(role), params={"assignment_ids": [_get_id(assignment)]})
+    response = await client.request(
+        "DELETE", _build_assignments_url(role), json={"assignment_ids": [_get_id(assignment)]}
+    )
 
     assert response.status_code == 422
     assert await _count_assignments(target, role, session) == 1
@@ -425,7 +433,7 @@ async def test_role_assign_does_not_allow_revoke(client: AsyncClient, session: A
     await session.commit()
 
     assert (
-        await client.delete(_build_assignments_url(role), params={"assignment_ids": [_get_id(assignment)]})
+        await client.request("DELETE", _build_assignments_url(role), json={"assignment_ids": [_get_id(assignment)]})
     ).status_code == 403
 
 
@@ -537,8 +545,8 @@ async def test_revoke_several_user_assignments_in_one_request(
     login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
     await session.commit()
 
-    response = await client.delete(
-        _build_assignments_url(role), params={"assignment_ids": [_get_id(row) for row in assignments]}
+    response = await client.request(
+        "DELETE", _build_assignments_url(role), json={"assignment_ids": [_get_id(row) for row in assignments]}
     )
 
     assert response.status_code == 204
@@ -555,8 +563,8 @@ async def test_revoke_user_assignments_is_all_or_nothing(
     login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
     await session.commit()
 
-    response = await client.delete(
-        _build_assignments_url(role), params={"assignment_ids": [_get_id(assignment), 999999]}
+    response = await client.request(
+        "DELETE", _build_assignments_url(role), json={"assignment_ids": [_get_id(assignment), 999999]}
     )
 
     assert response.status_code == 404
@@ -575,8 +583,8 @@ async def test_revoke_user_assignments_is_all_or_nothing_across_roles(
     login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
     await session.commit()
 
-    response = await client.delete(
-        _build_assignments_url(role), params={"assignment_ids": [_get_id(own), _get_id(foreign)]}
+    response = await client.request(
+        "DELETE", _build_assignments_url(role), json={"assignment_ids": [_get_id(own), _get_id(foreign)]}
     )
 
     assert response.status_code == 404
@@ -589,7 +597,9 @@ async def test_revoke_user_assignments_requires_at_least_one_id(client: AsyncCli
     login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
     await session.commit()
 
-    assert (await client.delete(_build_assignments_url(role))).status_code == 422
+    assert (
+        await client.request("DELETE", _build_assignments_url(role), json={"assignment_ids": []})
+    ).status_code == 422
 
 
 async def test_revoke_user_assignments_rejects_more_than_the_limit(client: AsyncClient, session: AsyncSession) -> None:
@@ -597,6 +607,8 @@ async def test_revoke_user_assignments_rejects_more_than_the_limit(client: Async
     login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
     await session.commit()
 
-    response = await client.delete(_build_assignments_url(role), params={"assignment_ids": list(range(1, 102))})
+    response = await client.request(
+        "DELETE", _build_assignments_url(role), json={"assignment_ids": list(range(1, 102))}
+    )
 
     assert response.status_code == 422

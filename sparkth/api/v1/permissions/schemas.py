@@ -104,8 +104,8 @@ class GroupResponse(BaseModel):
     description: str | None
 
 
-class GroupMembersAdd(BaseModel):
-    """The users to add to a group in one request."""
+class GroupMembersChange(BaseModel):
+    """The users an add or remove request names."""
 
     user_ids: list[int] = Field(min_length=1, max_length=MAX_GROUP_MEMBER_CHANGES)
 
@@ -138,6 +138,12 @@ class UserRoleAssignmentsCreate(BaseModel):
         max_length=100,
         description="The object the scope names. Leave it out for a scope without objects.",
     )
+
+
+class RoleAssignmentsRevoke(BaseModel):
+    """The ids of the role assignments to take away in one request."""
+
+    assignment_ids: list[int] = Field(min_length=1, max_length=MAX_ROLE_ASSIGNMENT_CHANGES)
 
 
 class UserRoleAssignmentResponse(BaseModel):
