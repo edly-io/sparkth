@@ -8,7 +8,7 @@ from typing import Self
 
 from pydantic import BaseModel, Field, model_validator
 
-from sparkth.api.v1.permissions.constants import MAX_GROUP_MEMBER_CHANGES
+from sparkth.api.v1.permissions.constants import MAX_GROUP_MEMBER_CHANGES, MAX_ROLE_ASSIGNMENT_CHANGES
 from sparkth.core.permissions.enums import PermissionRisk
 
 
@@ -128,8 +128,10 @@ class GroupRoleAssignmentResponse(BaseModel):
     assigned_at: datetime
 
 
-class UserRoleAssignmentCreate(BaseModel):
-    user_id: int
+class UserRoleAssignmentsCreate(BaseModel):
+    """The users to give a role to, all at one scope, in one request."""
+
+    user_ids: list[int] = Field(min_length=1, max_length=MAX_ROLE_ASSIGNMENT_CHANGES)
     scope: str = Field(min_length=1, max_length=50, description="Scope kind to give the role at, e.g. 'global'.")
     scope_object_id: str | None = Field(
         default=None,

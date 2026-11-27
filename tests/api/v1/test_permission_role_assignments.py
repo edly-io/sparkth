@@ -47,9 +47,8 @@ def _get_id(row: Role | User | RoleAssignment | int) -> int:
     return row.id
 
 
-def _build_assignments_url(role: Role | int, assignment: RoleAssignment | int | None = None) -> str:
-    suffix = "" if assignment is None else f"/{_get_id(assignment)}"
-    return f"/api/v1/permissions/roles/{_get_id(role)}/assignments/users{suffix}"
+def _build_assignments_url(role: Role | int) -> str:
+    return f"/api/v1/permissions/roles/{_get_id(role)}/assignments/users"
 
 
 async def _count_assignments(user: User | int, role: Role, session: AsyncSession) -> int:
@@ -69,14 +68,14 @@ async def test_assigned_user_gains_and_revoked_user_loses_the_role(client: Async
     await session.commit()
     login_as(client, caller)
 
-    assigned = await client.post(_build_assignments_url(role), json={"user_id": target.id, "scope": "global"})
+    assigned = await client.post(_build_assignments_url(role), json={"user_ids": [target.id], "scope": "global"})
     assert assigned.status_code == 201
-    body = assigned.json()
+    (body,) = assigned.json()
     assert (body["user_id"], body["role_id"], body["role_name"]) == (target.id, role.id, role.name)
     assert (body["scope"], body["scope_object_id"]) == ("global", None)
     assert await can(target, AUDIT_READ, GLOBAL, None, session)
 
-    revoked = await client.delete(_build_assignments_url(role, body["id"]))
+    revoked = await client.delete(_build_assignments_url(role), params={"assignment_ids": [body["id"]]})
     assert revoked.status_code == 204
     assert not await can(target, AUDIT_READ, GLOBAL, None, session)
 
@@ -158,7 +157,7 @@ async def test_assign_records_the_audit_event_for_the_caller(
     await session.commit()
     login_as(client, caller)
 
-    await client.post(_build_assignments_url(role), json={"user_id": target.id, "scope": "global"})
+    await client.post(_build_assignments_url(role), json={"user_ids": [target.id], "scope": "global"})
 
     event = (await audit_events())[-1]
     assert (event.category, event.action, event.actor_id) == ("role", "assigned", str(caller.id))
@@ -172,13 +171,13 @@ async def test_assign_twice_returns_the_same_row_and_records_once(
     target = await make_user(session, _uniq("target"))
     login_as(client, await make_user_with_permissions(session, ["role.assign"]))
     await session.commit()
-    payload = {"user_id": target.id, "scope": "global"}
+    payload = {"user_ids": [target.id], "scope": "global"}
 
     first = await client.post(_build_assignments_url(role), json=payload)
     second = await client.post(_build_assignments_url(role), json=payload)
 
     assert (first.status_code, second.status_code) == (201, 201)
-    assert first.json()["id"] == second.json()["id"]
+    assert first.json()[0]["id"] == second.json()[0]["id"]
     assert [e.action for e in await audit_events() if e.category == "role"].count("assigned") == 1
 
 
@@ -193,11 +192,11 @@ async def test_assign_at_an_object_scope(client: AsyncClient, session: AsyncSess
 
     response = await client.post(
         _build_assignments_url(role),
-        json={"user_id": target.id, "scope": "group", "scope_object_id": str(group.id)},
+        json={"user_ids": [target.id], "scope": "group", "scope_object_id": str(group.id)},
     )
 
     assert response.status_code == 201
-    body = response.json()
+    (body,) = response.json()
     assert (body["scope"], body["scope_object_id"]) == ("group", str(group.id))
 
 
@@ -206,7 +205,7 @@ async def test_assign_unknown_user_returns_404(client: AsyncClient, session: Asy
     login_as(client, await make_user_with_permissions(session, ["role.assign"]))
     await session.commit()
 
-    response = await client.post(_build_assignments_url(role), json={"user_id": 999999, "scope": "global"})
+    response = await client.post(_build_assignments_url(role), json={"user_ids": [999999], "scope": "global"})
 
     assert response.status_code == 404
     assert response.json()["detail"] == "User not found: 999999"
@@ -220,7 +219,7 @@ async def test_assign_soft_deleted_user_returns_404(client: AsyncClient, session
     login_as(client, await make_user_with_permissions(session, ["role.assign"]))
     await session.commit()
 
-    response = await client.post(_build_assignments_url(role), json={"user_id": gone.id, "scope": "global"})
+    response = await client.post(_build_assignments_url(role), json={"user_ids": [gone.id], "scope": "global"})
 
     assert response.status_code == 404
     assert await _count_assignments(gone, role, session) == 0
@@ -231,7 +230,7 @@ async def test_assign_unknown_role_returns_404(client: AsyncClient, session: Asy
     login_as(client, await make_user_with_permissions(session, ["role.assign"]))
     await session.commit()
 
-    response = await client.post(_build_assignments_url(999999), json={"user_id": target.id, "scope": "global"})
+    response = await client.post(_build_assignments_url(999999), json={"user_ids": [target.id], "scope": "global"})
 
     assert response.status_code == 404
 
@@ -247,7 +246,7 @@ async def test_revoke_under_unknown_role_returns_404(client: AsyncClient, sessio
     login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
     await session.commit()
 
-    assert (await client.delete(_build_assignments_url(999999, 1))).status_code == 404
+    assert (await client.delete(_build_assignments_url(999999), params={"assignment_ids": [1]})).status_code == 404
 
 
 async def test_assign_unknown_scope_kind_returns_422(client: AsyncClient, session: AsyncSession) -> None:
@@ -256,7 +255,7 @@ async def test_assign_unknown_scope_kind_returns_422(client: AsyncClient, sessio
     login_as(client, await make_user_with_permissions(session, ["role.assign"]))
     await session.commit()
 
-    response = await client.post(_build_assignments_url(role), json={"user_id": target.id, "scope": "galaxy"})
+    response = await client.post(_build_assignments_url(role), json={"user_ids": [target.id], "scope": "galaxy"})
 
     assert response.status_code == 422
     assert await _count_assignments(target, role, session) == 0
@@ -271,7 +270,7 @@ async def test_assign_objectless_scope_with_an_object_id_returns_422(
     await session.commit()
 
     response = await client.post(
-        _build_assignments_url(role), json={"user_id": target.id, "scope": "global", "scope_object_id": "1"}
+        _build_assignments_url(role), json={"user_ids": [target.id], "scope": "global", "scope_object_id": "1"}
     )
 
     assert response.status_code == 422
@@ -284,7 +283,7 @@ async def test_assign_object_scope_without_an_object_id_returns_422(client: Asyn
     login_as(client, await make_user_with_permissions(session, ["role.assign"]))
     await session.commit()
 
-    response = await client.post(_build_assignments_url(role), json={"user_id": target.id, "scope": "group"})
+    response = await client.post(_build_assignments_url(role), json={"user_ids": [target.id], "scope": "group"})
 
     assert response.status_code == 422
     assert await _count_assignments(target, role, session) == 0
@@ -298,7 +297,7 @@ async def test_assign_at_an_unloaded_plugin_returns_422(client: AsyncClient, ses
 
     response = await client.post(
         _build_assignments_url(role),
-        json={"user_id": target.id, "scope": "plugin", "scope_object_id": "no-such-plugin"},
+        json={"user_ids": [target.id], "scope": "plugin", "scope_object_id": "no-such-plugin"},
     )
 
     assert response.status_code == 422
@@ -316,11 +315,12 @@ async def test_assign_at_a_loaded_plugin_returns_201(client: AsyncClient, sessio
 
     response = await client.post(
         _build_assignments_url(role),
-        json={"user_id": target.id, "scope": "plugin", "scope_object_id": plugin_name},
+        json={"user_ids": [target.id], "scope": "plugin", "scope_object_id": plugin_name},
     )
 
     assert response.status_code == 201
-    assert (response.json()["scope"], response.json()["scope_object_id"]) == ("plugin", plugin_name)
+    (body,) = response.json()
+    assert (body["scope"], body["scope_object_id"]) == ("plugin", plugin_name)
 
 
 async def test_assign_without_a_scope_returns_422(client: AsyncClient, session: AsyncSession) -> None:
@@ -329,7 +329,7 @@ async def test_assign_without_a_scope_returns_422(client: AsyncClient, session: 
     login_as(client, await make_user_with_permissions(session, ["role.assign"]))
     await session.commit()
 
-    assert (await client.post(_build_assignments_url(role), json={"user_id": target.id})).status_code == 422
+    assert (await client.post(_build_assignments_url(role), json={"user_ids": [target.id]})).status_code == 422
 
 
 async def test_assign_with_an_overlong_object_id_returns_422(client: AsyncClient, session: AsyncSession) -> None:
@@ -340,7 +340,7 @@ async def test_assign_with_an_overlong_object_id_returns_422(client: AsyncClient
 
     response = await client.post(
         _build_assignments_url(role),
-        json={"user_id": target.id, "scope": "group", "scope_object_id": "9" * 101},
+        json={"user_ids": [target.id], "scope": "group", "scope_object_id": "9" * 101},
     )
 
     assert response.status_code == 422
@@ -357,7 +357,7 @@ async def test_revoke_records_the_audit_event_for_the_caller(
     await session.commit()
     login_as(client, caller)
 
-    await client.delete(_build_assignments_url(role, assignment))
+    await client.delete(_build_assignments_url(role), params={"assignment_ids": [_get_id(assignment)]})
 
     event = (await audit_events())[-1]
     assert (event.category, event.action, event.actor_id) == ("role", "unassigned", str(caller.id))
@@ -369,7 +369,7 @@ async def test_revoke_unknown_assignment_returns_404(client: AsyncClient, sessio
     login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
     await session.commit()
 
-    response = await client.delete(_build_assignments_url(role, 999999))
+    response = await client.delete(_build_assignments_url(role), params={"assignment_ids": [999999]})
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Role assignment not found: 999999"
@@ -383,7 +383,7 @@ async def test_revoke_an_assignment_of_another_role_returns_404(client: AsyncCli
     login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
     await session.commit()
 
-    response = await client.delete(_build_assignments_url(role_a, assignment))
+    response = await client.delete(_build_assignments_url(role_a), params={"assignment_ids": [_get_id(assignment)]})
 
     assert response.status_code == 404
     assert await _count_assignments(target, role_b, session) == 1
@@ -396,8 +396,8 @@ async def test_revoke_twice_returns_404_the_second_time(client: AsyncClient, ses
     login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
     await session.commit()
 
-    first = await client.delete(_build_assignments_url(role, assignment))
-    second = await client.delete(_build_assignments_url(role, assignment))
+    first = await client.delete(_build_assignments_url(role), params={"assignment_ids": [_get_id(assignment)]})
+    second = await client.delete(_build_assignments_url(role), params={"assignment_ids": [_get_id(assignment)]})
 
     assert (first.status_code, second.status_code) == (204, 404)
 
@@ -411,7 +411,7 @@ async def test_revoke_an_assignment_at_an_unregistered_scope_returns_422(
     login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
     await session.commit()
 
-    response = await client.delete(_build_assignments_url(role, assignment))
+    response = await client.delete(_build_assignments_url(role), params={"assignment_ids": [_get_id(assignment)]})
 
     assert response.status_code == 422
     assert await _count_assignments(target, role, session) == 1
@@ -424,7 +424,9 @@ async def test_role_assign_does_not_allow_revoke(client: AsyncClient, session: A
     login_as(client, await make_user_with_permissions(session, ["role.assign"]))
     await session.commit()
 
-    assert (await client.delete(_build_assignments_url(role, assignment))).status_code == 403
+    assert (
+        await client.delete(_build_assignments_url(role), params={"assignment_ids": [_get_id(assignment)]})
+    ).status_code == 403
 
 
 async def test_role_revoke_does_not_allow_assign(client: AsyncClient, session: AsyncSession) -> None:
@@ -433,7 +435,7 @@ async def test_role_revoke_does_not_allow_assign(client: AsyncClient, session: A
     login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
     await session.commit()
 
-    response = await client.post(_build_assignments_url(role), json={"user_id": target.id, "scope": "global"})
+    response = await client.post(_build_assignments_url(role), json={"user_ids": [target.id], "scope": "global"})
 
     assert response.status_code == 403
 
@@ -444,7 +446,157 @@ async def test_role_scoped_assigner_reaches_only_that_role(client: AsyncClient, 
     target = await make_user(session, _uniq("target"))
     login_as(client, await make_user_with_permissions(session, ["role.assign"], "role", str(role_a.id)))
     await session.commit()
-    payload = {"user_id": target.id, "scope": "global"}
+    payload = {"user_ids": [target.id], "scope": "global"}
 
     assert (await client.post(_build_assignments_url(role_a), json=payload)).status_code == 201
     assert (await client.post(_build_assignments_url(role_b), json=payload)).status_code == 403
+
+
+async def test_assign_role_to_several_users_in_one_request(client: AsyncClient, session: AsyncSession) -> None:
+    role = await make_role(session, _uniq("role"), ["audit.read"])
+    targets = [await make_user(session, _uniq("target")) for _ in range(3)]
+    ids = [_get_id(target) for target in targets]
+    login_as(client, await make_user_with_permissions(session, ["role.assign"]))
+    await session.commit()
+
+    response = await client.post(_build_assignments_url(role), json={"user_ids": ids, "scope": "global"})
+
+    assert response.status_code == 201
+    assert [row["user_id"] for row in response.json()] == ids
+    for target in targets:
+        assert await can(target, AUDIT_READ, GLOBAL, None, session)
+
+
+async def test_assign_to_users_is_all_or_nothing(
+    client: AsyncClient, session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    role = await make_role(session, _uniq("role"), [])
+    first = await make_user(session, _uniq("first"))
+    second = await make_user(session, _uniq("second"))
+    login_as(client, await make_user_with_permissions(session, ["role.assign"]))
+    await session.commit()
+
+    response = await client.post(
+        _build_assignments_url(role), json={"user_ids": [first.id, second.id, 999999], "scope": "global"}
+    )
+
+    assert response.status_code == 404
+    assert [await _count_assignments(user, role, session) for user in (first, second)] == [0, 0]
+    assert "assigned" not in [e.action for e in await audit_events()]
+
+
+async def test_assign_to_users_counts_a_repeated_user_once(client: AsyncClient, session: AsyncSession) -> None:
+    role = await make_role(session, _uniq("role"), [])
+    first = await make_user(session, _uniq("first"))
+    second = await make_user(session, _uniq("second"))
+    login_as(client, await make_user_with_permissions(session, ["role.assign"]))
+    await session.commit()
+
+    response = await client.post(
+        _build_assignments_url(role), json={"user_ids": [first.id, first.id, second.id], "scope": "global"}
+    )
+
+    assert response.status_code == 201
+    assert [row["user_id"] for row in response.json()] == [first.id, second.id]
+    assert [await _count_assignments(user, role, session) for user in (first, second)] == [1, 1]
+
+
+async def test_assign_to_users_rejects_an_empty_list(client: AsyncClient, session: AsyncSession) -> None:
+    role = await make_role(session, _uniq("role"), [])
+    login_as(client, await make_user_with_permissions(session, ["role.assign"]))
+    await session.commit()
+
+    response = await client.post(_build_assignments_url(role), json={"user_ids": [], "scope": "global"})
+
+    assert response.status_code == 422
+
+
+async def test_assign_to_users_rejects_more_than_the_limit(
+    client: AsyncClient, session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    role = await make_role(session, _uniq("role"), [])
+    target = await make_user(session, _uniq("target"))
+    login_as(client, await make_user_with_permissions(session, ["role.assign"]))
+    await session.commit()
+
+    response = await client.post(
+        _build_assignments_url(role), json={"user_ids": [target.id, *range(1, 101)], "scope": "global"}
+    )
+
+    assert response.status_code == 422
+    assert await _count_assignments(target, role, session) == 0
+    assert "assigned" not in [e.action for e in await audit_events()]
+
+
+async def test_revoke_several_user_assignments_in_one_request(
+    client: AsyncClient, session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    role = await make_role(session, _uniq("role"), [])
+    targets = [await make_user(session, _uniq("target")) for _ in range(2)]
+    assignments = [await add_role_assignment(session, target, role, "global", None) for target in targets]
+    login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
+    await session.commit()
+
+    response = await client.delete(
+        _build_assignments_url(role), params={"assignment_ids": [_get_id(row) for row in assignments]}
+    )
+
+    assert response.status_code == 204
+    assert [await _count_assignments(target, role, session) for target in targets] == [0, 0]
+    assert [e.action for e in await audit_events()].count("unassigned") == 2
+
+
+async def test_revoke_user_assignments_is_all_or_nothing(
+    client: AsyncClient, session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    role = await make_role(session, _uniq("role"), [])
+    target = await make_user(session, _uniq("target"))
+    assignment = await add_role_assignment(session, target, role, "global", None)
+    login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
+    await session.commit()
+
+    response = await client.delete(
+        _build_assignments_url(role), params={"assignment_ids": [_get_id(assignment), 999999]}
+    )
+
+    assert response.status_code == 404
+    assert await _count_assignments(target, role, session) == 1
+    assert "unassigned" not in [e.action for e in await audit_events()]
+
+
+async def test_revoke_user_assignments_is_all_or_nothing_across_roles(
+    client: AsyncClient, session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    role = await make_role(session, _uniq("role"), [])
+    other = await make_role(session, _uniq("role"), [])
+    target = await make_user(session, _uniq("target"))
+    own = await add_role_assignment(session, target, role, "global", None)
+    foreign = await add_role_assignment(session, target, other, "global", None)
+    login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
+    await session.commit()
+
+    response = await client.delete(
+        _build_assignments_url(role), params={"assignment_ids": [_get_id(own), _get_id(foreign)]}
+    )
+
+    assert response.status_code == 404
+    assert [await _count_assignments(target, r, session) for r in (role, other)] == [1, 1]
+    assert "unassigned" not in [e.action for e in await audit_events()]
+
+
+async def test_revoke_user_assignments_requires_at_least_one_id(client: AsyncClient, session: AsyncSession) -> None:
+    role = await make_role(session, _uniq("role"), [])
+    login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
+    await session.commit()
+
+    assert (await client.delete(_build_assignments_url(role))).status_code == 422
+
+
+async def test_revoke_user_assignments_rejects_more_than_the_limit(client: AsyncClient, session: AsyncSession) -> None:
+    role = await make_role(session, _uniq("role"), [])
+    login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
+    await session.commit()
+
+    response = await client.delete(_build_assignments_url(role), params={"assignment_ids": list(range(1, 102))})
+
+    assert response.status_code == 422
