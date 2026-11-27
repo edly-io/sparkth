@@ -24,12 +24,14 @@ from uuid6 import uuid7
 
 from sparkth.core.models.user import User
 from sparkth.lib.auth import bind_current_user_id
-from sparkth.lib.testing import AuditEventsFetcher
+from sparkth.lib.testing import AuditEventsFetcher, grant_permissions
 from sparkth.main import assemble_app
 from sparkth.plugins.pxc import builder
 from sparkth.plugins.pxc.activities import activity_dir, generated_activity_dir
 from sparkth.plugins.pxc.config import get_pxc_settings
+from sparkth.plugins.pxc.constants import PXC_LMS_USERNAME
 from sparkth.plugins.pxc.event_bus import EVENT_BUS
+from sparkth.plugins.pxc.launch_access import _LAUNCH_ANSWERS
 from sparkth.plugins.pxc.models import PxcActivity
 from sparkth.plugins.pxc.revisions import publish_revision
 from sparkth.plugins.pxc.schemas import ActivityConfig, ActivitySource
@@ -139,6 +141,37 @@ def _empty_bus() -> Iterator[None]:
     EVENT_BUS._subscribers.clear()
     yield
     EVENT_BUS._subscribers.clear()
+
+
+@pytest.fixture(autouse=True)
+def _empty_launch_answers() -> Iterator[None]:
+    """Forget every cached launch answer around every test, so one test's answer never serves the next."""
+    _LAUNCH_ANSWERS.clear()
+    yield
+    _LAUNCH_ANSWERS.clear()
+
+
+async def make_lms_account(session: AsyncSession, permissions: list[str], scope_object_id: str | None) -> User:
+    """Create the LMS account, stored with no password, holding ``permissions`` at one owner's user scope.
+
+    It holds them at ``global`` when given no owner. The default-role grants are at the first user's scope, so
+    create the account after the test's other users.
+    """
+    account = User(name="PXC LMS", username=PXC_LMS_USERNAME, email="pxc_lms@sparkth.invalid")
+    session.add(account)
+    await session.commit()
+    scope = "global" if scope_object_id is None else "user"
+    await grant_permissions(session, account, permissions, scope, scope_object_id)
+    return account
+
+
+@pytest.fixture
+async def lms_account(session: AsyncSession) -> User:
+    """The LMS account holding both launch permissions at ``global``.
+
+    Create it after the test's other users, because the default-role grants are at the first user's scope.
+    """
+    return await make_lms_account(session, ["pxc.activity.play", "pxc.activity.edit"], None)
 
 
 @pytest.fixture

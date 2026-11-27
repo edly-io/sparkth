@@ -82,6 +82,8 @@ default `sparkth_user` role, so an author keeps full access to their own activit
 user's `user` scope reaches that user's activities, and a grant at `global` reaches every user's.
 A caller without the permission gets 403 and the refusal is recorded as a `permission.denied`
 event; an id that names no activity gets 404, and records no denial.
+The built-in `pxc_lms` account, which stands for the connected LMS, holds no default role: it holds only
+`pxc_lms_user`, with `pxc.activity.play` and `pxc.activity.edit` at `global`.
 
 ## Building an activity from chat
 
