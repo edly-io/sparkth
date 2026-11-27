@@ -240,7 +240,7 @@ async def test_added_member_gains_and_removed_member_loses_the_group_role(
     assert [row["user_id"] for row in added.json()] == [member.id]
     assert await can(member, AUDIT_READ, GLOBAL, None, session)
 
-    removed = await client.delete(_build_members_url(group.id), params={"user_ids": [member.id]})
+    removed = await client.request("DELETE", _build_members_url(group.id), json={"user_ids": [member.id]})
     assert removed.status_code == 204
     assert not await can(member, AUDIT_READ, GLOBAL, None, session)
 
@@ -462,7 +462,7 @@ async def test_remove_member_records_the_audit_event_for_the_caller(
     await session.commit()
     login_as(client, caller)
 
-    await client.delete(_build_members_url(group.id), params={"user_ids": [member.id]})
+    await client.request("DELETE", _build_members_url(group.id), json={"user_ids": [member.id]})
 
     event = (await audit_events())[-1]
     assert (event.category, event.action, event.actor_id) == ("group", "member_removed", str(caller.id))
@@ -479,7 +479,7 @@ async def test_remove_non_member_returns_204_and_records_nothing(
     login_as(client, await make_user_with_permissions(session, ["group.member.remove"]))
     await session.commit()
 
-    response = await client.delete(_build_members_url(group.id), params={"user_ids": [stranger.id]})
+    response = await client.request("DELETE", _build_members_url(group.id), json={"user_ids": [stranger.id]})
 
     assert response.status_code == 204
     assert "member_removed" not in [e.action for e in await audit_events()]
@@ -491,7 +491,9 @@ async def test_remove_member_from_unknown_group_returns_404(client: AsyncClient,
     login_as(client, await make_user_with_permissions(session, ["group.member.remove"]))
     await session.commit()
 
-    assert (await client.delete(_build_members_url(99999), params={"user_ids": [member.id]})).status_code == 404
+    assert (
+        await client.request("DELETE", _build_members_url(99999), json={"user_ids": [member.id]})
+    ).status_code == 404
 
 
 async def test_member_add_does_not_allow_remove(client: AsyncClient, session: AsyncSession) -> None:
@@ -502,7 +504,9 @@ async def test_member_add_does_not_allow_remove(client: AsyncClient, session: As
     login_as(client, await make_user_with_permissions(session, ["group.member.add"]))
     await session.commit()
 
-    assert (await client.delete(_build_members_url(group.id), params={"user_ids": [member.id]})).status_code == 403
+    assert (
+        await client.request("DELETE", _build_members_url(group.id), json={"user_ids": [member.id]})
+    ).status_code == 403
 
 
 async def test_member_remove_does_not_allow_add(client: AsyncClient, session: AsyncSession) -> None:
@@ -617,7 +621,7 @@ async def test_remove_several_members_in_one_request(
     login_as(client, await make_user_with_permissions(session, ["group.member.remove"]))
     await session.commit()
 
-    response = await client.delete(_build_members_url(group.id), params={"user_ids": [first.id, second.id]})
+    response = await client.request("DELETE", _build_members_url(group.id), json={"user_ids": [first.id, second.id]})
 
     assert response.status_code == 204
     assert await group_engine.get_group_members(group.id, session) == []
@@ -636,7 +640,7 @@ async def test_remove_members_skips_users_who_are_not_members(
     login_as(client, await make_user_with_permissions(session, ["group.member.remove"]))
     await session.commit()
 
-    response = await client.delete(_build_members_url(group.id), params={"user_ids": [member.id, stranger.id]})
+    response = await client.request("DELETE", _build_members_url(group.id), json={"user_ids": [member.id, stranger.id]})
 
     assert response.status_code == 204
     assert await group_engine.get_group_members(group.id, session) == []
@@ -649,7 +653,7 @@ async def test_remove_members_requires_at_least_one_user(client: AsyncClient, se
     login_as(client, await make_user_with_permissions(session, ["group.member.remove"]))
     await session.commit()
 
-    assert (await client.delete(_build_members_url(group.id))).status_code == 422
+    assert (await client.request("DELETE", _build_members_url(group.id), json={"user_ids": []})).status_code == 422
 
 
 async def test_remove_members_rejects_more_than_the_limit(client: AsyncClient, session: AsyncSession) -> None:
@@ -658,6 +662,6 @@ async def test_remove_members_rejects_more_than_the_limit(client: AsyncClient, s
     login_as(client, await make_user_with_permissions(session, ["group.member.remove"]))
     await session.commit()
 
-    response = await client.delete(_build_members_url(group.id), params={"user_ids": list(range(1, 102))})
+    response = await client.request("DELETE", _build_members_url(group.id), json={"user_ids": list(range(1, 102))})
 
     assert response.status_code == 422
