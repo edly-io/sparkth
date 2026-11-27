@@ -19,7 +19,7 @@ from sqlmodel import Column, Field, SQLModel, Text
 from uuid6 import uuid7
 
 from sparkth.lib.models import utc_now
-from sparkth.plugins.pxc.enums import PreviewPermission, PxcFailureKind
+from sparkth.plugins.pxc.enums import PxcFailureKind
 
 
 def _enum_values(enum_cls: type[StrEnum]) -> list[str]:
@@ -65,11 +65,7 @@ class PxcActionFailure(SQLModel, table=True):
         sa_column=Column(Enum(PxcFailureKind, name="pxcfailurekind", values_callable=_enum_values), nullable=False)
     )
     action: str = Field(sa_column=Column(Text, nullable=False))
-    permission: PreviewPermission = Field(
-        sa_column=Column(
-            Enum(PreviewPermission, name="previewpermission", values_callable=_enum_values), nullable=False
-        )
-    )
+    permission: str = Field(sa_column=Column(Enum("play", "edit", name="previewpermission"), nullable=False))
     value: str = Field(sa_column=Column(Text, nullable=False))
     error: str = Field(sa_column=Column(Text, nullable=False))
     created_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False))
