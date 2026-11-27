@@ -186,13 +186,8 @@ export function useConversation(
             // Partial tokens arrived before the disconnect — show what we have.
             placeholderId = "restored-stream";
             placeholderContent = saved.content;
-          } else if (
-            hasAttachments ||
-            saved?.phase === "scanning_attachments" ||
-            saved?.phase === "searching_documents"
-          ) {
-            // Attachments are present (RAG was likely running) or the phase was
-            // explicitly saved — either way, scanning is the right framing.
+          } else if (hasAttachments) {
+            // Attachments are present, so the reply is likely still reading them.
             placeholderId = "pending-response";
             placeholderContent =
               "Still scanning your attached files — this may take a moment. The response will appear here automatically.";

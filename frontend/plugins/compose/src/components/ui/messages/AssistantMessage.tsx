@@ -94,9 +94,6 @@ export function AssistantMessage({
 
   // Keys must stay literal t("...") calls — i18n-check only traces literal calls, not computed keys.
   const statusTexts: Record<StreamStatusPhase, string> = {
-    scanning_attachments: t("statusScanningAttachments"),
-    searching_documents: t("statusSearchingDocuments"),
-    skipping_rag: t("statusSkippingRag"),
     generating: t("statusGenerating"),
   };
   const displayText = message.streamedContent ?? message.content;

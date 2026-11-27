@@ -9,7 +9,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 import sparkth.lib.rag as rag_api
-import sparkth.rag.utils as rag_utils
 from sparkth.lib.rag import (
     DocumentSection,
     ScannedPDFError,
@@ -121,8 +120,3 @@ class TestRetrieveContext:
         assert result[0].content == "hello"
         assert result[0].source_name == "a.pdf"
         mock_fn.assert_awaited_once()
-
-
-class TestRagIngestedDocumentStructureSurface:
-    def test_get_rag_ingested_document_structure_is_reexported(self) -> None:
-        assert rag_api.get_rag_ingested_document_structure is rag_utils.get_rag_ingested_document_structure

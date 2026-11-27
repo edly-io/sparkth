@@ -2,8 +2,7 @@
 
 A turn arrives either as a plain string or as content blocks — text beside an uploaded document,
 or a reference to one already ingested — so nothing downstream can assume where the words are.
-One place decides where the words are; the readers below differ only in which end of the
-conversation they start from and what they return when there are none.
+One place decides where the words are.
 """
 
 from sparkth.plugins.compose.schemas import ChatMessage
@@ -24,26 +23,9 @@ def text_of(message: ChatMessage) -> str:
     return " ".join(parts).strip()
 
 
-def get_last_user_text(messages: list[ChatMessage]) -> str:
-    """Return the text of the most recent user message, or "" if none of them carry any.
-
-    Falls back to earlier user turns: a turn can be an upload with no words, and the question it
-    belongs to is then the one before it.
-    """
-    for message in reversed(messages):
-        if message.role != "user":
-            continue
-        if text := text_of(message):
-            return text
-    return ""
-
-
 def get_first_user_text(messages: list[ChatMessage]) -> str | None:
-    """Return the text of the first user message that has any, else None.
-
-    Reads from the opposite end to ``get_last_user_text`` because it answers a different
-    question: what the conversation was opened about, which is what titles it.
-    """
+    """Return the text of the first user message that has any, else None: what the conversation was
+    opened about, which is what titles it."""
     for message in messages:
         if message.role != "user":
             continue

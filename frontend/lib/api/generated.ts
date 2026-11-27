@@ -4048,22 +4048,7 @@ export interface operations {
                          * @description Where a streamed reply's writing stands.
                          * @enum {string}
                          */
-                        status: "generating" | "skipping_rag";
-                    } | {
-                        /**
-                         * Done
-                         * @default false
-                         * @constant
-                         */
-                        done: false;
-                        /** File Count */
-                        file_count: number;
-                        /**
-                         * DocumentProcessingStatus
-                         * @description What a streamed reply does with the author's files.
-                         * @enum {string}
-                         */
-                        status: "searching_documents" | "scanning_attachments";
+                        status: "generating";
                     } | {
                         /**
                          * Done

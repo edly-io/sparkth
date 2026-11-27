@@ -85,20 +85,17 @@ const DONE = { token: "", done: true, conversation_id: "conv-1" };
 describe("useChatStream — status phases", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it.each(["scanning_attachments", "searching_documents", "skipping_rag", "generating"])(
-    "records the %s phase the backend sends",
-    async (status) => {
-      const stream = runStream([{ status, file_count: 1, done: false }]);
-      await act(async () => {
-        await stream.send();
-      });
-      expect(stream.phases()).toContain(status);
-    },
-  );
+  it("records the generating phase the backend sends", async () => {
+    const stream = runStream([{ status: "generating", done: false }]);
+    await act(async () => {
+      await stream.send();
+    });
+    expect(stream.phases()).toContain("generating");
+  });
 
   it("clears the phase once the first token arrives", async () => {
     const stream = runStream([
-      { status: "searching_documents", file_count: 1, done: false },
+      { status: "generating", done: false },
       { token: "Here", done: false },
       DONE,
     ]);

@@ -14,14 +14,6 @@ class ResponseGenerationStatus(StrEnum):
     """Where a streamed reply's writing stands."""
 
     GENERATING = "generating"
-    SKIPPING_RAG = "skipping_rag"
-
-
-class DocumentProcessingStatus(StrEnum):
-    """What a streamed reply does with the author's files."""
-
-    SEARCHING_DOCUMENTS = "searching_documents"
-    SCANNING_ATTACHMENTS = "scanning_attachments"
 
 
 class DocumentSectionProcessingStatus(StrEnum):

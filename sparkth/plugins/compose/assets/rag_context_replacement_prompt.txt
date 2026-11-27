@@ -1,2 +1,0 @@
-Take these pieces of text as context.
-You will be asked to generate course content on them, so keep them in memory.

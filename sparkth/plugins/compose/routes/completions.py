@@ -41,7 +41,6 @@ from sparkth.plugins.compose.conversation_title import extract_title_from_messag
 from sparkth.plugins.compose.enums import PlannerModel
 from sparkth.plugins.compose.exceptions import ConversationBusy
 from sparkth.plugins.compose.llm import complete_turn
-from sparkth.plugins.compose.messages import get_last_user_text
 from sparkth.plugins.compose.models import Conversation
 from sparkth.plugins.compose.permissions import CONVERSATION, CONVERSATION_WRITE
 from sparkth.plugins.compose.planner import PlannerSetup
@@ -160,7 +159,6 @@ async def compose_completion(
     provider_name = llm_config.provider
     model = request.model_override or llm_config.model
     conversation_uuid = request.conversation_id
-    query_text = get_last_user_text(request.messages)
     allowed_plugins = await get_accessible_scope_object_ids(current_user, PLUGIN_USE, PLUGIN, session)
     # The tool filter and the agent list share the switched-off plugins and the allowed ones.
     agents = enabled_agents(disabled_plugins, allowed_plugins)
@@ -289,19 +287,7 @@ async def compose_completion(
         planner_model = small_model_for(provider_name) if config.planner_model == PlannerModel.SMALL else model
         planner_llm = get_provider(provider_name, api_key, planner_model, temperature=0).create_llm()
 
-        # The planner hands a message that needs the attached documents to the rag agent, so the route
-        # retrieves nothing itself.
-        messages, _unresolved_messages = await assemble_provider_messages(
-            request,
-            conversation_messages,
-            [],
-            query_text,
-            False,
-            provider,
-            uploaded_files=uploaded_files,
-            analytics=turn_analytics,
-            listed_documents=attached_documents,
-        )
+        messages = assemble_provider_messages(request, conversation_messages, uploaded_files, attached_documents)
 
         tools = await resolve_tools(request, tool_registry, disabled_plugins, allowed_plugins)
         planner_setup = PlannerSetup(agents, planner_llm, get_existing_plan_or_none(conversation_messages))
