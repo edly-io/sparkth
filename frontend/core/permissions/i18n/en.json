@@ -44,7 +44,7 @@
         "nameTaken": "A role with this name already exists."
       },
       "compare": {
-        "readOnly": "View only"
+        "viewOnly": "View only"
       },
       "create": {
         "button": "Create role",

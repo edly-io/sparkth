@@ -44,7 +44,7 @@
         "nameTaken": "Un rôle porte déjà ce nom."
       },
       "compare": {
-        "readOnly": "Lecture seule"
+        "viewOnly": "Consultation uniquement"
       },
       "create": {
         "button": "Créer un rôle",

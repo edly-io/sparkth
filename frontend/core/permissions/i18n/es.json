@@ -44,7 +44,7 @@
         "nameTaken": "Ya existe un rol con este nombre."
       },
       "compare": {
-        "readOnly": "Solo lectura"
+        "viewOnly": "Solo consulta"
       },
       "create": {
         "button": "Crear rol",

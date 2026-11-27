@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { BADGE_CLASS } from "@/core/permissions/components/ui/RoleBadges";
+import { Badge } from "@/core/permissions/components/ui/Badge";
 import { RolesViewSwitch } from "@/core/permissions/components/ui/RolesViewSwitch";
 
 /**
@@ -13,9 +13,7 @@ export default function ComparePage() {
   return (
     <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
       <RolesViewSwitch current="compare" />
-      <span className={`${BADGE_CLASS} bg-surface-variant text-muted-foreground`}>
-        {t("readOnly")}
-      </span>
+      <Badge className="bg-surface-variant text-muted-foreground">{t("viewOnly")}</Badge>
     </div>
   );
 }
