@@ -78,9 +78,14 @@ class ActivitySummary(BaseModel):
 
 
 class ActivityLaunch(BaseModel):
-    """Where the preview page iframes one activity for its author."""
+    """Where the preview page iframes one activity for its author, and whose activity it is.
+
+    The preview page asks whether the viewer may edit the activity at the owner's user scope, so it
+    needs the owner's id as well as the activity's.
+    """
 
     embed_url: str
+    owner_user_id: int
 
 
 class ActivitySource(BaseModel):

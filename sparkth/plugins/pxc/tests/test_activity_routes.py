@@ -419,6 +419,18 @@ async def test_a_global_player_launches_any_authors_activity(
     assert response.status_code == 200
 
 
+async def test_a_launch_names_the_activitys_owner(
+    client: AsyncClient, session: AsyncSession, stored_user: User, configured_secret: str
+) -> None:
+    activity = await _insert_owned(session, OTHER_USER)
+    _write_built_files(activity)
+    await grant_permission_at_scope(session, 1, "pxc.activity.play", USER, str(OTHER_USER))
+
+    response = await client.get(_launch_url(activity), params={"permission": "play"})
+
+    assert response.json()["owner_user_id"] == OTHER_USER
+
+
 async def test_a_holder_of_delete_deletes_another_authors_activity(
     client: AsyncClient, session: AsyncSession, current_user: User
 ) -> None:

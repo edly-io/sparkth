@@ -90,7 +90,7 @@ async def launch_activity(
     user_id: int = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_async_session),
 ) -> ActivityLaunch:
-    """An embed URL that previews an activity, as a learner or as its author.
+    """An embed URL that previews an activity, as a learner or as its author, and the id of its owner.
 
     A learner preview needs ``pxc.activity.play`` or ``pxc.activity.edit`` and an author preview
     needs ``pxc.activity.edit``, both at the activity owner's scope. The permission depends on the
@@ -115,7 +115,8 @@ async def launch_activity(
         raise PxcActivityNotPermitted(PXC_NOT_PERMITTED_MESSAGE.format(needed.name))
     activity_dir(str(activity_id))
     token = mint_preview_token(activity_id, user_id, permission)
-    return ActivityLaunch(embed_url=str(request.url_for("embed_activity").include_query_params(token=token)))
+    embed_url = str(request.url_for("embed_activity").include_query_params(token=token))
+    return ActivityLaunch(embed_url=embed_url, owner_user_id=activity.owner_user_id)
 
 
 @router.delete(

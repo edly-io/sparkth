@@ -1426,7 +1426,7 @@ export interface paths {
         };
         /**
          * Launch Activity
-         * @description An embed URL that previews an activity, as a learner or as its author.
+         * @description An embed URL that previews an activity, as a learner or as its author, and the id of its owner.
          *
          *     A learner preview needs ``pxc.activity.play`` or ``pxc.activity.edit`` and an author preview
          *     needs ``pxc.activity.edit``, both at the activity owner's scope. The permission depends on the
@@ -1766,11 +1766,16 @@ export interface components {
     schemas: {
         /**
          * ActivityLaunch
-         * @description Where the preview page iframes one activity for its author.
+         * @description Where the preview page iframes one activity for its author, and whose activity it is.
+         *
+         *     The preview page asks whether the viewer may edit the activity at the owner's user scope, so it
+         *     needs the owner's id as well as the activity's.
          */
         ActivityLaunch: {
             /** Embed Url */
             embed_url: string;
+            /** Owner User Id */
+            owner_user_id: number;
         };
         /**
          * ActivitySummary
