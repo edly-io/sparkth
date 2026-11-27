@@ -368,7 +368,7 @@ AUDIT_READ = Permission.create(
 USER_READ = Permission.create(
     "user.read",
     gettext_noop("See information about users"),
-    gettext_noop("List the people in Sparkth with their email addresses, and see who did what in analytics."),
+    gettext_noop("List the users in Sparkth with their information."),
     _USERS_AND_ACCESS,
     risks=(PermissionRisk.PRIVATE_DATA,),
 )
