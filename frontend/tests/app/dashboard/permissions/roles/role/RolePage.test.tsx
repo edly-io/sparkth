@@ -82,7 +82,7 @@ describe("RolePage", () => {
     expect(within(breadcrumb).getByText("Course author")).toHaveAttribute("aria-current", "page");
   });
 
-  it("lists every permission with the role's own ticked", async () => {
+  it("lists every permission with the role's own checked", async () => {
     renderWithIntl(<RolePage />);
 
     expect(await screen.findByRole("checkbox", { name: "See roles" })).toBeChecked();
@@ -98,7 +98,7 @@ describe("RolePage", () => {
     expect(screen.getByRole("status", { name: "Loading the permissions…" })).toBeInTheDocument();
   });
 
-  it("can't save until a permission is ticked or unticked, nor once it is put back", async () => {
+  it("can't save until a permission is checked or unchecked, nor once it is put back", async () => {
     renderWithIntl(<RolePage />);
 
     const save = await screen.findByRole("button", { name: "Save changes" });
@@ -109,7 +109,7 @@ describe("RolePage", () => {
     expect(save).toBeDisabled();
   });
 
-  it("saves every permission ticked, keeping any no longer declared, and shows the saved role", async () => {
+  it("saves every permission checked, keeping any no longer declared, and shows the saved role", async () => {
     getRole.mockResolvedValue({ ...ROLE, permissions: ["role.read", "retired.permission"] });
     setRolePermissions.mockResolvedValue({
       ...ROLE,
@@ -188,7 +188,7 @@ describe("RolePage", () => {
     expect(screen.getByRole("checkbox", { name: "Edit roles" })).not.toBeChecked();
   });
 
-  it("says so when saving fails, keeping what was ticked", async () => {
+  it("says so when saving fails, keeping what was checked", async () => {
     setRolePermissions.mockRejectedValue(new Error("network down"));
     renderWithIntl(<RolePage />);
 

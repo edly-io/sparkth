@@ -122,9 +122,9 @@ export default function RolePage() {
     );
 
   const saveChecked = async () => {
-    if (!token) return;
     setState({ ...state, saveStatus: "saving" });
     try {
+      if (!token) throw new Error("not signed in");
       const savedRole = await setRolePermissions(token, role.id, [...checked]);
       updateRole(() => getLoadedState(savedRole, "saved"));
     } catch (error) {

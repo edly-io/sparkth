@@ -10,12 +10,12 @@ import { filterPermissions, groupByCategory } from "@/core/permissions/permissio
 import type { PermissionResponse } from "@/core/permissions/types";
 
 /**
- * Every permission, grouped under its category, with those in `granted` ticked: each shows its label,
- * risks, description and internal name, and each group how many of its permissions are granted. A
- * group can be collapsed, and a filter narrows the list by label, category or internal name. With
- * `onChange`, permissions can be ticked and unticked, one at a time or a whole category at once, and
- * each change hands over the permissions granted after it; without it, none can be changed. `actions`
- * sit beside the filter.
+ * Every permission, grouped under its category, with those in `granted` checked: each shows its
+ * label, risks, description and internal name, and each group how many of its permissions are
+ * granted. A group can be collapsed, and a filter narrows the list by label, category or internal
+ * name. With `onChange`, permissions can be checked and unchecked, one at a time or a whole category
+ * at once, and each change hands over the permissions granted after it; without it, none can be
+ * changed. `actions` sit beside the filter.
  */
 export function RolePermissionList({
   permissions,

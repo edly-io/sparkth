@@ -62,7 +62,7 @@ test.describe("access & permissions", () => {
     await expect(page.getByText("Science faculty")).toBeVisible();
   });
 
-  test("creates a role with the permissions ticked", async ({ page }) => {
+  test("creates a role with the permissions checked", async ({ page }) => {
     await stubPermissions(page, [...ALL_THREE, "role.create", "role.update"]);
     await stubPermissionList(page, [
       {
@@ -138,7 +138,7 @@ test.describe("access & permissions", () => {
     ).toBeVisible();
   });
 
-  test("saves the permissions ticked on a role's page", async ({ page }) => {
+  test("saves the permissions checked on a role's page", async ({ page }) => {
     const role = {
       id: 1,
       name: "Course editor",

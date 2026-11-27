@@ -52,7 +52,7 @@ describe("RolePermissionList", () => {
     expect(screen.getByText("Can give others access")).toBeInTheDocument();
   });
 
-  it("ticks the permissions the role grants, and none can be changed", () => {
+  it("checks the permissions the role grants, and none can be changed", () => {
     renderList();
 
     expect(screen.getByRole("checkbox", { name: "See roles" })).toBeChecked();
@@ -60,7 +60,7 @@ describe("RolePermissionList", () => {
     for (const checkbox of screen.getAllByRole("checkbox")) expect(checkbox).toBeDisabled();
   });
 
-  it("hands over the permissions granted once one is ticked or unticked", async () => {
+  it("hands over the permissions granted once one is checked or unchecked", async () => {
     const onChange = vi.fn();
     renderWithIntl(
       <RolePermissionList
