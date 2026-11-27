@@ -71,6 +71,8 @@ RISKS = {
     "role.assign": {PermissionRisk.DELEGATES_ACCESS},
     "group.update": {PermissionRisk.DELEGATES_ACCESS},
     "group.member.add": {PermissionRisk.DELEGATES_ACCESS},
+    "role.read": {PermissionRisk.PRIVATE_DATA},
+    "group.read": {PermissionRisk.PRIVATE_DATA},
     "user.read": {PermissionRisk.PRIVATE_DATA},
     "audit.read": {PermissionRisk.PRIVATE_DATA},
     "role.delete": {PermissionRisk.DELETES},
