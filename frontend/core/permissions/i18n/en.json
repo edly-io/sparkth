@@ -47,7 +47,13 @@
         "cancel": "Cancel",
         "submit": "Create",
         "nameTaken": "A role with this name already exists.",
-        "failed": "Couldn't create the role. Try again."
+        "failed": "Couldn't create the role. Try again.",
+        "startFrom": {
+          "label": "Start from",
+          "none": "No permissions",
+          "duplicate": "A duplicate of another role",
+          "duplicateSource": "Role to duplicate"
+        }
       },
       "menu": {
         "label": "More actions for {name}",

@@ -47,7 +47,13 @@
         "cancel": "Cancelar",
         "submit": "Crear",
         "nameTaken": "Ya existe un rol con este nombre.",
-        "failed": "No se pudo crear el rol. Inténtalo de nuevo."
+        "failed": "No se pudo crear el rol. Inténtalo de nuevo.",
+        "startFrom": {
+          "label": "Empezar desde",
+          "none": "Sin permisos",
+          "duplicate": "Un duplicado de otro rol",
+          "duplicateSource": "Rol que duplicar"
+        }
       },
       "menu": {
         "label": "Más acciones para {name}",

@@ -28,7 +28,8 @@ const ROLE_ACTION_CHECKS: PermissionCheckQuery[] = [
 /**
  * The Roles tab: a card for each role the signed-in user may read, under a switch between the list
  * and a permission comparison that is not available yet. Those who may create and change roles get a
- * Create role button, and those who may delete roles a Delete action on each custom role.
+ * Create role button, which can start the new role as a copy of a listed one, and those who may
+ * delete roles a Delete action on each custom role.
  */
 export default function RolesPage() {
   const t = useTranslations("permissions.roles");
@@ -40,6 +41,7 @@ export default function RolesPage() {
   const canCreate = canCreateRoles && canChangeRoles;
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<RoleResponse | null>(null);
+  const [loadedRoles, setLoadedRoles] = useState<RoleResponse[]>([]);
   const [reloadKey, setReloadKey] = useState(0);
 
   const create = async (role: RoleCreate) => {
@@ -85,7 +87,12 @@ export default function RolesPage() {
           </Button>
         )}
       </div>
-      <CreateRoleDialog open={creating} onCreate={create} onClose={() => setCreating(false)} />
+      <CreateRoleDialog
+        open={creating}
+        roles={loadedRoles}
+        onCreate={create}
+        onClose={() => setCreating(false)}
+      />
       {deleting && (
         <DeleteRoleDialog
           role={deleting}
@@ -98,6 +105,7 @@ export default function RolesPage() {
         empty={t("empty")}
         loadFailed={t("loadFailed")}
         reloadKey={reloadKey}
+        onLoaded={setLoadedRoles}
       >
         {(roles) => (
           <>

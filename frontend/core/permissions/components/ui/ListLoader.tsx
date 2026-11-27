@@ -11,15 +11,17 @@ type LoadState<T> =
   | { status: "loaded"; entries: T[] };
 
 /**
- * Loads entries with the signed-in user's token and hands them to `children` to show. Shows a
- * spinner while loading, `loadFailed` when loading fails and `empty` when there are none. Loads again
- * when the token or `reloadKey` changes, and goes back to loading when the token goes away.
+ * Loads entries with the signed-in user's token and hands them to `children` to show, and to
+ * `onLoaded` for use elsewhere on the page. Shows a spinner while loading, `loadFailed` when loading
+ * fails and `empty` when there are none. Loads again when the token or `reloadKey` changes, and goes
+ * back to loading when the token goes away.
  */
 export function ListLoader<T>({
   load,
   empty,
   loadFailed,
   reloadKey,
+  onLoaded,
   children,
 }: {
   load: (token: string) => Promise<T[]>;
@@ -27,6 +29,8 @@ export function ListLoader<T>({
   loadFailed: string;
   /** Changing it loads the entries again, after the caller has changed them. */
   reloadKey?: number;
+  /** Called with the entries each time they load. Pass a stable function, such as a state setter. */
+  onLoaded?: (entries: T[]) => void;
   children: (entries: T[]) => ReactNode;
 }) {
   const { token } = useAuth();
@@ -38,7 +42,9 @@ export function ListLoader<T>({
     let active = true;
     load(token)
       .then((entries) => {
-        if (active) setState({ status: "loaded", entries });
+        if (!active) return;
+        setState({ status: "loaded", entries });
+        onLoaded?.(entries);
       })
       .catch((error: unknown) => {
         console.error("Loading the list failed:", error);
@@ -47,7 +53,7 @@ export function ListLoader<T>({
     return () => {
       active = false;
     };
-  }, [token, load, reloadKey]);
+  }, [token, load, reloadKey, onLoaded]);
 
   if (state.status === "loading") {
     return (

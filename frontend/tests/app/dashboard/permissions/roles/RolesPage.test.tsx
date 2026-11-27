@@ -34,7 +34,7 @@ function role(id: number, name: string, overrides: Partial<RoleResponse> = {}): 
 const ROLES = [
   role(1, "admin", { is_builtin: true }),
   role(2, "sparkth_user", { is_builtin: true, is_default: true }),
-  role(3, "Course author", { user_count: 2, group_count: 1 }),
+  role(3, "Course author", { user_count: 2, group_count: 1, permissions: ["role.read"] }),
 ];
 
 beforeEach(() => {
@@ -131,6 +131,25 @@ describe("RolesPage", () => {
 
     expect(createRole).toHaveBeenCalledWith("test-token", { name: "Grader", description: null });
     expect(await findCardNames()).toContain("Grader");
+  });
+
+  it("creates a role as a duplicate of one listed", async () => {
+    listRoles.mockResolvedValue(ROLES);
+    createRole.mockResolvedValue(role(4, "Grader"));
+    renderWithIntl(<RolesPage />);
+    await findCardNames();
+
+    await userEvent.click(screen.getByRole("button", { name: "Create role" }));
+    await userEvent.type(screen.getByLabelText("Name"), "Grader");
+    await userEvent.click(screen.getByRole("radio", { name: "A duplicate of another role" }));
+    await userEvent.selectOptions(screen.getByLabelText("Role to duplicate"), "Course author");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    expect(createRole).toHaveBeenCalledWith("test-token", {
+      name: "Grader",
+      description: null,
+      permissions: ["role.read"],
+    });
   });
 
   it("offers Delete on custom roles only, to someone who may delete roles", async () => {
