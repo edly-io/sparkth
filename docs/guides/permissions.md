@@ -132,7 +132,7 @@ A role can also be given to a user and taken from one through the API, with thre
 |---|---|---|
 | `GET /api/v1/permissions/roles/{role_id}/assignments/users?limit=&offset=` | Lists the active holders by assignment id, 50 a page (1 to 200), as `id`, `user_id`, `name`, `username`, `role_id`, `role_name`, `scope`, `scope_object_id` and `assigned_at` | `role.read` |
 | `POST /api/v1/permissions/roles/{role_id}/assignments/users` with `{"user_ids": [7, 9], "scope": "global"}` | Gives the role to 1 to 100 users at one scope and answers 201 with one assignment per distinct user, in request order; a grant that already exists is returned unchanged | `role.assign` |
-| `DELETE /api/v1/permissions/roles/{role_id}/assignments/users?assignment_ids=3&assignment_ids=4` | Takes the role away by 1 to 100 assignment ids and answers 204 | `role.revoke` |
+| `DELETE /api/v1/permissions/roles/{role_id}/assignments/users` with `{"assignment_ids": [3, 4]}` | Takes the role away by 1 to 100 assignment ids and answers 204 | `role.revoke` |
 
 Each route checks its permission at the `role` scope, so a grant at one role reaches that role only. `scope` is
 required, with `scope_object_id` for a scope that names objects, and is checked as the CLI checks it: an unknown
@@ -246,7 +246,7 @@ managed through the REST API as well as the CLI, with three routes under
 |---|---|---|
 | `GET /api/v1/permissions/groups/{group_id}/members` | Lists the active members, oldest first, as `user_id`, `name`, `username` and `added_at` | `group.read` |
 | `POST /api/v1/permissions/groups/{group_id}/members` with `{"user_ids": [7, 9]}` | Adds 1 to 100 users and answers 201 with one member per distinct user, in request order; a user already in the group is returned unchanged | `group.member.add` |
-| `DELETE /api/v1/permissions/groups/{group_id}/members?user_ids=7&user_ids=9` | Takes 1 to 100 users out and answers 204; a user who was not a member is skipped | `group.member.remove` |
+| `DELETE /api/v1/permissions/groups/{group_id}/members` with `{"user_ids": [7, 9]}` | Takes 1 to 100 users out and answers 204; a user who was not a member is skipped | `group.member.remove` |
 
 A request for an unknown group is 404, and so is adding an unknown or deleted user. Adding is all or
 nothing: if any listed user is unknown or deleted, no one is added and nothing is recorded. A request with no
@@ -264,14 +264,16 @@ A group's roles are managed through the REST API as well as the CLI, with three 
 | Route | Does | Needs |
 |---|---|---|
 | `GET /api/v1/permissions/roles/{role_id}/assignments/groups` | Lists the active group assignments of the role by assignment id, as `id`, `group_id`, `group_name`, `role_id`, `role_name`, `scope`, `scope_object_id` and `assigned_at`; the list is not paged | `role.read` |
-| `POST /api/v1/permissions/roles/{role_id}/assignments/groups` with `{"group_id": 3, "scope": "global"}` | Gives the role to every member of the group and answers 201; a grant that already exists is answered 201 unchanged | `role.assign` |
-| `DELETE /api/v1/permissions/roles/{role_id}/assignments/groups/{assignment_id}` | Takes the role away from the group and answers 204 | `role.revoke` |
+| `POST /api/v1/permissions/roles/{role_id}/assignments/groups` with `{"group_ids": [3, 5], "scope": "global"}` | Gives the role to every member of 1 to 100 groups at one scope and answers 201 with one assignment per distinct group, in request order; a grant that already exists is returned unchanged | `role.assign` |
+| `DELETE /api/v1/permissions/roles/{role_id}/assignments/groups` with `{"assignment_ids": [4, 6]}` | Takes the role away by 1 to 100 group assignment ids and answers 204 | `role.revoke` |
 
 These routes check their permission at the `role` scope, not the group's, and `scope` and `scope_object_id` are
 validated as for users. An unknown group, an unknown role, and an assignment that is revoked, unknown or the
-assignment of another role are 404. A user assignment's id is not found on the groups path, nor a group
-assignment's on the users path. Revoking an assignment whose scope kind is no longer registered is 422 and leaves
-it in place. Members gain the role as soon as the assignment is made and lose it when it is revoked.
+assignment of another role are 404. Giving and taking away are each all or nothing: if any listed group or
+assignment is refused, nothing is changed and nothing is recorded. A request with no ids, or with more than 100, is
+422. A user assignment's id is not found on the groups path, nor a group assignment's on the users path. Revoking
+an assignment whose scope kind is no longer registered is 422 and leaves it, and every other assignment in the
+request, in place. Members gain the role as soon as the assignment is made and lose it when it is revoked.
 
 The CLI manages the same operations:
 
