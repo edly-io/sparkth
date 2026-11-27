@@ -1124,7 +1124,7 @@ export interface paths {
         post: operations["add_group_members_api_v1_permissions_groups__group_id__members_post"];
         /**
          * Remove Group Members
-         * @description Take up to 100 users, given as repeated ``user_ids`` query parameters, out of a group.
+         * @description Take up to 100 users, given as ``user_ids`` in the request body, out of a group.
          *
          *     A user who is not a member is skipped. Returns 204 No Content, or 404 for an unknown group.
          */
@@ -2630,10 +2630,10 @@ export interface components {
             username: string;
         };
         /**
-         * GroupMembersAdd
-         * @description The users to add to a group in one request.
+         * GroupMembersChange
+         * @description The users an add or remove request names.
          */
-        GroupMembersAdd: {
+        GroupMembersChange: {
             /** User Ids */
             user_ids: number[];
         };
@@ -5534,7 +5534,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["GroupMembersAdd"];
+                "application/json": components["schemas"]["GroupMembersChange"];
             };
         };
         responses: {
@@ -5560,16 +5560,18 @@ export interface operations {
     };
     remove_group_members_api_v1_permissions_groups__group_id__members_delete: {
         parameters: {
-            query: {
-                user_ids: number[];
-            };
+            query?: never;
             header?: never;
             path: {
                 group_id: number;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupMembersChange"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             204: {

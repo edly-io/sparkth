@@ -104,8 +104,8 @@ class GroupResponse(BaseModel):
     description: str | None
 
 
-class GroupMembersAdd(BaseModel):
-    """The users to add to a group in one request."""
+class GroupMembersChange(BaseModel):
+    """The users an add or remove request names."""
 
     user_ids: list[int] = Field(min_length=1, max_length=MAX_GROUP_MEMBER_CHANGES)
 
