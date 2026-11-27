@@ -51,10 +51,9 @@
         "startFrom": {
           "label": "Partir de",
           "none": "Aucune permission",
-          "copy": "Une copie d'un autre rôle",
-          "copySource": "Rôle à copier"
-        },
-        "permissionsFailed": "Impossible de charger les permissions. Réessayez."
+          "duplicate": "Un duplicata d'un autre rôle",
+          "duplicateSource": "Rôle à dupliquer"
+        }
       },
       "menu": {
         "label": "Plus d'actions pour {name}",

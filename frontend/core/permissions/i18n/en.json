@@ -51,10 +51,9 @@
         "startFrom": {
           "label": "Start from",
           "none": "No permissions",
-          "copy": "A copy of another role",
-          "copySource": "Role to copy"
-        },
-        "permissionsFailed": "Couldn't load the permissions. Try again."
+          "duplicate": "A duplicate of another role",
+          "duplicateSource": "Role to duplicate"
+        }
       },
       "menu": {
         "label": "More actions for {name}",

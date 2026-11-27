@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { twMerge } from "tailwind-merge";
 import { ApiRequestError } from "@/lib/api";
-import { useAuth } from "@/core/auth/hooks";
 import { Button } from "@/core/components/ui/Button";
 import {
   Dialog,
@@ -17,18 +16,17 @@ import {
 import { Input } from "@/core/components/ui/Input";
 import { Select } from "@/core/components/ui/Select";
 import { Textarea } from "@/core/components/ui/Textarea";
-import { usePermissionList } from "@/core/permissions/hooks";
-import { formatRoleName, getDeclaredPermissions } from "@/core/permissions/roleDisplay";
+import { formatRoleName } from "@/core/permissions/roleDisplay";
 import type { RoleCreate, RoleResponse } from "@/core/permissions/types";
 
 /** Where the new role's first permissions come from. */
-type PermissionSource = "none" | "copy";
+type PermissionSource = "none" | "duplicate";
 
 /**
  * Asks for a new role's name and description, trimmed, the description `null` when left empty, and
- * what it starts from: no permissions, or a copy of one of `roles`. A copy takes only the permissions
- * still declared, loaded once when first needed. Calls `onCreate` with all of it, closes once
- * the role is created, and stays open with a message when the name is taken or creating fails.
+ * what it starts from: no permissions, or a duplicate of one of `roles`, with that role's
+ * permissions. Calls `onCreate` with all of it, closes once the role is created, and stays open with
+ * a message when the name is taken or creating fails.
  */
 export function CreateRoleDialog({
   open,
@@ -66,7 +64,6 @@ function RoleForm({
   onClose: () => void;
 }) {
   const t = useTranslations("permissions.roles.create");
-  const { token } = useAuth();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [permissionSource, setPermissionSource] = useState<PermissionSource>("none");
@@ -74,20 +71,15 @@ function RoleForm({
   // The role to duplicate: the one selected, or the first listed until one is selected (the roles
   // may only arrive after the dialog opens).
   const duplicateRoleId = selectedRoleId ?? roles[0]?.id;
-  const { permissionList, load: loadPermissionList } = usePermissionList(token);
   const [nameError, setNameError] = useState<string>();
   const [createFailed, setCreateFailed] = useState(false);
   const [creating, setCreating] = useState(false);
 
-  const selectPermissionSource = (source: PermissionSource) => {
-    setPermissionSource(source);
-    if (source !== "none") loadPermissionList();
-  };
-
   const getPermissionsToGrant = (): string[] | undefined => {
-    if (permissionSource === "none" || permissionList.status !== "loaded") return undefined;
+    if (permissionSource === "none") return undefined;
     const duplicateRole = roles.find((role) => role.id === duplicateRoleId);
-    return getDeclaredPermissions(duplicateRole?.permissions ?? [], permissionList.permissions);
+    if (!duplicateRole) throw new Error(`The role to duplicate, ${duplicateRoleId}, is not listed`);
+    return duplicateRole.permissions;
   };
 
   const submit = async (event: React.FormEvent) => {
@@ -95,8 +87,8 @@ function RoleForm({
     setCreating(true);
     setNameError(undefined);
     setCreateFailed(false);
-    const permissions = getPermissionsToGrant();
     try {
+      const permissions = getPermissionsToGrant();
       await onCreate({
         name: name.trim(),
         description: description.trim() || null,
@@ -140,20 +132,20 @@ function RoleForm({
         <PermissionSourceOption
           label={t("startFrom.none")}
           selected={permissionSource === "none"}
-          onSelect={() => selectPermissionSource("none")}
+          onSelect={() => setPermissionSource("none")}
         />
         {roles.length > 0 && (
           <PermissionSourceOption
-            label={t("startFrom.copy")}
-            selected={permissionSource === "copy"}
-            onSelect={() => selectPermissionSource("copy")}
+            label={t("startFrom.duplicate")}
+            selected={permissionSource === "duplicate"}
+            onSelect={() => setPermissionSource("duplicate")}
           >
             <div className="w-40 shrink-0">
               <Select
-                aria-label={t("startFrom.copySource")}
+                aria-label={t("startFrom.duplicateSource")}
                 value={String(duplicateRoleId)}
                 onChange={(event) => setSelectedRoleId(Number(event.target.value))}
-                disabled={permissionSource !== "copy"}
+                disabled={permissionSource !== "duplicate"}
                 options={roles.map((role) => ({
                   value: String(role.id),
                   label: formatRoleName(role.name),
@@ -162,11 +154,6 @@ function RoleForm({
               />
             </div>
           </PermissionSourceOption>
-        )}
-        {permissionSource !== "none" && permissionList.status === "failed" && (
-          <p role="alert" className="text-sm text-error-600">
-            {t("permissionsFailed")}
-          </p>
         )}
       </fieldset>
       {createFailed && (
@@ -178,13 +165,7 @@ function RoleForm({
         <Button type="button" variant="ghost" onClick={onClose} disabled={creating}>
           {t("cancel")}
         </Button>
-        <Button
-          type="submit"
-          loading={creating}
-          disabled={
-            !name.trim() || (permissionSource !== "none" && permissionList.status !== "loaded")
-          }
-        >
+        <Button type="submit" loading={creating} disabled={!name.trim()}>
           {t("submit")}
         </Button>
       </DialogFooter>
