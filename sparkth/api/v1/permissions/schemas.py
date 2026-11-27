@@ -140,6 +140,12 @@ class UserRoleAssignmentsCreate(BaseModel):
     )
 
 
+class RoleAssignmentsRevoke(BaseModel):
+    """The ids of the role assignments to take away in one request."""
+
+    assignment_ids: list[int] = Field(min_length=1, max_length=MAX_ROLE_ASSIGNMENT_CHANGES)
+
+
 class UserRoleAssignmentResponse(BaseModel):
     id: int
     user_id: int

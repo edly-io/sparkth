@@ -1242,7 +1242,7 @@ export interface paths {
         post: operations["assign_role_to_users_api_v1_permissions_roles__role_id__assignments_users_post"];
         /**
          * Revoke User Role Assignments
-         * @description Take a role away from up to 100 users, given as repeated ``assignment_ids`` query parameters.
+         * @description Take a role away from up to 100 users, given as ``assignment_ids`` in the request body.
          *
          *     All or nothing: an id that is unknown, already revoked or of another role answers 404, and an assignment
          *     whose stored scope is no longer registered, or whose stored scope and object pairing is no longer valid,
@@ -3134,6 +3134,14 @@ export interface components {
              * Format: email
              */
             email: string;
+        };
+        /**
+         * RoleAssignmentsRevoke
+         * @description The ids of the role assignments to take away in one request.
+         */
+        RoleAssignmentsRevoke: {
+            /** Assignment Ids */
+            assignment_ids: number[];
         };
         /**
          * RoleCreate
@@ -5831,16 +5839,18 @@ export interface operations {
     };
     revoke_user_role_assignments_api_v1_permissions_roles__role_id__assignments_users_delete: {
         parameters: {
-            query: {
-                assignment_ids: number[];
-            };
+            query?: never;
             header?: never;
             path: {
                 role_id: number;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleAssignmentsRevoke"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             204: {

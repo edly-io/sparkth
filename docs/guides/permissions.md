@@ -131,7 +131,7 @@ A role can also be given to a user and taken from one through the API, with thre
 |---|---|---|
 | `GET /api/v1/permissions/roles/{role_id}/assignments/users?limit=&offset=` | Lists the active holders by assignment id, 50 a page (1 to 200), as `id`, `user_id`, `name`, `username`, `role_id`, `role_name`, `scope`, `scope_object_id` and `assigned_at` | `role.read` |
 | `POST /api/v1/permissions/roles/{role_id}/assignments/users` with `{"user_ids": [7, 9], "scope": "global"}` | Gives the role to 1 to 100 users at one scope and answers 201 with one assignment per distinct user, in request order; a grant that already exists is returned unchanged | `role.assign` |
-| `DELETE /api/v1/permissions/roles/{role_id}/assignments/users?assignment_ids=3&assignment_ids=4` | Takes the role away by 1 to 100 assignment ids and answers 204 | `role.revoke` |
+| `DELETE /api/v1/permissions/roles/{role_id}/assignments/users` with `{"assignment_ids": [3, 4]}` | Takes the role away by 1 to 100 assignment ids and answers 204 | `role.revoke` |
 
 Each route checks its permission at the `role` scope, so a grant at one role reaches that role only. `scope` is
 required, with `scope_object_id` for a scope that names objects, and is checked as the CLI checks it: an unknown
