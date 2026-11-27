@@ -8,6 +8,7 @@ from typing import Self
 
 from pydantic import BaseModel, Field, model_validator
 
+from sparkth.api.v1.permissions.constants import MAX_GROUP_MEMBER_CHANGES
 from sparkth.core.permissions.enums import PermissionRisk
 
 
@@ -103,8 +104,10 @@ class GroupResponse(BaseModel):
     description: str | None
 
 
-class GroupMemberAdd(BaseModel):
-    user_id: int
+class GroupMembersAdd(BaseModel):
+    """The users to add to a group in one request."""
+
+    user_ids: list[int] = Field(min_length=1, max_length=MAX_GROUP_MEMBER_CHANGES)
 
 
 class GroupMemberResponse(BaseModel):
