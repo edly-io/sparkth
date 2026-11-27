@@ -1,6 +1,7 @@
 """The learner-facing surface, mounted at ``/api/v1/pxc``.
 
-These requests carry no Sparkth session; the launch token in the query string authenticates them.
+These requests carry no Sparkth session; the launch token in the query string authenticates them,
+and the account the token is checked for must hold a permission that allows the launch.
 The author's own session-authenticated routes live in ``routes.activities``.
 
 Every call into the PXC runtime is dispatched to a worker thread. The sandbox executes
@@ -34,6 +35,7 @@ from sparkth.plugins.pxc.exceptions import (
     PxcAssetNotFound,
     PxcInvalidLaunchToken,
 )
+from sparkth.plugins.pxc.launch_access import require_launch_access
 from sparkth.plugins.pxc.revisions import live_revision
 from sparkth.plugins.pxc.runtime import build_runtime, launch_dir, read_state
 from sparkth.plugins.pxc.schemas import ActivityConfig, LaunchContext
@@ -45,6 +47,20 @@ logger = get_logger(__name__)
 # Every route authenticates by launch token, except the public client scripts and the preflight.
 router = APIRouter()
 
+
+async def get_launch_claims(token: str = Query()) -> LaunchClaims:
+    """The claims of a verified launch token, for a launch its account may make.
+
+    Raises:
+        PxcInvalidLaunchToken: if the token is malformed, wrongly signed or expired.
+        PxcActivityNotFound: if the token names no activity.
+        PxcActivityNotPermitted: if the token's account holds no permission that allows the launch.
+    """
+    claims = read_launch_token(token)
+    await require_launch_access(claims)
+    return claims
+
+
 # Allowlist of the client scripts the activity page loads.
 _CLIENT_FILES = {
     "pxc.js": Path(pxc.lib.__file__).parent / "static" / "js" / "pxc.js",
@@ -54,7 +70,7 @@ _CLIENT_FILES = {
 
 @router.get("/embed", response_class=HTMLResponse)
 async def embed_activity(
-    request: Request, claims: LaunchClaims = Depends(read_launch_token), token: str = Query()
+    request: Request, claims: LaunchClaims = Depends(get_launch_claims), token: str = Query()
 ) -> HTMLResponse:
     """The document an LMS iframes to show one activity to one learner.
 
@@ -119,7 +135,7 @@ async def client_script(file_name: str) -> FileResponse:
 
 
 @router.get("/assets/{file_path:path}")
-async def activity_asset(file_path: str, claims: LaunchClaims = Depends(read_launch_token)) -> FileResponse:
+async def activity_asset(file_path: str, claims: LaunchClaims = Depends(get_launch_claims)) -> FileResponse:
     """Serve the activity's UI script or one of its declared assets.
 
     Resolved from the manifest, not from a runtime. Which learner is asking does not change
@@ -134,7 +150,7 @@ async def activity_asset(file_path: str, claims: LaunchClaims = Depends(read_lau
 
 @router.post("/actions/{action_name}", status_code=status.HTTP_204_NO_CONTENT)
 async def submit_action(
-    action_name: str, request: Request, claims: LaunchClaims = Depends(read_launch_token)
+    action_name: str, request: Request, claims: LaunchClaims = Depends(get_launch_claims)
 ) -> Response:
     """Run one action through the activity's sandbox, for a payload too large for the socket.
 

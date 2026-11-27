@@ -129,7 +129,10 @@ Do not pass them unless the context is wrong for this event.
 
 - **Actor.** Authenticated requests bind the user through `get_current_user`; an event recorded
   after that is attributed automatically. Pass `actor=` only to override it: `AnonymousActor()`
-  for an unauthenticated attempt, `SystemActor(label=...)` for a job.
+  for an unauthenticated attempt, `SystemActor(label=...)` for a job. A request that carries no session
+  but is checked for an account, such as a PXC launch token, binds that account, so its
+  `permission.denied` names the account whose grant was checked. When that account does not exist, which is
+  the case before the seed migration of the `pxc_lms` account has run, the event has no actor.
 - **Source and request origin.** The ASGI middleware installs a `REST` (or `MCP`) request context
   per request. Code with no request (CLI commands, scheduled jobs, detached tasks) installs its own
   with `audit_context(AuditSystemContext(source=..., actor=SystemActor(...)))`, or it is recorded
