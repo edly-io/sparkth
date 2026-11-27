@@ -17,7 +17,7 @@ import { EditRoleDialog } from "@/core/permissions/components/ui/EditRoleDialog"
 import { RiskChips } from "@/core/permissions/components/ui/RiskChips";
 import { RoleBadges } from "@/core/permissions/components/ui/RoleBadges";
 import { RolePermissionList } from "@/core/permissions/components/ui/RolePermissionList";
-import { usePermissionChecks, usePermissionList } from "@/core/permissions/hooks";
+import { usePermissionList, useRoleAccess } from "@/core/permissions/hooks";
 import { ROLES_PATH, getRolePath } from "@/core/permissions/paths";
 import { formatRoleName } from "@/core/permissions/roleDisplay";
 import type { RoleCreate } from "@/core/permissions/types";
@@ -25,11 +25,12 @@ import type { RoleCreate } from "@/core/permissions/types";
 /**
  * One role's page, for the role named by `?id=`: a breadcrumb back through Access & permissions and
  * Roles, then the role's name as the page heading with its badges, description and risks, and every
- * permission with the role's own checked. What the signed-in user may do decides the rest: a custom
- * role's name, description and permissions can be changed, with Save enabled once the permissions
- * differ and saying so once saved; any role can be duplicated, opening the copy; and a custom role
- * can be deleted, going back to Roles. Says so too when there is no such role, it can't be loaded
- * or saving fails.
+ * permission with the role's own checked. What the signed-in user may do decides the rest: those
+ * who may change a custom role can edit its name and description and check and uncheck its
+ * permissions, with Save enabled once the permissions differ and saying so once saved; those who
+ * may create roles can duplicate this one, which opens the duplicate; and those who may delete a
+ * custom role can delete it, which goes back to Roles. Says so too when there is no such role, it
+ * can't be loaded or saving fails.
  */
 export default function RolePage() {
   const t = useTranslations("permissions.roles.detail");
@@ -42,16 +43,10 @@ export default function RolePage() {
   const [editing, setEditing] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  // Read by position. A copy can start with permissions, so duplicating needs role.update too.
-  const [canCreateRoles, canChangeRoles, canChangeRole, canDeleteRole] = usePermissionChecks(
+  const { canCreate, canChange, canDelete } = useRoleAccess(
     roleId === null ? null : token,
-    [
-      { permission: "role.create", scope: "global" },
-      { permission: "role.update", scope: "global" },
-      { permission: "role.update", scope: "role", scopeObjectId: String(roleId) },
-      { permission: "role.delete", scope: "role", scopeObjectId: String(roleId) },
-    ],
-  ).map((access) => access === "allowed");
+    roleId ?? undefined,
+  );
   const { permissionList, load: loadPermissionList } = usePermissionList(token);
 
   useEffect(() => loadPermissionList(), [loadPermissionList]);
@@ -71,17 +66,18 @@ export default function RolePage() {
 
   const { role, checked, saveStatus } = state;
   const name = formatRoleName(role.name);
-  const canEdit = canChangeRole && !role.is_builtin;
+  const canEdit = canChange && !role.is_builtin;
 
-  const createCopy = async (copy: RoleCreate) => {
+  const createDuplicate = async (duplicate: RoleCreate) => {
     if (!token) throw new Error("not signed in");
-    const created = await createRole(token, copy);
+    const created = await createRole(token, duplicate);
     router.push(getRolePath(created.id));
   };
 
   const confirmDelete = async () => {
     if (!token) throw new Error("not signed in");
     await deleteRole(token, role.id);
+    setDeleting(false);
     router.push(ROLES_PATH);
   };
 
@@ -122,7 +118,7 @@ export default function RolePage() {
                 {t("edit")}
               </Button>
             )}
-            {canCreateRoles && canChangeRoles && (
+            {canCreate && (
               <Button
                 variant="outline"
                 size="sm"
@@ -133,7 +129,7 @@ export default function RolePage() {
                 {t("duplicate")}
               </Button>
             )}
-            {canDeleteRole && !role.is_builtin && (
+            {canDelete && !role.is_builtin && (
               <Button
                 variant="outline"
                 size="sm"
@@ -153,7 +149,7 @@ export default function RolePage() {
         open={duplicating}
         roles={[role]}
         initialPermissionSource="duplicate"
-        onCreate={createCopy}
+        onCreate={createDuplicate}
         onClose={() => setDuplicating(false)}
       />
       {deleting && (

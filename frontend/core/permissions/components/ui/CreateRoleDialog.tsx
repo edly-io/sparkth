@@ -58,7 +58,7 @@ export function CreateRoleDialog({
           <DialogTitle>{t("title")}</DialogTitle>
           <DialogDescription>{t("intro")}</DialogDescription>
         </DialogHeader>
-        {/* Mounted per opening, so the form starts empty each time. */}
+        {/* Mounted per opening, so the form starts afresh each time. */}
         <RoleForm
           roles={roles}
           initialPermissionSource={initialPermissionSource}

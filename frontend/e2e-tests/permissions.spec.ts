@@ -193,22 +193,11 @@ test.describe("access & permissions", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Course reviewer" })).toBeVisible();
   });
 
-  test("duplicates a role from its page, then deletes the copy", async ({ page }) => {
-    const role = {
-      id: 1,
-      name: "Course editor",
-      description: "Edits courses",
-      permissions: ["role.read"],
-      is_builtin: false,
-      is_default: false,
-      user_count: 0,
-      group_count: 0,
-      risks: [],
-    } satisfies RoleResponse;
-    const copy = { ...role, id: 2, name: "Course editor copy" };
+  test("duplicates a role from its page, then deletes the duplicate", async ({ page }) => {
+    const duplicate = { ...COURSE_EDITOR, id: 2, name: "Course editor duplicate" };
     await stubPermissions(page, [...SECTION_PERMISSIONS, "role.create", "role.update", "role.delete"]);
-    await stubRole(page, role);
-    await stubRole(page, copy);
+    await stubRole(page, COURSE_EDITOR);
+    await stubRole(page, duplicate);
     await stubPermissionList(page, [
       {
         name: "role.read",
@@ -223,7 +212,7 @@ test.describe("access & permissions", () => {
     await page.route("**/api/v1/permissions/roles", (route) => {
       if (route.request().method() !== "POST") return route.fallback();
       created.push(route.request().postDataJSON());
-      return route.fulfill({ status: 201, json: copy });
+      return route.fulfill({ status: 201, json: duplicate });
     });
     let deleted = false;
     await page.route("**/api/v1/permissions/roles/2", (route) => {
@@ -234,12 +223,16 @@ test.describe("access & permissions", () => {
     await page.goto("/dashboard/permissions/roles/role?id=1");
 
     await page.getByRole("button", { name: "Duplicate" }).click();
-    await page.getByLabel("Name").fill("Course editor copy");
+    await page.getByLabel("Name").fill("Course editor duplicate");
     await page.getByRole("button", { name: "Create", exact: true }).click();
     await expect
       .poll(() => created)
       .toEqual([
-        { name: "Course editor copy", description: "Edits courses", permissions: ["role.read"] },
+        {
+          name: "Course editor duplicate",
+          description: "Edits courses",
+          permissions: ["role.read"],
+        },
       ]);
     await expect(page).toHaveURL(/\/dashboard\/permissions\/roles\/role\/?\?id=2$/);
 

@@ -286,17 +286,17 @@ describe("RolePage", () => {
     expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
   });
 
-  it("duplicates the role and opens the copy", async () => {
-    createRole.mockResolvedValue({ ...ROLE, id: 9, name: "Course author copy" });
+  it("duplicates the role and opens the duplicate", async () => {
+    createRole.mockResolvedValue({ ...ROLE, id: 9, name: "Course author duplicate" });
     renderWithIntl(<RolePage />);
 
     await userEvent.click(await screen.findByRole("button", { name: "Duplicate" }));
     expect(screen.getByRole("radio", { name: "A duplicate of another role" })).toBeChecked();
-    await userEvent.type(screen.getByLabelText("Name"), "Course author copy");
+    await userEvent.type(screen.getByLabelText("Name"), "Course author duplicate");
     await userEvent.click(await screen.findByRole("button", { name: "Create" }));
 
     expect(createRole).toHaveBeenCalledWith("test-token", {
-      name: "Course author copy",
+      name: "Course author duplicate",
       description: "Builds and publishes courses.",
       permissions: ["role.read"],
     });
@@ -313,6 +313,7 @@ describe("RolePage", () => {
 
     expect(deleteRole).toHaveBeenCalledWith("test-token", 7);
     expect(nav.push).toHaveBeenCalledWith("/dashboard/permissions/roles");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("lets nobody change a built-in role's permissions", async () => {
