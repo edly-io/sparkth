@@ -128,16 +128,27 @@ class GroupRoleAssignmentResponse(BaseModel):
     assigned_at: datetime
 
 
-class UserRoleAssignmentsCreate(BaseModel):
-    """The users to give a role to, all at one scope, in one request."""
+class RoleAssignmentCreate(BaseModel):
+    """The scope a role is given at, with the input limits shared by every assignment request."""
 
-    user_ids: list[int] = Field(min_length=1, max_length=MAX_ROLE_ASSIGNMENT_CHANGES)
     scope: str = Field(min_length=1, max_length=50, description="Scope kind to give the role at, e.g. 'global'.")
     scope_object_id: str | None = Field(
         default=None,
         max_length=100,
         description="The object the scope names. Leave it out for a scope without objects.",
     )
+
+
+class UserRoleAssignmentsCreate(RoleAssignmentCreate):
+    """The users to give a role to, all at one scope, in one request."""
+
+    user_ids: list[int] = Field(min_length=1, max_length=MAX_ROLE_ASSIGNMENT_CHANGES)
+
+
+class GroupRoleAssignmentsCreate(RoleAssignmentCreate):
+    """The groups to give a role to, all at one scope, in one request."""
+
+    group_ids: list[int] = Field(min_length=1, max_length=MAX_ROLE_ASSIGNMENT_CHANGES)
 
 
 class RoleAssignmentsRevoke(BaseModel):

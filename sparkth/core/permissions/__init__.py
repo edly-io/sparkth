@@ -309,8 +309,8 @@ ROLE_REVOKE = Permission.create(
 )
 
 # The group-management permissions gate the group-management API (sparkth/api/v1/permissions).
-# Adding and removing members have permissions of their own; group-role grants are CLI-managed and
-# carry no REST gate.
+# Adding and removing members have permissions of their own; group-role grants are gated by the
+# role-assignment permissions.
 GROUP_CREATE = Permission.create(
     "group.create",
     gettext_noop("Create groups"),

@@ -1217,6 +1217,42 @@ export interface paths {
         patch: operations["update_role_api_v1_permissions_roles__role_id__patch"];
         trace?: never;
     };
+    "/api/v1/permissions/roles/{role_id}/assignments/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Group Role Assignments
+         * @description List the groups holding a role, by assignment id. Returns each group's scope and grant time.
+         */
+        get: operations["list_group_role_assignments_api_v1_permissions_roles__role_id__assignments_groups_get"];
+        put?: never;
+        /**
+         * Assign Role To Groups
+         * @description Give a role to up to 100 groups at one scope, all or nothing.
+         *
+         *     Every group must exist, else the request answers 404 and changes nothing; an unknown or invalid scope
+         *     answers 422 likewise. A group that already holds the role at that scope is returned unchanged, and an id
+         *     repeated in the request counts once. Returns one assignment per distinct group, in request order.
+         */
+        post: operations["assign_role_to_groups_api_v1_permissions_roles__role_id__assignments_groups_post"];
+        /**
+         * Revoke Group Role Assignments
+         * @description Take a role away from up to 100 groups, given as ``assignment_ids`` in the request body.
+         *
+         *     All or nothing: an id that is unknown, already revoked or of another role answers 404, and an assignment
+         *     whose stored scope kind is no longer registered answers 422; either way nothing is revoked. Returns 204
+         *     No Content.
+         */
+        delete: operations["revoke_group_role_assignments_api_v1_permissions_roles__role_id__assignments_groups_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/permissions/roles/{role_id}/assignments/users": {
         parameters: {
             query?: never;
@@ -2667,6 +2703,24 @@ export interface components {
             scope: string;
             /** Scope Object Id */
             scope_object_id: string | null;
+        };
+        /**
+         * GroupRoleAssignmentsCreate
+         * @description The groups to give a role to, all at one scope, in one request.
+         */
+        GroupRoleAssignmentsCreate: {
+            /** Group Ids */
+            group_ids: number[];
+            /**
+             * Scope
+             * @description Scope kind to give the role at, e.g. 'global'.
+             */
+            scope: string;
+            /**
+             * Scope Object Id
+             * @description The object the scope names. Leave it out for a scope without objects.
+             */
+            scope_object_id?: string | null;
         };
         /** GroupUpdate */
         GroupUpdate: {
@@ -5870,6 +5924,105 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["RoleResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_group_role_assignments_api_v1_permissions_roles__role_id__assignments_groups_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                role_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupRoleAssignmentResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    assign_role_to_groups_api_v1_permissions_roles__role_id__assignments_groups_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                role_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupRoleAssignmentsCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupRoleAssignmentResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_group_role_assignments_api_v1_permissions_roles__role_id__assignments_groups_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                role_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleAssignmentsRevoke"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

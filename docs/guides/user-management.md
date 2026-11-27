@@ -2,6 +2,8 @@
 
 Users are created and managed from the command line. This is the primary path when
 frontend registration is disabled (see [`REGISTRATION_ENABLED`](../reference/configuration.md#registration_enabled)).
+Users can also be listed, and their roles assigned and revoked, through the API (see
+[Assign and revoke roles](#assign-and-revoke-roles)).
 
 Both commands below are audited: creating a user records `auth.registered` and resetting a
 password records `auth.password_reset`, each attributed to the CLI (a `system` actor with
@@ -67,7 +69,15 @@ make cli -- roles assign-role jane admin
 make cli -- roles revoke-role jane admin
 ```
 
-See the [permissions guide](permissions.md) for scopes and for limiting a user to some plugins.
+The same can be done through the API. `GET /api/v1/users` lists users and `GET /api/v1/users/{user_id}` reads
+one; both need `user.read`. Under `/api/v1/permissions/roles/{role_id}/assignments/users`, `GET` lists the users
+holding a role (`role.read`), `POST` with `{"user_ids": [7, 9], "scope": "global"}` gives it to up to 100 users
+(`role.assign`) and `DELETE` with `{"assignment_ids": [3, 4]}` takes it away by up to 100 assignments
+(`role.revoke`), each request all or nothing. The role permissions are checked at that role, so a grant can be
+delegated for a single role.
+
+See the [permissions guide](permissions.md) for scopes, for the group routes and for limiting a user to some
+plugins.
 
 ## Reset a password
 

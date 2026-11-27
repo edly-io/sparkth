@@ -1,13 +1,13 @@
 """Group sub-router (mounted at ``/groups``): CRUD for user groups, their members and their roles.
 
-Granting a role to a group is CLI-managed; the roles a group holds can be listed. The endpoints that
-address one group by ``{group_id}`` (get/update/delete, the member routes and the roles list) authorize
-at the ``group`` scope, so a grant can be delegated to a single group; a global grant still satisfies
-them via the scope cascade. Listing members or roles needs ``group.read``. Adding members
-(``POST .../members`` with ``user_ids``, 1 to 100) needs ``group.member.add`` and removing them
-(``DELETE .../members`` with ``user_ids``, 1 to 100) needs ``group.member.remove``; each request changes every
-listed user or none. Listing groups returns the groups the caller holds ``group.read`` at (every group for
-a global grant); creating a group stays global.
+The roles a group holds can be listed here; giving and taking one away is done from the role's
+assignment routes. The endpoints that address one group by ``{group_id}`` (get/update/delete, the
+member routes and the roles list) authorize at the ``group`` scope, so a grant can be delegated to a
+single group; a global grant still satisfies them via the scope cascade. Listing members or roles needs
+``group.read``. Adding members (``POST .../members`` with ``user_ids``, 1 to 100) needs
+``group.member.add`` and removing them (``DELETE .../members`` with ``user_ids``, 1 to 100) needs
+``group.member.remove``; each request changes every listed user or none. Listing groups returns the
+groups the caller holds ``group.read`` at (every group for a global grant); creating a group stays global.
 Authored with LLM (Claude) assistance.
 """
 
@@ -60,7 +60,7 @@ def _build_group_member_response(membership: GroupMembership, user: User) -> Gro
     )
 
 
-def _build_group_role_response(
+def build_group_role_response(
     assignment: GroupRoleAssignment, group: Group, role_name: str
 ) -> GroupRoleAssignmentResponse:
     """Assemble the response for a group's role assignment, guarding the persisted-id invariant."""
@@ -200,4 +200,4 @@ async def list_group_roles(
     assignments = await group_engine.get_group_roles(group_id, session)
     roles = await list_roles({assignment.role_id for assignment in assignments}, session)
     role_names = {role.id: role.name for role in roles}
-    return [_build_group_role_response(assignment, group, role_names[assignment.role_id]) for assignment in assignments]
+    return [build_group_role_response(assignment, group, role_names[assignment.role_id]) for assignment in assignments]
