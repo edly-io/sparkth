@@ -173,18 +173,8 @@ test.describe("access & permissions", () => {
   });
 
   test("edits a role's name and description on its page", async ({ page }) => {
-    const role = {
-      id: 1,
-      name: "Course editor",
-      description: "Edits courses",
-      permissions: [],
-      is_builtin: false,
-      is_default: false,
-      user_count: 0,
-      group_count: 0,
-      risks: [],
-    } satisfies RoleResponse;
-    await stubPermissions(page, SECTION_PERMISSIONS);
+    const role = { ...COURSE_EDITOR, permissions: [] };
+    await stubPermissions(page, [...SECTION_PERMISSIONS, "role.update"]);
     await stubRole(page, role);
     await stubPermissionList(page, []);
     const sent: unknown[] = [];
