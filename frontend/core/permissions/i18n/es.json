@@ -52,8 +52,11 @@
           "label": "Empezar desde",
           "none": "Sin permisos",
           "duplicate": "Un duplicado de otro rol",
-          "duplicateSource": "Rol que duplicar"
-        }
+          "duplicateSource": "Rol que duplicar",
+          "choose": "Elegir permisos"
+        },
+        "permissionsLoading": "Cargando los permisos…",
+        "permissionsFailed": "No se pudieron cargar los permisos. Inténtalo de nuevo."
       },
       "menu": {
         "label": "Más acciones para {name}",

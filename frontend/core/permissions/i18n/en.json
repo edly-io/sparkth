@@ -52,8 +52,11 @@
           "label": "Start from",
           "none": "No permissions",
           "duplicate": "A duplicate of another role",
-          "duplicateSource": "Role to duplicate"
-        }
+          "duplicateSource": "Role to duplicate",
+          "choose": "Choose permissions"
+        },
+        "permissionsLoading": "Loading the permissions…",
+        "permissionsFailed": "Couldn't load the permissions. Try again."
       },
       "menu": {
         "label": "More actions for {name}",

@@ -1,12 +1,29 @@
-import { describe, it, expect, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { act, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import userEvent from "@testing-library/user-event";
 import { renderWithIntl } from "@/tests/intl";
 import { ApiRequestError } from "@/lib/api";
 import en from "@/core/i18n/catalogs/en";
+import type { PermissionResponse, RoleResponse } from "@/core/permissions/types";
+
+vi.mock("@/core/auth/hooks", () => ({ useAuth: () => ({ token: "test-token" }) }));
+const client = vi.hoisted(() => ({ listPermissions: vi.fn() }));
+vi.mock("@/core/permissions/client", () => client);
+const { listPermissions } = client;
+
 import { CreateRoleDialog } from "@/core/permissions/components/ui/CreateRoleDialog";
-import type { RoleResponse } from "@/core/permissions/types";
+
+function permission(name: string, label: string): PermissionResponse {
+  return {
+    name,
+    label,
+    description: `${label}.`,
+    category: "Users & access",
+    risks: [],
+    requires: [],
+  };
+}
 
 function role(id: number, name: string, permissions: string[]): RoleResponse {
   return {
@@ -22,10 +39,20 @@ function role(id: number, name: string, permissions: string[]): RoleResponse {
   };
 }
 
+const PERMISSIONS = [
+  permission("role.read", "See roles"),
+  permission("role.update", "Change roles"),
+  permission("group.read", "See groups"),
+];
 const ROLES = [
   role(1, "sparkth_user", ["group.read"]),
   role(2, "Course author", ["role.read", "retired.permission"]),
 ];
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  listPermissions.mockResolvedValue(PERMISSIONS);
+});
 
 function renderDialog(onCreate = vi.fn().mockResolvedValue(undefined), onClose = vi.fn()) {
   renderWithIntl(<CreateRoleDialog open roles={ROLES} onCreate={onCreate} onClose={onClose} />);
@@ -88,6 +115,7 @@ describe("CreateRoleDialog", () => {
     renderDialog();
 
     expect(screen.getByRole("radio", { name: "No permissions" })).toBeChecked();
+    expect(listPermissions).not.toHaveBeenCalled();
   });
 
   it("duplicates the permissions of the role selected, as the role holds them", async () => {
@@ -164,6 +192,67 @@ describe("CreateRoleDialog", () => {
 
     expect(await screen.findByText("Couldn't create the role. Try again.")).toBeInTheDocument();
     expect(onCreate).not.toHaveBeenCalled();
+  });
+
+  it("creates the role with the permissions chosen", async () => {
+    const { onCreate } = renderDialog();
+
+    await userEvent.type(screen.getByLabelText("Name"), "Grader");
+    await userEvent.click(screen.getByRole("radio", { name: "Choose permissions" }));
+    await userEvent.click(await screen.findByRole("checkbox", { name: "See roles" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "See groups" }));
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    expect(onCreate).toHaveBeenCalledWith({
+      name: "Grader",
+      description: null,
+      permissions: ["role.read", "group.read"],
+    });
+  });
+
+  it("shows a spinner and can't create while the permissions load", async () => {
+    let finishLoading: (permissions: PermissionResponse[]) => void = () => {};
+    listPermissions.mockReturnValue(
+      new Promise<PermissionResponse[]>((resolve) => {
+        finishLoading = resolve;
+      }),
+    );
+    renderDialog();
+
+    await userEvent.type(screen.getByLabelText("Name"), "Grader");
+    await userEvent.click(screen.getByRole("radio", { name: "Choose permissions" }));
+
+    expect(screen.getByRole("status", { name: "Loading the permissions…" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create" })).toBeDisabled();
+    await act(async () => finishLoading(PERMISSIONS));
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "See roles" })).toBeInTheDocument();
+  });
+
+  it("loads the permissions once, however often the start changes", async () => {
+    renderDialog();
+
+    await userEvent.click(screen.getByRole("radio", { name: "Choose permissions" }));
+    await screen.findByRole("checkbox", { name: "See roles" });
+    await userEvent.click(screen.getByRole("radio", { name: "A duplicate of another role" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Choose permissions" }));
+
+    expect(listPermissions).toHaveBeenCalledTimes(1);
+    expect(listPermissions).toHaveBeenCalledWith("test-token");
+  });
+
+  it("says so and won't create when the permissions can't be loaded", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    listPermissions.mockRejectedValue(new Error("network down"));
+    renderDialog();
+
+    await userEvent.type(screen.getByLabelText("Name"), "Grader");
+    await userEvent.click(screen.getByRole("radio", { name: "Choose permissions" }));
+
+    expect(
+      await screen.findByText("Couldn't load the permissions. Try again."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create" })).toBeDisabled();
   });
 
   it("closes without creating on Cancel", async () => {
