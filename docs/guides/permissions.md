@@ -303,8 +303,9 @@ it. Settle these before declaring one:
   every current admin as soon as the release is migrated. Left ungranted, an operator grants
   it at runtime through the role-management API, to a role they created: a built-in role's
   permissions change only by migration.
-- **Does the UI check it?** The frontend checks a permission with `checkPermission`, which
-  accepts only names in the `PermissionName` union in `frontend/lib/permissions/names.ts`. That
+- **Does the UI check it?** The frontend checks a permission with `usePermissionCheck` (or
+  `usePermissionChecks` for several), from `frontend/lib/permissions/hooks.ts`, which
+  accept only names in the `PermissionName` union in `frontend/lib/permissions/names.ts`. That
   union mirrors the whole vocabulary by hand: a core permission is added to it directly, and a
   plugin's permissions are declared in the plugin's own `permissions.d.ts`
   (see [Frontend plugins](frontend-plugins.md)).
