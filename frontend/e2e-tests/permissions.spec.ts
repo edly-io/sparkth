@@ -195,7 +195,12 @@ test.describe("access & permissions", () => {
 
   test("duplicates a role from its page, then deletes the duplicate", async ({ page }) => {
     const duplicate = { ...COURSE_EDITOR, id: 2, name: "Course editor duplicate" };
-    await stubPermissions(page, [...SECTION_PERMISSIONS, "role.create", "role.update", "role.delete"]);
+    await stubPermissions(page, [
+      ...SECTION_PERMISSIONS,
+      "role.create",
+      "role.update",
+      "role.delete",
+    ]);
     await stubRole(page, COURSE_EDITOR);
     await stubRole(page, duplicate);
     await stubPermissionList(page, [
