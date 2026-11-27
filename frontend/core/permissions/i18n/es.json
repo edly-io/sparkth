@@ -70,6 +70,14 @@
         "pending": "Eliminando…",
         "cancel": "Cancelar",
         "failed": "No se pudo eliminar el rol. Inténtalo de nuevo."
+      },
+      "detail": {
+        "list": {
+          "label": "Permisos",
+          "filter": "Filtrar permisos",
+          "granted": "<strong>{granted}</strong> de {total} permisos concedidos",
+          "groupCount": "{granted} de {total}"
+        }
       }
     },
     "groups": {

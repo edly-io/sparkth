@@ -4,12 +4,14 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Input } from "@/core/components/ui/Input";
 import { RiskChips } from "@/core/permissions/components/ui/RiskChips";
+import { filterPermissions, groupByCategory } from "@/core/permissions/permissionList";
 import type { PermissionResponse } from "@/core/permissions/types";
 
 /**
- * Every permission as a checkbox labelled in plain words and tagged with its risks, grouped under its
- * category in the order given. A search box narrows the list by label or category; the count of chosen
- * permissions includes any the search hides. Ticking or unticking one calls `onToggle` with its name.
+ * Every permission as a checkbox labelled in plain words and tagged with its risks, grouped under
+ * its category in the order given. A search box narrows the list by label, category or internal
+ * name; the count of chosen permissions includes any the search hides. Ticking or unticking one
+ * calls `onToggle` with its name.
  */
 export function PermissionPicker({
   permissions,
@@ -22,12 +24,7 @@ export function PermissionPicker({
 }) {
   const t = useTranslations("permissions.picker");
   const [search, setSearch] = useState("");
-  const query = search.trim().toLocaleLowerCase();
-  const shown = permissions.filter(
-    ({ label, category }) =>
-      label.toLocaleLowerCase().includes(query) || category.toLocaleLowerCase().includes(query),
-  );
-  const categories = [...new Set(shown.map(({ category }) => category))];
+  const matchingByCategory = groupByCategory(filterPermissions(permissions, search));
 
   return (
     <div className="space-y-2">
@@ -46,31 +43,29 @@ export function PermissionPicker({
         </span>
       </div>
       <div className="max-h-34 space-y-3 overflow-y-auto rounded-lg border border-border px-3 py-2">
-        {categories.length === 0 && (
+        {matchingByCategory.size === 0 && (
           <p className="text-sm text-muted-foreground">{t("noMatches")}</p>
         )}
-        {categories.map((category) => (
+        {[...matchingByCategory].map(([category, categoryPermissions]) => (
           <fieldset key={category}>
             <legend className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {category}
             </legend>
             <ul className="space-y-1.5">
-              {shown
-                .filter((permission) => permission.category === category)
-                .map(({ name, label, risks }) => (
-                  <li key={name} className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <label className="flex items-center gap-2 text-sm text-foreground">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 accent-primary-600"
-                        checked={chosen.has(name)}
-                        onChange={() => onToggle(name)}
-                      />
-                      {label}
-                    </label>
-                    <RiskChips risks={risks} />
-                  </li>
-                ))}
+              {categoryPermissions.map(({ name, label, risks }) => (
+                <li key={name} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <label className="flex items-center gap-2 text-sm text-foreground">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-primary-600"
+                      checked={chosen.has(name)}
+                      onChange={() => onToggle(name)}
+                    />
+                    {label}
+                  </label>
+                  <RiskChips risks={risks} />
+                </li>
+              ))}
             </ul>
           </fieldset>
         ))}
