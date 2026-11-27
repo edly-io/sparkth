@@ -48,7 +48,7 @@ class ComposeCompletionServed(AnalyticsEventSchema):
 
     Not every delivered reply emits this: the RAG-no-results and streaming-error branches
     reply without an LLM completion.
-    ``rag_used`` means retrieval was *decided on*, not that it returned anything.
+    ``rag_used`` means a step searched the attached documents, not that it found anything.
     ``tool_call_count`` counts attempts.
     ``stopped_at`` is where the author's stop landed, or ``None`` for a turn that ran to the
     end; a ``before_model`` stop persists an empty reply.

@@ -30,13 +30,11 @@ from sparkth.lib.plugins import get_disabled_plugins
 from sparkth.lib.rag import bind_readable_document_ids
 from sparkth.plugins.compose.analytics import (
     ComposeAttachmentAnalytics,
-    ComposeClassifierAnalytics,
     ComposeTurnAnalytics,
     TurnFailureCause,
     executed_tools_from,
     record_turn_failed,
 )
-from sparkth.plugins.compose.classifiers import RAGSearchClassifier
 from sparkth.plugins.compose.config import ComposeSettings, get_compose_settings
 from sparkth.plugins.compose.constants import LLM_PROVIDER_API_ERRORS
 from sparkth.plugins.compose.conversation_title import extract_title_from_messages, schedule_title_generation
@@ -163,11 +161,6 @@ async def compose_completion(
     model = request.model_override or llm_config.model
     conversation_uuid = request.conversation_id
     query_text = get_last_user_text(request.messages)
-    classifier_analytics = ComposeClassifierAnalytics(
-        background_tasks=background_tasks,
-        provider=provider_name,
-        actor_id=str(user_id),
-    )
     allowed_plugins = await get_accessible_scope_object_ids(current_user, PLUGIN_USE, PLUGIN, session)
     # The tool filter and the agent list share the switched-off plugins and the allowed ones.
     agents = enabled_agents(disabled_plugins, allowed_plugins)
@@ -265,11 +258,10 @@ async def compose_completion(
             session=session, conversation_id=conversation_id
         )
 
-        # The search classifier judges the message against these.
+        # Listed for the planner and its agents, which read the ones a message needs.
         conversation_documents = await service.list_conversation_attachments(
             session=session, conversation_id=conversation_id
         )
-        ready_documents = conversation_documents.ready
         attached_documents = [
             *conversation_documents.ready,
             *(document for document in conversation_documents.unusable if not document.is_deleted),
@@ -297,22 +289,14 @@ async def compose_completion(
         planner_model = small_model_for(provider_name) if config.planner_model == PlannerModel.SMALL else model
         planner_llm = get_provider(provider_name, api_key, planner_model, temperature=0).create_llm()
 
-        # Only asked when there is something to search and something to search for.
-        rag_search_required = False
-        if ready_documents and query_text:
-            search_classifier = RAGSearchClassifier(provider_name, api_key, user_id, classifier_analytics)
-            rag_search_required = await search_classifier.requires_search(
-                query_text, ready_documents, conversation.uuid
-            )
-        # A skip is worth telling the client about only when the classifier weighed it.
-        rag_search_declined = bool(ready_documents) and bool(query_text) and not rag_search_required
-
-        messages, unresolved_messages = await assemble_provider_messages(
+        # The planner hands a message that needs the attached documents to the rag agent, so the route
+        # retrieves nothing itself.
+        messages, _unresolved_messages = await assemble_provider_messages(
             request,
             conversation_messages,
-            ready_documents,
+            [],
             query_text,
-            rag_search_required,
+            False,
             provider,
             uploaded_files=uploaded_files,
             analytics=turn_analytics,
@@ -323,9 +307,6 @@ async def compose_completion(
         planner_setup = PlannerSetup(agents, planner_llm, get_existing_plan_or_none(conversation_messages))
 
         if request.stream:
-            # Gated together so no LLM is built for a turn that will not retrieve.
-            rag_unresolved = unresolved_messages if rag_search_required else None
-            rag_llm = provider.create_llm() if rag_search_required else None
             # A turn is stoppable only if the caller named it; scripts and the MCP surface do not.
             # The stream task registers and releases it, so a request that never gets that far
             # leaves the registry untouched.
@@ -336,11 +317,7 @@ async def compose_completion(
                 conversation,
                 service,
                 tools,
-                rag_unresolved,
-                user_id,
-                rag_llm,
-                rag_search_required,
-                rag_search_declined,
+                user_id=user_id,
                 analytics=turn_analytics.attribution,
                 turn_id=turn_key,
                 max_tool_executions=config.max_tool_executions,
@@ -379,7 +356,7 @@ async def compose_completion(
             response_metadata = response.get("metadata") or {}
             executions = response_metadata.get("tool_executions") or []
             turn_analytics.schedule_completion(
-                rag_used=rag_search_required,
+                rag_used=bool(response.get("section_selections")),
                 streamed=False,
                 executed_tools=executed_tools_from(executions),
                 occurred_at=assistant_message.created_at,

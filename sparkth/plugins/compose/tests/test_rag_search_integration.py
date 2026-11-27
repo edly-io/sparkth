@@ -1,36 +1,28 @@
-"""Integration tests for the RAG search classifier wired into the chat completion flow."""
+"""Integration tests for the attached documents in the chat completion route: a step of the rag agent
+searches them, and only the caller's own documents a request names are attached."""
 
 import json
 from datetime import datetime, timezone
-from functools import partial
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import anthropic
-import httpx
 import pytest
 from httpx import AsyncClient
+from langchain_core.messages import AIMessage
+from sqlalchemy import select as sa_select
+from sqlalchemy.ext.asyncio import AsyncSession as SQLAlchemyAsyncSession
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.core.analytics.models import raw_events
 from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.lib.encryption import get_encryption_service
 from sparkth.lib.models import LLMConfig, User
 from sparkth.lib.settings import get_settings
-from sparkth.plugins.compose.exceptions import RAGSearchError
-from sparkth.plugins.compose.models import Conversation
-from sparkth.plugins.compose.tests.helpers import STREAM_TURN, answering_model, replay_turn
+from sparkth.lib.testing import ScriptedChatModel
+from sparkth.plugins.compose.models import Conversation, ConversationAttachment
+from sparkth.plugins.compose.tests.helpers import answering_model, planning, stored_messages
 from sparkth.plugins.compose.types import ConversationDocuments
-
-
-def _parse_sse_events(content: bytes) -> list[dict[str, Any]]:
-    events: list[dict[str, Any]] = []
-    for line in content.decode().splitlines():
-        if line.startswith("data: "):
-            try:
-                events.append(json.loads(line[6:]))
-            except json.JSONDecodeError:
-                pass
-    return events
+from sparkth.rag.models import DocumentChunk, DocumentChunkLink
 
 
 class _SeededData:
@@ -68,337 +60,6 @@ async def _seed(session: AsyncSession, user_id: int) -> _SeededData:
     conv_uuid = str(conv.uuid)
     await session.commit()
     return _SeededData(conv_id=conv_id, conv_uuid=conv_uuid, llm_config_id=llm_config_id)
-
-
-def _mock_document(document_id: int = 1, name: str = "lecture.pdf") -> Document:
-    return Document(id=document_id, user_id=1, name=name, status=DocumentStatus.READY)
-
-
-class TestIntentRouterIntegration:
-    """End-to-end tests verifying the router is wired correctly into compose_completion."""
-
-    @pytest.mark.asyncio
-    async def test_on_topic_non_streaming_triggers_rag(
-        self,
-        client: AsyncClient,
-        current_user: User,
-        session: AsyncSession,
-    ) -> None:
-        """On-topic query with persisted attachments should invoke RAG (non-streaming)."""
-        seed = await _seed(session, current_user.id or 1)
-
-        mock_msg = MagicMock()
-        mock_msg.id = 1
-
-        mock_msg.created_at = datetime.now(timezone.utc)
-
-        with (
-            patch("sparkth.plugins.compose.routes.completions.get_provider") as mock_get_provider,
-            patch("sparkth.plugins.compose.routes.completions.RAGSearchClassifier") as mock_router_cls,
-            patch(
-                "sparkth.plugins.compose.service.ComposeService.list_conversation_attachments",
-                new_callable=AsyncMock,
-            ) as mock_list_attachments,
-            patch(
-                "sparkth.plugins.compose.routes.utils.message_assembly.resolve_document_blocks",
-                new_callable=AsyncMock,
-            ) as mock_resolve,
-            patch(
-                "sparkth.plugins.compose.service.ComposeService.add_message",
-                new_callable=AsyncMock,
-            ) as mock_add_msg,
-        ):
-            # Router says retrieve=True
-            mock_router = MagicMock()
-            mock_router.requires_search = AsyncMock(return_value=True)
-            mock_router_cls.return_value = mock_router
-
-            # One READY attachment exists
-            mock_list_attachments.return_value = ConversationDocuments(ready=[_mock_document()], unusable=[])
-
-            # RAG resolution returns the original messages unchanged
-            mock_resolve.return_value = [MagicMock(role="user", content="Summarize the document")]
-
-            # Provider returns a simple response
-            mock_provider = MagicMock()
-            mock_provider.system_prompt = ""
-            mock_provider.create_llm.return_value = answering_model("Here is the summary.", total_tokens=50)
-            mock_get_provider.return_value = mock_provider
-            mock_add_msg.return_value = mock_msg
-
-            response = await client.post(
-                "/api/v1/compose/completions",
-                json={
-                    "llm_config_id": seed.llm_config_id,
-                    "messages": [{"role": "user", "content": "Summarize the document"}],
-                    "conversation_id": seed.conv_uuid,
-                    "stream": False,
-                    "tools": "none",
-                },
-            )
-
-        assert response.status_code == 200
-        # Router was called — confirming it's wired in
-        mock_router.requires_search.assert_awaited_once()
-        # RAG resolution was called — confirming retrieve=True triggered it
-        mock_resolve.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_off_topic_streaming_emits_skipping_rag_event(
-        self,
-        client: AsyncClient,
-        current_user: User,
-        session: AsyncSession,
-    ) -> None:
-        """Off-topic query with attachments should emit skipping_rag SSE event (streaming)."""
-        seed = await _seed(session, current_user.id or 1)
-
-        mock_msg = MagicMock()
-        mock_msg.id = 1
-
-        mock_msg.created_at = datetime.now(timezone.utc)
-
-        with (
-            patch("sparkth.plugins.compose.routes.completions.get_provider") as mock_get_provider,
-            patch("sparkth.plugins.compose.routes.completions.RAGSearchClassifier") as mock_router_cls,
-            patch(
-                "sparkth.plugins.compose.service.ComposeService.list_conversation_attachments",
-                new_callable=AsyncMock,
-            ) as mock_list_attachments,
-            patch(
-                "sparkth.plugins.compose.service.ComposeService.add_message",
-                new_callable=AsyncMock,
-            ) as mock_add_msg,
-            patch(
-                "sparkth.plugins.compose.service.ComposeService.get_conversation_messages",
-                new_callable=AsyncMock,
-            ) as mock_get_msgs,
-            # Patch the whole stream so we control the SSE output directly.
-            # This test's goal is to verify the classifier is asked, declines, and the route
-            # passes rag_search_declined to ComposeStreamProcessor.
-            patch("sparkth.plugins.compose.routes.completions.ComposeStreamProcessor") as mock_processor_cls,
-        ):
-            mock_router = MagicMock()
-            mock_router.requires_search = AsyncMock(return_value=False)
-            mock_router_cls.return_value = mock_router
-
-            mock_list_attachments.return_value = ConversationDocuments(ready=[_mock_document()], unusable=[])
-            mock_get_msgs.return_value = []
-
-            mock_provider = MagicMock()
-            mock_provider.system_prompt = ""
-            mock_provider.create_llm.return_value = MagicMock()
-            mock_get_provider.return_value = mock_provider
-            mock_add_msg.return_value = mock_msg
-
-            mock_instance = MagicMock()
-
-            async def _fake_stream_gen() -> Any:
-                yield f"data: {json.dumps({'status': 'skipping_rag', 'done': False})}\n\n"
-                yield f"data: {json.dumps({'token': 'Hi!', 'done': False})}\n\n"
-                yield f"data: {json.dumps({'done': True, 'conversation_id': seed.conv_uuid})}\n\n"
-
-            mock_instance.stream.return_value = _fake_stream_gen()
-            mock_processor_cls.return_value = mock_instance
-
-            response = await client.post(
-                "/api/v1/compose/completions",
-                json={
-                    "llm_config_id": seed.llm_config_id,
-                    "messages": [{"role": "user", "content": "How is the weather?"}],
-                    "conversation_id": seed.conv_uuid,
-                    "stream": True,
-                    "tools": "none",
-                },
-            )
-
-        assert response.status_code == 200
-        events = _parse_sse_events(response.content)
-        skipping = [e for e in events if e.get("status") == "skipping_rag"]
-        assert len(skipping) == 1
-        assert "reason" not in skipping[0]
-        mock_router.requires_search.assert_awaited_once()
-        # rag_search_declined is the 10th positional arg to ComposeStreamProcessor
-        assert mock_processor_cls.call_args.args[9] is True
-
-    @pytest.mark.asyncio
-    async def test_on_topic_streaming_emits_scanning_attachments_event(
-        self,
-        client: AsyncClient,
-        current_user: User,
-        session: AsyncSession,
-    ) -> None:
-        """On-topic streaming query with attachments should emit scanning_attachments event."""
-        seed = await _seed(session, current_user.id or 1)
-
-        mock_msg = MagicMock()
-        mock_msg.id = 1
-
-        mock_msg.created_at = datetime.now(timezone.utc)
-
-        with (
-            patch("sparkth.plugins.compose.routes.completions.get_provider") as mock_get_provider,
-            patch("sparkth.plugins.compose.routes.completions.RAGSearchClassifier") as mock_router_cls,
-            patch(
-                "sparkth.plugins.compose.service.ComposeService.list_conversation_attachments",
-                new_callable=AsyncMock,
-            ) as mock_list_attachments,
-            patch(
-                "sparkth.plugins.compose.routes.completions.ComposeStreamProcessor",
-            ) as mock_processor_cls,
-            patch(
-                "sparkth.plugins.compose.service.ComposeService.add_message",
-                new_callable=AsyncMock,
-            ) as mock_add_msg,
-        ):
-            mock_router = MagicMock()
-            mock_router.requires_search = AsyncMock(return_value=True)
-            mock_router_cls.return_value = mock_router
-
-            mock_list_attachments.return_value = ConversationDocuments(ready=[_mock_document()], unusable=[])
-
-            mock_provider = MagicMock()
-            mock_provider.system_prompt = ""
-            mock_provider.create_llm.return_value = MagicMock()
-            mock_get_provider.return_value = mock_provider
-            mock_add_msg.return_value = mock_msg
-
-            mock_instance = MagicMock()
-
-            # Produce a scanning_attachments event from the mocked stream
-            async def _fake_stream_gen() -> Any:
-                yield f"data: {json.dumps({'status': 'scanning_attachments', 'file_count': 1, 'done': False})}\n\n"
-                yield f"data: {json.dumps({'token': 'Summary.', 'done': False})}\n\n"
-                yield f"data: {json.dumps({'done': True, 'conversation_id': seed.conv_uuid})}\n\n"
-
-            mock_instance.stream.return_value = _fake_stream_gen()
-            mock_processor_cls.return_value = mock_instance
-
-            response = await client.post(
-                "/api/v1/compose/completions",
-                json={
-                    "llm_config_id": seed.llm_config_id,
-                    "messages": [{"role": "user", "content": "Summarize chapter 1"}],
-                    "conversation_id": seed.conv_uuid,
-                    "stream": True,
-                    "tools": "none",
-                },
-            )
-
-        assert response.status_code == 200
-        events = _parse_sse_events(response.content)
-        scanning = [e for e in events if e.get("status") == "scanning_attachments"]
-        assert len(scanning) == 1
-        assert scanning[0]["file_count"] == 1
-        # Router was called with retrieve=True
-        mock_router.requires_search.assert_awaited_once()
-
-    @pytest.mark.asyncio
-    async def test_no_attachments_skips_router_silently(
-        self,
-        client: AsyncClient,
-        current_user: User,
-        session: AsyncSession,
-    ) -> None:
-        """When no attachments exist, router is never called and no SSE events are emitted."""
-        seed = await _seed(session, current_user.id or 1)
-
-        mock_msg = MagicMock()
-        mock_msg.id = 1
-
-        mock_msg.created_at = datetime.now(timezone.utc)
-
-        with (
-            patch("sparkth.plugins.compose.routes.completions.get_provider") as mock_get_provider,
-            patch(STREAM_TURN, partial(replay_turn, [{"type": "token", "content": "Hi!"}])),
-            patch("sparkth.plugins.compose.routes.completions.RAGSearchClassifier") as mock_router_cls,
-            patch(
-                "sparkth.plugins.compose.service.ComposeService.list_conversation_attachments",
-                new_callable=AsyncMock,
-            ) as mock_list_attachments,
-            patch(
-                "sparkth.plugins.compose.service.ComposeService.add_message",
-                new_callable=AsyncMock,
-            ) as mock_add_msg,
-        ):
-            mock_router_cls.return_value = MagicMock()
-            mock_list_attachments.return_value = ConversationDocuments(ready=[], unusable=[])
-
-            mock_provider = MagicMock()
-            mock_provider.system_prompt = ""
-            mock_provider.create_llm.return_value = MagicMock()
-            mock_get_provider.return_value = mock_provider
-            mock_add_msg.return_value = mock_msg
-
-            response = await client.post(
-                "/api/v1/compose/completions",
-                json={
-                    "llm_config_id": seed.llm_config_id,
-                    "messages": [{"role": "user", "content": "Hello"}],
-                    "conversation_id": seed.conv_uuid,
-                    "stream": True,
-                    "tools": "none",
-                },
-            )
-
-        assert response.status_code == 200
-        # Router class was never instantiated
-        mock_router_cls.assert_not_called()
-        # No router SSE events in stream
-        events = _parse_sse_events(response.content)
-        router_events = [e for e in events if e.get("status") in ("scanning_attachments", "skipping_rag")]
-        assert router_events == []
-
-    @pytest.mark.asyncio
-    async def test_router_failure_returns_502(
-        self,
-        client: AsyncClient,
-        current_user: User,
-        session: AsyncSession,
-    ) -> None:
-        """Router raising RAGSearchError must surface as HTTP 502 (fail-closed)."""
-        seed = await _seed(session, current_user.id or 1)
-
-        with (
-            patch("sparkth.plugins.compose.routes.completions.get_provider") as mock_get_provider,
-            patch("sparkth.plugins.compose.routes.completions.RAGSearchClassifier") as mock_router_cls,
-            patch(
-                "sparkth.plugins.compose.service.ComposeService.list_conversation_attachments",
-                new_callable=AsyncMock,
-            ) as mock_list_attachments,
-            patch(
-                "sparkth.plugins.compose.service.ComposeService.add_message",
-                new_callable=AsyncMock,
-            ),
-            patch(
-                "sparkth.plugins.compose.service.ComposeService.get_conversation_messages",
-                new_callable=AsyncMock,
-            ) as mock_get_msgs,
-        ):
-            mock_router = MagicMock()
-            mock_router.requires_search = AsyncMock(side_effect=RAGSearchError("LLM call failed"))
-            mock_router_cls.return_value = mock_router
-
-            mock_list_attachments.return_value = ConversationDocuments(ready=[_mock_document()], unusable=[])
-            mock_get_msgs.return_value = []
-
-            mock_provider = MagicMock()
-            mock_provider.system_prompt = ""
-            mock_provider.create_llm.return_value = MagicMock()
-            mock_get_provider.return_value = mock_provider
-
-            response = await client.post(
-                "/api/v1/compose/completions",
-                json={
-                    "llm_config_id": seed.llm_config_id,
-                    "messages": [{"role": "user", "content": "Summarize"}],
-                    "conversation_id": seed.conv_uuid,
-                    "stream": False,
-                    "tools": "none",
-                },
-            )
-
-        assert response.status_code == 502
 
 
 # Helpers for document seeding
@@ -455,6 +116,56 @@ def _configure_base_mocks(
     mock_provider.system_prompt = ""
     mock_provider.create_llm.return_value = answering_model("OK.", total_tokens=10)
     mock_get_provider.return_value = mock_provider
+
+
+class TestARagStep:
+    async def test_the_reply_lists_the_sections_the_rag_agent_selected(
+        self,
+        client: AsyncClient,
+        current_user: User,
+        session: AsyncSession,
+        analytics_session: SQLAlchemyAsyncSession,
+    ) -> None:
+        seeded = await _seed(session, current_user.id or 1)
+        document = Document(user_id=current_user.id or 1, name="Biology.pdf", status=DocumentStatus.READY)
+        session.add(document)
+        await session.flush()
+        document_id = document.id or 0
+        session.add(DocumentChunk(id=1, source_name="Biology.pdf", chapter="Cells", section="Nucleus", content="DNA."))
+        session.add(DocumentChunkLink(document_id=document_id, chunk_id=1))
+        session.add(ConversationAttachment(conversation_id=seeded.conv_id, document_id=document_id))
+        await session.commit()
+        selection = {
+            "documents": [{"document_id": document_id, "sections": [{"chapter": "Cells", "section": "Nucleus"}]}]
+        }
+        provider = MagicMock(model="gpt-4o")
+        provider.create_llm.return_value = ScriptedChatModel(
+            messages=iter([AIMessage("", tool_calls=[{"name": "SectionSelection", "args": selection, "id": "s"}])]),
+            disable_streaming=True,
+        )
+        to_rag = AIMessage("", tool_calls=[{"name": "rag", "args": {"request": "Find the nucleus."}, "id": "rag"}])
+
+        with patch("sparkth.plugins.compose.routes.completions.get_provider", side_effect=planning(provider, to_rag)):
+            response = await client.post(
+                "/api/v1/compose/completions",
+                json={
+                    "llm_config_id": seeded.llm_config_id,
+                    "conversation_id": seeded.conv_uuid,
+                    "messages": [{"role": "user", "content": "What does the nucleus hold?"}],
+                    "stream": True,
+                    "tools": "none",
+                },
+            )
+
+        assert response.status_code == 200
+        reply = (await stored_messages(session, seeded.conv_uuid))[-1]
+        assert json.loads(reply.model_metadata or "{}")["rag_sections"] == [
+            {"type": "section", "name": "Cells / Nucleus", "source": "Biology.pdf"}
+        ]
+        rows = (await analytics_session.execute(sa_select(raw_events))).mappings().all()
+        events = {row["event_type"]: row["payload"] for row in rows}
+        assert events["compose.rag_search_completed"]["chunks_found"] == 1
+        assert events["compose.completion_served"]["rag_used"] is True
 
 
 class TestDocumentIdsOwnershipCheck:
@@ -612,129 +323,3 @@ class TestDocumentIdsOwnershipCheck:
 
         assert response.status_code == 200
         mock_attach.assert_not_called()
-
-
-class TestProviderApiErrorPersistence:
-    """Provider API errors at the route handler level must be saved to DB."""
-
-    @pytest.mark.asyncio
-    async def test_provider_api_error_during_rag_routing_persists_error_to_db(
-        self,
-        client: AsyncClient,
-        current_user: Any,
-        session: AsyncSession,
-    ) -> None:
-        """A 529 (overloaded) from the provider during RAG routing must write
-        an is_error=True message to DB so reloading shows the error card."""
-        seed = await _seed(session, current_user.id or 1)
-        mock_msg = MagicMock()
-        mock_msg.id = 99
-        mock_msg.created_at = datetime.now(timezone.utc)
-
-        mock_request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
-        overloaded_exc = anthropic.APIStatusError(
-            "Overloaded",
-            response=httpx.Response(529, request=mock_request),
-            body={"type": "error", "error": {"type": "overloaded_error", "message": "Overloaded"}},
-        )
-
-        with (
-            patch("sparkth.plugins.compose.routes.completions.get_provider") as mock_get_provider,
-            patch("sparkth.plugins.compose.routes.completions.RAGSearchClassifier") as mock_router_cls,
-            patch(
-                "sparkth.plugins.compose.service.ComposeService.list_conversation_attachments",
-                new_callable=AsyncMock,
-            ) as mock_list_attachments,
-            patch(
-                "sparkth.plugins.compose.service.ComposeService.add_message",
-                new_callable=AsyncMock,
-            ) as mock_add_msg,
-            patch(
-                "sparkth.plugins.compose.service.ComposeService.get_conversation_messages",
-                new_callable=AsyncMock,
-            ) as mock_get_msgs,
-        ):
-            mock_router = MagicMock()
-            mock_router.requires_search = AsyncMock(side_effect=overloaded_exc)
-            mock_router_cls.return_value = mock_router
-
-            mock_list_attachments.return_value = ConversationDocuments(ready=[_mock_document()], unusable=[])
-            mock_get_msgs.return_value = []
-            mock_add_msg.return_value = mock_msg
-
-            mock_provider = MagicMock()
-            mock_provider.system_prompt = ""
-            mock_provider.create_llm.return_value = MagicMock()
-            mock_get_provider.return_value = mock_provider
-
-            response = await client.post(
-                "/api/v1/compose/completions",
-                json={
-                    "llm_config_id": seed.llm_config_id,
-                    "messages": [{"role": "user", "content": "Summarize the document"}],
-                    "conversation_id": seed.conv_uuid,
-                    "stream": False,
-                    "tools": "none",
-                },
-            )
-
-        assert response.status_code == 502
-        error_calls = [c for c in mock_add_msg.call_args_list if c.kwargs.get("is_error") is True]
-        assert len(error_calls) == 1
-
-    @pytest.mark.asyncio
-    async def test_a_failed_search_decision_persists_an_error_to_db(
-        self,
-        client: AsyncClient,
-        current_user: Any,
-        session: AsyncSession,
-    ) -> None:
-        """A RAGSearchError must write an is_error=True message to DB."""
-        seed = await _seed(session, current_user.id or 1)
-        mock_msg = MagicMock()
-        mock_msg.id = 99
-        mock_msg.created_at = datetime.now(timezone.utc)
-
-        with (
-            patch("sparkth.plugins.compose.routes.completions.get_provider") as mock_get_provider,
-            patch("sparkth.plugins.compose.routes.completions.RAGSearchClassifier") as mock_router_cls,
-            patch(
-                "sparkth.plugins.compose.service.ComposeService.list_conversation_attachments",
-                new_callable=AsyncMock,
-            ) as mock_list_attachments,
-            patch(
-                "sparkth.plugins.compose.service.ComposeService.add_message",
-                new_callable=AsyncMock,
-            ) as mock_add_msg,
-            patch(
-                "sparkth.plugins.compose.service.ComposeService.get_conversation_messages",
-                new_callable=AsyncMock,
-            ) as mock_get_msgs,
-        ):
-            mock_router = MagicMock()
-            mock_router.requires_search = AsyncMock(side_effect=RAGSearchError("router failed"))
-            mock_router_cls.return_value = mock_router
-
-            mock_list_attachments.return_value = ConversationDocuments(ready=[_mock_document()], unusable=[])
-            mock_get_msgs.return_value = []
-            mock_add_msg.return_value = mock_msg
-
-            mock_provider = MagicMock()
-            mock_provider.system_prompt = ""
-            mock_provider.create_llm.return_value = MagicMock()
-            mock_get_provider.return_value = mock_provider
-
-            response = await client.post(
-                "/api/v1/compose/completions",
-                json={
-                    "llm_config_id": seed.llm_config_id,
-                    "messages": [{"role": "user", "content": "Summarize the document"}],
-                    "conversation_id": seed.conv_uuid,
-                    "stream": False,
-                    "tools": "none",
-                },
-            )
-
-        assert response.status_code == 502
-        error_calls = [c for c in mock_add_msg.call_args_list if c.kwargs.get("is_error") is True]
-        assert len(error_calls) == 1
