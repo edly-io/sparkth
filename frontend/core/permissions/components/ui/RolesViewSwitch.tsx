@@ -5,25 +5,15 @@ import { useTranslations } from "next-intl";
 import { twMerge } from "tailwind-merge";
 import { ROLES_COMPARE_PATH, ROLES_PATH } from "@/core/permissions/paths";
 
-/**
- * The classes of one view in the switch: the one on show, the other one, or one that cannot be
- * opened.
- */
-function getViewClass(view: "current" | "other" | "unavailable"): string {
-  return twMerge(
-    "rounded-lg px-3.5 py-2 text-sm font-medium text-muted-foreground",
-    {
-      current: "bg-card font-semibold text-foreground shadow-sm",
-      other: "hover:text-foreground",
-      unavailable: "cursor-not-allowed opacity-60",
-    }[view],
-  );
-}
+/** The two views of the roles, in the order the switch shows them. */
+const VIEWS = [
+  { key: "list", href: ROLES_PATH },
+  { key: "compare", href: ROLES_COMPARE_PATH },
+] as const;
 
 /**
- * The switch between the two views of the roles, the list and the permission comparison, with
- * `current` marked as the one on show. The list can always be opened; from the list, the
- * comparison is shown disabled.
+ * The switch between the two views of the roles, the list and the permission comparison: a link to
+ * each, with `current` marked as the one on show.
  */
 export function RolesViewSwitch({ current }: { current: "list" | "compare" }) {
   const t = useTranslations("permissions.roles.view");
@@ -33,22 +23,21 @@ export function RolesViewSwitch({ current }: { current: "list" | "compare" }) {
       aria-label={t("label")}
       className="inline-flex rounded-[10px] bg-surface-variant p-1"
     >
-      <Link
-        href={ROLES_PATH}
-        aria-current={current === "list" ? "page" : undefined}
-        className={getViewClass(current === "list" ? "current" : "other")}
-      >
-        {t("list")}
-      </Link>
-      {current === "compare" ? (
-        <Link href={ROLES_COMPARE_PATH} aria-current="page" className={getViewClass("current")}>
-          {t("compare")}
+      {VIEWS.map(({ key, href }) => (
+        <Link
+          key={key}
+          href={href}
+          aria-current={key === current ? "page" : undefined}
+          className={twMerge(
+            "rounded-lg px-3.5 py-2 text-sm font-medium text-muted-foreground",
+            key === current
+              ? "bg-card font-semibold text-foreground shadow-sm"
+              : "hover:text-foreground",
+          )}
+        >
+          {t(key)}
         </Link>
-      ) : (
-        <button type="button" disabled className={getViewClass("unavailable")}>
-          {t("compare")}
-        </button>
-      )}
+      ))}
     </div>
   );
 }

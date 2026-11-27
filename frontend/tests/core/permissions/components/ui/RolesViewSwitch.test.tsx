@@ -4,14 +4,16 @@ import { renderWithIntl } from "@/tests/intl";
 import { RolesViewSwitch } from "@/core/permissions/components/ui/RolesViewSwitch";
 
 describe("RolesViewSwitch", () => {
-  it("marks List as the current view and can't open Compare yet", () => {
+  it("marks List as the current view and links to Compare", () => {
     renderWithIntl(<RolesViewSwitch current="list" />);
 
     const views = screen.getByRole("group", { name: "View" });
     const list = within(views).getByRole("link", { name: "List" });
     expect(list).toHaveAttribute("href", "/dashboard/permissions/roles");
     expect(list).toHaveAttribute("aria-current", "page");
-    expect(within(views).getByRole("button", { name: "Compare permissions" })).toBeDisabled();
+    const compare = within(views).getByRole("link", { name: "Compare permissions" });
+    expect(compare).toHaveAttribute("href", "/dashboard/permissions/roles/compare");
+    expect(compare).not.toHaveAttribute("aria-current");
   });
 
   it("marks Compare as the current view and links back to List", () => {

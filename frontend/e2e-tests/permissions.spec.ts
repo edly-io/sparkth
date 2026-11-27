@@ -103,10 +103,12 @@ test.describe("access & permissions", () => {
       .toEqual([{ name: "Grader", description: null, permissions: ["role.update"] }]);
   });
 
-  test("opens the compare view by its address and goes back to the list", async ({ page }) => {
-    await stubPermissions(page, ALL_THREE);
-    await page.goto("/dashboard/permissions/roles/compare");
+  test("switches to the compare view and back to the list", async ({ page }) => {
+    await stubPermissions(page, SECTION_PERMISSIONS);
+    await page.goto("/dashboard/permissions/roles");
 
+    await page.getByRole("link", { name: "Compare permissions" }).click();
+    await expect(page).toHaveURL(/\/dashboard\/permissions\/roles\/compare\/?$/);
     await expect(page.getByText("View only")).toBeVisible();
     await expect(page.getByRole("link", { name: "Roles", exact: true })).toHaveAttribute(
       "aria-current",

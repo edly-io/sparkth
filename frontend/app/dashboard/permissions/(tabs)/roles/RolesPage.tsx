@@ -16,8 +16,8 @@ import { RolesViewSwitch } from "@/core/permissions/components/ui/RolesViewSwitc
 
 /**
  * The Roles tab: a card for each role the signed-in user may read, under a switch between the list
- * and a permission comparison that is not available yet. Those who may create and change roles get a
- * Create role button, which can start the new role as a duplicate of a listed one, and those who may
+ * and a comparison of their permissions. Those who may create and change roles get a Create role
+ * button, which can start the new role as a duplicate of a listed one, and those who may
  * delete roles a Delete action on each custom role.
  */
 export default function RolesPage() {
