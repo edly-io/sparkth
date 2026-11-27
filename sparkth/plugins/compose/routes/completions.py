@@ -39,7 +39,7 @@ from sparkth.plugins.compose.config import ComposeSettings, get_compose_settings
 from sparkth.plugins.compose.constants import LLM_PROVIDER_API_ERRORS
 from sparkth.plugins.compose.conversation_title import extract_title_from_messages, schedule_title_generation
 from sparkth.plugins.compose.enums import PlannerModel
-from sparkth.plugins.compose.exceptions import ConversationBusy, RAGSearchError
+from sparkth.plugins.compose.exceptions import ConversationBusy
 from sparkth.plugins.compose.llm import complete_turn
 from sparkth.plugins.compose.messages import get_last_user_text
 from sparkth.plugins.compose.models import Conversation
@@ -384,15 +384,10 @@ async def compose_completion(
                 metadata=response.get("metadata", {}),
             )
 
-    except (RAGSearchError, *LLM_PROVIDER_API_ERRORS) as exc:
-        # Each is an upstream service failing the turn: the user is told, and the conversation
-        # keeps the message so a reload still shows what happened.
-        if isinstance(exc, RAGSearchError):
-            detail = _("Failed to determine retrieval intent. Please try again.")
-            cause = TurnFailureCause.RAG_SEARCH_ERROR
-        else:
-            detail = streaming_error_message(exc)
-            cause = TurnFailureCause.PROVIDER_API_ERROR
+    except LLM_PROVIDER_API_ERRORS as exc:
+        # The provider failing the turn: the user is told, and the conversation keeps the message
+        # so a reload still shows what happened.
+        detail = streaming_error_message(exc)
         logger.error("Conversation %s failed on %s: %s", conversation_id, type(exc).__name__, exc)
         await service.add_message(
             session=session,
@@ -405,7 +400,7 @@ async def compose_completion(
             conversation_id=str(conversation.uuid),
             provider=provider_name,
             model=model,
-            cause=cause,
+            cause=TurnFailureCause.PROVIDER_API_ERROR,
             streamed=request.stream,
             actor_id=str(user_id),
         )

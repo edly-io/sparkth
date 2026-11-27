@@ -144,10 +144,6 @@ msgstr ""
 "Une réponse est encore en cours de génération dans cette conversation. "
 "Veuillez attendre qu'elle soit terminée."
 
-#: sparkth/plugins/compose/routes/completions.py:386
-msgid "Failed to determine retrieval intent. Please try again."
-msgstr "Impossible de déterminer l'intention de recherche. Veuillez réessayer."
-
 #: sparkth/plugins/compose/routes/completions.py:420
 msgid "Chat completion failed"
 msgstr "Échec de la génération de la réponse du chat"

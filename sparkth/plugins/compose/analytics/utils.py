@@ -26,7 +26,6 @@ from sparkth.plugins.compose.analytics.events import (
     ComposeDocumentDetached,
     ComposeDocumentsSkipped,
     ComposeMessageSent,
-    ComposeRagSearchClassified,
     ComposeRagSearchCompleted,
     ComposeToolInvoked,
     ComposeTurnFailed,
@@ -425,41 +424,3 @@ def record_turn_failed(
             datetime.now(timezone.utc),
         )
     )
-
-
-@dataclass(frozen=True)
-class ComposeClassifierAnalytics:
-    """The scheduling surface for the classifier decisions.
-
-    Built before the classifiers run, which can be before the conversation exists.
-    Carries the provider but no model: each classifier passes its own per call.
-    """
-
-    background_tasks: BackgroundTasks
-    provider: str
-    actor_id: str
-
-    def schedule_rag_search_classified(
-        self,
-        *,
-        conversation_id: str,
-        classifier_model: str,
-        requires_search: bool,
-        document_count: int,
-        documents_with_unreadable_structure: int,
-        occurred_at: datetime,
-    ) -> None:
-        """Queue ``compose.rag_search_classified``. Only when the classifier was consulted."""
-        self.background_tasks.add_task(
-            _emit,
-            lambda: ComposeRagSearchClassified(
-                conversation_id=conversation_id,
-                provider=self.provider,
-                classifier_model=classifier_model,
-                requires_search=requires_search,
-                document_count=document_count,
-                documents_with_unreadable_structure=documents_with_unreadable_structure,
-            ),
-            self.actor_id,
-            occurred_at,
-        )

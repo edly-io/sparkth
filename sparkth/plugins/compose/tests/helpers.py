@@ -3,7 +3,7 @@
 from collections.abc import AsyncGenerator, Callable, Iterator, Sequence
 from itertools import chain, repeat
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 from uuid import UUID
 
 import aiohttp
@@ -190,15 +190,6 @@ async def stored_messages(session: AsyncSession, conversation_uuid: str) -> list
         select(Message).where(col(Message.conversation_id) == conversation.id).order_by(col(Message.id))
     )
     return list(result.all())
-
-
-def classifier_provider(ainvoke: AsyncMock) -> MagicMock:
-    """A provider whose classifier chain answers, or fails, through ``ainvoke``."""
-    llm = MagicMock()
-    llm.with_structured_output.return_value = MagicMock(ainvoke=ainvoke)
-    provider = MagicMock()
-    provider.create_llm.return_value = llm
-    return provider
 
 
 def google_client_error(code: int, status: str, reason: str | None = None) -> google_genai_errors.ClientError:

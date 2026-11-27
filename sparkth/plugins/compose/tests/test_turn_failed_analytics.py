@@ -119,10 +119,7 @@ async def test_a_provider_failure_records_a_failed_turn(
     provider = _provider()
     provider.create_llm.return_value = failing_model(RuntimeError("upstream exploded"))
 
-    with (
-        patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=provider),
-        patch("sparkth.plugins.compose.classifiers.base.get_provider"),
-    ):
+    with patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=provider):
         response = await _turn(client, config_id, conversation_uuid=conversation_uuid)
         await join_live_tasks()
 
@@ -146,10 +143,7 @@ async def test_a_successful_turn_records_no_failure(
     config_id = await seed_llm_config(session, current_user.id or 1)
     conversation_uuid = await seed_conversation(session, current_user.id or 1)
 
-    with (
-        patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()),
-        patch("sparkth.plugins.compose.classifiers.base.get_provider"),
-    ):
+    with patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()):
         await _turn(client, config_id, conversation_uuid=conversation_uuid)
         await join_live_tasks()
 
@@ -196,7 +190,6 @@ async def test_a_streaming_failure_records_a_failed_turn(
     with (
         patch("sparkth.plugins.compose.routes.completions.get_provider", return_value=_provider()),
         patch(STREAM_TURN, _dropped_connection_turn),
-        patch("sparkth.plugins.compose.classifiers.base.get_provider"),
     ):
         response = await client.post(
             COMPLETIONS_URL,
