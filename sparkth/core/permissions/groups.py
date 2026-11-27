@@ -288,13 +288,17 @@ async def remove_group_member(user_id: int, group_id: int, session: AsyncSession
 async def get_group_members(group_id: int, session: AsyncSession) -> list[tuple[GroupMembership, User]]:
     """Return the group's active memberships, each with its user, oldest first. Raises GroupNotFound.
 
-    A member whose user account is soft-deleted is still returned; the user row says so.
+    A membership whose user account is soft-deleted or no longer exists is left out.
     """
     await get_group(group_id, session)
     result = await session.exec(
         select(GroupMembership, User)
         .join(User, col(User.id) == col(GroupMembership.user_id))
-        .where(GroupMembership.group_id == group_id, GroupMembership.is_deleted == False)
+        .where(
+            GroupMembership.group_id == group_id,
+            GroupMembership.is_deleted == False,
+            User.is_deleted == False,
+        )
         .order_by(col(GroupMembership.created_at), col(GroupMembership.id))
     )
     return list(result.all())
