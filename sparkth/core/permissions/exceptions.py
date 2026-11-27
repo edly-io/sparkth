@@ -59,6 +59,14 @@ class GroupAlreadyExists(Exception):
         self.name = name
 
 
+class RoleAssignmentNotFound(Exception):
+    """Raised when a role assignment referenced by id does not exist, is revoked, or belongs to another role."""
+
+    def __init__(self, assignment_id: int) -> None:
+        super().__init__(_("Role assignment not found: {assignment_id}").format(assignment_id=assignment_id))
+        self.assignment_id = assignment_id
+
+
 class InvalidScopeObjectId(Exception):
     """Raised when a (scope, object id) pairing is invalid.
 

@@ -523,3 +523,8 @@ msgstr "Téléverser des fichiers à lire dans les conversations."
 #, python-brace-format
 msgid "User not found: {user_id}"
 msgstr "Utilisateur introuvable : {user_id}"
+
+#: sparkth/core/permissions/exceptions.py:66
+#, python-brace-format
+msgid "Role assignment not found: {assignment_id}"
+msgstr "Attribution de rôle introuvable : {assignment_id}"

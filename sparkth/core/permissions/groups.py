@@ -14,9 +14,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.core.models.user import User
 from sparkth.core.permissions.exceptions import (
     GroupAlreadyExists,
     GroupNotFound,
+    RoleAssignmentNotFound,
     RoleNotFound,
 )
 from sparkth.core.permissions.grants import (
@@ -283,14 +285,21 @@ async def remove_group_member(user_id: int, group_id: int, session: AsyncSession
         )
 
 
-async def get_group_members(group_id: int, session: AsyncSession) -> list[int]:
-    """Return the user ids of the group's active members. Raises GroupNotFound."""
+async def get_group_members(group_id: int, session: AsyncSession) -> list[tuple[GroupMembership, User]]:
+    """Return the group's active memberships, each with its user, oldest first. Raises GroupNotFound.
+
+    A membership whose user account is soft-deleted or no longer exists is left out.
+    """
     await get_group(group_id, session)
     result = await session.exec(
-        select(GroupMembership.user_id).where(
+        select(GroupMembership, User)
+        .join(User, col(User.id) == col(GroupMembership.user_id))
+        .where(
             GroupMembership.group_id == group_id,
             GroupMembership.is_deleted == False,
+            User.is_deleted == False,
         )
+        .order_by(col(GroupMembership.created_at), col(GroupMembership.id))
     )
     return list(result.all())
 
@@ -417,3 +426,30 @@ async def get_group_roles(group_id: int, session: AsyncSession) -> list[GroupRol
         .order_by(col(GroupRoleAssignment.id))
     )
     return list(result.all())
+
+
+async def get_group_assignments_of_role(role_id: int, session: AsyncSession) -> list[tuple[GroupRoleAssignment, Group]]:
+    """Return the active group assignments of the role, each with its group, ordered by assignment id.
+
+    An unknown role has no assignments and gives an empty list.
+    """
+    result = await session.exec(
+        select(GroupRoleAssignment, Group)
+        .join(Group, col(Group.id) == col(GroupRoleAssignment.group_id))
+        .where(GroupRoleAssignment.role_id == role_id, GroupRoleAssignment.is_deleted == False)
+        .order_by(col(GroupRoleAssignment.id))
+    )
+    return list(result.all())
+
+
+async def get_group_role_assignment(assignment_id: int, role_id: int, session: AsyncSession) -> GroupRoleAssignment:
+    """Return the active group assignment with this id and role, or raise RoleAssignmentNotFound."""
+    statement = select(GroupRoleAssignment).where(
+        GroupRoleAssignment.id == assignment_id,
+        GroupRoleAssignment.role_id == role_id,
+        GroupRoleAssignment.is_deleted == False,
+    )
+    assignment = (await session.exec(statement)).first()
+    if assignment is None:
+        raise RoleAssignmentNotFound(assignment_id)
+    return assignment

@@ -260,7 +260,8 @@ async def test_get_group_members_lists_active(session: AsyncSession) -> None:
     assert alice.id is not None and bob.id is not None and group.id is not None
     await groups.add_group_member(alice.id, group.id, session)
     await groups.add_group_member(bob.id, group.id, session)
-    assert sorted(await groups.get_group_members(group.id, session)) == sorted([alice.id, bob.id])
+    members = await groups.get_group_members(group.id, session)
+    assert sorted(membership.user_id for membership, _ in members) == sorted([alice.id, bob.id])
 
 
 async def test_assign_role_to_group_grants_members_access(session: AsyncSession) -> None:
