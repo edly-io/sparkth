@@ -17,19 +17,19 @@ async def get_usernames(session: AsyncSession, user_ids: Collection[int]) -> dic
     return {user_id: username for user_id, username in rows if user_id is not None}
 
 
-async def list_users(search: str | None, limit: int, offset: int, session: AsyncSession) -> list[User]:
+async def list_users(identifier: str | None, limit: int, offset: int, session: AsyncSession) -> list[User]:
     """Return a page of active users ordered by username.
 
-    ``search`` keeps the users whose name, username or email contains it, ignoring case and
+    ``identifier`` keeps the users whose name, username or email contains it, ignoring case and
     treating ``%`` and ``_`` as plain characters.
     """
     query = select(User).where(col(User.is_deleted).is_(False))
-    if search:
+    if identifier:
         query = query.where(
             or_(
-                col(User.name).icontains(search, autoescape=True),
-                col(User.username).icontains(search, autoescape=True),
-                col(User.email).icontains(search, autoescape=True),
+                col(User.name).icontains(identifier, autoescape=True),
+                col(User.username).icontains(identifier, autoescape=True),
+                col(User.email).icontains(identifier, autoescape=True),
             )
         )
     rows = await session.exec(query.order_by(col(User.username), col(User.id)).limit(limit).offset(offset))
