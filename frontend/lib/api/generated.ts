@@ -1845,9 +1845,9 @@ export interface paths {
         };
         /**
          * List User Summaries
-         * @description List active users by username, keeping those whose name, username or email contains ``search``.
+         * @description List active users by username, keeping those whose name, username or email contains ``identifier``.
          *
-         *     An empty ``search`` keeps everyone.
+         *     An empty ``identifier`` keeps everyone.
          */
         get: operations["list_user_summaries_api_v1_users_get"];
         put?: never;
@@ -6637,7 +6637,7 @@ export interface operations {
     list_user_summaries_api_v1_users_get: {
         parameters: {
             query?: {
-                search?: string | null;
+                identifier?: string | null;
                 limit?: number;
                 offset?: number;
             };
