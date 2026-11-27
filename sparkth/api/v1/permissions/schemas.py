@@ -1,9 +1,11 @@
 """Pydantic models for the permissions API: permission checks, role management and group management."""
 
+from datetime import datetime
 from typing import Self
 
 from pydantic import BaseModel, Field, model_validator
 
+from sparkth.api.v1.permissions.constants import MAX_GROUP_MEMBER_CHANGES
 from sparkth.core.permissions.enums import PermissionRisk
 
 
@@ -97,3 +99,27 @@ class GroupResponse(BaseModel):
     id: int
     name: str
     description: str | None
+
+
+class GroupMembersChange(BaseModel):
+    """The users an add or remove request names."""
+
+    user_ids: list[int] = Field(min_length=1, max_length=MAX_GROUP_MEMBER_CHANGES)
+
+
+class GroupMemberResponse(BaseModel):
+    user_id: int
+    name: str
+    username: str
+    added_at: datetime
+
+
+class GroupRoleAssignmentResponse(BaseModel):
+    id: int
+    group_id: int
+    group_name: str
+    role_id: int
+    role_name: str
+    scope: str
+    scope_object_id: str | None
+    assigned_at: datetime

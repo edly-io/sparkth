@@ -295,7 +295,8 @@ ROLE_DELETE = Permission.create(
 )
 
 # The group-management permissions gate the group-management API (sparkth/api/v1/permissions).
-# Membership and group-role grants are CLI-managed and carry no REST gate of their own.
+# Adding and removing members have permissions of their own; group-role grants are CLI-managed and
+# carry no REST gate.
 GROUP_CREATE = Permission.create(
     "group.create",
     gettext_noop("Create groups"),
@@ -321,6 +322,19 @@ GROUP_DELETE = Permission.create(
     gettext_noop("Delete groups and take their roles away from their members."),
     _USERS_AND_ACCESS,
     risks=(PermissionRisk.DELETES,),
+)
+GROUP_MEMBER_ADD = Permission.create(
+    "group.member.add",
+    gettext_noop("Add group members"),
+    gettext_noop("Add people to groups, giving them the group's roles."),
+    _USERS_AND_ACCESS,
+    risks=(PermissionRisk.DELEGATES_ACCESS,),
+)
+GROUP_MEMBER_REMOVE = Permission.create(
+    "group.member.remove",
+    gettext_noop("Remove group members"),
+    gettext_noop("Take people out of groups, and the group's roles with them."),
+    _USERS_AND_ACCESS,
 )
 
 # Reading the permission vocabulary itself (the assignable-permissions listing), distinct from
