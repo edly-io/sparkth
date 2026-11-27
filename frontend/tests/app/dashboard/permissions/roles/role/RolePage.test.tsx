@@ -83,6 +83,14 @@ describe("RolePage", () => {
     expect(listPermissions).toHaveBeenCalledTimes(1);
   });
 
+  it("shows a spinner while the permissions load", async () => {
+    listPermissions.mockReturnValue(new Promise(() => {}));
+    renderWithIntl(<RolePage />);
+
+    await screen.findByRole("heading", { level: 1, name: "Course author" });
+    expect(screen.getByRole("status", { name: "Loading the permissions…" })).toBeInTheDocument();
+  });
+
   it("says so when there is no such role", async () => {
     getRole.mockRejectedValue(
       new ApiRequestError({ message: "Role not found: 7", fieldErrors: {} }, 404),

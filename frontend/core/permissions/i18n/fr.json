@@ -75,6 +75,7 @@
         "breadcrumb": "Fil d'Ariane",
         "notFound": "Ce rôle n'existe pas.",
         "loadFailed": "Impossible de charger le rôle. Réessayez plus tard.",
+        "permissionsLoading": "Chargement des permissions…",
         "permissionsFailed": "Impossible de charger les permissions. Réessayez plus tard.",
         "list": {
           "label": "Permissions",

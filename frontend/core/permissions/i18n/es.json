@@ -75,6 +75,7 @@
         "breadcrumb": "Ruta de navegación",
         "notFound": "Este rol no existe.",
         "loadFailed": "No se pudo cargar el rol. Inténtalo de nuevo más tarde.",
+        "permissionsLoading": "Cargando los permisos…",
         "permissionsFailed": "No se pudieron cargar los permisos. Inténtalo de nuevo más tarde.",
         "list": {
           "label": "Permisos",

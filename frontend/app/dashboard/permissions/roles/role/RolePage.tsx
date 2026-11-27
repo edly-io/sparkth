@@ -107,6 +107,15 @@ export default function RolePage() {
         {role.description && <p className="text-sm text-muted-foreground">{role.description}</p>}
         <RiskChips risks={role.risks} />
       </header>
+      {permissionList.status === "loading" && (
+        <div
+          role="status"
+          aria-label={t("permissionsLoading")}
+          className="flex justify-center py-8"
+        >
+          <Spinner size="md" />
+        </div>
+      )}
       {permissionList.status === "failed" && (
         <Alert severity="error">{t("permissionsFailed")}</Alert>
       )}
