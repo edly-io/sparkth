@@ -44,8 +44,9 @@ def build_runtime(claims: LaunchClaims) -> ActivityRuntime:
     """Build the runtime for the launch these claims describe.
 
     Permission comes from the launch token's verified claims, not from the request: the
-    signature is what makes it trustworthy. The LMS decides it, because only the LMS knows who
-    may author the course.
+    signature is what makes it trustworthy. The token carries the level its issuer asked for,
+    and the caller has already checked that the launch's account holds a permission that allows
+    it.
 
     Raises:
         PxcActivityNotFound: if the claimed activity is neither bundled nor a generated

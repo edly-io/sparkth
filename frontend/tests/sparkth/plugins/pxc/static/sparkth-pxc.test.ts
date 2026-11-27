@@ -16,6 +16,8 @@ const CONFIG = {
 // Large enough that SparkthPXC routes it through HTTP rather than the socket.
 const OVERSIZED = "x".repeat(600 * 1024);
 
+const NOT_PERMITTED_NOTICE = "You do not have permission to do this.";
+
 class FakeSocket extends EventTarget {
   static OPEN = 1;
   static instances: FakeSocket[] = [];
@@ -281,6 +283,17 @@ describe("SparkthPXC", () => {
     expect(FakeSocket.instances).toHaveLength(1);
   });
 
+  it("says the viewer may not do this and stops reconnecting when the server refuses the socket", () => {
+    vi.useFakeTimers();
+    mountActivity();
+
+    FakeSocket.instances[0].closeFromServer(4403);
+    vi.advanceTimersByTime(10_000);
+
+    expect(notice()).toBe(NOT_PERMITTED_NOTICE);
+    expect(FakeSocket.instances).toHaveLength(1);
+  });
+
   it("reconnects without a notice after an ordinary disconnect", () => {
     vi.useFakeTimers();
     mountActivity();
@@ -302,6 +315,16 @@ describe("SparkthPXC", () => {
     await vi.waitFor(() =>
       expect(notice()).toBe("Your session has expired. Reload this page to continue."),
     );
+  });
+
+  it("says the viewer may not do this when a post is refused for permission", async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 403 }));
+    const activity = mountActivity();
+    FakeSocket.instances[0].open();
+
+    await activity.sendAction("config.save", OVERSIZED);
+
+    await vi.waitFor(() => expect(notice()).toBe(NOT_PERMITTED_NOTICE));
   });
 
   describe("inside another page's iframe", () => {

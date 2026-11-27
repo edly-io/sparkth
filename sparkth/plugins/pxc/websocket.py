@@ -9,18 +9,43 @@ from starlette.websockets import WebSocket
 
 from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.actions import perform_action
-from sparkth.plugins.pxc.constants import PXC_ACTION_FAILED, PXC_ACTION_REJECTED, PXC_CLOSE_INVALID_TOKEN
-from sparkth.plugins.pxc.exceptions import PxcActionRejected, PxcInvalidLaunchToken, PxcSandboxFailure
+from sparkth.plugins.pxc.constants import (
+    PXC_ACTION_FAILED,
+    PXC_ACTION_REJECTED,
+    PXC_SOCKET_REFUSAL_CODES,
+)
+from sparkth.plugins.pxc.exceptions import (
+    PxcActionRejected,
+    PxcActivityNotFound,
+    PxcActivityNotPermitted,
+    PxcInvalidLaunchToken,
+    PxcSandboxFailure,
+)
+from sparkth.plugins.pxc.launch_access import require_launch_access
 from sparkth.plugins.pxc.tokens import read_launch_token
 
 logger = get_logger(__name__)
+
+
+def get_socket_refusal_code(refusal: Exception) -> int:
+    """Return the close code for a refusal, the code of the nearest mapped class when it is a subclass of one.
+
+    Raises:
+        KeyError: if the refusal is not an instance of any mapped class.
+    """
+    for refusal_type, code in PXC_SOCKET_REFUSAL_CODES.items():
+        if isinstance(refusal, refusal_type):
+            return code
+    raise KeyError(type(refusal))
 
 
 async def run_action_frames(websocket: WebSocket, runtime: ActivityRuntime, token: str) -> None:
     """Read and run action frames until the client goes away or sends one that cannot be run.
 
     An action the manifest refuses, or whose sandbox fails, is answered on this socket with an error
-    frame naming it; the socket stays open.
+    frame naming it; the socket stays open. A frame arriving after the token no longer verifies, the
+    account no longer holds a permission that allows the launch, or the activity is gone, closes the
+    socket with the code for that refusal.
 
     Raises:
         WebSocketDisconnect: when the client goes away, which is this loop's normal exit.
@@ -32,14 +57,15 @@ async def run_action_frames(websocket: WebSocket, runtime: ActivityRuntime, toke
 
         try:
             await _run_one_action(runtime, token, frame)
-        except PxcInvalidLaunchToken as err:
+        except (PxcInvalidLaunchToken, PxcActivityNotPermitted, PxcActivityNotFound) as err:
             logger.warning(
-                "Closing a PXC socket whose token no longer verifies on %s (activity_instance=%s): %s",
+                "Closing a PXC socket whose launch is no longer allowed on %s (activity_instance=%s): %s: %s",
                 runtime.name,
                 runtime.activity_id,
+                type(err).__name__,
                 err,
             )
-            await websocket.close(code=PXC_CLOSE_INVALID_TOKEN)
+            await websocket.close(code=get_socket_refusal_code(err))
             return
         except PxcActionRejected as err:
             # A client bug, not a connection fault: the socket stays open.
@@ -101,15 +127,19 @@ async def _run_one_action(runtime: ActivityRuntime, token: str, frame: dict[str,
     """Run one frame's action through the sandbox and fan out the events it produced.
 
     A frame supplies only the action's name and value; permission and context come from the
-    signed claims, re-verified here so an action after the token lapses does not take effect. A
+    signed claims, re-verified here so an action after the token lapses does not take effect. The
+    account the claims are checked for must still hold a permission that allows the launch. A
     failure in a preview inside Sparkth is recorded for the agents that work on the activity.
 
     Raises:
         PxcInvalidLaunchToken: if the token no longer verifies.
+        PxcActivityNotFound: if the token's activity no longer exists.
+        PxcActivityNotPermitted: if the account holds no permission that allows the launch.
         PxcActionRejected: if the manifest does not accept this action or value.
         PxcSandboxFailure: if the sandbox itself failed.
     """
     claims = read_launch_token(token)
+    await require_launch_access(claims)
     action_name = str(frame["action"])
     action_value: FieldType = frame.get("value", "")
     await perform_action(runtime, claims, action_name, action_value)
