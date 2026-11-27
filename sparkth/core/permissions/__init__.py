@@ -349,11 +349,12 @@ AUDIT_READ = Permission.create(
     risks=(PermissionRisk.PRIVATE_DATA,),
 )
 
-# Reading user identities (usernames) outside user management, e.g. actor names in analytics.
+# Reading user identities: actor names in analytics (Explore and its saved views), and listing and
+# reading users with their email addresses through the users API.
 USER_READ = Permission.create(
     "user.read",
     gettext_noop("See information about users"),
-    gettext_noop("See who the people in Sparkth are, such as who did what in analytics."),
+    gettext_noop("List the users in Sparkth with their information."),
     _USERS_AND_ACCESS,
     risks=(PermissionRisk.PRIVATE_DATA,),
 )

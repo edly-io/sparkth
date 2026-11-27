@@ -1725,6 +1725,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List User Summaries
+         * @description List active users by username, keeping those whose name, username or email contains ``identifier``.
+         *
+         *     An empty ``identifier`` keeps everyone.
+         */
+        get: operations["list_user_summaries_api_v1_users_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get User Summary
+         * @description Return one active user, or 404 when there is none.
+         */
+        get: operations["get_user_summary_api_v1_users__user_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/whitelist/": {
         parameters: {
             query?: never;
@@ -3225,6 +3267,20 @@ export interface components {
         UserLogin: {
             /** Password */
             password: string;
+            /** Username */
+            username: string;
+        };
+        /**
+         * UserSummary
+         * @description A user as listed and looked up by people who manage access.
+         */
+        UserSummary: {
+            /** Email */
+            email: string;
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
             /** Username */
             username: string;
         };
@@ -6261,6 +6317,70 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_user_summaries_api_v1_users_get: {
+        parameters: {
+            query?: {
+                identifier?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_user_summary_api_v1_users__user_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserSummary"];
+                };
             };
             /** @description Validation Error */
             422: {
