@@ -2912,12 +2912,6 @@ export interface components {
             /** System Enabled */
             system_enabled: boolean;
         };
-        /**
-         * PreviewPermission
-         * @description The permissions an activity can be previewed under.
-         * @enum {string}
-         */
-        PreviewPermission: "play" | "edit";
         /** ProviderCatalogResponse */
         ProviderCatalogResponse: {
             /** Default Model */
@@ -5783,7 +5777,7 @@ export interface operations {
     launch_activity_api_v1_pxc_activities__activity_id__launch_get: {
         parameters: {
             query: {
-                permission: components["schemas"]["PreviewPermission"];
+                permission: "play" | "edit";
             };
             header?: never;
             path: {
