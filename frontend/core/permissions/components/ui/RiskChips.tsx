@@ -4,7 +4,7 @@ import type { PermissionRisk } from "@/core/permissions/types";
 
 /** The risks of a role or a permission as warning chips; nothing when there are none. */
 export function RiskChips({ risks }: { risks: readonly PermissionRisk[] }) {
-  const t = useTranslations("permissions.roles.risks");
+  const t = useTranslations("permissions.risks");
   if (risks.length === 0) return null;
   return (
     <ul aria-label={t("label")} className="flex flex-wrap gap-1.5">

@@ -2,7 +2,17 @@
   "permissions": {
     "title": "Accès et autorisations",
     "subtitle": "Consultez et gérez qui peut faire quoi dans Sparkth.",
-    "noPermissionsMatch": "Aucune permission ne correspond.",
+    "picker": {
+      "search": "Rechercher des permissions",
+      "chosen": "{count, plural, one {# choisie} other {# choisies}}",
+      "noMatches": "Aucune permission ne correspond."
+    },
+    "risks": {
+      "label": "Risques",
+      "delegates_access": "Peut donner des accès à d'autres",
+      "private_data": "Voit des données privées",
+      "deletes": "Peut supprimer"
+    },
     "nav": {
       "label": "Sections d'accès",
       "roles": "Rôles",
@@ -37,11 +47,7 @@
         "cancel": "Annuler",
         "submit": "Créer",
         "nameTaken": "Un rôle porte déjà ce nom.",
-        "failed": "Impossible de créer le rôle. Réessayez.",
-        "picker": {
-          "search": "Rechercher des permissions",
-          "chosen": "{count, plural, one {# choisie} other {# choisies}}"
-        }
+        "failed": "Impossible de créer le rôle. Réessayez."
       },
       "menu": {
         "label": "Plus d'actions pour {name}",
@@ -55,12 +61,6 @@
         "pending": "Suppression…",
         "cancel": "Annuler",
         "failed": "Impossible de supprimer le rôle. Réessayez."
-      },
-      "risks": {
-        "label": "Risques",
-        "delegates_access": "Peut donner des accès à d'autres",
-        "private_data": "Voit des données privées",
-        "deletes": "Peut supprimer"
       }
     },
     "groups": {
