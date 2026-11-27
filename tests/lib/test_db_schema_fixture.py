@@ -1,14 +1,15 @@
-"""The ``_db_schema`` fixture in sparkth.lib.testing, which creates each test's database schema."""
+"""The ``_db_schema`` fixture in sparkth.lib.testing, which gives each test its database schema."""
 
 import asyncio
 from typing import Any
 
+import pytest
 from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlmodel import select
 
+import sparkth.lib.testing as testing
 from sparkth.core.analytics.db import get_analytics_engine
-from sparkth.core.db import get_engine
 from sparkth.lib.db import analytics_session_scope, session_scope
 
 
@@ -34,13 +35,20 @@ async def _query_in_an_analytics_session() -> None:
         await session.execute(text("SELECT 1"))
 
 
-async def test_sessions_opened_at_once_create_the_schema_once() -> None:
-    """Two sessions opened together create the schema once."""
-    creates = _creates_of(get_engine(), "user")
+async def test_sessions_opened_at_once_load_the_schema_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Two sessions opened together load the schema once."""
+    real_image = testing._get_schema_image
+    loads: list[bytes] = []
+
+    def counting_image() -> bytes:
+        loads.append(real_image())
+        return loads[-1]
+
+    monkeypatch.setattr(testing, "_get_schema_image", counting_image)
 
     await asyncio.gather(_query_in_a_session(), _query_in_a_session())
 
-    assert len(creates) == 1
+    assert len(loads) == 1
 
 
 async def test_analytics_sessions_opened_at_once_create_the_schema_once() -> None:

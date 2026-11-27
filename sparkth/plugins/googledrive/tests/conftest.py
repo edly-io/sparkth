@@ -23,9 +23,10 @@ from sparkth.plugins.googledrive.config import GoogleDriveSettings
 from sparkth.plugins.googledrive.models import DriveFile, DriveFolder, DriveOAuthToken
 
 
-@pytest.fixture(autouse=True)
-def _default_role(default_user_roles: object) -> None:
-    """Give the test caller the default role, so Drive routes are reachable at their own user scope."""
+@pytest.fixture
+def client(client: AsyncClient, default_user_roles: object) -> AsyncClient:
+    """The shared test client, with user 1 holding the default roles the routes' permission gates check."""
+    return client
 
 
 @pytest.fixture(autouse=True)
@@ -134,6 +135,7 @@ def mock_valid_access_token() -> Generator[None, None, None]:
 @pytest.fixture
 async def drive_client(
     session: AsyncSession,
+    default_user_roles: object,
     test_user: User,
     mock_drive_credentials: Any,
 ) -> AsyncGenerator[AsyncClient, None]:

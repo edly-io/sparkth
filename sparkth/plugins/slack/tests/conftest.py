@@ -54,9 +54,10 @@ def _clear_settings_cache() -> Generator[None, None, None]:
     get_settings.cache_clear()
 
 
-@pytest.fixture(autouse=True)
-def _every_user_holds_default_role(default_user_roles: object) -> None:
-    """Give user 1 the default roles, so the routes' gate and the bot's ``plugin.use`` check pass."""
+@pytest.fixture
+def client(client: AsyncClient, default_user_roles: object) -> AsyncClient:
+    """The shared test client, with user 1 holding the default roles the routes' permission gates check."""
+    return client
 
 
 @pytest.fixture
@@ -109,6 +110,7 @@ def mock_slack_credentials() -> Generator[None, None, None]:
 @pytest.fixture
 async def slack_client(
     session: AsyncSession,
+    default_user_roles: object,
     test_user: User,
     mock_slack_credentials: Any,
 ) -> AsyncGenerator[AsyncClient, None]:

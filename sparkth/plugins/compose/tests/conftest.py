@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator, Iterator
 from contextlib import contextmanager
 
 import pytest
+from httpx import AsyncClient
 
 from sparkth.lib.compose.hooks import Agent, register_agent
 from sparkth.lib.plugins import SparkthPlugin
@@ -15,9 +16,10 @@ STUB_AGENT = Agent("stub", "Stub agent", "Stub scope text.", "STUB SECTION", "St
 OTHER_AGENT = Agent("other", "Other agent", "Other scope text.", "OTHER SECTION", "Othering…")
 
 
-@pytest.fixture(autouse=True)
-def _every_user_holds_default_role(default_user_roles: object) -> None:
-    """Give the signed-in test user the default roles, so the ``plugin.use`` gate and the per-record gates pass."""
+@pytest.fixture
+def client(client: AsyncClient, default_user_roles: object) -> AsyncClient:
+    """The shared test client, with user 1 holding the default roles the routes' permission gates check."""
+    return client
 
 
 @pytest.fixture(autouse=True)

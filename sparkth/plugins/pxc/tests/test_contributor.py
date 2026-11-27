@@ -32,6 +32,8 @@ from sparkth.plugins.pxc.store import insert_activity
 from sparkth.plugins.pxc.tests.conftest import act_as, assert_activity_permission_denied
 from sparkth.plugins.pxc.tokens import LaunchClaims
 
+pytestmark = pytest.mark.usefixtures("default_user_roles")
+
 
 async def test_the_block_is_a_pxc_block_naming_the_activity() -> None:
     block = await build_pxc_block("course-1", "mcq")

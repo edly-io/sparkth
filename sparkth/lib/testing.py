@@ -13,7 +13,9 @@ conftest, not here.
 
 import asyncio
 import os
+import sqlite3
 import uuid
+from functools import cache
 
 # Set test environment variables BEFORE importing app modules.
 # This must happen before sparkth/core/config.py calls get_settings(), which caches
@@ -29,6 +31,7 @@ from pathlib import Path
 from typing import Any, Protocol, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiosqlite
 import pytest
 from babel.messages.catalog import Catalog
 from babel.messages.extract import DEFAULT_KEYWORDS, extract_from_dir
@@ -40,7 +43,9 @@ from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import Runnable
 from langchain_core.tools import BaseTool
+from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import AsyncSession as SQLAlchemyAsyncSession
+from sqlalchemy.pool import StaticPool
 from sqlmodel import SQLModel, col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -77,6 +82,19 @@ from sparkth.main import app
 _TEST_SETUP_ACTOR = SystemActor(label="test-setup")
 
 
+@cache
+def _get_schema_image() -> bytes:
+    """Return a serialized in-memory SQLite database holding the app schema, built once per process."""
+    engine = create_engine("sqlite://", poolclass=StaticPool)
+    with engine.begin() as conn:
+        SQLModel.metadata.create_all(conn, checkfirst=False)
+    driver = engine.raw_connection().driver_connection
+    assert isinstance(driver, sqlite3.Connection)
+    image = driver.serialize()
+    engine.dispose()
+    return image
+
+
 @pytest.fixture(autouse=True)
 async def _db_schema(monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[None]:
     """Migrate the in-memory databases on first session use, then dispose them.
@@ -86,8 +104,9 @@ async def _db_schema(monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[None]:
     engine's whole lifetime.
 
     We override the single low-level providers ``sparkth.core.db.open_session`` and
-    ``sparkth.core.analytics.db.open_analytics_session`` to create the schema on first use.
-    ``session_scope`` / ``analytics_session_scope`` resolve these via module
+    ``sparkth.core.analytics.db.open_analytics_session`` to create the schema on first use:
+    the app database loads a copy of a schema built once per process, the analytics one runs
+    ``create_all``. ``session_scope`` / ``analytics_session_scope`` resolve these via module
     attribute at call time, so a single override reaches *every* call path —
     including modules that did ``from sparkth.lib.db import session_scope``. It stays
     lazy: tests that never open a session build no engine and pay nothing.
@@ -95,7 +114,7 @@ async def _db_schema(monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[None]:
     Disposing the engines afterwards means the next ``get_engine()`` /
     ``get_analytics_engine()`` rebuilds an empty database; that disposal *is* the
     test isolation, not rollback. A lock per database makes sessions opened at once,
-    such as a request's background writes, create the schema only once.
+    such as a request's background writes, load the schema only once.
     """
     real_open_session = core_db.open_session
     real_open_analytics_session = analytics_db.open_analytics_session
@@ -109,8 +128,11 @@ async def _db_schema(monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[None]:
         nonlocal schema_created
         async with schema_lock:
             if not schema_created:
-                async with get_engine().begin() as conn:
-                    await conn.run_sync(lambda c: SQLModel.metadata.create_all(c, checkfirst=False))
+                async with get_engine().connect() as conn:
+                    driver = (await conn.get_raw_connection()).driver_connection
+                    assert isinstance(driver, aiosqlite.Connection)
+                    # aiosqlite runs each call on the connection's own thread, which sqlite3 requires.
+                    await driver._execute(driver._conn.deserialize, _get_schema_image())  # type: ignore[no-untyped-call]
                 schema_created = True
         async with real_open_session(expire_on_commit=expire_on_commit) as s:
             yield s

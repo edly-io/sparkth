@@ -1,16 +1,17 @@
 from typing import Any, cast
 
 import pytest
+from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.plugin import Plugin, UserPluginPreference
 from sparkth.core.models.user import User
-from sparkth.core.permissions.models import Role
 
 
-@pytest.fixture(autouse=True)
-def _seed_default_role(default_user_roles: Role) -> None:
-    """Seed the default role so every account these tests create can be given it."""
+@pytest.fixture
+def client(client: AsyncClient, default_user_roles: object) -> AsyncClient:
+    """The shared test client, with user 1 holding the default roles the routes' permission gates check."""
+    return client
 
 
 @pytest.fixture

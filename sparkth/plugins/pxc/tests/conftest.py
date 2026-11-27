@@ -16,6 +16,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from httpx import AsyncClient
 from pxc.lib import sandbox
 from pxc.lib.runtime import ActivityRuntime
 from pxc.lib.sandbox import SandboxRuntimeError
@@ -91,9 +92,10 @@ def reused_compiles(monkeypatch: pytest.MonkeyPatch, compile_store: tuple[Path, 
     monkeypatch.setattr(builder, "compile_sandbox", compile_once)
 
 
-@pytest.fixture(autouse=True)
-def _every_user_holds_default_role(default_user_roles: object) -> None:
-    """Give the signed-in test user the default roles, so the authoring routes' ``plugin.use`` gate passes."""
+@pytest.fixture
+def client(client: AsyncClient, default_user_roles: object) -> AsyncClient:
+    """The shared test client, with user 1 holding the default roles the routes' permission gates check."""
+    return client
 
 
 @pytest.fixture(autouse=True)
