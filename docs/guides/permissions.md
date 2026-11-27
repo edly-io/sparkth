@@ -131,16 +131,18 @@ A role can also be given to a user and taken from one through the API, with thre
 | Route | Does | Needs |
 |---|---|---|
 | `GET /api/v1/permissions/roles/{role_id}/assignments/users?limit=&offset=` | Lists the active holders by assignment id, 50 a page (1 to 200), as `id`, `user_id`, `name`, `username`, `role_id`, `role_name`, `scope`, `scope_object_id` and `assigned_at` | `role.read` |
-| `POST /api/v1/permissions/roles/{role_id}/assignments/users` with `{"user_id": 7, "scope": "global"}` | Gives the role and answers 201; a grant that already exists is answered 201 unchanged | `role.assign` |
-| `DELETE /api/v1/permissions/roles/{role_id}/assignments/users/{assignment_id}` | Takes the role away and answers 204 | `role.revoke` |
+| `POST /api/v1/permissions/roles/{role_id}/assignments/users` with `{"user_ids": [7, 9], "scope": "global"}` | Gives the role to 1 to 100 users at one scope and answers 201 with one assignment per distinct user, in request order; a grant that already exists is returned unchanged | `role.assign` |
+| `DELETE /api/v1/permissions/roles/{role_id}/assignments/users?assignment_ids=3&assignment_ids=4` | Takes the role away by 1 to 100 assignment ids and answers 204 | `role.revoke` |
 
 Each route checks its permission at the `role` scope, so a grant at one role reaches that role only. `scope` is
 required, with `scope_object_id` for a scope that names objects, and is checked as the CLI checks it: an unknown
 scope kind, an object id on a scope without objects, a missing object id on one with objects, and, for the
 `plugin` scope, a plugin that is not loaded are all 422. An unknown or deleted user, an unknown role, and an
-assignment that is revoked, unknown or the assignment of another role are 404. Because `role.assign` is checked at
-the role and not at the scope being given, a holder at one role can give that role at any scope. Revoking an
-assignment whose scope kind is no longer registered is 422 and leaves it in place.
+assignment that is revoked, unknown or the assignment of another role are 404. Giving and taking away are each all
+or nothing: if any listed user or assignment is refused, nothing is changed and nothing is recorded. A request with
+no ids, or with more than 100, is 422. Because `role.assign` is checked at the role and not at the scope being
+given, a holder at one role can give that role at any scope. Revoking an assignment whose scope kind is no longer
+registered is 422 and leaves it, and every other assignment in the request, in place.
 
 Compose checks a conversation's permissions at the conversation itself where one is named, except that attaching
 documents is checked at the owner's `user` scope. Reading one conversation, its last message and its attachments,
