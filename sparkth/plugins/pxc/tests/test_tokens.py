@@ -9,7 +9,6 @@ from uuid6 import uuid7
 
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import PXC_PREVIEW_ACTIVITY_INSTANCE, PXC_PREVIEW_COURSE_ID
-from sparkth.plugins.pxc.enums import PreviewPermission
 from sparkth.plugins.pxc.exceptions import PxcInvalidLaunchToken, PxcLaunchNotConfigured
 from sparkth.plugins.pxc.tokens import (
     LaunchClaims,
@@ -222,7 +221,7 @@ def test_an_unrecognised_permission_claim_degrades_to_play_and_is_logged(
 def test_a_preview_token_launches_the_authors_own_activity(configured_secret: str) -> None:
     activity_id = uuid7()
 
-    claims = read_launch_token(mint_preview_token(activity_id, 7, PreviewPermission.EDIT))
+    claims = read_launch_token(mint_preview_token(activity_id, 7, "edit"))
 
     assert claims == LaunchClaims(
         str(activity_id), PXC_PREVIEW_ACTIVITY_INSTANCE, PXC_PREVIEW_COURSE_ID, "sparkth-7", Permission.edit
@@ -231,12 +230,12 @@ def test_a_preview_token_launches_the_authors_own_activity(configured_secret: st
 
 def test_a_preview_learner_never_shares_an_lms_learners_id(configured_secret: str) -> None:
     # LMS launches carry their own numeric ids; user-scoped fields would collide on "7".
-    assert read_launch_token(mint_preview_token(uuid7(), 7, PreviewPermission.PLAY)).user_id != "7"
+    assert read_launch_token(mint_preview_token(uuid7(), 7, "play")).user_id != "7"
 
 
 def test_a_preview_token_needs_a_configured_secret() -> None:
     with pytest.raises(PxcLaunchNotConfigured):
-        mint_preview_token(uuid7(), 7, PreviewPermission.PLAY)
+        mint_preview_token(uuid7(), 7, "play")
 
 
 def test_a_pinned_token_keeps_every_claim_and_its_expiry_and_adds_the_revision(configured_secret: str) -> None:

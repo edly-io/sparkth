@@ -36,8 +36,7 @@ async def run_trial(directory: Path, steps: list[TrialStep]) -> ScratchReport:
     """
     # The child checks each value against the manifest, so a value of the wrong shape is that step's error.
     scratch_steps = [
-        ScratchStep(action=step.action, value=cast(FieldType, step.value), permission=step.permission.value)
-        for step in steps
+        ScratchStep(action=step.action, value=cast(FieldType, step.value), permission=step.permission) for step in steps
     ]
     with tempfile.TemporaryDirectory() as work:
         (Path(work) / "steps.json").write_text(json.dumps(scratch_steps), encoding="utf-8")

@@ -4,7 +4,6 @@ import pytest
 
 from sparkth.plugins.pxc.activities import activity_dir
 from sparkth.plugins.pxc.config import get_pxc_settings
-from sparkth.plugins.pxc.enums import PreviewPermission
 from sparkth.plugins.pxc.exceptions import PxcTrialFailed, PxcTrialReportTooLarge, PxcTrialTimedOut
 from sparkth.plugins.pxc.schemas import TrialStep
 from sparkth.plugins.pxc.tests.conftest import CASE_STUDY_MANIFEST, CASE_STUDY_SANDBOX_JS, compiled_activity
@@ -13,7 +12,7 @@ from sparkth.plugins.pxc.trial import run_trial
 # Builds here repeat the same sources, so a source compiles once per session.
 pytestmark = pytest.mark.usefixtures("reused_compiles")
 
-SUBMIT = TrialStep(action="answer.submit", value=[1], permission=PreviewPermission.PLAY)
+SUBMIT = TrialStep(action="answer.submit", value=[1], permission="play")
 
 
 @pytest.mark.wasm
@@ -30,7 +29,7 @@ async def test_a_run_reports_each_steps_events_then_the_state_and_fields() -> No
 async def test_a_throwing_step_reports_what_it_threw() -> None:
     activity_id = await compiled_activity(CASE_STUDY_SANDBOX_JS, CASE_STUDY_MANIFEST)
 
-    report = await run_trial(activity_dir(activity_id), [TrialStep(action="boom", permission=PreviewPermission.PLAY)])
+    report = await run_trial(activity_dir(activity_id), [TrialStep(action="boom", permission="play")])
 
     assert report["steps"][0]["error"] is not None
     assert report["steps"][0]["error"].startswith("boom from onAction")
@@ -38,9 +37,7 @@ async def test_a_throwing_step_reports_what_it_threw() -> None:
 
 @pytest.mark.wasm
 async def test_a_step_the_manifest_refuses_is_that_steps_error() -> None:
-    report = await run_trial(
-        activity_dir("mcq"), [TrialStep(action="no.such.action", permission=PreviewPermission.PLAY), SUBMIT]
-    )
+    report = await run_trial(activity_dir("mcq"), [TrialStep(action="no.such.action", permission="play"), SUBMIT])
 
     assert "no.such.action" in (report["steps"][0]["error"] or "")
     assert report["steps"][1]["error"] is None
@@ -56,7 +53,7 @@ async def test_a_step_that_never_ends_is_stopped(monkeypatch: pytest.MonkeyPatch
     get_pxc_settings.cache_clear()
 
     with pytest.raises(PxcTrialTimedOut) as timed_out:
-        await run_trial(activity_dir(activity_id), [TrialStep(action="boom", permission=PreviewPermission.PLAY)])
+        await run_trial(activity_dir(activity_id), [TrialStep(action="boom", permission="play")])
 
     assert "while running boom as play." in str(timed_out.value)
 

@@ -32,7 +32,7 @@ from pxc.lib.permission import Permission
 from sparkth.lib.log import get_logger
 from sparkth.plugins.pxc.config import get_pxc_settings
 from sparkth.plugins.pxc.constants import PXC_PREVIEW_ACTIVITY_INSTANCE, PXC_PREVIEW_COURSE_ID, PXC_PREVIEW_USER_PREFIX
-from sparkth.plugins.pxc.enums import PreviewPermission
+from sparkth.plugins.pxc.enums import PreviewLevel
 from sparkth.plugins.pxc.exceptions import PxcInvalidLaunchToken, PxcLaunchNotConfigured
 
 logger = get_logger(__name__)
@@ -132,7 +132,7 @@ def mint_launch_token(
     return jwt.encode(claims, secret, algorithm=LAUNCH_TOKEN_ALGORITHM)
 
 
-def mint_preview_token(activity_id: UUID, user_id: int, permission: PreviewPermission) -> str:
+def mint_preview_token(activity_id: UUID, user_id: int, level: PreviewLevel) -> str:
     """A launch token for a user previewing a generated activity inside Sparkth.
 
     The preview is the one launch Sparkth mints itself. It goes into a fixed preview course and
@@ -151,7 +151,7 @@ def mint_preview_token(activity_id: UUID, user_id: int, permission: PreviewPermi
         PXC_PREVIEW_ACTIVITY_INSTANCE,
         PXC_PREVIEW_COURSE_ID,
         f"{PXC_PREVIEW_USER_PREFIX}{user_id}",
-        permission,
+        level,
         secret,
     )
 

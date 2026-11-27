@@ -1,7 +1,8 @@
 import { api, bearer, call, type Schema } from "@/lib/api";
 
 export type ActivitySummary = Schema<"ActivitySummary">;
-export type LaunchPermission = Schema<"PreviewPermission">;
+/** The level an activity launches at: as a learner (`play`) or as its author (`edit`). */
+export type LaunchPermission = "play" | "edit";
 
 export async function listActivities(
   token: string,

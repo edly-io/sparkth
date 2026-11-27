@@ -6,7 +6,7 @@ from uuid import UUID
 from pydantic import AfterValidator, BaseModel, JsonValue, StringConstraints
 
 from sparkth.plugins.pxc.config import get_pxc_settings
-from sparkth.plugins.pxc.enums import PreviewPermission
+from sparkth.plugins.pxc.enums import PreviewLevel
 
 
 def within_source_limit(manifest: dict[str, object]) -> dict[str, object]:
@@ -98,4 +98,4 @@ class TrialStep(BaseModel):
 
     action: str
     value: JsonValue = ""
-    permission: PreviewPermission
+    permission: PreviewLevel

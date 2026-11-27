@@ -437,7 +437,7 @@ async def test_run_hands_the_live_files_and_validated_steps_to_the_trial(
     assert trial.await_args is not None
     directory, validated = trial.await_args.args
     assert directory == generated_activity_dir(str(authored_activity.id)).resolve()
-    assert [(step.action, step.permission.value, step.value) for step in validated] == [("check", "play", "")]
+    assert [(step.action, step.permission, step.value) for step in validated] == [("check", "play", "")]
 
 
 async def test_a_view_step_is_refused_before_anything_runs(

@@ -1,6 +1,10 @@
 """Enumerations of the pxc plugin."""
 
 from enum import StrEnum
+from typing import Literal
+
+# The level an activity is launched at: as a learner (play) or as its author (edit).
+PreviewLevel = Literal["play", "edit"]
 
 
 class PreviewPermission(StrEnum):
