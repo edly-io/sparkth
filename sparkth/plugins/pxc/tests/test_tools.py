@@ -57,7 +57,7 @@ from sparkth.plugins.pxc.tools import (
 )
 
 # Builds here repeat the same sources, so a source compiles once per session.
-pytestmark = pytest.mark.usefixtures("reused_compiles")
+pytestmark = pytest.mark.usefixtures("reused_compiles", "default_user_roles")
 
 
 async def test_about_carries_the_contract_rules() -> None:

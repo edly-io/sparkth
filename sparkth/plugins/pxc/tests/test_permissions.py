@@ -21,6 +21,8 @@ from sparkth.plugins.pxc.permissions import (
 )
 from sparkth.plugins.pxc.tests.conftest import act_as, assert_activity_permission_denied
 
+pytestmark = pytest.mark.usefixtures("default_user_roles")
+
 PXC_ACTIVITY_PERMISSIONS = (PXC_ACTIVITY_READ, PXC_ACTIVITY_UPDATE, PXC_ACTIVITY_DELETE, PXC_ACTIVITY_PLACE)
 
 

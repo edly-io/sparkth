@@ -38,6 +38,8 @@ from sparkth.plugins.slack.routes import _dispatch_event
 from sparkth.plugins.slack.service import WorkspaceService
 from sparkth.plugins.slack.tests.conftest import signed_event_headers
 
+pytestmark = pytest.mark.usefixtures("default_user_roles")
+
 SIGNING_SECRET = "test-signing-secret"
 
 
