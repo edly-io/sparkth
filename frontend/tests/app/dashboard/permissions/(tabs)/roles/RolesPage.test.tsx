@@ -66,7 +66,7 @@ describe("RolesPage", () => {
     expect(await screen.findByText(/A role is a named set of permissions/)).toBeInTheDocument();
   });
 
-  it("offers the list view as the current one and comparing permissions as not yet available", async () => {
+  it("shows the view switch on List", async () => {
     listRoles.mockResolvedValue(ROLES);
     renderWithIntl(<RolesPage />);
 
@@ -75,7 +75,6 @@ describe("RolesPage", () => {
       "aria-current",
       "page",
     );
-    expect(within(views).getByRole("button", { name: "Compare permissions" })).toBeDisabled();
     await findCardNames();
   });
 

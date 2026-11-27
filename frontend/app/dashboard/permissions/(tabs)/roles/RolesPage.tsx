@@ -1,24 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/core/auth/hooks";
 import { Button } from "@/core/components/ui/Button";
 import { createRole, deleteRole, listRoles } from "@/core/permissions/client";
 import { useRoleAccess } from "@/core/permissions/hooks";
-import { ROLES_PATH } from "@/core/permissions/paths";
 import { CreateRoleDialog } from "@/core/permissions/components/ui/CreateRoleDialog";
 import { DeleteRoleDialog } from "@/core/permissions/components/ui/DeleteRoleDialog";
 import type { RoleCreate, RoleResponse } from "@/core/permissions/types";
 import { ListLoader } from "@/core/permissions/components/ui/ListLoader";
 import { RoleCard } from "@/core/permissions/components/ui/RoleCard";
+import { RolesViewSwitch } from "@/core/permissions/components/ui/RolesViewSwitch";
 
 /**
  * The Roles tab: a card for each role the signed-in user may read, under a switch between the list
- * and a permission comparison that is not available yet. Those who may create and change roles get a
- * Create role button, which can start the new role as a duplicate of a listed one, and those who may
+ * and a comparison of their permissions. Those who may create and change roles get a Create role
+ * button, which can start the new role as a duplicate of a listed one, and those who may
  * delete roles a Delete action on each custom role.
  */
 export default function RolesPage() {
@@ -46,26 +45,7 @@ export default function RolesPage() {
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
-        <div
-          role="group"
-          aria-label={t("view.label")}
-          className="inline-flex rounded-[10px] bg-surface-variant p-1"
-        >
-          <Link
-            href={ROLES_PATH}
-            aria-current="page"
-            className="rounded-lg bg-card px-3.5 py-2 text-sm font-semibold text-foreground shadow-sm"
-          >
-            {t("view.list")}
-          </Link>
-          <button
-            type="button"
-            disabled
-            className="rounded-lg px-3.5 py-2 text-sm font-medium text-muted-foreground disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {t("view.compare")}
-          </button>
-        </div>
+        <RolesViewSwitch current="list" />
         {canCreate && (
           <Button variant="outline" size="sm" className="py-2" onClick={() => setCreating(true)}>
             <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />

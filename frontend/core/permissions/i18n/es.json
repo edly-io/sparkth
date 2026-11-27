@@ -43,6 +43,9 @@
         "description": "Descripción",
         "nameTaken": "Ya existe un rol con este nombre."
       },
+      "compare": {
+        "viewOnly": "Solo consulta"
+      },
       "create": {
         "button": "Crear rol",
         "title": "Crear rol",
