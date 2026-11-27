@@ -266,6 +266,7 @@ EMAIL_WHITELIST_DELETE = Permission.create(
 )
 
 # The role-management permissions gate the role-management API (sparkth/api/v1/permissions).
+# Giving a role and taking it away have permissions of their own, checked at the role being changed.
 ROLE_CREATE = Permission.create(
     "role.create",
     gettext_noop("Create roles"),
@@ -292,6 +293,19 @@ ROLE_DELETE = Permission.create(
     gettext_noop("Delete custom roles and take them away from everyone."),
     _USERS_AND_ACCESS,
     risks=(PermissionRisk.DELETES,),
+)
+ROLE_ASSIGN = Permission.create(
+    "role.assign",
+    gettext_noop("Give roles"),
+    gettext_noop("Give a role to people or groups."),
+    _USERS_AND_ACCESS,
+    risks=(PermissionRisk.DELEGATES_ACCESS,),
+)
+ROLE_REVOKE = Permission.create(
+    "role.revoke",
+    gettext_noop("Take roles away"),
+    gettext_noop("Take a role away from people or groups."),
+    _USERS_AND_ACCESS,
 )
 
 # The group-management permissions gate the group-management API (sparkth/api/v1/permissions).

@@ -1,11 +1,14 @@
-"""Pydantic models for the permissions API: permission checks, role management and group management."""
+"""Pydantic models for the permissions API.
+
+Covers permission checks, role management, group management and role assignments.
+"""
 
 from datetime import datetime
 from typing import Self
 
 from pydantic import BaseModel, Field, model_validator
 
-from sparkth.api.v1.permissions.constants import MAX_GROUP_MEMBER_CHANGES
+from sparkth.api.v1.permissions.constants import MAX_GROUP_MEMBER_CHANGES, MAX_ROLE_ASSIGNMENT_CHANGES
 from sparkth.core.permissions.enums import PermissionRisk
 
 
@@ -118,6 +121,36 @@ class GroupRoleAssignmentResponse(BaseModel):
     id: int
     group_id: int
     group_name: str
+    role_id: int
+    role_name: str
+    scope: str
+    scope_object_id: str | None
+    assigned_at: datetime
+
+
+class UserRoleAssignmentsCreate(BaseModel):
+    """The users to give a role to, all at one scope, in one request."""
+
+    user_ids: list[int] = Field(min_length=1, max_length=MAX_ROLE_ASSIGNMENT_CHANGES)
+    scope: str = Field(min_length=1, max_length=50, description="Scope kind to give the role at, e.g. 'global'.")
+    scope_object_id: str | None = Field(
+        default=None,
+        max_length=100,
+        description="The object the scope names. Leave it out for a scope without objects.",
+    )
+
+
+class RoleAssignmentsRevoke(BaseModel):
+    """The ids of the role assignments to take away in one request."""
+
+    assignment_ids: list[int] = Field(min_length=1, max_length=MAX_ROLE_ASSIGNMENT_CHANGES)
+
+
+class UserRoleAssignmentResponse(BaseModel):
+    id: int
+    user_id: int
+    name: str
+    username: str
     role_id: int
     role_name: str
     scope: str

@@ -44,6 +44,8 @@ CORE_PERMISSIONS = [
     "role.read",
     "role.update",
     "role.delete",
+    "role.assign",
+    "role.revoke",
     "group.create",
     "group.read",
     "group.update",
@@ -66,6 +68,7 @@ CORE_PERMISSIONS = [
 RISKS = {
     "role.create": {PermissionRisk.DELEGATES_ACCESS},
     "role.update": {PermissionRisk.DELEGATES_ACCESS},
+    "role.assign": {PermissionRisk.DELEGATES_ACCESS},
     "group.update": {PermissionRisk.DELEGATES_ACCESS},
     "group.member.add": {PermissionRisk.DELEGATES_ACCESS},
     "user.read": {PermissionRisk.PRIVATE_DATA},

@@ -68,12 +68,12 @@ class RoleAssignmentNotFound(Exception):
 
 
 class InvalidScopeObjectId(Exception):
-    """Raised when a (scope, object id) pairing is invalid.
+    """Raised when a scope cannot name the object id it is given.
 
-    An objectless scope must name no object (``scope_object_id`` is ``None``); an
-    object-bearing scope must name one. Enforced in ``assign_role`` in place of the former
-    ``ck_role_assignment_scope`` DB CHECK, so the database stays ignorant of the scope
-    vocabulary (which lives in the ``PERMISSION_SCOPES`` hook).
+    An objectless scope must name no object and an object-bearing scope must name one. An object id
+    containing the path separator is rejected, and so is a ``plugin`` scope whose object id is not
+    the name of a loaded plugin. The database stays ignorant of the scope vocabulary, so these are
+    checked in code.
     """
 
     def __init__(self, scope: str, scope_object_id: str | None) -> None:
