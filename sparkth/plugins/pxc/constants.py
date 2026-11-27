@@ -47,6 +47,15 @@ PXC_PREVIEW_ACTIVITY_INSTANCE = "preview"
 # Prefixed onto a Sparkth user id in a preview token, so it never equals an LMS learner id.
 PXC_PREVIEW_USER_PREFIX = "sparkth-"
 
+# The built-in account that stands for the connected LMS, and holds the launch permissions it may use.
+PXC_LMS_USERNAME = "pxc_lms"
+
+# How long a launch check's answer is reused before the permissions are read again.
+PXC_LAUNCH_ANSWER_TTL_SECONDS = 60
+
+# The most digits a Sparkth user id in a preview token can have: the id column is a 32-bit integer.
+PXC_MAX_USER_ID_DIGITS = 9
+
 # Ends a recorded failure's value or error that was cut at the build error limit.
 PXC_TRUNCATED_MARKER = "…(truncated)"
 
