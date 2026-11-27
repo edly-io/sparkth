@@ -124,6 +124,8 @@ under `/api/v1/permissions` (gated by `role.*` / `permission.read`). See the RES
 (`/docs`) for the endpoints. Permissions and scope kinds themselves are **not** editable
 there — they are declared in code. A role can be created with its permissions in one request, as
 when duplicating a role, so creating one needs `role.update` at `global` as well as `role.create`.
+A permission in that request that is no longer declared is left out, so a role holding a retired
+one can be duplicated; the response lists what was granted.
 
 Compose checks a conversation's permissions at the conversation itself where one is named, except that attaching
 documents is checked at the owner's `user` scope. Reading one conversation, its last message and its attachments,

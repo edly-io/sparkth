@@ -1123,8 +1123,8 @@ export interface paths {
          * @description Create a role, granting it the listed permissions in the same transaction.
          *
          *     Needs ``role.update`` at global as well as ``role.create``, since the new role can be given
-         *     permissions; an unregistered one is refused with 422 and nothing is created. Returns the created
-         *     RoleResponse, which nobody holds yet.
+         *     permissions; one no longer registered is left out, so a role holding a retired one can be
+         *     copied. Returns the created RoleResponse, which nobody holds yet.
          */
         post: operations["create_role_api_v1_permissions_roles_post"];
         delete?: never;

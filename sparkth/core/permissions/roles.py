@@ -56,15 +56,13 @@ async def create_role(
 ) -> Role:
     """Create and return a role granting ``permissions``, in one transaction.
 
-    Records ``role.created``, then ``role.permission_granted`` for each permission. Raises
-    RoleAlreadyExists if the name is already taken, or PermissionNotFound if a permission is not
-    registered; either is checked before anything is written.
+    A permission no longer registered is left out, so a role holding a retired one can be copied.
+    Records ``role.created``, then ``role.permission_granted`` for each permission granted. Raises
+    RoleAlreadyExists if the name is already taken, checked before anything is written.
     """
     if (await session.exec(select(Role).where(Role.name == name))).first() is not None:
         raise RoleAlreadyExists(name)
-    permissions_to_grant = sorted(set(permissions))
-    for permission in permissions_to_grant:
-        get_permission(permission)
+    permissions_to_grant = sorted(set(permissions) & set(available_permissions()))
     role = Role(name=name, description=description)
     session.add(role)
     await session.flush()

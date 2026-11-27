@@ -109,16 +109,15 @@ async def test_create_role_with_permissions_returns_them(client: AsyncClient, se
     assert response.json()["risks"] == ["delegates_access"]
 
 
-async def test_create_role_with_an_unregistered_permission_returns_422_and_creates_nothing(
+async def test_create_role_leaves_out_a_permission_no_longer_registered(
     client: AsyncClient, session: AsyncSession
 ) -> None:
     _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
     response = await client.post(
-        "/api/v1/permissions/roles", json={"name": "grader", "permissions": ["bogus.unregistered"]}
+        "/api/v1/permissions/roles", json={"name": "grader", "permissions": ["role.read", "retired.permission"]}
     )
-    assert response.status_code == 422
-    assert response.json()["detail"] == "Permission not found: bogus.unregistered"
-    assert (await session.exec(select(Role).where(Role.name == "grader"))).first() is None
+    assert response.status_code == 201
+    assert response.json()["permissions"] == ["role.read"]
 
 
 @pytest.mark.parametrize("body", [{"name": "grader"}, {"name": "grader", "permissions": ["role.read"]}])
