@@ -5,20 +5,19 @@ address one group by ``{group_id}`` (get/update/delete, the member routes and th
 at the ``group`` scope, so a grant can be delegated to a single group; a global grant still satisfies
 them via the scope cascade. Listing members or roles needs ``group.read``. Adding members
 (``POST .../members`` with ``user_ids``, 1 to 100) needs ``group.member.add`` and removing them
-(``DELETE .../members?user_ids=...``, 1 to 100) needs ``group.member.remove``; each request changes every
+(``DELETE .../members`` with ``user_ids``, 1 to 100) needs ``group.member.remove``; each request changes every
 listed user or none. Listing groups returns the groups the caller holds ``group.read`` at (every group for
 a global grant); creating a group stays global.
 Authored with LLM (Claude) assistance.
 """
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sparkth.api.v1.permissions.constants import MAX_GROUP_MEMBER_CHANGES
 from sparkth.api.v1.permissions.schemas import (
     GroupCreate,
     GroupMemberResponse,
-    GroupMembersAdd,
+    GroupMembersChange,
     GroupResponse,
     GroupRoleAssignmentResponse,
     GroupUpdate,
@@ -152,7 +151,7 @@ async def list_group_members(
     dependencies=[Depends(GROUP_MEMBER_ADD.require(GROUP, "group_id"))],
 )
 async def add_group_members(
-    group_id: int, payload: GroupMembersAdd, session: AsyncSession = Depends(get_async_session)
+    group_id: int, payload: GroupMembersChange, session: AsyncSession = Depends(get_async_session)
 ) -> list[GroupMemberResponse]:
     """Add up to 100 users to a group in one request, all or nothing.
 
@@ -175,17 +174,15 @@ async def add_group_members(
     dependencies=[Depends(GROUP_MEMBER_REMOVE.require(GROUP, "group_id"))],
 )
 async def remove_group_members(
-    group_id: int,
-    user_ids: list[int] = Query(..., min_length=1, max_length=MAX_GROUP_MEMBER_CHANGES),
-    session: AsyncSession = Depends(get_async_session),
+    group_id: int, payload: GroupMembersChange, session: AsyncSession = Depends(get_async_session)
 ) -> None:
-    """Take up to 100 users, given as repeated ``user_ids`` query parameters, out of a group.
+    """Take up to 100 users, given as ``user_ids`` in the request body, out of a group.
 
     A user who is not a member is skipped. Returns 204 No Content, or 404 for an unknown group.
     """
     await group_engine.get_group(group_id, session)
     # ponytail: one removal query per user, capped at 100 per request; one batched update if that ceiling rises.
-    for user_id in dict.fromkeys(user_ids):
+    for user_id in dict.fromkeys(payload.user_ids):
         await group_engine.remove_group_member(user_id, group_id, session)
     await session.commit()
 

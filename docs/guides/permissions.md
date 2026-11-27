@@ -227,7 +227,7 @@ managed through the REST API as well as the CLI, with three routes under
 |---|---|---|
 | `GET /api/v1/permissions/groups/{group_id}/members` | Lists the active members, oldest first, as `user_id`, `name`, `username` and `added_at` | `group.read` |
 | `POST /api/v1/permissions/groups/{group_id}/members` with `{"user_ids": [7, 9]}` | Adds 1 to 100 users and answers 201 with one member per distinct user, in request order; a user already in the group is returned unchanged | `group.member.add` |
-| `DELETE /api/v1/permissions/groups/{group_id}/members?user_ids=7&user_ids=9` | Takes 1 to 100 users out and answers 204; a user who was not a member is skipped | `group.member.remove` |
+| `DELETE /api/v1/permissions/groups/{group_id}/members` with `{"user_ids": [7, 9]}` | Takes 1 to 100 users out and answers 204; a user who was not a member is skipped | `group.member.remove` |
 
 A request for an unknown group is 404, and so is adding an unknown or deleted user. Adding is all or
 nothing: if any listed user is unknown or deleted, no one is added and nothing is recorded. A request with no
