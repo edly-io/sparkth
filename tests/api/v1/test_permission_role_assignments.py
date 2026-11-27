@@ -603,7 +603,7 @@ async def test_assign_to_group_at_an_unloaded_plugin_returns_422(client: AsyncCl
 
     response = await client.post(
         _build_group_assignments_url(role),
-        json={"group_id": group.id, "scope": "plugin", "scope_object_id": "no-such-plugin"},
+        json={"group_ids": [group.id], "scope": "plugin", "scope_object_id": "no-such-plugin"},
     )
 
     assert response.status_code == 422
