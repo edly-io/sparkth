@@ -145,8 +145,10 @@ class UserRoleAssignmentsCreate(RoleAssignmentCreate):
     user_ids: list[int] = Field(min_length=1, max_length=MAX_ROLE_ASSIGNMENT_CHANGES)
 
 
-class GroupRoleAssignmentCreate(RoleAssignmentCreate):
-    group_id: int
+class GroupRoleAssignmentsCreate(RoleAssignmentCreate):
+    """The groups to give a role to, all at one scope, in one request."""
+
+    group_ids: list[int] = Field(min_length=1, max_length=MAX_ROLE_ASSIGNMENT_CHANGES)
 
 
 class RoleAssignmentsRevoke(BaseModel):

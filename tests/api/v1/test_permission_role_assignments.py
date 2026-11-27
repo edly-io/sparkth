@@ -461,11 +461,8 @@ async def test_role_revoke_does_not_allow_assign(client: AsyncClient, session: A
     assert response.status_code == 403
 
 
-def _build_group_assignments_url(
-    role: Role | int, assignment: GroupRoleAssignment | RoleAssignment | int | None = None
-) -> str:
-    suffix = "" if assignment is None else f"/{_get_id(assignment)}"
-    return f"/api/v1/permissions/roles/{_get_id(role)}/assignments/groups{suffix}"
+def _build_group_assignments_url(role: Role | int) -> str:
+    return f"/api/v1/permissions/roles/{_get_id(role)}/assignments/groups"
 
 
 async def _make_group(session: AsyncSession) -> Group:
@@ -506,14 +503,14 @@ async def test_group_assignment_gives_and_takes_the_role_for_members(
     login_as(client, caller)
     assert not await can(member, AUDIT_READ, GLOBAL, None, session)
 
-    assigned = await client.post(_build_group_assignments_url(role), json={"group_id": group.id, "scope": "global"})
+    assigned = await client.post(_build_group_assignments_url(role), json={"group_ids": [group.id], "scope": "global"})
     assert assigned.status_code == 201
-    body = assigned.json()
+    (body,) = assigned.json()
     assert (body["group_id"], body["role_id"], body["role_name"]) == (group.id, role.id, role.name)
     assert (body["scope"], body["scope_object_id"]) == ("global", None)
     assert await can(member, AUDIT_READ, GLOBAL, None, session)
 
-    revoked = await client.delete(_build_group_assignments_url(role, body["id"]))
+    revoked = await client.request("DELETE", _build_group_assignments_url(role), json={"assignment_ids": [body["id"]]})
     assert revoked.status_code == 204
     assert not await can(member, AUDIT_READ, GLOBAL, None, session)
 
@@ -550,7 +547,7 @@ async def test_assign_to_group_records_the_audit_event_for_the_caller(
     await session.commit()
     login_as(client, caller)
 
-    await client.post(_build_group_assignments_url(role), json={"group_id": group.id, "scope": "global"})
+    await client.post(_build_group_assignments_url(role), json={"group_ids": [group.id], "scope": "global"})
 
     event = (await audit_events())[-1]
     assert (event.category, event.action, event.actor_id) == ("group", "role_assigned", str(caller.id))
@@ -564,13 +561,13 @@ async def test_assign_to_group_twice_returns_the_same_row_and_records_once(
     group = await _make_group(session)
     login_as(client, await make_user_with_permissions(session, ["role.assign"]))
     await session.commit()
-    payload = {"group_id": group.id, "scope": "global"}
+    payload = {"group_ids": [group.id], "scope": "global"}
 
     first = await client.post(_build_group_assignments_url(role), json=payload)
     second = await client.post(_build_group_assignments_url(role), json=payload)
 
     assert (first.status_code, second.status_code) == (201, 201)
-    assert first.json()["id"] == second.json()["id"]
+    assert first.json()[0]["id"] == second.json()[0]["id"]
     assert [e.action for e in await audit_events() if e.category == "group"].count("role_assigned") == 1
 
 
@@ -579,7 +576,7 @@ async def test_assign_to_unknown_group_returns_404(client: AsyncClient, session:
     login_as(client, await make_user_with_permissions(session, ["role.assign"]))
     await session.commit()
 
-    response = await client.post(_build_group_assignments_url(role), json={"group_id": 999999, "scope": "global"})
+    response = await client.post(_build_group_assignments_url(role), json={"group_ids": [999999], "scope": "global"})
 
     assert response.status_code == 404
     assert await _count_group_assignments(999999, role, session) == 0
@@ -591,7 +588,7 @@ async def test_assign_to_group_at_an_unknown_scope_kind_returns_422(client: Asyn
     login_as(client, await make_user_with_permissions(session, ["role.assign"]))
     await session.commit()
 
-    response = await client.post(_build_group_assignments_url(role), json={"group_id": group.id, "scope": "galaxy"})
+    response = await client.post(_build_group_assignments_url(role), json={"group_ids": [group.id], "scope": "galaxy"})
 
     assert response.status_code == 422
     assert await _count_group_assignments(group, role, session) == 0
@@ -607,7 +604,7 @@ async def test_revoke_from_group_records_the_audit_event_for_the_caller(
     await session.commit()
     login_as(client, caller)
 
-    await client.delete(_build_group_assignments_url(role, assignment))
+    await client.request("DELETE", _build_group_assignments_url(role), json={"assignment_ids": [_get_id(assignment)]})
 
     event = (await audit_events())[-1]
     assert (event.category, event.action, event.actor_id) == ("group", "role_revoked", str(caller.id))
@@ -619,7 +616,7 @@ async def test_revoke_unknown_group_assignment_returns_404(client: AsyncClient, 
     login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
     await session.commit()
 
-    response = await client.delete(_build_group_assignments_url(role, 999999))
+    response = await client.request("DELETE", _build_group_assignments_url(role), json={"assignment_ids": [999999]})
 
     assert response.status_code == 404
 
@@ -634,7 +631,9 @@ async def test_revoke_a_group_assignment_of_another_role_returns_404(
     login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
     await session.commit()
 
-    response = await client.delete(_build_group_assignments_url(role_a, assignment))
+    response = await client.request(
+        "DELETE", _build_group_assignments_url(role_a), json={"assignment_ids": [_get_id(assignment)]}
+    )
 
     assert response.status_code == 404
     assert await _count_group_assignments(group, role_b, session) == 1
@@ -650,7 +649,7 @@ async def test_assign_to_group_with_an_overlong_object_id_returns_422(
 
     response = await client.post(
         _build_group_assignments_url(role),
-        json={"group_id": group.id, "scope": "group", "scope_object_id": "9" * 101},
+        json={"group_ids": [group.id], "scope": "group", "scope_object_id": "9" * 101},
     )
 
     assert response.status_code == 422
@@ -666,7 +665,7 @@ async def test_assign_to_group_objectless_scope_with_an_object_id_returns_422(
     await session.commit()
 
     response = await client.post(
-        _build_group_assignments_url(role), json={"group_id": group.id, "scope": "global", "scope_object_id": "1"}
+        _build_group_assignments_url(role), json={"group_ids": [group.id], "scope": "global", "scope_object_id": "1"}
     )
 
     assert response.status_code == 422
@@ -681,7 +680,7 @@ async def test_assign_to_group_object_scope_without_an_object_id_returns_422(
     login_as(client, await make_user_with_permissions(session, ["role.assign"]))
     await session.commit()
 
-    response = await client.post(_build_group_assignments_url(role), json={"group_id": group.id, "scope": "group"})
+    response = await client.post(_build_group_assignments_url(role), json={"group_ids": [group.id], "scope": "group"})
 
     assert response.status_code == 422
     assert await _count_group_assignments(group, role, session) == 0
@@ -696,7 +695,9 @@ async def test_revoke_a_group_assignment_at_an_unregistered_scope_returns_422(
     login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
     await session.commit()
 
-    response = await client.delete(_build_group_assignments_url(role, assignment))
+    response = await client.request(
+        "DELETE", _build_group_assignments_url(role), json={"assignment_ids": [_get_id(assignment)]}
+    )
 
     assert response.status_code == 422
     assert await _count_group_assignments(group, role, session) == 1
@@ -714,7 +715,9 @@ async def test_assign_to_group_under_unknown_role_returns_404(client: AsyncClien
     login_as(client, await make_user_with_permissions(session, ["role.assign"]))
     await session.commit()
 
-    response = await client.post(_build_group_assignments_url(999999), json={"group_id": group.id, "scope": "global"})
+    response = await client.post(
+        _build_group_assignments_url(999999), json={"group_ids": [group.id], "scope": "global"}
+    )
 
     assert response.status_code == 404
 
@@ -723,7 +726,9 @@ async def test_revoke_from_group_under_unknown_role_returns_404(client: AsyncCli
     login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
     await session.commit()
 
-    assert (await client.delete(_build_group_assignments_url(999999, 1))).status_code == 404
+    assert (
+        await client.request("DELETE", _build_group_assignments_url(999999), json={"assignment_ids": [1]})
+    ).status_code == 404
 
 
 async def test_revoke_a_group_assignment_twice_returns_404_the_second_time(
@@ -734,8 +739,12 @@ async def test_revoke_a_group_assignment_twice_returns_404_the_second_time(
     login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
     await session.commit()
 
-    first = await client.delete(_build_group_assignments_url(role, assignment))
-    second = await client.delete(_build_group_assignments_url(role, assignment))
+    first = await client.request(
+        "DELETE", _build_group_assignments_url(role), json={"assignment_ids": [_get_id(assignment)]}
+    )
+    second = await client.request(
+        "DELETE", _build_group_assignments_url(role), json={"assignment_ids": [_get_id(assignment)]}
+    )
 
     assert (first.status_code, second.status_code) == (204, 404)
 
@@ -749,7 +758,9 @@ async def test_user_assignment_id_on_the_groups_path_returns_404(client: AsyncCl
     login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
     await session.commit()
 
-    response = await client.delete(_build_group_assignments_url(role, user_assignment))
+    response = await client.request(
+        "DELETE", _build_group_assignments_url(role), json={"assignment_ids": [_get_id(user_assignment)]}
+    )
 
     assert response.status_code == 404
     assert await _count_assignments(holder, role, session) == 1
@@ -779,7 +790,11 @@ async def test_role_assign_does_not_allow_group_revoke(client: AsyncClient, sess
     login_as(client, await make_user_with_permissions(session, ["role.assign"]))
     await session.commit()
 
-    assert (await client.delete(_build_group_assignments_url(role, assignment))).status_code == 403
+    assert (
+        await client.request(
+            "DELETE", _build_group_assignments_url(role), json={"assignment_ids": [_get_id(assignment)]}
+        )
+    ).status_code == 403
 
 
 async def test_role_revoke_does_not_allow_group_assign(client: AsyncClient, session: AsyncSession) -> None:
@@ -788,7 +803,7 @@ async def test_role_revoke_does_not_allow_group_assign(client: AsyncClient, sess
     login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
     await session.commit()
 
-    response = await client.post(_build_group_assignments_url(role), json={"group_id": group.id, "scope": "global"})
+    response = await client.post(_build_group_assignments_url(role), json={"group_ids": [group.id], "scope": "global"})
 
     assert response.status_code == 403
 
@@ -802,7 +817,7 @@ async def test_role_assign_held_at_another_role_does_not_allow_group_assign(
     login_as(client, await make_user_with_permissions(session, ["role.assign"], "role", str(held.id)))
     await session.commit()
 
-    response = await client.post(_build_group_assignments_url(other), json={"group_id": group.id, "scope": "global"})
+    response = await client.post(_build_group_assignments_url(other), json={"group_ids": [group.id], "scope": "global"})
 
     assert response.status_code == 403
     assert await _count_group_assignments(group, other, session) == 0
@@ -818,7 +833,9 @@ async def test_role_revoke_held_at_another_role_does_not_allow_group_revoke(
     login_as(client, await make_user_with_permissions(session, ["role.revoke"], "role", str(held.id)))
     await session.commit()
 
-    response = await client.delete(_build_group_assignments_url(other, assignment))
+    response = await client.request(
+        "DELETE", _build_group_assignments_url(other), json={"assignment_ids": [_get_id(assignment)]}
+    )
 
     assert response.status_code == 403
     assert await _count_group_assignments(group, other, session) == 1
@@ -985,6 +1002,166 @@ async def test_revoke_user_assignments_rejects_more_than_the_limit(client: Async
 
     response = await client.request(
         "DELETE", _build_assignments_url(role), json={"assignment_ids": list(range(1, 102))}
+    )
+
+    assert response.status_code == 422
+
+
+async def test_assign_role_to_several_groups_in_one_request(client: AsyncClient, session: AsyncSession) -> None:
+    role = await make_role(session, _uniq("role"), ["audit.read"])
+    groups = [await _make_group(session) for _ in range(3)]
+    members = [await make_user(session, _uniq("member")) for _ in groups]
+    for group, member in zip(groups, members):
+        await group_engine.add_group_member(_get_id(member), _get_id(group), session)
+    ids = [_get_id(group) for group in groups]
+    login_as(client, await make_user_with_permissions(session, ["role.assign"]))
+    await session.commit()
+
+    response = await client.post(_build_group_assignments_url(role), json={"group_ids": ids, "scope": "global"})
+
+    assert response.status_code == 201
+    assert [row["group_id"] for row in response.json()] == ids
+    for member in members:
+        assert await can(member, AUDIT_READ, GLOBAL, None, session)
+
+
+async def test_assign_to_groups_is_all_or_nothing(
+    client: AsyncClient, session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    role = await make_role(session, _uniq("role"), [])
+    first = await _make_group(session)
+    second = await _make_group(session)
+    login_as(client, await make_user_with_permissions(session, ["role.assign"]))
+    await session.commit()
+
+    response = await client.post(
+        _build_group_assignments_url(role),
+        json={"group_ids": [first.id, second.id, 999999], "scope": "global"},
+    )
+
+    assert response.status_code == 404
+    assert [await _count_group_assignments(group, role, session) for group in (first, second)] == [0, 0]
+    assert "role_assigned" not in [e.action for e in await audit_events()]
+
+
+async def test_assign_to_groups_counts_a_repeated_group_once(client: AsyncClient, session: AsyncSession) -> None:
+    role = await make_role(session, _uniq("role"), [])
+    first = await _make_group(session)
+    second = await _make_group(session)
+    login_as(client, await make_user_with_permissions(session, ["role.assign"]))
+    await session.commit()
+
+    response = await client.post(
+        _build_group_assignments_url(role),
+        json={"group_ids": [first.id, first.id, second.id], "scope": "global"},
+    )
+
+    assert response.status_code == 201
+    assert [row["group_id"] for row in response.json()] == [first.id, second.id]
+    assert [await _count_group_assignments(group, role, session) for group in (first, second)] == [1, 1]
+
+
+async def test_assign_to_groups_rejects_an_empty_list(client: AsyncClient, session: AsyncSession) -> None:
+    role = await make_role(session, _uniq("role"), [])
+    login_as(client, await make_user_with_permissions(session, ["role.assign"]))
+    await session.commit()
+
+    response = await client.post(_build_group_assignments_url(role), json={"group_ids": [], "scope": "global"})
+
+    assert response.status_code == 422
+
+
+async def test_assign_to_groups_rejects_more_than_the_limit(
+    client: AsyncClient, session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    role = await make_role(session, _uniq("role"), [])
+    group = await _make_group(session)
+    login_as(client, await make_user_with_permissions(session, ["role.assign"]))
+    await session.commit()
+
+    response = await client.post(
+        _build_group_assignments_url(role),
+        json={"group_ids": [group.id, *range(1, 101)], "scope": "global"},
+    )
+
+    assert response.status_code == 422
+    assert await _count_group_assignments(group, role, session) == 0
+    assert "role_assigned" not in [e.action for e in await audit_events()]
+
+
+async def test_revoke_several_group_assignments_in_one_request(
+    client: AsyncClient, session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    role = await make_role(session, _uniq("role"), [])
+    groups = [await _make_group(session) for _ in range(2)]
+    assignments = [await _add_group_assignment(group, role, session) for group in groups]
+    login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
+    await session.commit()
+
+    response = await client.request(
+        "DELETE", _build_group_assignments_url(role), json={"assignment_ids": [_get_id(row) for row in assignments]}
+    )
+
+    assert response.status_code == 204
+    assert [await _count_group_assignments(group, role, session) for group in groups] == [0, 0]
+    assert [e.action for e in await audit_events()].count("role_revoked") == 2
+
+
+async def test_revoke_group_assignments_is_all_or_nothing(
+    client: AsyncClient, session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    role = await make_role(session, _uniq("role"), [])
+    group = await _make_group(session)
+    assignment = await _add_group_assignment(group, role, session)
+    login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
+    await session.commit()
+
+    response = await client.request(
+        "DELETE", _build_group_assignments_url(role), json={"assignment_ids": [_get_id(assignment), 999999]}
+    )
+
+    assert response.status_code == 404
+    assert await _count_group_assignments(group, role, session) == 1
+    assert "role_revoked" not in [e.action for e in await audit_events()]
+
+
+async def test_revoke_group_assignments_is_all_or_nothing_across_roles(
+    client: AsyncClient, session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    role = await make_role(session, _uniq("role"), [])
+    other = await make_role(session, _uniq("role"), [])
+    group = await _make_group(session)
+    own = await _add_group_assignment(group, role, session)
+    foreign = await _add_group_assignment(group, other, session)
+    login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
+    await session.commit()
+
+    response = await client.request(
+        "DELETE", _build_group_assignments_url(role), json={"assignment_ids": [_get_id(own), _get_id(foreign)]}
+    )
+
+    assert response.status_code == 404
+    assert [await _count_group_assignments(group, r, session) for r in (role, other)] == [1, 1]
+    assert "role_revoked" not in [e.action for e in await audit_events()]
+
+
+async def test_revoke_group_assignments_requires_at_least_one_id(client: AsyncClient, session: AsyncSession) -> None:
+    role = await make_role(session, _uniq("role"), [])
+    login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
+    await session.commit()
+
+    response = await client.request("DELETE", _build_group_assignments_url(role), json={"assignment_ids": []})
+
+    assert response.status_code == 422
+
+
+async def test_revoke_group_assignments_rejects_more_than_the_limit(client: AsyncClient, session: AsyncSession) -> None:
+    role = await make_role(session, _uniq("role"), [])
+    login_as(client, await make_user_with_permissions(session, ["role.revoke"]))
+    await session.commit()
+
+    response = await client.request(
+        "DELETE", _build_group_assignments_url(role), json={"assignment_ids": list(range(1, 102))}
     )
 
     assert response.status_code == 422

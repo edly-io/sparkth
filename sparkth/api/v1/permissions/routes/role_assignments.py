@@ -4,11 +4,10 @@ Every route addresses one role by ``{role_id}`` and authorizes at the ``role`` s
 delegated to a single role; a global grant still satisfies it via the scope cascade. Listing needs
 ``role.read``, giving a role ``role.assign`` and taking it away ``role.revoke``. A role is given at a
 scope the caller names, and a holder of ``role.assign`` at a role may give it at any scope. A request gives
-the role to 1 to 100 users (``user_ids``) or to one group, and takes it away from 1 to 100 users by
-assignment id (``assignment_ids`` in the body) or from one group by assignment id; giving to several
-users and taking away from several are each all or nothing. Only an active assignment of the role in the
-path is found. A user assignment and a group assignment live in separate tables, so an id is found only on
-its own path.
+the role to 1 to 100 users (``user_ids``) or 1 to 100 groups (``group_ids``) at one scope, and takes it
+away by 1 to 100 assignment ids (``assignment_ids`` in the body). Giving and taking away are each all or
+nothing. Only an active assignment of the role in the path is found. A user assignment and a group
+assignment live in separate tables, so an id is found only on its own path.
 Authored with LLM (Claude) assistance.
 """
 
@@ -17,8 +16,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.api.v1.permissions.routes.groups import build_group_role_response
 from sparkth.api.v1.permissions.schemas import (
-    GroupRoleAssignmentCreate,
     GroupRoleAssignmentResponse,
+    GroupRoleAssignmentsCreate,
     RoleAssignmentsRevoke,
     UserRoleAssignmentResponse,
     UserRoleAssignmentsCreate,
@@ -168,43 +167,59 @@ async def list_group_role_assignments(
 
 @router.post(
     "/{role_id}/assignments/groups",
-    response_model=GroupRoleAssignmentResponse,
+    response_model=list[GroupRoleAssignmentResponse],
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(ROLE_ASSIGN.require(ROLE, "role_id"))],
 )
-async def assign_group_role(
-    role_id: int, payload: GroupRoleAssignmentCreate, session: AsyncSession = Depends(get_async_session)
-) -> GroupRoleAssignmentResponse:
-    """Give a role to a group at a scope; an assignment that already exists is returned unchanged."""
+async def assign_role_to_groups(
+    role_id: int, payload: GroupRoleAssignmentsCreate, session: AsyncSession = Depends(get_async_session)
+) -> list[GroupRoleAssignmentResponse]:
+    """Give a role to up to 100 groups at one scope, all or nothing.
+
+    Every group must exist, else the request answers 404 and changes nothing; an unknown or invalid scope
+    answers 422 likewise. A group that already holds the role at that scope is returned unchanged, and an id
+    repeated in the request counts once. Returns one assignment per distinct group, in request order.
+    """
     role = await get_role(role_id, session)
-    group = await group_engine.get_group(payload.group_id, session)
+    group_ids = list(dict.fromkeys(payload.group_ids))
+    # ponytail: one lookup per group, capped at 100 per request; one batched query if that ceiling rises.
+    groups = [await group_engine.get_group(group_id, session) for group_id in group_ids]
     permission_scope = _resolve_grant_scope(payload.scope, payload.scope_object_id)
-    assignment = await group_engine.assign_role_to_group(
-        payload.group_id, role.name, permission_scope, payload.scope_object_id, session
-    )
-    response = build_group_role_response(assignment, group, role.name)
+    assignments = [
+        await group_engine.assign_role_to_group(group_id, role.name, permission_scope, payload.scope_object_id, session)
+        for group_id in group_ids
+    ]
+    response = [
+        build_group_role_response(assignment, group, role.name) for assignment, group in zip(assignments, groups)
+    ]
     await session.commit()
     return response
 
 
 @router.delete(
-    "/{role_id}/assignments/groups/{assignment_id}",
+    "/{role_id}/assignments/groups",
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(ROLE_REVOKE.require(ROLE, "role_id"))],
 )
-async def revoke_group_role(
-    role_id: int, assignment_id: int, session: AsyncSession = Depends(get_async_session)
+async def revoke_group_role_assignments(
+    role_id: int, payload: RoleAssignmentsRevoke, session: AsyncSession = Depends(get_async_session)
 ) -> None:
-    """Take a role away from a group by the id of the assignment. Returns 204 No Content.
+    """Take a role away from up to 100 groups, given as ``assignment_ids`` in the request body.
 
-    An assignment whose stored scope kind is no longer registered is refused with 422 and left in place.
+    All or nothing: an id that is unknown, already revoked or of another role answers 404, and an assignment
+    whose stored scope kind is no longer registered answers 422; either way nothing is revoked. Returns 204
+    No Content.
     """
     role = await get_role(role_id, session)
-    assignment = await group_engine.get_group_role_assignment(assignment_id, role_id, session)
-    # ponytail: a row whose scope kind is no longer registered cannot be revoked here (422);
+    # ponytail: one lookup per id, capped at 100 per request; one batched query if that ceiling rises.
+    assignments = [
+        await group_engine.get_group_role_assignment(i, role_id, session) for i in dict.fromkeys(payload.assignment_ids)
+    ]
+    # ponytail: a row whose scope kind is no longer registered cannot be revoked here (422, nothing revoked);
     # upgrade to a revoke that works from the row's own strings.
-    permission_scope = get_permission_scope(assignment.scope)
-    await group_engine.revoke_role_from_group(
-        assignment.group_id, role.name, permission_scope, assignment.scope_object_id, session
-    )
+    permission_scopes = [get_permission_scope(assignment.scope) for assignment in assignments]
+    for assignment, permission_scope in zip(assignments, permission_scopes):
+        await group_engine.revoke_role_from_group(
+            assignment.group_id, role.name, permission_scope, assignment.scope_object_id, session
+        )
     await session.commit()

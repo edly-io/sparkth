@@ -72,7 +72,7 @@ make cli -- roles revoke-role jane admin
 The same can be done through the API. `GET /api/v1/users` lists users and `GET /api/v1/users/{user_id}` reads
 one; both need `user.read`. Under `/api/v1/permissions/roles/{role_id}/assignments/users`, `GET` lists the users
 holding a role (`role.read`), `POST` with `{"user_ids": [7, 9], "scope": "global"}` gives it to up to 100 users
-(`role.assign`) and `DELETE ?assignment_ids=3&assignment_ids=4` takes it away from up to 100 assignments
+(`role.assign`) and `DELETE` with `{"assignment_ids": [3, 4]}` takes it away by up to 100 assignments
 (`role.revoke`), each request all or nothing. The role permissions are checked at that role, so a grant can be
 delegated for a single role.
 

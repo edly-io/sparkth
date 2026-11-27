@@ -264,14 +264,16 @@ A group's roles are managed through the REST API as well as the CLI, with three 
 | Route | Does | Needs |
 |---|---|---|
 | `GET /api/v1/permissions/roles/{role_id}/assignments/groups` | Lists the active group assignments of the role by assignment id, as `id`, `group_id`, `group_name`, `role_id`, `role_name`, `scope`, `scope_object_id` and `assigned_at`; the list is not paged | `role.read` |
-| `POST /api/v1/permissions/roles/{role_id}/assignments/groups` with `{"group_id": 3, "scope": "global"}` | Gives the role to every member of the group and answers 201; a grant that already exists is answered 201 unchanged | `role.assign` |
-| `DELETE /api/v1/permissions/roles/{role_id}/assignments/groups/{assignment_id}` | Takes the role away from the group and answers 204 | `role.revoke` |
+| `POST /api/v1/permissions/roles/{role_id}/assignments/groups` with `{"group_ids": [3, 5], "scope": "global"}` | Gives the role to every member of 1 to 100 groups at one scope and answers 201 with one assignment per distinct group, in request order; a grant that already exists is returned unchanged | `role.assign` |
+| `DELETE /api/v1/permissions/roles/{role_id}/assignments/groups` with `{"assignment_ids": [4, 6]}` | Takes the role away by 1 to 100 group assignment ids and answers 204 | `role.revoke` |
 
 These routes check their permission at the `role` scope, not the group's, and `scope` and `scope_object_id` are
 validated as for users. An unknown group, an unknown role, and an assignment that is revoked, unknown or the
-assignment of another role are 404. A user assignment's id is not found on the groups path, nor a group
-assignment's on the users path. Revoking an assignment whose scope kind is no longer registered is 422 and leaves
-it in place. Members gain the role as soon as the assignment is made and lose it when it is revoked.
+assignment of another role are 404. Giving and taking away are each all or nothing: if any listed group or
+assignment is refused, nothing is changed and nothing is recorded. A request with no ids, or with more than 100, is
+422. A user assignment's id is not found on the groups path, nor a group assignment's on the users path. Revoking
+an assignment whose scope kind is no longer registered is 422 and leaves it, and every other assignment in the
+request, in place. Members gain the role as soon as the assignment is made and lose it when it is revoked.
 
 The CLI manages the same operations:
 
