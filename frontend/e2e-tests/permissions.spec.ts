@@ -15,6 +15,18 @@ import {
  */
 const ALL_THREE = ["permission.read", "role.read", "group.read"];
 
+const COURSE_EDITOR: RoleResponse = {
+  id: 1,
+  name: "Course editor",
+  description: "Edits courses",
+  permissions: ["role.read"],
+  is_builtin: false,
+  is_default: false,
+  user_count: 0,
+  group_count: 0,
+  risks: [],
+};
+
 /** Opens the dashboard and waits for the sidebar's permission check to be answered. */
 async function openDashboard(page: Page): Promise<void> {
   const answered = page.waitForResponse("**/api/v1/permissions/can/batch");
@@ -24,19 +36,7 @@ async function openDashboard(page: Page): Promise<void> {
 
 test.describe("access & permissions", () => {
   test.beforeEach(async ({ page }) => {
-    await stubRoles(page, [
-      {
-        id: 1,
-        name: "Course editor",
-        description: "Edits courses",
-        permissions: [],
-        is_builtin: false,
-        is_default: false,
-        user_count: 0,
-        group_count: 0,
-        risks: ["delegates_access"],
-      },
-    ]);
+    await stubRoles(page, [{ ...COURSE_EDITOR, permissions: [], risks: ["delegates_access"] }]);
     await stubGroups(page, [{ id: 2, name: "Science faculty", description: null }]);
   });
 
@@ -105,17 +105,7 @@ test.describe("access & permissions", () => {
 
   test("opens a role's page from its card", async ({ page }) => {
     await stubPermissions(page, ALL_THREE);
-    await stubRole(page, {
-      id: 1,
-      name: "Course editor",
-      description: "Edits courses",
-      permissions: ["role.read"],
-      is_builtin: false,
-      is_default: false,
-      user_count: 0,
-      group_count: 0,
-      risks: [],
-    });
+    await stubRole(page, COURSE_EDITOR);
     await stubPermissionList(page, [
       {
         name: "role.read",
@@ -139,19 +129,8 @@ test.describe("access & permissions", () => {
   });
 
   test("saves the permissions checked on a role's page", async ({ page }) => {
-    const role = {
-      id: 1,
-      name: "Course editor",
-      description: "Edits courses",
-      permissions: ["role.read"],
-      is_builtin: false,
-      is_default: false,
-      user_count: 0,
-      group_count: 0,
-      risks: [],
-    } satisfies RoleResponse;
-    await stubPermissions(page, ALL_THREE);
-    await stubRole(page, role);
+    await stubPermissions(page, [...ALL_THREE, "role.update"]);
+    await stubRole(page, COURSE_EDITOR);
     await stubPermissionList(page, [
       {
         name: "role.read",
@@ -174,7 +153,11 @@ test.describe("access & permissions", () => {
     await page.route("**/api/v1/permissions/roles/1/permissions", (route) => {
       sent.push(route.request().postDataJSON());
       return route.fulfill({
-        json: { ...role, permissions: ["role.read", "role.update"], risks: ["delegates_access"] },
+        json: {
+          ...COURSE_EDITOR,
+          permissions: ["role.read", "role.update"],
+          risks: ["delegates_access"],
+        },
       });
     });
     await page.goto("/dashboard/permissions/roles/role?id=1");

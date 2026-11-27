@@ -14,7 +14,7 @@ import { getRole, setRolePermissions } from "@/core/permissions/client";
 import { RiskChips } from "@/core/permissions/components/ui/RiskChips";
 import { RoleBadges } from "@/core/permissions/components/ui/RoleBadges";
 import { RolePermissionList } from "@/core/permissions/components/ui/RolePermissionList";
-import { usePermissionList } from "@/core/permissions/hooks";
+import { usePermissionCheck, usePermissionList } from "@/core/permissions/hooks";
 import { ROLES_PATH } from "@/core/permissions/paths";
 import { formatRoleName } from "@/core/permissions/roleDisplay";
 import type { RoleResponse } from "@/core/permissions/types";
@@ -25,8 +25,8 @@ type SaveStatus = "idle" | "saving" | "saved" | "failed";
 const SAVED_MESSAGE_MS = 3000;
 
 /**
- * A loaded role: `checked` starts as every permission it holds, so one no longer declared is saved
- * back unchanged, and `saveStatus` says where saving the checked ones stands.
+ * A loaded role. `checked` starts as every permission the role holds, including any that is no
+ * longer declared, so saving keeps those. `saveStatus` says where saving the checked ones stands.
  */
 type LoadedRole = {
   status: "loaded";
@@ -40,15 +40,21 @@ type RoleState = { status: "loading" | "missing" | "failed" } | LoadedRole;
 /**
  * One role's page, for the role named by `?id=`: a breadcrumb back through Access & permissions and
  * Roles, then the role's name as the page heading with its badges, description and risks, and every
- * permission with the role's own checked. A custom role's permissions can be checked and unchecked,
- * and Save, enabled once they differ from the role's, saves them all at once and says so. Says so
- * too when there is no such role, it can't be loaded or saving fails.
+ * permission with the role's own checked. Those who may change a custom role can check and uncheck
+ * its permissions, and Save, enabled once they differ from the role's, saves them all at once and
+ * says so. Says so too when there is no such role, it can't be loaded or saving fails.
  */
 export default function RolePage() {
   const t = useTranslations("permissions.roles.detail");
   const tPermissions = useTranslations("permissions");
   const { token } = useAuth();
   const roleId = Number(useSearchParams()?.get("id"));
+  const isRoleId = Number.isInteger(roleId) && roleId > 0;
+  const canChangeRole =
+    usePermissionCheck(isRoleId ? token : null, "role.update", {
+      scope: "role",
+      scopeObjectId: String(roleId),
+    }) === "allowed";
   const [state, setState] = useState<RoleState>({ status: "loading" });
   const { permissionList, load: loadPermissionList } = usePermissionList(token);
 
@@ -70,7 +76,7 @@ export default function RolePage() {
   }, [saveStatus]);
 
   useEffect(() => {
-    if (!Number.isInteger(roleId) || roleId <= 0) {
+    if (!isRoleId) {
       setState({ status: "missing" });
       return;
     }
@@ -93,7 +99,7 @@ export default function RolePage() {
     return () => {
       active = false;
     };
-  }, [token, roleId]);
+  }, [token, roleId, isRoleId]);
 
   switch (state.status) {
     case "missing":
@@ -120,6 +126,8 @@ export default function RolePage() {
     setState((current) =>
       current.status === "loaded" && current.role.id === role.id ? next(current) : current,
     );
+
+  const canEdit = canChangeRole && !role.is_builtin;
 
   const saveChecked = async () => {
     setState({ ...state, saveStatus: "saving" });
@@ -177,14 +185,14 @@ export default function RolePage() {
       {permissionList.status === "loaded" && (
         <RolePermissionList
           permissions={permissionList.permissions}
-          granted={checked}
+          checked={checked}
           onChange={
-            role.is_builtin || saveStatus === "saving"
+            !canEdit || saveStatus === "saving"
               ? undefined
               : (next) => setState({ ...state, checked: next, saveStatus: "idle" })
           }
           actions={
-            !role.is_builtin && (
+            canEdit && (
               <>
                 {saveStatus === "failed" && (
                   <p role="alert" className="text-sm text-error-600">

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, screen, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import userEvent from "@testing-library/user-event";
@@ -14,12 +14,13 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/dashboard/permissions/roles/role",
 }));
 const client = vi.hoisted(() => ({
+  checkPermissions: vi.fn(),
   getRole: vi.fn(),
   listPermissions: vi.fn(),
   setRolePermissions: vi.fn(),
 }));
 vi.mock("@/core/permissions/client", () => client);
-const { getRole, listPermissions, setRolePermissions } = client;
+const { checkPermissions, getRole, listPermissions, setRolePermissions } = client;
 
 import RolePage from "@/app/dashboard/permissions/roles/role/RolePage";
 
@@ -49,12 +50,17 @@ const ROLE: RoleResponse = {
 beforeEach(() => {
   vi.clearAllMocks();
   nav.query = "id=7";
+  checkPermissions.mockResolvedValue([true]);
   getRole.mockResolvedValue(ROLE);
   listPermissions.mockResolvedValue([
     permission("role.read", "See roles"),
     permission("role.update", "Edit roles"),
   ]);
   vi.spyOn(console, "error").mockImplementation(() => {});
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("RolePage", () => {
@@ -143,7 +149,6 @@ describe("RolePage", () => {
 
     act(() => vi.advanceTimersByTime(3000));
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
-    vi.useRealTimers();
   });
 
   it("locks every permission while saving", async () => {
@@ -210,6 +215,17 @@ describe("RolePage", () => {
     expect(screen.queryByRole("button", { name: "Save changes" })).not.toBeInTheDocument();
   });
 
+  it("lets only those who may change the role change its permissions", async () => {
+    checkPermissions.mockResolvedValue([false]);
+    renderWithIntl(<RolePage />);
+
+    expect(await screen.findByRole("checkbox", { name: "Edit roles" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Save changes" })).not.toBeInTheDocument();
+    expect(checkPermissions).toHaveBeenCalledWith("test-token", [
+      { permission: "role.update", scope: "role", scopeObjectId: "7" },
+    ]);
+  });
+
   it("says so when there is no such role", async () => {
     getRole.mockRejectedValue(
       new ApiRequestError({ message: "Role not found: 7", fieldErrors: {} }, 404),
@@ -225,6 +241,7 @@ describe("RolePage", () => {
 
     expect(await screen.findByText("This role doesn't exist.")).toBeInTheDocument();
     expect(getRole).not.toHaveBeenCalled();
+    expect(checkPermissions).not.toHaveBeenCalled();
   });
 
   it("says so when the role can't be loaded", async () => {

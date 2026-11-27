@@ -7,10 +7,11 @@ import { twMerge } from "tailwind-merge";
 import { Input } from "@/core/components/ui/Input";
 import { RiskChips } from "@/core/permissions/components/ui/RiskChips";
 import { filterPermissions, groupByCategory } from "@/core/permissions/permissionList";
+import { toggleItem } from "@/core/permissions/sets";
 import type { PermissionResponse } from "@/core/permissions/types";
 
 /**
- * Every permission, grouped under its category, with those in `granted` checked: each shows its
+ * Every permission, grouped under its category, with those in `checked` checked: each shows its
  * label, risks, description and internal name, and each group how many of its permissions are
  * granted. A group can be collapsed, and a filter narrows the list by label, category or internal
  * name. With `onChange`, permissions can be checked and unchecked, one at a time or a whole category
@@ -19,13 +20,13 @@ import type { PermissionResponse } from "@/core/permissions/types";
  */
 export function RolePermissionList({
   permissions,
-  granted,
+  checked,
   onChange,
   actions,
 }: {
   permissions: PermissionResponse[];
-  granted: ReadonlySet<string>;
-  onChange?: (granted: ReadonlySet<string>) => void;
+  checked: ReadonlySet<string>;
+  onChange?: (checked: ReadonlySet<string>) => void;
   actions?: ReactNode;
 }) {
   const t = useTranslations("permissions.roles.detail.list");
@@ -34,29 +35,15 @@ export function RolePermissionList({
   const [collapsedCategories, setCollapsedCategories] = useState<ReadonlySet<string>>(new Set());
   const byCategory = groupByCategory(permissions);
   const matchingByCategory = groupByCategory(filterPermissions(permissions, filter));
-  const grantedCount = permissions.filter(({ name }) => granted.has(name)).length;
+  const checkedCount = permissions.filter(({ name }) => checked.has(name)).length;
 
-  const toggleGranted = (permission: string) => {
-    const next = new Set(granted);
-    if (!next.delete(permission)) next.add(permission);
-    onChange?.(next);
-  };
-
-  // Grants every permission in the category, or clears them all when every one is granted.
-  const toggleCategoryGranted = (categoryPermissions: PermissionResponse[]) => {
-    const grantAll = !categoryPermissions.every(({ name }) => granted.has(name));
-    const next = new Set(granted);
+  const setCategoryChecked = (categoryPermissions: PermissionResponse[], isChecked: boolean) => {
+    const next = new Set(checked);
     for (const { name } of categoryPermissions) {
-      if (grantAll) next.add(name);
+      if (isChecked) next.add(name);
       else next.delete(name);
     }
     onChange?.(next);
-  };
-
-  const toggleCollapsed = (category: string) => {
-    const next = new Set(collapsedCategories);
-    if (!next.delete(category)) next.add(category);
-    setCollapsedCategories(next);
   };
 
   return (
@@ -74,7 +61,7 @@ export function RolePermissionList({
         </div>
         <p className="text-sm text-muted-foreground">
           {t.rich("granted", {
-            granted: grantedCount,
+            granted: checkedCount,
             total: permissions.length,
             strong: (chunks) => <strong className="font-semibold text-foreground">{chunks}</strong>,
           })}
@@ -84,13 +71,14 @@ export function RolePermissionList({
       {matchingByCategory.size === 0 && (
         <p className="text-sm text-muted-foreground">{tPermissions("picker.noMatches")}</p>
       )}
-      {[...matchingByCategory].map(([category, categoryMatches]) => {
+      {[...byCategory].map(([category, categoryPermissions]) => {
+        const categoryMatches = matchingByCategory.get(category);
+        if (!categoryMatches) return null;
         const open = !collapsedCategories.has(category);
-        const categoryPermissions = byCategory.get(category) ?? [];
-        const categoryGrantedCount = categoryPermissions.filter(({ name }) =>
-          granted.has(name),
+        const categoryCheckedCount = categoryPermissions.filter(({ name }) =>
+          checked.has(name),
         ).length;
-        const allGranted = categoryGrantedCount === categoryPermissions.length;
+        const allChecked = categoryCheckedCount === categoryPermissions.length;
         return (
           <fieldset
             key={category}
@@ -102,23 +90,23 @@ export function RolePermissionList({
                 type="checkbox"
                 aria-label={t("allInCategory", { category })}
                 className="h-4 w-4 shrink-0 accent-primary-600"
-                checked={allGranted}
+                checked={allChecked}
                 ref={(box) => {
-                  if (box) box.indeterminate = categoryGrantedCount > 0 && !allGranted;
+                  if (box) box.indeterminate = categoryCheckedCount > 0 && !allChecked;
                 }}
                 disabled={!onChange}
-                onChange={() => toggleCategoryGranted(categoryPermissions)}
+                onChange={(event) => setCategoryChecked(categoryPermissions, event.target.checked)}
               />
               <button
                 type="button"
                 aria-expanded={open}
-                onClick={() => toggleCollapsed(category)}
+                onClick={() => setCollapsedCategories(toggleItem(collapsedCategories, category))}
                 className="flex flex-1 items-center gap-2.5 py-3 text-left"
               >
                 <span className="text-[15px] font-semibold text-foreground">{category}</span>
                 <span className="text-[13px] text-muted-foreground">
                   {t("groupCount", {
-                    granted: categoryGrantedCount,
+                    granted: categoryCheckedCount,
                     total: categoryPermissions.length,
                   })}
                 </span>
@@ -139,9 +127,9 @@ export function RolePermissionList({
                       id={`permission-${name}`}
                       type="checkbox"
                       className="mt-0.5 h-4 w-4 shrink-0 accent-primary-600"
-                      checked={granted.has(name)}
+                      checked={checked.has(name)}
                       disabled={!onChange}
-                      onChange={() => toggleGranted(name)}
+                      onChange={() => onChange?.(toggleItem(checked, name))}
                     />
                     <div className="min-w-0 space-y-1">
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">

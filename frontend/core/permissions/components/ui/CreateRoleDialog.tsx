@@ -21,6 +21,7 @@ import { Textarea } from "@/core/components/ui/Textarea";
 import { PermissionPicker } from "@/core/permissions/components/ui/PermissionPicker";
 import { usePermissionList } from "@/core/permissions/hooks";
 import { formatRoleName } from "@/core/permissions/roleDisplay";
+import { toggleItem } from "@/core/permissions/sets";
 import type { RoleCreate, RoleResponse } from "@/core/permissions/types";
 
 /** Where the new role's first permissions come from. */
@@ -86,12 +87,6 @@ function RoleForm({
   useEffect(() => {
     if (permissionSource === "choose") loadPermissionList();
   }, [permissionSource, loadPermissionList]);
-
-  const toggleChosen = (permission: string) => {
-    const next = new Set(chosen);
-    if (!next.delete(permission)) next.add(permission);
-    setChosen(next);
-  };
 
   const getPermissionsToGrant = (): string[] | undefined => {
     switch (permissionSource) {
@@ -208,7 +203,7 @@ function RoleForm({
           <PermissionPicker
             permissions={permissionList.permissions}
             chosen={chosen}
-            onToggle={toggleChosen}
+            onToggle={(permission) => setChosen(toggleItem(chosen, permission))}
           />
         )}
       </fieldset>

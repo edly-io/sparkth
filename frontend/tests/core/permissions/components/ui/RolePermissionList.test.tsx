@@ -20,8 +20,8 @@ const PERMISSIONS = [
   permission("compose.conversation.read", "Read conversations", "Compose"),
 ];
 
-function renderList(granted: string[] = ["role.read", "compose.conversation.read"]) {
-  renderWithIntl(<RolePermissionList permissions={PERMISSIONS} granted={new Set(granted)} />);
+function renderList(checked: string[] = ["role.read", "compose.conversation.read"]) {
+  renderWithIntl(<RolePermissionList permissions={PERMISSIONS} checked={new Set(checked)} />);
 }
 
 describe("RolePermissionList", () => {
@@ -65,7 +65,7 @@ describe("RolePermissionList", () => {
     renderWithIntl(
       <RolePermissionList
         permissions={PERMISSIONS}
-        granted={new Set(["role.read"])}
+        checked={new Set(["role.read"])}
         onChange={onChange}
       />,
     );
@@ -81,7 +81,7 @@ describe("RolePermissionList", () => {
     renderWithIntl(
       <RolePermissionList
         permissions={PERMISSIONS}
-        granted={new Set(["role.read", "compose.conversation.read"])}
+        checked={new Set(["role.read", "compose.conversation.read"])}
         onChange={onChange}
       />,
     );
@@ -101,7 +101,7 @@ describe("RolePermissionList", () => {
     renderWithIntl(
       <RolePermissionList
         permissions={PERMISSIONS}
-        granted={new Set(["role.read", "role.update", "compose.conversation.read"])}
+        checked={new Set(["role.read", "role.update", "compose.conversation.read"])}
         onChange={onChange}
       />,
     );
@@ -116,7 +116,7 @@ describe("RolePermissionList", () => {
   it("grants the whole category, including permissions the filter hides", async () => {
     const onChange = vi.fn();
     renderWithIntl(
-      <RolePermissionList permissions={PERMISSIONS} granted={new Set()} onChange={onChange} />,
+      <RolePermissionList permissions={PERMISSIONS} checked={new Set()} onChange={onChange} />,
     );
 
     await userEvent.type(screen.getByLabelText("Filter permissions"), "edit");
@@ -139,7 +139,7 @@ describe("RolePermissionList", () => {
     renderWithIntl(
       <RolePermissionList
         permissions={PERMISSIONS}
-        granted={new Set()}
+        checked={new Set()}
         actions={<button type="button">Save</button>}
       />,
     );
