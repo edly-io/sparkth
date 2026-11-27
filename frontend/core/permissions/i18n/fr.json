@@ -44,7 +44,16 @@
         "nameTaken": "Un rôle porte déjà ce nom."
       },
       "compare": {
-        "viewOnly": "Consultation uniquement"
+        "viewOnly": "Consultation uniquement",
+        "loading": "Chargement de la comparaison…",
+        "loadFailed": "Impossible de charger la comparaison. Réessayez plus tard.",
+        "noPermissions": "Aucune autorisation à comparer.",
+        "legend": "Légende",
+        "granted": "Accordée",
+        "notGranted": "Non accordée",
+        "permission": "Autorisation",
+        "noRole": "Aucun rôle ne l'a pour l'instant",
+        "note": "Cette page sert uniquement à comparer. Pour modifier ce qu'un rôle permet, cliquez sur son nom pour l'ouvrir."
       },
       "create": {
         "button": "Créer un rôle",

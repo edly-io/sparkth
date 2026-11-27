@@ -103,13 +103,25 @@ test.describe("access & permissions", () => {
       .toEqual([{ name: "Grader", description: null, permissions: ["role.update"] }]);
   });
 
-  test("switches to the compare view and back to the list", async ({ page }) => {
+  test("compares the roles' permissions and goes back to the list", async ({ page }) => {
     await stubPermissions(page, SECTION_PERMISSIONS);
+    await stubPermissionList(page, [
+      {
+        name: "role.read",
+        label: "See roles",
+        description: "See every role and what it allows.",
+        category: "Users & access",
+        risks: [],
+        requires: [],
+      },
+    ]);
     await page.goto("/dashboard/permissions/roles");
 
     await page.getByRole("link", { name: "Compare permissions" }).click();
     await expect(page).toHaveURL(/\/dashboard\/permissions\/roles\/compare\/?$/);
     await expect(page.getByText("View only")).toBeVisible();
+    await expect(page.getByRole("row", { name: /See roles/ })).toContainText("Not granted");
+    await expect(page.getByText("No role has this yet")).toBeVisible();
     await expect(page.getByRole("link", { name: "Roles", exact: true })).toHaveAttribute(
       "aria-current",
       "page",

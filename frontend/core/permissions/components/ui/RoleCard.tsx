@@ -6,7 +6,7 @@ import { Ellipsis, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Popover, PopoverContent, PopoverTrigger } from "@/core/components/ui/Popover";
 import { RiskChips } from "@/core/permissions/components/ui/RiskChips";
-import { RoleBadges } from "@/core/permissions/components/ui/RoleBadges";
+import { AutomaticRoleBadge, RoleTypeBadge } from "@/core/permissions/components/ui/RoleBadges";
 import { getRolePath } from "@/core/permissions/paths";
 import { formatRoleName, getRoleHolders } from "@/core/permissions/roleDisplay";
 import type { RoleResponse } from "@/core/permissions/types";
@@ -29,8 +29,9 @@ export function RoleCard({ role, onDelete }: { role: RoleResponse; onDelete?: ()
               {formatRoleName(role.name)}
             </Link>
           </h2>
-          <div className="mt-1.5">
-            <RoleBadges role={role} />
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            <RoleTypeBadge role={role} />
+            {role.is_default && <AutomaticRoleBadge />}
           </div>
         </div>
         {onDelete && <RoleMenu name={formatRoleName(role.name)} onDelete={onDelete} />}
