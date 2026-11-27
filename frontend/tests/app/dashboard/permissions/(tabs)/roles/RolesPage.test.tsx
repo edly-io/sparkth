@@ -39,7 +39,7 @@ const ROLES = [
 
 beforeEach(() => {
   vi.clearAllMocks();
-  checkPermissions.mockResolvedValue([true, true, true, true]);
+  checkPermissions.mockResolvedValue([true, true, true]);
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -103,14 +103,13 @@ describe("RolesPage", () => {
     expect(checkPermissions).toHaveBeenCalledWith("test-token", [
       { permission: "role.create", scope: "global" },
       { permission: "role.update", scope: "global" },
-      { permission: "role.update", scope: "role" },
       { permission: "role.delete", scope: "role" },
     ]);
   });
 
   it.each([
-    ["create", [false, true, true, true]],
-    ["update", [true, false, true, true]],
+    ["create", [false, true, true]],
+    ["update", [true, false, true]],
   ])("hides Create role from someone who may not %s roles everywhere", async (_, answers) => {
     checkPermissions.mockResolvedValue(answers);
     listRoles.mockResolvedValue(ROLES);
@@ -167,7 +166,7 @@ describe("RolesPage", () => {
   });
 
   it("offers no Delete to someone who may not delete roles", async () => {
-    checkPermissions.mockResolvedValue([true, true, true, false]);
+    checkPermissions.mockResolvedValue([true, true, false]);
     listRoles.mockResolvedValue(ROLES);
     renderWithIntl(<RolesPage />);
     await findCardNames();

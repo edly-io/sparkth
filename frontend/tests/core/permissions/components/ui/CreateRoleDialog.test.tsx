@@ -255,13 +255,14 @@ describe("CreateRoleDialog", () => {
     expect(screen.getByRole("button", { name: "Create" })).toBeDisabled();
   });
 
-  it("can start as a duplicate of the role it is given, with its description", async () => {
+  it("starts as a duplicate of the role it is given to duplicate, with its description", async () => {
     const onCreate = vi.fn().mockResolvedValue(undefined);
+    const courseAuthor = { ...ROLES[1], description: "Builds courses." };
     renderWithIntl(
       <CreateRoleDialog
         open
-        roles={[{ ...ROLES[1], description: "Builds courses." }]}
-        initialPermissionSource="duplicate"
+        roles={[ROLES[0], courseAuthor]}
+        duplicateOf={courseAuthor}
         onCreate={onCreate}
         onClose={vi.fn()}
       />,

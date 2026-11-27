@@ -131,9 +131,9 @@ export default function RolePage() {
             )}
             {canDelete && !role.is_builtin && (
               <Button
-                variant="outline"
+                variant="outline-error"
                 size="sm"
-                className="border-error-200 px-2.5 py-1 text-xs text-error-700 hover:bg-error-50 dark:border-error-800 dark:text-error-300 dark:hover:bg-error-900/30"
+                className="px-2.5 py-1 text-xs"
                 onClick={() => setDeleting(true)}
               >
                 <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
@@ -148,7 +148,7 @@ export default function RolePage() {
       <CreateRoleDialog
         open={duplicating}
         roles={[role]}
-        initialPermissionSource="duplicate"
+        duplicateOf={role}
         onCreate={createDuplicate}
         onClose={() => setDuplicating(false)}
       />

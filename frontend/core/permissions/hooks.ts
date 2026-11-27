@@ -62,25 +62,26 @@ export function usePermissionChecks(
 }
 
 /**
- * What the signed-in user may do with roles, answered by one request: create one, and change or
- * delete the role `roleId`, or roles in general when no role is named. Creating needs `role.update`
- * everywhere as well as `role.create`, since a new role can start with permissions. Each is false
- * until the answer arrives.
+ * What the signed-in user may do with roles, answered by one request: create one, delete the role
+ * `roleId` and change it, or delete roles in general when no role is named. Creating needs
+ * `role.update` everywhere as well as `role.create`, since a new role can start with permissions.
+ * Each is false until the answer arrives, and `canChange` stays false when no role is named.
  */
 export function useRoleAccess(
   token: string | null,
   roleId?: number,
 ): { canCreate: boolean; canChange: boolean; canDelete: boolean } {
   const scopeObjectId = roleId === undefined ? undefined : String(roleId);
-  const [createAllowed, changeAllAllowed, changeAllowed, deleteAllowed] = usePermissionChecks(
-    token,
-    [
-      { permission: "role.create", scope: "global" },
-      { permission: "role.update", scope: "global" },
-      { permission: "role.update", scope: "role", scopeObjectId },
-      { permission: "role.delete", scope: "role", scopeObjectId },
-    ],
-  ).map((access) => access === "allowed");
+  const checks: PermissionCheckQuery[] = [
+    { permission: "role.create", scope: "global" },
+    { permission: "role.update", scope: "global" },
+    { permission: "role.delete", scope: "role", scopeObjectId },
+  ];
+  if (roleId !== undefined) {
+    checks.push({ permission: "role.update", scope: "role", scopeObjectId });
+  }
+  const [createAllowed, changeAllAllowed, deleteAllowed, changeAllowed = false] =
+    usePermissionChecks(token, checks).map((access) => access === "allowed");
   return {
     canCreate: createAllowed && changeAllAllowed,
     canChange: changeAllowed,

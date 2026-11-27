@@ -253,13 +253,13 @@ describe("RolePage", () => {
     expect(checkPermissions).toHaveBeenCalledWith("test-token", [
       { permission: "role.create", scope: "global" },
       { permission: "role.update", scope: "global" },
-      { permission: "role.update", scope: "role", scopeObjectId: "7" },
       { permission: "role.delete", scope: "role", scopeObjectId: "7" },
+      { permission: "role.update", scope: "role", scopeObjectId: "7" },
     ]);
   });
 
   it("offers no changes to someone who may not change this role", async () => {
-    checkPermissions.mockResolvedValue([true, true, false, true]);
+    checkPermissions.mockResolvedValue([true, true, true, false]);
     renderWithIntl(<RolePage />);
 
     expect(await screen.findByRole("checkbox", { name: "Edit roles" })).toBeDisabled();
@@ -279,7 +279,7 @@ describe("RolePage", () => {
   });
 
   it("offers no Delete to someone who may not delete this role", async () => {
-    checkPermissions.mockResolvedValue([true, true, true, false]);
+    checkPermissions.mockResolvedValue([true, true, false, true]);
     renderWithIntl(<RolePage />);
 
     await screen.findByRole("heading", { level: 1, name: "Course author" });

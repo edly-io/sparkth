@@ -237,21 +237,22 @@ describe("useRoleAccess", () => {
     expect(mockChecks).toHaveBeenCalledWith("tok", [
       { permission: "role.create", scope: "global" },
       { permission: "role.update", scope: "global" },
-      { permission: "role.update", scope: "role", scopeObjectId: "7" },
       { permission: "role.delete", scope: "role", scopeObjectId: "7" },
+      { permission: "role.update", scope: "role", scopeObjectId: "7" },
     ]);
   });
 
-  it("asks about roles in general when no role is named", async () => {
-    mockChecks.mockResolvedValue([true, true, true, true]);
+  it("asks about creating and deleting roles in general when no role is named", async () => {
+    mockChecks.mockResolvedValue([true, true, true]);
 
     const { result } = renderHook(() => useRoleAccess("tok"));
 
-    await waitFor(() => expect(result.current.canDelete).toBe(true));
+    await waitFor(() =>
+      expect(result.current).toEqual({ canCreate: true, canChange: false, canDelete: true }),
+    );
     expect(mockChecks).toHaveBeenCalledWith("tok", [
       { permission: "role.create", scope: "global" },
       { permission: "role.update", scope: "global" },
-      { permission: "role.update", scope: "role" },
       { permission: "role.delete", scope: "role" },
     ]);
   });
