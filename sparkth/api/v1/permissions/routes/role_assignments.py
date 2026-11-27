@@ -3,21 +3,25 @@
 Every route addresses one role by ``{role_id}`` and authorizes at the ``role`` scope, so a grant can be
 delegated to a single role; a global grant still satisfies it via the scope cascade. Listing needs
 ``role.read``, giving a role ``role.assign`` and taking it away ``role.revoke``. A role is given at a
-scope the caller names, and a holder of ``role.assign`` at a role may give it at any scope. An assignment
-is addressed by its own id, and only an active assignment of the role in the path is found. A user
-assignment and a group assignment live in separate tables, so an id is found only on its own path.
+scope the caller names, and a holder of ``role.assign`` at a role may give it at any scope. A request gives
+the role to 1 to 100 users (``user_ids``) or to one group, and takes it away from 1 to 100 users by
+assignment id (``assignment_ids`` query parameters) or from one group by assignment id; giving to several
+users and taking away from several are each all or nothing. Only an active assignment of the role in the
+path is found. A user assignment and a group assignment live in separate tables, so an id is found only on
+its own path.
 Authored with LLM (Claude) assistance.
 """
 
 from fastapi import APIRouter, Depends, Query, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sparkth.api.v1.permissions.constants import MAX_ROLE_ASSIGNMENT_CHANGES
 from sparkth.api.v1.permissions.routes.groups import build_group_role_response
 from sparkth.api.v1.permissions.schemas import (
     GroupRoleAssignmentCreate,
     GroupRoleAssignmentResponse,
-    UserRoleAssignmentCreate,
     UserRoleAssignmentResponse,
+    UserRoleAssignmentsCreate,
 )
 from sparkth.core.models.user import User
 from sparkth.core.permissions import groups as group_engine
@@ -93,42 +97,60 @@ async def list_user_role_assignments(
 
 @router.post(
     "/{role_id}/assignments/users",
-    response_model=UserRoleAssignmentResponse,
+    response_model=list[UserRoleAssignmentResponse],
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(ROLE_ASSIGN.require(ROLE, "role_id"))],
 )
-async def assign_user_role(
-    role_id: int, payload: UserRoleAssignmentCreate, session: AsyncSession = Depends(get_async_session)
-) -> UserRoleAssignmentResponse:
-    """Give a role to a user at a scope; an assignment that already exists is returned unchanged."""
+async def assign_role_to_users(
+    role_id: int, payload: UserRoleAssignmentsCreate, session: AsyncSession = Depends(get_async_session)
+) -> list[UserRoleAssignmentResponse]:
+    """Give a role to up to 100 users at one scope, all or nothing.
+
+    Every user must exist and not be deleted, else the request answers 404 and changes nothing; an unknown
+    or invalid scope answers 422 likewise. A user who already holds the role at that scope is returned
+    unchanged, and an id repeated in the request counts once. Returns one assignment per distinct user, in
+    request order.
+    """
     role = await get_role(role_id, session)
-    user = await get_user(payload.user_id, session)
+    user_ids = list(dict.fromkeys(payload.user_ids))
+    # ponytail: one lookup per user, capped at 100 per request; one batched query if that ceiling rises.
+    users = [await get_user(user_id, session) for user_id in user_ids]
     permission_scope = _resolve_grant_scope(payload.scope, payload.scope_object_id)
-    assignment = await assign_role(payload.user_id, role.name, permission_scope, payload.scope_object_id, session)
-    response = _build_user_assignment_response(assignment, user, role.name)
+    assignments = [
+        await assign_role(user_id, role.name, permission_scope, payload.scope_object_id, session)
+        for user_id in user_ids
+    ]
+    response = [
+        _build_user_assignment_response(assignment, user, role.name) for assignment, user in zip(assignments, users)
+    ]
     await session.commit()
     return response
 
 
 @router.delete(
-    "/{role_id}/assignments/users/{assignment_id}",
+    "/{role_id}/assignments/users",
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(ROLE_REVOKE.require(ROLE, "role_id"))],
 )
-async def revoke_user_role(
-    role_id: int, assignment_id: int, session: AsyncSession = Depends(get_async_session)
+async def revoke_user_role_assignments(
+    role_id: int,
+    assignment_ids: list[int] = Query(..., min_length=1, max_length=MAX_ROLE_ASSIGNMENT_CHANGES),
+    session: AsyncSession = Depends(get_async_session),
 ) -> None:
-    """Take a role away from a user by the id of the assignment. Returns 204 No Content.
+    """Take a role away from up to 100 users, given as repeated ``assignment_ids`` query parameters.
 
-    An assignment whose stored scope is no longer registered, or whose stored scope and object pairing is no
-    longer valid, is refused with 422 and left in place.
+    All or nothing: an id that is unknown, already revoked or of another role answers 404, and an assignment
+    whose stored scope is no longer registered, or whose stored scope and object pairing is no longer valid,
+    answers 422; either way nothing is revoked. Returns 204 No Content.
     """
     role = await get_role(role_id, session)
-    assignment = await get_role_assignment(assignment_id, role_id, session)
+    # ponytail: one lookup per id, capped at 100 per request; one batched query if that ceiling rises.
+    assignments = [await get_role_assignment(i, role_id, session) for i in dict.fromkeys(assignment_ids)]
     # ponytail: a row whose scope kind is no longer registered, or whose stored pairing is no longer valid,
-    # cannot be revoked here (422); upgrade to a revoke that works from the row's own strings.
-    permission_scope = get_permission_scope(assignment.scope)
-    await revoke_role(assignment.user_id, role.name, permission_scope, assignment.scope_object_id, session)
+    # cannot be revoked here (422, nothing revoked); upgrade to a revoke that works from the row's own strings.
+    permission_scopes = [get_permission_scope(assignment.scope) for assignment in assignments]
+    for assignment, permission_scope in zip(assignments, permission_scopes):
+        await revoke_role(assignment.user_id, role.name, permission_scope, assignment.scope_object_id, session)
     await session.commit()
 
 
