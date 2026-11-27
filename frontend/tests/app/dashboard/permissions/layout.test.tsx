@@ -3,7 +3,6 @@ import { screen } from "@testing-library/react";
 import { renderWithIntl } from "@/tests/intl";
 
 vi.mock("@/core/auth/hooks", () => ({ useAuth: () => ({ token: "test-token" }) }));
-vi.mock("next/navigation", () => ({ usePathname: () => "/dashboard/permissions/roles" }));
 const checkPermissions = vi.hoisted(() => vi.fn());
 vi.mock("@/core/permissions/client", () => ({ checkPermissions }));
 
@@ -36,21 +35,13 @@ describe("PermissionsLayout", () => {
     ]);
   });
 
-  it("shows the tabs and the open tab when all three are granted", async () => {
+  it("shows its page when all three are granted, with no heading or tabs of its own", async () => {
     checkPermissions.mockResolvedValue([true, true, true]);
     renderLayout();
 
     expect(await screen.findByText("tab body")).toBeInTheDocument();
-    const nav = screen.getByRole("navigation", { name: "Access sections" });
-    expect(nav).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Roles" })).toHaveAttribute(
-      "href",
-      "/dashboard/permissions/roles",
-    );
-    expect(screen.getByRole("link", { name: "Groups" })).toHaveAttribute(
-      "href",
-      "/dashboard/permissions/groups",
-    );
+    expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
   });
 
   it.each([
@@ -78,14 +69,10 @@ describe("PermissionsLayout", () => {
     expect(screen.queryByText("tab body")).not.toBeInTheDocument();
   });
 
-  it("shows the heading but neither tabs nor content while checking", () => {
+  it("shows no page while checking", () => {
     checkPermissions.mockReturnValue(new Promise(() => {}));
     renderLayout();
 
-    expect(
-      screen.getByRole("heading", { level: 1, name: "Access & permissions" }),
-    ).toBeInTheDocument();
     expect(screen.queryByText("tab body")).not.toBeInTheDocument();
-    expect(screen.queryByRole("navigation", { name: "Access sections" })).not.toBeInTheDocument();
   });
 });

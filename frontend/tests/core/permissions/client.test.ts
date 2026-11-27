@@ -4,6 +4,7 @@ import {
   checkPermissions,
   createRole,
   deleteRole,
+  getRole,
   listGroups,
   listPermissions,
   listRoles,
@@ -76,6 +77,21 @@ describe("listRoles", () => {
     expect(new URL(request.url).pathname).toBe("/api/v1/permissions/roles");
     expect(request.headers.get("authorization")).toBe("Bearer test-token");
     expect(result).toEqual(roles);
+  });
+});
+
+describe("getRole", () => {
+  it("GETs /api/v1/permissions/roles/{id} and returns the role", async () => {
+    const role = { id: 7, name: "grader", description: null, permissions: ["role.read"] };
+    const spy = mockFetch(role);
+
+    const result = await getRole("test-token", 7);
+
+    const request = sentRequest(spy);
+    expect(request.method).toBe("GET");
+    expect(new URL(request.url).pathname).toBe("/api/v1/permissions/roles/7");
+    expect(request.headers.get("authorization")).toBe("Bearer test-token");
+    expect(result).toEqual(role);
   });
 });
 

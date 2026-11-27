@@ -1,5 +1,11 @@
 import { test, expect, type Page } from "@playwright/test";
-import { stubGroups, stubPermissionList, stubPermissions, stubRoles } from "./utils/permissions";
+import {
+  stubGroups,
+  stubPermissionList,
+  stubPermissions,
+  stubRole,
+  stubRoles,
+} from "./utils/permissions";
 
 /**
  * The Access & permissions section. Its sidebar entry and its pages need permission.read,
@@ -94,6 +100,41 @@ test.describe("access & permissions", () => {
     await expect
       .poll(() => sent)
       .toEqual([{ name: "Grader", description: null, permissions: ["role.update"] }]);
+  });
+
+  test("opens a role's page from its card", async ({ page }) => {
+    await stubPermissions(page, ALL_THREE);
+    await stubRole(page, {
+      id: 1,
+      name: "Course editor",
+      description: "Edits courses",
+      permissions: ["role.read"],
+      is_builtin: false,
+      is_default: false,
+      user_count: 0,
+      group_count: 0,
+      risks: [],
+    });
+    await stubPermissionList(page, [
+      {
+        name: "role.read",
+        label: "See roles",
+        description: "See every role and what it allows.",
+        category: "Users & access",
+        risks: [],
+        requires: [],
+      },
+    ]);
+    await page.goto("/dashboard/permissions/roles");
+
+    await page.getByRole("link", { name: "Course editor" }).click();
+
+    await expect(page).toHaveURL(/\/dashboard\/permissions\/roles\/role\/?\?id=1$/);
+    await expect(page.getByRole("heading", { name: "Course editor" })).toBeVisible();
+    await expect(page.getByRole("checkbox", { name: "See roles" })).toBeChecked();
+    await expect(
+      page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Roles" }),
+    ).toBeVisible();
   });
 
   for (const missing of ALL_THREE) {

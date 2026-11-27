@@ -6,7 +6,7 @@ vi.mock("@/core/auth/hooks", () => ({ useAuth: () => ({ token: "test-token" }) }
 const listGroups = vi.hoisted(() => vi.fn());
 vi.mock("@/core/permissions/client", () => ({ listGroups }));
 
-import GroupsPage from "@/app/dashboard/permissions/groups/GroupsPage";
+import GroupsPage from "@/app/dashboard/permissions/(tabs)/groups/GroupsPage";
 
 describe("GroupsPage", () => {
   it("lists the groups the caller may read", async () => {

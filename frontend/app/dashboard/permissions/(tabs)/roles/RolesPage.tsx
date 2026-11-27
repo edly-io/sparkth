@@ -8,6 +8,7 @@ import { useAuth } from "@/core/auth/hooks";
 import { Button } from "@/core/components/ui/Button";
 import { createRole, deleteRole, listRoles } from "@/core/permissions/client";
 import { usePermissionChecks } from "@/core/permissions/hooks";
+import { ROLES_PATH } from "@/core/permissions/paths";
 import type { PermissionCheckQuery } from "@/core/permissions/client";
 import { CreateRoleDialog } from "@/core/permissions/components/ui/CreateRoleDialog";
 import { DeleteRoleDialog } from "@/core/permissions/components/ui/DeleteRoleDialog";
@@ -66,7 +67,7 @@ export default function RolesPage() {
           className="inline-flex rounded-[10px] bg-surface-variant p-1"
         >
           <Link
-            href="/dashboard/permissions/roles"
+            href={ROLES_PATH}
             aria-current="page"
             className="rounded-lg bg-card px-3.5 py-2 text-sm font-semibold text-foreground shadow-sm"
           >

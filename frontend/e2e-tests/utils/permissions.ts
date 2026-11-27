@@ -27,6 +27,13 @@ export async function stubRoles(page: Page, roles: RoleResponse[]): Promise<void
   await page.route("**/api/v1/permissions/roles", (route) => route.fulfill({ json: roles }));
 }
 
+/** Stubs `GET /api/v1/permissions/roles/{id}` with `role`. */
+export async function stubRole(page: Page, role: RoleResponse): Promise<void> {
+  await page.route(`**/api/v1/permissions/roles/${role.id}`, (route) =>
+    route.fulfill({ json: role }),
+  );
+}
+
 /** Stubs `GET /api/v1/permissions`, the list of every declared permission, with `permissions`. */
 export async function stubPermissionList(
   page: Page,

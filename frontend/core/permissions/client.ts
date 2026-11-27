@@ -43,6 +43,16 @@ export async function listRoles(token: string): Promise<RoleResponse[]> {
   );
 }
 
+/** One role, with its permissions, how many hold it and its risks. */
+export async function getRole(token: string, roleId: number): Promise<RoleResponse> {
+  return call<RoleResponse>(() =>
+    api.GET("/api/v1/permissions/roles/{role_id}", {
+      params: { path: { role_id: roleId } },
+      headers: bearer(token),
+    }),
+  );
+}
+
 /** The groups the signed-in user may read. */
 export async function listGroups(token: string): Promise<GroupResponse[]> {
   return call<GroupResponse[]>(() =>
