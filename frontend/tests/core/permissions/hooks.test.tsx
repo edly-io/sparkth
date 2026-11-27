@@ -10,6 +10,7 @@ import {
   usePermissionCheck,
   usePermissionChecks,
   usePermissionList,
+  useRoleAccess,
 } from "@/core/permissions/hooks";
 import type { PermissionResponse } from "@/core/permissions/types";
 
@@ -220,5 +221,59 @@ describe("usePermissionList", () => {
 
     expect(result.current.permissionList).toEqual({ status: "idle" });
     expect(mockListPermissions).not.toHaveBeenCalled();
+  });
+});
+
+describe("useRoleAccess", () => {
+  it("asks once about creating roles and changing or deleting the role named", async () => {
+    mockChecks.mockResolvedValue([true, true, true, true]);
+
+    const { result } = renderHook(() => useRoleAccess("tok", 7));
+
+    await waitFor(() =>
+      expect(result.current).toEqual({ canCreate: true, canChange: true, canDelete: true }),
+    );
+    expect(mockChecks).toHaveBeenCalledTimes(1);
+    expect(mockChecks).toHaveBeenCalledWith("tok", [
+      { permission: "role.create", scope: "global" },
+      { permission: "role.update", scope: "global" },
+      { permission: "role.delete", scope: "role", scopeObjectId: "7" },
+      { permission: "role.update", scope: "role", scopeObjectId: "7" },
+    ]);
+  });
+
+  it("asks about creating and deleting roles in general when no role is named", async () => {
+    mockChecks.mockResolvedValue([true, true, true]);
+
+    const { result } = renderHook(() => useRoleAccess("tok"));
+
+    await waitFor(() =>
+      expect(result.current).toEqual({ canCreate: true, canChange: false, canDelete: true }),
+    );
+    expect(mockChecks).toHaveBeenCalledWith("tok", [
+      { permission: "role.create", scope: "global" },
+      { permission: "role.update", scope: "global" },
+      { permission: "role.delete", scope: "role" },
+    ]);
+  });
+
+  it.each([
+    ["role.create", [false, true, true, true]],
+    ["role.update", [true, false, true, true]],
+  ])("can't create without %s everywhere", async (_, answers) => {
+    mockChecks.mockResolvedValue(answers);
+
+    const { result } = renderHook(() => useRoleAccess("tok", 7));
+
+    await waitFor(() => expect(result.current.canChange).toBe(true));
+    expect(result.current.canCreate).toBe(false);
+  });
+
+  it("allows nothing until the answer arrives", () => {
+    mockChecks.mockReturnValue(new Promise(() => {}));
+
+    const { result } = renderHook(() => useRoleAccess("tok", 7));
+
+    expect(result.current).toEqual({ canCreate: false, canChange: false, canDelete: false });
   });
 });

@@ -36,11 +36,14 @@ type PermissionSource = "none" | "duplicate" | "choose";
 export function CreateRoleDialog({
   open,
   roles,
+  duplicateOf,
   onCreate,
   onClose,
 }: {
   open: boolean;
   roles: RoleResponse[];
+  /** One of `roles` to start as a duplicate of: selected when the dialog opens, with its description. */
+  duplicateOf?: RoleResponse;
   onCreate: (role: RoleCreate) => Promise<void>;
   onClose: () => void;
 }) {
@@ -52,8 +55,8 @@ export function CreateRoleDialog({
           <DialogTitle>{t("title")}</DialogTitle>
           <DialogDescription>{t("intro")}</DialogDescription>
         </DialogHeader>
-        {/* Mounted per opening, so the form starts empty each time. */}
-        <RoleForm roles={roles} onCreate={onCreate} onClose={onClose} />
+        {/* Mounted per opening, so the form starts afresh each time. */}
+        <RoleForm roles={roles} duplicateOf={duplicateOf} onCreate={onCreate} onClose={onClose} />
       </DialogContent>
     </Dialog>
   );
@@ -61,19 +64,23 @@ export function CreateRoleDialog({
 
 function RoleForm({
   roles,
+  duplicateOf,
   onCreate,
   onClose,
 }: {
   roles: RoleResponse[];
+  duplicateOf: RoleResponse | undefined;
   onCreate: (role: RoleCreate) => Promise<void>;
   onClose: () => void;
 }) {
   const t = useTranslations("permissions.roles");
   const { token } = useAuth();
   const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [permissionSource, setPermissionSource] = useState<PermissionSource>("none");
-  const [selectedRoleId, setSelectedRoleId] = useState<number>();
+  const [description, setDescription] = useState(duplicateOf?.description ?? "");
+  const [permissionSource, setPermissionSource] = useState<PermissionSource>(
+    duplicateOf ? "duplicate" : "none",
+  );
+  const [selectedRoleId, setSelectedRoleId] = useState(duplicateOf?.id);
   // The role to duplicate: the one selected, or the first listed until one is selected (the roles
   // may only arrive after the dialog opens).
   const duplicateRoleId = selectedRoleId ?? roles[0]?.id;

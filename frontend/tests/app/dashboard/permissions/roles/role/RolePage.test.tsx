@@ -8,21 +8,31 @@ import en from "@/core/i18n/catalogs/en";
 import type { PermissionResponse, RoleResponse } from "@/core/permissions/types";
 
 vi.mock("@/core/auth/hooks", () => ({ useAuth: () => ({ token: "test-token" }) }));
-const nav = vi.hoisted(() => ({ query: "id=7" }));
+const nav = vi.hoisted(() => ({ query: "id=7", push: vi.fn() }));
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(nav.query),
   usePathname: () => "/dashboard/permissions/roles/role",
+  useRouter: () => ({ push: nav.push }),
 }));
 const client = vi.hoisted(() => ({
-  checkPermissions: vi.fn(),
   getRole: vi.fn(),
   listPermissions: vi.fn(),
   setRolePermissions: vi.fn(),
   updateRoleDetails: vi.fn(),
+  checkPermissions: vi.fn(),
+  createRole: vi.fn(),
+  deleteRole: vi.fn(),
 }));
 vi.mock("@/core/permissions/client", () => client);
-const { checkPermissions, getRole, listPermissions, setRolePermissions, updateRoleDetails } =
-  client;
+const {
+  getRole,
+  listPermissions,
+  setRolePermissions,
+  updateRoleDetails,
+  checkPermissions,
+  createRole,
+  deleteRole,
+} = client;
 
 import RolePage from "@/app/dashboard/permissions/roles/role/RolePage";
 
@@ -52,8 +62,8 @@ const ROLE: RoleResponse = {
 beforeEach(() => {
   vi.clearAllMocks();
   nav.query = "id=7";
-  checkPermissions.mockResolvedValue([true]);
   getRole.mockResolvedValue(ROLE);
+  checkPermissions.mockResolvedValue([true, true, true, true]);
   listPermissions.mockResolvedValue([
     permission("role.read", "See roles"),
     permission("role.update", "Edit roles"),
@@ -235,6 +245,77 @@ describe("RolePage", () => {
     expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
   });
 
+  it("asks once what the user may do with this role", async () => {
+    renderWithIntl(<RolePage />);
+
+    await screen.findByRole("heading", { level: 1, name: "Course author" });
+    expect(checkPermissions).toHaveBeenCalledTimes(1);
+    expect(checkPermissions).toHaveBeenCalledWith("test-token", [
+      { permission: "role.create", scope: "global" },
+      { permission: "role.update", scope: "global" },
+      { permission: "role.delete", scope: "role", scopeObjectId: "7" },
+      { permission: "role.update", scope: "role", scopeObjectId: "7" },
+    ]);
+  });
+
+  it("offers no changes to someone who may not change this role", async () => {
+    checkPermissions.mockResolvedValue([true, true, true, false]);
+    renderWithIntl(<RolePage />);
+
+    expect(await screen.findByRole("checkbox", { name: "Edit roles" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save changes" })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["create", [false, true, true, true]],
+    ["change", [true, false, true, true]],
+  ])("offers no Duplicate to someone who may not %s roles everywhere", async (_, answers) => {
+    checkPermissions.mockResolvedValue(answers);
+    renderWithIntl(<RolePage />);
+
+    await screen.findByRole("heading", { level: 1, name: "Course author" });
+    expect(screen.queryByRole("button", { name: "Duplicate" })).not.toBeInTheDocument();
+  });
+
+  it("offers no Delete to someone who may not delete this role", async () => {
+    checkPermissions.mockResolvedValue([true, true, false, true]);
+    renderWithIntl(<RolePage />);
+
+    await screen.findByRole("heading", { level: 1, name: "Course author" });
+    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+  });
+
+  it("duplicates the role and opens the duplicate", async () => {
+    createRole.mockResolvedValue({ ...ROLE, id: 9, name: "Course author duplicate" });
+    renderWithIntl(<RolePage />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Duplicate" }));
+    expect(screen.getByRole("radio", { name: "A duplicate of another role" })).toBeChecked();
+    await userEvent.type(screen.getByLabelText("Name"), "Course author duplicate");
+    await userEvent.click(await screen.findByRole("button", { name: "Create" }));
+
+    expect(createRole).toHaveBeenCalledWith("test-token", {
+      name: "Course author duplicate",
+      description: "Builds and publishes courses.",
+      permissions: ["role.read"],
+    });
+    expect(nav.push).toHaveBeenCalledWith("/dashboard/permissions/roles/role?id=9");
+  });
+
+  it("deletes the role once confirmed and goes back to Roles", async () => {
+    deleteRole.mockResolvedValue(undefined);
+    renderWithIntl(<RolePage />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Delete" }));
+    const dialog = await screen.findByRole("dialog", { name: "Delete Course author?" });
+    await userEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+    expect(deleteRole).toHaveBeenCalledWith("test-token", 7);
+    expect(nav.push).toHaveBeenCalledWith("/dashboard/permissions/roles");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("lets nobody change a built-in role's permissions", async () => {
     getRole.mockResolvedValue({ ...ROLE, is_builtin: true });
     renderWithIntl(<RolePage />);
@@ -242,18 +323,8 @@ describe("RolePage", () => {
     expect(await screen.findByRole("checkbox", { name: "Edit roles" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Save changes" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
-  });
-
-  it("lets only those who may change the role change its permissions", async () => {
-    checkPermissions.mockResolvedValue([false]);
-    renderWithIntl(<RolePage />);
-
-    expect(await screen.findByRole("checkbox", { name: "Edit roles" })).toBeDisabled();
-    expect(screen.queryByRole("button", { name: "Save changes" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
-    expect(checkPermissions).toHaveBeenCalledWith("test-token", [
-      { permission: "role.update", scope: "role", scopeObjectId: "7" },
-    ]);
+    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Duplicate" })).toBeInTheDocument();
   });
 
   it("says so when there is no such role", async () => {

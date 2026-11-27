@@ -7,9 +7,8 @@ import { useTranslations } from "next-intl";
 import { useAuth } from "@/core/auth/hooks";
 import { Button } from "@/core/components/ui/Button";
 import { createRole, deleteRole, listRoles } from "@/core/permissions/client";
-import { usePermissionChecks } from "@/core/permissions/hooks";
+import { useRoleAccess } from "@/core/permissions/hooks";
 import { ROLES_PATH } from "@/core/permissions/paths";
-import type { PermissionCheckQuery } from "@/core/permissions/client";
 import { CreateRoleDialog } from "@/core/permissions/components/ui/CreateRoleDialog";
 import { DeleteRoleDialog } from "@/core/permissions/components/ui/DeleteRoleDialog";
 import type { RoleCreate, RoleResponse } from "@/core/permissions/types";
@@ -17,29 +16,15 @@ import { ListLoader } from "@/core/permissions/components/ui/ListLoader";
 import { RoleCard } from "@/core/permissions/components/ui/RoleCard";
 
 /**
- * What the page asks before showing its actions, read by position as create, update, delete.
- * Creating a role needs `role.update` too, since a new role can start with permissions.
- */
-const ROLE_ACTION_CHECKS: PermissionCheckQuery[] = [
-  { permission: "role.create", scope: "global" },
-  { permission: "role.update", scope: "global" },
-  { permission: "role.delete", scope: "role" },
-];
-
-/**
  * The Roles tab: a card for each role the signed-in user may read, under a switch between the list
  * and a permission comparison that is not available yet. Those who may create and change roles get a
- * Create role button, which can start the new role as a copy of a listed one, and those who may
+ * Create role button, which can start the new role as a duplicate of a listed one, and those who may
  * delete roles a Delete action on each custom role.
  */
 export default function RolesPage() {
   const t = useTranslations("permissions.roles");
   const { token } = useAuth();
-  const [canCreateRoles, canChangeRoles, canDeleteRoles] = usePermissionChecks(
-    token,
-    ROLE_ACTION_CHECKS,
-  ).map((access) => access === "allowed");
-  const canCreate = canCreateRoles && canChangeRoles;
+  const { canCreate, canDelete } = useRoleAccess(token);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<RoleResponse | null>(null);
   const [loadedRoles, setLoadedRoles] = useState<RoleResponse[]>([]);
@@ -116,9 +101,7 @@ export default function RolesPage() {
                 <li key={role.id}>
                   <RoleCard
                     role={role}
-                    onDelete={
-                      canDeleteRoles && !role.is_builtin ? () => setDeleting(role) : undefined
-                    }
+                    onDelete={canDelete && !role.is_builtin ? () => setDeleting(role) : undefined}
                   />
                 </li>
               ))}

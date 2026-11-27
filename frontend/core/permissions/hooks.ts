@@ -61,6 +61,34 @@ export function usePermissionChecks(
   return answers;
 }
 
+/**
+ * What the signed-in user may do with roles, answered by one request: create one, delete the role
+ * `roleId` and change it, or delete roles in general when no role is named. Creating needs
+ * `role.update` everywhere as well as `role.create`, since a new role can start with permissions.
+ * Each is false until the answer arrives, and `canChange` stays false when no role is named.
+ */
+export function useRoleAccess(
+  token: string | null,
+  roleId?: number,
+): { canCreate: boolean; canChange: boolean; canDelete: boolean } {
+  const scopeObjectId = roleId === undefined ? undefined : String(roleId);
+  const checks: PermissionCheckQuery[] = [
+    { permission: "role.create", scope: "global" },
+    { permission: "role.update", scope: "global" },
+    { permission: "role.delete", scope: "role", scopeObjectId },
+  ];
+  if (roleId !== undefined) {
+    checks.push({ permission: "role.update", scope: "role", scopeObjectId });
+  }
+  const [createAllowed, changeAllAllowed, deleteAllowed, changeAllowed = false] =
+    usePermissionChecks(token, checks).map((access) => access === "allowed");
+  return {
+    canCreate: createAllowed && changeAllAllowed,
+    canChange: changeAllowed,
+    canDelete: deleteAllowed,
+  };
+}
+
 /** Where the full permission list stands: not asked for yet, in flight, failed, or loaded. */
 export type PermissionListState =
   | { status: "idle" | "loading" | "failed" }

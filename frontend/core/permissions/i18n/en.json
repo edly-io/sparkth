@@ -83,6 +83,8 @@
         "permissionsLoading": "Loading the permissions…",
         "permissionsFailed": "Couldn't load the permissions. Try again later.",
         "edit": "Edit",
+        "duplicate": "Duplicate",
+        "delete": "Delete",
         "save": "Save changes",
         "saveFailed": "Couldn't save the permissions. Try again.",
         "saved": "Saved",
