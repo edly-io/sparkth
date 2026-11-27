@@ -1114,31 +1114,21 @@ export interface paths {
         get: operations["list_group_members_api_v1_permissions_groups__group_id__members_get"];
         put?: never;
         /**
-         * Add Group Member
-         * @description Add a user to a group; a user who is already a member is returned unchanged.
+         * Add Group Members
+         * @description Add up to 100 users to a group in one request, all or nothing.
+         *
+         *     Every user must exist and not be deleted, else the request answers 404 and changes nothing. A user who is
+         *     already a member is returned unchanged, and an id repeated in the request counts once. Returns one
+         *     GroupMemberResponse per distinct user, in request order.
          */
-        post: operations["add_group_member_api_v1_permissions_groups__group_id__members_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/permissions/groups/{group_id}/members/{user_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
+        post: operations["add_group_members_api_v1_permissions_groups__group_id__members_post"];
         /**
-         * Remove Group Member
-         * @description Take a user out of a group; a user who is not a member is a no-op. Returns 204 No Content.
+         * Remove Group Members
+         * @description Take up to 100 users, given as repeated ``user_ids`` query parameters, out of a group.
+         *
+         *     A user who is not a member is skipped. Returns 204 No Content, or 404 for an unknown group.
          */
-        delete: operations["remove_group_member_api_v1_permissions_groups__group_id__members__user_id__delete"];
+        delete: operations["remove_group_members_api_v1_permissions_groups__group_id__members_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2681,11 +2671,6 @@ export interface components {
             /** Name */
             name: string;
         };
-        /** GroupMemberAdd */
-        GroupMemberAdd: {
-            /** User Id */
-            user_id: number;
-        };
         /** GroupMemberResponse */
         GroupMemberResponse: {
             /**
@@ -2699,6 +2684,14 @@ export interface components {
             user_id: number;
             /** Username */
             username: string;
+        };
+        /**
+         * GroupMembersAdd
+         * @description The users to add to a group in one request.
+         */
+        GroupMembersAdd: {
+            /** User Ids */
+            user_ids: number[];
         };
         /** GroupResponse */
         GroupResponse: {
@@ -5590,7 +5583,7 @@ export interface operations {
             };
         };
     };
-    add_group_member_api_v1_permissions_groups__group_id__members_post: {
+    add_group_members_api_v1_permissions_groups__group_id__members_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -5601,7 +5594,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["GroupMemberAdd"];
+                "application/json": components["schemas"]["GroupMembersAdd"];
             };
         };
         responses: {
@@ -5611,7 +5604,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GroupMemberResponse"];
+                    "application/json": components["schemas"]["GroupMemberResponse"][];
                 };
             };
             /** @description Validation Error */
@@ -5625,13 +5618,14 @@ export interface operations {
             };
         };
     };
-    remove_group_member_api_v1_permissions_groups__group_id__members__user_id__delete: {
+    remove_group_members_api_v1_permissions_groups__group_id__members_delete: {
         parameters: {
-            query?: never;
+            query: {
+                user_ids: number[];
+            };
             header?: never;
             path: {
                 group_id: number;
-                user_id: number;
             };
             cookie?: never;
         };

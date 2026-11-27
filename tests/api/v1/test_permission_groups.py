@@ -218,9 +218,8 @@ async def test_group_scoped_grant_does_not_authorize_creating_groups(
     assert (await client.post("/api/v1/permissions/groups", json={"name": _uniq("x")})).status_code == 403
 
 
-def _build_members_url(group_id: int, user_id: int | None = None) -> str:
-    suffix = "" if user_id is None else f"/{user_id}"
-    return f"/api/v1/permissions/groups/{group_id}/members{suffix}"
+def _build_members_url(group_id: int) -> str:
+    return f"/api/v1/permissions/groups/{group_id}/members"
 
 
 async def test_added_member_gains_and_removed_member_loses_the_group_role(
@@ -236,12 +235,12 @@ async def test_added_member_gains_and_removed_member_loses_the_group_role(
     await session.commit()
     login_as(client, caller)
 
-    added = await client.post(_build_members_url(group.id), json={"user_id": member.id})
+    added = await client.post(_build_members_url(group.id), json={"user_ids": [member.id]})
     assert added.status_code == 201
-    assert added.json()["user_id"] == member.id
+    assert [row["user_id"] for row in added.json()] == [member.id]
     assert await can(member, AUDIT_READ, GLOBAL, None, session)
 
-    removed = await client.delete(_build_members_url(group.id, member.id))
+    removed = await client.delete(_build_members_url(group.id), params={"user_ids": [member.id]})
     assert removed.status_code == 204
     assert not await can(member, AUDIT_READ, GLOBAL, None, session)
 
@@ -388,7 +387,7 @@ async def test_add_member_records_the_audit_event_for_the_caller(
     await session.commit()
     login_as(client, caller)
 
-    await client.post(_build_members_url(group.id), json={"user_id": member.id})
+    await client.post(_build_members_url(group.id), json={"user_ids": [member.id]})
 
     event = (await audit_events())[-1]
     assert (event.category, event.action, event.actor_id) == ("group", "member_added", str(caller.id))
@@ -405,8 +404,8 @@ async def test_add_existing_member_returns_201_and_records_nothing_new(
     login_as(client, await make_user_with_permissions(session, ["group.member.add"]))
     await session.commit()
 
-    first = await client.post(_build_members_url(group.id), json={"user_id": member.id})
-    second = await client.post(_build_members_url(group.id), json={"user_id": member.id})
+    first = await client.post(_build_members_url(group.id), json={"user_ids": [member.id]})
+    second = await client.post(_build_members_url(group.id), json={"user_ids": [member.id]})
 
     assert (first.status_code, second.status_code) == (201, 201)
     members = await group_engine.get_group_members(group.id, session)
@@ -420,7 +419,7 @@ async def test_add_unknown_user_returns_404(client: AsyncClient, session: AsyncS
     login_as(client, await make_user_with_permissions(session, ["group.member.add"]))
     await session.commit()
 
-    response = await client.post(_build_members_url(group.id), json={"user_id": 999999})
+    response = await client.post(_build_members_url(group.id), json={"user_ids": [999999]})
 
     assert response.status_code == 404
     assert response.json()["detail"] == "User not found: 999999"
@@ -437,7 +436,7 @@ async def test_add_soft_deleted_user_returns_404(client: AsyncClient, session: A
     login_as(client, await make_user_with_permissions(session, ["group.member.add"]))
     await session.commit()
 
-    assert (await client.post(_build_members_url(group.id), json={"user_id": gone.id})).status_code == 404
+    assert (await client.post(_build_members_url(group.id), json={"user_ids": [gone.id]})).status_code == 404
     members = await group_engine.get_group_members(group.id, session)
     assert [membership.user_id for membership, _ in members].count(gone.id) == 0
 
@@ -448,7 +447,7 @@ async def test_add_member_to_unknown_group_returns_404(client: AsyncClient, sess
     login_as(client, await make_user_with_permissions(session, ["group.member.add"]))
     await session.commit()
 
-    assert (await client.post(_build_members_url(99999), json={"user_id": member.id})).status_code == 404
+    assert (await client.post(_build_members_url(99999), json={"user_ids": [member.id]})).status_code == 404
 
 
 async def test_remove_member_records_the_audit_event_for_the_caller(
@@ -463,7 +462,7 @@ async def test_remove_member_records_the_audit_event_for_the_caller(
     await session.commit()
     login_as(client, caller)
 
-    await client.delete(_build_members_url(group.id, member.id))
+    await client.delete(_build_members_url(group.id), params={"user_ids": [member.id]})
 
     event = (await audit_events())[-1]
     assert (event.category, event.action, event.actor_id) == ("group", "member_removed", str(caller.id))
@@ -480,7 +479,7 @@ async def test_remove_non_member_returns_204_and_records_nothing(
     login_as(client, await make_user_with_permissions(session, ["group.member.remove"]))
     await session.commit()
 
-    response = await client.delete(_build_members_url(group.id, stranger.id))
+    response = await client.delete(_build_members_url(group.id), params={"user_ids": [stranger.id]})
 
     assert response.status_code == 204
     assert "member_removed" not in [e.action for e in await audit_events()]
@@ -492,7 +491,7 @@ async def test_remove_member_from_unknown_group_returns_404(client: AsyncClient,
     login_as(client, await make_user_with_permissions(session, ["group.member.remove"]))
     await session.commit()
 
-    assert (await client.delete(_build_members_url(99999, member.id))).status_code == 404
+    assert (await client.delete(_build_members_url(99999), params={"user_ids": [member.id]})).status_code == 404
 
 
 async def test_member_add_does_not_allow_remove(client: AsyncClient, session: AsyncSession) -> None:
@@ -503,7 +502,7 @@ async def test_member_add_does_not_allow_remove(client: AsyncClient, session: As
     login_as(client, await make_user_with_permissions(session, ["group.member.add"]))
     await session.commit()
 
-    assert (await client.delete(_build_members_url(group.id, member.id))).status_code == 403
+    assert (await client.delete(_build_members_url(group.id), params={"user_ids": [member.id]})).status_code == 403
 
 
 async def test_member_remove_does_not_allow_add(client: AsyncClient, session: AsyncSession) -> None:
@@ -514,7 +513,7 @@ async def test_member_remove_does_not_allow_add(client: AsyncClient, session: As
     login_as(client, await make_user_with_permissions(session, ["group.member.remove"]))
     await session.commit()
 
-    assert (await client.post(_build_members_url(group.id), json={"user_id": member.id})).status_code == 403
+    assert (await client.post(_build_members_url(group.id), json={"user_ids": [member.id]})).status_code == 403
 
 
 async def test_group_scoped_member_manager_reaches_only_that_group(client: AsyncClient, session: AsyncSession) -> None:
@@ -527,5 +526,138 @@ async def test_group_scoped_member_manager_reaches_only_that_group(client: Async
     login_as(client, await make_user_with_permissions(session, ["group.member.add"], "group", str(target.id)))
     await session.commit()
 
-    assert (await client.post(_build_members_url(target.id), json={"user_id": member.id})).status_code == 201
-    assert (await client.post(_build_members_url(other.id), json={"user_id": member.id})).status_code == 403
+    assert (await client.post(_build_members_url(target.id), json={"user_ids": [member.id]})).status_code == 201
+    assert (await client.post(_build_members_url(other.id), json={"user_ids": [member.id]})).status_code == 403
+
+
+async def test_add_several_members_in_one_request(client: AsyncClient, session: AsyncSession) -> None:
+    group = await _create_target_group(session)
+    assert group.id is not None
+    users = [await make_user(session, _uniq("member")) for _ in range(3)]
+    ids = [user.id for user in users]
+    login_as(client, await make_user_with_permissions(session, ["group.member.add"]))
+    await session.commit()
+
+    response = await client.post(_build_members_url(group.id), json={"user_ids": ids})
+
+    assert response.status_code == 201
+    assert [row["user_id"] for row in response.json()] == ids
+    members = await group_engine.get_group_members(group.id, session)
+    assert {membership.user_id for membership, _ in members} == set(ids)
+
+
+async def test_add_members_is_all_or_nothing(
+    client: AsyncClient, session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    group = await _create_target_group(session)
+    assert group.id is not None
+    first = await make_user(session, _uniq("first"))
+    second = await make_user(session, _uniq("second"))
+    login_as(client, await make_user_with_permissions(session, ["group.member.add"]))
+    await session.commit()
+
+    response = await client.post(_build_members_url(group.id), json={"user_ids": [first.id, second.id, 999999]})
+
+    assert response.status_code == 404
+    assert await group_engine.get_group_members(group.id, session) == []
+    assert "member_added" not in [e.action for e in await audit_events()]
+
+
+async def test_add_members_counts_a_repeated_user_once(client: AsyncClient, session: AsyncSession) -> None:
+    group = await _create_target_group(session)
+    assert group.id is not None
+    first = await make_user(session, _uniq("first"))
+    second = await make_user(session, _uniq("second"))
+    login_as(client, await make_user_with_permissions(session, ["group.member.add"]))
+    await session.commit()
+
+    response = await client.post(_build_members_url(group.id), json={"user_ids": [first.id, first.id, second.id]})
+
+    assert response.status_code == 201
+    assert [row["user_id"] for row in response.json()] == [first.id, second.id]
+    assert len(await group_engine.get_group_members(group.id, session)) == 2
+
+
+async def test_add_members_rejects_an_empty_list(client: AsyncClient, session: AsyncSession) -> None:
+    group = await _create_target_group(session)
+    assert group.id is not None
+    login_as(client, await make_user_with_permissions(session, ["group.member.add"]))
+    await session.commit()
+
+    assert (await client.post(_build_members_url(group.id), json={"user_ids": []})).status_code == 422
+
+
+async def test_add_members_rejects_more_than_the_limit(
+    client: AsyncClient, session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    group = await _create_target_group(session)
+    assert group.id is not None
+    member = await make_user(session, _uniq("member"))
+    assert member.id is not None
+    login_as(client, await make_user_with_permissions(session, ["group.member.add"]))
+    await session.commit()
+
+    response = await client.post(_build_members_url(group.id), json={"user_ids": [member.id, *range(1, 101)]})
+
+    assert response.status_code == 422
+    assert await group_engine.get_group_members(group.id, session) == []
+    assert "member_added" not in [e.action for e in await audit_events()]
+
+
+async def test_remove_several_members_in_one_request(
+    client: AsyncClient, session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    group = await _create_target_group(session)
+    assert group.id is not None
+    first = await make_user(session, _uniq("first"))
+    second = await make_user(session, _uniq("second"))
+    assert first.id is not None and second.id is not None
+    await group_engine.add_group_member(first.id, group.id, session)
+    await group_engine.add_group_member(second.id, group.id, session)
+    login_as(client, await make_user_with_permissions(session, ["group.member.remove"]))
+    await session.commit()
+
+    response = await client.delete(_build_members_url(group.id), params={"user_ids": [first.id, second.id]})
+
+    assert response.status_code == 204
+    assert await group_engine.get_group_members(group.id, session) == []
+    assert [e.action for e in await audit_events()].count("member_removed") == 2
+
+
+async def test_remove_members_skips_users_who_are_not_members(
+    client: AsyncClient, session: AsyncSession, audit_events: AuditEventsFetcher
+) -> None:
+    group = await _create_target_group(session)
+    assert group.id is not None
+    member = await make_user(session, _uniq("member"))
+    stranger = await make_user(session, _uniq("stranger"))
+    assert member.id is not None and stranger.id is not None
+    await group_engine.add_group_member(member.id, group.id, session)
+    login_as(client, await make_user_with_permissions(session, ["group.member.remove"]))
+    await session.commit()
+
+    response = await client.delete(_build_members_url(group.id), params={"user_ids": [member.id, stranger.id]})
+
+    assert response.status_code == 204
+    assert await group_engine.get_group_members(group.id, session) == []
+    assert [e.action for e in await audit_events()].count("member_removed") == 1
+
+
+async def test_remove_members_requires_at_least_one_user(client: AsyncClient, session: AsyncSession) -> None:
+    group = await _create_target_group(session)
+    assert group.id is not None
+    login_as(client, await make_user_with_permissions(session, ["group.member.remove"]))
+    await session.commit()
+
+    assert (await client.delete(_build_members_url(group.id))).status_code == 422
+
+
+async def test_remove_members_rejects_more_than_the_limit(client: AsyncClient, session: AsyncSession) -> None:
+    group = await _create_target_group(session)
+    assert group.id is not None
+    login_as(client, await make_user_with_permissions(session, ["group.member.remove"]))
+    await session.commit()
+
+    response = await client.delete(_build_members_url(group.id), params={"user_ids": list(range(1, 102))})
+
+    assert response.status_code == 422
