@@ -20,22 +20,22 @@ async def test_list_users_returns_summaries(client: AsyncClient, session: AsyncS
     ]
 
 
-async def test_list_users_filters_by_search(client: AsyncClient, session: AsyncSession) -> None:
+async def test_list_users_filters_by_identifier(client: AsyncClient, session: AsyncSession) -> None:
     caller = await make_user_with_permissions(session, ["user.read"])
     wanted = await make_user(session, "zebra_unique")
     await make_user(session, "other_person")
     await session.commit()
     login_as(client, caller)
-    response = await client.get("/api/v1/users", params={"search": "bra_uni"})
+    response = await client.get("/api/v1/users", params={"identifier": "bra_uni"})
     assert [row["id"] for row in response.json()] == [wanted.id]
 
 
-async def test_list_users_with_an_empty_search_lists_everyone(client: AsyncClient, session: AsyncSession) -> None:
+async def test_list_users_with_an_empty_identifier_lists_everyone(client: AsyncClient, session: AsyncSession) -> None:
     caller = await make_user_with_permissions(session, ["user.read"])
     other = await make_user(session, "other_person")
     await session.commit()
     login_as(client, caller)
-    response = await client.get("/api/v1/users?search=")
+    response = await client.get("/api/v1/users?identifier=")
     assert response.status_code == 200
     assert [row["username"] for row in response.json()] == sorted([caller.username, other.username])
 
@@ -46,11 +46,11 @@ async def test_list_users_pages(client: AsyncClient, session: AsyncSession) -> N
         await make_user(session, username)
     await session.commit()
     login_as(client, caller)
-    response = await client.get("/api/v1/users", params={"search": "page_", "limit": 1, "offset": 1})
+    response = await client.get("/api/v1/users", params={"identifier": "page_", "limit": 1, "offset": 1})
     assert [row["username"] for row in response.json()] == ["page_b"]
 
 
-@pytest.mark.parametrize("params", [{"limit": 0}, {"limit": 201}, {"offset": -1}, {"search": "x" * 51}])
+@pytest.mark.parametrize("params", [{"limit": 0}, {"limit": 201}, {"offset": -1}, {"identifier": "x" * 51}])
 async def test_list_users_rejects_out_of_range_params(
     params: dict[str, int | str], client: AsyncClient, session: AsyncSession
 ) -> None:
