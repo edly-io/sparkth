@@ -25,13 +25,13 @@ _CATEGORY = gettext_noop("PXC Activities")
 PXC_ACTIVITY_READ = Permission.create(
     "pxc.activity.read",
     gettext_noop("See activities"),
-    gettext_noop("List activities, preview them as a learner and read their files."),
+    gettext_noop("List activities and read their files."),
     _CATEGORY,
 )
 PXC_ACTIVITY_UPDATE = Permission.create(
     "pxc.activity.update",
     gettext_noop("Edit activities"),
-    gettext_noop("Preview activities as their author and change them from chat."),
+    gettext_noop("Change activities from chat."),
     _CATEGORY,
 )
 PXC_ACTIVITY_DELETE = Permission.create(

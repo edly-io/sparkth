@@ -1428,11 +1428,11 @@ export interface paths {
          * Launch Activity
          * @description An embed URL that previews an activity, as a learner or as its author.
          *
-         *     A learner preview needs ``pxc.activity.read`` and an author preview ``pxc.activity.update``,
-         *     both at the activity owner's scope. The permission depends on the requested view, so it is
-         *     checked in the handler, not in the route's dependencies. The activity's files are resolved before a token is
-         *     minted, so a row whose files are missing from ``PXC_DATA_DIR`` never yields an embed URL that
-         *     would fail on load.
+         *     A learner preview needs ``pxc.activity.play`` or ``pxc.activity.edit`` and an author preview
+         *     needs ``pxc.activity.edit``, both at the activity owner's scope. The permission depends on the
+         *     requested view, so it is checked in the handler, not in the route's dependencies. The activity's
+         *     files are resolved before a token is minted, so a row whose files are missing from
+         *     ``PXC_DATA_DIR`` never yields an embed URL that would fail on load.
          *
          *     Raises:
          *         PxcActivityNotFound: if the activity does not exist or its files are missing.

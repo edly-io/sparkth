@@ -42,8 +42,8 @@ msgstr "Voir les activités"
 
 # Machine-generated translation (LLM), not yet reviewed by a native speaker.
 #: sparkth/plugins/pxc/permissions.py:21
-msgid "List activities, preview them as a learner and read their files."
-msgstr "Lister les activités, les prévisualiser en tant qu'étudiant et lire leurs fichiers."
+msgid "List activities and read their files."
+msgstr "Lister les activités et lire leurs fichiers."
 
 # Machine-generated translation (LLM), not yet reviewed by a native speaker.
 #: sparkth/plugins/pxc/permissions.py:26
@@ -52,8 +52,8 @@ msgstr "Modifier les activités"
 
 # Machine-generated translation (LLM), not yet reviewed by a native speaker.
 #: sparkth/plugins/pxc/permissions.py:27
-msgid "Preview activities as their author and change them from chat."
-msgstr "Prévisualiser les activités en tant qu'auteur et les modifier depuis le chat."
+msgid "Change activities from chat."
+msgstr "Modifier les activités depuis le chat."
 
 # Machine-generated translation (LLM), not yet reviewed by a native speaker.
 #: sparkth/plugins/pxc/permissions.py:32
