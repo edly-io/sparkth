@@ -87,6 +87,10 @@ event; an id that names no activity gets 404, and records no denial.
 The built-in `pxc_lms` account, which stands for the connected LMS, holds no default role: it holds only
 `pxc_lms_user`, with `pxc.activity.play` and `pxc.activity.edit` at `global`.
 
+The preview page offers the Author view only to a user who holds `pxc.activity.edit` for the
+activity owner's activities. The page learns the owner from its first launch and asks before it
+shows the Author button, so a user without the permission sees the Student button alone.
+
 ## Building an activity from chat
 
 The plugin contributes a Compose agent: its name, title, description, prompt and tools. Its

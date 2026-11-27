@@ -10,7 +10,8 @@ import { NotFound } from "@/lib/components/layout/NotFound";
 import { Spinner } from "@/lib/components/ui/Spinner";
 import { ApiRequestError, isNotFoundError } from "@/lib/api/errors";
 import { useAuth } from "@/lib/auth/hooks";
-import { getActivityEmbedUrl, type LaunchPermission } from "@/plugins/pxc/src/client";
+import { usePermissionCheck } from "@/lib/permissions/hooks";
+import { getActivityLaunch, type LaunchPermission } from "@/plugins/pxc/src/client";
 import { RetryAlert } from "@/plugins/pxc/src/components/ui/RetryAlert";
 
 const ACTIVITIES_PATH = "/dashboard/pxc";
@@ -27,9 +28,11 @@ function launchErrorOf(error: unknown): LaunchError {
 
 function PermissionToggle({
   value,
+  canEdit,
   onChange,
 }: {
   value: LaunchPermission;
+  canEdit: boolean;
   onChange: (permission: LaunchPermission) => void;
 }): React.JSX.Element {
   const t = useTranslations("pxc");
@@ -43,27 +46,31 @@ function PermissionToggle({
       >
         {t("studentView")}
       </Button>
-      <Button
-        size="sm"
-        variant={value === "edit" ? "primary" : "ghost"}
-        aria-pressed={value === "edit"}
-        onClick={() => onChange("edit")}
-      >
-        {t("authorView")}
-      </Button>
+      {canEdit && (
+        <Button
+          size="sm"
+          variant={value === "edit" ? "primary" : "ghost"}
+          aria-pressed={value === "edit"}
+          onClick={() => onChange("edit")}
+        >
+          {t("authorView")}
+        </Button>
+      )}
     </div>
   );
 }
 
-// One launch of the activity. The parent keys it by permission and attempt, so a toggle or a
-// retry mounts a fresh launch.
+// One launch of the activity, reporting the activity's owner once it resolves. The parent keys it
+// by permission and attempt, so a toggle or a retry mounts a fresh launch.
 function LaunchFrame({
   activityId,
   permission,
+  onOwner,
   onRetry,
 }: {
   activityId: string;
   permission: LaunchPermission;
+  onOwner: (ownerId: number) => void;
   onRetry: () => void;
 }): React.JSX.Element {
   const { token } = useAuth();
@@ -74,15 +81,18 @@ function LaunchFrame({
   useEffect(() => {
     if (!token) return;
     const controller = new AbortController();
-    getActivityEmbedUrl(token, activityId, permission, controller.signal)
-      .then(setEmbedUrl)
+    getActivityLaunch(token, activityId, permission, controller.signal)
+      .then((launch) => {
+        setEmbedUrl(launch.embed_url);
+        onOwner(launch.owner_user_id);
+      })
       .catch((launchError: unknown) => {
         if (controller.signal.aborted) return;
         console.error(`pxc: failed to launch activity ${activityId}`, launchError);
         setError(launchErrorOf(launchError));
       });
     return () => controller.abort();
-  }, [token, activityId, permission]);
+  }, [token, activityId, permission, onOwner]);
 
   if (error === "notFound")
     return <NotFound title={t("notFound")} message={t("notFoundMessage")} />;
@@ -114,7 +124,8 @@ function previewPath(activityId: string, permission: LaunchPermission): string {
   return `${ACTIVITIES_PATH}?${query}`;
 }
 
-// One activity iframed under the permission from the URL; the parent keys it by activity id.
+// One activity iframed under the permission from the URL; the parent keys it by activity id. The
+// Author button shows once a launch has named the owner and the user may edit their activities.
 export function ActivityPreview({
   activityId,
   permission,
@@ -124,7 +135,13 @@ export function ActivityPreview({
 }): React.JSX.Element {
   const t = useTranslations("pxc");
   const router = useRouter();
+  const { token } = useAuth();
   const [attempt, setAttempt] = useState(0);
+  const [ownerId, setOwnerId] = useState<number | null>(null);
+  const mayEdit = usePermissionCheck(ownerId === null ? null : token, "pxc.activity.edit", {
+    scope: "user",
+    scopeObjectId: ownerId === null ? undefined : String(ownerId),
+  });
 
   return (
     <div className="flex h-full flex-col">
@@ -134,6 +151,7 @@ export function ActivityPreview({
         </Link>
         <PermissionToggle
           value={permission}
+          canEdit={mayEdit === "allowed"}
           onChange={(next) => router.replace(previewPath(activityId, next))}
         />
       </div>
@@ -142,6 +160,7 @@ export function ActivityPreview({
           key={`${permission}:${attempt}`}
           activityId={activityId}
           permission={permission}
+          onOwner={setOwnerId}
           onRetry={() => setAttempt((count) => count + 1)}
         />
       </div>

@@ -4,6 +4,12 @@ export {};
 
 declare module "@/lib/permissions/names" {
   interface PluginPermissions {
-    pxc: "pxc.activity.read" | "pxc.activity.update" | "pxc.activity.delete" | "pxc.activity.place";
+    pxc:
+      | "pxc.activity.read"
+      | "pxc.activity.play"
+      | "pxc.activity.edit"
+      | "pxc.activity.update"
+      | "pxc.activity.delete"
+      | "pxc.activity.place";
   }
 }

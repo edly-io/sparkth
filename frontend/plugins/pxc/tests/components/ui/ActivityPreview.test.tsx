@@ -1,11 +1,12 @@
-import { screen } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { ApiRequestError } from "@/lib/api";
 import { ActivityPreview } from "@/plugins/pxc/src/components/ui/ActivityPreview";
-import { getActivityEmbedUrl } from "@/plugins/pxc/src/client";
+import { getActivityLaunch } from "@/plugins/pxc/src/client";
 import pxcEn from "@/plugins/pxc/src/i18n/en.json";
+import { checkPermissions } from "@/lib/permissions/client";
 import { renderWithIntl } from "@/lib/testing/intl";
 
 const replace = vi.hoisted(() => vi.fn());
@@ -19,19 +20,34 @@ vi.mock("@/lib/auth/hooks", () => ({
 }));
 
 vi.mock("@/plugins/pxc/src/client", () => ({
-  getActivityEmbedUrl: vi.fn(),
+  getActivityLaunch: vi.fn(),
 }));
+
+vi.mock("@/lib/permissions/client", () => ({ checkPermissions: vi.fn() }));
 
 const ACTIVITY_ID = "0192f0c4-0000-7000-8000-000000000001";
 
+function launchOf(token: string): { embed_url: string; owner_user_id: number } {
+  return { embed_url: `/api/v1/pxc/embed?token=${token}`, owner_user_id: 7 };
+}
+
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 describe("ActivityPreview", () => {
   beforeEach(() => {
-    vi.mocked(getActivityEmbedUrl).mockReset();
+    vi.mocked(getActivityLaunch).mockReset();
+    vi.mocked(checkPermissions).mockReset().mockResolvedValue([true]);
     replace.mockReset();
   });
 
   it("opens in the student view, iframing the play launch without same-origin", async () => {
-    vi.mocked(getActivityEmbedUrl).mockResolvedValue("/api/v1/pxc/embed?token=play");
+    vi.mocked(getActivityLaunch).mockResolvedValue(launchOf("play"));
 
     renderWithIntl(<ActivityPreview activityId={ACTIVITY_ID} permission="play" />, pxcEn);
 
@@ -39,7 +55,7 @@ describe("ActivityPreview", () => {
     expect(frame).toHaveAttribute("src", "/api/v1/pxc/embed?token=play");
     expect(frame.getAttribute("sandbox")).toBe("allow-scripts allow-forms");
     expect(screen.getByRole("button", { name: "Student" })).toHaveAttribute("aria-pressed", "true");
-    expect(getActivityEmbedUrl).toHaveBeenCalledWith(
+    expect(getActivityLaunch).toHaveBeenCalledWith(
       "test-token",
       ACTIVITY_ID,
       "play",
@@ -48,7 +64,7 @@ describe("ActivityPreview", () => {
   });
 
   it("iframes the edit launch in the author view", async () => {
-    vi.mocked(getActivityEmbedUrl).mockResolvedValue("/api/v1/pxc/embed?token=edit");
+    vi.mocked(getActivityLaunch).mockResolvedValue(launchOf("edit"));
 
     renderWithIntl(<ActivityPreview activityId={ACTIVITY_ID} permission="edit" />, pxcEn);
 
@@ -56,8 +72,11 @@ describe("ActivityPreview", () => {
       "src",
       "/api/v1/pxc/embed?token=edit",
     );
-    expect(screen.getByRole("button", { name: "Author" })).toHaveAttribute("aria-pressed", "true");
-    expect(getActivityEmbedUrl).toHaveBeenCalledWith(
+    expect(await screen.findByRole("button", { name: "Author" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(getActivityLaunch).toHaveBeenCalledWith(
       "test-token",
       ACTIVITY_ID,
       "edit",
@@ -66,17 +85,17 @@ describe("ActivityPreview", () => {
   });
 
   it("puts the author view in the URL when it is chosen", async () => {
-    vi.mocked(getActivityEmbedUrl).mockResolvedValue("/api/v1/pxc/embed?token=play");
+    vi.mocked(getActivityLaunch).mockResolvedValue(launchOf("play"));
     renderWithIntl(<ActivityPreview activityId={ACTIVITY_ID} permission="play" />, pxcEn);
     await screen.findByTitle("Activity preview");
 
-    await userEvent.click(screen.getByRole("button", { name: "Author" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Author" }));
 
     expect(replace).toHaveBeenCalledWith(`/dashboard/pxc?activity=${ACTIVITY_ID}&as=edit`);
   });
 
   it("drops the view from the URL when the student view is chosen", async () => {
-    vi.mocked(getActivityEmbedUrl).mockResolvedValue("/api/v1/pxc/embed?token=edit");
+    vi.mocked(getActivityLaunch).mockResolvedValue(launchOf("edit"));
     renderWithIntl(<ActivityPreview activityId={ACTIVITY_ID} permission="edit" />, pxcEn);
     await screen.findByTitle("Activity preview");
 
@@ -86,19 +105,85 @@ describe("ActivityPreview", () => {
   });
 
   it("does not refetch when the current view is chosen again", async () => {
-    vi.mocked(getActivityEmbedUrl).mockResolvedValue("/api/v1/pxc/embed?token=play");
+    vi.mocked(getActivityLaunch).mockResolvedValue(launchOf("play"));
     renderWithIntl(<ActivityPreview activityId={ACTIVITY_ID} permission="play" />, pxcEn);
     await screen.findByTitle("Activity preview");
 
     await userEvent.click(screen.getByRole("button", { name: "Student" }));
 
-    expect(getActivityEmbedUrl).toHaveBeenCalledOnce();
+    expect(getActivityLaunch).toHaveBeenCalledOnce();
     expect(screen.getByTitle("Activity preview")).toBeInTheDocument();
+  });
+
+  it("offers the Author view to a user who may edit", async () => {
+    vi.mocked(getActivityLaunch).mockResolvedValue(launchOf("play"));
+
+    renderWithIntl(<ActivityPreview activityId={ACTIVITY_ID} permission="play" />, pxcEn);
+
+    expect(await screen.findByRole("button", { name: "Author" })).toBeInTheDocument();
+    expect(checkPermissions).toHaveBeenCalledWith("test-token", [
+      { permission: "pxc.activity.edit", scope: "user", scopeObjectId: "7" },
+    ]);
+  });
+
+  it("does not offer the Author view while the check is pending, then offers it when allowed", async () => {
+    const check = deferred<boolean[]>();
+    vi.mocked(getActivityLaunch).mockResolvedValue(launchOf("play"));
+    vi.mocked(checkPermissions).mockReturnValue(check.promise);
+
+    renderWithIntl(<ActivityPreview activityId={ACTIVITY_ID} permission="play" />, pxcEn);
+
+    await screen.findByTitle("Activity preview");
+    await waitFor(() => expect(checkPermissions).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: "Author" })).not.toBeInTheDocument();
+    await act(async () => check.resolve([true]));
+    expect(await screen.findByRole("button", { name: "Author" })).toBeInTheDocument();
+  });
+
+  it("hides the Author view from a user who may not edit, pending or answered", async () => {
+    const check = deferred<boolean[]>();
+    vi.mocked(getActivityLaunch).mockResolvedValue(launchOf("play"));
+    vi.mocked(checkPermissions).mockReturnValue(check.promise);
+
+    renderWithIntl(<ActivityPreview activityId={ACTIVITY_ID} permission="play" />, pxcEn);
+
+    await screen.findByTitle("Activity preview");
+    await waitFor(() => expect(checkPermissions).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: "Author" })).not.toBeInTheDocument();
+    await act(async () => check.resolve([false]));
+    expect(screen.queryByRole("button", { name: "Author" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Student" })).toBeInTheDocument();
+  });
+
+  it("does not offer the Author view, or ask, before a launch has resolved", () => {
+    vi.mocked(getActivityLaunch).mockReturnValue(new Promise(() => {}));
+
+    renderWithIntl(<ActivityPreview activityId={ACTIVITY_ID} permission="play" />, pxcEn);
+
+    expect(screen.queryByRole("button", { name: "Author" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Student" })).toBeInTheDocument();
+    expect(checkPermissions).not.toHaveBeenCalled();
+  });
+
+  it("hides the Author view when the check fails", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    errorSpy.mockClear();
+    vi.mocked(getActivityLaunch).mockResolvedValue(launchOf("play"));
+    vi.mocked(checkPermissions).mockRejectedValue(new Error("boom"));
+
+    renderWithIntl(<ActivityPreview activityId={ACTIVITY_ID} permission="play" />, pxcEn);
+
+    await waitFor(() =>
+      expect(errorSpy).toHaveBeenCalledWith("Permission checks failed:", expect.any(Error)),
+    );
+    await act(async () => {});
+    expect(screen.queryByRole("button", { name: "Author" })).not.toBeInTheDocument();
+    errorSpy.mockRestore();
   });
 
   it.each([404, 422])("says the activity was not found on a %i, with no retry", async (status) => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.mocked(getActivityEmbedUrl).mockRejectedValue(
+    vi.mocked(getActivityLaunch).mockRejectedValue(
       new ApiRequestError({ message: "Activity not found", fieldErrors: {} }, status),
     );
 
@@ -112,7 +197,7 @@ describe("ActivityPreview", () => {
 
   it("says previews are not set up on a 503, with no retry", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.mocked(getActivityEmbedUrl).mockRejectedValue(
+    vi.mocked(getActivityLaunch).mockRejectedValue(
       new ApiRequestError({ message: "Launch not configured", fieldErrors: {} }, 503),
     );
 
@@ -127,7 +212,7 @@ describe("ActivityPreview", () => {
 
   it("says the view is not permitted on a 403, with no retry", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.mocked(getActivityEmbedUrl).mockRejectedValue(
+    vi.mocked(getActivityLaunch).mockRejectedValue(
       new ApiRequestError({ message: "Permission denied", fieldErrors: {} }, 403),
     );
 
@@ -137,11 +222,13 @@ describe("ActivityPreview", () => {
     expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
     expect(screen.queryByTitle("Activity preview")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Student" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Author" })).not.toBeInTheDocument();
+    expect(checkPermissions).not.toHaveBeenCalled();
   });
 
   it("reports a generic failure for any other error", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.mocked(getActivityEmbedUrl).mockRejectedValue(new Error("boom"));
+    vi.mocked(getActivityLaunch).mockRejectedValue(new Error("boom"));
 
     renderWithIntl(<ActivityPreview activityId={ACTIVITY_ID} permission="play" />, pxcEn);
 
@@ -150,9 +237,9 @@ describe("ActivityPreview", () => {
 
   it("refetches the launch when Try again is clicked after a failure", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.mocked(getActivityEmbedUrl)
+    vi.mocked(getActivityLaunch)
       .mockRejectedValueOnce(new Error("boom"))
-      .mockResolvedValueOnce("/api/v1/pxc/embed?token=play");
+      .mockResolvedValueOnce(launchOf("play"));
     renderWithIntl(<ActivityPreview activityId={ACTIVITY_ID} permission="play" />, pxcEn);
 
     await userEvent.click(await screen.findByRole("button", { name: "Try again" }));
@@ -161,11 +248,11 @@ describe("ActivityPreview", () => {
       "src",
       "/api/v1/pxc/embed?token=play",
     );
-    expect(getActivityEmbedUrl).toHaveBeenCalledTimes(2);
+    expect(getActivityLaunch).toHaveBeenCalledTimes(2);
   });
 
   it("announces the loading state while the launch is pending", () => {
-    vi.mocked(getActivityEmbedUrl).mockReturnValue(new Promise(() => {}));
+    vi.mocked(getActivityLaunch).mockReturnValue(new Promise(() => {}));
 
     renderWithIntl(<ActivityPreview activityId={ACTIVITY_ID} permission="play" />, pxcEn);
 
@@ -173,7 +260,7 @@ describe("ActivityPreview", () => {
   });
 
   it("links back to the activity list", async () => {
-    vi.mocked(getActivityEmbedUrl).mockResolvedValue("/api/v1/pxc/embed?token=play");
+    vi.mocked(getActivityLaunch).mockResolvedValue(launchOf("play"));
 
     renderWithIntl(<ActivityPreview activityId={ACTIVITY_ID} permission="play" />, pxcEn);
 

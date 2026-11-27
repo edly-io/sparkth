@@ -2,7 +2,7 @@ import { screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import PxcActivities from "@/plugins/pxc/src/pages/PxcActivities";
-import { getActivityEmbedUrl, listActivities } from "@/plugins/pxc/src/client";
+import { getActivityLaunch, listActivities } from "@/plugins/pxc/src/client";
 import pxcEn from "@/plugins/pxc/src/i18n/en.json";
 import { renderWithIntl } from "@/lib/testing/intl";
 
@@ -19,13 +19,19 @@ vi.mock("@/lib/auth/hooks", () => ({
 
 vi.mock("@/plugins/pxc/src/client", () => ({
   listActivities: vi.fn(),
-  getActivityEmbedUrl: vi.fn(),
+  getActivityLaunch: vi.fn(),
+}));
+
+vi.mock("@/lib/permissions/client", () => ({
+  checkPermissions: vi.fn().mockResolvedValue([true]),
 }));
 
 describe("PxcActivities", () => {
   beforeEach(() => {
     vi.mocked(listActivities).mockReset().mockResolvedValue([]);
-    vi.mocked(getActivityEmbedUrl).mockReset().mockResolvedValue("/api/v1/pxc/embed?token=t");
+    vi.mocked(getActivityLaunch)
+      .mockReset()
+      .mockResolvedValue({ embed_url: "/api/v1/pxc/embed?token=t", owner_user_id: 7 });
   });
 
   it("shows the activity list when no activity is selected", async () => {
@@ -34,7 +40,7 @@ describe("PxcActivities", () => {
     renderWithIntl(<PxcActivities />, pxcEn);
 
     expect(await screen.findByText("No activities yet")).toBeInTheDocument();
-    expect(getActivityEmbedUrl).not.toHaveBeenCalled();
+    expect(getActivityLaunch).not.toHaveBeenCalled();
   });
 
   it("shows the preview of the activity named in the query string", async () => {
@@ -43,7 +49,7 @@ describe("PxcActivities", () => {
     renderWithIntl(<PxcActivities />, pxcEn);
 
     expect(await screen.findByTitle("Activity preview")).toBeInTheDocument();
-    expect(getActivityEmbedUrl).toHaveBeenCalledWith(
+    expect(getActivityLaunch).toHaveBeenCalledWith(
       "test-token",
       "act-1",
       "play",
@@ -58,7 +64,7 @@ describe("PxcActivities", () => {
     renderWithIntl(<PxcActivities />, pxcEn);
 
     expect(await screen.findByTitle("Activity preview")).toBeInTheDocument();
-    expect(getActivityEmbedUrl).toHaveBeenCalledWith(
+    expect(getActivityLaunch).toHaveBeenCalledWith(
       "test-token",
       "act-1",
       "edit",
