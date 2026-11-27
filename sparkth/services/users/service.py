@@ -1,11 +1,12 @@
-"""Look up users for callers outside user management."""
+"""Search, read and look up users for callers outside user management."""
 
 from collections.abc import Collection
 
-from sqlmodel import col, select
+from sqlmodel import col, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sparkth.core.models.user import User
+from sparkth.services.users.exceptions import UserNotFound
 
 
 async def get_usernames(session: AsyncSession, user_ids: Collection[int]) -> dict[int, str]:
@@ -14,3 +15,30 @@ async def get_usernames(session: AsyncSession, user_ids: Collection[int]) -> dic
         return {}
     rows = await session.exec(select(User.id, User.username).where(col(User.id).in_(user_ids)))
     return {user_id: username for user_id, username in rows if user_id is not None}
+
+
+async def list_users(identifier: str | None, limit: int, offset: int, session: AsyncSession) -> list[User]:
+    """Return a page of active users ordered by username.
+
+    ``identifier`` keeps the users whose name, username or email contains it, ignoring case and
+    treating ``%`` and ``_`` as plain characters.
+    """
+    query = select(User).where(col(User.is_deleted).is_(False))
+    if identifier:
+        query = query.where(
+            or_(
+                col(User.name).icontains(identifier, autoescape=True),
+                col(User.username).icontains(identifier, autoescape=True),
+                col(User.email).icontains(identifier, autoescape=True),
+            )
+        )
+    rows = await session.exec(query.order_by(col(User.username), col(User.id)).limit(limit).offset(offset))
+    return list(rows)
+
+
+async def get_user(user_id: int, session: AsyncSession) -> User:
+    """Return the active user with ``user_id``, raising when there is none."""
+    user = await session.get(User, user_id)
+    if user is None or user.is_deleted:
+        raise UserNotFound(user_id)
+    return user
