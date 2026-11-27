@@ -92,7 +92,9 @@ class WidgetDeletedAuditEvent(MutationAuditEvent):
 ## What a snapshot may carry
 
 `AuditChange.old` / `new`, `AuditToolCall.args`, `target.id` and `error_detail` are persisted and
-sealed into `canonical_bytes`. They cannot be edited afterwards, so what goes in is final.
+sealed into `canonical_bytes`. They cannot be edited afterwards, so what goes in is final. The
+audit listing (`/api/v1/audit/events`) sends every row's `old` / `new` snapshots to anyone holding
+`audit.read`, so keep each one small and free of private data.
 
 **Redaction is by exact key name, and only a backstop.** `redact` replaces the value of any key in
 `SECRET_KEYS` (`password`, `token`, `api_key`, `auth`, ...) at any depth. It cannot recognise

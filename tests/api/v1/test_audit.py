@@ -19,7 +19,14 @@ from sparkth.core.audit.models import AuditEvent
 from sparkth.core.models.user import User
 from sparkth.lib.audit import record_event
 from sparkth.lib.audit.context import UserActor
-from sparkth.lib.audit.events import AuditOutcome, AuditTarget, LoginAuditEvent, WhitelistEntryAddedAuditEvent
+from sparkth.lib.audit.events import (
+    AuditChange,
+    AuditOutcome,
+    AuditTarget,
+    LoginAuditEvent,
+    RoleUpdatedAuditEvent,
+    WhitelistEntryAddedAuditEvent,
+)
 from sparkth.lib.testing import AuditEventsFetcher, grant_global_permission
 from sparkth.services.audit import AuditEventQuery
 
@@ -330,7 +337,30 @@ async def test_listing_sends_a_summary_per_row(client: AsyncClient, session: Asy
         "outcome",
         "target_type",
         "target_id",
+        "old_values",
+        "new_values",
     }
+
+
+async def test_listing_carries_what_each_event_changed(
+    client: AsyncClient, session: AsyncSession, current_user: User
+) -> None:
+    await _grant(session, current_user)
+    await record_event(
+        session,
+        RoleUpdatedAuditEvent(
+            outcome=AuditOutcome.SUCCESS,
+            actor=ALICE,
+            target=AuditTarget(type="role", id="7"),
+            change=AuditChange(old={"name": "Grader"}, new={"name": "Reviewer"}),
+        ),
+    )
+    await session.commit()
+
+    response = await client.get("/api/v1/audit/events", params={"target_type": "role", "target_id": "7"})
+
+    (item,) = response.json()["items"]
+    assert (item["old_values"], item["new_values"]) == ({"name": "Grader"}, {"name": "Reviewer"})
 
 
 async def test_reads_one_event_in_full(client: AsyncClient, session: AsyncSession, current_user: User) -> None:

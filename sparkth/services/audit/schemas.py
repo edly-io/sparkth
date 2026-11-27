@@ -64,10 +64,10 @@ class AuditEventExportQuery(AuditEventQuery):
 
 
 class AuditEventSummary(BaseModel):
-    """One audit row as the listing shows it: when, what, who, outcome and target.
+    """One audit row as the listing shows it: when, what, who, outcome, target and what changed.
 
-    The rest of the row (request metadata, changed values, tool and model details) is
-    read on demand as an :class:`AuditEventRecord`.
+    The rest of the row (request metadata, tool and model details) is read on demand as an
+    :class:`AuditEventRecord`.
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -83,6 +83,8 @@ class AuditEventSummary(BaseModel):
     outcome: str
     target_type: str | None
     target_id: str | None
+    old_values: dict[str, Any] | None
+    new_values: dict[str, Any] | None
 
 
 class AuditEventRecord(BaseModel):

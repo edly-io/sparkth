@@ -1927,10 +1927,10 @@ export interface components {
         };
         /**
          * AuditEventSummary
-         * @description One audit row as the listing shows it: when, what, who, outcome and target.
+         * @description One audit row as the listing shows it: when, what, who, outcome, target and what changed.
          *
-         *     The rest of the row (request metadata, changed values, tool and model details) is
-         *     read on demand as an :class:`AuditEventRecord`.
+         *     The rest of the row (request metadata, tool and model details) is read on demand as an
+         *     :class:`AuditEventRecord`.
          */
         AuditEventSummary: {
             /** Action */
@@ -1945,11 +1945,19 @@ export interface components {
             category: string;
             /** Id */
             id: number;
+            /** New Values */
+            new_values: {
+                [key: string]: unknown;
+            } | null;
             /**
              * Occurred At
              * Format: date-time
              */
             occurred_at: string;
+            /** Old Values */
+            old_values: {
+                [key: string]: unknown;
+            } | null;
             /** Outcome */
             outcome: string;
             /** Source */

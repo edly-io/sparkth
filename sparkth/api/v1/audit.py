@@ -2,7 +2,7 @@
 
 Every endpoint is gated by the ``audit.read`` permission in the global scope. The
 listing is keyset-paginated, most recently recorded first, and sends a summary per
-row; one event is read in full by id. The export streams every
+row, including what the event changed; one event is read in full by id. The export streams every
 matching event as CSV or JSON Lines and records ``audit.exported`` before the first
 row leaves.
 """
