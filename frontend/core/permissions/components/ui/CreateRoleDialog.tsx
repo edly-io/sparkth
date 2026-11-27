@@ -14,11 +14,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/core/components/ui/Dialog";
-import { Input } from "@/core/components/ui/Input";
 import { Select } from "@/core/components/ui/Select";
 import { Spinner } from "@/core/components/ui/Spinner";
-import { Textarea } from "@/core/components/ui/Textarea";
 import { PermissionPicker } from "@/core/permissions/components/ui/PermissionPicker";
+import { RoleDetailsFields } from "@/core/permissions/components/ui/RoleDetailsFields";
 import { usePermissionList } from "@/core/permissions/hooks";
 import { formatRoleName } from "@/core/permissions/roleDisplay";
 import { toggleItem } from "@/core/permissions/sets";
@@ -69,7 +68,7 @@ function RoleForm({
   onCreate: (role: RoleCreate) => Promise<void>;
   onClose: () => void;
 }) {
-  const t = useTranslations("permissions.roles.create");
+  const t = useTranslations("permissions.roles");
   const { token } = useAuth();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -122,7 +121,7 @@ function RoleForm({
       onClose();
     } catch (error) {
       if (error instanceof ApiRequestError && error.status === 409) {
-        setNameError(t("nameTaken"));
+        setNameError(t("form.nameTaken"));
       } else {
         console.error("Creating the role failed:", error);
         setCreateFailed(true);
@@ -133,41 +132,32 @@ function RoleForm({
 
   return (
     <form onSubmit={submit} className="space-y-4">
-      <Input
-        id="role-name"
-        label={t("name")}
-        value={name}
-        maxLength={50}
-        error={nameError}
-        onChange={(event) => setName(event.target.value)}
-        autoFocus
-      />
-      <Textarea
-        id="role-description"
-        label={t("description")}
-        value={description}
-        maxLength={255}
-        rows={1}
-        onChange={(event) => setDescription(event.target.value)}
+      <RoleDetailsFields
+        name={name}
+        description={description}
+        nameError={nameError}
+        descriptionRows={1}
+        onNameChange={setName}
+        onDescriptionChange={setDescription}
       />
       <fieldset className="space-y-2">
         <legend className="mb-1.5 text-sm font-medium text-foreground">
-          {t("startFrom.label")}
+          {t("create.startFrom.label")}
         </legend>
         <PermissionSourceOption
-          label={t("startFrom.none")}
+          label={t("create.startFrom.none")}
           selected={permissionSource === "none"}
           onSelect={() => setPermissionSource("none")}
         />
         {roles.length > 0 && (
           <PermissionSourceOption
-            label={t("startFrom.duplicate")}
+            label={t("create.startFrom.duplicate")}
             selected={permissionSource === "duplicate"}
             onSelect={() => setPermissionSource("duplicate")}
           >
             <div className="w-40 shrink-0">
               <Select
-                aria-label={t("startFrom.duplicateSource")}
+                aria-label={t("create.startFrom.duplicateSource")}
                 value={String(duplicateRoleId)}
                 onChange={(event) => setSelectedRoleId(Number(event.target.value))}
                 disabled={permissionSource !== "duplicate"}
@@ -181,14 +171,14 @@ function RoleForm({
           </PermissionSourceOption>
         )}
         <PermissionSourceOption
-          label={t("startFrom.choose")}
+          label={t("create.startFrom.choose")}
           selected={permissionSource === "choose"}
           onSelect={() => setPermissionSource("choose")}
         />
         {permissionSource === "choose" && permissionList.status === "loading" && (
           <div
             role="status"
-            aria-label={t("permissionsLoading")}
+            aria-label={t("create.permissionsLoading")}
             className="flex justify-center py-2"
           >
             <Spinner size="md" />
@@ -196,7 +186,7 @@ function RoleForm({
         )}
         {permissionSource === "choose" && permissionList.status === "failed" && (
           <p role="alert" className="text-sm text-error-600">
-            {t("permissionsFailed")}
+            {t("create.permissionsFailed")}
           </p>
         )}
         {permissionSource === "choose" && permissionList.status === "loaded" && (
@@ -209,7 +199,7 @@ function RoleForm({
       </fieldset>
       {createFailed && (
         <p role="alert" className="text-sm text-error-600">
-          {t("failed")}
+          {t("create.failed")}
         </p>
       )}
       <DialogFooter>
@@ -223,7 +213,7 @@ function RoleForm({
             !name.trim() || (permissionSource === "choose" && permissionList.status !== "loaded")
           }
         >
-          {t("submit")}
+          {t("create.submit")}
         </Button>
       </DialogFooter>
     </form>

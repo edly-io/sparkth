@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { ApiRequestError } from "@/lib/api";
 import { useAuth } from "@/core/auth/hooks";
-import { getRole, setRolePermissions } from "@/core/permissions/client";
-import type { RoleResponse } from "@/core/permissions/types";
+import { getRole, setRolePermissions, updateRoleDetails } from "@/core/permissions/client";
+import type { RoleResponse, RoleUpdate } from "@/core/permissions/types";
 
 type SaveStatus = "idle" | "saving" | "saved" | "failed";
 
@@ -24,7 +24,7 @@ type LoadedRole = {
 
 type RoleState = { status: "loading" | "missing" | "failed" } | LoadedRole;
 
-/** A role's page: the role, the permissions checked on it, and saving them. */
+/** A role's page: the role, the permissions checked on it, and saving them or its details. */
 export interface RoleEditor {
   /** The role once loaded; "missing" when there is no such role, "failed" when loading fails. */
   state: RoleState;
@@ -37,10 +37,13 @@ export interface RoleEditor {
    * "saved" for a few seconds, or "failed" with the checked ones kept.
    */
   saveChecked: () => Promise<void>;
+  /** Changes the role's name, its description or both and shows the result; rejects on failure. */
+  saveDetails: (details: RoleUpdate) => Promise<void>;
 }
 
 /**
- * Loads the role `roleId` with its own permissions checked, and saves the ones checked since.
+ * Loads the role `roleId` with its own permissions checked, and saves the ones checked since or a
+ * change to its name and description.
  * There is no such role when `roleId` is null.
  */
 export function useRoleEditor(roleId: number | null): RoleEditor {
@@ -114,11 +117,20 @@ export function useRoleEditor(roleId: number | null): RoleEditor {
     }
   };
 
+  const saveDetails = async (details: RoleUpdate) => {
+    if (state.status !== "loaded") throw new Error("The role is not loaded");
+    if (!token) throw new Error("not signed in");
+    const { role } = state;
+    const updatedRole = await updateRoleDetails(token, role.id, details);
+    updateRole(role.id, (current) => ({ ...current, role: updatedRole }));
+  };
+
   return {
     state,
     changed: state.status === "loaded" && hasChanges(state),
     setChecked,
     saveChecked,
+    saveDetails,
   };
 }
 
