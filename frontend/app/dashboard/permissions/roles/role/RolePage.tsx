@@ -1,41 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { ApiRequestError } from "@/lib/api";
+import { useRoleEditor } from "@/app/dashboard/permissions/roles/role/hooks";
 import { useAuth } from "@/core/auth/hooks";
 import { Alert } from "@/core/components/ui/Alert";
 import { Button } from "@/core/components/ui/Button";
 import { Spinner } from "@/core/components/ui/Spinner";
-import { getRole, setRolePermissions } from "@/core/permissions/client";
 import { RiskChips } from "@/core/permissions/components/ui/RiskChips";
 import { RoleBadges } from "@/core/permissions/components/ui/RoleBadges";
 import { RolePermissionList } from "@/core/permissions/components/ui/RolePermissionList";
 import { usePermissionCheck, usePermissionList } from "@/core/permissions/hooks";
 import { ROLES_PATH } from "@/core/permissions/paths";
 import { formatRoleName } from "@/core/permissions/roleDisplay";
-import type { RoleResponse } from "@/core/permissions/types";
-
-type SaveStatus = "idle" | "saving" | "saved" | "failed";
-
-/** How long "Saved" shows after a save, in milliseconds. */
-const SAVED_MESSAGE_MS = 3000;
-
-/**
- * A loaded role. `checked` starts as every permission the role holds, including any that is no
- * longer declared, so saving keeps those. `saveStatus` says where saving the checked ones stands.
- */
-type LoadedRole = {
-  status: "loaded";
-  role: RoleResponse;
-  checked: ReadonlySet<string>;
-  saveStatus: SaveStatus;
-};
-
-type RoleState = { status: "loading" | "missing" | "failed" } | LoadedRole;
 
 /**
  * One role's page, for the role named by `?id=`: a breadcrumb back through Access & permissions and
@@ -48,58 +28,17 @@ export default function RolePage() {
   const t = useTranslations("permissions.roles.detail");
   const tPermissions = useTranslations("permissions");
   const { token } = useAuth();
-  const roleId = Number(useSearchParams()?.get("id"));
-  const isRoleId = Number.isInteger(roleId) && roleId > 0;
+  const idParam = Number(useSearchParams()?.get("id"));
+  const roleId = Number.isInteger(idParam) && idParam > 0 ? idParam : null;
   const canChangeRole =
-    usePermissionCheck(isRoleId ? token : null, "role.update", {
+    usePermissionCheck(roleId === null ? null : token, "role.update", {
       scope: "role",
       scopeObjectId: String(roleId),
     }) === "allowed";
-  const [state, setState] = useState<RoleState>({ status: "loading" });
+  const { state, changed, setChecked, saveChecked } = useRoleEditor(roleId);
   const { permissionList, load: loadPermissionList } = usePermissionList(token);
 
   useEffect(() => loadPermissionList(), [loadPermissionList]);
-
-  const saveStatus = state.status === "loaded" ? state.saveStatus : "idle";
-  useEffect(() => {
-    if (saveStatus !== "saved") return;
-    const timer = setTimeout(
-      () =>
-        setState((current) =>
-          current.status === "loaded" && current.saveStatus === "saved"
-            ? { ...current, saveStatus: "idle" }
-            : current,
-        ),
-      SAVED_MESSAGE_MS,
-    );
-    return () => clearTimeout(timer);
-  }, [saveStatus]);
-
-  useEffect(() => {
-    if (!isRoleId) {
-      setState({ status: "missing" });
-      return;
-    }
-    setState({ status: "loading" });
-    if (!token) return;
-    let active = true;
-    getRole(token, roleId)
-      .then((role) => {
-        if (active) setState(getLoadedState(role, "idle"));
-      })
-      .catch((error: unknown) => {
-        if (!active) return;
-        if (error instanceof ApiRequestError && error.status === 404) {
-          setState({ status: "missing" });
-          return;
-        }
-        console.error("Loading the role failed:", error);
-        setState({ status: "failed" });
-      });
-    return () => {
-      active = false;
-    };
-  }, [token, roleId, isRoleId]);
 
   switch (state.status) {
     case "missing":
@@ -114,32 +53,9 @@ export default function RolePage() {
       );
   }
 
-  const { role, checked } = state;
+  const { role, checked, saveStatus } = state;
   const name = formatRoleName(role.name);
-  const held = new Set(role.permissions);
-  const changed =
-    checked.size !== held.size || [...checked].some((permission) => !held.has(permission));
-
-  // Applies `next` only while the same role is on show, so a save finishing after another role
-  // was opened changes nothing.
-  const updateRole = (next: (current: LoadedRole) => LoadedRole) =>
-    setState((current) =>
-      current.status === "loaded" && current.role.id === role.id ? next(current) : current,
-    );
-
   const canEdit = canChangeRole && !role.is_builtin;
-
-  const saveChecked = async () => {
-    setState({ ...state, saveStatus: "saving" });
-    try {
-      if (!token) throw new Error("not signed in");
-      const savedRole = await setRolePermissions(token, role.id, [...checked]);
-      updateRole(() => getLoadedState(savedRole, "saved"));
-    } catch (error) {
-      console.error("Saving the role's permissions failed:", error);
-      updateRole((current) => ({ ...current, saveStatus: "failed" }));
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -186,11 +102,7 @@ export default function RolePage() {
         <RolePermissionList
           permissions={permissionList.permissions}
           checked={checked}
-          onChange={
-            !canEdit || saveStatus === "saving"
-              ? undefined
-              : (next) => setState({ ...state, checked: next, saveStatus: "idle" })
-          }
+          onChange={!canEdit || saveStatus === "saving" ? undefined : setChecked}
           actions={
             canEdit && (
               <>
@@ -219,9 +131,4 @@ export default function RolePage() {
       )}
     </div>
   );
-}
-
-/** A role just loaded or saved: every permission it holds checked, and `saveStatus` as given. */
-function getLoadedState(role: RoleResponse, saveStatus: SaveStatus): LoadedRole {
-  return { status: "loaded", role, checked: new Set(role.permissions), saveStatus };
 }

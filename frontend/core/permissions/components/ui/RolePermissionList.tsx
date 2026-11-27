@@ -37,13 +37,19 @@ export function RolePermissionList({
   const matchingByCategory = groupByCategory(filterPermissions(permissions, filter));
   const checkedCount = permissions.filter(({ name }) => checked.has(name)).length;
 
+  const toggleChecked = (permission: string) => {
+    if (!onChange) return;
+    onChange(toggleItem(checked, permission));
+  };
+
   const setCategoryChecked = (categoryPermissions: PermissionResponse[], isChecked: boolean) => {
+    if (!onChange) return;
     const next = new Set(checked);
     for (const { name } of categoryPermissions) {
       if (isChecked) next.add(name);
       else next.delete(name);
     }
-    onChange?.(next);
+    onChange(next);
   };
 
   return (
@@ -129,7 +135,7 @@ export function RolePermissionList({
                       className="mt-0.5 h-4 w-4 shrink-0 accent-primary-600"
                       checked={checked.has(name)}
                       disabled={!onChange}
-                      onChange={() => onChange?.(toggleItem(checked, name))}
+                      onChange={() => toggleChecked(name)}
                     />
                     <div className="min-w-0 space-y-1">
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
