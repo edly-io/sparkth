@@ -121,6 +121,46 @@ async def test_create_role_with_an_unregistered_permission_returns_422_and_creat
     assert (await session.exec(select(Role).where(Role.name == "grader"))).first() is None
 
 
+async def test_create_role_duplicating_a_role_grants_its_registered_permissions(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    source = Role(name="course_author")
+    session.add(source)
+    await session.flush()
+    assert source.id is not None
+    session.add_all(
+        RolePermission(role_id=source.id, permission=permission)
+        for permission in ["role.read", "role.update", "retired.permission"]
+    )
+    await session.commit()
+
+    response = await client.post("/api/v1/permissions/roles", json={"name": "grader", "duplicate_of": source.id})
+
+    assert response.status_code == 201
+    assert sorted(response.json()["permissions"]) == ["role.read", "role.update"]
+
+
+async def test_create_role_duplicating_a_missing_role_returns_404_and_creates_nothing(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    response = await client.post("/api/v1/permissions/roles", json={"name": "grader", "duplicate_of": 999999})
+    assert response.status_code == 404
+    assert (await session.exec(select(Role).where(Role.name == "grader"))).first() is None
+
+
+async def test_create_role_with_both_permissions_and_a_role_to_duplicate_returns_422(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    _override_current_user(client, await make_user_with_permissions(session, ROLE_PERMISSIONS))
+    response = await client.post(
+        "/api/v1/permissions/roles", json={"name": "grader", "permissions": ["role.read"], "duplicate_of": 1}
+    )
+    assert response.status_code == 422
+    assert (await session.exec(select(Role).where(Role.name == "grader"))).first() is None
+
+
 @pytest.mark.parametrize("body", [{"name": "grader"}, {"name": "grader", "permissions": ["role.read"]}])
 async def test_creating_a_role_needs_role_update_too(
     body: dict[str, object], client: AsyncClient, session: AsyncSession, audit_events: AuditEventsFetcher

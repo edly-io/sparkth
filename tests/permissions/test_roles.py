@@ -326,6 +326,20 @@ async def test_create_role_with_an_unknown_permission_creates_nothing(
     assert await audit_events() == []
 
 
+async def test_get_registered_role_permissions_leaves_out_one_no_longer_registered(session: AsyncSession) -> None:
+    role = await roles.create_role("grader", None, session, permissions=["role.read"])
+    assert role.id is not None
+    session.add(RolePermission(role_id=role.id, permission="retired.permission"))
+    await session.commit()
+
+    assert await roles.get_registered_role_permissions(role.id, session) == ["role.read"]
+
+
+async def test_get_registered_role_permissions_of_a_missing_role_raises(session: AsyncSession) -> None:
+    with pytest.raises(RoleNotFound):
+        await roles.get_registered_role_permissions(999999, session)
+
+
 async def test_create_role_is_not_builtin(session: AsyncSession) -> None:
     role = await roles.create_role("grader", None, session)
     assert role.is_builtin is False

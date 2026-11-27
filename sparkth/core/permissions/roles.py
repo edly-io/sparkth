@@ -278,6 +278,16 @@ async def get_role_permissions(role_id: int, session: AsyncSession) -> list[str]
     return list(result.all())
 
 
+async def get_registered_role_permissions(role_id: int, session: AsyncSession) -> list[str]:
+    """Return the permission strings the role grants that are still registered.
+
+    Raises RoleNotFound if there is no such role.
+    """
+    await get_role(role_id, session)
+    registered = set(available_permissions())
+    return [permission for permission in await get_role_permissions(role_id, session) if permission in registered]
+
+
 async def get_permissions_for_roles(role_ids: list[int], session: AsyncSession) -> dict[int, list[str]]:
     """Return a {role_id: [permission, ...]} map for the given roles, fetched in a single query.
 

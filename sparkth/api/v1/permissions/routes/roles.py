@@ -94,13 +94,18 @@ async def list_roles(
     dependencies=[Depends(ROLE_CREATE.require_in_global_scope()), Depends(ROLE_UPDATE.require_in_global_scope())],
 )
 async def create_role(payload: RoleCreate, session: AsyncSession = Depends(get_async_session)) -> RoleResponse:
-    """Create a role, granting it the listed permissions in the same transaction.
+    """Create a role, granting it its permissions in the same transaction.
 
-    Needs ``role.update`` at global as well as ``role.create``, since the new role can be given
-    permissions; an unregistered one is refused with 422 and nothing is created. Returns the created
-    RoleResponse, which nobody holds yet.
+    The permissions are the ones listed, or those of the role named by ``duplicate_of``. A listed
+    permission that is not registered is refused with 422 and nothing is created; a duplicated
+    role's permission that is no longer registered is left out. A missing role to duplicate is
+    refused with 404. Needs ``role.update`` at global as well as ``role.create``, since the new role
+    can be given permissions. Returns the created RoleResponse, which nobody holds yet.
     """
-    role = await role_engine.create_role(payload.name, payload.description, session, permissions=payload.permissions)
+    permissions = payload.permissions
+    if payload.duplicate_of is not None:
+        permissions = await role_engine.get_registered_role_permissions(payload.duplicate_of, session)
+    role = await role_engine.create_role(payload.name, payload.description, session, permissions=permissions)
     return await _role_to_response(role, session)
 
 

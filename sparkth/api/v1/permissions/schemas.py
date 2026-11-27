@@ -35,11 +35,23 @@ class PermissionResponse(BaseModel):
 
 
 class RoleCreate(BaseModel):
-    """A new role: its name, description and the permissions it starts with (none by default)."""
+    """A new role: its name, description and the permissions it starts with (none by default).
+
+    The permissions are either listed or taken from the role to duplicate, never both.
+    """
 
     name: str = Field(min_length=1, max_length=50)
     description: str | None = Field(default=None, max_length=255)
     permissions: list[str] = Field(default_factory=list)
+    duplicate_of: int | None = Field(
+        default=None, description="The id of a role whose permissions the new role starts with."
+    )
+
+    @model_validator(mode="after")
+    def _require_one_source_of_permissions(self) -> Self:
+        if self.permissions and self.duplicate_of is not None:
+            raise ValueError("permissions and duplicate_of cannot both be provided")
+        return self
 
 
 class RoleUpdate(BaseModel):
