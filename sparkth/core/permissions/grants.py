@@ -171,12 +171,12 @@ async def get_user_assignments_of_role(
     """Return a page of the role's active user assignments, each with its user, ordered by assignment id.
 
     An unknown role has no assignments and gives an empty list. An assignment whose user account is
-    soft-deleted is still returned; the user row says so.
+    soft-deleted or no longer exists is left out, and paging counts only the rows that remain.
     """
     result = await session.exec(
         select(RoleAssignment, User)
         .join(User, col(User.id) == col(RoleAssignment.user_id))
-        .where(RoleAssignment.role_id == role_id, RoleAssignment.is_deleted == False)
+        .where(RoleAssignment.role_id == role_id, RoleAssignment.is_deleted == False, User.is_deleted == False)
         .order_by(col(RoleAssignment.id))
         .limit(limit)
         .offset(offset)

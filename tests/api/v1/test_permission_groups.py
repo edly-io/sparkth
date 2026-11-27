@@ -279,6 +279,26 @@ async def test_list_group_members_returns_oldest_first(client: AsyncClient, sess
     assert [row["user_id"] for row in response.json()] == [first.id, second.id]
 
 
+async def test_list_group_members_leaves_out_a_soft_deleted_user(client: AsyncClient, session: AsyncSession) -> None:
+    caller = await make_user_with_permissions(session, ["group.read"])
+    group = await _create_target_group(session)
+    assert group.id is not None
+    kept = await make_user(session, _uniq("kept"))
+    gone = await make_user(session, _uniq("gone"))
+    assert kept.id is not None and gone.id is not None
+    await group_engine.add_group_member(kept.id, group.id, session)
+    await group_engine.add_group_member(gone.id, group.id, session)
+    gone.soft_delete()
+    await session.flush()
+    await session.commit()
+    login_as(client, caller)
+
+    response = await client.get(_build_members_url(group.id))
+
+    assert response.status_code == 200
+    assert [row["user_id"] for row in response.json()] == [kept.id]
+
+
 def _build_group_roles_url(group_id: int) -> str:
     return f"/api/v1/permissions/groups/{group_id}/roles"
 

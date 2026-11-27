@@ -8,6 +8,7 @@ from sparkth.core.permissions import groups
 from sparkth.core.permissions.exceptions import RoleAssignmentNotFound
 from sparkth.core.permissions.grants import get_role_assignment, get_user_assignments_of_role
 from sparkth.core.permissions.groups import get_group_assignments_of_role, get_group_members, get_group_role_assignment
+from sparkth.core.permissions.models import GroupMembership, RoleAssignment
 from sparkth.lib.testing import add_role_assignment, assign_through_group, make_role, make_user
 
 
@@ -25,15 +26,28 @@ async def test_get_group_members_returns_each_membership_with_its_user(session: 
     ]
 
 
-async def test_get_group_members_keeps_the_membership_of_a_soft_deleted_user(session: AsyncSession) -> None:
+async def test_get_group_members_leaves_out_a_soft_deleted_user(session: AsyncSession) -> None:
     alice = await make_user(session, "alice")
+    bob = await make_user(session, "bob")
     group = await groups.create_group("cs-staff", None, session)
-    assert alice.id is not None and group.id is not None
+    assert alice.id is not None and bob.id is not None and group.id is not None
     await groups.add_group_member(alice.id, group.id, session)
+    await groups.add_group_member(bob.id, group.id, session)
     alice.soft_delete()
     await session.flush()
     pairs = await get_group_members(group.id, session)
-    assert [(user.username, user.is_deleted) for _, user in pairs] == [("alice", True)]
+    assert [user.username for _, user in pairs] == ["bob"]
+
+
+async def test_get_group_members_leaves_out_a_membership_whose_user_does_not_exist(session: AsyncSession) -> None:
+    bob = await make_user(session, "bob")
+    group = await groups.create_group("cs-staff", None, session)
+    assert bob.id is not None and group.id is not None
+    await groups.add_group_member(bob.id, group.id, session)
+    session.add(GroupMembership(group_id=group.id, user_id=bob.id + 1000))
+    await session.flush()
+    pairs = await get_group_members(group.id, session)
+    assert [user.username for _, user in pairs] == ["bob"]
 
 
 async def test_get_user_assignments_of_role_lists_active_rows_with_users(session: AsyncSession) -> None:
@@ -49,17 +63,44 @@ async def test_get_user_assignments_of_role_lists_active_rows_with_users(session
     assert [(assignment.role_id, user.username) for assignment, user in pairs] == [(role.id, "alice")]
 
 
-async def test_get_user_assignments_of_role_keeps_the_assignment_of_a_soft_deleted_user(
-    session: AsyncSession,
-) -> None:
+async def test_get_user_assignments_of_role_leaves_out_a_soft_deleted_user(session: AsyncSession) -> None:
     alice = await make_user(session, "alice")
+    bob = await make_user(session, "bob")
     role = await make_role(session, "grader", [])
     await add_role_assignment(session, alice, role, "global", None)
+    await add_role_assignment(session, bob, role, "global", None)
     alice.soft_delete()
     await session.flush()
     assert role.id is not None
     pairs = await get_user_assignments_of_role(role.id, 50, 0, session)
-    assert [(user.username, user.is_deleted) for _, user in pairs] == [("alice", True)]
+    assert [user.username for _, user in pairs] == ["bob"]
+
+
+async def test_get_user_assignments_of_role_leaves_out_an_assignment_whose_user_does_not_exist(
+    session: AsyncSession,
+) -> None:
+    bob = await make_user(session, "bob")
+    role = await make_role(session, "grader", [])
+    assert bob.id is not None and role.id is not None
+    await add_role_assignment(session, bob, role, "global", None)
+    session.add(RoleAssignment(user_id=bob.id + 1000, role_id=role.id, scope="global", scope_object_id=None))
+    await session.flush()
+    pairs = await get_user_assignments_of_role(role.id, 50, 0, session)
+    assert [user.username for _, user in pairs] == ["bob"]
+
+
+async def test_get_user_assignments_of_role_pages_after_leaving_out_a_soft_deleted_user(
+    session: AsyncSession,
+) -> None:
+    role = await make_role(session, "grader", [])
+    users = [await make_user(session, name) for name in ("alice", "bob", "carol")]
+    for user in users:
+        await add_role_assignment(session, user, role, "global", None)
+    users[0].soft_delete()
+    await session.flush()
+    assert role.id is not None
+    pairs = await get_user_assignments_of_role(role.id, 1, 1, session)
+    assert [user.username for _, user in pairs] == ["carol"]
 
 
 async def test_get_user_assignments_of_role_pages(session: AsyncSession) -> None:
