@@ -316,6 +316,7 @@ async def test_assign_at_an_unloaded_plugin_returns_422(client: AsyncClient, ses
     )
 
     assert response.status_code == 422
+    assert response.json()["detail"] == "Plugin is not loaded: no-such-plugin"
     assert await _count_assignments(target, role, session) == 0
 
 
@@ -591,6 +592,22 @@ async def test_assign_to_group_at_an_unknown_scope_kind_returns_422(client: Asyn
     response = await client.post(_build_group_assignments_url(role), json={"group_ids": [group.id], "scope": "galaxy"})
 
     assert response.status_code == 422
+    assert await _count_group_assignments(group, role, session) == 0
+
+
+async def test_assign_to_group_at_an_unloaded_plugin_returns_422(client: AsyncClient, session: AsyncSession) -> None:
+    role = await make_role(session, _uniq("role"), [])
+    group = await _make_group(session)
+    login_as(client, await make_user_with_permissions(session, ["role.assign"]))
+    await session.commit()
+
+    response = await client.post(
+        _build_group_assignments_url(role),
+        json={"group_ids": [group.id], "scope": "plugin", "scope_object_id": "no-such-plugin"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Plugin is not loaded: no-such-plugin"
     assert await _count_group_assignments(group, role, session) == 0
 
 

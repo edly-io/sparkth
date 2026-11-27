@@ -36,7 +36,7 @@ from sparkth.lib.permissions import (
     get_permission_scope,
     revoke_role,
 )
-from sparkth.lib.permissions.exceptions import InvalidScopeObjectId
+from sparkth.lib.permissions.exceptions import PluginNotLoaded
 from sparkth.lib.permissions.scopes import PLUGIN, ROLE, PermissionScope
 from sparkth.lib.plugins import get_plugin_loader
 from sparkth.services.users.service import get_user
@@ -54,7 +54,7 @@ def _resolve_grant_scope(scope: str, scope_object_id: str | None) -> PermissionS
     if permission_scope is PLUGIN and scope_object_id is not None:
         loaded = [name for name, _ in get_plugin_loader().get_loaded_plugins()]
         if scope_object_id not in loaded:
-            raise InvalidScopeObjectId(scope, scope_object_id)
+            raise PluginNotLoaded(scope_object_id)
     return permission_scope
 
 
