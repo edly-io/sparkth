@@ -23,7 +23,6 @@ UPLOADED_FILES_TTL_SECONDS = 24 * 60 * 60
 SSE_HEARTBEAT = ": keepalive\n\n"
 
 SYSTEM_PROMPT_SKELETON = read_asset(__file__, "system_prompt_skeleton.txt")
-RAG_CONTEXT_PROMPT = read_asset(__file__, "rag_context_replacement_prompt.txt")
 PLANNER_PROMPT = read_asset(__file__, "planner/prompt.txt")
 PLANNER_OPERATIONS = read_asset(__file__, "planner/operations.txt")
 PLANNER_WITHOUT_OPERATIONS = read_asset(__file__, "planner/without_operations.txt")

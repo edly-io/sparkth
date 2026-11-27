@@ -8,7 +8,6 @@ from pydantic import BaseModel, Field, field_validator
 
 from sparkth.plugins.compose.constants import MAX_COMBINED_UPLOAD_MB
 from sparkth.plugins.compose.enums import (
-    DocumentProcessingStatus,
     DocumentSectionProcessingStatus,
     ResponseGenerationStatus,
     ToolExecutionStatus,
@@ -144,16 +143,9 @@ class StreamStatusEvent(BaseModel):
 
 
 class ResponseGenerationEvent(StreamStatusEvent):
-    """Compose starts writing the reply, or answers without searching documents."""
+    """Compose starts writing the reply."""
 
     status: ResponseGenerationStatus
-
-
-class DocumentProcessingEvent(StreamStatusEvent):
-    """Compose searches the author's documents or scans their attachments, ``file_count`` files."""
-
-    status: DocumentProcessingStatus
-    file_count: int
 
 
 class DocumentSectionProcessingEvent(StreamStatusEvent):
@@ -187,12 +179,7 @@ class ToolExecutionEvent(StreamStatusEvent):
 
 # Every status event a streamed reply can send.
 AnyStreamStatusEvent = (
-    ResponseGenerationEvent
-    | DocumentProcessingEvent
-    | DocumentSectionProcessingEvent
-    | StepEvent
-    | PlanEvent
-    | ToolExecutionEvent
+    ResponseGenerationEvent | DocumentSectionProcessingEvent | StepEvent | PlanEvent | ToolExecutionEvent
 )
 
 

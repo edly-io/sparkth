@@ -21,11 +21,7 @@ from sparkth.lib.documents import Document, DocumentStatus
 from sparkth.lib.llm import get_provider
 from sparkth.lib.mcp.hooks import Tool
 from sparkth.lib.rag import (
-    DocumentNotFoundError,
     DocumentSections,
-    RAGNotReadyError,
-    RAGRetrievalError,
-    RetrievedChunk,
     SectionRef,
     SectionSelection,
     bind_readable_document_ids,
@@ -37,8 +33,7 @@ from sparkth.plugins.compose.detached import join_live_tasks
 from sparkth.plugins.compose.planner import ExistingPlan, PlannedStep
 from sparkth.plugins.compose.planner.types import PlanSnapshot
 from sparkth.plugins.compose.routes.utils.live_turns import claim_conversation, release_conversation, request_stop
-from sparkth.plugins.compose.routes.utils.stream_processor import ComposeStreamProcessor
-from sparkth.plugins.compose.schemas import ChatMessage
+from sparkth.plugins.compose.routes.utils.stream_processor import ComposeStreamProcessor, _build_rag_section
 from sparkth.plugins.compose.tests.conftest import OTHER_AGENT, STUB_AGENT
 from sparkth.plugins.compose.tests.helpers import (
     STREAM_TURN,
@@ -301,6 +296,16 @@ async def _failing_in_a_planned_step(
     raise httpx.RemoteProtocolError("connection reset by peer")
 
 
+async def _failing_after_a_selection(
+    messages: list[dict[str, Any]], tools: Sequence[Any], provider: Any, max_tool_executions: int, **planner: Any
+) -> AsyncGenerator[dict[str, Any], None]:
+    """A single step that selects document sections, then fails partway through its reply."""
+    yield routed(STUB_AGENT.name)
+    yield {"type": "structured_reply", "agent": STUB_AGENT.name, "reply": SectionSelection()}
+    yield {"type": "token", "content": "Here is the le"}
+    raise httpx.RemoteProtocolError("connection reset by peer")
+
+
 async def _failing_mid_reply(
     messages: list[dict[str, Any]], tools: Sequence[Any], provider: Any, max_tool_executions: int, **planner: Any
 ) -> AsyncGenerator[dict[str, Any], None]:
@@ -310,278 +315,17 @@ async def _failing_mid_reply(
     raise httpx.RemoteProtocolError("connection reset by peer")
 
 
-def _make_chunk(
-    source_name: str = "doc.pdf",
-    chapter: str | None = None,
-    section: str | None = "Section",
-    subsection: str | None = None,
-    content: str = "content",
-) -> RetrievedChunk:
-    return RetrievedChunk(
-        source_name=source_name,
-        chapter=chapter,
-        section=section,
-        subsection=subsection,
-        content=content,
-    )
+class TestBuildRagSection:
+    def test_its_kind_is_its_deepest_heading(self) -> None:
+        assert _build_rag_section("C", "S", "Sub", "doc.pdf")["type"] == "subsection"
+        assert _build_rag_section("C", "S", None, "doc.pdf")["type"] == "section"
+        assert _build_rag_section("C", None, None, "doc.pdf")["type"] == "chapter"
 
+    def test_its_name_joins_its_headings(self) -> None:
+        assert _build_rag_section("Ch1", "S1", "Sub1", "doc.pdf")["name"] == "Ch1 / S1 / Sub1"
 
-class TestBuildRagContext:
-    def test_section_label_subsection(self) -> None:
-        processor = _make_processor()
-        chunks = [_make_chunk(section="S", subsection="Sub")]
-        _, sections = processor._build_rag_context(chunks)
-        assert sections[0]["type"] == "subsection"
-
-    def test_section_label_section(self) -> None:
-        processor = _make_processor()
-        chunks = [_make_chunk(section="S", subsection=None)]
-        _, sections = processor._build_rag_context(chunks)
-        assert sections[0]["type"] == "section"
-
-    def test_section_label_chapter(self) -> None:
-        processor = _make_processor()
-        chunks = [_make_chunk(chapter="Ch1", section=None, subsection=None)]
-        _, sections = processor._build_rag_context(chunks)
-        assert sections[0]["type"] == "chapter"
-
-    def test_deduplicates_sections(self) -> None:
-        processor = _make_processor()
-        chunks = [_make_chunk(section="Intro"), _make_chunk(section="Intro")]
-        _, sections = processor._build_rag_context(chunks)
-        assert len(sections) == 1
-
-    def test_rag_context_contains_each_document(self) -> None:
-        processor = _make_processor()
-        chunks = [_make_chunk(source_name="a.pdf"), _make_chunk(source_name="b.pdf")]
-        rag_context, _ = processor._build_rag_context(chunks)
-        assert "[DOCUMENT CONTEXT: a.pdf]" in rag_context
-        assert "[DOCUMENT CONTEXT: b.pdf]" in rag_context
-
-    def test_section_name_joins_hierarchy(self) -> None:
-        processor = _make_processor()
-        chunks = [_make_chunk(chapter="Ch1", section="S1", subsection="Sub1")]
-        _, sections = processor._build_rag_context(chunks)
-        assert sections[0]["name"] == "Ch1 / S1 / Sub1"
-
-    def test_section_name_general_when_no_parts(self) -> None:
-        processor = _make_processor()
-        chunks = [_make_chunk(chapter=None, section=None, subsection=None)]
-        _, sections = processor._build_rag_context(chunks)
-        assert sections[0]["name"] == "General"
-
-
-class TestInjectRagIntoMessages:
-    def test_replaces_drive_file_blocks(self) -> None:
-        messages: list[dict[str, Any]] = [{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}]
-        processor = _make_processor(messages)
-        processor._inject_rag_into_messages("RAG context")
-        content = messages[0]["content"]
-        assert all(b.get("type") != "drive_file" for b in content)
-
-    def test_preserves_user_text_at_end(self) -> None:
-        messages: list[dict[str, Any]] = [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "drive_file", "file_id": 1},
-                    {"type": "text", "text": "user question"},
-                ],
-            }
-        ]
-        processor = _make_processor(messages)
-        processor._inject_rag_into_messages("context")
-        content = messages[0]["content"]
-        text_blocks = [b["text"] for b in content if b.get("type") == "text"]
-        assert text_blocks[-1] == "user question"
-
-    def test_skips_messages_without_drive_file(self) -> None:
-        messages: list[dict[str, Any]] = [{"role": "user", "content": [{"type": "text", "text": "plain"}]}]
-        processor = _make_processor(messages)
-        original = list(messages[0]["content"])
-        processor._inject_rag_into_messages("context")
-        assert messages[0]["content"] == original
-
-    def test_empty_rag_context_removes_drive_file_only(self) -> None:
-        messages: list[dict[str, Any]] = [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "drive_file", "file_id": 1},
-                    {"type": "text", "text": "question"},
-                ],
-            }
-        ]
-        processor = _make_processor(messages)
-        processor._inject_rag_into_messages("")
-        content = messages[0]["content"]
-        assert len(content) == 1
-        assert content[0]["text"] == "question"
-
-
-class TestStripUnresolvedDocumentBlocks:
-    def test_removes_drive_file_blocks(self) -> None:
-        messages: list[dict[str, Any]] = [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "drive_file", "file_id": 1},
-                    {"type": "text", "text": "hi"},
-                ],
-            }
-        ]
-        processor = _make_processor(messages)
-        processor._strip_unresolved_document_blocks()
-        assert all(b.get("type") != "drive_file" for b in messages[0]["content"])
-        assert messages[0]["content"][0]["text"] == "hi"
-
-    def test_leaves_string_content_unchanged(self) -> None:
-        messages: list[dict[str, Any]] = [{"role": "user", "content": "Hello"}]
-        processor = _make_processor(messages)
-        processor._strip_unresolved_document_blocks()
-        assert messages[0]["content"] == "Hello"
-
-
-class TestRetrieveRagChunks:
-    @pytest.mark.asyncio
-    async def test_returns_chunks_on_success(self) -> None:
-        processor = _make_processor()
-        processor.llm = MagicMock()
-        expected = [_make_chunk()]
-        with patch(
-            "sparkth.plugins.compose.routes.utils.stream_processor.agentic_retrieve_context",
-            new_callable=AsyncMock,
-        ) as mock_retrieve:
-            mock_retrieve.return_value = expected
-            result = await processor._retrieve_rag_chunks("query", [1], MagicMock())
-        assert result == expected
-
-    @pytest.mark.asyncio
-    async def test_returns_none_on_document_not_found(self) -> None:
-        processor = _make_processor()
-        processor.llm = MagicMock()
-        with patch(
-            "sparkth.plugins.compose.routes.utils.stream_processor.agentic_retrieve_context",
-            new_callable=AsyncMock,
-        ) as mock_retrieve:
-            mock_retrieve.side_effect = DocumentNotFoundError()
-            result = await processor._retrieve_rag_chunks("query", [1], MagicMock())
-        assert result is None
-
-    @pytest.mark.asyncio
-    async def test_persists_error_on_document_not_found(self) -> None:
-        processor = _make_processor()
-        processor.llm = MagicMock()
-        bg_session = MagicMock()
-        with patch(
-            "sparkth.plugins.compose.routes.utils.stream_processor.agentic_retrieve_context",
-            new_callable=AsyncMock,
-        ) as mock_retrieve:
-            mock_retrieve.side_effect = DocumentNotFoundError()
-            await processor._retrieve_rag_chunks("query", [1], bg_session)
-        processor.service.add_message.assert_called_once()  # type: ignore[attr-defined]
-        assert processor.service.add_message.call_args.kwargs["is_error"] is True  # type: ignore[attr-defined]
-
-    @pytest.mark.asyncio
-    async def test_returns_none_on_rag_not_ready(self) -> None:
-        processor = _make_processor()
-        processor.llm = MagicMock()
-        with patch(
-            "sparkth.plugins.compose.routes.utils.stream_processor.agentic_retrieve_context",
-            new_callable=AsyncMock,
-        ) as mock_retrieve:
-            mock_retrieve.side_effect = RAGNotReadyError(1, "PENDING")
-            result = await processor._retrieve_rag_chunks("query", [1], MagicMock())
-        assert result is None
-
-    @pytest.mark.asyncio
-    async def test_returns_none_on_retrieval_error(self) -> None:
-        processor = _make_processor()
-        processor.llm = MagicMock()
-        with patch(
-            "sparkth.plugins.compose.routes.utils.stream_processor.agentic_retrieve_context",
-            new_callable=AsyncMock,
-        ) as mock_retrieve:
-            mock_retrieve.side_effect = RAGRetrievalError()
-            result = await processor._retrieve_rag_chunks("query", [1], MagicMock())
-        assert result is None
-
-    @pytest.mark.asyncio
-    async def test_persists_error_on_rag_not_ready(self) -> None:
-        processor = _make_processor()
-        processor.llm = MagicMock()
-        bg_session = MagicMock()
-        with patch(
-            "sparkth.plugins.compose.routes.utils.stream_processor.agentic_retrieve_context",
-            new_callable=AsyncMock,
-        ) as mock_retrieve:
-            mock_retrieve.side_effect = RAGNotReadyError(1, "PENDING")
-            await processor._retrieve_rag_chunks("query", [1], bg_session)
-        processor.service.add_message.assert_called_once()  # type: ignore[attr-defined]
-        assert processor.service.add_message.call_args.kwargs["is_error"] is True  # type: ignore[attr-defined]
-
-    @pytest.mark.asyncio
-    async def test_persists_error_on_retrieval_error(self) -> None:
-        processor = _make_processor()
-        processor.llm = MagicMock()
-        bg_session = MagicMock()
-        with patch(
-            "sparkth.plugins.compose.routes.utils.stream_processor.agentic_retrieve_context",
-            new_callable=AsyncMock,
-        ) as mock_retrieve:
-            mock_retrieve.side_effect = RAGRetrievalError()
-            await processor._retrieve_rag_chunks("query", [1], bg_session)
-        processor.service.add_message.assert_called_once()  # type: ignore[attr-defined]
-        assert processor.service.add_message.call_args.kwargs["is_error"] is True  # type: ignore[attr-defined]
-
-
-class TestRunRagPhase:
-    @pytest.mark.asyncio
-    async def test_returns_empty_list_when_rag_disabled(self) -> None:
-        processor = _make_processor()
-        processor.rag_search_required = False
-        result = await processor._run_rag_phase(MagicMock())
-        assert result == []
-
-    @pytest.mark.asyncio
-    async def test_returns_empty_list_when_no_unresolved_messages(self) -> None:
-        processor = _make_processor()
-        processor.rag_search_required = True
-        processor.unresolved_messages = None
-        result = await processor._run_rag_phase(MagicMock())
-        assert result == []
-
-    @pytest.mark.asyncio
-    async def test_returns_none_when_retrieval_fails(self) -> None:
-        processor = _make_processor()
-        processor.rag_search_required = True
-        processor.user_id = 1
-        processor.llm = MagicMock()
-        processor.unresolved_messages = [ChatMessage(role="user", content=[{"type": "drive_file", "file_id": 1}])]
-        with patch(
-            "sparkth.plugins.compose.routes.utils.stream_processor.agentic_retrieve_context",
-            new_callable=AsyncMock,
-        ) as mock_retrieve:
-            mock_retrieve.side_effect = DocumentNotFoundError()
-            result = await processor._run_rag_phase(MagicMock())
-        assert result is None
-
-    @pytest.mark.asyncio
-    async def test_returns_sections_on_success(self) -> None:
-        processor = _make_processor(messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}])
-        processor.rag_search_required = True
-        processor.user_id = 1
-        processor.llm = MagicMock()
-        processor.unresolved_messages = [ChatMessage(role="user", content=[{"type": "drive_file", "file_id": 1}])]
-        with patch(
-            "sparkth.plugins.compose.routes.utils.stream_processor.agentic_retrieve_context",
-            new_callable=AsyncMock,
-        ) as mock_retrieve:
-            mock_retrieve.return_value = [_make_chunk(section="Intro")]
-            result = await processor._run_rag_phase(MagicMock())
-        assert result is not None
-        assert len(result) == 1
-        assert result[0]["name"] == "Intro"
+    def test_its_name_is_general_without_headings(self) -> None:
+        assert _build_rag_section(None, None, None, "doc.pdf")["name"] == "General"
 
 
 class TestCollectStreamResponse:
@@ -589,7 +333,7 @@ class TestCollectStreamResponse:
     async def test_returns_full_response_and_empty_tool_calls(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(STREAM_TURN, HELLO_WORLD_TURN)
         processor = _make_processor()
-        result = await processor._collect_stream_response([], MagicMock())
+        result = await processor._collect_stream_response(MagicMock())
         assert result is not None
         assert result.text == "Hello world"
         assert result.tool_calls == []
@@ -604,7 +348,7 @@ class TestCollectStreamResponse:
         ]
         monkeypatch.setattr(STREAM_TURN, partial(replay_turn, events))
         processor = _make_processor()
-        result = await processor._collect_stream_response([], MagicMock())
+        result = await processor._collect_stream_response(MagicMock())
         assert result is not None
         assert result.tool_calls == [{"name": "search_web", "failure": None}]
         assert result.stopped is False
@@ -615,14 +359,14 @@ class TestCollectStreamResponse:
 
         monkeypatch.setattr(STREAM_TURN, partial(_failing_turn, httpx.RemoteProtocolError("connection reset by peer")))
         processor = _make_processor()
-        result = await processor._collect_stream_response([], MagicMock())
+        result = await processor._collect_stream_response(MagicMock())
         assert result is None
 
     @pytest.mark.asyncio
     async def test_returns_none_on_os_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(STREAM_TURN, partial(_failing_turn, OSError("connection reset")))
         processor = _make_processor()
-        result = await processor._collect_stream_response([], MagicMock())
+        result = await processor._collect_stream_response(MagicMock())
         assert result is None
 
     @pytest.mark.asyncio
@@ -631,7 +375,7 @@ class TestCollectStreamResponse:
 
         monkeypatch.setattr(STREAM_TURN, partial(_failing_turn, OutputParserException("parse failed")))
         processor = _make_processor()
-        result = await processor._collect_stream_response([], MagicMock())
+        result = await processor._collect_stream_response(MagicMock())
         assert result is None
 
 
@@ -814,25 +558,6 @@ class TestAPlannedTurn:
 
         assert _stored_replies(processor)[-1]["metadata"]["plan"] == asdict(FIRST_IN_PROGRESS)
 
-    @pytest.mark.asyncio
-    async def test_a_reply_that_found_nothing_in_the_documents_keeps_the_plan_it_was_given(self) -> None:
-        processor = _make_processor(
-            messages=[{"role": "user", "content": [{"type": "drive_file", "file_id": 1}]}],
-            existing_plan=FIRST_IN_PROGRESS,
-        )
-        processor.rag_search_required = True
-        processor.user_id = 1
-        processor.llm = MagicMock()
-        processor.unresolved_messages = [ChatMessage(role="user", content=[{"type": "drive_file", "file_id": 1}])]
-        with patch(
-            "sparkth.plugins.compose.routes.utils.stream_processor.agentic_retrieve_context",
-            new_callable=AsyncMock,
-        ) as mock_retrieve:
-            mock_retrieve.return_value = []
-            await processor._run_rag_phase(MagicMock())
-
-        assert _stored_replies(processor)[-1]["metadata"]["plan"] == asdict(FIRST_IN_PROGRESS)
-
 
 class TestASteppedTurn:
     @pytest.mark.asyncio
@@ -922,10 +647,11 @@ class TestASteppedTurn:
     ) -> None:
         """A reload shows the kept text with its source pills, as it does for a finished reply."""
         sections: list[dict[str, str | None]] = [{"type": "chapter", "name": "Cells", "source": "biology.pdf"}]
-        monkeypatch.setattr(STREAM_TURN, _failing_mid_reply)
+        monkeypatch.setattr(STREAM_TURN, _failing_after_a_selection)
         processor = _make_processor()
 
-        await processor._run_llm_phase(sections, MagicMock())
+        with patch.object(processor, "_get_selected_rag_sections", AsyncMock(return_value=sections)):
+            await processor._run_llm_phase(MagicMock())
 
         written = _stored_replies(processor)[0]
         assert written["metadata"]["rag_sections"] == sections
@@ -1279,28 +1005,12 @@ class TestStopPoint:
     """``StreamedCompletion.stopped_at`` names the phase a stop landed in."""
 
     @pytest.mark.asyncio
-    async def test_a_stop_before_retrieval_is_before_the_model(self) -> None:
+    async def test_a_stop_before_the_turn_runs_is_before_the_model(self) -> None:
         processor = _make_processor()
         processor.stop_requested = asyncio.Event()
         processor.stop_requested.set()
 
         completion = await processor._run(MagicMock())
-
-        assert completion is not None
-        assert completion.stopped_at == StopPoint.BEFORE_MODEL
-
-    @pytest.mark.asyncio
-    async def test_a_stop_after_retrieval_is_before_the_model(self) -> None:
-        processor = _make_processor()
-        processor.stop_requested = asyncio.Event()
-
-        async def rag_phase(_session: Any) -> list[dict[str, str | None]]:
-            assert processor.stop_requested is not None
-            processor.stop_requested.set()
-            return []
-
-        with patch.object(processor, "_run_rag_phase", rag_phase):
-            completion = await processor._run(MagicMock())
 
         assert completion is not None
         assert completion.stopped_at == StopPoint.BEFORE_MODEL

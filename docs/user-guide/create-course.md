@@ -62,9 +62,8 @@ conversation, a file whose text is part of a message can't be removed.
 
 ## While it works
 
-The assistant shows what it is doing, such as "Reading your attached files…" or
-"Writing the answer…". Click **Stop generating** to stop it. When it uses its tools, for
-example to create the course in your LMS, the reply shows how many tool calls it made.
+The assistant shows what it is doing, such as "Writing the answer…". Click **Stop generating** to stop it.
+When it uses its tools, for example to create the course in your LMS, the reply shows how many tool calls it made.
 
 ## Your conversations
 

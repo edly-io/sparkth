@@ -4,7 +4,6 @@ import {
   ChatMessage,
   PlanSnapshot,
   StreamStatusEvent,
-  StreamStatusPhase,
   TextAttachment,
   ToolCall,
 } from "@/plugins/compose/src/types";
@@ -52,9 +51,6 @@ function applyStatusEvent(
       }));
       break;
     }
-    case "scanning_attachments":
-    case "searching_documents":
-    case "skipping_rag":
     case "generating": {
       const { status } = event;
       update((msg) => ({ ...msg, statusPhase: status }));
@@ -105,14 +101,10 @@ const STREAM_STORAGE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 // responses rather than throwing QuotaExceededError silently.
 const STREAM_STORAGE_MAX_BYTES = 4 * 1024 * 1024;
 
-function saveStreamProgress(
-  conversationId: string | null,
-  content: string,
-  phase?: StreamStatusPhase,
-): void {
+function saveStreamProgress(conversationId: string | null, content: string): void {
   if (!conversationId) return;
   try {
-    const payload = JSON.stringify({ content, phase, timestamp: Date.now() });
+    const payload = JSON.stringify({ content, timestamp: Date.now() });
     if (payload.length > STREAM_STORAGE_MAX_BYTES) return;
     sessionStorage.setItem(STREAM_STORAGE_KEY(conversationId), payload);
   } catch {
@@ -135,22 +127,16 @@ export const RECOVERY_PLACEHOLDER_IDS = new Set(["restored-stream", "pending-res
 
 export interface StreamProgressData {
   content: string;
-  phase?: StreamStatusPhase;
 }
 
 export function getRestoredStreamData(conversationId: string): StreamProgressData | null {
   try {
     const raw = sessionStorage.getItem(STREAM_STORAGE_KEY(conversationId));
     if (!raw) return null;
-    const { content, phase, timestamp } = JSON.parse(raw) as {
-      content: string;
-      phase?: StreamStatusPhase;
-      timestamp: number;
-    };
+    const { content, timestamp } = JSON.parse(raw) as { content: string; timestamp: number };
     if (Date.now() - timestamp > STREAM_STORAGE_TTL_MS) return null;
-    // Return even if content is empty — phase alone (e.g. "scanning") is useful for UX.
-    if (!content && !phase) return null;
-    return { content, phase };
+    if (!content) return null;
+    return { content };
   } catch {
     return null;
   }
@@ -200,13 +186,7 @@ async function readStream(
         }
 
         if (parsed.status) {
-          // Persist the current RAG phase so a mid-stream refresh can show a
-          // meaningful message ("Scanning documents…") rather than a generic one.
-          const event = parsed as StreamStatusEvent;
-          if (event.status === "scanning_attachments" || event.status === "searching_documents") {
-            saveStreamProgress(conversationId, assistantText, event.status);
-          }
-          applyStatusEvent(event, assistantId, setMessages);
+          applyStatusEvent(parsed as StreamStatusEvent, assistantId, setMessages);
           continue;
         }
 

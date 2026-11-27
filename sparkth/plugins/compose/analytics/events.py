@@ -256,8 +256,8 @@ class TurnFailureCause(StrEnum):
     """Why a turn ended in an error message instead of a reply.
 
     A closed set on purpose: the exception's own text can quote a prompt or a document, so
-    the cause is named from here rather than carried from the error. ``RAG_SEARCH_ERROR`` is no longer
-    recorded; it stays so recorded rows still read.
+    the cause is named from here rather than carried from the error. ``RAG_SEARCH_ERROR`` and
+    ``RAG_RETRIEVAL_ERROR`` are no longer recorded; they stay so recorded rows still read.
     """
 
     LLM_CONFIG_UNUSABLE = "llm_config_unusable"

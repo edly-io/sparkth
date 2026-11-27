@@ -49,9 +49,6 @@ export type StreamStatusEvent =
 
 /** The statuses shown as a line of text while the reply is on its way. */
 export const STREAM_STATUS_PHASES = [
-  "scanning_attachments",
-  "searching_documents",
-  "skipping_rag",
   "generating",
 ] as const satisfies readonly StreamStatusEvent["status"][];
 

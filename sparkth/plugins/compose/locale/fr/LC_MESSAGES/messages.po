@@ -267,22 +267,6 @@ msgstr ""
 "Une erreur s'est produite lors de la génération de la réponse. Veuillez "
 "réessayer."
 
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:219
-msgid "The attached document could not be found or is no longer accessible."
-msgstr "Le document joint est introuvable ou n'est plus accessible."
-
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:221
-msgid ""
-"The attached document is still being processed. Please wait a moment and "
-"try again."
-msgstr ""
-"Le document joint est encore en cours de traitement. Veuillez patienter "
-"un instant puis réessayer."
-
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:222
-msgid "Failed to search the attached document. Please try again."
-msgstr "La recherche dans le document joint a échoué. Veuillez réessayer."
-
 # Machine-generated translation (LLM), not yet reviewed by a native speaker.
 #: sparkth/plugins/compose/constants.py:45
 msgid "Working on your request…"

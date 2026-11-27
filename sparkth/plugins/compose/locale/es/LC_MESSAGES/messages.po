@@ -260,22 +260,6 @@ msgstr "La conexión se interrumpió. Inténtalo de nuevo."
 msgid "An error occurred while generating a response. Please try again."
 msgstr "Ocurrió un error al generar la respuesta. Inténtalo de nuevo."
 
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:219
-msgid "The attached document could not be found or is no longer accessible."
-msgstr "El documento adjunto no se encontró o ya no es accesible."
-
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:221
-msgid ""
-"The attached document is still being processed. Please wait a moment and "
-"try again."
-msgstr ""
-"El documento adjunto todavía se está procesando. Espera un momento e "
-"inténtalo de nuevo."
-
-#: sparkth/plugins/compose/routes/utils/stream_processor.py:222
-msgid "Failed to search the attached document. Please try again."
-msgstr "No se pudo buscar en el documento adjunto. Inténtalo de nuevo."
-
 # Machine-generated translation (LLM), not yet reviewed by a native speaker.
 #: sparkth/plugins/compose/constants.py:45
 msgid "Working on your request…"
