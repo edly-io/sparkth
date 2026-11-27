@@ -8,7 +8,14 @@ import sparkth.plugins.pxc.permissions as plugin_permissions
 from sparkth.lib.permissions import PermissionRisk, get_permission
 from sparkth.lib.testing import get_marked_messages
 
-PERMISSIONS = ["pxc.activity.read", "pxc.activity.update", "pxc.activity.delete", "pxc.activity.place"]
+PERMISSIONS = [
+    "pxc.activity.read",
+    "pxc.activity.update",
+    "pxc.activity.delete",
+    "pxc.activity.place",
+    "pxc.activity.play",
+    "pxc.activity.edit",
+]
 # Deleting an activity removes it, and its learners' data, from every course that placed it.
 RISKS: dict[str, set[PermissionRisk]] = {"pxc.activity.delete": {PermissionRisk.DELETES}}
 
