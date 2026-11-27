@@ -70,6 +70,7 @@ function RoleForm({
   onClose: () => void;
 }) {
   const t = useTranslations("permissions.roles.create");
+  const tForm = useTranslations("permissions.roles.form");
   const { token } = useAuth();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -122,7 +123,7 @@ function RoleForm({
       onClose();
     } catch (error) {
       if (error instanceof ApiRequestError && error.status === 409) {
-        setNameError(t("nameTaken"));
+        setNameError(tForm("nameTaken"));
       } else {
         console.error("Creating the role failed:", error);
         setCreateFailed(true);
@@ -135,7 +136,7 @@ function RoleForm({
     <form onSubmit={submit} className="space-y-4">
       <Input
         id="role-name"
-        label={t("name")}
+        label={tForm("name")}
         value={name}
         maxLength={50}
         error={nameError}
@@ -144,7 +145,7 @@ function RoleForm({
       />
       <Textarea
         id="role-description"
-        label={t("description")}
+        label={tForm("description")}
         value={description}
         maxLength={255}
         rows={1}
@@ -214,7 +215,7 @@ function RoleForm({
       )}
       <DialogFooter>
         <Button type="button" variant="ghost" onClick={onClose} disabled={creating}>
-          {t("cancel")}
+          {tForm("cancel")}
         </Button>
         <Button
           type="submit"

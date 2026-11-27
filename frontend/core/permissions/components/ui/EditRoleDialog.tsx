@@ -78,7 +78,7 @@ function DetailsForm({
       onClose();
     } catch (error) {
       if (error instanceof ApiRequestError && error.status === 409) {
-        setNameError(t("create.nameTaken"));
+        setNameError(t("form.nameTaken"));
       } else {
         console.error("Saving the role's details failed:", error);
         setSaveFailed(true);
@@ -91,7 +91,7 @@ function DetailsForm({
     <form onSubmit={submit} className="space-y-4">
       <Input
         id="role-name"
-        label={t("create.name")}
+        label={t("form.name")}
         value={name}
         maxLength={50}
         error={nameError}
@@ -100,7 +100,7 @@ function DetailsForm({
       />
       <Textarea
         id="role-description"
-        label={t("create.description")}
+        label={t("form.description")}
         value={description}
         maxLength={255}
         rows={2}
@@ -113,7 +113,7 @@ function DetailsForm({
       )}
       <DialogFooter>
         <Button type="button" variant="ghost" onClick={onClose} disabled={saving}>
-          {t("create.cancel")}
+          {t("form.cancel")}
         </Button>
         <Button type="submit" loading={saving} disabled={!name.trim() || !changed}>
           {t("edit.save")}

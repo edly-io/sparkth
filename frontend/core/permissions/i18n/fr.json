@@ -38,15 +38,17 @@
         "list": "Liste",
         "compare": "Comparer les autorisations"
       },
+      "form": {
+        "name": "Nom",
+        "description": "Description",
+        "cancel": "Annuler",
+        "nameTaken": "Un rôle porte déjà ce nom."
+      },
       "create": {
         "button": "Créer un rôle",
         "title": "Créer un rôle",
         "intro": "Nommez-le d'après le travail que font les gens.",
-        "name": "Nom",
-        "description": "Description",
-        "cancel": "Annuler",
         "submit": "Créer",
-        "nameTaken": "Un rôle porte déjà ce nom.",
         "failed": "Impossible de créer le rôle. Réessayez.",
         "startFrom": {
           "label": "Partir de",

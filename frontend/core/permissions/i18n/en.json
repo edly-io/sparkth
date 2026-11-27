@@ -38,15 +38,17 @@
         "list": "List",
         "compare": "Compare permissions"
       },
+      "form": {
+        "name": "Name",
+        "description": "Description",
+        "cancel": "Cancel",
+        "nameTaken": "A role with this name already exists."
+      },
       "create": {
         "button": "Create role",
         "title": "Create role",
         "intro": "Name it after the job people do.",
-        "name": "Name",
-        "description": "Description",
-        "cancel": "Cancel",
         "submit": "Create",
-        "nameTaken": "A role with this name already exists.",
         "failed": "Couldn't create the role. Try again.",
         "startFrom": {
           "label": "Start from",

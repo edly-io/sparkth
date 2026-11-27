@@ -38,15 +38,17 @@
         "list": "Lista",
         "compare": "Comparar permisos"
       },
+      "form": {
+        "name": "Nombre",
+        "description": "Descripción",
+        "cancel": "Cancelar",
+        "nameTaken": "Ya existe un rol con este nombre."
+      },
       "create": {
         "button": "Crear rol",
         "title": "Crear rol",
         "intro": "Ponle el nombre del trabajo que hace la gente.",
-        "name": "Nombre",
-        "description": "Descripción",
-        "cancel": "Cancelar",
         "submit": "Crear",
-        "nameTaken": "Ya existe un rol con este nombre.",
         "failed": "No se pudo crear el rol. Inténtalo de nuevo.",
         "startFrom": {
           "label": "Empezar desde",
