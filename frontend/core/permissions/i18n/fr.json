@@ -77,11 +77,15 @@
         "loadFailed": "Impossible de charger le rôle. Réessayez plus tard.",
         "permissionsLoading": "Chargement des permissions…",
         "permissionsFailed": "Impossible de charger les permissions. Réessayez plus tard.",
+        "save": "Enregistrer les modifications",
+        "saveFailed": "Impossible d'enregistrer les permissions. Réessayez.",
+        "saved": "Enregistré",
         "list": {
           "label": "Permissions",
           "filter": "Filtrer les permissions",
           "granted": "<strong>{granted}</strong> permissions accordées sur {total}",
-          "groupCount": "{granted} sur {total}"
+          "groupCount": "{granted} sur {total}",
+          "allInCategory": "Toutes les permissions dans {category}"
         }
       }
     },

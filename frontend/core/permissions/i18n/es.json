@@ -77,11 +77,15 @@
         "loadFailed": "No se pudo cargar el rol. Inténtalo de nuevo más tarde.",
         "permissionsLoading": "Cargando los permisos…",
         "permissionsFailed": "No se pudieron cargar los permisos. Inténtalo de nuevo más tarde.",
+        "save": "Guardar cambios",
+        "saveFailed": "No se pudieron guardar los permisos. Inténtalo de nuevo.",
+        "saved": "Guardado",
         "list": {
           "label": "Permisos",
           "filter": "Filtrar permisos",
           "granted": "<strong>{granted}</strong> de {total} permisos concedidos",
-          "groupCount": "{granted} de {total}"
+          "groupCount": "{granted} de {total}",
+          "allInCategory": "Todos los permisos en {category}"
         }
       }
     },

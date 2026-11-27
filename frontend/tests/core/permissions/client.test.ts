@@ -8,6 +8,7 @@ import {
   listGroups,
   listPermissions,
   listRoles,
+  setRolePermissions,
 } from "@/core/permissions/client";
 import { ApiRequestError } from "@/lib/api";
 
@@ -163,6 +164,22 @@ describe("listPermissions", () => {
     expect(new URL(request.url).pathname).toBe("/api/v1/permissions");
     expect(request.headers.get("authorization")).toBe("Bearer test-token");
     expect(result).toEqual(permissions);
+  });
+});
+
+describe("setRolePermissions", () => {
+  it("PUTs the full list to /api/v1/permissions/roles/{id}/permissions and returns the role", async () => {
+    const saved = { id: 7, name: "grader", permissions: ["role.read", "group.read"] };
+    const spy = mockFetch(saved);
+
+    const result = await setRolePermissions("test-token", 7, ["role.read", "group.read"]);
+
+    const request = sentRequest(spy);
+    expect(request.method).toBe("PUT");
+    expect(new URL(request.url).pathname).toBe("/api/v1/permissions/roles/7/permissions");
+    expect(await request.json()).toEqual({ permissions: ["role.read", "group.read"] });
+    expect(request.headers.get("authorization")).toBe("Bearer test-token");
+    expect(result).toEqual(saved);
   });
 });
 

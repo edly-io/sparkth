@@ -47,7 +47,7 @@ describe("PermissionPicker", () => {
     expect(within(access).getByText("Can give others access")).toBeInTheDocument();
   });
 
-  it("ticks the chosen permissions and says how many are chosen", () => {
+  it("checks the chosen permissions and says how many are chosen", () => {
     renderPicker(["role.read", "compose.conversation.read"]);
 
     expect(screen.getByRole("checkbox", { name: "See roles" })).toBeChecked();
@@ -55,7 +55,7 @@ describe("PermissionPicker", () => {
     expect(screen.getByText("2 chosen")).toBeInTheDocument();
   });
 
-  it("hands over the permission ticked or unticked", async () => {
+  it("hands over the permission checked or unchecked", async () => {
     const { onToggle } = renderPicker(["role.read"]);
 
     await userEvent.click(screen.getByRole("checkbox", { name: "Change roles" }));

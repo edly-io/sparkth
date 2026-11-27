@@ -10,7 +10,7 @@ import type { PermissionResponse } from "@/core/permissions/types";
 /**
  * Every permission as a checkbox labelled in plain words and tagged with its risks, grouped under
  * its category in the order given. A search box narrows the list by label, category or internal
- * name; the count of chosen permissions includes any the search hides. Ticking or unticking one
+ * name; the count of chosen permissions includes any the search hides. Checking or unchecking one
  * calls `onToggle` with its name.
  */
 export function PermissionPicker({

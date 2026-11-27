@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import type { RoleResponse } from "@/core/permissions/types";
 import {
   stubGroups,
   stubPermissionList,
@@ -12,7 +13,19 @@ import {
  * role.read and group.read together; the checks and the role and group lists are stubbed
  * (utils/permissions.ts).
  */
-const ALL_THREE = ["permission.read", "role.read", "group.read"];
+const SECTION_PERMISSIONS = ["permission.read", "role.read", "group.read"];
+
+const COURSE_EDITOR: RoleResponse = {
+  id: 1,
+  name: "Course editor",
+  description: "Edits courses",
+  permissions: ["role.read"],
+  is_builtin: false,
+  is_default: false,
+  user_count: 0,
+  group_count: 0,
+  risks: [],
+};
 
 /** Opens the dashboard and waits for the sidebar's permission check to be answered. */
 async function openDashboard(page: Page): Promise<void> {
@@ -23,24 +36,12 @@ async function openDashboard(page: Page): Promise<void> {
 
 test.describe("access & permissions", () => {
   test.beforeEach(async ({ page }) => {
-    await stubRoles(page, [
-      {
-        id: 1,
-        name: "Course editor",
-        description: "Edits courses",
-        permissions: [],
-        is_builtin: false,
-        is_default: false,
-        user_count: 0,
-        group_count: 0,
-        risks: ["delegates_access"],
-      },
-    ]);
+    await stubRoles(page, [{ ...COURSE_EDITOR, permissions: [], risks: ["delegates_access"] }]);
     await stubGroups(page, [{ id: 2, name: "Science faculty", description: null }]);
   });
 
   test("opens on Roles from the sidebar and switches to Groups", async ({ page }) => {
-    await stubPermissions(page, ALL_THREE);
+    await stubPermissions(page, SECTION_PERMISSIONS);
     await openDashboard(page);
 
     await page.getByRole("link", { name: "Access & permissions" }).first().click();
@@ -61,8 +62,8 @@ test.describe("access & permissions", () => {
     await expect(page.getByText("Science faculty")).toBeVisible();
   });
 
-  test("creates a role with the permissions ticked", async ({ page }) => {
-    await stubPermissions(page, [...ALL_THREE, "role.create", "role.update"]);
+  test("creates a role with the permissions checked", async ({ page }) => {
+    await stubPermissions(page, [...SECTION_PERMISSIONS, "role.create", "role.update"]);
     await stubPermissionList(page, [
       {
         name: "role.read",
@@ -103,18 +104,8 @@ test.describe("access & permissions", () => {
   });
 
   test("opens a role's page from its card", async ({ page }) => {
-    await stubPermissions(page, ALL_THREE);
-    await stubRole(page, {
-      id: 1,
-      name: "Course editor",
-      description: "Edits courses",
-      permissions: ["role.read"],
-      is_builtin: false,
-      is_default: false,
-      user_count: 0,
-      group_count: 0,
-      risks: [],
-    });
+    await stubPermissions(page, SECTION_PERMISSIONS);
+    await stubRole(page, COURSE_EDITOR);
     await stubPermissionList(page, [
       {
         name: "role.read",
@@ -137,11 +128,55 @@ test.describe("access & permissions", () => {
     ).toBeVisible();
   });
 
-  for (const missing of ALL_THREE) {
+  test("saves the permissions checked on a role's page", async ({ page }) => {
+    await stubPermissions(page, [...SECTION_PERMISSIONS, "role.update"]);
+    await stubRole(page, COURSE_EDITOR);
+    await stubPermissionList(page, [
+      {
+        name: "role.read",
+        label: "See roles",
+        description: "See every role and what it allows.",
+        category: "Users & access",
+        risks: [],
+        requires: [],
+      },
+      {
+        name: "role.update",
+        label: "Edit roles",
+        description: "Choose what a role allows.",
+        category: "Users & access",
+        risks: ["delegates_access"],
+        requires: [],
+      },
+    ]);
+    const sent: unknown[] = [];
+    await page.route("**/api/v1/permissions/roles/1/permissions", (route) => {
+      sent.push(route.request().postDataJSON());
+      return route.fulfill({
+        json: {
+          ...COURSE_EDITOR,
+          permissions: ["role.read", "role.update"],
+          risks: ["delegates_access"],
+        },
+      });
+    });
+    await page.goto("/dashboard/permissions/roles/role?id=1");
+
+    const save = page.getByRole("button", { name: "Save changes" });
+    await expect(save).toBeDisabled();
+    await page.getByRole("checkbox", { name: "Edit roles" }).check();
+    await save.click();
+
+    await expect.poll(() => sent).toEqual([{ permissions: ["role.read", "role.update"] }]);
+    await expect(page.getByText("Can give others access").first()).toBeVisible();
+    await expect(save).toBeDisabled();
+  });
+
+  for (const missing of SECTION_PERMISSIONS) {
     test(`without ${missing} there is no entry and the URL shows no access`, async ({ page }) => {
       await stubPermissions(
         page,
-        ALL_THREE.filter((permission) => permission !== missing),
+        SECTION_PERMISSIONS.filter((permission) => permission !== missing),
       );
       await openDashboard(page);
       await expect(page.getByRole("link", { name: "Access & permissions" })).toHaveCount(0);

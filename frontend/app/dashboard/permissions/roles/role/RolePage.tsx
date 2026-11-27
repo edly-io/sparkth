@@ -1,67 +1,44 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { ApiRequestError } from "@/lib/api";
+import { useRoleEditor } from "@/app/dashboard/permissions/roles/role/hooks";
 import { useAuth } from "@/core/auth/hooks";
 import { Alert } from "@/core/components/ui/Alert";
+import { Button } from "@/core/components/ui/Button";
 import { Spinner } from "@/core/components/ui/Spinner";
-import { getRole } from "@/core/permissions/client";
 import { RiskChips } from "@/core/permissions/components/ui/RiskChips";
 import { RoleBadges } from "@/core/permissions/components/ui/RoleBadges";
 import { RolePermissionList } from "@/core/permissions/components/ui/RolePermissionList";
-import { usePermissionList } from "@/core/permissions/hooks";
+import { usePermissionCheck, usePermissionList } from "@/core/permissions/hooks";
 import { ROLES_PATH } from "@/core/permissions/paths";
 import { formatRoleName } from "@/core/permissions/roleDisplay";
-import type { RoleResponse } from "@/core/permissions/types";
-
-type RoleState =
-  | { status: "loading" | "missing" | "failed" }
-  | { status: "loaded"; role: RoleResponse };
 
 /**
  * One role's page, for the role named by `?id=`: a breadcrumb back through Access & permissions and
  * Roles, then the role's name as the page heading with its badges, description and risks, and every
- * permission with the role's own ticked. Says so when there is no such role or it can't be loaded.
+ * permission with the role's own checked. Those who may change a custom role can check and uncheck
+ * its permissions, and Save, enabled once they differ from the role's, saves them all at once and
+ * says so. Says so too when there is no such role, it can't be loaded or saving fails.
  */
 export default function RolePage() {
   const t = useTranslations("permissions.roles.detail");
   const tPermissions = useTranslations("permissions");
   const { token } = useAuth();
-  const roleId = Number(useSearchParams()?.get("id"));
-  const [state, setState] = useState<RoleState>({ status: "loading" });
+  const idParam = Number(useSearchParams()?.get("id"));
+  const roleId = Number.isInteger(idParam) && idParam > 0 ? idParam : null;
+  const canChangeRole =
+    usePermissionCheck(roleId === null ? null : token, "role.update", {
+      scope: "role",
+      scopeObjectId: String(roleId),
+    }) === "allowed";
+  const { state, changed, setChecked, saveChecked } = useRoleEditor(roleId);
   const { permissionList, load: loadPermissionList } = usePermissionList(token);
 
   useEffect(() => loadPermissionList(), [loadPermissionList]);
-
-  useEffect(() => {
-    if (!Number.isInteger(roleId) || roleId <= 0) {
-      setState({ status: "missing" });
-      return;
-    }
-    setState({ status: "loading" });
-    if (!token) return;
-    let active = true;
-    getRole(token, roleId)
-      .then((role) => {
-        if (active) setState({ status: "loaded", role });
-      })
-      .catch((error: unknown) => {
-        if (!active) return;
-        if (error instanceof ApiRequestError && error.status === 404) {
-          setState({ status: "missing" });
-          return;
-        }
-        console.error("Loading the role failed:", error);
-        setState({ status: "failed" });
-      });
-    return () => {
-      active = false;
-    };
-  }, [token, roleId]);
 
   switch (state.status) {
     case "missing":
@@ -76,8 +53,10 @@ export default function RolePage() {
       );
   }
 
-  const { role } = state;
+  const { role, checked, saveStatus } = state;
   const name = formatRoleName(role.name);
+  const canEdit = canChangeRole && !role.is_builtin;
+
   return (
     <div className="space-y-6">
       <nav aria-label={t("breadcrumb")}>
@@ -122,7 +101,32 @@ export default function RolePage() {
       {permissionList.status === "loaded" && (
         <RolePermissionList
           permissions={permissionList.permissions}
-          granted={new Set(role.permissions)}
+          checked={checked}
+          onChange={!canEdit || saveStatus === "saving" ? undefined : setChecked}
+          actions={
+            canEdit && (
+              <>
+                {saveStatus === "failed" && (
+                  <p role="alert" className="text-sm text-error-600">
+                    {t("saveFailed")}
+                  </p>
+                )}
+                {saveStatus === "saved" && (
+                  <p role="status" className="text-sm text-success-700 dark:text-success-300">
+                    {t("saved")}
+                  </p>
+                )}
+                <Button
+                  size="sm"
+                  loading={saveStatus === "saving"}
+                  disabled={!changed}
+                  onClick={saveChecked}
+                >
+                  {t("save")}
+                </Button>
+              </>
+            )
+          }
         />
       )}
     </div>

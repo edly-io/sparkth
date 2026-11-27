@@ -1,25 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { twMerge } from "tailwind-merge";
 import { Input } from "@/core/components/ui/Input";
 import { RiskChips } from "@/core/permissions/components/ui/RiskChips";
 import { filterPermissions, groupByCategory } from "@/core/permissions/permissionList";
+import { toggleItem } from "@/core/permissions/sets";
 import type { PermissionResponse } from "@/core/permissions/types";
 
 /**
- * Every permission, grouped under its category, with those in `granted` ticked: each shows its label,
- * risks, description and internal name, and each group how many of its permissions are granted. A
- * group can be collapsed, and a filter narrows the list by label, category or internal name.
+ * Every permission, grouped under its category, with those in `checked` checked: each shows its
+ * label, risks, description and internal name, and each group how many of its permissions are
+ * granted. A group can be collapsed, and a filter narrows the list by label, category or internal
+ * name. With `onChange`, permissions can be checked and unchecked, one at a time or a whole category
+ * at once, and each change hands over the permissions granted after it; without it, none can be
+ * changed. `actions` sit beside the filter.
  */
 export function RolePermissionList({
   permissions,
-  granted,
+  checked,
+  onChange,
+  actions,
 }: {
   permissions: PermissionResponse[];
-  granted: ReadonlySet<string>;
+  checked: ReadonlySet<string>;
+  onChange?: (checked: ReadonlySet<string>) => void;
+  actions?: ReactNode;
 }) {
   const t = useTranslations("permissions.roles.detail.list");
   const tPermissions = useTranslations("permissions");
@@ -27,12 +35,21 @@ export function RolePermissionList({
   const [collapsedCategories, setCollapsedCategories] = useState<ReadonlySet<string>>(new Set());
   const byCategory = groupByCategory(permissions);
   const matchingByCategory = groupByCategory(filterPermissions(permissions, filter));
-  const grantedCount = permissions.filter(({ name }) => granted.has(name)).length;
+  const checkedCount = permissions.filter(({ name }) => checked.has(name)).length;
 
-  const toggleCollapsed = (category: string) => {
-    const next = new Set(collapsedCategories);
-    if (!next.delete(category)) next.add(category);
-    setCollapsedCategories(next);
+  const toggleChecked = (permission: string) => {
+    if (!onChange) return;
+    onChange(toggleItem(checked, permission));
+  };
+
+  const setCategoryChecked = (categoryPermissions: PermissionResponse[], isChecked: boolean) => {
+    if (!onChange) return;
+    const next = new Set(checked);
+    for (const { name } of categoryPermissions) {
+      if (isChecked) next.add(name);
+      else next.delete(name);
+    }
+    onChange(next);
   };
 
   return (
@@ -50,45 +67,64 @@ export function RolePermissionList({
         </div>
         <p className="text-sm text-muted-foreground">
           {t.rich("granted", {
-            granted: grantedCount,
+            granted: checkedCount,
             total: permissions.length,
             strong: (chunks) => <strong className="font-semibold text-foreground">{chunks}</strong>,
           })}
         </p>
+        {actions && <div className="ml-auto flex items-center gap-3">{actions}</div>}
       </div>
       {matchingByCategory.size === 0 && (
         <p className="text-sm text-muted-foreground">{tPermissions("picker.noMatches")}</p>
       )}
-      {[...matchingByCategory].map(([category, categoryMatches]) => {
+      {[...byCategory].map(([category, categoryPermissions]) => {
+        const categoryMatches = matchingByCategory.get(category);
+        if (!categoryMatches) return null;
         const open = !collapsedCategories.has(category);
-        const categoryPermissions = byCategory.get(category) ?? [];
+        const categoryCheckedCount = categoryPermissions.filter(({ name }) =>
+          checked.has(name),
+        ).length;
+        const allChecked = categoryCheckedCount === categoryPermissions.length;
         return (
           <fieldset
             key={category}
             className="overflow-hidden rounded-xl border border-border bg-card"
           >
             <legend className="sr-only">{category}</legend>
-            <button
-              type="button"
-              aria-expanded={open}
-              onClick={() => toggleCollapsed(category)}
-              className="flex w-full items-center gap-2.5 bg-surface-variant px-4 py-3 text-left"
-            >
-              <span className="text-[15px] font-semibold text-foreground">{category}</span>
-              <span className="text-[13px] text-muted-foreground">
-                {t("groupCount", {
-                  granted: categoryPermissions.filter(({ name }) => granted.has(name)).length,
-                  total: categoryPermissions.length,
-                })}
-              </span>
-              <ChevronDown
-                className={twMerge(
-                  "ml-auto h-4 w-4 text-muted-foreground transition-transform",
-                  open && "rotate-180",
-                )}
-                aria-hidden="true"
+            <div className="flex items-center gap-3 bg-surface-variant px-4">
+              <input
+                type="checkbox"
+                aria-label={t("allInCategory", { category })}
+                className="h-4 w-4 shrink-0 accent-primary-600"
+                checked={allChecked}
+                ref={(box) => {
+                  if (box) box.indeterminate = categoryCheckedCount > 0 && !allChecked;
+                }}
+                disabled={!onChange}
+                onChange={(event) => setCategoryChecked(categoryPermissions, event.target.checked)}
               />
-            </button>
+              <button
+                type="button"
+                aria-expanded={open}
+                onClick={() => setCollapsedCategories(toggleItem(collapsedCategories, category))}
+                className="flex flex-1 items-center gap-2.5 py-3 text-left"
+              >
+                <span className="text-[15px] font-semibold text-foreground">{category}</span>
+                <span className="text-[13px] text-muted-foreground">
+                  {t("groupCount", {
+                    granted: categoryCheckedCount,
+                    total: categoryPermissions.length,
+                  })}
+                </span>
+                <ChevronDown
+                  className={twMerge(
+                    "ml-auto h-4 w-4 text-muted-foreground transition-transform",
+                    open && "rotate-180",
+                  )}
+                  aria-hidden="true"
+                />
+              </button>
+            </div>
             {open && (
               <ul className="divide-y divide-border border-t border-border">
                 {categoryMatches.map(({ name, label, description, risks }) => (
@@ -97,8 +133,9 @@ export function RolePermissionList({
                       id={`permission-${name}`}
                       type="checkbox"
                       className="mt-0.5 h-4 w-4 shrink-0 accent-primary-600"
-                      checked={granted.has(name)}
-                      disabled
+                      checked={checked.has(name)}
+                      disabled={!onChange}
+                      onChange={() => toggleChecked(name)}
                     />
                     <div className="min-w-0 space-y-1">
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
