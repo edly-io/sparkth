@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-import { useChatStream } from "@/plugins/compose/src/hooks/useChatStream";
+import { getRestoredStreamData, useChatStream } from "@/plugins/compose/src/hooks/useChatStream";
 import type { ChatMessage, TextAttachment } from "@/plugins/compose/src/types";
 
 const requestChatCompletionStream = vi.fn();
@@ -246,6 +246,40 @@ describe("useChatStream — a failure partway through", () => {
       content: "Canvas could not be reached.",
       isError: true,
     });
+  });
+});
+
+describe("useChatStream — text saved for a refresh", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    sessionStorage.clear();
+  });
+
+  it("drops an earlier reply's text before the next message is sent", async () => {
+    const stream = runStream([
+      { token: "Half a lesson.", done: false },
+      { error: "Canvas could not be reached.", done: true },
+    ]);
+    await act(async () => {
+      await stream.send();
+    });
+    let savedWhenSent: unknown = "unchecked";
+    requestChatCompletionStream.mockImplementation(async () => {
+      savedWhenSent = getRestoredStreamData("conv-1");
+      return { body: sseBody([DONE]) };
+    });
+    await act(async () => {
+      await stream.send();
+    });
+    expect(savedWhenSent).toBeNull();
+  });
+
+  it("saves the text written so far", async () => {
+    const stream = runStream([{ token: "Here is the lesson.", done: false }]);
+    await act(async () => {
+      await stream.send();
+    });
+    expect(getRestoredStreamData("conv-1")?.content).toBe("Here is the lesson.");
   });
 });
 

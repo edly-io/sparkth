@@ -263,7 +263,7 @@ async function readStream(
 
   // Final flush: write all accumulated tokens before returning so a refresh in
   // the narrow gap between stream-end and DB commit still recovers the full text.
-  // useConversation's polling clears the key once the DB message lands.
+  // It is cleared once the stored reply lands or the next message is sent.
   saveStreamProgress(conversationId, assistantText);
 
   return {
@@ -341,6 +341,8 @@ export function useChatStream({
       // Strip recovery placeholders before starting a fresh stream — prevents the
       // post-refresh polling from conflicting with a new, live stream.
       setMessages((prev) => prev.filter((m) => !RECOVERY_PLACEHOLDER_IDS.has(m.id)));
+      // An earlier reply's saved text must not come back under this one after a refresh.
+      clearStreamProgress(conversationId);
 
       const userMessage: ChatMessage = {
         id: crypto.randomUUID(),
