@@ -144,7 +144,7 @@ async def test_another_users_activity_cannot_be_launched(
     response = await client.get(f"/api/v1/pxc/activities/{activity.id}/launch", params={"permission": "play"})
 
     assert response.status_code == 403
-    await assert_activity_permission_denied(audit_events, "pxc.activity.read", OTHER_USER)
+    await assert_activity_permission_denied(audit_events, "pxc.activity.play", OTHER_USER)
 
 
 async def test_an_unknown_activity_cannot_be_launched(
@@ -338,7 +338,7 @@ async def test_listing_a_user_who_does_not_exist(
     assert (after.status_code, after.json()) == (200, [])
 
 
-async def test_a_reader_launches_another_authors_activity_as_a_learner_only(
+async def test_a_reader_without_play_cannot_open_the_student_view(
     client: AsyncClient,
     session: AsyncSession,
     stored_user: User,
@@ -349,17 +349,18 @@ async def test_a_reader_launches_another_authors_activity_as_a_learner_only(
     _write_built_files(activity)
     await grant_permission_at_scope(session, 1, "pxc.activity.read", USER, str(OTHER_USER))
 
-    play = await client.get(_launch_url(activity), params={"permission": "play"})
-    edit = await client.get(_launch_url(activity), params={"permission": "edit"})
+    response = await client.get(_launch_url(activity), params={"permission": "play"})
 
-    assert play.status_code == 200
-    assert _token_claims(play.json()) == (str(activity.id), Permission.play)
-    assert edit.status_code == 403
-    await assert_activity_permission_denied(audit_events, "pxc.activity.update", OTHER_USER)
+    assert response.status_code == 403
+    await assert_activity_permission_denied(audit_events, "pxc.activity.play", OTHER_USER)
 
 
-async def test_an_updater_launches_another_authors_activity_as_its_author(
-    client: AsyncClient, session: AsyncSession, stored_user: User, configured_secret: str
+async def test_an_updater_without_edit_cannot_open_the_author_view(
+    client: AsyncClient,
+    session: AsyncSession,
+    stored_user: User,
+    configured_secret: str,
+    audit_events: AuditEventsFetcher,
 ) -> None:
     activity = await _insert_owned(session, OTHER_USER)
     _write_built_files(activity)
@@ -367,16 +368,51 @@ async def test_an_updater_launches_another_authors_activity_as_its_author(
 
     response = await client.get(_launch_url(activity), params={"permission": "edit"})
 
-    assert response.status_code == 200
-    assert _token_claims(response.json()) == (str(activity.id), Permission.edit)
+    assert response.status_code == 403
+    await assert_activity_permission_denied(audit_events, "pxc.activity.edit", OTHER_USER)
 
 
-async def test_a_global_holder_launches_any_authors_activity(
+async def test_a_player_opens_the_student_view_only(
+    client: AsyncClient,
+    session: AsyncSession,
+    stored_user: User,
+    configured_secret: str,
+    audit_events: AuditEventsFetcher,
+) -> None:
+    activity = await _insert_owned(session, OTHER_USER)
+    _write_built_files(activity)
+    await grant_permission_at_scope(session, 1, "pxc.activity.play", USER, str(OTHER_USER))
+
+    play = await client.get(_launch_url(activity), params={"permission": "play"})
+    edit = await client.get(_launch_url(activity), params={"permission": "edit"})
+
+    assert play.status_code == 200
+    assert _token_claims(play.json()) == (str(activity.id), Permission.play)
+    assert edit.status_code == 403
+    await assert_activity_permission_denied(audit_events, "pxc.activity.edit", OTHER_USER)
+
+
+async def test_an_editor_opens_both_views(
     client: AsyncClient, session: AsyncSession, stored_user: User, configured_secret: str
 ) -> None:
     activity = await _insert_owned(session, OTHER_USER)
     _write_built_files(activity)
-    await grant_global_permission(session, 1, "pxc.activity.read")
+    await grant_permission_at_scope(session, 1, "pxc.activity.edit", USER, str(OTHER_USER))
+
+    play = await client.get(_launch_url(activity), params={"permission": "play"})
+    edit = await client.get(_launch_url(activity), params={"permission": "edit"})
+
+    assert (play.status_code, edit.status_code) == (200, 200)
+    assert _token_claims(play.json()) == (str(activity.id), Permission.play)
+    assert _token_claims(edit.json()) == (str(activity.id), Permission.edit)
+
+
+async def test_a_global_player_launches_any_authors_activity(
+    client: AsyncClient, session: AsyncSession, stored_user: User, configured_secret: str
+) -> None:
+    activity = await _insert_owned(session, OTHER_USER)
+    _write_built_files(activity)
+    await grant_global_permission(session, 1, "pxc.activity.play")
 
     response = await client.get(_launch_url(activity), params={"permission": "play"})
 
