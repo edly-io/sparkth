@@ -13,7 +13,7 @@ import {
  * role.read and group.read together; the checks and the role and group lists are stubbed
  * (utils/permissions.ts).
  */
-const ALL_THREE = ["permission.read", "role.read", "group.read"];
+const SECTION_PERMISSIONS = ["permission.read", "role.read", "group.read"];
 
 const COURSE_EDITOR: RoleResponse = {
   id: 1,
@@ -41,7 +41,7 @@ test.describe("access & permissions", () => {
   });
 
   test("opens on Roles from the sidebar and switches to Groups", async ({ page }) => {
-    await stubPermissions(page, ALL_THREE);
+    await stubPermissions(page, SECTION_PERMISSIONS);
     await openDashboard(page);
 
     await page.getByRole("link", { name: "Access & permissions" }).first().click();
@@ -63,7 +63,7 @@ test.describe("access & permissions", () => {
   });
 
   test("creates a role with the permissions checked", async ({ page }) => {
-    await stubPermissions(page, [...ALL_THREE, "role.create", "role.update"]);
+    await stubPermissions(page, [...SECTION_PERMISSIONS, "role.create", "role.update"]);
     await stubPermissionList(page, [
       {
         name: "role.read",
@@ -104,7 +104,7 @@ test.describe("access & permissions", () => {
   });
 
   test("opens a role's page from its card", async ({ page }) => {
-    await stubPermissions(page, ALL_THREE);
+    await stubPermissions(page, SECTION_PERMISSIONS);
     await stubRole(page, COURSE_EDITOR);
     await stubPermissionList(page, [
       {
@@ -129,7 +129,7 @@ test.describe("access & permissions", () => {
   });
 
   test("saves the permissions checked on a role's page", async ({ page }) => {
-    await stubPermissions(page, [...ALL_THREE, "role.update"]);
+    await stubPermissions(page, [...SECTION_PERMISSIONS, "role.update"]);
     await stubRole(page, COURSE_EDITOR);
     await stubPermissionList(page, [
       {
@@ -172,11 +172,11 @@ test.describe("access & permissions", () => {
     await expect(save).toBeDisabled();
   });
 
-  for (const missing of ALL_THREE) {
+  for (const missing of SECTION_PERMISSIONS) {
     test(`without ${missing} there is no entry and the URL shows no access`, async ({ page }) => {
       await stubPermissions(
         page,
-        ALL_THREE.filter((permission) => permission !== missing),
+        SECTION_PERMISSIONS.filter((permission) => permission !== missing),
       );
       await openDashboard(page);
       await expect(page.getByRole("link", { name: "Access & permissions" })).toHaveCount(0);
