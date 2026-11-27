@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderWithIntl } from "@/tests/intl";
 import type { PermissionResponse, RoleResponse } from "@/core/permissions/types";
 
@@ -49,7 +50,7 @@ describe("ComparePage", () => {
     await screen.findAllByRole("table");
   });
 
-  it("compares the roles one category at a time", async () => {
+  it("compares the roles over the first category to start with", async () => {
     renderWithIntl(<ComparePage />);
 
     const access = await screen.findByRole("table", { name: "Users & access" });
@@ -57,11 +58,25 @@ describe("ComparePage", () => {
     expect(within(access).getByRole("row", { name: /Edit roles/ })).toHaveTextContent(
       "Not granted",
     );
-    expect(screen.getByRole("heading", { level: 2, name: "Users & access" })).toBeInTheDocument();
-    const compose = screen.getByRole("table", { name: "Compose" });
-    expect(within(compose).getByRole("row", { name: /Read conversations/ })).toBeInTheDocument();
+    expect(screen.queryByRole("table", { name: "Compose" })).not.toBeInTheDocument();
     expect(listRoles).toHaveBeenCalledWith("test-token");
     expect(listPermissions).toHaveBeenCalledWith("test-token");
+  });
+
+  it("offers every category with its size, and compares the one chosen", async () => {
+    renderWithIntl(<ComparePage />);
+
+    const categories = await screen.findByLabelText("Show permissions for");
+    expect(
+      within(categories)
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual(["Users & access · 2 permissions", "Compose · 1 permission"]);
+    await userEvent.selectOptions(categories, "Compose");
+
+    const compose = screen.getByRole("table", { name: "Compose" });
+    expect(within(compose).getByRole("row", { name: /Read conversations/ })).toBeInTheDocument();
+    expect(screen.queryByRole("table", { name: "Users & access" })).not.toBeInTheDocument();
   });
 
   it("explains the marks and that roles are changed on their own pages", async () => {

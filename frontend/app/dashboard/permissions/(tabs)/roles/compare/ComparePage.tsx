@@ -1,18 +1,21 @@
 "use client";
 
 import { Eye } from "lucide-react";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   useRoleComparison,
   type RoleComparison,
 } from "@/app/dashboard/permissions/(tabs)/roles/compare/hooks";
 import { Alert } from "@/core/components/ui/Alert";
+import { Select } from "@/core/components/ui/Select";
 import { Spinner } from "@/core/components/ui/Spinner";
 import { Badge } from "@/core/permissions/components/ui/Badge";
 import { GrantStatusIcon } from "@/core/permissions/components/ui/GrantStatusIcon";
 import { RoleComparisonGrid } from "@/core/permissions/components/ui/RoleComparisonGrid";
 import { RolesViewSwitch } from "@/core/permissions/components/ui/RolesViewSwitch";
 import { groupByCategory } from "@/core/permissions/permissionList";
+import type { PermissionResponse, RoleResponse } from "@/core/permissions/types";
 
 /** The Roles tab's compare view: the roles' permissions side by side, to look at only. */
 export default function ComparePage() {
@@ -49,7 +52,7 @@ export default function ComparePage() {
   );
 }
 
-/** One table per category once loaded; a spinner or a message until then. */
+/** The comparison once loaded; a spinner or a message until then. */
 function Comparison({ comparison }: { comparison: RoleComparison }) {
   const t = useTranslations("permissions.roles.compare");
   const tRoles = useTranslations("permissions.roles");
@@ -68,14 +71,39 @@ function Comparison({ comparison }: { comparison: RoleComparison }) {
   if (permissions.length === 0) {
     return <p className="text-sm text-muted-foreground">{t("noPermissions")}</p>;
   }
+  return <ComparisonByCategory roles={roles} permissions={permissions} />;
+}
+
+/** The roles compared over one category of permissions at a time, chosen from a dropdown. */
+function ComparisonByCategory({
+  roles,
+  permissions,
+}: {
+  roles: RoleResponse[];
+  permissions: PermissionResponse[];
+}) {
+  const t = useTranslations("permissions.roles.compare");
+  const permissionsByCategory = groupByCategory(permissions);
+  const [firstCategory] = permissionsByCategory.keys();
+  const [selectedCategory, setSelectedCategory] = useState(firstCategory);
+  const shownPermissions = permissionsByCategory.get(selectedCategory);
+  if (!shownPermissions)
+    throw new Error(`The chosen category ${selectedCategory} is not among the options`);
   return (
-    <div className="space-y-6">
-      {[...groupByCategory(permissions)].map(([category, categoryPermissions]) => (
-        <section key={category} className="space-y-2">
-          <h2 className="text-base font-semibold text-foreground">{category}</h2>
-          <RoleComparisonGrid caption={category} permissions={categoryPermissions} roles={roles} />
-        </section>
-      ))}
+    <div className="space-y-4">
+      <div className="max-w-sm">
+        <Select
+          label={t("showFor")}
+          value={selectedCategory}
+          onChange={(event) => setSelectedCategory(event.target.value)}
+          options={[...permissionsByCategory].map(([category, categoryPermissions]) => ({
+            value: category,
+            label: t("categoryOption", { category, count: categoryPermissions.length }),
+          }))}
+          className="border py-1.5 pl-3 text-sm"
+        />
+      </div>
+      <RoleComparisonGrid caption={selectedCategory} permissions={shownPermissions} roles={roles} />
       <p className="text-sm text-muted-foreground">{t("note")}</p>
     </div>
   );

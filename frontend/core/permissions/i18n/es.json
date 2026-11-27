@@ -48,6 +48,8 @@
         "loading": "Cargando la comparación…",
         "loadFailed": "No se pudo cargar la comparación. Inténtalo más tarde.",
         "noPermissions": "No hay permisos que comparar.",
+        "showFor": "Mostrar permisos de",
+        "categoryOption": "{category} · {count, plural, one {# permiso} other {# permisos}}",
         "legend": "Leyenda",
         "granted": "Concedido",
         "notGranted": "No concedido",

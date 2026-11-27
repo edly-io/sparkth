@@ -48,6 +48,8 @@
         "loading": "Chargement de la comparaison…",
         "loadFailed": "Impossible de charger la comparaison. Réessayez plus tard.",
         "noPermissions": "Aucune autorisation à comparer.",
+        "showFor": "Afficher les autorisations pour",
+        "categoryOption": "{category} · {count, plural, one {# autorisation} other {# autorisations}}",
         "legend": "Légende",
         "granted": "Accordée",
         "notGranted": "Non accordée",

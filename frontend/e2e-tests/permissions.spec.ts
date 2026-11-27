@@ -120,6 +120,7 @@ test.describe("access & permissions", () => {
     await page.getByRole("link", { name: "Compare permissions" }).click();
     await expect(page).toHaveURL(/\/dashboard\/permissions\/roles\/compare\/?$/);
     await expect(page.getByText("View only")).toBeVisible();
+    await expect(page.getByLabel("Show permissions for")).toHaveValue("Users & access");
     await expect(page.getByRole("row", { name: /See roles/ })).toContainText("Not granted");
     await expect(page.getByText("No role has this yet")).toBeVisible();
     await expect(page.getByRole("link", { name: "Roles", exact: true })).toHaveAttribute(
