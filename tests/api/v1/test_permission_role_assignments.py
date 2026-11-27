@@ -121,6 +121,24 @@ async def test_list_user_assignments_returns_active_rows_without_email(
     )
 
 
+async def test_list_user_assignments_leaves_out_a_soft_deleted_user(client: AsyncClient, session: AsyncSession) -> None:
+    caller = await make_user_with_permissions(session, ["role.read"])
+    role = await make_role(session, _uniq("role"), [])
+    kept = await make_user(session, _uniq("kept"))
+    gone = await make_user(session, _uniq("gone"))
+    await add_role_assignment(session, kept, role, "global", None)
+    await add_role_assignment(session, gone, role, "global", None)
+    gone.soft_delete()
+    await session.flush()
+    await session.commit()
+    login_as(client, caller)
+
+    response = await client.get(_build_assignments_url(role))
+
+    assert response.status_code == 200
+    assert [row["user_id"] for row in response.json()] == [kept.id]
+
+
 async def test_list_user_assignments_pages(client: AsyncClient, session: AsyncSession) -> None:
     caller = await make_user_with_permissions(session, ["role.read"])
     role = await make_role(session, _uniq("role"), [])
